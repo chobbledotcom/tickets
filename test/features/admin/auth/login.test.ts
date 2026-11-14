@@ -35,6 +35,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { loginAsAdmin } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** POST a wrong-password login from the given client IP, then assert it is
  *  rejected with a 302 and the standard wrong-credentials flash. */
@@ -61,10 +62,7 @@ const expectLoginRejectedWithWrappedKey = async (
   message: string,
 ): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
-  await getDb().execute({
-    args: [wrappedDataKey],
-    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",
-  });
+  await getDb().execute(sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey} WHERE id = 1`);
   const response = await handleRequest(
     await mockAdminLoginRequest({
       password: TEST_ADMIN_PASSWORD,

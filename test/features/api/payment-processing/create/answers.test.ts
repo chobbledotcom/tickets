@@ -11,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
+import { sql } from "#db/sql.ts";
 
 const bookedEntry = async (): Promise<CreatedEntry> => {
   const listing = await createTestListing({ maxAttendees: 5 });
@@ -42,10 +43,7 @@ const rideTail = async (
     await execute(statement.sql, statement.args);
   }
   return (
-    await getDb().execute({
-      args: [entry.attendee.id],
-      sql: "SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ?",
-    })
+    await getDb().execute(sql`SELECT question_id, answer_id, string_id FROM attendee_answers WHERE attendee_id = ${entry.attendee.id}`)
   ).rows;
 };
 
@@ -85,10 +83,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
 describeWithEnv("paid booking answers at booking", { db: true }, () => {
   const recorded = async (entry: CreatedEntry) =>
     (
-      await getDb().execute({
-        args: [entry.attendee.id],
-        sql: "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-      })
+      await getDb().execute(sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${entry.attendee.id}`)
     ).rows;
 
   test("records the chosen answer as the answer at booking", async () => {

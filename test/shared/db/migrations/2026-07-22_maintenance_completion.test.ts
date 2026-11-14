@@ -6,21 +6,19 @@ import maintenanceCompletionMigration from "#db/migrations/2026-07-22_maintenanc
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 const runMigration = (): Promise<void> =>
   maintenanceCompletionMigration(context).up();
 const activityTask = () =>
   getDb().execute(
-    "SELECT checkpoint, completed_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'",
+    sql`SELECT checkpoint, completed_at FROM maintenance_tasks WHERE name = 'activity_log_backfill'`
   );
 const replaceActivityTask = (checkpoint: string | null) =>
-  getDb().execute({
-    args: ["activity_log_backfill", checkpoint],
-    sql: `INSERT OR REPLACE INTO maintenance_tasks
+  getDb().execute(sql`INSERT OR REPLACE INTO maintenance_tasks
             (name, checkpoint, completed_at, next_run_at)
-          VALUES (?, ?, NULL, 0)`,
-  });
+          VALUES (${"activity_log_backfill"}, ${checkpoint}, NULL, 0)`);
 
 describeWithEnv(
   "db > migrations > maintenance completion",

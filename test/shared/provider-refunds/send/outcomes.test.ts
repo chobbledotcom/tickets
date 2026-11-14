@@ -18,6 +18,7 @@ import {
 } from "#test/shared/provider-refunds/engine-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { chargeMoney, foundCharge } from "#test-utils/payment-state.ts";
+import { sql } from "#db/sql.ts";
 
 const replaceStoredRequest = async (
   payment: ReturnType<typeof refundReference>,
@@ -29,10 +30,9 @@ const replaceStoredRequest = async (
   if (row === null) throw new Error("Expected a stored refund authority");
   const state = { ...row.state, request: change(row.state.request) };
   await execute(
-    `UPDATE payment_charges
-        SET capability = ?, refund_state = ?
-      WHERE id = ?`,
-    [state.request.capability, writeRefundAuthorityState(state), row.id],
+    sql`UPDATE payment_charges
+        SET capability = ${state.request.capability}, refund_state = ${writeRefundAuthorityState(state)}
+      WHERE id = ${row.id}`
   );
 };
 

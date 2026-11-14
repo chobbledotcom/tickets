@@ -31,6 +31,7 @@ import {
   setupListingAndLogin,
   testCookie,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server (admin attendees) > attendee edit",
@@ -322,10 +323,7 @@ describeWithEnv(
 
         // Manually set listing to inactive after creating attendee
         const { getDb } = await import("#db/client.ts");
-        await getDb().execute({
-          args: [inactiveListing.id],
-          sql: "UPDATE listings SET active = 0 WHERE id = ?",
-        });
+        await getDb().execute(sql`UPDATE listings SET active = 0 WHERE id = ${inactiveListing.id}`);
 
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
         // Listing still shows in registrations table even when inactive

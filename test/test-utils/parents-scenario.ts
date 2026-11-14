@@ -13,6 +13,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "./db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** One listing in a {@link makeParent} spec: the usual `createTestListing`
  * overrides, plus `daily: true` to create it through `createDailyTestListing`. */
@@ -152,9 +153,7 @@ export const makeParentWithDeactivatedChild = async (): Promise<{
   const okChild = children[0]!;
   const inactiveChild = children[1]!;
   const { execute } = await import("#db/client.ts");
-  await execute("UPDATE listings SET active = 0 WHERE id = ?", [
-    inactiveChild.id,
-  ]);
+  await execute(sql`UPDATE listings SET active = 0 WHERE id = ${inactiveChild.id}`);
   return { inactiveChild, okChild, parent };
 };
 

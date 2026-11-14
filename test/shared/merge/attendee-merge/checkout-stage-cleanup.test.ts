@@ -7,6 +7,7 @@ import {
 } from "#test/shared/merge/attendee-merge/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("attendee merge service", { db: true }, () => {
   test("removes checkout stages for both merged attendees", async () => {
@@ -31,12 +32,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryAll(
-        "SELECT attendee_id FROM checkout_stages ORDER BY attendee_id",
+        sql`SELECT attendee_id FROM checkout_stages ORDER BY attendee_id`
       ),
     ).toEqual([]);
     expect(
       await queryAll(
-        "SELECT payment_session_id, attendee_id FROM processed_payments ORDER BY payment_session_id",
+        sql`SELECT payment_session_id, attendee_id FROM processed_payments ORDER BY payment_session_id`
       ),
     ).toEqual([
       {

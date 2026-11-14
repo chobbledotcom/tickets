@@ -25,6 +25,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import { listingPair } from "./helpers.ts";
+import { sql } from "#db/sql.ts";
 
 type ValidationResult = Awaited<ReturnType<typeof validateAllItems>>;
 
@@ -59,10 +60,7 @@ const twoPathIntent = async (
     unitPrice: 200,
   });
   const { execute } = await import("#db/client.ts");
-  await execute("UPDATE listings SET max_quantity = ? WHERE id = ?", [
-    maxQuantity,
-    listing.id,
-  ]);
+  await execute(sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${listing.id}`);
   return bookingIntent([
     { e: listing.id, p: 200, q: first },
     { e: listing.id, p: 200, q: second },

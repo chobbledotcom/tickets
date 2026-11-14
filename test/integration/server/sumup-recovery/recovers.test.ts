@@ -13,6 +13,7 @@ import {
   sumupRecoveryRow,
   withSumupCheckoutStatus,
 } from "#test-utils/sumup.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server > SumUp recovery", { db: true }, () => {
   /** Stage a real checkout the way production does, then make it due. */
@@ -54,8 +55,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       await runSumupRecovery();
       // The row is finished, so the second run does not even select it.
       await execute(
-        "UPDATE sumup_checkouts SET recovery_state = 'waiting', next_check_at = ? WHERE sumup_id = ?",
-        ["2000-01-01T00:00:00.000Z", "co_twice"],
+        sql`UPDATE sumup_checkouts SET recovery_state = 'waiting', next_check_at = ${"2000-01-01T00:00:00.000Z"} WHERE sumup_id = ${"co_twice"}`
       );
       await runSumupRecovery();
 
@@ -132,8 +132,7 @@ describeWithEnv("server > SumUp recovery", { db: true }, () => {
       if (!seen) throw new Error("The staged checkout was not due");
       // Another runner answers the row between our read and our write.
       await execute(
-        "UPDATE sumup_checkouts SET recovery_state = 'finished', next_check_at = NULL WHERE sumup_id = ?",
-        ["co_raced"],
+        sql`UPDATE sumup_checkouts SET recovery_state = 'finished', next_check_at = NULL WHERE sumup_id = ${"co_raced"}`
       );
 
       expect(await applySumupRecoveryEvent(seen, "read_pending")).toBe(false);

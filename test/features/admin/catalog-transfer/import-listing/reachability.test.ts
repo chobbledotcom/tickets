@@ -17,6 +17,7 @@ import {
   optInAddOnForGroups,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import { sql } from "#db/sql.ts";
 
 // Child add-on reachability on import lives in its own file: the setup creates
 // listings, a group, and an opt-in modifier, and folding it into
@@ -108,13 +109,13 @@ describeWithEnv(
         trigger: "optional",
       });
       await execute(
-        `CREATE TRIGGER activate_imported_child_add_on
+        sql`CREATE TRIGGER activate_imported_child_add_on
            AFTER INSERT ON listings
            BEGIN
              UPDATE modifiers SET active = 1 WHERE id = ${modifier.id};
              INSERT INTO modifier_listings (modifier_id, listing_id)
              VALUES (${modifier.id}, NEW.id);
-           END`,
+           END`
       );
       const before = await countRows("listings");
 

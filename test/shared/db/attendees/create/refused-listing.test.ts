@@ -17,6 +17,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 const FULL_DAY = "2026-10-01";
 
@@ -163,10 +164,7 @@ describeWithEnv(
       const listing = await createTestListing({ maxAttendees: 10 });
       const [cached] = await getListingsWithCountsByIds([listing.id]);
       expect(cached?.id).toBe(listing.id);
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
 
       await expectLateOrderRefusedNaming(
         [{ listingId: listing.id, quantity: 1 }],

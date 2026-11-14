@@ -31,6 +31,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server bulk email > send", { db: true }, () => {
   describe("POST /admin/emails/send", () => {
@@ -179,8 +180,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       // Alice has a contact history row nothing can read, so recording the
       // contacts must fail once the send has gone out.
       await execute(
-        "INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (?, ?, ?)",
-        [await hashEmail("alice@example.com"), "broken", Date.now()],
+        sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${await hashEmail("alice@example.com")}, ${"broken"}, ${Date.now()})`
       );
 
       await assertRejects(() =>

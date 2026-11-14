@@ -26,23 +26,22 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 const pruneLegacyReplayRow = async (sessionId: string) => {
   await execute(
-    `UPDATE attendees
+    sql`UPDATE attendees
         SET pii_payment_session_id = NULL
       WHERE id = (
         SELECT attendee_id
           FROM processed_payments
-         WHERE payment_session_id = ?
-      )`,
-    [sessionId],
+         WHERE payment_session_id = ${sessionId}
+      )`
   );
   await execute(
-    `UPDATE processed_payments
-        SET processed_at = ?, payment_reference = ''
-      WHERE payment_session_id = ?`,
-    ["2000-01-01T00:00:00.000Z", sessionId],
+    sql`UPDATE processed_payments
+        SET processed_at = ${"2000-01-01T00:00:00.000Z"}, payment_reference = ''
+      WHERE payment_session_id = ${sessionId}`
   );
   await runDatabasePruning();
   expect(await getProcessedPayment(sessionId)).toBe(null);

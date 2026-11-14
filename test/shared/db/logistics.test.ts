@@ -21,6 +21,7 @@ import {
   insertSecondBookingRow,
   logisticsAgentAssignment,
 } from "#test-utils/logistics.ts";
+import { sql } from "#db/sql.ts";
 
 const D1 = "2026-06-16";
 const D2 = "2026-06-17";
@@ -94,8 +95,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
     const readFlag = async (): Promise<number> =>
       (
         await queryAll<{ split_logistics_agents: number }>(
-          "SELECT split_logistics_agents FROM attendees WHERE id = ?",
-          [attendeeId],
+          sql`SELECT split_logistics_agents FROM attendees WHERE id = ${attendeeId}`
         )
       )[0]!.split_logistics_agents;
     expect(await readFlag()).toBe(1);
@@ -213,10 +213,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
       D1,
       D2,
     );
-    await getDb().execute({
-      args: [booking.attendeeId, booking.listingId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-    });
+    await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${booking.attendeeId} AND listing_id = ${booking.listingId}`);
 
     expect(await getAgentRunSheetBookings([van], [D1], [booking])).toEqual([]);
   });

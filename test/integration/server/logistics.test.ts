@@ -27,6 +27,7 @@ import {
   createTestManagerSession,
 } from "#test-utils/session.ts";
 import { enableFeature, storedFeatureEnabled } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 /** Create a listing + attendee pair and assign logistics agents to the
  *  booking line. Delegates to the shared `createListingWithAttendeeAndLogistics`
@@ -181,7 +182,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     test("rolls back the name when assigned-user writes fail", async () => {
       const id = await createLogisticsAgent("Atomic van");
       const userId = (await getAllUsers())[0]!.id;
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_agent_user_link
         BEFORE INSERT ON user_logistics_agents
         BEGIN

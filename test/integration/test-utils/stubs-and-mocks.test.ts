@@ -30,6 +30,7 @@ import {
   getSetupState,
   invalidateTestDbCache,
 } from "#test-utils/test-state.ts";
+import { sql } from "#db/sql.ts";
 
 describe("test-utils — stubs, caches & request mocks", () => {
   afterEach(() => {
@@ -140,7 +141,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
     test("creates an in-memory database that can execute queries", async () => {
       await createTestDb();
       const { getDb } = await import("#db/client.ts");
-      const result = await getDb().execute("SELECT 1 as test");
+      const result = await getDb().execute(sql`SELECT 1 as test`);
       expect(result.rows.length).toBe(1);
       assertArrayIncludes(result.columns, ["test"]);
     });
@@ -170,7 +171,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
       // After reset, we need to set up again to get a working db
       await createTestDb();
       // Data from previous test should be gone
-      const result = await getDb().execute("SELECT * FROM listings");
+      const result = await getDb().execute(sql`SELECT * FROM listings`);
       expect(result.rows.length).toBe(0);
     });
 

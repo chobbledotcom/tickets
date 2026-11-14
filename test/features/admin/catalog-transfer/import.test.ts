@@ -10,6 +10,7 @@ import { requireEntityImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("catalog group import", { db: true }, () => {
   test("creates a group with its named member", async () => {
@@ -124,9 +125,9 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
       name: "Tx missing member",
     });
     await execute(
-      `CREATE TRIGGER delete_member_after_group_insert
+      sql`CREATE TRIGGER delete_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`
     );
 
     expect(
@@ -156,9 +157,9 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
     // in-transaction member recheck can roll the whole import back.
     const member = await createTestListing({ name: "Tx flipped member" });
     await execute(
-      `CREATE TRIGGER plan_member_after_group_insert
+      sql`CREATE TRIGGER plan_member_after_group_insert
          AFTER INSERT ON groups
-         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`,
+         BEGIN UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}; END`
     );
 
     try {
@@ -167,7 +168,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
         member,
       );
     } finally {
-      await execute("DROP TRIGGER plan_member_after_group_insert");
+      await execute(sql`DROP TRIGGER plan_member_after_group_insert`);
     }
   });
 });

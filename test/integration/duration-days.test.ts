@@ -17,6 +17,7 @@ import {
   createDailyTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("integration: duration_days", { db: true }, () => {
   describe("admin edit flow", () => {
@@ -33,10 +34,7 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
 
       await updateTestListing(listing.id, { durationDays: 5 });
 
-      const row = await getDb().execute({
-        args: [listing.id],
-        sql: "SELECT end_at FROM listing_attendees WHERE listing_id = ?",
-      });
+      const row = await getDb().execute(sql`SELECT end_at FROM listing_attendees WHERE listing_id = ${listing.id}`);
       expect(String(row.rows[0]!.end_at)).toBe("2026-08-15T00:00:00.000Z");
 
       const fresh = await getListingWithCount(listing.id);

@@ -8,6 +8,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireBundleImport } from "#test-utils/catalog-import.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** The mixed package with its stored member re-added at quantity 1, beside
  * the second member the caller declares. */
@@ -98,9 +99,7 @@ describeWithEnv("bundle package member checks", { db: true }, () => {
       name: "Stored Member",
     });
     // The create form carries no built-site switch; the column is the fact.
-    await execute("UPDATE listings SET assign_built_site = 1 WHERE id = ?", [
-      member.id,
-    ]);
+    await execute(sql`UPDATE listings SET assign_built_site = 1 WHERE id = ${member.id}`);
     const result = await importCatalog(mixedPackage());
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");

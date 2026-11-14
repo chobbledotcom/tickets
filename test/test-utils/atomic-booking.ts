@@ -1,4 +1,5 @@
 import { getDb } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const withBookingWriteTrigger = async (
   triggerName: string,
@@ -8,17 +9,17 @@ const withBookingWriteTrigger = async (
 ): Promise<void> => {
   const db = getDb();
   await db.execute(
-    `CREATE TRIGGER ${triggerName}
+    sql`CREATE TRIGGER ${sqlName(triggerName)}
        BEFORE INSERT ON listing_attendees
        WHEN NEW.listing_id = ${listingId}
        BEGIN
-         ${action}
-       END`,
+         ${TODO_SQL_TEXT(action)}
+       END`
   );
   try {
     await body();
   } finally {
-    await db.execute(`DROP TRIGGER ${triggerName}`);
+    await db.execute(sql`DROP TRIGGER ${sqlName(triggerName)}`);
   }
 };
 

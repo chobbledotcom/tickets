@@ -25,6 +25,7 @@ import type {
 } from "#test/specs/support/world.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
+import { sql } from "#db/sql.ts";
 
 /** What the organiser types into the record's form. A box left out here keeps
  * whatever the page already had in it, the way it would for a person who edits
@@ -79,15 +80,7 @@ export const unreadableRecord = async (
   counts: StoredCounts,
 ): Promise<void> => {
   await execute(
-    "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
-    [
-      await hashEmail(email),
-      counts.visits,
-      counts.bookedThroughTheSite,
-      counts.bookedByHand,
-      "not-valid-ciphertext",
-      Date.now(),
-    ],
+    sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (${await hashEmail(email)}, ${counts.visits}, ${counts.bookedThroughTheSite}, ${counts.bookedByHand}, ${"not-valid-ciphertext"}, ${Date.now()})`
   );
 };
 

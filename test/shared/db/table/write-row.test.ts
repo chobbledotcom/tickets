@@ -5,13 +5,14 @@ import { execute, getDb, queryAll, withTransaction } from "#db/client.ts";
 import { col, defineTable, writeTableRow } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { sql } from "#db/sql.ts";
 
 type WriteRow = { id: number; name: string };
 type WriteInput = { name: string };
 
 const createWriteTable = async () => {
   await execute(
-    "CREATE TABLE table_write_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+    sql`CREATE TABLE table_write_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`
   );
   return defineTable<WriteRow, WriteInput>({
     name: "table_write_rows",
@@ -37,7 +38,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     );
 
     expect(row).toEqual({ id: 1, name: "first" });
-    expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([
+    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([
       { id: 1, name: "FIRST" },
     ]);
   });
@@ -67,7 +68,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     );
 
     expect(row).toBeNull();
-    expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([]);
+    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([]);
   });
 
   // The id comes back from the row the INSERT wrote, so it needs no help from
@@ -87,7 +88,7 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
     // insert() reports the values it was given; the stored value keeps the
     // column's write transform.
     expect(row).toEqual({ id: 1, name: "Named" });
-    expect(await queryAll("SELECT id, name FROM table_write_rows")).toEqual([
+    expect(await queryAll(sql`SELECT id, name FROM table_write_rows`)).toEqual([
       { id: 1, name: "NAMED" },
     ]);
   });

@@ -28,6 +28,7 @@ import {
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "concurrent presses and the recovery claim",
@@ -262,12 +263,11 @@ describeWithEnv(
       // the words. The booking's own lines are already written, so any new
       // line for this attendee is the resend's.
       await execute(
-        `CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
        WHEN NEW.attendee_id = ${attendee.id}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
-       END`,
-        [],
+       END`
       );
       try {
         // The refused activity write surfaces as the press's own rejection.
@@ -279,7 +279,7 @@ describeWithEnv(
           webhooks: 1,
         });
       } finally {
-        await execute("DROP TRIGGER IF EXISTS reject_resend_activity", []);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
       }
 
       const second = await resend(attendee.id, "Activity Fault Buyer", "both");
@@ -307,22 +307,20 @@ describeWithEnv(
       );
       await addWebhook(listing.id);
       await execute(
-        `CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
+        sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
        WHEN NEW.attendee_id = ${attendee.id}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
-       END`,
-        [],
+       END`
       );
       await execute(
-        `CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
+        sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
        WHEN NEW.id = ${attendee.id}
          AND (NEW.email_pending > OLD.email_pending
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN
          SELECT RAISE(ABORT, 'restore rejected');
-       END`,
-        [],
+       END`
       );
       try {
         // The refused activity write surfaces as the press's own rejection,
@@ -337,8 +335,8 @@ describeWithEnv(
           webhooks: 0,
         });
       } finally {
-        await execute("DROP TRIGGER IF EXISTS reject_resend_activity", []);
-        await execute("DROP TRIGGER IF EXISTS reject_flag_restore", []);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_resend_activity`);
+        await execute(sql`DROP TRIGGER IF EXISTS reject_flag_restore`);
       }
     });
 

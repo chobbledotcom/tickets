@@ -4,20 +4,18 @@ import { getDb, queryOne } from "#db/client.ts";
 import attendeeListingsTagMigration from "#db/migrations/2026-07-03_attendee_listings_tag.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 // Data-only migration: it reads and rewrites one settings row via getDb.
 const context = buildMigrationContext({});
 const runMigration = () => attendeeListingsTagMigration(context).up();
 
 const setStoredTemplate = (value: string): Promise<unknown> =>
-  getDb().execute({
-    args: [value],
-    sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ?)",
-  });
+  getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('attendee_column_order', ${value})`);
 
 const storedTemplate = async (): Promise<string | null> => {
   const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = 'attendee_column_order'",
+    sql`SELECT value FROM settings WHERE key = 'attendee_column_order'`
   );
   return row?.value ?? null;
 };
@@ -48,7 +46,7 @@ describeWithEnv(
 
     test("is a no-op when the setting is unset", async () => {
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'attendee_column_order'",
+        sql`DELETE FROM settings WHERE key = 'attendee_column_order'`
       );
       await runMigration();
       expect(await storedTemplate()).toBe(null);

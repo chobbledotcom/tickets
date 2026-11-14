@@ -20,6 +20,7 @@ import {
   getTestSession,
   setupListingAndLogin,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const PROVIDER_BODY = JSON.stringify([
   {
@@ -72,9 +73,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
   afterEach(async () => {
     // The lockout tests plant a counter row for the shared test IP; a row
     // left behind would 429 the next non-staff session in this suite.
-    await execute("DELETE FROM login_attempts WHERE ip = ?", [
-      await hmacHash("address:direct"),
-    ]);
+    await execute(sql`DELETE FROM login_attempts WHERE ip = ${await hmacHash("address:direct")}`);
   });
 
   test("404s while no provider is configured", async () => {
@@ -118,8 +117,7 @@ describeWithEnv("GET /address-lookup", { db: true }, () => {
   // limiter's own namespace exactly as the configured limiter does.
   const lockOutTestIp = async (): Promise<void> => {
     await execute(
-      "INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (?, ?, ?)",
-      [await hmacHash("address:direct"), 30, nowMs() + 60_000],
+      sql`INSERT OR REPLACE INTO login_attempts (ip, attempts, locked_until) VALUES (${await hmacHash("address:direct")}, ${30}, ${nowMs() + 60_000})`
     );
   };
 

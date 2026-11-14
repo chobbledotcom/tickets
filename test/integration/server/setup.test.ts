@@ -37,6 +37,7 @@ import {
 } from "#test-utils/record-queries.ts";
 import { reloginAsAdmin } from "#test-utils/session.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (setup)", { db: true }, () => {
   /** Get CSRF token from setup page and submit setup form with given fields */
@@ -101,7 +102,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
   async function createEmptySettingsTable(): Promise<void> {
     await getDb().execute(
-      "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+      sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`
     );
     settings.invalidateCache();
     settings.setup.clearCache();

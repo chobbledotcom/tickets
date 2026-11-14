@@ -25,6 +25,7 @@ import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundThroughLedger } from "#test-utils/ledger.ts";
 import { insertSecondBookingRow } from "#test-utils/logistics.ts";
+import { sql } from "#db/sql.ts";
 
 /** An orphaned booking: a real token whose only line points at a listing
  * that no longer resolves, so the door's scope matches none of its rows and
@@ -170,10 +171,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       "ola@example.com",
     );
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`);
 
     const answer = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
@@ -266,11 +264,11 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       const { getDb } = await import("#db/client.ts");
       const { settings } = await import("#db/settings.ts");
       const stored = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'wrapped_private_key'",
+        sql`SELECT value FROM settings WHERE key = 'wrapped_private_key'`
       );
       const savedKey = stored.rows[0]?.value;
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`
       );
       settings.invalidateCache();
       try {
@@ -284,10 +282,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
         );
       } finally {
         if (savedKey !== undefined) {
-          await getDb().execute({
-            args: [savedKey as string],
-            sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ?)",
-          });
+          await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ${savedKey as string})`);
         }
         settings.invalidateCache();
       }

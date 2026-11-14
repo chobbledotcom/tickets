@@ -5,6 +5,7 @@ import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { recordQueries, statementSql } from "#test-utils/record-queries.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("recordQueries", { db: true }, () => {
   test("records every client call shape and forwards to the real client", async () => {
@@ -12,16 +13,13 @@ describeWithEnv("recordQueries", { db: true }, () => {
     const seen: string[] = [];
     const restore = recordQueries(seen);
     try {
-      const withArgs = await getDb().execute("SELECT ? AS n", [1]);
+      const withArgs = await getDb().execute(sql`SELECT ${1} AS n`);
       expect(Number(withArgs.rows[0]?.n)).toBe(1);
 
-      const objectForm = await getDb().execute({
-        args: [2],
-        sql: "SELECT ? AS n",
-      });
+      const objectForm = await getDb().execute(sql`SELECT ${2} AS n`);
       expect(Number(objectForm.rows[0]?.n)).toBe(2);
 
-      const bareString = await getDb().execute("SELECT 3 AS n");
+      const bareString = await getDb().execute(sql`SELECT 3 AS n`);
       expect(Number(bareString.rows[0]?.n)).toBe(3);
 
       await getDb().batch([["SELECT ? AS n", [4]]], "read");
@@ -45,7 +43,7 @@ describeWithEnv("recordQueries", { db: true }, () => {
 
   test("reads SQL from every statement form", () => {
     expect(statementSql("SELECT 1")).toBe("SELECT 1");
-    expect(statementSql({ args: [2], sql: "SELECT ?" })).toBe("SELECT ?");
+    expect(statementSql(sql`SELECT ${2}`)).toBe("SELECT ?");
     expect(statementSql(["SELECT ?", [3]])).toBe("SELECT ?");
   });
 });

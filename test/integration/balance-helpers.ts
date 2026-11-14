@@ -16,6 +16,7 @@ import { signMeta, webhookMeta } from "#test-utils/factories.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { testCsrfToken } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 export const settle = (id = "settle-session") => ({
@@ -36,10 +37,7 @@ export const insertBareAttendee = async (
 ): Promise<number> => {
   // A current `created` keeps this bare (booking-less) attendee out of the
   // orphaned-record auto-purge, which reaps orphans older than the retention.
-  const inserted = await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  const inserted = await getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`);
   const attendeeId = Number(inserted.lastInsertRowid);
   // Outstanding balance projects from the ledger: owe `remainingBalance` via a
   // sale leg to a listing with no booking row, nothing paid.

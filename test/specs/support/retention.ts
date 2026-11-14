@@ -17,6 +17,7 @@ import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { maintenance } from "#shared/maintenance/runner.ts";
 import type { ActOnTheStory } from "#test/specs/support/world.ts";
 import { plantSumupRecoveryRow } from "#test-utils/sumup.ts";
+import { sql } from "#db/sql.ts";
 
 /** The real scheduled maintenance job: the registry's tasks, through the
  * runner that claims and runs them. */
@@ -69,7 +70,7 @@ export const plantedCheckoutStates = async (): Promise<Map<string, string>> => {
     recovery_state: string;
     sumup_id: string;
   }>(
-    "SELECT sumup_id, recovery_state FROM sumup_checkouts WHERE sumup_id LIKE 'prune-%'",
+    sql`SELECT sumup_id, recovery_state FROM sumup_checkouts WHERE sumup_id LIKE 'prune-%'`
   );
   return new Map(
     planted.map((row) => [
@@ -103,8 +104,7 @@ const stageOldAnswers = async (
 ): Promise<void> => {
   await stageCheckoutAnswers(sessionId, { "3": text }, linkEnded);
   await execute(
-    "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-    [dayAgoIso(120), await hmacHash(sessionId)],
+    sql`UPDATE checkout_pending_answers SET created_at = ${dayAgoIso(120)} WHERE session_index = ${await hmacHash(sessionId)}`
   );
 };
 

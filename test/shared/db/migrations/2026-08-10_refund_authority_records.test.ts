@@ -6,6 +6,7 @@ import refundAuthorityRecords from "#db/migrations/2026-08-10_refund_authority_r
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const QUEUE_INDEX = "idx_processed_payments_protected_attendee";
 
@@ -23,24 +24,21 @@ const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const migration = () => refundAuthorityRecords(context);
 
 const columnsOf = async (table: string): Promise<Set<string>> => {
-  const info = await getDb().execute(`PRAGMA table_info(${table})`);
+  const info = await getDb().execute(sql`PRAGMA table_info(${sqlName(table)})`);
   return new Set(info.rows.map((row) => String(row.name)));
 };
 
 const storedIndexSql = async (name: string): Promise<string> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
+  const result = await getDb().execute(sql`SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ${name}`);
   return String(result.rows[0]?.sql ?? "");
 };
 
 /** The payment_charges an already-released site is carrying: no `id`, and the
  *  pending-refund/legacy columns this release drops. */
 const givenReleasedChargeTable = async (): Promise<void> => {
-  await getDb().execute("DROP TABLE IF EXISTS payment_charges");
+  await getDb().execute(sql`DROP TABLE IF EXISTS payment_charges`);
   await getDb().execute(
-    `CREATE TABLE payment_charges (
+    sql`CREATE TABLE payment_charges (
        payment_id INTEGER NOT NULL DEFAULT 0,
        origin TEXT NOT NULL DEFAULT 'current',
        provider TEXT,
@@ -56,7 +54,7 @@ const givenReleasedChargeTable = async (): Promise<void> => {
        created_at INTEGER NOT NULL DEFAULT 0,
        updated_at INTEGER NOT NULL DEFAULT 0,
        observed_at INTEGER NOT NULL DEFAULT 0
-     )`,
+     )`
   );
 };
 
@@ -81,11 +79,14 @@ describeWithEnv(
     });
 
     test("refuses to reinterpret a populated dormant charge table", async () => {
-      await getDb().execute({
-        args: [
-          "hyb:1:a:b:c",
-          "reference-one",
-          JSON.stringify({
+      await getDb().execute(sql`INSERT INTO payment_charges
+        (provider, provider_reference, reference_index,
+         capability, captured_amount, currency,
+         refunded_amount, refund_state, refund_state_name,
+         refund_local_state, next_refund_action_at, refund_revision,
+         created_at, updated_at, observed_at)
+        VALUES ('stripe', ${"hyb:1:a:b:c"}, ${"reference-one"}, 'keyed', 100,
+          'GBP', 0, ${JSON.stringify({
             evidenceRevision: 1,
             kind: "ready",
             local: { kind: "not_due" },
@@ -97,24 +98,14 @@ describeWithEnv(
               identityIndex: "request-one",
               replayUntil: 100,
             },
-          }),
-        ],
-        sql: `INSERT INTO payment_charges
-        (provider, provider_reference, reference_index,
-         capability, captured_amount, currency,
-         refunded_amount, refund_state, refund_state_name,
-         refund_local_state, next_refund_action_at, refund_revision,
-         created_at, updated_at, observed_at)
-        VALUES ('stripe', ?, ?, 'keyed', 100,
-          'GBP', 0, ?, 'ready', 'not_due', 10, 1, 1, 1, 1)`,
-      });
+          })}, 'ready', 'not_due', 10, 1, 1, 1, 1)`);
 
       await expect(migration().up()).rejects.toThrow(
         "payment_charges is not empty; refusing to reinterpret stored payment " +
           "history as refund-authority state",
       );
 
-      await getDb().execute("DELETE FROM payment_charges");
+      await getDb().execute(sql`DELETE FROM payment_charges`);
     });
 
     test("rebuilds the last dormant table when it is the only one left", async () => {
@@ -122,7 +113,7 @@ describeWithEnv(
       // rows and dropping it must still happen, or the release keeps the old
       // shape and the apply has nothing to rebuild from.
       for (const table of OTHER_DORMANT_TABLES) {
-        await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
+        await getDb().execute(sql`DROP TABLE IF EXISTS ${sqlName(table)}`);
       }
       await givenReleasedChargeTable();
 
@@ -134,7 +125,7 @@ describeWithEnv(
     });
 
     test("gives the owner recovery queue its partial index", async () => {
-      await getDb().execute(`DROP INDEX IF EXISTS ${QUEUE_INDEX}`);
+      await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(QUEUE_INDEX)}`);
 
       await migration().up();
 

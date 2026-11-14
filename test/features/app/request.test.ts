@@ -20,13 +20,11 @@ import { testCookie } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
+import { sql } from "#db/sql.ts";
 
 const deleteSetting = async (key: string): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
-  await getDb().execute({
-    args: [key],
-    sql: "DELETE FROM settings WHERE key = ?",
-  });
+  await getDb().execute(sql`DELETE FROM settings WHERE key = ${key}`);
   settings.invalidateCache();
 };
 

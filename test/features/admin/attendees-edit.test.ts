@@ -36,6 +36,7 @@ import {
 } from "#test-utils/refund-routes.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Attendee } from "#types";
+import { sql } from "#db/sql.ts";
 
 const OCCURRED_AT = "2026-07-01T00:00:00.000Z";
 
@@ -173,11 +174,10 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_incomplete_balance",
       );
       await execute(
-        `UPDATE processed_payments
+        sql`UPDATE processed_payments
             SET payment_reference_index = ''
-          WHERE attendee_id = ?
-            AND payment_session_id != ?`,
-        [attendee.id, "refresh-incomplete-balance-session"],
+          WHERE attendee_id = ${attendee.id}
+            AND payment_session_id != ${"refresh-incomplete-balance-session"}`
       );
 
       await expectIncompleteRefreshRefused(attendee);

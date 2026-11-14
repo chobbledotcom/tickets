@@ -14,6 +14,7 @@ import {
   stubClient,
 } from "#test-utils/db-helpers/result-set.ts";
 import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * The read snapshot's own contract: only SELECTs pass its gates, and the
@@ -24,7 +25,7 @@ import { transactionStub } from "#test-utils/db-helpers/stub-transaction.ts";
 describeWithEnv("db > client read snapshot", { db: true }, () => {
   test("refuses a write smuggled into the snapshot", async () => {
     await expect(
-      withReadSnapshot((snapshot) => snapshot.execute("DELETE FROM listings")),
+      withReadSnapshot((snapshot) => snapshot.execute(sql`DELETE FROM listings`)),
     ).rejects.toThrow("accept only SELECT statements");
   });
 
@@ -32,8 +33,8 @@ describeWithEnv("db > client read snapshot", { db: true }, () => {
     await expect(
       withReadSnapshot((snapshot) =>
         snapshot.batch([
-          { args: [], sql: "SELECT 1" },
-          { args: [], sql: "UPDATE settings SET value = 'x'" },
+          sql`SELECT 1`,
+          sql`UPDATE settings SET value = 'x'`,
         ]),
       ),
     ).rejects.toThrow("accept only SELECT statements");
@@ -55,7 +56,7 @@ describeWithEnv("db > client read snapshot", { db: true }, () => {
       ).rejects.toThrow("boom");
       // The snapshot's transaction is closed, not committed: no further
       // statement can run on it.
-      await expect(opened!.execute("SELECT 1")).rejects.toThrow();
+      await expect(opened!.execute(sql`SELECT 1`)).rejects.toThrow();
     } finally {
       setDb(guarded);
     }
@@ -89,7 +90,7 @@ describeWithEnv("db > client read snapshot", { db: true }, () => {
       let runs = 0;
       const promise = withReadSnapshot(async (snapshot) => {
         runs += 1;
-        return snapshot.batch([{ args: [], sql: "SELECT 1" }]);
+        return snapshot.batch([sql`SELECT 1`]);
       });
       await time.tickAsync(50);
       const seen = await promise;

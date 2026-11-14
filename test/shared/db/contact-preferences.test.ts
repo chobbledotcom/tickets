@@ -31,13 +31,13 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubClient } from "#test-utils/db-helpers/result-set.ts";
 import { useErrorLogSpy } from "#test-utils/debug-log.ts";
+import { sql } from "#db/sql.ts";
 
 const rowFor = (
   hash: string,
 ): Promise<{ visits: number; last_activity: number } | null> =>
   queryOne<{ visits: number; last_activity: number }>(
-    "SELECT visits, last_activity FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT visits, last_activity FROM contact_preferences WHERE contact_hash = ${hash}`
   );
 
 const preferenceRowExists = async (hash: string): Promise<boolean> =>
@@ -239,8 +239,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
       settings.publicKey,
     );
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
-      [hash, encrypted],
+      sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${hash}, ${encrypted})`
     );
 
     expect(await getContactRecord(hash, pk)).toEqual({
@@ -262,8 +261,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
       settings.publicKey,
     );
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, ?)",
-      [hash, encrypted],
+      sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${hash}, ${encrypted})`
     );
 
     await expect(getContactRecord(hash, pk)).rejects.toThrow(
@@ -274,8 +272,7 @@ describeWithEnv("contact-preferences: contact history", { db: true }, () => {
   test("getContactCountFields reads plaintext counts past a corrupt blob", async () => {
     const hash = await hashEmail("corrupt@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`
     );
 
     // No private key, no decryption — the corrupt note is irrelevant, so the
@@ -366,8 +363,7 @@ describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("fallback@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`
     );
 
     expect(
@@ -387,8 +383,7 @@ describeWithEnv("contact-preferences: repair fallback", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("reported-once@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (?, ?, ?, ?, ?)",
-      [hash, 4, 3, 1, "not-valid-ciphertext"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob) VALUES (${hash}, ${4}, ${3}, ${1}, ${"not-valid-ciphertext"})`
     );
     const load = getContactRecordOrRepair("once test reader");
 

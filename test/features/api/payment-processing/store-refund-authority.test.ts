@@ -20,6 +20,7 @@ import {
   reservedPlaceholder,
   storePlaceholder,
 } from "./store-refund-helpers.ts";
+import { sql } from "#db/sql.ts";
 
 const failNextCallbackAuthorityLookup = (): (() => void) => {
   let pending = true;
@@ -47,10 +48,9 @@ const expectPlaceholderRolledBack = async (
   expect((await listProviderRefundCases()).cases).toEqual([]);
   expect(
     await queryOne<{ attendee_id: number | null; failure_data: string }>(
-      `SELECT attendee_id, failure_data
+      sql`SELECT attendee_id, failure_data
          FROM processed_payments
-        WHERE payment_session_id = ?`,
-      [placeholder.data.session.id],
+        WHERE payment_session_id = ${placeholder.data.session.id}`
     ),
   ).toEqual({ attendee_id: null, failure_data: "" });
 };
@@ -60,18 +60,18 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
     const sessionId = "cs_terminal_authority_rollback";
     const placeholder = await reservedPlaceholder(sessionId);
     await execute(
-      `CREATE TRIGGER fail_placeholder_refund_authority
+      sql`CREATE TRIGGER fail_placeholder_refund_authority
          BEFORE INSERT ON payment_charges
        BEGIN
          SELECT RAISE(ABORT, 'refund authority unavailable');
-       END`,
+       END`
     );
     try {
       await expect(storePlaceholder(placeholder)).rejects.toThrow(
         "refund authority unavailable",
       );
     } finally {
-      await execute("DROP TRIGGER fail_placeholder_refund_authority");
+      await execute(sql`DROP TRIGGER fail_placeholder_refund_authority`);
     }
 
     await expectPlaceholderRolledBack(placeholder);
@@ -82,19 +82,19 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
       "cs_terminal_provenance_rollback",
     );
     await execute(
-      `CREATE TRIGGER block_placeholder_payment_provenance
+      sql`CREATE TRIGGER block_placeholder_payment_provenance
           AFTER INSERT ON attendees
            WHEN NEW.pii_payment_session_id IS NULL
        BEGIN
          UPDATE attendees SET pii_payment_session_id = '' WHERE id = NEW.id;
-       END`,
+       END`
     );
     try {
       await expect(storePlaceholder(placeholder)).rejects.toThrow(
         "could not prove its attendee payment id",
       );
     } finally {
-      await execute("DROP TRIGGER block_placeholder_payment_provenance");
+      await execute(sql`DROP TRIGGER block_placeholder_payment_provenance`);
     }
 
     await expectPlaceholderRolledBack(placeholder);
@@ -130,11 +130,10 @@ describeWithEnv("terminal placeholder refund authority", { db: true }, () => {
     expect(cases[0]).toMatchObject({ provider: "stripe", state: "ready" });
 
     const anchor = await queryOne<{ payment_session_id: string }>(
-      `SELECT payment_session_id
+      sql`SELECT payment_session_id
          FROM processed_payments
-        WHERE attendee_id = ?
-          AND payment_session_id LIKE 'legacy:%'`,
-      [attendee.id],
+        WHERE attendee_id = ${attendee.id}
+          AND payment_session_id LIKE 'legacy:%'`
     );
     if (anchor === null) throw new Error("placeholder anchor was not stored");
     // The resume already let go of the crashed run's claim; the durable

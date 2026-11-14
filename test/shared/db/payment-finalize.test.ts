@@ -22,6 +22,7 @@ import {
   getProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 
 /** One reserved payment belonging to a fresh attendee. */
 const reserveAttendeePayment = async (sessionId: string): Promise<number> => {
@@ -53,8 +54,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const { payment_reference_index } = await requireOne<{
       payment_reference_index: string;
     }>(
-      "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
-      ["free-finalize"],
+      sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"free-finalize"}`
     );
     expect(payment_reference_index).toBe("");
     expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(

@@ -32,6 +32,7 @@ import {
   fetchCalendarResponse,
   tomorrow,
 } from "./calendar-test-helpers.ts";
+import { sql } from "#db/sql.ts";
 
 /** Create the canonical "Concert" standard listing booked by "Concert Fan".
  *  Shared by the "shows attendees when date is selected" and "does not show
@@ -339,10 +340,7 @@ describeWithEnv(
         });
         // A cancelled/interested booking is a quantity-0 line: the operational
         // calendar counts real attendees only.
-        await getDb().execute({
-          args: [listing.id],
-          sql: "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ?",
-        });
+        await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listing.id}`);
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
         assert(!html.includes("Ghost Fan"));
@@ -371,8 +369,7 @@ describeWithEnv(
             listing_id: number;
             attendee_id: number;
           }>(
-            "SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (?, ?)",
-            [listing1.id, listing2.id],
+            sql`SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (${listing1.id}, ${listing2.id})`
           );
           await assignBookingToAgent(
             rows.find((row) => row.listing_id === listing1.id)!.attendee_id,

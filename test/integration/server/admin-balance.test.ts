@@ -18,6 +18,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 const settle = (id = "settle-session") => ({
@@ -174,10 +175,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     // panel must not offer a dead-end link and must say why.
     await setupStripe();
     const attendeeId = await reservedAttendee();
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`);
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {
       contains: [
         "Collect this balance directly",

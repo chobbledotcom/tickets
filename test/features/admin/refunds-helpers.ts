@@ -15,6 +15,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 import type { Attendee, Listing, PaymentProviderType } from "#types";
+import { sql } from "#db/sql.ts";
 
 const paymentSessionId = (listingId: number, attendeeId: number): string =>
   `sale-${listingId}-${attendeeId}`;
@@ -129,7 +130,6 @@ export const setBookingLineQuantity = async (
 ): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
   await getDb().execute(
-    "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ? AND listing_id = ?",
-    [quantity, attendeeId, listingId],
+    sql`UPDATE listing_attendees SET quantity = ${quantity} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`
   );
 };

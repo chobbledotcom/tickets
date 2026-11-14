@@ -24,6 +24,7 @@ import {
 import { restoreSchemaBeforeMigrations } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const LISTINGS_TAG_MIGRATION_ID = "2026-07-03_attendee_listings_tag";
 const LISTINGS_TAG_REVISION =
@@ -49,14 +50,8 @@ const makeSoleMigrationPending = async (id: string): Promise<Migration> => {
   if (!migration) throw new Error(`Missing migration ${id}`);
   await restoreSchemaBeforeMigrations([migration]);
   await executeBatch([
-    {
-      args: [migration.id],
-      sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    },
-    {
-      args: [LATEST_DB_UPDATE_KEY, DB_SCHEMA_HASH_KEY],
-      sql: "UPDATE settings SET value = 'stale' WHERE key IN (?, ?)",
-    },
+    sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`,
+    sql`UPDATE settings SET value = 'stale' WHERE key IN (${LATEST_DB_UPDATE_KEY}, ${DB_SCHEMA_HASH_KEY})`,
   ]);
   invalidateInitDbCache();
   return migration;
@@ -66,10 +61,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
   test("records the free-text migration within one guarded request", async () => {
     const migration = await makeSoleMigrationPending(FREE_TEXT_MIGRATION_ID);
 
-    const staleMarkers = await getDb().execute({
-      args: [LATEST_DB_UPDATE_KEY, DB_SCHEMA_HASH_KEY],
-      sql: "SELECT key, value FROM settings WHERE key IN (?, ?) ORDER BY key",
-    });
+    const staleMarkers = await getDb().execute(sql`SELECT key, value FROM settings WHERE key IN (${LATEST_DB_UPDATE_KEY}, ${DB_SCHEMA_HASH_KEY}) ORDER BY key`);
     expect(
       staleMarkers.rows.map(({ key, value }) => ({
         key: String(key),
@@ -82,10 +74,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
 
     await withRequestContext(() => initDb());
 
-    const marker = await getDb().execute({
-      args: [migration.id],
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    });
+    const marker = await getDb().execute(sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`);
     expect(marker.rows.map((row) => String(row.id))).toEqual([migration.id]);
   });
 
@@ -110,10 +99,7 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
       `SELECT 1 FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
     );
     expect(lock.rows).toHaveLength(0);
-    const stillPending = await getDb().execute({
-      args: [migration.id],
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    });
+    const stillPending = await getDb().execute(sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`);
     expect(stillPending.rows).toHaveLength(0);
   });
 
@@ -134,14 +120,14 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     invalidateInitDbCache();
 
     const oldListingColumns = await getDb().execute(
-      "SELECT name FROM pragma_table_info('listings')",
+      sql`SELECT name FROM pragma_table_info('listings')`
     );
     assertArrayIncludes(
       oldListingColumns.rows.map((row) => String(row.name)),
       ["image_url"],
     );
     const oldImagesTable = await getDb().execute(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'",
+      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'`
     );
     expect(oldImagesTable.rows).toHaveLength(0);
 

@@ -8,6 +8,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 // This migration's up() touches only the three below — recreateTable and
 // syncTriggers do the trigger/structure rebuild; getDb is real by default.
@@ -36,10 +37,7 @@ describeWithEnv(
       dropColumnPhrase: "an income",
       expected: { booked_quantity: 3, tickets_count: 1 },
       insertUsage: (listingId) =>
-        getDb().execute({
-          args: [listingId],
-          sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, 1, 3)",
-        }),
+        getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${listingId}, 1, 3)`),
       readAggregates: listingAggregates,
       runMigration,
       targetTable: "listings",

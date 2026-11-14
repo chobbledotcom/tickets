@@ -33,6 +33,7 @@ import {
   addUserOwnedAccessRecords,
   getUserOwnedRowSources,
 } from "#test-utils/user-owned-records.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > users contracts", { db: true }, () => {
   test("returns every display field in user id order", async () => {
@@ -105,10 +106,7 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     const cached = (await getUserByUsername("changed-role"))!;
     expect(await decryptAdminLevel(cached)).toBe("manager");
 
-    await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
-      await encrypt("editor"),
-      cached.id,
-    ]);
+    await execute(sql`UPDATE users SET admin_level = ${await encrypt("editor")} WHERE id = ${cached.id}`);
 
     expect(
       await decryptAdminLevel((await getUserByUsername("changed-role"))!),

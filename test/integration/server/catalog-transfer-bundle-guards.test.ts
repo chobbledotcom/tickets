@@ -14,6 +14,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { optInAddOnForGroups } from "#test-utils/modifiers.ts";
+import { sql } from "#db/sql.ts";
 
 // The bundle import bypasses the single import's write guards (one batched
 // write, no per-row transaction checks), so its validation phases must refuse
@@ -50,8 +51,7 @@ const storePlanInGroup = async (
     slugIndex: await hmacHash("legacy-plan"),
   });
   await execute(
-    "INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (?, ?, 1)",
-    [groupId, plan.id],
+    sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${groupId}, ${plan.id}, 1)`
   );
 };
 

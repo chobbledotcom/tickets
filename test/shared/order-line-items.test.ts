@@ -9,6 +9,7 @@ import { orderLineItems } from "#shared/order-line-items.ts";
 import { createMixedConcealedAttendee } from "#test/integration/balance-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import { sql } from "#db/sql.ts";
 
 const linesFor = async (attendeeId: number): Promise<LineItem[]> =>
   orderLineItems((await getAttendeeOrderSummary(attendeeId)).lines, "Package");
@@ -27,10 +28,7 @@ describeWithEnv("shared > order line items", { db: true }, () => {
   test("names a package row that is gone with the caller's name", async () => {
     const group = await createHiddenPackageGroup("Vanished Bundle");
     const { attendeeId } = await createMixedConcealedAttendee(group);
-    await getDb().execute({
-      args: [group.id],
-      sql: "UPDATE groups SET is_package = 0 WHERE id = ?",
-    });
+    await getDb().execute(sql`UPDATE groups SET is_package = 0 WHERE id = ${group.id}`);
 
     expect(await linesFor(attendeeId)).toEqual([
       { name: "Package", quantity: 1 },

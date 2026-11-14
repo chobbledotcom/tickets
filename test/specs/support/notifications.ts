@@ -16,6 +16,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { setPendingNotificationFlags } from "#test-utils/db-helpers/attendees.ts";
+import { sql } from "#db/sql.ts";
 
 /** One person's booking on a listing, with the sends it still owes: 1 says
  * the send never got accepted, 0 says it went out or nothing was owed. The
@@ -48,9 +49,7 @@ export const listingStopsCollectingAnEmail: ActOnOneThing = async (
   world,
   listing,
 ) => {
-  await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
-    listingNamed(world, listing).id,
-  ]);
+  await execute(sql`UPDATE listings SET fields = 'phone' WHERE id = ${listingNamed(world, listing).id}`);
 };
 
 /** The pair the merge story set up owes different sends: the booking kept

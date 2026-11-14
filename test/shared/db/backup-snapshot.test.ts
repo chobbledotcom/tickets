@@ -21,6 +21,7 @@ import { proxyMembers } from "#shared/proxy-members.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("backup snapshot", { db: true }, () => {
   /** Export one table through its own snapshot, the way a dump does. */
@@ -123,7 +124,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
       // WAL gives the reader/writer independence a remote libsql database has;
       // the suite's other clients carry a speed pragma that cannot hold a WAL
       // file, so the dump runs on a client opened after the switch.
-      await getDb().execute("PRAGMA journal_mode=WAL");
+      await getDb().execute(sql`PRAGMA journal_mode=WAL`);
       const dumpBase = createClient({ url: getEnv("DB_URL")! });
       setDb(dumpBase);
       const intruder = createClient({ url: getEnv("DB_URL")! });
@@ -138,10 +139,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
           return proxyMembers(tx, {
             batch: async (statements: InStatement[]) => {
               if (snapshotBatches++ === 0) {
-                await intruder.execute({
-                  args: ["2026-01-01T00:00:00.000Z", 10, "Mid-dump intruder"],
-                  sql: "INSERT INTO listings (created, max_attendees, name) VALUES (?, ?, ?)",
-                });
+                await intruder.execute(sql`INSERT INTO listings (created, max_attendees, name) VALUES (${"2026-01-01T00:00:00.000Z"}, ${10}, ${"Mid-dump intruder"})`);
               }
               return tx.batch(statements);
             },
@@ -234,7 +232,7 @@ describeWithEnv("backup snapshot", { db: true }, () => {
     });
 
     test("skips tables that do not exist", async () => {
-      await getDb().execute("DROP TABLE IF EXISTS holidays");
+      await getDb().execute(sql`DROP TABLE IF EXISTS holidays`);
       try {
         const backups = await createBackup();
         const names = backups.map((b) => b.table);

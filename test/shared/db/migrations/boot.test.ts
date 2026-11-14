@@ -29,6 +29,7 @@ import {
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > migrations > boot messages and batching",
@@ -47,14 +48,8 @@ describeWithEnv(
     ): Promise<void> => {
       await getDb().batch(
         [
-          {
-            args: [staleKey],
-            sql: "UPDATE settings SET value = 'stale' WHERE key = ?",
-          },
-          {
-            args: [freshValue, freshKey],
-            sql: "UPDATE settings SET value = ? WHERE key = ?",
-          },
+          sql`UPDATE settings SET value = 'stale' WHERE key = ${staleKey}`,
+          sql`UPDATE settings SET value = ${freshValue} WHERE key = ${freshKey}`,
         ],
         "write",
       );
@@ -73,7 +68,7 @@ describeWithEnv(
 
     test("a migration completed before lock acquisition releases the unused lock", async () => {
       await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
       );
       invalidateInitDbCache();
 
@@ -88,10 +83,7 @@ describeWithEnv(
             completedElsewhere = true;
             await client.batch(
               [
-                {
-                  args: [SCHEMA_HASH],
-                  sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-                },
+                sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
               ],
               "write",
             );
@@ -118,7 +110,7 @@ describeWithEnv(
     test("a single outstanding migration is run, not assumed applied", async () => {
       await markCurrentSchemaMigrationPending();
       await getDb().execute(
-        "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+        sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`
       );
       invalidateInitDbCache();
 
@@ -218,11 +210,8 @@ describeWithEnv(
       try {
         await getDb().batch(
           [
-            "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
-            {
-              args: ["migration_lock", new Date().toISOString()],
-              sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-            },
+            sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
+            sql`INSERT INTO settings (key, value) VALUES (${"migration_lock"}, ${new Date().toISOString()})`,
           ],
           "write",
         );
@@ -238,11 +227,8 @@ describeWithEnv(
       } finally {
         await getDb().batch(
           [
-            "DELETE FROM settings WHERE key = 'migration_lock'",
-            {
-              args: [SCHEMA_HASH],
-              sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-            },
+            sql`DELETE FROM settings WHERE key = 'migration_lock'`,
+            sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
           ],
           "write",
         );
@@ -321,10 +307,7 @@ describeWithEnv(
       await markMigrationsForRerun();
       // The request that created the table is still holding the lock.
       const otherLease = new Date(Date.now() - 30_000).toISOString();
-      await getDb().execute({
-        args: ["migration_lock", otherLease],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"migration_lock"}, ${otherLease})`);
       const { fetchStub, restore } = stubNtfyFetch({});
       try {
         using _env = restore;
@@ -340,7 +323,7 @@ describeWithEnv(
         expect(await settingsValueOrNull("db_schema_hash")).toBe("stale");
       } finally {
         await getDb().execute(
-          "DELETE FROM settings WHERE key = 'migration_lock'",
+          sql`DELETE FROM settings WHERE key = 'migration_lock'`
         );
         invalidateInitDbCache();
         await initDb();
@@ -368,7 +351,7 @@ describeWithEnv(
       // Only one of the two markers is gone: the database has been set up, so
       // the boot must repair it rather than treat it as uninitialized.
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'db_schema_hash'",
+        sql`DELETE FROM settings WHERE key = 'db_schema_hash'`
       );
       invalidateInitDbCache();
 

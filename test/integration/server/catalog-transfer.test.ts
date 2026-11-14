@@ -23,6 +23,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("catalog-transfer", { db: true }, () => {
   describe("listing round-trip", () => {
@@ -163,8 +164,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
       const priceRows = await execute(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'base'",
-        [requireEntityImport(result).id],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${requireEntityImport(result).id} AND price_type = 'base'`
       );
       expect(priceRows.rows.map((r) => Number(r.unit_price))).toEqual([2500]);
     });

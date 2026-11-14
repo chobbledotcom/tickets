@@ -15,6 +15,7 @@ import {
   uploadCredentials,
   withUploadServer,
 } from "./turso-upload-harness.ts";
+import { sql } from "#db/sql.ts";
 
 const createSqliteFile = async (
   path: string,
@@ -23,9 +24,9 @@ const createSqliteFile = async (
   const client = createClient({ url: toFileUrl(path).href });
   try {
     for (const pragma of pragmas) await client.execute(pragma);
-    await client.execute("CREATE TABLE example (value TEXT)");
-    await client.execute("INSERT INTO example VALUES ('saved')");
-    await client.execute("PRAGMA wal_checkpoint(TRUNCATE)");
+    await client.execute(sql`CREATE TABLE example (value TEXT)`);
+    await client.execute(sql`INSERT INTO example VALUES ('saved')`);
+    await client.execute(sql`PRAGMA wal_checkpoint(TRUNCATE)`);
   } finally {
     client.close();
   }

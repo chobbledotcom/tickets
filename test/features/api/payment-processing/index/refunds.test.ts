@@ -24,6 +24,7 @@ import {
   singleListingPayment,
   trustedPayment,
 } from "./helpers.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("payment processing refund outcomes", { db: true }, () => {
   test("releases the reservation without repeating a rejected refund", async () => {
@@ -111,11 +112,10 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       failure_data: string;
       payment_reference_index: string;
     }>(
-      `SELECT failure_data, payment_reference_index
+      sql`SELECT failure_data, payment_reference_index
          FROM processed_payments
-        WHERE attendee_id = ?
-          AND payment_session_id LIKE 'legacy:%'`,
-      [placeholder.id],
+        WHERE attendee_id = ${placeholder.id}
+          AND payment_session_id LIKE 'legacy:%'`
     );
     expect(anchor).toEqual({
       failure_data: expect.stringMatching(/.+/),
@@ -126,8 +126,7 @@ describeWithEnv("payment processing refund outcomes", { db: true }, () => {
       }),
     });
     await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2000-01-01T00:00:00.000Z", id],
+      sql`UPDATE processed_payments SET processed_at = ${"2000-01-01T00:00:00.000Z"} WHERE payment_session_id = ${id}`
     );
 
     // The crashed delivery never sent the refund, so the replay resumes the

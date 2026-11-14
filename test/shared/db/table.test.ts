@@ -5,6 +5,7 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 const enc = (v: string) => Promise.resolve(`enc:${v}`);
 const dec = (v: string) => Promise.resolve(v.replace("enc:", ""));
@@ -319,7 +320,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const { col, defineTable } = await import("#db/table.ts");
     const { getDb } = await import("#db/client.ts");
 
-    await getDb().execute(`
+    await getDb().execute(sql`
       CREATE TABLE IF NOT EXISTS kv_store (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL

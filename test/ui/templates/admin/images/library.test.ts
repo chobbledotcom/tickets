@@ -32,6 +32,7 @@ import {
   withStorageMock,
 } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "admin image library routes",
@@ -215,7 +216,7 @@ describeWithEnv(
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
-        await getDb().execute("DROP TABLE images");
+        await getDb().execute(sql`DROP TABLE images`);
         await withBunnyStorageStub(
           () => new Response(null, { status: 201 }),
           async () => {

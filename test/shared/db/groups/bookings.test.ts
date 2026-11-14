@@ -8,6 +8,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > groups > hasPackageBookingsTx", { db: true }, () => {
   test("returns true for a package with a sold attendee", async () => {
@@ -23,8 +24,7 @@ describeWithEnv("db > groups > hasPackageBookingsTx", { db: true }, () => {
       "sold-buyer@example.com",
     );
     await execute(
-      "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-      [group.id, attendee.id],
+      sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`
     );
 
     await withTransaction(async (tx) => {
@@ -53,8 +53,7 @@ describeWithEnv("db > groups > hasPackageBookingsTx", { db: true }, () => {
       "zero-buyer@example.com",
     );
     await execute(
-      "UPDATE listing_attendees SET package_group_id = ?, quantity = 0 WHERE attendee_id = ?",
-      [group.id, attendee.id],
+      sql`UPDATE listing_attendees SET package_group_id = ${group.id}, quantity = 0 WHERE attendee_id = ${attendee.id}`
     );
 
     await withTransaction(async (tx) => {

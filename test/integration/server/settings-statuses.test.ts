@@ -28,6 +28,7 @@ import {
   adminGet,
   withTestSession,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const PATH = "/admin/settings/statuses";
 
@@ -125,10 +126,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
       const inUse = await attendeeStatuses.table.insert({ name: "Active" });
       // A current `created` keeps this booking-less attendee out of the
       // orphaned-record auto-purge so it still counts as "in use".
-      await getDb().execute({
-        args: [new Date().toISOString(), inUse.id],
-        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-      });
+      await getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${inUse.id})`);
       const { response } = await adminFormPost(`${PATH}/${inUse.id}/delete`, {
         confirm_identifier: "Active",
       });

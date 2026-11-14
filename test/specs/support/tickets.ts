@@ -47,6 +47,7 @@ import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments
 import { TEST_ADMIN_USERNAME } from "#test-utils/internal.ts";
 import type { TestBrowser } from "#test-utils/test-browser.ts";
 import type { Listing } from "#types";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** The code the site gave somebody, read off the link on the page their
  * booking landed on. A booking whose page offers no way back to a ticket is a
@@ -248,8 +249,7 @@ export const theWaitPasses = async (): Promise<void> => {
   const past = nowMs() - 1;
   for (const table of ["login_attempts", "token_attempts"]) {
     await execute(
-      `UPDATE ${table} SET locked_until = ? WHERE locked_until IS NOT NULL`,
-      [past],
+      sql`UPDATE ${sqlName(table)} SET locked_until = ${past} WHERE locked_until IS NOT NULL`
     );
   }
 };

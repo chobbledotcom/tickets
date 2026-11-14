@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
+import { sql } from "#db/sql.ts";
 
 /** A refund leg no derivation can attribute — an event group nothing derived
  *  ever lands on. `suffix` keeps several orphans' groups distinct. */
@@ -35,10 +36,7 @@ const orphanRefundLeg = (suffix = ""): TransferInput =>
 
 /** The stored cursor checkpoint, or "" when no run is paused. */
 const storedCursor = async (): Promise<string> => {
-  const rows = await getDb().execute({
-    args: ["backfill_reverses_group_cursor"],
-    sql: "SELECT value FROM settings WHERE key = ?",
-  });
+  const rows = await getDb().execute(sql`SELECT value FROM settings WHERE key = ${"backfill_reverses_group_cursor"}`);
   return String(rows.rows[0]?.value ?? "");
 };
 

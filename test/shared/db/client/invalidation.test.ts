@@ -15,6 +15,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { stubTransaction } from "#test-utils/db-helpers/stub-transaction.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * Column-driven cache invalidation: after every write, the db client reads the
@@ -60,20 +61,14 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   test("UPDATE assigning a gated column fires the gated invalidator", async () => {
     await seedRow("inv_update_hit");
     const counter = countFirings(["value"]);
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      "new",
-      "inv_update_hit",
-    ]);
+    await execute(sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_hit"}`);
     expect(counter.fired).toBe(1);
   });
 
   test("UPDATE assigning only ungated columns skips the gated invalidator", async () => {
     await seedRow("inv_update_miss");
     const counter = countFirings(["some_other_column"]);
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      "new",
-      "inv_update_miss",
-    ]);
+    await execute(sql`UPDATE settings SET value = ${"new"} WHERE key = ${"inv_update_miss"}`);
     // The gate must apply: misclassifying the UPDATE's verb (or dropping the
     // parsed columns) would fire this unconditionally.
     expect(counter.fired).toBe(0);
@@ -91,7 +86,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   test("DELETE fires a gated invalidator regardless of its column gate", async () => {
     await seedRow("inv_delete");
     const counter = countFirings(["some_other_column"]);
-    await execute("DELETE FROM settings WHERE key = ?", ["inv_delete"]);
+    await execute(sql`DELETE FROM settings WHERE key = ${"inv_delete"}`);
     // A row leaving the table always shifts aggregates, so column gates only
     // narrow UPDATEs — never DELETEs.
     expect(counter.fired).toBe(1);
@@ -101,8 +96,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     await seedRow("inv_cte");
     const counter = countFirings(["value"]);
     await execute(
-      "WITH ignored AS (SELECT 1) UPDATE settings SET value = ? WHERE key = ?",
-      ["new", "inv_cte"],
+      sql`WITH ignored AS (SELECT 1) UPDATE settings SET value = ${"new"} WHERE key = ${"inv_cte"}`
     );
     // The CTE prefix must be stripped before verb/column classification —
     // classifying the whole statement finds no write verb and never fires.
@@ -117,9 +111,7 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
     expect(counter.fired).toBe(0);
     // The write still lands — only the invalidation is skipped.
     expect(
-      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
-        "inv_marker",
-      ]),
+      await rowExists(sql`SELECT 1 FROM settings WHERE key = ${"inv_marker"} LIMIT 1`),
     ).toBe(true);
   });
 

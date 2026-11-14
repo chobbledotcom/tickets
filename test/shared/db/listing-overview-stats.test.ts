@@ -29,11 +29,11 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { isPaidListing } from "#types";
+import { sql } from "#db/sql.ts";
 
 const checkIn = (attendeeId: number, listingId: number): Promise<unknown> =>
   execute(
-    "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
-    [attendeeId, listingId],
+    sql`UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`
   );
 
 /** The listing-with-count plus the attendee-derived reference stats the SQL

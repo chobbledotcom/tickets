@@ -21,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
+import { sql } from "#db/sql.ts";
 
 /** The choice answer ids one attendee has saved (undefined when none). Shared by
  *  the replace and rollback tests so the read+assert pair stays one line each. */
@@ -230,7 +231,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(textAnswers.get(q.id)).toBe("Front row please");
 
       const strings = await queryAll<{ created: string; used_count: number }>(
-        "SELECT created, used_count FROM strings",
+        sql`SELECT created, used_count FROM strings`
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
       expect(Number.isNaN(Date.parse(strings[0]!.created))).toBe(false);
@@ -251,7 +252,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       expect(textAnswers.get(q.id)).toBe("Final answer");
 
       const strings = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
     });
@@ -293,13 +294,13 @@ describeWithEnv("custom questions", { db: true }, () => {
       );
 
       const afterInsert = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`
       );
       expect(afterInsert.map((row) => row.used_count)).toEqual([2]);
 
       await saveAttendeeAnswers(new Map([[att1.id, []]]));
       const afterOneClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`
       );
       expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
 
@@ -308,16 +309,16 @@ describeWithEnv("custom questions", { db: true }, () => {
       // lingers at used_count 0 until the age-based pruner removes it.
       await saveAttendeeAnswers(new Map([[att2.id, []]]));
       const afterAllClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
+        sql`SELECT used_count FROM strings`
       );
       expect(afterAllClear.map((row) => row.used_count)).toEqual([0]);
 
       // Once aged past retention, the pruner deletes the unused row.
       await execute(
-        "UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0",
+        sql`UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0`
       );
       await runDatabasePruning();
-      expect(await queryAll("SELECT id FROM strings")).toEqual([]);
+      expect(await queryAll(sql`SELECT id FROM strings`)).toEqual([]);
     });
 
     test("skips a text answer whose question was deleted at finalize", async () => {
@@ -339,18 +340,14 @@ describeWithEnv("custom questions", { db: true }, () => {
       const ids = await getOrCreateStringIds(["reuse me"]);
       const id = ids.get("reuse me")!;
       // Backdate it as if abandoned by an earlier checkout.
-      await execute("UPDATE strings SET created = ? WHERE id = ?", [
-        "2000-01-01T00:00:00Z",
-        id,
-      ]);
+      await execute(sql`UPDATE strings SET created = ${"2000-01-01T00:00:00Z"} WHERE id = ${id}`);
 
       const beforeReuse = nowIso();
       const reused = await getOrCreateStringIds(["reuse me"]);
       expect(reused.get("reuse me")).toBe(id);
 
       const rows = await queryAll<{ created: string }>(
-        "SELECT created FROM strings WHERE id = ?",
-        [id],
+        sql`SELECT created FROM strings WHERE id = ${id}`
       );
       // The refreshed timestamp must be at least the instant before the reuse,
       // not merely "after the backdated 2000 value" — this catches a mutant

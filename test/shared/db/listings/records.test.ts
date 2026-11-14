@@ -27,6 +27,7 @@ import {
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
   describe("batch queries", () => {
@@ -191,8 +192,7 @@ describeWithEnv(
       expect(listing.image_alt_text).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
       const base = await queryOne<{ unit_price: number }>(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-        [listing.id, PRICE_TYPE_BASE],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`
       );
       expect(base?.unit_price).toBe(700);
     });
@@ -207,8 +207,7 @@ describeWithEnv(
       expect(prices[2]).toBeUndefined();
       expect(prices[3]).toBe(900);
       const base = await queryOne<{ unit_price: number }>(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-        [listing.id, PRICE_TYPE_BASE],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`
       );
       expect(base?.unit_price).toBe(800);
     });

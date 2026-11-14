@@ -16,6 +16,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 const footerTag = `<footer class="site-footer">`;
 
@@ -121,12 +122,9 @@ describeWithEnv(
       // and the shared version moves there. This isolate's invalidation
       // callbacks never run, so the version is the only signal the cache reads.
       await executeWithoutCacheInvalidation(
-        "DELETE FROM image_uses WHERE image_id = ?",
-        [image.id],
+        sql`DELETE FROM image_uses WHERE image_id = ${image.id}`
       );
-      await executeWithoutCacheInvalidation("DELETE FROM images WHERE id = ?", [
-        image.id,
-      ]);
+      await executeWithoutCacheInvalidation(sql`DELETE FROM images WHERE id = ${image.id}`);
       await bumpSettingsVersion();
 
       const afterSqls = await withRecordedSql(async () => {

@@ -15,6 +15,7 @@ import {
 import type { StoredPaymentFailure } from "#payment/row-state.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 
 const PENDING: StoredPaymentFailure = {
   completion: { code: "capacity_full" },
@@ -125,8 +126,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
     await storePendingOutcome(sessionId);
     const staleFence = await storedBytes(sessionId);
     await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [sessionId],
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
     );
 
     await advanceStoredOutcomeOnce(sessionId, staleFence, FINAL);
@@ -139,8 +139,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
     await storePendingOutcome(sessionId);
     const staleFence = await storedBytes(sessionId);
     await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [sessionId],
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
     );
     await reserveSession(sessionId);
 

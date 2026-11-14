@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import { BASE, create, findPage } from "./helpers.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin site pages)", { db: true }, () => {
   describe("create", () => {
@@ -24,7 +25,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     });
 
     test("rolls back the page when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_page_activity_log
         BEFORE INSERT ON activity_log
         BEGIN

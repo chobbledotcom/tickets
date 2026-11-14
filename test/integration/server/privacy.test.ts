@@ -38,6 +38,7 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const oldIso = (): string => new Date(nowMs() - 365 * DAY_MS).toISOString();
@@ -69,8 +70,7 @@ const attendeeExists = async (id: number): Promise<boolean> =>
 
 const preferenceExists = async (hash: string): Promise<boolean> =>
   (await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT 1 AS one FROM contact_preferences WHERE contact_hash = ${hash}`
   )) !== null;
 
 /** Read the info-level flash message from a redirect response. */
@@ -165,7 +165,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("pages the payment-work queue without loading attendee PII", async () => {
       await getDb().execute(
-        "UPDATE processed_payments SET protected_state = ''",
+        sql`UPDATE processed_payments SET protected_state = ''`
       );
       const attendeeIds = await Promise.all(
         Array.from({ length: 41 }, () => insertPaymentWorkOrphan()),

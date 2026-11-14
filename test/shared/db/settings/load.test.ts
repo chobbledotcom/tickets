@@ -7,23 +7,15 @@ import { bumpSettingsVersion, CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { statementSql } from "#test-utils/record-queries.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings > load", { db: true }, () => {
   test("reloads setting values from primary after a write", async () => {
     await settings.update.paymentProvider("stripe");
-    const staleReplicaResult = await getDb().execute({
-      args: [CONFIG_KEYS.PAYMENT_PROVIDER],
-      sql: "SELECT key, value FROM settings WHERE key = ?",
-    });
-    const staleVersionResult = await getDb().execute({
-      args: [CONFIG_KEYS.SETTINGS_VERSION],
-      sql: "SELECT value FROM settings WHERE key = ?",
-    });
+    const staleReplicaResult = await getDb().execute(sql`SELECT key, value FROM settings WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`);
+    const staleVersionResult = await getDb().execute(sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}`);
 
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      "square",
-      CONFIG_KEYS.PAYMENT_PROVIDER,
-    ]);
+    await execute(sql`UPDATE settings SET value = ${"square"} WHERE key = ${CONFIG_KEYS.PAYMENT_PROVIDER}`);
     await bumpSettingsVersion();
 
     using _env = withEnv({ DB_URL: "libsql://replica.test" });
@@ -84,20 +76,14 @@ describeWithEnv("db > settings > load", { db: true }, () => {
     });
 
     test("retries a key when snapshot application fails", async () => {
-      await getDb().execute({
-        args: [CONFIG_KEYS.BUSINESS_EMAIL, "not encrypted"],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.BUSINESS_EMAIL}, ${"not encrypted"})`);
       settings.invalidateCache();
 
       await expect(
         settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]),
       ).rejects.toThrow("Invalid encrypted data format");
 
-      await getDb().execute({
-        args: [CONFIG_KEYS.BUSINESS_EMAIL, await encrypt("fixed@example.com")],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.BUSINESS_EMAIL}, ${await encrypt("fixed@example.com")})`);
       await settings.loadKeys([CONFIG_KEYS.BUSINESS_EMAIL]);
 
       expect(settings.businessEmail).toBe("fixed@example.com");
@@ -119,10 +105,7 @@ describeWithEnv("db > settings > load", { db: true }, () => {
       // Setup must be incomplete so the permanent-cache short-circuit doesn't
       // fire first.
       settings.setup.clearCache();
-      await getDb().execute({
-        args: [CONFIG_KEYS.SETUP_COMPLETE],
-        sql: "DELETE FROM settings WHERE key = ?",
-      });
+      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.SETUP_COMPLETE}`);
       settings.invalidateCache();
 
       // First call: not loaded → loadKeys fetches just setup_complete.
@@ -139,10 +122,7 @@ describeWithEnv("db > settings > load", { db: true }, () => {
 
       // Mutate the DB after the load; loadKeys must not re-fetch a key
       // the fresh cache already holds.
-      await getDb().execute({
-        args: ["light", CONFIG_KEYS.THEME],
-        sql: "UPDATE settings SET value = ? WHERE key = ?",
-      });
+      await getDb().execute(sql`UPDATE settings SET value = ${"light"} WHERE key = ${CONFIG_KEYS.THEME}`);
       await settings.loadKeys([CONFIG_KEYS.THEME]);
 
       expect(settings.theme).toBe("dark");

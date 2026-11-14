@@ -55,6 +55,7 @@ import {
   withSetting,
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
+import { sql } from "#db/sql.ts";
 
 describe("test-utils — db-backed & settings contracts", () => {
   afterEach(() => {
@@ -122,9 +123,7 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       resetDb();
       await createTestDbWithSetup();
-      await getDb().execute("DELETE FROM settings WHERE key = ?", [
-        CONFIG_KEYS.WRAPPED_PRIVATE_KEY,
-      ]);
+      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.WRAPPED_PRIVATE_KEY}`);
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.WRAPPED_PRIVATE_KEY]);
 
@@ -147,9 +146,7 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("storedFeatureEnabled fails when the feature setting is missing", async () => {
-      await getDb().execute("DELETE FROM settings WHERE key = ?", [
-        CONFIG_KEYS.ENABLED_FEATURES,
-      ]);
+      await getDb().execute(sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`);
 
       await expect(storedFeatureEnabled("site")).rejects.toThrow(
         `Setting ${CONFIG_KEYS.ENABLED_FEATURES} was not stored`,
@@ -270,10 +267,7 @@ describe("test-utils — db-backed & settings contracts", () => {
         "No Quantity Form",
         "no-quantity-form@example.com",
       );
-      await getDb().execute({
-        args: [attendee.id],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-      });
+      await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`);
 
       const form = await buildAttendeeEditForm(attendee.id);
 

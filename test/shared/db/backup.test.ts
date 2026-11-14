@@ -33,6 +33,7 @@ import {
   storedListingNames,
 } from "#test-utils/db-helpers/listings.ts";
 import { stubResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { sql } from "#db/sql.ts";
 
 /** backupBudget under a request-style allowance of `total` calls. */
 const budgetWithAllowance = (total: number) =>
@@ -267,7 +268,7 @@ describeWithEnv("backup", { db: true }, () => {
       await createTestListing({ name: "Gone" });
       await restoreFromSql("");
       const listings = await queryAll<Record<string, unknown>>(
-        "SELECT * FROM listings",
+        sql`SELECT * FROM listings`
       );
       expect(listings.length).toBe(0);
     });
@@ -284,7 +285,7 @@ describeWithEnv("backup", { db: true }, () => {
       await initDb();
 
       const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+        sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`
       );
       expect(result.rows[0]?.value).toBe(SCHEMA_HASH);
     });
@@ -350,13 +351,10 @@ describeWithEnv("backup", { db: true }, () => {
       const css =
         "/* 🐸 Splish-Splash — a bright kids' theme 🐳 */\n\n" +
         ":root {\n  --color-bg: #f2fcff;\n  --color-text: #0d3b45;\n}";
-      await getDb().execute({
-        args: ["custom_css", css],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${"custom_css"}, ${css})`);
       await restoreFromZip(await createBackupZip());
       const restored = await queryAll<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'custom_css'",
+        sql`SELECT value FROM settings WHERE key = 'custom_css'`
       );
       expect(restored).toEqual([{ value: css }]);
     });
@@ -378,7 +376,7 @@ describeWithEnv("backup", { db: true }, () => {
       });
       await restoreFromZip(partial);
       const rows = await queryAll<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'k'",
+        sql`SELECT value FROM settings WHERE key = 'k'`
       );
       expect(rows[0]!.value).toBe("v");
     });

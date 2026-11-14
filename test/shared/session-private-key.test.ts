@@ -13,6 +13,7 @@ import {
 } from "#shared/session-private-key.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("shared > session private key", { db: true }, () => {
   test("returns null when an explicit session has no wrapped data key", async () => {
@@ -23,7 +24,7 @@ describeWithEnv("shared > session private key", { db: true }, () => {
 
   test("returns null when the stored private key is missing", async () => {
     await getDb().execute(
-      "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+      sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`
     );
     settings.invalidateCache();
     expect(

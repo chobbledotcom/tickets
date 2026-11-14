@@ -28,13 +28,14 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 /** The one of `listings` and `events` SQLite holds, so a rename is asserted by
  *  the name present rather than by an absent one alone. */
 const tableNames = async (): Promise<string[]> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('events', 'listings') ORDER BY name",
+    sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('events', 'listings') ORDER BY name`
   );
   return result.rows.map((row) => String(row.name));
 };
@@ -95,10 +96,10 @@ describeWithEnv(
 
     test("restores triggers attached to a dropped table", async () => {
       await getDb().execute(
-        "CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)",
+        sql`CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)`
       );
       await getDb().execute(
-        "CREATE TABLE restore_trigger_log (source_id INTEGER NOT NULL)",
+        sql`CREATE TABLE restore_trigger_log (source_id INTEGER NOT NULL)`
       );
       await getDb().execute(RESTORE_TRIGGER.sql);
       const droppedTriggers = await dropOwnedObjects(
@@ -110,11 +111,11 @@ describeWithEnv(
       expect(await triggerExists(RESTORE_TRIGGER.name)).toBe(false);
 
       await getDb().execute(
-        "CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)",
+        sql`CREATE TABLE restore_trigger_source (id INTEGER PRIMARY KEY)`
       );
       for (const trigger of droppedTriggers) await getDb().execute(trigger.sql);
       await getDb().execute(
-        "INSERT INTO restore_trigger_source DEFAULT VALUES",
+        sql`INSERT INTO restore_trigger_source DEFAULT VALUES`
       );
 
       expect(await triggerExists(RESTORE_TRIGGER.name)).toBe(true);
@@ -156,7 +157,7 @@ describeWithEnv(
 
     test("narrowed verify fails only for the owning migration", async () => {
       // Drop an index owned solely by the activity-log-index migration.
-      await getDb().execute("DROP INDEX IF EXISTS idx_activity_log_listing_id");
+      await getDb().execute(sql`DROP INDEX IF EXISTS idx_activity_log_listing_id`);
 
       await expect(
         migrationById("2026-06-15_activity_log_listing_id_index").verify(),
@@ -168,7 +169,7 @@ describeWithEnv(
     });
 
     test("verify names the missing object", async () => {
-      await getDb().execute("DROP TABLE IF EXISTS attendee_statuses");
+      await getDb().execute(sql`DROP TABLE IF EXISTS attendee_statuses`);
       await expect(
         migrationById("2026-06-14_attendee_statuses").verify(),
       ).rejects.toThrow("missing table attendee_statuses");
@@ -180,10 +181,9 @@ describeWithEnv(
       // definition that somehow survived. Simulate that survivor: same name,
       // pre-widening column list.
       const slotIndex = "idx_listing_attendees_listing_attendee_start";
-      await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
+      await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(slotIndex)}`);
       await getDb().execute(
-        `CREATE UNIQUE INDEX ${slotIndex} ON listing_attendees ` +
-          "(listing_id, attendee_id, start_at, parent_listing_id)",
+        sql`CREATE UNIQUE INDEX ${sqlName(slotIndex)} ON listing_attendees (listing_id, attendee_id, start_at, parent_listing_id)`
       );
       await expect(
         migrationById("2026-07-05_package_slot_identity").verify(),
@@ -195,7 +195,7 @@ describeWithEnv(
         migrationById("2026-06-23_attendee_order_parent").verify(),
       ).rejects.toThrow("package_group_id");
       // An ABSENT index reads as lacking every column — never a silent pass.
-      await getDb().execute(`DROP INDEX IF EXISTS ${slotIndex}`);
+      await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(slotIndex)}`);
       await expect(
         migrationById("2026-07-05_package_slot_identity").verify(),
       ).rejects.toThrow("absent");
@@ -242,7 +242,7 @@ describeWithEnv(
     });
 
     test("verify names legacy tables that should be absent", async () => {
-      await getDb().execute("CREATE TABLE events (id TEXT)");
+      await getDb().execute(sql`CREATE TABLE events (id TEXT)`);
       await expect(
         migrationById("2026-06-14_rename_events_to_listings").verify(),
       ).rejects.toThrow("legacy table events still present");
@@ -255,7 +255,7 @@ describeWithEnv(
 
     test("a migration's verify names a missing trigger it owns", async () => {
       await getDb().execute(
-        "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert",
+        sql`DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert`
       );
       await expect(
         migrationById("2026-06-16_listing_aggregates").verify(),
@@ -267,7 +267,7 @@ describeWithEnv(
     test("the baseline schema verify names a missing trigger", async () => {
       // The baseline reconcile verifies the whole schema, triggers included.
       await getDb().execute(
-        "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete",
+        sql`DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete`
       );
       await expect(
         migrationById("2026-06-11_current_schema").verify(),

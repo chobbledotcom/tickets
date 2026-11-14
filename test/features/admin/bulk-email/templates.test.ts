@@ -24,6 +24,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql, sqlCommas } from "#db/sql.ts";
 
 const seedTemplate = async (subject: string, body: string) => {
   const encSubject = await encryptWithOwnerKey(subject, settings.publicKey);
@@ -172,10 +173,10 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       // rows, so the (opaque) content here need not be real encrypted blobs.
       const rows = Array.from(
         { length: MAX_EMAIL_TEMPLATES },
-        () => "('x', 'y')",
-      ).join(", ");
+        () => sql`('x', 'y')`,
+      );
       await getDb().execute(
-        `INSERT INTO email_templates (subject, body) VALUES ${rows}`,
+        sql`INSERT INTO email_templates (subject, body) VALUES ${sqlCommas(rows)}`
       );
       const { response } = await adminFormPost("/admin/emails/templates", {
         audience: "active",

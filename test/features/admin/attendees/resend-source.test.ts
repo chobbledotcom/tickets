@@ -19,6 +19,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
@@ -117,7 +118,7 @@ describeWithEnv("the booking source a re-send reports", { db: true }, () => {
       listing: { name: "Historyless", webhookUrl: WEBHOOK_URL },
       name: "No History",
     });
-    await execute("DELETE FROM contact_preferences");
+    await execute(sql`DELETE FROM contact_preferences`);
     const before = fetch.calls.length;
 
     await resend(attendee.id, "No History");

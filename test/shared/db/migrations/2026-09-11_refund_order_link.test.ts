@@ -13,6 +13,7 @@ import {
 } from "#test/shared/accounting/reverses-group/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 const migration = () => refundOrderLink(context);
@@ -23,8 +24,8 @@ describeWithEnv("db > migrations > refund order link", { db: true }, () => {
     // test/shared/accounting/reverses-group.test.ts; this side pins that the
     // migration owns the schema objects and runs the backfill with them.
     const bookingGroup = await seedUnattributedRefund("migration-order", 7);
-    await getDb().execute("DROP INDEX IF EXISTS idx_transfers_reverses_group");
-    await getDb().execute("ALTER TABLE transfers DROP COLUMN reverses_group");
+    await getDb().execute(sql`DROP INDEX IF EXISTS idx_transfers_reverses_group`);
+    await getDb().execute(sql`ALTER TABLE transfers DROP COLUMN reverses_group`);
 
     await migration().up();
 

@@ -16,6 +16,7 @@ import {
   createTestEditorSession,
   requestAsSession,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("PUT /api/admin/groups/:groupId", () => {
@@ -239,12 +240,12 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("returns 404 when the group vanishes during update", async () => {
       const group = await createTestGroup({ name: "Vanishing group" });
       await getDb().execute(
-        `CREATE TRIGGER delete_group_during_update
+        sql`CREATE TRIGGER delete_group_during_update
          AFTER UPDATE ON groups
          WHEN NEW.id = ${group.id}
          BEGIN
            DELETE FROM groups WHERE id = NEW.id;
-         END`,
+         END`
       );
 
       try {
@@ -260,7 +261,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         );
       } finally {
         await getDb().execute(
-          "DROP TRIGGER IF EXISTS delete_group_during_update",
+          sql`DROP TRIGGER IF EXISTS delete_group_during_update`
         );
       }
     });

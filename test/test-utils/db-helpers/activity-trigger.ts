@@ -1,4 +1,5 @@
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 
 /** Reject exactly the attendee-linked activity inserts: the registration
  *  lines the booking batches write. Every other activity write (admin notes
@@ -7,16 +8,15 @@ import { execute } from "#db/client.ts";
  *  working for the tests that follow. */
 export const installRejectingActivityTrigger = async (): Promise<void> => {
   await execute(
-    `CREATE TRIGGER reject_registration_activity
+    sql`CREATE TRIGGER reject_registration_activity
      BEFORE INSERT ON activity_log
      WHEN NEW.attendee_id IS NOT NULL
      BEGIN
        SELECT RAISE(ABORT, 'registration activity rejected');
-     END`,
-    [],
+     END`
   );
 };
 
 export const dropRejectingActivityTrigger = async (): Promise<void> => {
-  await execute("DROP TRIGGER IF EXISTS reject_registration_activity", []);
+  await execute(sql`DROP TRIGGER IF EXISTS reject_registration_activity`);
 };

@@ -36,6 +36,7 @@ import {
 } from "#test-utils/provider-refund-cases.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import type { PaymentProviderType } from "#types";
+import { sql } from "#db/sql.ts";
 
 const taggedReference = (
   reference: string,
@@ -76,10 +77,9 @@ type StoredState = {
 
 const storedState = (id: number): Promise<StoredState | null> =>
   queryOne<StoredState>(
-    `SELECT refund_revision, refund_state, refund_state_name, refunded_amount
+    sql`SELECT refund_revision, refund_state, refund_state_name, refunded_amount
        FROM payment_charges
-      WHERE id = ?`,
-    [id],
+      WHERE id = ${id}`
   );
 
 const resolveCase = async (

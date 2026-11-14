@@ -17,6 +17,7 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** A planned listing that joins a stored package and one that carries a
  * stored parent: the mixed document the site-reference paths serve. */
@@ -110,7 +111,7 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
   test("accepts an add-on whose stored parent sits in a visible package", async () => {
     await createGroupWithListings("Shown Pack", ["Stored Parent"]);
     const packId = await storedGroupIdOf("Shown Pack");
-    await execute("UPDATE groups SET is_package = 1 WHERE id = ?", [packId]);
+    await execute(sql`UPDATE groups SET is_package = 1 WHERE id = ${packId}`);
     const bundle = mixedBundle();
     bundle.listings[0]!.groups = [
       { group: "Shown Pack", packagePrice: 700, quantity: 1 },
@@ -151,8 +152,7 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
     await createGroupWithListings("Hiding Pack", ["Stored Parent"]);
     const packId = await storedGroupIdOf("Hiding Pack");
     await execute(
-      "UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ?",
-      [packId],
+      sql`UPDATE groups SET is_package = 1, hide_package_listings = 1 WHERE id = ${packId}`
     );
     const bundle = mixedBundle();
     bundle.listings[0]!.groups = [];

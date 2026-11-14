@@ -26,6 +26,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 const loadStaleScopePricing = async (scope: "groups" | "listings") => {
   const listingLink = await createTestListing({
@@ -117,8 +118,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const requestedGroup = await bookingEventGroup("snapshot-requested-event");
     const otherGroup = await bookingEventGroup("snapshot-other-event");
     await execute(
-      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ?",
-      [otherGroup, attendee.id],
+      sql`UPDATE listing_attendees SET ledger_event_group = ${otherGroup} WHERE attendee_id = ${attendee.id}`
     );
     await postTransfers([
       {
@@ -251,8 +251,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const email = "snapshot@example.com";
     const phone = "+447700900123";
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (?, ?, ?), (?, ?, ?)",
-      [await hashEmail(email), 3, "{}", await hashPhone(phone), 7, "{}"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (${await hashEmail(email)}, ${3}, ${"{}"}), (${await hashPhone(phone)}, ${7}, ${"{}"})`
     );
 
     const eventId = "snapshot-complete";
@@ -263,8 +262,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       email,
     );
     await execute(
-      "UPDATE listing_attendees SET ledger_event_group = ? WHERE attendee_id = ? AND listing_id = ?",
-      [eventGroup, attendee.id, parent.id],
+      sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${attendee.id} AND listing_id = ${parent.id}`
     );
     await postTransfers([
       {

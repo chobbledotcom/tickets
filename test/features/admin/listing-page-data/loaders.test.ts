@@ -24,6 +24,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const SESSION: AuthSession = {
   adminLevel: "owner",
@@ -344,8 +345,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       await addAnswer(questionId, "Blue");
       const { getDb } = await import("#db/client.ts");
       await getDb().execute(
-        "UPDATE questions SET assign_all = 1 WHERE id = ?",
-        [questionId],
+        sql`UPDATE questions SET assign_all = 1 WHERE id = ${questionId}`
       );
     };
 

@@ -33,6 +33,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server bulk email > notes and history", { db: true }, () => {
   describe("draft helpers", () => {
@@ -415,8 +416,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // at edit time (the gap the `firstRealBooking` flag closes).
       const contactRow = async (): Promise<{ contact_hash: string } | null> =>
         queryOne<{ contact_hash: string }>(
-          "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
-          [hash],
+          sql`SELECT contact_hash FROM contact_preferences WHERE contact_hash = ${hash}`
         );
       expect(await contactRow()).toBeNull();
 
@@ -452,8 +452,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "plain-edit@example.com",
       );
       await execute(
-        "UPDATE contact_preferences SET attendee_tokens_blob = ? || attendee_tokens_blob WHERE contact_hash = ?",
-        ["not-an-owner-key-token\n", await hashEmail("plain-edit@example.com")],
+        sql`UPDATE contact_preferences SET attendee_tokens_blob = ${"not-an-owner-key-token\n"} || attendee_tokens_blob WHERE contact_hash = ${await hashEmail("plain-edit@example.com")}`
       );
 
       const { response } = await adminFormPost(

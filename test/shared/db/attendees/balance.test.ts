@@ -45,6 +45,7 @@ import {
 } from "#test-utils/processed-payments.ts";
 import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settle attendee balance", { db: true }, () => {
   test("clears the balance, moves to the paid status and logs it", async () => {
@@ -63,10 +64,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     expect(log).toHaveLength(1);
     assertStringIncludes(log[0]!.message, "Reservation balance paid");
 
-    const { rows } = await getDb().execute({
-      args: [KIND.payment, String(attendeeId), 1500],
-      sql: "SELECT event_group, reference FROM transfers WHERE kind = ? AND dest_id = ? AND amount = ?",
-    });
+    const { rows } = await getDb().execute(sql`SELECT event_group, reference FROM transfers WHERE kind = ${KIND.payment} AND dest_id = ${String(attendeeId)} AND amount = ${1500}`);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.event_group).toBe(
       await eventGroup(["balance", settlement.id]),
@@ -119,9 +117,8 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     // Their deposit charge, with a refund run holding it.
     await reserveSession("deposit-held");
     await getDb().execute(
-      `UPDATE processed_payments SET attendee_id = ?, protected_state = 'claim'
-        WHERE payment_session_id = ?`,
-      [attendeeId, "deposit-held"],
+      sql`UPDATE processed_payments SET attendee_id = ${attendeeId}, protected_state = 'claim'
+        WHERE payment_session_id = ${"deposit-held"}`
     );
     await reserveSession("balance-held");
 
@@ -150,18 +147,10 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const reference = "pi_alias_held_elsewhere";
     const stored = await historicalPaymentReferenceStorage(reference);
     await reserveSession("legacy-alias-held");
-    await getDb().execute({
-      args: [
-        holder.attendeeId,
-        stored.encrypted,
-        stored.index,
-        "legacy-alias-held",
-      ],
-      sql: `UPDATE processed_payments
-               SET attendee_id = ?, payment_reference = ?,
-                   payment_reference_index = ?, protected_state = 'claim'
-             WHERE payment_session_id = ?`,
-    });
+    await getDb().execute(sql`UPDATE processed_payments
+               SET attendee_id = ${holder.attendeeId}, payment_reference = ${stored.encrypted},
+                   payment_reference_index = ${stored.index}, protected_state = 'claim'
+             WHERE payment_session_id = ${"legacy-alias-held"}`);
     await reserveSession("balance-alias-refused");
 
     await expect(
@@ -260,7 +249,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("fails when no paid-default status is configured", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
-    await getDb().execute("UPDATE attendee_statuses SET is_paid_default = 0");
+    await getDb().execute(sql`UPDATE attendee_statuses SET is_paid_default = 0`);
     attendeeStatuses.invalidate();
     await expect(
       settleAttendeeBalance(attendeeId, 1500, settle()),
@@ -273,10 +262,10 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("settles an attendee that has no booking lines", async () => {
     await getDb().execute(
-      "INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')",
+      sql`INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')`
     );
     const { rows } = await getDb().execute(
-      "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+      sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`
     );
     const attendeeId = Number(rows[0]!.id);
     // Owe £9 in the ledger with no listing_attendees row: a sale to a listing
@@ -295,10 +284,10 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("order summary is empty for an attendee with no bookings", async () => {
     await getDb().execute(
-      "INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')",
+      sql`INSERT INTO attendees (created, pii_blob) VALUES ('2024-01-01T00:00:00Z', '')`
     );
     const { rows } = await getDb().execute(
-      "SELECT id FROM attendees ORDER BY id DESC LIMIT 1",
+      sql`SELECT id FROM attendees ORDER BY id DESC LIMIT 1`
     );
     const summary = await getAttendeeOrderSummary(Number(rows[0]!.id));
     expect(summary.lines).toHaveLength(0);
@@ -322,10 +311,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       thankYouUrl: "https://example.com",
       unitPrice: 1000,
     });
-    await getDb().execute({
-      args: [listing.id, 999999],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
-    });
+    await getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${listing.id}, ${999999}, 2)`);
     // price_paid projects from the ledger: post the 300 sale leg for this row.
     await postListingSale({
       attendeeId: 999999,
@@ -373,10 +359,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
   test("order summary skips bookings whose listing no longer exists", async () => {
     const { attendeeId } = await createReservedAttendee(1500);
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (98765, ?, 1)",
-    });
+    await getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (98765, ${attendeeId}, 1)`);
     const summary = await getAttendeeOrderSummary(attendeeId);
     // Only the real listing is included; the dangling row is dropped.
     expect(summary.lines).toHaveLength(1);
@@ -394,10 +377,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
       thankYouUrl: "https://example.com/other",
       unitPrice: 1200,
     });
-    await getDb().execute({
-      args: [otherListing.id, attendeeId],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, 2)",
-    });
+    await getDb().execute(sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (${otherListing.id}, ${attendeeId}, 2)`);
 
     const multiple = await withRequestContext(async () => {
       enableQueryLog();

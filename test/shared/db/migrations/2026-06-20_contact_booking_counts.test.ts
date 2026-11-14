@@ -9,6 +9,7 @@ import {
 } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({
   applySchemaChanges,
@@ -23,17 +24,14 @@ const runMigration = () => contactBookingCountsMigration(context).up();
 const createPreSplitTable = () =>
   getDb().batch(
     [
-      "DROP TABLE IF EXISTS contact_preferences",
-      "CREATE TABLE contact_preferences (contact_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, visits INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', last_activity INTEGER NOT NULL DEFAULT 0)",
+      sql`DROP TABLE IF EXISTS contact_preferences`,
+      sql`CREATE TABLE contact_preferences (contact_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, visits INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', last_activity INTEGER NOT NULL DEFAULT 0)`,
     ],
     "write",
   );
 
 const insertContact = (hash: string, visits: number) =>
-  getDb().execute({
-    args: [hash, visits],
-    sql: "INSERT INTO contact_preferences (contact_hash, visits) VALUES (?, ?)",
-  });
+  getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, visits) VALUES (${hash}, ${visits})`);
 
 describeWithEnv(
   "db > migrations > 2026-06-20_contact_booking_counts",
@@ -48,7 +46,7 @@ describeWithEnv(
         await runMigration();
 
         const { rows } = await getDb().execute(
-          "SELECT contact_hash, visits, public_booking_count, admin_booking_count FROM contact_preferences ORDER BY contact_hash",
+          sql`SELECT contact_hash, visits, public_booking_count, admin_booking_count FROM contact_preferences ORDER BY contact_hash`
         );
         // A returning contact's prior orders surface as public bookings; a
         // contact with no visits stays at zero. Admin counts are never guessed.

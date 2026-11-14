@@ -50,6 +50,7 @@ import {
   type ServicingEventInput,
   updateServicingEvent as updateServicingEventImpl,
 } from "#db/attendees/servicing.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 export type { ServicingEvent, ServicingEventInput };
 export { buildDuplicateServicingInput, editServiceCost, recordServiceCost };
@@ -163,8 +164,7 @@ export const createServicingHold = async (
 /** The `kind` column value for an attendee row, or null when the id is gone. */
 export const kindOf = async (id: number): Promise<string | null> => {
   const row = await queryOne<{ kind: string }>(
-    "SELECT kind FROM attendees WHERE id = ?",
-    [id],
+    sql`SELECT kind FROM attendees WHERE id = ${id}`
   );
   return row?.kind ?? null;
 };
@@ -172,8 +172,7 @@ export const kindOf = async (id: number): Promise<string | null> => {
 /** The `ticket_token_index` for an attendee row. */
 export const tokenIndexOf = async (id: number): Promise<string> =>
   (await queryOne<{ idx: string }>(
-    "SELECT ticket_token_index AS idx FROM attendees WHERE id = ?",
-    [id],
+    sql`SELECT ticket_token_index AS idx FROM attendees WHERE id = ${id}`
   ))!.idx;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -189,14 +188,8 @@ export const orphanServicingEvent = async (
   id: number,
   daysAgo = 30,
 ): Promise<void> => {
-  await getDb().execute({
-    args: [id],
-    sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-  });
-  await getDb().execute({
-    args: [daysAgoIso(daysAgo), id],
-    sql: "UPDATE attendees SET created = ? WHERE id = ?",
-  });
+  await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${id}`);
+  await getDb().execute(sql`UPDATE attendees SET created = ${daysAgoIso(daysAgo)} WHERE id = ${id}`);
 };
 
 /** Count rows in a child table referencing this attendee id. */
@@ -205,8 +198,7 @@ export const childRowCount = async (
   attendeeId: number,
 ): Promise<number> =>
   (await queryOne<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
-    [attendeeId],
+    sql`SELECT COUNT(*) AS count FROM ${sqlName(table)} WHERE attendee_id = ${attendeeId}`
   ))!.count;
 
 // ─── Decryption + assertion helpers ────────────────────────────────────────
@@ -215,13 +207,12 @@ export const servicingRowsForListing = (
   listingId: number,
 ): Promise<Attendee[]> =>
   queryAll<Attendee>(
-    `SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")}
+    sql`SELECT ${attendeeColumns("inner", ATTENDEE_FIELDS, "attendee")}
        FROM attendees AS attendee
        JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id
-      WHERE listingAttendee.listing_id = ?
-        AND attendee.kind = ?
-      ORDER BY attendee.id`,
-    [listingId, SERVICING_KIND],
+      WHERE listingAttendee.listing_id = ${listingId}
+        AND attendee.kind = ${SERVICING_KIND}
+      ORDER BY attendee.id`
   );
 
 /** Decrypt the first servicing-kind attendee row booked against `listingId`.
@@ -323,7 +314,7 @@ export const expectLogisticsDisabled = async (id: number): Promise<void> => {
     assigned: number;
     split: number;
   }>(
-    `SELECT attendee.split_logistics_agents AS split,
+    sql`SELECT attendee.split_logistics_agents AS split,
             (
               SELECT COUNT(*) FROM listing_attendees AS booking
               WHERE booking.attendee_id = attendee.id
@@ -333,8 +324,7 @@ export const expectLogisticsDisabled = async (id: number): Promise<void> => {
                 )
             ) AS assigned
        FROM attendees AS attendee
-      WHERE attendee.id = ?`,
-    [id],
+      WHERE attendee.id = ${id}`
   );
   expect(row?.split).toBe(0);
   expect(row?.assigned).toBe(0);

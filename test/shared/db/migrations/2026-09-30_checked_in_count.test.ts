@@ -6,6 +6,7 @@ import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
 import { executeStatements } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({});
 const migration = () => checkedInCount(context);
@@ -17,10 +18,10 @@ const lineWith = async (
   flag: number,
 ): Promise<void> => {
   await getDb().execute(
-    `INSERT INTO attendees (id, created, kind) VALUES (${id}, '2026-09-27T00:00:00Z', 'attendee')`,
+    sql`INSERT INTO attendees (id, created, kind) VALUES (${id}, '2026-09-27T00:00:00Z', 'attendee')`
   );
   await getDb().execute(
-    `INSERT INTO listing_attendees (attendee_id, listing_id, quantity, checked_in) VALUES (${id}, 1, ${quantity}, ${flag})`,
+    sql`INSERT INTO listing_attendees (attendee_id, listing_id, quantity, checked_in) VALUES (${id}, 1, ${quantity}, ${flag})`
   );
 };
 
@@ -29,8 +30,7 @@ const storedCount = async (attendeeId: number): Promise<number> =>
   Number(
     (
       await getDb().execute(
-        "SELECT checked_in FROM listing_attendees WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendeeId}`
       )
     ).rows[0]?.checked_in,
   );

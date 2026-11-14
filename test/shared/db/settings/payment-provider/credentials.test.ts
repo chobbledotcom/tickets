@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings payment credentials", { db: true }, () => {
   describe("the Stripe secret key", () => {
@@ -161,7 +162,7 @@ describeWithEnv("db > settings payment credentials", { db: true }, () => {
         }),
       ).rejects.toThrow("endpoint id write failed");
     } finally {
-      await getDb().execute("DROP TRIGGER fail_stripe_endpoint_id");
+      await getDb().execute(sql`DROP TRIGGER fail_stripe_endpoint_id`);
     }
 
     settings.invalidateCache();

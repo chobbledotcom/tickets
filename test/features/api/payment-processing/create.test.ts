@@ -31,6 +31,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount, webhookMeta } from "#test-utils/factories.ts";
 import { pricedOrder as makePricedOrder } from "#test-utils/factories-pricing.ts";
 import type { ListingWithCount } from "#types";
+import { sql } from "#db/sql.ts";
 
 test("builds standalone and package booking slots", () => {
   expect(bookingSlot({ e: 7, p: 100, q: 1 })).toEqual({
@@ -253,9 +254,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       { "7": "Answer" },
       null,
     );
-    await execute("UPDATE checkout_pending_answers SET sealed = ?", [
-      "not-a-sealed-payload",
-    ]);
+    await execute(sql`UPDATE checkout_pending_answers SET sealed = ${"not-a-sealed-payload"}`);
     using create = stubSuccessfulBooking();
     const result = await preparationResult({
       listingTextAnswerIds: { "1": [{ q: 7, s: 3 }] },
@@ -415,8 +414,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
       );
 
       const [row] = await queryAll<{ message: string }>(
-        "SELECT message FROM activity_log WHERE attendee_id = ?",
-        [attendee.id],
+        sql`SELECT message FROM activity_log WHERE attendee_id = ${attendee.id}`
       );
       expect(
         await decryptWithOwnerKey(

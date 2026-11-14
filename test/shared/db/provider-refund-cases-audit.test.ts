@@ -7,6 +7,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 type StoredCase = {
   readonly refund_revision: number;
@@ -15,10 +16,9 @@ type StoredCase = {
 
 const storedCase = (id: number): Promise<StoredCase | null> =>
   queryOne<StoredCase>(
-    `SELECT refund_revision, refund_state
+    sql`SELECT refund_revision, refund_state
        FROM payment_charges
-      WHERE id = ?`,
-    [id],
+      WHERE id = ${id}`
   );
 
 const resolveReturned = async (id: number): Promise<void> => {
@@ -51,11 +51,11 @@ describeWithEnv("provider refund case audit", { db: true }, () => {
     const id = await addProviderRefundTestCase("audit-write-fails");
     const before = await storedCase(id);
     await execute(
-      `CREATE TRIGGER refuse_refund_case_activity
+      sql`CREATE TRIGGER refuse_refund_case_activity
        BEFORE INSERT ON activity_log
        BEGIN
          SELECT RAISE(ABORT, 'refund audit unavailable');
-       END`,
+       END`
     );
 
     await expect(resolveReturned(id)).rejects.toThrow(

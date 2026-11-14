@@ -16,6 +16,7 @@ import {
 import { DAY_MS, nowMs } from "#shared/now.ts";
 import { SQUARE_NATIVE_LIFETIME_MS } from "#shared/square/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 const requiredSquareRetentionMs =
   SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
@@ -32,8 +33,7 @@ const expectedAnswers = (kept: boolean): Map<number, string> =>
 
 const setCreatedAt = async (session: string, createdAt: string) => {
   await execute(
-    "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-    [createdAt, await hmacHash(session)],
+    sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(session)}`
   );
 };
 
@@ -58,8 +58,7 @@ describeWithEnv(
           await stageSquareLinkEnd(session, `link_${session}`, linkEndsAt);
           await setCreatedAt(session, createdAt);
           await execute(
-            "UPDATE square_link_ends SET created_at = ?, state = ? WHERE session_index = ?",
-            [createdAt, state, index],
+            sql`UPDATE square_link_ends SET created_at = ${createdAt}, state = ${state} WHERE session_index = ${index}`
           );
         }
 
@@ -69,8 +68,7 @@ describeWithEnv(
           const session = `sq_boundary_${position}_${state}`;
           expect(
             await queryOne(
-              "SELECT state FROM square_link_ends WHERE session_index = ?",
-              [await hmacHash(session)],
+              sql`SELECT state FROM square_link_ends WHERE session_index = ${await hmacHash(session)}`
             ),
           ).toEqual(kept ? { state } : null);
           expect(await readCheckoutAnswers(session)).toEqual(

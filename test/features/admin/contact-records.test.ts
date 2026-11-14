@@ -13,6 +13,7 @@ import { loadContactRecords } from "#routes/admin/contact-records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import { withTestSession } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const SAVED_RECORD = {
   adminBookingCount: 2,
@@ -67,8 +68,7 @@ describeWithEnv("attendee contact records", { db: true }, () => {
     const email = "corrupt-history@example.com";
     const hash = await hashEmail(email);
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (?, ?, ?)",
-      [hash, 7, "corrupt"],
+      sql`INSERT INTO contact_preferences (contact_hash, visits, stats_blob) VALUES (${hash}, ${7}, ${"corrupt"})`
     );
     const errorSpy = spy(console, "error");
     try {

@@ -27,6 +27,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const PHONE = "+447700900123";
 
@@ -163,11 +164,8 @@ describeWithEnv("admin sms", { db: true }, () => {
     // Seed an undecryptable stats_blob for this phone contact so recordContacts
     // throws when it tries to update the per-phone history — the exact failure
     // that must not be allowed to flip an already-sent text into an error.
-    await getDb().execute({
-      args: [await hashPhone(PHONE)],
-      sql: `INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (?, 'corrupt-blob')
-            ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`,
-    });
+    await getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, stats_blob) VALUES (${await hashPhone(PHONE)}, 'corrupt-blob')
+            ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = 'corrupt-blob'`);
     using _fetch = stubFetch(new Response('{"id":"msg-9"}'));
     const { response } = await adminFormPost("/admin/sms", {
       ...form,

@@ -34,6 +34,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const expectAttendeeDeleted = expectFlashRedirect(
   "/admin/attendees",
@@ -55,8 +56,7 @@ const setupDeleteListingAndAttendee = (): ReturnType<
 /** Whether the attendee row is still there. */
 const attendeeExists = async (attendeeId: number): Promise<boolean> =>
   (await queryOne<{ id: number }>(
-    "SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ?",
-    [attendeeId],
+    sql`SELECT attendee.id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`
   )) !== null;
 
 describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
@@ -94,8 +94,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       });
       const { getDb } = await import("#db/client.ts");
       await getDb().execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        [attendee.id],
+        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`
       );
 
       const response = await adminGet(`/admin/attendees/${attendee.id}/delete`);

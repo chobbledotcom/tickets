@@ -32,6 +32,7 @@ import {
   reloginAsAdmin,
   testCookie,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin settings)", { db: true }, () => {
   afterEach(() => {
@@ -178,10 +179,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("returns error when password update fails", async () => {
       // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: ["corrupted-key-data"],
-        sql: "UPDATE users SET wrapped_data_key = ?",
-      });
+      await getDb().execute(sql`UPDATE users SET wrapped_data_key = ${"corrupted-key-data"}`);
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {

@@ -30,6 +30,7 @@ import { runWithPrimaryReads } from "#db/primary-reads.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { sql } from "#db/sql.ts";
 
 /** A minimal libsql ResultSet for stubbed execute/batch calls. */
 const emptyResultSet = (): ResultSet => ({
@@ -44,23 +45,17 @@ const emptyResultSet = (): ResultSet => ({
 describe("orIgnore", () => {
   test("turns a plain insert into one that skips a clash", () => {
     expect(
-      orIgnore({ args: [1], sql: "INSERT INTO settings (key) VALUES (?)" }),
-    ).toEqual({
-      args: [1],
-      sql: "INSERT OR IGNORE INTO settings (key) VALUES (?)",
-    });
+      orIgnore(sql`INSERT INTO settings (key) VALUES (${1})`),
+    ).toEqual(sql`INSERT OR IGNORE INTO settings (key) VALUES (${1})`);
   });
 
   test("leaves a statement that does not start with an insert alone", () => {
-    const update = { args: [], sql: "UPDATE settings SET value = 1" };
+    const update = sql`UPDATE settings SET value = 1`;
     expect(orIgnore(update).sql).toBe(update.sql);
   });
 
   test("copies the arguments rather than sharing them", () => {
-    const original = {
-      args: [1],
-      sql: "INSERT INTO settings (key) VALUES (?)",
-    };
+    const original = sql`INSERT INTO settings (key) VALUES (${1})`;
     const relaxed = orIgnore(original);
     original.args.push(2);
     expect(relaxed.args).toEqual([1]);
@@ -196,7 +191,7 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
     );
     try {
       // Empty SET clause → extractUpdateColumns returns null → fallback fires
-      await execute("UPDATE t SET WHERE true", []);
+      await execute(sql`UPDATE t SET WHERE true`);
       expect(fired).toBe(1);
     } finally {
       executeStub.restore();
@@ -210,10 +205,7 @@ describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
       fired++;
     });
     try {
-      await execute("REPLACE INTO settings (key, value) VALUES (?, ?)", [
-        "replace_test",
-        "val",
-      ]);
+      await execute(sql`REPLACE INTO settings (key, value) VALUES (${"replace_test"}, ${"val"})`);
       expect(fired).toBe(1);
     } finally {
       unregister();
@@ -260,16 +252,16 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("primary read scopes use remote write mode and local read mode", async () => {
     const { modes, result } = await batchModesWhile(async () => {
-      await queryBatch([{ args: [], sql: "SELECT 1" }]);
+      await queryBatch([sql`SELECT 1`]);
       {
         using _env = withEnv({ DB_URL: "libsql://primary.test" });
-        await runWithPrimaryReads(() => queryAll("SELECT 1"));
+        await runWithPrimaryReads(() => queryAll(sql`SELECT 1`));
         await runWithPrimaryReads(() =>
-          queryBatch([{ args: [], sql: "SELECT 1" }]),
+          queryBatch([sql`SELECT 1`]),
         );
       }
       return await runWithPrimaryReads(() =>
-        queryAll<{ one: number }>("SELECT 1 AS one"),
+        queryAll<{ one: number }>(sql`SELECT 1 AS one`),
       );
     });
     expect(result).toEqual([{ one: 1 }]);
@@ -279,7 +271,7 @@ describeWithEnv("db > client", { db: true }, () => {
   test("a read outside a primary scope is left to a replica", async () => {
     const { modes, result } = await batchModesWhile(async () => {
       using _env = withEnv({ DB_URL: "libsql://primary.test" });
-      return await queryAll<{ one: number }>("SELECT 1 AS one");
+      return await queryAll<{ one: number }>(sql`SELECT 1 AS one`);
     });
     // One plain statement, which any replica can answer. A batch here would
     // pin every ordinary read to the primary and take its write-mode lock.
@@ -289,17 +281,13 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryOne returns null for an expected miss", async () => {
     expect(
-      await queryOne("SELECT value FROM settings WHERE key = ?", [
-        "missing-query-one-test",
-      ]),
+      await queryOne(sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`),
     ).toBeNull();
   });
 
   test("requireOne throws the failed query when a required row is missing", async () => {
     await expect(
-      requireOne("SELECT value FROM settings WHERE key = ?", [
-        "missing-query-one-test",
-      ]),
+      requireOne(sql`SELECT value FROM settings WHERE key = ${"missing-query-one-test"}`),
     ).rejects.toThrow(
       "Required query returned no rows: SELECT value FROM settings WHERE key = ?",
     );
@@ -307,9 +295,7 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("requireOnePrimary names a missing row on the primary", async () => {
     await expect(
-      requireOnePrimary("SELECT value FROM settings WHERE key = ?", [
-        "missing-primary-query-one-test",
-      ]),
+      requireOnePrimary(sql`SELECT value FROM settings WHERE key = ${"missing-primary-query-one-test"}`),
     ).rejects.toThrow(
       "Required primary query returned no rows: SELECT value FROM settings WHERE key = ?",
     );
@@ -317,11 +303,10 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryOnePrimary returns the single matching row from the primary", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_one_primary', 'found')`
     );
     const row = await queryOnePrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      ["query_one_primary"],
+      sql`SELECT value FROM settings WHERE key = ${"query_one_primary"}`
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");
@@ -329,13 +314,9 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("queryAllPrimary returns every matching row from the primary", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES" +
-        " ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_all_primary_a', 'first'), ('query_all_primary_b', 'second')`
     );
-    const rows = await queryAllPrimary<{ value: string }>({
-      args: ["query_all_primary_%"],
-      sql: "SELECT value FROM settings WHERE key LIKE ? ORDER BY key",
-    });
+    const rows = await queryAllPrimary<{ value: string }>(sql`SELECT value FROM settings WHERE key LIKE ${"query_all_primary_%"} ORDER BY key`);
     // Every match in order: a plural that answered with the first row alone
     // would be the singular wearing the wrong name.
     expect(rows.map(({ value }) => value)).toEqual(["first", "second"]);
@@ -395,7 +376,7 @@ describeWithEnv("db > client", { db: true }, () => {
     });
     await getDb().execute(stmt);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'insert_test'",
+      sql`SELECT value FROM settings WHERE key = 'insert_test'`
     );
     expect(row.rows[0]!.value).toBe("works");
   });
@@ -454,7 +435,7 @@ describeWithEnv("db > client", { db: true }, () => {
 
   test("executeUpdate writes the matched row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('update_test', 'before')",
+      sql`INSERT INTO settings (key, value) VALUES ('update_test', 'before')`
     );
     const result = await executeUpdate(
       "settings",
@@ -463,14 +444,14 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     expect(result.rowsAffected).toBe(1);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'update_test'",
+      sql`SELECT value FROM settings WHERE key = 'update_test'`
     );
     expect(row.rows[0]!.value).toBe("after");
   });
 
   test("executeUpdate leaves non-matching rows alone", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')",
+      sql`INSERT INTO settings (key, value) VALUES ('update_scope', 'kept')`
     );
     const result = await executeUpdate(
       "settings",
@@ -479,7 +460,7 @@ describeWithEnv("db > client", { db: true }, () => {
     );
     expect(result.rowsAffected).toBe(0);
     const row = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'update_scope'",
+      sql`SELECT value FROM settings WHERE key = 'update_scope'`
     );
     expect(row.rows[0]!.value).toBe("kept");
   });
@@ -513,36 +494,28 @@ describeWithEnv("db > client", { db: true }, () => {
     // Two expressions must join into one valid SET clause, with the entity id
     // bound once per field plus once for the WHERE.
     expect(captured).toEqual([
-      {
-        args: [7, 7, 7],
-        sql: "UPDATE agg_t SET a = a + ?, b = ? WHERE id = ?",
-      },
+      sql`UPDATE agg_t SET a = a + ${7}, b = ${7} WHERE id = ${7}`,
     ]);
   });
 
   test("rowExists is true when the probe matches a row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('exists_test', 'x')",
+      sql`INSERT INTO settings (key, value) VALUES ('exists_test', 'x')`
     );
     expect(
-      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
-        "exists_test",
-      ]),
+      await rowExists(sql`SELECT 1 FROM settings WHERE key = ${"exists_test"} LIMIT 1`),
     ).toBe(true);
   });
 
   test("rowExists is false when no row matches", async () => {
     expect(
-      await rowExists("SELECT 1 FROM settings WHERE key = ? LIMIT 1", [
-        "missing_key",
-      ]),
+      await rowExists(sql`SELECT 1 FROM settings WHERE key = ${"missing_key"} LIMIT 1`),
     ).toBe(false);
   });
 
   test("executeReturningRow reads back the written row", async () => {
     const row = await executeReturningRow<{ value: string }>(
-      "INSERT INTO settings (key, value) VALUES ('returning_test', 'x') RETURNING value",
-      [],
+      sql`INSERT INTO settings (key, value) VALUES ('returning_test', 'x') RETURNING value`
     );
     expect(row).toEqual({ value: "x" });
   });
@@ -550,19 +523,17 @@ describeWithEnv("db > client", { db: true }, () => {
   test("executeReturningRow throws when the write returned no row", async () => {
     await expect(
       executeReturningRow(
-        "UPDATE settings SET value = 'y' WHERE key = ? RETURNING value",
-        ["missing_key"],
+        sql`UPDATE settings SET value = 'y' WHERE key = ${"missing_key"} RETURNING value`
       ),
     ).rejects.toThrow("Write returned no row");
   });
 
   test("queryOne returns the single matching row", async () => {
     await execute(
-      "INSERT INTO settings (key, value) VALUES ('query_one', 'found')",
+      sql`INSERT INTO settings (key, value) VALUES ('query_one', 'found')`
     );
     const row = await queryOne<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      ["query_one"],
+      sql`SELECT value FROM settings WHERE key = ${"query_one"}`
     );
     // Exactly one row must surface as that row (not null, not the next one).
     expect(row?.value).toBe("found");

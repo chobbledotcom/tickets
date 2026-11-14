@@ -13,6 +13,7 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const createStatus = async (
   name: string,
@@ -22,10 +23,7 @@ const createStatus = async (
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
-  await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  await getDb().execute(sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`);
 };
 
 describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {

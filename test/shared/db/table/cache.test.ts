@@ -5,6 +5,7 @@ import { col, defineCachedListTable } from "#db/table.ts";
 
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 type CachedRow = { id: number; name: string };
 type CachedInput = { name: string };
@@ -12,7 +13,7 @@ type CachedInput = { name: string };
 describeWithEnv("db > cached tables", { db: true }, () => {
   test("reads declared columns in order and invalidates after a write", async () => {
     await execute(
-      "CREATE TABLE table_cached_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      sql`CREATE TABLE table_cached_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL)`
     );
     const rows = defineCachedListTable<CachedRow, CachedInput>({
       name: "table_cached_rows",

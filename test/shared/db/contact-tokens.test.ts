@@ -18,6 +18,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 const syncToken = (
   ticketToken: string,
@@ -49,8 +50,7 @@ const recordEmailBooking = (
 const tokenBlobFor = async (hash: string): Promise<string> =>
   (
     await queryOne<{ attendee_tokens_blob: string }>(
-      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-      [hash],
+      sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`
     )
   )?.attendee_tokens_blob ?? "";
 
@@ -187,8 +187,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const email = "recent-window@example.com";
     const hash = await hashEmail(email);
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [hash, 1, "not-an-owner-key-token\n"],
+      sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (${hash}, ${1}, ${"not-an-owner-key-token\n"})`
     );
     await recordEmailBooking(email, "public", "tok-newer");
     await recordEmailBooking(email, "admin", "tok-newest");
@@ -202,8 +201,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const pk = await getTestPrivateKey();
     const hash = await hashEmail("zero-window@example.com");
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [hash, 1, "not-an-owner-key-token\n"],
+      sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (${hash}, ${1}, ${"not-an-owner-key-token\n"})`
     );
 
     expect(await getRecentBookingTokens(hash, pk, 0)).toEqual([]);
@@ -253,8 +251,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     const oldHash = await hashEmail(oldEmail);
     const newHash = await hashEmail(newEmail);
     await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [oldHash, 1, "not-an-owner-key-token\n"],
+      sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (${oldHash}, ${1}, ${"not-an-owner-key-token\n"})`
     );
     await recordEmailBooking(oldEmail, "public", "tok-marker-move");
 
@@ -340,8 +337,7 @@ describeWithEnv("contact-tokens", { db: true }, () => {
 
     expect(
       await queryOne<{ contact_hash: string }>(
-        "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
-        [hash],
+        sql`SELECT contact_hash FROM contact_preferences WHERE contact_hash = ${hash}`
       ),
     ).toBeNull();
   });

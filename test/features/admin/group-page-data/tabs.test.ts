@@ -30,6 +30,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server (admin groups) — tabs & add-listings",
@@ -225,7 +226,7 @@ describeWithEnv(
         });
         const listing = await createTestListing({ name: "Waiting listing" });
         const restore = beforeNextTransaction(async () => {
-          await execute("DELETE FROM groups WHERE id = ?", [group.id]);
+          await execute(sql`DELETE FROM groups WHERE id = ${group.id}`);
         });
 
         let response: Response;

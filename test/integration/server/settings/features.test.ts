@@ -34,6 +34,7 @@ import {
   storedFeatureEnabled,
   withFeatureWriteFailure,
 } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 const expectFeatureSaved = async (
   slug: string,
@@ -97,9 +98,7 @@ describeAdminSettings(() => {
     await expectFeatureSaved("logistics", false, "Logistics disabled.");
     expect(settings.listingDefaults.usesLogistics).toBeUndefined();
     expect(
-      await queryOne("SELECT value FROM settings WHERE key = ?", [
-        CONFIG_KEYS.LISTING_DEFAULTS,
-      ]),
+      await queryOne(sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`),
     ).toBeNull();
     expect(await storedFeatureEnabled("logistics")).toBe(false);
   });

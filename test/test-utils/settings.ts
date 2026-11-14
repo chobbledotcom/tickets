@@ -19,6 +19,7 @@ import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "./db.ts";
 import { withMocks } from "./mocks.ts";
 import { insertModifier } from "./modifiers.ts";
+import { sql } from "#db/sql.ts";
 
 /** Read every setting back off disk, throwing away what this process last
  * cached. A test that saved through a route and then asks what the site holds
@@ -96,8 +97,7 @@ export const enableFeature = async (key: AdminFeatureKey): Promise<void> => {
 
 export const settingValue = async (key: string): Promise<string> => {
   const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [key],
+    sql`SELECT value FROM settings WHERE key = ${key}`
   );
   if (!row) throw new Error(`Setting ${key} was not stored`);
   return row.value;
@@ -160,7 +160,7 @@ export const withFeatureWriteFailure = async <T>(
   try {
     return await run();
   } finally {
-    await execute("DROP TRIGGER IF EXISTS fail_feature_write");
+    await execute(sql`DROP TRIGGER IF EXISTS fail_feature_write`);
   }
 };
 

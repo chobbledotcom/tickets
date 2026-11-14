@@ -43,6 +43,7 @@ import {
 } from "#test-utils/migrations.ts";
 import { expectNtfyNotification, stubNtfyFetch } from "#test-utils/mocks.ts";
 import { invalidateTestDbCache } from "#test-utils/test-state.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 type BatchStatement = Parameters<ReturnType<typeof getDb>["batch"]>[0][number];
 
@@ -55,10 +56,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     await getDb().batch(
       [
         `UPDATE settings SET value = 'stale' WHERE key = '${DB_SCHEMA_HASH_KEY}'`,
-        {
-          args: [MIGRATION_LOCK_KEY, heldSince.toISOString()],
-          sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-        },
+        sql`INSERT INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${heldSince.toISOString()})`,
       ],
       "write",
     );
@@ -257,10 +255,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
           `SELECT value FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
         );
         expect(lock.rows[0]?.value).toBe(successorLock);
-        const marker = await getDb().execute({
-          args: [migration.id],
-          sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-        });
+        const marker = await getDb().execute(sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`);
         expect(marker.rows).toHaveLength(0);
       } finally {
         migration.verify = originalVerify;
@@ -354,7 +349,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
       invalidateTestDbCache();
 
       const tablesResult = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type='table'",
+        sql`SELECT name FROM sqlite_master WHERE type='table'`
       );
       const tableNames = tablesResult.rows.map((r) => r.name);
       assert(!tableNames.includes("listings"));

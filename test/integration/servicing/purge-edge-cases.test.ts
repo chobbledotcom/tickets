@@ -31,6 +31,7 @@ import {
   orphanServicingEvent,
   recordServiceCost,
 } from "#test-utils/servicing.ts";
+import { sql } from "#db/sql.ts";
 
 /** How many notes this attendee has — a dependent row the purge clears. */
 const noteCount = async (attendeeId: number): Promise<number> =>
@@ -44,14 +45,8 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(oldId, 30);
     // One orphan at the boundary (created == cutoff; NOT swept — strict <).
     const { id: edgeId } = await createServicingHold();
-    await getDb().execute({
-      args: [edgeId],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    });
-    await getDb().execute({
-      args: [cutoff, edgeId],
-      sql: "UPDATE attendees SET created = ? WHERE id = ?",
-    });
+    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${edgeId}`);
+    await getDb().execute(sql`UPDATE attendees SET created = ${cutoff} WHERE id = ${edgeId}`);
     expect(
       await countPurgeableOrphanedAttendees(cutoff),
     ).toBeGreaterThanOrEqual(1);
@@ -66,10 +61,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(id);
     // Attach an answer so the sweep has something to delete.
     const { getDb: db } = await import("#db/client.ts");
-    await db().execute({
-      args: [id, 1, 1],
-      sql: "INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (?, ?, ?)",
-    });
+    await db().execute(sql`INSERT INTO attendee_answers (attendee_id, question_id, answer_id) VALUES (${id}, ${1}, ${1})`);
     expect(await childRowCount("attendee_answers", id)).toBe(1);
     await purgeOrphanedAttendees(nowIso());
     expect(await childRowCount("attendee_answers", id)).toBe(0);
@@ -91,14 +83,8 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(servicingId);
     const { createRealAttendee } = await import("#test-utils/servicing.ts");
     const { attendee: real } = await createRealAttendee();
-    await getDb().execute({
-      args: [real.id],
-      sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-    });
-    await getDb().execute({
-      args: [daysAgoIso(30), real.id],
-      sql: "UPDATE attendees SET created = ? WHERE id = ?",
-    });
+    await getDb().execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${real.id}`);
+    await getDb().execute(sql`UPDATE attendees SET created = ${daysAgoIso(30)} WHERE id = ${real.id}`);
     expect(
       await countPurgeableOrphanedAttendees(nowIso()),
     ).toBeGreaterThanOrEqual(2);

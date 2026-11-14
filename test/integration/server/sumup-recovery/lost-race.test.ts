@@ -9,6 +9,7 @@ import {
   makeSumupCheckoutDue,
   stageSignedSumupCheckout,
 } from "#test-utils/sumup.ts";
+import { sql } from "#db/sql.ts";
 
 const CHECKOUT_ID = "co_beaten";
 
@@ -21,8 +22,7 @@ describeWithEnv("server > SumUp recovery loses a race", { db: true }, () => {
     await makeSumupCheckoutDue(CHECKOUT_ID);
     const restore = stub(sumupApi, "readCheckoutById", async () => {
       await execute(
-        "UPDATE sumup_checkouts SET recovery_state = 'unpaid', next_check_at = NULL WHERE sumup_id = ?",
-        [CHECKOUT_ID],
+        sql`UPDATE sumup_checkouts SET recovery_state = 'unpaid', next_check_at = NULL WHERE sumup_id = ${CHECKOUT_ID}`
       );
       return {
         resource: {
@@ -42,8 +42,7 @@ describeWithEnv("server > SumUp recovery loses a race", { db: true }, () => {
         next_check_at: string | null;
         recovery_state: string;
       }>(
-        "SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ?",
-        [CHECKOUT_ID],
+        sql`SELECT recovery_state, next_check_at FROM sumup_checkouts WHERE sumup_id = ${CHECKOUT_ID}`
       );
       // The winner's answer stands, and the loser did not push the check time
       // back out into the future on top of it.

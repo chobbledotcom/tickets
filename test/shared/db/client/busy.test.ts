@@ -9,6 +9,7 @@ import {
   stubClient,
 } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * The write-lock retry: a statement that loses SQLite's single write lock
@@ -48,7 +49,7 @@ describe("db > client write-lock retry", () => {
           : Promise.resolve(emptyResultSet());
       }),
     );
-    const promise = execute("INSERT INTO t (x) VALUES (1)");
+    const promise = execute(sql`INSERT INTO t (x) VALUES (1)`);
     await time.tickAsync(50);
     const result = await promise;
     expect(result.rowsAffected).toBe(0);
@@ -81,7 +82,7 @@ describe("db > client write-lock retry", () => {
           : Promise.resolve(emptyResultSet());
       }),
     );
-    const promise = execute("INSERT INTO t (x) VALUES (1)");
+    const promise = execute(sql`INSERT INTO t (x) VALUES (1)`);
     await time.tickAsync(50);
     await time.tickAsync(150);
     await time.tickAsync(350);

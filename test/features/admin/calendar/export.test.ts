@@ -30,6 +30,7 @@ import {
   setupMixedBookings,
   setupTwoDailyBookings,
 } from "./shared.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "admin calendar export",
@@ -146,23 +147,10 @@ describeWithEnv(
           listing_id: number;
           attendee_id: number;
         }>(
-          "SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (?, ?)",
-          [listing1.id, listing2.id],
+          sql`SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (${listing1.id}, ${listing2.id})`
         );
-        await getDb().execute({
-          args: [
-            "2020-01-01T00:00:00.000Z",
-            rows.find((row) => row.listing_id === listing1.id)!.attendee_id,
-          ],
-          sql: "UPDATE attendees SET created = ? WHERE id = ?",
-        });
-        await getDb().execute({
-          args: [
-            "2021-01-01T00:00:00.000Z",
-            rows.find((row) => row.listing_id === listing2.id)!.attendee_id,
-          ],
-          sql: "UPDATE attendees SET created = ? WHERE id = ?",
-        });
+        await getDb().execute(sql`UPDATE attendees SET created = ${"2020-01-01T00:00:00.000Z"} WHERE id = ${rows.find((row) => row.listing_id === listing1.id)!.attendee_id}`);
+        await getDb().execute(sql`UPDATE attendees SET created = ${"2021-01-01T00:00:00.000Z"} WHERE id = ${rows.find((row) => row.listing_id === listing2.id)!.attendee_id}`);
 
         const response = await fetchCalendarResponse(
           `/admin/calendar/export?date=${date}`,
@@ -188,8 +176,7 @@ describeWithEnv(
             name: "User A",
           });
           const booking = await queryOne<{ attendee_id: number }>(
-            "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-            [listing.id],
+            sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listing.id}`
           );
           await assignBookingToAgent(
             booking!.attendee_id,

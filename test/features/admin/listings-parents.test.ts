@@ -19,6 +19,7 @@ import {
   linkModifierListing,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import { sql } from "#db/sql.ts";
 
 /** Create an active optional add-on attached to one group. */
 const groupAddOn = async (name: string, groupId: number): Promise<void> => {
@@ -54,9 +55,7 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
     // message through the caller's warning flow rather than letting a 500 out.
     const parent = await createTestListing({ name: "Copied Parent" });
     const child = await createTestListing({ name: "Vanishing Child" });
-    await executeWithoutCacheInvalidation("DELETE FROM listings WHERE id = ?", [
-      child.id,
-    ]);
+    await executeWithoutCacheInvalidation(sql`DELETE FROM listings WHERE id = ${child.id}`);
 
     expect(await copyDuplicatedChildEdges(parent, [child.id])).toBe(
       t("error.child_listing_deleted"),

@@ -36,6 +36,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import { sql } from "#db/sql.ts";
 
 describePublicApi(() => {
   test("the booking API refuses min-1, max+1, and fewer places than the minimum", async () => {
@@ -175,8 +176,7 @@ describeWithEnv("Quantity refusal table", { db: true }, () => {
     });
     const { execute } = await import("#db/client.ts");
     await execute(
-      "UPDATE listings SET min_quantity = 3, max_quantity = 2 WHERE id = ?",
-      [listing.id],
+      sql`UPDATE listings SET min_quantity = 3, max_quantity = 2 WHERE id = ${listing.id}`
     );
     const belowIntent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     const aboveIntent = bookingIntent([{ e: listing.id, p: 500, q: 3 }]);

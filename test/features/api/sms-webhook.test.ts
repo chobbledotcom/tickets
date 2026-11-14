@@ -17,6 +17,7 @@ import {
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithPhone } from "#test-utils/db-helpers/attendees.ts";
+import { sql } from "#db/sql.ts";
 
 const SECRET = "whsec-123";
 const PASS = "gateway-pass";
@@ -175,12 +176,10 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       providerId: "msg-stale",
     });
     await execute(
-      "UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ?",
-      ["msg-fresh"],
+      sql`UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ${"msg-fresh"}`
     );
     await execute(
-      "UPDATE sms_messages SET created = datetime('now', '-31 days') WHERE provider_id = ?",
-      ["msg-stale"],
+      sql`UPDATE sms_messages SET created = datetime('now', '-31 days') WHERE provider_id = ${"msg-stale"}`
     );
 
     await postWebhook({ event: "sms:sent", payload: {} });

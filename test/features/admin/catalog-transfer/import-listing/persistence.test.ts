@@ -21,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
+import { sql } from "#db/sql.ts";
 
 const importedId = async (blob: unknown): Promise<number> => {
   const result = await importCatalog(blob);
@@ -181,9 +182,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
   test("propagates an unexpected catalog write error", async () => {
     await execute(
-      `CREATE TRIGGER reject_imported_listing
+      sql`CREATE TRIGGER reject_imported_listing
          BEFORE INSERT ON listings
-         BEGIN SELECT RAISE(ABORT, 'import write failed'); END`,
+         BEGIN SELECT RAISE(ABORT, 'import write failed'); END`
     );
 
     await expect(
@@ -199,12 +200,12 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     const first = await createTestListing({ name: "First imported member" });
     const second = await createTestListing({ name: "Second imported member" });
     await execute(
-      `CREATE TRIGGER change_imported_member
+      sql`CREATE TRIGGER change_imported_member
          BEFORE INSERT ON group_listings
          WHEN NEW.listing_id = ${first.id}
          BEGIN
            UPDATE listings SET listing_type = 'daily' WHERE id = ${first.id};
-         END`,
+         END`
     );
 
     const result = await importCatalog({
@@ -224,10 +225,10 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
   test("rolls back an import when a member vanishes during its write", async () => {
     const member = await createTestListing({ name: "Vanishing import member" });
     await execute(
-      `CREATE TRIGGER delete_imported_member
+      sql`CREATE TRIGGER delete_imported_member
          BEFORE INSERT ON group_listings
          WHEN NEW.listing_id = ${member.id}
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`
     );
     const before = await Promise.all([
       countRows("listings"),
@@ -263,9 +264,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     // The check sees the parent is gone and rolls the whole import back
     // rather than leaving an orphan edge pointing at a deleted listing.
     await execute(
-      `CREATE TRIGGER delete_imported_parent
+      sql`CREATE TRIGGER delete_imported_parent
          AFTER INSERT ON listings
-         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`
     );
     const before = await Promise.all([
       countRows("listings"),

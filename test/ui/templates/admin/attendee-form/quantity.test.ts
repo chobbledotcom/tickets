@@ -16,6 +16,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server (unified attendee form) — no-quantity",
@@ -156,10 +157,7 @@ describeWithEnv(
           "WasIn",
           "wasin@example.com",
         );
-        await getDb().execute({
-          args: [attendee.id, listing.id],
-          sql: "UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ? AND listing_id = ?",
-        });
+        await getDb().execute(sql`UPDATE listing_attendees SET checked_in = 1 WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`);
 
         await markNoQuantity(attendee.id, listing.id, "WasIn");
 
@@ -239,20 +237,14 @@ describeWithEnv(
         // Assign a site to this booking. Deliberately leave the listing's
         // assign_built_site flag OFF: the block keys off the actual assignment row,
         // not the listing's current flag (which an owner may have turned off).
-        await getDb().execute({
-          args: [attendee.id, listing.id],
-          sql: "INSERT INTO built_sites (site_data, assignable, assigned_attendee_id, assigned_listing_id, created) VALUES ('{}', 0, ?, ?, '2026-01-01T00:00:00Z')",
-        });
+        await getDb().execute(sql`INSERT INTO built_sites (site_data, assignable, assigned_attendee_id, assigned_listing_id, created) VALUES ('{}', 0, ${attendee.id}, ${listing.id}, '2026-01-01T00:00:00Z')`);
 
         const response = await markNoQuantity(attendee.id, listing.id, "Sited");
 
         // Re-renders in place with the block message; the line stays a real booking.
         const html = await expectHtmlResponse(response, 200);
         assertStringIncludes(html, "Unassign the built site");
-        const row = await getDb().execute({
-          args: [attendee.id, listing.id],
-          sql: "SELECT quantity FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        });
+        const row = await getDb().execute(sql`SELECT quantity FROM listing_attendees WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`);
         expect(Number(row.rows[0]!.quantity)).toBe(1);
       });
 

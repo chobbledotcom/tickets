@@ -8,6 +8,7 @@ import {
   expectRefused,
   expectRefusedAsRepeat,
 } from "./refuses.ts";
+import { sql } from "#db/sql.ts";
 
 const COLUMNS =
   "id, origin, provider, mode, account_id, expected_amount, expected_currency, booking_intent, session_resource, session_reference_index, state, revision, created_at, updated_at, result_state, ticket_state, completion_state";
@@ -58,7 +59,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
     // SQLite lets a text primary key hold NULL unless the table says
     // otherwise, and a payment with no id can never be looked up again.
     await expect(
-      getDb().execute(`INSERT INTO payment_sessions
+      getDb().execute(sql`INSERT INTO payment_sessions
         (id, origin, state, revision, created_at, updated_at,
          result_state, ticket_state, completion_state)
         VALUES (NULL, 'legacy', 'created', 1, 1, 1, 'none', 'none', 'none')`),
@@ -80,13 +81,10 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   }
 
   test("refuses a booking that is bytes only reading like an envelope", async () => {
-    await expectRefused({
-      args: [new TextEncoder().encode("hyb:1:a:b:c")],
-      sql: `INSERT INTO payment_sessions (${COLUMNS})
+    await expectRefused(sql`INSERT INTO payment_sessions (${TODO_SQL_TEXT(COLUMNS)})
         VALUES ('bytes', 'current', 'stripe', 'test', 'acct', 100, 'GBP',
-          ?, 'hyb:1:a:b:c', 'bytes-index', 'pending', 1, 1, 1,
-          'none', 'none', 'none')`,
-    });
+          ${new TextEncoder().encode("hyb:1:a:b:c")}, 'hyb:1:a:b:c', 'bytes-index', 'pending', 1, 1, 1,
+          'none', 'none', 'none')`);
   });
 
   test("accepts a booking held behind the owner's key", async () => {
@@ -99,7 +97,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
        completion_state)
       VALUES ('no-version', 'legacy', 'created', 1, 1, 'none', 'none', 'none')`);
     const saved = await getDb().execute(
-      "SELECT revision FROM payment_sessions WHERE id = 'no-version'",
+      sql`SELECT revision FROM payment_sessions WHERE id = 'no-version'`
     );
     expect(Number(saved.rows[0]?.revision)).toBe(1);
   });

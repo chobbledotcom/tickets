@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
+import { sql } from "#db/sql.ts";
 
 const rejectsBeforeSqlWork = async (requests: unknown): Promise<string[]> => {
   const selected: string[] = [];
@@ -40,7 +41,7 @@ describe("Hrana protocol fixture", () => {
         {
           batch: {
             steps: [
-              { condition: { conds: [], type }, stmt: { sql: "SELECT 1" } },
+              { condition: { conds: [], type }, stmt: sql`SELECT 1` },
             ],
           },
           type: "batch",
@@ -61,7 +62,7 @@ describe("Hrana protocol fixture", () => {
         {
           batch: {
             steps: [
-              { condition: { step, type: "ok" }, stmt: { sql: "SELECT 1" } },
+              { condition: { step, type: "ok" }, stmt: sql`SELECT 1` },
             ],
           },
           type: "batch",
@@ -108,14 +109,14 @@ describe("Hrana protocol fixture", () => {
             {
               batch: {
                 steps: [
-                  { stmt: { sql: "SELECT broken" } },
+                  { stmt: sql`SELECT broken` },
                   {
                     condition: { step: 0, type: "error" },
-                    stmt: { sql: "SELECT recovery" },
+                    stmt: sql`SELECT recovery`,
                   },
                   {
                     condition: { step: 1, type: "error" },
-                    stmt: { sql: "SELECT skipped" },
+                    stmt: sql`SELECT skipped`,
                   },
                 ],
               },

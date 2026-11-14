@@ -8,6 +8,7 @@ import {
   expectRefused,
   expectRefusedAsRepeat,
 } from "./refuses.ts";
+import { sql } from "#db/sql.ts";
 
 const aDecision = (values: string) =>
   `INSERT INTO payment_case_decisions
@@ -86,7 +87,7 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
       (case_id, case_revision, claim, state, created_at)
       VALUES (13, 1, 'hyb:1:a:b:c', 'accepted', 1)`);
     const saved = await getDb().execute(
-      "SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13",
+      sql`SELECT attempt_count FROM payment_case_decisions WHERE case_id = 13`
     );
     expect(Number(saved.rows[0]?.attempt_count)).toBe(0);
   });
@@ -97,7 +98,7 @@ describeWithEnv("db > payment decision and message rules", { db: true }, () => {
     await expectAccepted(aDecision("11, 1, 'hyb:1:a:b:c', 'accepted', 0, 1"));
     await expectAccepted(aDecision("11, 2, 'hyb:1:a:b:c', 'accepted', 0, 1"));
     const saved = await getDb().execute(
-      "SELECT id FROM payment_case_decisions WHERE case_id = 11",
+      sql`SELECT id FROM payment_case_decisions WHERE case_id = 11`
     );
     const ids = saved.rows.map((row) => Number(row.id));
     expect(ids.every((id) => id > 0)).toBe(true);

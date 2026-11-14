@@ -5,6 +5,7 @@ import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** Run many plain SQL strings as a single batched write round-trip. */
 export const executeStatements = (sqls: readonly string[]): Promise<void> =>
@@ -74,7 +75,7 @@ export const markCurrentSchemaMigrationPending = () => {
   // Clearing recorded history must also clear the per-isolate ready cache,
   // otherwise initDb never re-inspects this client.
   invalidateInitDbCache();
-  return getDb().execute("DROP TABLE IF EXISTS schema_migrations");
+  return getDb().execute(sql`DROP TABLE IF EXISTS schema_migrations`);
 };
 
 export const markMigrationsForRerun = async (): Promise<void> => {
@@ -87,7 +88,7 @@ export const markMigrationsForRerun = async (): Promise<void> => {
 
 export const schemaHashMarker = async (): Promise<unknown> => {
   const result = await getDb().execute(
-    "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+    sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`
   );
   return result.rows[0]?.value;
 };
@@ -95,26 +96,10 @@ export const schemaHashMarker = async (): Promise<unknown> => {
 export const seedListingDomainRows = async (): Promise<number> => {
   const listing = await createTestListing();
   await executeBatch([
-    {
-      args: [listing.id, 999],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
-    },
-    {
-      args: [listing.id, 999],
-      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
-    },
-    {
-      args: [listing.id],
-      sql:
-        "INSERT INTO activity_log (created, listing_id, message) " +
-        "VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
-    },
-    {
-      args: [listing.id],
-      sql:
-        "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
-        "VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
-    },
+    sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${999})`,
+    sql`INSERT INTO listing_questions (listing_id, question_id) VALUES (${listing.id}, ${999})`,
+    sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, 'legacy listing activity')`,
+    sql`INSERT INTO built_sites (site_data, assigned_listing_id, created) VALUES ('{}', ${listing.id}, '2024-01-01T00:00:00Z')`,
   ]);
   return listing.id;
 };
@@ -147,10 +132,7 @@ export const stampHistoricalPricePaid = (
   listingId: number,
   amount: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [amount, attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  getDb().execute(sql`UPDATE listing_attendees SET price_paid = ${amount} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`);
 
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
@@ -160,22 +142,19 @@ export const columnNames = async (table: string): Promise<string[]> => {
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-  });
+  const result = await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`);
   return result.rows.length > 0;
 };
 
 export const tableNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'table'",
+    sql`SELECT name FROM sqlite_master WHERE type = 'table'`
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
 export const tableRowCount = async (table: string): Promise<number> => {
-  const result = await getDb().execute(`SELECT COUNT(*) AS n FROM ${table}`);
+  const result = await getDb().execute(sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`);
   return Number(result.rows[0]!.n);
 };
 
@@ -185,10 +164,7 @@ export const tableRowCount = async (table: string): Promise<number> => {
 export const readModifierAggregates = async (
   modifierId: number,
 ): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT total_uses, usage_count FROM modifiers WHERE id = ?",
-  });
+  const result = await getDb().execute(sql`SELECT total_uses, usage_count FROM modifiers WHERE id = ${modifierId}`);
   const row = result.rows[0]!;
   return {
     total_uses: Number(row.total_uses),
@@ -202,10 +178,7 @@ export const readModifierAggregates = async (
 export const readListingAggregates = async (
   listingId: number,
 ): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-  });
+  const result = await getDb().execute(sql`SELECT booked_quantity, tickets_count FROM listings WHERE id = ${listingId}`);
   const row = result.rows[0]!;
   return {
     booked_quantity: Number(row.booked_quantity),
@@ -215,7 +188,7 @@ export const readListingAggregates = async (
 
 export const triggerNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'trigger'",
+    sql`SELECT name FROM sqlite_master WHERE type = 'trigger'`
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
@@ -318,7 +291,7 @@ END`,
     names.map((name) => `DROP TRIGGER IF EXISTS ${name}`),
   );
   for (const name of names) {
-    await getDb().execute(`CREATE TRIGGER ${name} ${bodies[name]}`);
+    await getDb().execute(sql`CREATE TRIGGER ${sqlName(name)} ${TODO_SQL_TEXT(bodies[name])}`);
   }
 };
 
@@ -340,7 +313,7 @@ export const seedLegacyAggregateColumnDropSchema = async (
   >,
 ): Promise<void> => {
   await getDb().execute(
-    `ALTER TABLE ${spec.targetTable} ADD COLUMN ${spec.dropColumn} INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE ${sqlName(spec.targetTable)} ADD COLUMN ${sqlName(spec.dropColumn)} INTEGER NOT NULL DEFAULT 0`
   );
   await installLegacyAggregateTriggers(spec);
 };

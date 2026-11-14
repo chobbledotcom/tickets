@@ -23,6 +23,7 @@ import {
   matchedBlocks,
   visibleDeclaration,
 } from "#test/scripts/code-quality/scopes.ts";
+import { sql } from "#db/sql.ts";
 
 /** The one file whose own job is to emit `?N` tokens. */
 const NUMBERED_STATEMENT_PATH = "shared/db/numbered-statement.ts";

@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 // This migration's up() only recreates the table.
 const context = buildMigrationContext({ recreateTable });
@@ -39,20 +40,14 @@ describeWithEnv(
       );
       // Reproduce a production row that still carried the (now-dropped) column.
       await seedPreDropLedgerColumns();
-      await getDb().execute({
-        args: [attendee.id],
-        sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ?",
-      });
+      await getDb().execute(sql`UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ${attendee.id}`);
 
       await runMigration();
 
       // The recreate rebuilds the table from SCHEMA (no refunded), but the
       // booking row itself — quantity, listing link — survives intact.
       const row = (
-        await getDb().execute({
-          args: [attendee.id],
-          sql: "SELECT listing_id, quantity FROM listing_attendees WHERE attendee_id = ?",
-        })
+        await getDb().execute(sql`SELECT listing_id, quantity FROM listing_attendees WHERE attendee_id = ${attendee.id}`)
       ).rows[0]!;
       expect(Number(row.listing_id)).toBe(listing.id);
       expect(Number(row.quantity)).toBe(1);

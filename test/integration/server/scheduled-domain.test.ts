@@ -8,6 +8,7 @@ import {
   expectScheduledResponse,
   scheduledAuthorization,
 } from "#test-utils/scheduled.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server > scheduled > effective domain",
@@ -27,7 +28,7 @@ describeWithEnv(
       // outside the context is lost. Dropping the settings table makes
       // initDb fail before any domain load, the window a mid-handler seed
       // never covers.
-      await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+      await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
       const response = await handleScheduledRequest(
         new Request("https://scheduled-host.example/scheduled", {
           headers: scheduledAuthorization("test-scheduled-key"),

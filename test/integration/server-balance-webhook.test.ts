@@ -20,6 +20,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import { sql } from "#db/sql.ts";
 
 const stubRefund = (id: string, amount = 1000) => stubRefundPayment(id, amount);
 
@@ -82,8 +83,7 @@ describeWithEnv("server (public balance page) > webhook", { db: true }, () => {
 
     // Prune the idempotency row; the balance payment leg stays in the ledger.
     await execute(
-      "UPDATE processed_payments SET processed_at = ? WHERE payment_session_id = ?",
-      ["2000-01-01T00:00:00.000Z", "cs_balance_replay"],
+      sql`UPDATE processed_payments SET processed_at = ${"2000-01-01T00:00:00.000Z"} WHERE payment_session_id = ${"cs_balance_replay"}`
     );
     await runDatabasePruning();
 

@@ -36,6 +36,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { Image } from "#types";
+import { sql } from "#db/sql.ts";
 
 const makeImage = (
   name: string,
@@ -86,8 +87,7 @@ describeWithEnv("db > images", { db: true }, () => {
         filename_thumb: string;
         name: string;
       }>(
-        "SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ?",
-        [image.id],
+        sql`SELECT name, filename, filename_thumb, alt_text FROM images WHERE id = ${image.id}`
       );
       expect(raw?.name.startsWith("enc:")).toBe(true);
       expect(raw?.filename.startsWith("enc:")).toBe(true);
@@ -224,11 +224,10 @@ describeWithEnv("db > images", { db: true }, () => {
       ]);
       expect(
         await queryAll<{ image_id: number; sort_order: number }>(
-          `SELECT image_id, sort_order
+          sql`SELECT image_id, sort_order
              FROM image_uses
-            WHERE item_type = ? AND item_id = ?
-            ORDER BY sort_order ASC, image_id ASC`,
-          ["listing", listing.id],
+            WHERE item_type = ${"listing"} AND item_id = ${listing.id}
+            ORDER BY sort_order ASC, image_id ASC`
         ),
       ).toEqual([
         { image_id: existing.id, sort_order: 0 },
@@ -289,9 +288,8 @@ describeWithEnv("db > images", { db: true }, () => {
       expect(await linkedImageIds("group", group.id)).toEqual([image.id]);
       expect(
         await queryAll<{ item_id: number; item_type: string }>(
-          `SELECT item_type, item_id FROM image_uses
-            WHERE image_id = ? ORDER BY item_type, item_id`,
-          [image.id],
+          sql`SELECT item_type, item_id FROM image_uses
+            WHERE image_id = ${image.id} ORDER BY item_type, item_id`
         ),
       ).toEqual([
         { item_id: group.id, item_type: "group" },

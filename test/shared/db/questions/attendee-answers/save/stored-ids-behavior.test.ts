@@ -12,11 +12,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 const storedRowsFor = (attendeeId: number) =>
   queryAll<{ answer_id: number | null; string_id: number | null }>(
-    "SELECT answer_id, string_id FROM attendee_answers WHERE attendee_id = ? ORDER BY id",
-    [attendeeId],
+    sql`SELECT answer_id, string_id FROM attendee_answers WHERE attendee_id = ${attendeeId} ORDER BY id`
   );
 
 const seedStoredIdAnswers = async () => {
@@ -61,10 +61,8 @@ describeWithEnv(
   () => {
     test("omits deleted choices and text questions", async () => {
       const { attendee, calls } = await saveSeed(async (seed) => {
-        await execute("DELETE FROM answers WHERE id = ?", [seed.answer.id]);
-        await execute("DELETE FROM questions WHERE id = ?", [
-          seed.textQuestion.id,
-        ]);
+        await execute(sql`DELETE FROM answers WHERE id = ${seed.answer.id}`);
+        await execute(sql`DELETE FROM questions WHERE id = ${seed.textQuestion.id}`);
       });
       expect(calls).toBe(1);
       expect(await storedRowsFor(attendee.id)).toEqual([]);
@@ -122,7 +120,7 @@ describeWithEnv(
         displayType: "free_text",
       });
       const attendee = await createAttendee((await createTestListing()).id);
-      await execute("DELETE FROM answers WHERE id = ?", [choice.id]);
+      await execute(sql`DELETE FROM answers WHERE id = ${choice.id}`);
 
       await saveAttendeeAnswers(
         new Map([
@@ -175,8 +173,7 @@ describeWithEnv(
       ]);
       expect(
         await queryAll(
-          "SELECT id, times_selected FROM answers WHERE id IN (?, ?) ORDER BY id",
-          [oldAnswer.id, newAnswer.id],
+          sql`SELECT id, times_selected FROM answers WHERE id IN (${oldAnswer.id}, ${newAnswer.id}) ORDER BY id`
         ),
       ).toEqual([
         { id: oldAnswer.id, times_selected: 1 },

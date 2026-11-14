@@ -3,6 +3,7 @@
  */
 
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * Register `count` throwaway attendees on the listing. One is booked through
@@ -27,18 +28,12 @@ export const seedFillerAttendees = async (
   const clones = [];
   for (let index = 1; index < count; index++) {
     clones.push(
-      {
-        args: [`filler-token-${index}`, attendee.id],
-        sql: `INSERT INTO attendees (created, kind, checked_in, ticket_token_index, pii_blob, status_id)
-                  SELECT created, kind, checked_in, ?, pii_blob, status_id
-                  FROM attendees WHERE id = ?`,
-      },
-      {
-        args: [attendee.id],
-        sql: `INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in)
+      sql`INSERT INTO attendees (created, kind, checked_in, ticket_token_index, pii_blob, status_id)
+                  SELECT created, kind, checked_in, ${`filler-token-${index}`}, pii_blob, status_id
+                  FROM attendees WHERE id = ${attendee.id}`,
+      sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, checked_in)
                   SELECT listing_id, last_insert_rowid(), start_at, end_at, quantity, checked_in
-                  FROM listing_attendees WHERE attendee_id = ?`,
-      },
+                  FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
     );
   }
   await getDb().batch(clones, "write");

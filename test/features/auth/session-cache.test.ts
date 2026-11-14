@@ -24,6 +24,7 @@ import {
   getTestSession,
   requestAsApiKey,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const requestWith = (cookie?: string): Request =>
   new Request("http://localhost/admin/", {
@@ -40,7 +41,7 @@ describeWithEnv("who is calling, kept for the request", { db: true }, () => {
       const first = await getAuthenticatedSession(requestWith(cookie));
       expect(first?.adminLevel).toBe("owner");
 
-      await execute("DELETE FROM sessions");
+      await execute(sql`DELETE FROM sessions`);
 
       expect(await getAuthenticatedSession(requestWith(cookie))).toEqual(first);
     });
@@ -96,7 +97,7 @@ describeWithEnv("a session that cannot be honoured", { db: true }, () => {
   test("is refused, and reported, when its user is gone", async () => {
     const token = "orphan-token";
     await createSession(token, "csrf", Date.now() + 60_000, null, 1);
-    await execute("DELETE FROM users WHERE id = 1");
+    await execute(sql`DELETE FROM users WHERE id = 1`);
 
     await withRequestContext(async () => {
       expect(await getAuthenticatedSession(requestWith(cookieFor(token)))).toBe(

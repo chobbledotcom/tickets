@@ -16,6 +16,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 describe("db > migrations > context", () => {
   test("builds one migration per registry entry, in run order", async () => {
@@ -76,7 +77,7 @@ describeWithEnv(
 
       test("skips column renames for tables that do not exist", async () => {
         await downgradeListingDomainToLegacyNames();
-        await getDb().execute("DROP TABLE built_sites");
+        await getDb().execute(sql`DROP TABLE built_sites`);
 
         await renameEventsToListings();
 
@@ -102,7 +103,7 @@ describeWithEnv(
     });
 
     test("the rename puts back a column the current schema declares", async () => {
-      await getDb().execute("ALTER TABLE listings DROP COLUMN thank_you_url");
+      await getDb().execute(sql`ALTER TABLE listings DROP COLUMN thank_you_url`);
 
       await renameEventsToListings();
 
@@ -110,7 +111,7 @@ describeWithEnv(
     });
 
     test("the rename puts back an index the current schema declares", async () => {
-      await getDb().execute("DROP INDEX idx_listings_slug_index");
+      await getDb().execute(sql`DROP INDEX idx_listings_slug_index`);
 
       await renameEventsToListings();
 

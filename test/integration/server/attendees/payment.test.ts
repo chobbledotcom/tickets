@@ -28,6 +28,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** A paid listing (`unitPrice: 1000`, 100 spots) — the shared setup for the
  *  "payment details on edit page" tests. */
@@ -189,10 +190,7 @@ describeWithEnv(
         const { attendee } = await setupListingAndAttendee();
         const { getDb: getDbFn } = await import("#db/client.ts");
         const db = getDbFn();
-        await db.execute({
-          args: [attendee.id],
-          sql: "DELETE FROM listing_attendees WHERE attendee_id = ?",
-        });
+        await db.execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`);
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );

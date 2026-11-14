@@ -30,6 +30,7 @@ import {
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server (reservation deposit at checkout)",
@@ -135,7 +136,7 @@ describeWithEnv(
       const listing = await setupReservationListing();
       // Clear the public-default flag so the required lookup fails.
       await getDb().execute(
-        "UPDATE attendee_statuses SET is_public_default = 0",
+        sql`UPDATE attendee_statuses SET is_public_default = 0`
       );
       attendeeStatuses.invalidate();
       await expect(captureCheckoutIntent(listing)).rejects.toThrow(

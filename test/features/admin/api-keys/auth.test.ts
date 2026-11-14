@@ -17,6 +17,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("API key authentication", { db: true }, () => {
   describe("Bearer token authentication", () => {
@@ -123,7 +124,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
       const keyIndex = await hmacHash(token);
 
       // Disable FK checks to insert an orphaned API key row
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
+      await getDb().execute(sql`PRAGMA foreign_keys = OFF`);
       await getDb().execute(
         insert("api_keys", {
           created: new Date().toISOString(),
@@ -134,7 +135,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
           wrapped_data_key: "dummy",
         }),
       );
-      await getDb().execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+      await getDb().execute(sql`PRAGMA foreign_keys = ON`);
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", token),
@@ -147,10 +148,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
       const { apiKey, id } = await createTestApiKeyFull("Corrupt Key");
 
       // Corrupt the wrapped_data_key in the DB
-      await getDb().execute({
-        args: ["corrupted-data", id],
-        sql: "UPDATE api_keys SET wrapped_data_key = ? WHERE id = ?",
-      });
+      await getDb().execute(sql`UPDATE api_keys SET wrapped_data_key = ${"corrupted-data"} WHERE id = ${id}`);
 
       const response = await handleRequest(
         requestAsApiKey("/api/admin/listings", apiKey),

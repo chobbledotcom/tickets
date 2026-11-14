@@ -21,6 +21,7 @@ import {
   createTestServicingEvent,
   renderAdminPage,
 } from "#test-utils/servicing.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => {
   test("a servicing hold spanning a year boundary consumes capacity for both years correctly", async () => {
@@ -101,10 +102,7 @@ describeWithEnv("servicing edge cases — date boundaries", { db: true }, () => 
       name: "Undated Service",
     });
     // Backdate the created timestamp far into the past.
-    await getDb().execute({
-      args: ["2000-01-01T00:00:00.000Z", id],
-      sql: "UPDATE attendees SET created = ? WHERE id = ?",
-    });
+    await getDb().execute(sql`UPDATE attendees SET created = ${"2000-01-01T00:00:00.000Z"} WHERE id = ${id}`);
     const body = await renderAdminPage("/admin/");
     assertStringIncludes(body, "Undated Service");
   });

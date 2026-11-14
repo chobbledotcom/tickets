@@ -7,6 +7,7 @@ import {
   rowsUnlessNoneMatch,
   whereSql,
 } from "#db/where-clauses.ts";
+import { sql } from "#db/sql.ts";
 
 /** A make-believe domain: notes-style columns, two kinds, tables listed. */
 const targets = defineRecordTarget({
@@ -116,10 +117,7 @@ describe("asking for a record's rows", () => {
   });
 
   test("keeps another query's own arguments after the kind", () => {
-    const where = targets.whereChosenBy("attendee", {
-      args: [12],
-      sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-    });
+    const where = targets.whereChosenBy("attendee", sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`);
 
     expect(whereSql(where)).toBe(
       " WHERE entity_type = ? AND entity_id IN" +
@@ -133,24 +131,13 @@ describe("deleting a record's rows", () => {
   test("deletes the rows of one record", () => {
     expect(
       targets.deleteFrom("system_notes")({ id: 4, kind: "attendee" }),
-    ).toEqual({
-      args: ["attendee", 4],
-      sql: "DELETE FROM system_notes WHERE entity_type = ? AND entity_id = ?",
-    });
+    ).toEqual(sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id = ${4}`);
   });
 
   test("deletes the rows of the records another query names", () => {
     expect(
-      targets.deleteChosenBy("system_notes")("attendee", {
-        args: [12],
-        sql: "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-      }),
-    ).toEqual({
-      args: ["attendee", 12],
-      sql:
-        "DELETE FROM system_notes WHERE entity_type = ? AND entity_id IN" +
-        " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
-    });
+      targets.deleteChosenBy("system_notes")("attendee", sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`),
+    ).toEqual(sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12})`);
   });
 });
 

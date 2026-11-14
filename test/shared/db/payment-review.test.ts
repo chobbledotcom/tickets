@@ -29,6 +29,7 @@ import {
   finalizeProcessedPayment,
 } from "#test-utils/processed-payments.ts";
 import { addProviderRefundTestCase } from "#test-utils/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 
 const LISTING_ID = 1;
 const REVIEW_ACTIVITY = "Payment review acknowledged by owner";
@@ -306,10 +307,10 @@ describeWithEnv(
       await putReview("sess-cas-first");
       await putReview("sess-cas-lost");
       await execute(
-        `CREATE TRIGGER ignore_payment_review
+        sql`CREATE TRIGGER ignore_payment_review
           BEFORE UPDATE ON processed_payments
           WHEN OLD.payment_session_id = 'sess-cas-lost'
-          BEGIN SELECT RAISE(IGNORE); END`,
+          BEGIN SELECT RAISE(IGNORE); END`
       );
 
       await expect(acknowledge(attendeeId)).rejects.toThrow(
@@ -328,9 +329,9 @@ describeWithEnv(
       const attendeeId = await bookedWithPayment("sess-log", "pi-log");
       await putReview("sess-log");
       await execute(
-        `CREATE TRIGGER refuse_payment_review_activity
+        sql`CREATE TRIGGER refuse_payment_review_activity
           BEFORE INSERT ON activity_log
-          BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`,
+          BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`
       );
 
       await expect(acknowledge(attendeeId)).rejects.toThrow(

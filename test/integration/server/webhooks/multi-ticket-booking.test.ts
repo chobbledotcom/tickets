@@ -14,6 +14,7 @@ import {
   expectWebhookIgnored,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
   test("processes valid multi-ticket webhook and creates attendees", async () => {
@@ -94,10 +95,7 @@ describeWithEnv("server webhooks > multi-ticket booking", { db: true }, () => {
     const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
     const childRows = await getAttendeesRaw(child.id);
     expect(childRows.length).toBe(1);
-    const parentIdRow = await getDb().execute({
-      args: [childRows[0]!.id, child.id],
-      sql: "SELECT parent_listing_id FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-    });
+    const parentIdRow = await getDb().execute(sql`SELECT parent_listing_id FROM listing_attendees WHERE attendee_id = ${childRows[0]!.id} AND listing_id = ${child.id}`);
     expect(Number(parentIdRow.rows[0]!.parent_listing_id)).toBe(parent.id);
   });
 

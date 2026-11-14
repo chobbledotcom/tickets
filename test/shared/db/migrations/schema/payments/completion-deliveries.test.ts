@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { paymentCompletionDeliveriesTable } from "#db/migrations/schema/payments/completion-deliveries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
+import { sql } from "#db/sql.ts";
 
 const [name, table] = paymentCompletionDeliveriesTable;
 const column = (wanted: string): string =>
@@ -71,12 +72,9 @@ describeWithEnv("db > message rules", { db: true }, () => {
   }
 
   test("refuses a message that is bytes only reading like an envelope", async () => {
-    await expectRefused({
-      args: [new TextEncoder().encode("hyb:1:a:b:c")],
-      sql: `INSERT INTO payment_completion_deliveries
+    await expectRefused(sql`INSERT INTO payment_completion_deliveries
         (payment_id, delivery_key, data)
-        VALUES ('pay_1', 'bytes', ?)`,
-    });
+        VALUES ('pay_1', 'bytes', ${new TextEncoder().encode("hyb:1:a:b:c")})`);
   });
 
   test("accepts a message that is hidden", async () => {

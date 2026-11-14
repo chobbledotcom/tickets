@@ -26,6 +26,7 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin refund-all)", { db: true }, () => {
   describe("GET /admin/listing/:id/refund-all", () => {
@@ -239,13 +240,12 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       // booking stamp would give it the order's event group too — carry the
       // first row's stamp so the per-order projections read the pair as one.
       await execute(
-        `INSERT INTO listing_attendees
+        sql`INSERT INTO listing_attendees
           (listing_id, attendee_id, quantity, parent_listing_id,
            ledger_event_group)
-         SELECT ?, ?, 1, ?, ledger_event_group
+         SELECT ${listing.id}, ${repeated.id}, 1, ${listing.id + 1000}, ledger_event_group
            FROM listing_attendees
-          WHERE attendee_id = ? AND listing_id = ?`,
-        [listing.id, repeated.id, listing.id + 1000, repeated.id, listing.id],
+          WHERE attendee_id = ${repeated.id} AND listing_id = ${listing.id}`
       );
 
       await withRefundMock(refundCompletes, async (mockRefund) => {

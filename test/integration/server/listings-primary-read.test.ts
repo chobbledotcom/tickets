@@ -9,6 +9,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
 import { adminMultipartPost } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("listing save primary read", { db: true }, () => {
   test("saves the first two listings when separate read batches miss their committed rows", async () => {
@@ -52,7 +53,7 @@ describeWithEnv("listing save primary read", { db: true }, () => {
         await expectFlashRedirect("/admin", "Listing created")(response);
       }
       const rows = await database.execute(
-        "SELECT listing.id, listingPrice.unit_price FROM listings AS listing JOIN listing_prices AS listingPrice ON listingPrice.listing_id = listing.id WHERE listingPrice.price_type = 'base' ORDER BY listing.id",
+        sql`SELECT listing.id, listingPrice.unit_price FROM listings AS listing JOIN listing_prices AS listingPrice ON listingPrice.listing_id = listing.id WHERE listingPrice.price_type = 'base' ORDER BY listing.id`
       );
       expect(rows.rows.map((row) => [row.id, row.unit_price])).toEqual([
         [1, 1200],

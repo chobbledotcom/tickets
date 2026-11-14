@@ -1,4 +1,5 @@
 import { execute } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /**
  * Run `body` with one database fault installed — a trigger that makes a
@@ -15,7 +16,7 @@ export const withDbFault = async <T>(
   try {
     return await body();
   } finally {
-    await execute(`DROP TRIGGER IF EXISTS ${name}`);
+    await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
   }
 };
 
@@ -107,17 +108,14 @@ export const orphanAttendeeBooking = async (token: string): Promise<void> => {
   // does to a connection later suites share.
   const tokenIndex = await hmacHash(token);
   const db = getDb();
-  await db.execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
+  await db.execute(sql`PRAGMA foreign_keys = OFF`);
   try {
-    await db.execute({
-      args: [tokenIndex],
-      sql: `UPDATE listing_attendees
+    await db.execute(sql`UPDATE listing_attendees
             SET listing_id = 99999
             WHERE attendee_id = (
-              SELECT id FROM attendees WHERE ticket_token_index = ?
-            )`,
-    });
+              SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}
+            )`);
   } finally {
-    await db.execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+    await db.execute(sql`PRAGMA foreign_keys = ON`);
   }
 };

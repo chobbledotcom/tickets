@@ -13,6 +13,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** A booking on the given listings, recorded at the given time so the read's
  *  order is the one the test asked for and not the clock's. */
@@ -21,10 +22,7 @@ const seedBookingAt = async (
   created: string,
 ): Promise<number> => {
   const attendee = await bookTestAttendee(listingIds);
-  await execute("UPDATE attendees SET created = ? WHERE id = ?", [
-    created,
-    attendee.id,
-  ]);
+  await execute(sql`UPDATE attendees SET created = ${created} WHERE id = ${attendee.id}`);
   return attendee.id;
 };
 
@@ -121,9 +119,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
       "2026-06-05T09:00:00.000Z",
     );
     await bookAnswers(attendeeId, [small.id]);
-    await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-      attendeeId,
-    ]);
+    await execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`);
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
     expect(row!.listing_ids).toEqual([]);

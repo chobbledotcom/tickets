@@ -13,6 +13,7 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("navigation", () => {
@@ -47,8 +48,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("setup page", () => {
     test("setup includes admin_username field", async () => {
       const { getDb: getDbFn } = await import("#db/client.ts");
-      await getDbFn().execute("DELETE FROM settings");
-      await getDbFn().execute("DELETE FROM users");
+      await getDbFn().execute(sql`DELETE FROM settings`);
+      await getDbFn().execute(sql`DELETE FROM users`);
       const { settings: s } = await import("#db/settings.ts");
       s.setup.clearCache();
       s.invalidateCache();
@@ -88,10 +89,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const expiredExpiry = await encrypt(
         new Date(Date.now() - 1000).toISOString(),
       );
-      await getDb().execute({
-        args: [expiredExpiry],
-        sql: "UPDATE users SET invite_expiry = ? WHERE id = 2",
-      });
+      await getDb().execute(sql`UPDATE users SET invite_expiry = ${expiredExpiry} WHERE id = 2`);
       invalidateUsersCache();
 
       const response = await adminGet("/admin/users");

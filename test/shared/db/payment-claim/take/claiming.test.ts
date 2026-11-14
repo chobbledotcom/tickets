@@ -22,6 +22,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > taking a payment claim > claiming",
@@ -151,7 +152,7 @@ describeWithEnv(
       const result = await claimCurrentAttendeeRows(
         [first, deleted],
         async () => {
-          await execute("DELETE FROM attendees WHERE id = ?", [deleted]);
+          await execute(sql`DELETE FROM attendees WHERE id = ${deleted}`);
         },
       );
 
@@ -171,14 +172,13 @@ describeWithEnv(
 
       const result = await claimCurrentAttendeeRows([attendeeId], async () => {
         await execute(
-          `UPDATE attendees
+          sql`UPDATE attendees
               SET pii_blob = (
                 SELECT replacement.pii_blob
                   FROM attendees AS replacement
-                 WHERE replacement.id = ?
+                 WHERE replacement.id = ${replacement}
               )
-            WHERE id = ?`,
-          [replacement, attendeeId],
+            WHERE id = ${attendeeId}`
         );
       });
 
@@ -194,8 +194,7 @@ describeWithEnv(
 
       const result = await claimCurrentAttendeeRows([attendeeId], async () => {
         await execute(
-          "DELETE FROM processed_payments WHERE payment_session_id = ?",
-          ["sess-deleted-payment"],
+          sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-deleted-payment"}`
         );
       });
 

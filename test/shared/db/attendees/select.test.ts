@@ -22,6 +22,7 @@ import {
   attendeeColumns,
 } from "#db/attendees/select.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { sql } from "#db/sql.ts";
 
 /** The filter and order half of an attendee read — everything from `FROM`
  * onwards — plus its bound values. Field selection is covered separately, so
@@ -251,10 +252,7 @@ describe("attendee filter and order SQL", () => {
 
   test("an attendee-id subquery is inlined with its own args", () => {
     const { from, args } = attendeeFromWhere("left", {
-      attendeeIdsSubquery: {
-        args: [10],
-        sql: "SELECT newest.id FROM attendees AS newest LIMIT ?",
-      },
+      attendeeIdsSubquery: sql`SELECT newest.id FROM attendees AS newest LIMIT ${10}`,
     });
     assertStringIncludes(
       from,

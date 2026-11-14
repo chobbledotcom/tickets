@@ -13,6 +13,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { apiRequest, createTestApiKeyToken } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("PUT /api/admin/listings/:listingId", () => {
@@ -64,12 +65,12 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("returns 404 when the listing vanishes during update", async () => {
       const listing = await createTestListing({ name: "Vanishing listing" });
       await getDb().execute(
-        `CREATE TRIGGER delete_listing_during_update
+        sql`CREATE TRIGGER delete_listing_during_update
          AFTER UPDATE ON listings
          WHEN NEW.id = ${listing.id}
          BEGIN
            DELETE FROM listings WHERE id = NEW.id;
-         END`,
+         END`
       );
 
       const response = await apiRequest(`/api/admin/listings/${listing.id}`, {

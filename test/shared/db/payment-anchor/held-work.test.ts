@@ -11,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > payment anchor > held work", { db: true }, () => {
   test("reads only the payment's anchor rows, never the session's own", async () => {
@@ -29,8 +30,7 @@ describeWithEnv("db > payment anchor > held work", { db: true }, () => {
     // once finalized; the anchor read must still not return it.
     await reserveSession("cs_held_work");
     await execute(
-      "UPDATE processed_payments SET payment_reference_index = ? WHERE payment_session_id = 'cs_held_work'",
-      [await paymentReferenceIndex(payment)],
+      sql`UPDATE processed_payments SET payment_reference_index = ${await paymentReferenceIndex(payment)} WHERE payment_session_id = 'cs_held_work'`
     );
 
     const rows = await loadAnchorRowWork(payment);

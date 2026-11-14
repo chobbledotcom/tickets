@@ -7,6 +7,7 @@ import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { additive } from "#db/migrations/verify.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
   (action) => `trg_checkout_stages_revision_${action}`,
@@ -44,12 +45,12 @@ describeWithEnv(
     });
 
     test("the migration creates only the checkout stage table and indexes", async () => {
-      await getDb().execute("DROP TABLE checkout_stages");
+      await getDb().execute(sql`DROP TABLE checkout_stages`);
 
       await runMigration();
 
       const stageColumns = await getDb().execute(
-        "PRAGMA table_info(checkout_stages)",
+        sql`PRAGMA table_info(checkout_stages)`
       );
       expect(stageColumns.rows).toEqual([
         {
@@ -102,7 +103,7 @@ describeWithEnv(
         },
       ]);
       const indexes = await getDb().execute(
-        "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'checkout_stages' ORDER BY name",
+        sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'checkout_stages' ORDER BY name`
       );
       expect(indexes.rows).toEqual([
         {
@@ -116,23 +117,23 @@ describeWithEnv(
         { name: "sqlite_autoindex_checkout_stages_1", sql: null },
       ]);
       const triggers = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name",
+        sql`SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name`
       );
       expect(triggers.rows.map((row) => row.name)).toEqual([]);
       const revisionColumns = await getDb().execute(
-        "PRAGMA table_info(checkout_stage_revisions)",
+        sql`PRAGMA table_info(checkout_stage_revisions)`
       );
       expect(revisionColumns.rows).toEqual([]);
     });
 
     test("a stage cannot be stored without a payment session id", async () => {
       await expect(
-        getDb().execute(`INSERT INTO checkout_stages
+        getDb().execute(sql`INSERT INTO checkout_stages
           (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
           VALUES (NULL, 42, 'stripe', '["ticket-1"]', 'open', '2026-07-15T12:00:00Z')`),
       ).rejects.toThrow();
       const result = await getDb().execute(
-        "SELECT COUNT(*) AS count FROM checkout_stages",
+        sql`SELECT COUNT(*) AS count FROM checkout_stages`
       );
       expect(Number(result.rows[0]?.count)).toBe(0);
     });
@@ -152,11 +153,11 @@ describeWithEnv(
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
       await getDb().execute(
-        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)",
+        sql`CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)`
       );
       for (const [index, name] of LEGACY_TRIGGER_NAMES.entries()) {
-        const action = ["INSERT", "UPDATE", "DELETE"][index]!;
-        await getDb().execute(`CREATE TRIGGER ${name}
+        const action = [sql`INSERT`, sql`UPDATE`, sql`DELETE`][index]!;
+        await getDb().execute(sql`CREATE TRIGGER ${sqlName(name)}
           AFTER ${action} ON checkout_stages BEGIN SELECT 1; END`);
       }
       const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
@@ -166,17 +167,17 @@ describeWithEnv(
       await migration.verify();
 
       const legacyObjects = await getDb().execute(
-        `SELECT name FROM sqlite_master
+        sql`SELECT name FROM sqlite_master
           WHERE name = 'checkout_stage_revisions'
              OR name LIKE 'trg_checkout_stages_revision_%'
-          ORDER BY name`,
+          ORDER BY name`
       );
       expect(legacyObjects.rows).toEqual([]);
     });
 
     test("the cleanup migration verification rejects a surviving legacy table", async () => {
       await getDb().execute(
-        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY)",
+        sql`CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY)`
       );
 
       await expect(

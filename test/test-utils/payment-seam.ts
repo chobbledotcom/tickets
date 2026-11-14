@@ -1,6 +1,7 @@
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
 import { paymentModel } from "#scripts/verify-models/model.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** Record guard facts at each real write. Later cleanup cannot erase a violation. */
 export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
@@ -43,7 +44,7 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
       when: `NEW.protected_state = ${sqlWord(model.claimMirror)}`,
     },
   ];
-  await execute(`CREATE TABLE test_payment_edges (
+  await execute(sql`CREATE TABLE test_payment_edges (
     edge TEXT NOT NULL, identity TEXT NOT NULL, guard_ok INTEGER NOT NULL
   )`);
   const triggers: string[] = [];
@@ -52,12 +53,12 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
       const name = `test_payment_edge_${triggers.length}`;
       const operation =
         event === "INSERT" ? event : `${event} OF ${rule.column}`;
-      await execute(`CREATE TRIGGER ${name}
-        AFTER ${operation} ON ${rule.table}
-        WHEN ${rule.when}
+      await execute(sql`CREATE TRIGGER ${sqlName(name)}
+        AFTER ${TODO_SQL_TEXT(operation)} ON ${sqlName(rule.table)}
+        WHEN ${TODO_SQL_TEXT(rule.when)}
         BEGIN
           INSERT INTO test_payment_edges (edge, identity, guard_ok)
-          SELECT ${sqlWord(rule.name)}, ${rule.identity}, ${rule.legal[event]};
+          SELECT ${TODO_SQL_TEXT(sqlWord(rule.name))}, ${TODO_SQL_TEXT(rule.identity)}, ${TODO_SQL_TEXT(rule.legal[event])};
         END`);
       triggers.push(name);
     }
@@ -68,7 +69,7 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
         edge: string;
         identity: string;
         guard_ok: number;
-      }>("SELECT edge, identity, guard_ok FROM test_payment_edges");
+      }>(sql`SELECT edge, identity, guard_ok FROM test_payment_edges`);
       for (const edge of edges) {
         if (edge.guard_ok !== 1) {
           throw new Error(
@@ -77,8 +78,8 @@ export const observePaymentSeam = async (): Promise<() => Promise<void>> => {
         }
       }
     } finally {
-      for (const name of triggers) await execute(`DROP TRIGGER ${name}`);
-      await execute("DROP TABLE test_payment_edges");
+      for (const name of triggers) await execute(sql`DROP TRIGGER ${sqlName(name)}`);
+      await execute(sql`DROP TABLE test_payment_edges`);
     }
   };
 };

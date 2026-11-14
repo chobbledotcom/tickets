@@ -23,6 +23,7 @@ import type { PaymentRowSettlement } from "#payment/row-transitions.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
 import { getCompleteRefundPaymentReferences } from "#test-utils/payment-references.ts";
+import { sql, sqlList, sqlName } from "#db/sql.ts";
 
 const SLOT = "processed_payments.failure_data";
 
@@ -40,10 +41,9 @@ export const claimCurrentAttendeeRows = async (
 ): Promise<ClaimResult> => {
   if (attendeeIds.length === 0) return claimAttendeeRows([]);
   const stored = await queryAll<StoredClaimAttendee>(
-    `SELECT attendee.id, attendee.pii_blob
+    sql`SELECT attendee.id, attendee.pii_blob
        FROM attendees AS attendee
-      WHERE attendee.id IN (${inPlaceholders(attendeeIds)})`,
-    [...attendeeIds],
+      WHERE attendee.id IN (${sqlList(attendeeIds)})`
   );
   const storedById = new Map(stored.map((attendee) => [attendee.id, attendee]));
   const sources = attendeeIds.map((id) => ({
@@ -105,10 +105,9 @@ const paymentRowColumn =
   async (sessionId: string): Promise<string> =>
     (
       await requireOne<{ v: string }>(
-        `SELECT payment.${column} AS v
+        sql`SELECT payment.${sqlName(column)} AS v
            FROM processed_payments AS payment
-          WHERE payment.payment_session_id = ?`,
-        [sessionId],
+          WHERE payment.payment_session_id = ${sessionId}`
       )
     ).v;
 
@@ -129,10 +128,9 @@ export const makeClaimsStale = async (
 ): Promise<void> => {
   for (const sessionId of sessionIds) {
     const stored = await requireOne<{ failure_data: EnvKeyEncrypted }>(
-      `SELECT payment.failure_data
+      sql`SELECT payment.failure_data
          FROM processed_payments AS payment
-        WHERE payment.payment_session_id = ?`,
-      [sessionId],
+        WHERE payment.payment_session_id = ${sessionId}`
     );
     const state = readRowState(await decrypt(stored.failure_data), SLOT);
     assert(
@@ -207,10 +205,9 @@ export const putRowState = async (
   mirror: string,
 ): Promise<void> => {
   await execute(
-    `UPDATE processed_payments
-        SET failure_data = ?, protected_state = ?
-      WHERE payment_session_id = ?`,
-    [slot, mirror, sessionId],
+    sql`UPDATE processed_payments
+        SET failure_data = ${slot}, protected_state = ${mirror}
+      WHERE payment_session_id = ${sessionId}`
   );
 };
 

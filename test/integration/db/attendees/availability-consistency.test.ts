@@ -15,6 +15,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * The read-time availability preflight (`checkBatchAvailability`) and the
@@ -58,8 +59,7 @@ describeWithEnv(
       let fullyBooked = false;
       if (write.success) {
         const rows = await queryAll<{ c: number }>(
-          "SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ?",
-          [write.attendees[0]!.id],
+          sql`SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ${write.attendees[0]!.id}`
         );
         fullyBooked = rows[0]!.c === bookings.length;
       }
@@ -260,7 +260,7 @@ describeWithEnv(
       // validation and the write. The preflight refuses a missing listing
       // outright, so this pins the write side alone.
       const listing = await createTestListing({ maxAttendees: 2 });
-      await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
+      await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
       const write = await createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 0 }],
         email: "gone@example.com",

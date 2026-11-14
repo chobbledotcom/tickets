@@ -15,6 +15,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
   describe("the quantity page a multi-ticket line opens", () => {
@@ -40,8 +41,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       Number(
         (
           await getDb().execute(
-            "SELECT checked_in FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
-            [listingId, attendeeId],
+            sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`
           )
         ).rows[0]!.checked_in,
       );

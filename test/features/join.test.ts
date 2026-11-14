@@ -23,6 +23,7 @@ import {
   mockFormRequest,
   mockRequest,
 } from "#test-utils/mocks.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("the join form", () => {
@@ -162,8 +163,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       const consumed = (await getUserByUsername("stale-replay"))!;
       await executeWithoutCacheInvalidation(
-        "UPDATE users SET invite_wrapped_data_key = NULL WHERE id = ?",
-        [consumed.id],
+        sql`UPDATE users SET invite_wrapped_data_key = NULL WHERE id = ${consumed.id}`
       );
 
       const response = await handleRequest(

@@ -14,6 +14,7 @@ import {
 import { withEnv } from "#test-utils/env.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
+import { sql } from "#db/sql.ts";
 
 describe("primary pipeline budget and retries", () => {
   afterEach(() => setDb(null));
@@ -24,7 +25,7 @@ describe("primary pipeline budget and retries", () => {
       using remote = hranaTestDatabase();
       setDb(remote.client);
       await runWithSubrequestBudget(async () => {
-        const statements = [{ args: [], sql: "SELECT 1" }];
+        const statements = [sql`SELECT 1`];
         const rows = await (scoped
           ? runWithPrimaryReads(() => queryBatch(statements))
           : queryBatchPrimary(statements));
@@ -53,7 +54,7 @@ describe("primary pipeline budget and retries", () => {
       setDb(remote.client);
       await runWithSubrequestBudget(async () => {
         const results = await withVirtualBackoff(() =>
-          queryBatchPrimary([{ args: [], sql: "SELECT 1" }]),
+          queryBatchPrimary([sql`SELECT 1`]),
         );
         expect(results).toHaveLength(1);
         expect(getSubrequestUsage()).toEqual({
@@ -72,7 +73,7 @@ describe("primary pipeline budget and retries", () => {
     });
     setDb(remote.client);
     await expect(
-      executeBatch([{ args: [], sql: "INSERT INTO listings VALUES (1)" }]),
+      executeBatch([sql`INSERT INTO listings VALUES (1)`]),
     ).rejects.toMatchObject({ code: "SERVER_ERROR" });
     expect(remote.requests).toHaveLength(1);
     expect(remote.requests[0]).toEqual(["store_sql", "batch", "close"]);

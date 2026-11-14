@@ -15,6 +15,7 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { ListingWithCount } from "#types";
+import { sql } from "#db/sql.ts";
 
 /** Fetch the listing-with-count row the helper accepts as input. */
 const row = async (id: number): Promise<ListingWithCount> =>
@@ -37,10 +38,7 @@ const remaining = async (
 /** Overbook a listing by lowering its cap below what is already booked,
  * bypassing the capacity guard that would block it during booking. */
 const lowerMaxAttendees = (id: number, max: number): Promise<unknown> =>
-  getDb().execute({
-    args: [max, id],
-    sql: "UPDATE listings SET max_attendees = ? WHERE id = ?",
-  });
+  getDb().execute(sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${id}`);
 
 describeWithEnv(
   "db > attendees > getListingRemainingForRange",

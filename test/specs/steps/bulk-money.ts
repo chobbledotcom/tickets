@@ -31,6 +31,7 @@ import {
   type TicketsWorld,
 } from "#test/specs/support/world.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { sql } from "#db/sql.ts";
 
 Given(
   "{int} people each paid {word} for a {word} place",
@@ -87,10 +88,9 @@ Given(
     const [first] = requiredWorldValue(this.attendeeIds, "the people who paid");
     if (first === undefined) throw new Error("Nobody paid first");
     await execute(
-      `UPDATE processed_payments
+      sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE attendee_id = ?`,
-      [first],
+        WHERE attendee_id = ${first}`
     );
   },
 );

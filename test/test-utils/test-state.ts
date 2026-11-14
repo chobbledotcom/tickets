@@ -46,6 +46,7 @@ import {
   DB_FILE_SUFFIXES,
 } from "#test-utils/temp-db-files.ts";
 import { TEST_STATE_DIR_ENV } from "#test-utils/test-state-env.ts";
+import { sql } from "#db/sql.ts";
 
 const GOLDEN_DB_FILE = "golden.db";
 const STATE_JSON_FILE = "state.json";
@@ -210,7 +211,7 @@ export const reusableSetupState = (country: string): SetupState | null => {
 export const replaySetupState = async (state: SetupState): Promise<void> => {
   await getDb().batch(
     [
-      { args: [], sql: "DELETE FROM settings" },
+      sql`DELETE FROM settings`,
       ...state.settings.map((row) => insert("settings", row)),
       ...state.users.map((row) => insert("users", row)),
     ],
@@ -279,21 +280,21 @@ export const runSetupCeremony = async (
   settings.setForTest({ timezone: "UTC" });
 
   const settingsResult = await getDb().execute(
-    "SELECT key, value FROM settings AS setting",
+    sql`SELECT key, value FROM settings AS setting`
   );
   const settingsRows = settingsResult.rows.map((row) =>
     v.parse(SettingsRowSchema, row),
   );
   const usersResult = await getDb().execute(
-    `SELECT ${USER_ROW_COLUMNS} FROM users AS user`,
+    sql`SELECT ${TODO_SQL_TEXT(USER_ROW_COLUMNS)} FROM users AS user`
   );
   const users = usersResult.rows.map((row) => v.parse(UserRowSchema, row));
 
   const liveSession = await createDirectAdminSession();
   const sessionsResult = await getDb().execute(
-    `SELECT token, csrf_token, expires,
+    sql`SELECT token, csrf_token, expires,
             wrapped_data_key, user_id
-     FROM sessions AS session LIMIT 1`,
+     FROM sessions AS session LIMIT 1`
   );
   const sessionRow = sessionsResult.rows[0];
   if (!sessionRow) {

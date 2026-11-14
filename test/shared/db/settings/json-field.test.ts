@@ -9,6 +9,7 @@ import {
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 const emptyFeatures = serializeEnabledFeatures(parseEnabledFeatures(""));
 const enabledMoneyFeatures = serializeEnabledFeatures(
@@ -30,8 +31,7 @@ const writeFeatureBoolean = (
 
 const settingsVersion = async (): Promise<number> => {
   const row = await queryOnePrimary<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.SETTINGS_VERSION],
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}`
   );
   if (!row) throw new Error("Settings version was not stored");
   return Number(row.value);
@@ -78,16 +78,13 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
       await writeFeatureBoolean(emptyFeatures, "$.site", true, "FALSE"),
     ).toBeNull();
     expect(
-      await queryOnePrimary("SELECT value FROM settings WHERE key = ?", [
-        CONFIG_KEYS.ENABLED_FEATURES,
-      ]),
+      await queryOnePrimary(sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`),
     ).toBeNull();
   });
 
   test("validates an unchanged stored object", async () => {
     await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":true,"site":"false"}'],
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${'{"money":true,"site":"false"}'})`
     );
 
     await expect(
@@ -110,11 +107,10 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
         writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
       ).rejects.toThrow("version write failed");
     } finally {
-      await execute("DROP TRIGGER IF EXISTS fail_settings_version");
+      await execute(sql`DROP TRIGGER IF EXISTS fail_settings_version`);
     }
     const stored = await queryOnePrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      [CONFIG_KEYS.ENABLED_FEATURES],
+      sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`
     );
     expect(parseEnabledFeatures(stored!.value).money).toBe(false);
   });

@@ -19,6 +19,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { takeMigrationLock } from "#test-utils/migrations.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { withVirtualBackoff } from "#test-utils/virtual-time.ts";
+import { sql } from "#db/sql.ts";
 
 /** The error countSubrequest raises once the request's budget is spent. */
 const budgetError = (n: number): Error =>
@@ -110,7 +111,7 @@ describeWithEnv(
     /** Spend the database calls this request still has, keeping `spare` back. */
     const spendAllBut = async (spare: number): Promise<void> => {
       const calls = getSubrequestRemaining().database - spare;
-      for (let i = 0; i < calls; i += 1) await getDb().execute("SELECT 1");
+      for (let i = 0; i < calls; i += 1) await getDb().execute(sql`SELECT 1`);
     };
 
     /** Six migrations, each spending 12 round-trips — 72 calls in all, more
@@ -118,7 +119,7 @@ describeWithEnv(
     const spendyMigrations = (): Migration[] =>
       ["m1", "m2", "m3", "m4", "m5", "m6"].map((id) =>
         migrationOf(id, async () => {
-          for (let i = 0; i < 12; i += 1) await getDb().execute("SELECT 1");
+          for (let i = 0; i < 12; i += 1) await getDb().execute(sql`SELECT 1`);
         }),
       );
 
@@ -169,7 +170,7 @@ describeWithEnv(
       const completed = await runBatch([
         migrationOf("spend", () => spendAllBut(0)),
         migrationOf("rebuild", () =>
-          withTransaction((tx) => tx.execute("SELECT 1")),
+          withTransaction((tx) => tx.execute(sql`SELECT 1`)),
         ),
       ]);
       expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
@@ -195,7 +196,7 @@ describeWithEnv(
       const completed = await asOneRequest(async (lockToken) => {
         await spendAllBut(1);
         return await runPendingMigrations(
-          [migrationOf("one call", () => getDb().execute("SELECT 1"))],
+          [migrationOf("one call", () => getDb().execute(sql`SELECT 1`))],
           lockToken,
         );
       });

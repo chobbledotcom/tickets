@@ -26,6 +26,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** Create a JSON POST request for the scan API */
 const mockScanRequest = (
@@ -401,10 +402,7 @@ describeWithEnv("QR Scanner", { db: true }, () => {
       const { settings: s } = await import("#db/settings.ts");
 
       // Remove wrapped_private_key from settings to make key derivation fail
-      await getDb().execute({
-        args: [],
-        sql: "DELETE FROM settings WHERE key = 'wrapped_private_key'",
-      });
+      await getDb().execute(sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`);
       s.invalidateCache();
 
       const { response } = await setupLoginAndScan({ token: "some-token" });

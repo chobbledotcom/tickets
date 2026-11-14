@@ -17,6 +17,7 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("admin servicing routes", { db: true }, () => {
   beforeAll(setupAdminPageTest);
@@ -38,10 +39,7 @@ describeWithEnv("admin servicing routes", { db: true }, () => {
       bookings: [{ listingId: deletedListing.id, quantity: 1 }],
       name: "Undated Route Service",
     });
-    await getDb().execute({
-      args: [deletedListing.id],
-      sql: "DELETE FROM listings WHERE id = ?",
-    });
+    await getDb().execute(sql`DELETE FROM listings WHERE id = ${deletedListing.id}`);
 
     const html = await renderAdminPage("/admin/servicing");
 

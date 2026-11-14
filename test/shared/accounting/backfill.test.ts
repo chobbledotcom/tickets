@@ -26,6 +26,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 /** Flag a historical booking line refunded, the way a pre-ledger DB recorded a
  *  provider refund before the column was projected from the ledger. */
@@ -33,10 +34,7 @@ const flagRefunded = (
   attendeeId: number,
   listingId: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ? AND listing_id = ?",
-  });
+  getDb().execute(sql`UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`);
 
 /** Create a historical paid booking with NO ledger legs (pre-dual-write). The
  *  email is overridable so a test can seed many distinct historical attendees. */
@@ -141,10 +139,7 @@ const expectRowStampedWithSaleEventGroup = async (
   sale: Transfer,
 ): Promise<void> => {
   const row = (
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
-    })
+    await getDb().execute(sql`SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ${attendeeId}`)
   ).rows[0]!;
   expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
 };
@@ -344,10 +339,7 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
 
   test("throws on an unparseable booking time rather than guessing", async () => {
     const { attendee } = await seedBooking();
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "UPDATE attendees SET created = 'not a date' WHERE id = ?",
-    });
+    await getDb().execute(sql`UPDATE attendees SET created = 'not a date' WHERE id = ${attendee.id}`);
 
     await expect(backfillTransfers()).rejects.toThrow(
       "unparseable created time",

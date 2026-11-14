@@ -24,6 +24,7 @@ import {
   transactionStub,
 } from "#test-utils/db-helpers/stub-transaction.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * Interactive-transaction internals: the per-transaction statement budget (the
@@ -47,9 +48,9 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     withRequestContext(() =>
       withTransaction(async (tx) => {
         for (let i = 0; i < executes; i++) {
-          await tx.execute(`SELECT ${i}`);
+          await tx.execute(sql`SELECT ${i}`);
         }
-        await tx.batch(["SELECT 100", "SELECT 101"]);
+        await tx.batch([sql`SELECT 100`, sql`SELECT 101`]);
       }),
     );
 
@@ -64,7 +65,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       withRequestContext(() =>
         withTransaction(async (tx) => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-            await tx.execute(`SELECT ${i}`);
+            await tx.execute(sql`SELECT ${i}`);
           }
         }),
       ),
@@ -86,7 +87,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     await expect(
       withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t (x) VALUES (1)");
+        await tx.execute(sql`INSERT INTO t (x) VALUES (1)`);
         throw new Error("work failed");
       }),
     ).rejects.toThrow("work failed");
@@ -103,8 +104,8 @@ describeWithEnv("db > client transaction", { db: true }, () => {
             async () => {
               await expect(
                 withTransaction(async (tx) => {
-                  await tx.execute("SELECT 1");
-                  await tx.execute("SELECT 2");
+                  await tx.execute(sql`SELECT 1`);
+                  await tx.execute(sql`SELECT 2`);
                 }),
               ).rejects.toThrow("Subrequest allowance exceeded");
             },
@@ -146,7 +147,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       rollback,
     });
     await withTransaction(async (tx) => {
-      await tx.batch(["SELECT 1"]);
+      await tx.batch([sql`SELECT 1`]);
     });
     expect(rollback.calls.length).toBe(0);
   });
@@ -165,7 +166,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     });
     await expect(
       withTransaction(async (tx) => {
-        await tx.execute("INSERT INTO t (x) VALUES (1)");
+        await tx.execute(sql`INSERT INTO t (x) VALUES (1)`);
       }),
     ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
     // One begin, no retry — a replayed transaction would double-apply the write.

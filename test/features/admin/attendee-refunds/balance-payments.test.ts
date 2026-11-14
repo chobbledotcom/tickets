@@ -37,6 +37,7 @@ import {
 } from "#test-utils/refund-routes.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
+import { sql } from "#db/sql.ts";
 
 const refundCtx = async (
   attendee: Attendee,
@@ -177,10 +178,9 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
     test("does not refund an indexed balance while an old deposit is unindexed", async () => {
       await expectIncompleteReservationHistoryRefused(async () => {
         await execute(
-          `UPDATE processed_payments
+          sql`UPDATE processed_payments
               SET payment_reference_index = ''
-            WHERE payment_session_id = ?`,
-          ["reservation_deposit_session"],
+            WHERE payment_session_id = ${"reservation_deposit_session"}`
         );
       });
     });
@@ -192,8 +192,7 @@ describeWithEnv("server (admin balance-payment refunds)", { db: true }, () => {
           payment_id: "pi_reservation_deposit",
         });
         await execute(
-          "DELETE FROM processed_payments WHERE payment_session_id = ?",
-          ["reservation_deposit_session"],
+          sql`DELETE FROM processed_payments WHERE payment_session_id = ${"reservation_deposit_session"}`
         );
       });
     });

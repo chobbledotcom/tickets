@@ -10,21 +10,22 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext, indexExists } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** Put system_notes back the way it was before this migration: a note belonged
  *  to an attendee and nothing else. */
 const downgradeToAttendeeNotes = async (): Promise<void> => {
-  await execute("DROP TABLE IF EXISTS system_notes");
-  await execute(`CREATE TABLE system_notes (
+  await execute(sql`DROP TABLE IF EXISTS system_notes`);
+  await execute(sql`CREATE TABLE system_notes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       attendee_id INTEGER NOT NULL,
       type TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('system', 'owner')),
       note TEXT NOT NULL,
       created TEXT NOT NULL DEFAULT (datetime('now'))
     )`);
-  await execute("DROP INDEX IF EXISTS idx_system_notes_entity");
+  await execute(sql`DROP INDEX IF EXISTS idx_system_notes_entity`);
   await execute(
-    "CREATE INDEX idx_system_notes_attendee_id ON system_notes(attendee_id)",
+    sql`CREATE INDEX idx_system_notes_attendee_id ON system_notes(attendee_id)`
   );
 };
 
@@ -39,11 +40,11 @@ const addColumnsWithoutRebuilding = async (
 ): Promise<void> => {
   for (const column of columns) {
     await execute(
-      `ALTER TABLE system_notes ADD COLUMN ${column} ${
+      sql`ALTER TABLE system_notes ADD COLUMN ${sqlName(column)} ${
         column === "entity_type"
-          ? "TEXT NOT NULL DEFAULT 'attendee'"
-          : "INTEGER NOT NULL DEFAULT 0"
-      }`,
+          ? sql`TEXT NOT NULL DEFAULT 'attendee'`
+          : sql`INTEGER NOT NULL DEFAULT 0`
+      }`
     );
   }
 };
@@ -58,7 +59,7 @@ type StoredNote = {
 
 const storedNotes = (): Promise<StoredNote[]> =>
   queryAll<StoredNote>(
-    "SELECT id, entity_type, entity_id, type, note FROM system_notes ORDER BY id",
+    sql`SELECT id, entity_type, entity_id, type, note FROM system_notes ORDER BY id`
   );
 
 describeWithEnv(
@@ -68,8 +69,7 @@ describeWithEnv(
     test("turns an attendee's notes into notes about an attendee", async () => {
       await downgradeToAttendeeNotes();
       await execute(
-        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?), (?, ?, ?)",
-        [7, "system", "kept system", 9, "owner", "kept owner"],
+        sql`INSERT INTO system_notes (attendee_id, type, note) VALUES (${7}, ${"system"}, ${"kept system"}), (${9}, ${"owner"}, ${"kept owner"})`
       );
 
       await runMigration();
@@ -98,8 +98,7 @@ describeWithEnv(
     test("leaves an already-migrated table alone", async () => {
       await downgradeToAttendeeNotes();
       await execute(
-        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?)",
-        [3, "system", "only once"],
+        sql`INSERT INTO system_notes (attendee_id, type, note) VALUES (${3}, ${"system"}, ${"only once"})`
       );
       await runMigration();
 
@@ -121,8 +120,7 @@ describeWithEnv(
     test("carries on from a run that stopped after the first column", async () => {
       await downgradeToAttendeeNotes();
       await execute(
-        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?)",
-        [5, "system", "half-migrated"],
+        sql`INSERT INTO system_notes (attendee_id, type, note) VALUES (${5}, ${"system"}, ${"half-migrated"})`
       );
       await addColumnsWithoutRebuilding("entity_type");
 
@@ -142,8 +140,7 @@ describeWithEnv(
     test("carries on from a run that stopped after both columns", async () => {
       await downgradeToAttendeeNotes();
       await execute(
-        "INSERT INTO system_notes (attendee_id, type, note) VALUES (?, ?, ?)",
-        [6, "owner", "columns already there"],
+        sql`INSERT INTO system_notes (attendee_id, type, note) VALUES (${6}, ${"owner"}, ${"columns already there"})`
       );
       await addColumnsWithoutRebuilding("entity_type", "entity_id");
 
@@ -165,7 +162,7 @@ describeWithEnv(
       await runMigration();
       // The state a run that stopped between the rebuild and the index leaves:
       // the columns are moved, but nothing indexes them.
-      await execute("DROP INDEX idx_system_notes_entity");
+      await execute(sql`DROP INDEX idx_system_notes_entity`);
       expect(await indexExists("idx_system_notes_entity")).toBe(false);
 
       await runMigration();
@@ -237,10 +234,7 @@ describeWithEnv(
       await runMigration();
 
       await expect(
-        getDb().execute({
-          args: [1, "system", "who?"],
-          sql: "INSERT INTO system_notes (entity_type, entity_id, type, note) VALUES ('spaceship', ?, ?, ?)",
-        }),
+        getDb().execute(sql`INSERT INTO system_notes (entity_type, entity_id, type, note) VALUES ('spaceship', ${1}, ${"system"}, ${"who?"})`),
       ).rejects.toThrow();
     });
   },

@@ -6,6 +6,7 @@ import { queryAll } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** The caller-supplied writes a reservation can ride on the atomic create:
  * creation work on the interactive transaction, or tail statements on the
@@ -24,10 +25,7 @@ describeWithEnv(
           name: "Work User",
         },
         async (tx, attendeeId) => {
-          await tx.execute({
-            args: [attendeeId],
-            sql: "UPDATE attendees SET checked_in = 'worked' WHERE id = ?",
-          });
+          await tx.execute(sql`UPDATE attendees SET checked_in = 'worked' WHERE id = ${attendeeId}`);
         },
       );
 
@@ -37,9 +35,7 @@ describeWithEnv(
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
       expect(
-        await queryAll("SELECT checked_in FROM attendees WHERE id = ?", [
-          attendees[0]!.id,
-        ]),
+        await queryAll(sql`SELECT checked_in FROM attendees WHERE id = ${attendees[0]!.id}`),
       ).toEqual([{ checked_in: "worked" }]);
     });
 
@@ -55,11 +51,8 @@ describeWithEnv(
           },
           async (tx) => {
             // A write the caller makes before its failure must not survive.
-            await tx.execute({
-              args: [],
-              sql: `INSERT INTO strings (text_index, encrypted_text, created)
-                  VALUES ('work-marker', 'x', 'now')`,
-            });
+            await tx.execute(sql`INSERT INTO strings (text_index, encrypted_text, created)
+                  VALUES ('work-marker', 'x', 'now')`);
             throw new Error("creation work boom");
           },
         ),
@@ -69,7 +62,7 @@ describeWithEnv(
       await expectNoAttendeesForListings([listing.id]);
       expect(
         await queryAll(
-          "SELECT id FROM strings WHERE text_index = 'work-marker'",
+          sql`SELECT id FROM strings WHERE text_index = 'work-marker'`
         ),
       ).toEqual([]);
     });
@@ -85,11 +78,8 @@ describeWithEnv(
         },
         undefined,
         (tokenIndex) => [
-          {
-            args: [tokenIndex],
-            sql: `UPDATE attendees SET checked_in = 'tail'
-                WHERE ticket_token_index = ?`,
-          },
+          sql`UPDATE attendees SET checked_in = 'tail'
+                WHERE ticket_token_index = ${tokenIndex}`,
         ],
       );
 
@@ -97,8 +87,7 @@ describeWithEnv(
       // The tail statement landed on the attendee the batch itself created.
       expect(
         await queryAll<{ checked_in: string }>(
-          "SELECT checked_in FROM attendees WHERE id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?)",
-          [listing.id],
+          sql`SELECT checked_in FROM attendees WHERE id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listing.id})`
         ),
       ).toEqual([{ checked_in: "tail" }]);
     });
@@ -115,11 +104,8 @@ describeWithEnv(
           },
           undefined,
           () => [
-            {
-              args: [],
-              sql: `INSERT INTO strings (text_index, encrypted_text, created)
+            sql`INSERT INTO strings (text_index, encrypted_text, created)
                   VALUES (NULL, 'x', 'now')`,
-            },
           ],
         ),
       ).rejects.toThrow("NOT NULL constraint failed: strings.text_index");

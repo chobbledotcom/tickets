@@ -3,6 +3,7 @@ import { reverseOrderFor } from "#test/shared/db/attendees/select-refunded/suppo
 import { createDualPackageAttendee } from "#test-utils/attendees/helpers.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import type { Attendee } from "#types";
+import { sql } from "#db/sql.ts";
 
 /** A person who holds a refunded package line (quantity 2) beside a live
  * standalone line (quantity 1) on one listing. Each line rides its own paid
@@ -33,12 +34,7 @@ export const bookRefundedSibling = async (
     gross: 100,
     listingId,
   });
-  await getDb().execute({
-    args: [secondOrder, attendee.id, listingId],
-    sql:
-      "UPDATE listing_attendees SET ledger_event_group = ?" +
-      " WHERE attendee_id = ? AND listing_id = ? AND package_group_id = 0",
-  });
+  await getDb().execute(sql`UPDATE listing_attendees SET ledger_event_group = ${secondOrder} WHERE attendee_id = ${attendee.id} AND listing_id = ${listingId} AND package_group_id = 0`);
   await reverseOrderFor(attendee.id, listingId);
   return attendee;
 };

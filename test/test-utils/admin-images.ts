@@ -13,6 +13,7 @@ import { mockMultipartRequest, mockRequest } from "#test-utils/mocks.ts";
 import { apiRequest, testCookie } from "#test-utils/session.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
 import type { Image, ImageUseItemType } from "#types";
+import { sql } from "#db/sql.ts";
 
 export const makeImage = (name: string): Promise<Image> =>
   imagesTable.insert({
@@ -55,15 +56,10 @@ export const insertBrokenImage = async (
 ): Promise<number> => {
   const brokenFilename = await encrypt("");
   const result = await execute(
-    `INSERT INTO images (name, filename, filename_thumb, alt_text)
-     VALUES (?, ?, ?, '')`,
-    [
-      await encrypt(options.name ?? "Broken"),
-      brokenFilename,
-      options.thumbFilename === undefined
+    sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
+     VALUES (${await encrypt(options.name ?? "Broken")}, ${brokenFilename}, ${options.thumbFilename === undefined
         ? brokenFilename
-        : await encrypt(options.thumbFilename),
-    ],
+        : await encrypt(options.thumbFilename)}, '')`
   );
   return Number(result.lastInsertRowid);
 };

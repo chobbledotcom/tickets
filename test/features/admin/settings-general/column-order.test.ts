@@ -7,6 +7,7 @@ import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (admin settings: column order)", { db: true }, () => {
   const invalidMessage = (kind: keyof typeof configurableTableLayouts) =>
@@ -62,8 +63,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
 
     test("rejects a malformed template loaded from settings", async () => {
       await execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.LISTING_COLUMN_ORDER, "{{not_a_column}}"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.LISTING_COLUMN_ORDER}, ${"{{not_a_column}}"})`
       );
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.LISTING_COLUMN_ORDER]);

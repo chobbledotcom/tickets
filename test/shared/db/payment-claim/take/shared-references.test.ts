@@ -22,16 +22,16 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 const repointPaymentRow = async (
   sessionId: string,
   stored: StoredPaymentReference,
 ): Promise<void> => {
   await execute(
-    `UPDATE processed_payments
-        SET payment_reference = ?, payment_reference_index = ?
-      WHERE payment_session_id = ?`,
-    [stored.encrypted, stored.index, sessionId],
+    sql`UPDATE processed_payments
+        SET payment_reference = ${stored.encrypted}, payment_reference_index = ${stored.index}
+      WHERE payment_session_id = ${sessionId}`
   );
 };
 
@@ -51,29 +51,23 @@ const addUnreadableSharingRows = async (
   attendeeId: number,
 ): Promise<void> => {
   await execute(
-    `WITH RECURSIVE sharingRow(row_number) AS (
+    sql`WITH RECURSIVE sharingRow(row_number) AS (
        VALUES (1)
        UNION ALL
        SELECT row_number + 1
          FROM sharingRow
-        WHERE row_number < ?
+        WHERE row_number < ${FIRST_REFUSED_SHARING_ROW_COUNT}
      )
      INSERT INTO processed_payments (
        payment_session_id, attendee_id, processed_at, failure_data,
        payment_reference, payment_reference_index
      )
-     SELECT 'sess-overflow-' || sharingRow.row_number, ?,
-            source.processed_at, ?, source.payment_reference,
+     SELECT 'sess-overflow-' || sharingRow.row_number, ${attendeeId},
+            source.processed_at, ${UNREADABLE_ROW_STATE}, source.payment_reference,
             source.payment_reference_index
        FROM sharingRow
        JOIN processed_payments AS source
-         ON source.payment_session_id = ?`,
-    [
-      FIRST_REFUSED_SHARING_ROW_COUNT,
-      attendeeId,
-      UNREADABLE_ROW_STATE,
-      sourceSessionId,
-    ],
+         ON source.payment_session_id = ${sourceSessionId}`
   );
 };
 
@@ -155,8 +149,7 @@ describeWithEnv(
         "pi_index_separator",
       );
       const attendee = await requireOne<{ pii_blob: string }>(
-        "SELECT pii_blob FROM attendees WHERE id = ?",
-        [attendeeId],
+        sql`SELECT pii_blob FROM attendees WHERE id = ${attendeeId}`
       );
       const references = await getCompleteRefundPaymentReferencesForAttendee({
         currentPaymentId: "pi_index_separator",
@@ -199,8 +192,7 @@ describeWithEnv(
         "pi_no_reference",
       );
       await execute(
-        "DELETE FROM processed_payments WHERE payment_session_id = ?",
-        ["sess-no-reference"],
+        sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess-no-reference"}`
       );
 
       const { queries, result } = await withRequestContext(async () => {
@@ -239,18 +231,17 @@ describeWithEnv(
         `LIMIT ${FIRST_REFUSED_SHARING_ROW_COUNT}`,
       );
       const state = await execute(
-        `SELECT COUNT(*) AS row_count,
+        sql`SELECT COUNT(*) AS row_count,
                 SUM(CASE WHEN protected_state != '' THEN 1 ELSE 0 END)
                   AS claimed_count,
-                SUM(CASE WHEN failure_data = ? THEN 1 ELSE 0 END)
+                SUM(CASE WHEN failure_data = ${UNREADABLE_ROW_STATE} THEN 1 ELSE 0 END)
                   AS unreadable_count
            FROM processed_payments
           WHERE payment_reference_index = (
             SELECT payment_reference_index
               FROM processed_payments
-             WHERE payment_session_id = ?
-          )`,
-        [UNREADABLE_ROW_STATE, sourceSessionId],
+             WHERE payment_session_id = ${sourceSessionId}
+          )`
       );
       expect(state.rows[0]).toMatchObject({
         claimed_count: 0,

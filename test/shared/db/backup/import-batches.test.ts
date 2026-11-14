@@ -7,6 +7,7 @@ import { PostResetError, restoreFromSql } from "#db/backup.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("backup import batches", { db: true }, () => {
   const restoreAndInspectImport = async (
@@ -63,7 +64,7 @@ describeWithEnv("backup import batches", { db: true }, () => {
     expect(sizes).toEqual([50, 4]);
     expect(
       await queryAll<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+        sql`SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'`
       ),
     ).toEqual([{ count: 51 }]);
   });
@@ -107,7 +108,7 @@ describeWithEnv("backup import batches", { db: true }, () => {
 
     expect(
       await queryAll<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+        sql`SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'`
       ),
     ).toEqual([{ count: 0 }]);
     await verifyCurrentAppSchema();

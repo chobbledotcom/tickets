@@ -19,6 +19,7 @@ import { squareLinkEndsAt } from "#shared/square/checkout.ts";
 import { squarePaymentProvider } from "#shared/square-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 const intent = (textAnswers?: Record<string, string>): CheckoutIntent => ({
   address: "",
@@ -96,12 +97,10 @@ describeWithEnv(
         squareLinkEndsAt(createdAt),
       );
       await execute(
-        "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`
       );
       await execute(
-        "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`
       );
       await runDatabasePruning();
     };

@@ -8,6 +8,7 @@ import { handleRobotsTxt } from "#routes/robots-txt.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server public > robots.txt settings failures",
@@ -35,7 +36,7 @@ describeWithEnv(
       // cannot be on, so robots.txt answers the default text instead of an
       // error — even when this process's snapshot still says the feature is
       // on, because a failed settings load never resets it.
-      await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+      await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
       const response = await handleRequest(mockRequest("/robots.txt"));
       expect(response.status).toBe(200);
       expect(await response.text()).toBe(

@@ -26,6 +26,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { MOCK_RELEASE, stubReleaseFetch } from "#test-utils/mocks.ts";
+import { sql } from "#db/sql.ts";
 
 describe("update constants", () => {
   test("points to the public tickets release page", () => {
@@ -256,7 +257,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
     expect(
       await queryOne<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'current_script_commit'",
+        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`
       ),
     ).toEqual({ value: "abc123def4567890" });
   });
@@ -268,7 +269,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
 
     expect(
       await queryOne<{ value: string }>(
-        "SELECT value FROM settings WHERE key = 'current_script_commit'",
+        sql`SELECT value FROM settings WHERE key = 'current_script_commit'`
       ),
     ).toBeNull();
   });
@@ -324,10 +325,7 @@ describeWithEnv("recordScriptVersion", { db: true }, () => {
     ]);
 
     await clearMarkers();
-    await execute("INSERT INTO settings (key, value) VALUES (?, ?)", [
-      commitKey,
-      "stale-commit",
-    ]);
+    await execute(sql`INSERT INTO settings (key, value) VALUES (${commitKey}, ${"stale-commit"})`);
     setBuildTimestampForTest("2026-06-20T00:00:00Z");
     setBuildCommitForTest("");
     await recordScriptVersion();

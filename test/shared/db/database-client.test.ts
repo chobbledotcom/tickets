@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { createDatabaseClient } from "#db/database-client.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase, hranaTestFetch } from "#test-utils/hrana.ts";
+import { sql } from "#db/sql.ts";
 
 describe("primary read pipeline", () => {
   test("uses the configured HTTP URL, credentials, and encryption header", async () => {
@@ -27,7 +28,7 @@ describe("primary read pipeline", () => {
         url: "libsql://pipeline.test:8443/tenant/",
       },
     });
-    await database.client.batch(["SELECT 1"], "write");
+    await database.client.batch([sql`SELECT 1`], "write");
     expect(requests).toEqual([
       {
         headers: {
@@ -56,7 +57,7 @@ describe("primary read pipeline", () => {
     });
     try {
       const [result] = await client.batch(
-        [{ args: [2], sql: "SELECT id FROM listings WHERE id = ?" }],
+        [sql`SELECT id FROM listings WHERE id = ${2}`],
         "write",
       );
       expect(result!.rows.map((row) => row.id)).toEqual([2]);

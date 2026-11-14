@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { execute, getDb, type SqlStatement, setDb } from "#db/client.ts";
+import { execute, getDb, setDb } from "#db/client.ts";
 import { wrapExecute } from "#db/libsql-call.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
 import { claimLeaseMs } from "#payment/claim.ts";
@@ -43,6 +43,7 @@ import {
   withRefundMock,
 } from "#test-utils/refund-routes.ts";
 import { testCookie } from "#test-utils/session.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 const EXPECTED_REFUND_ALL_PAGE_SIZE = 1;
 const REVIEWED_SET_SIZE = 3;
@@ -308,10 +309,7 @@ describeWithEnv(
         taggedPaymentReference("pi_changed_current_payment"),
       );
       await withPaymentChangeBeforeReferenceLoad(
-        {
-          args: [attendee.id],
-          sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-        },
+        sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`,
         async () => {
           await withRefundMock(refundIsRejected, async (mockRefund) => {
             await expect(postRefundAll(listing)).rejects.toThrow(
@@ -338,12 +336,9 @@ describeWithEnv(
       );
 
       await withPaymentChangeBeforeReferenceLoad(
-        {
-          args: [attendee.id],
-          sql: `UPDATE processed_payments
+        sql`UPDATE processed_payments
                    SET payment_reference_index = ''
-                 WHERE attendee_id = ?`,
-        },
+                 WHERE attendee_id = ${attendee.id}`,
         async () => {
           await withRefundMock(refundIsRejected, async (mockRefund) => {
             await expectFlashRedirect(
@@ -365,9 +360,7 @@ describeWithEnv(
         "old-deposit@example.com",
         "pi_old_deposit",
       );
-      await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
-        attendee.id,
-      ]);
+      await execute(sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`);
       await finalizeProcessedPayment(
         "new_balance_payment",
         attendee.id,

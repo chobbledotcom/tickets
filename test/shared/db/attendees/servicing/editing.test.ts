@@ -17,6 +17,7 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("servicing §4 — editing", { db: true }, () => {
   test("editing a servicing event preserves its token", async () => {
@@ -169,10 +170,7 @@ describeWithEnv(
       });
       // Delete the listing row directly, leaving the booking link in place —
       // the inconsistent state the indicator is for.
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
 
       const body = await renderAdminPage(`/admin/servicing/${id}`);
       expectIncludesAll(body, ["no longer exist", "will be removed"]);

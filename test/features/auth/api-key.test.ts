@@ -20,6 +20,7 @@ import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { createTestApiKeyToken, requestAsApiKey } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** A request carrying whatever the caller wants in the Authorization header. */
 const withAuthorization = (value: string): Request =>
@@ -92,8 +93,7 @@ describeWithEnv("refusing a Bearer token", { db: true }, () => {
     const apiKey = await createTestApiKeyToken();
     const { execute } = await import("#shared/db/client.ts");
     await execute(
-      "UPDATE api_keys SET wrapped_data_key = ? WHERE user_id = 1",
-      ["not-a-wrapped-key"],
+      sql`UPDATE api_keys SET wrapped_data_key = ${"not-a-wrapped-key"} WHERE user_id = 1`
     );
 
     expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
@@ -103,7 +103,7 @@ describeWithEnv("refusing a Bearer token", { db: true }, () => {
   test("says the key points at a user who is gone", async () => {
     const apiKey = await createTestApiKeyToken();
     const { execute } = await import("#shared/db/client.ts");
-    await execute("UPDATE api_keys SET user_id = 9999 WHERE user_id = 1");
+    await execute(sql`UPDATE api_keys SET user_id = 9999 WHERE user_id = 1`);
 
     expect(await sessionFor(withAuthorization(`Bearer ${apiKey}`))).toBe(null);
     expect(errors.contains("API key references non-existent user")).toBe(true);

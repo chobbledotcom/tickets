@@ -18,6 +18,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { paidSession } from "#test-utils/payment-session.ts";
 import type { ListingWithCount } from "#types";
 import { bookingIntent } from "./index/helpers.ts";
+import { sql } from "#db/sql.ts";
 
 /** The listing a test just made. It is always there; saying so here keeps
  *  every case below from repeating the check. */
@@ -34,10 +35,7 @@ const prepareTicketToken = async (
   attendeeId: number,
   token: string,
 ): Promise<string> => {
-  await getDb().execute({
-    args: [await hmacHash(token), attendeeId],
-    sql: "UPDATE attendees SET ticket_token_index = ? WHERE id = ?",
-  });
+  await getDb().execute(sql`UPDATE attendees SET ticket_token_index = ${await hmacHash(token)} WHERE id = ${attendeeId}`);
   return token;
 };
 
@@ -141,10 +139,7 @@ describeWithEnv(
 
       // The reservation is gone, so the redelivery starts fresh instead of
       // stalling behind the old lock.
-      const row = await getDb().execute({
-        args: ["cs_rollback"],
-        sql: "SELECT 1 AS present FROM processed_payments WHERE payment_session_id = ?",
-      });
+      const row = await getDb().execute(sql`SELECT 1 AS present FROM processed_payments WHERE payment_session_id = ${"cs_rollback"}`);
       expect(row.rows).toHaveLength(0);
     });
 

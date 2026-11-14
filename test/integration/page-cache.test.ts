@@ -9,6 +9,7 @@ import {
   settings,
 } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("page content cache", { db: true }, () => {
   describe("getWebsiteTitleFromDb", () => {
@@ -108,10 +109,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       await settings.loadKeys(ALL_SETTINGS_KEYS); // stamp cache at current version
       expect(settings.terms).toBe("Original");
 
-      await getDb().execute({
-        args: [newValue, CONFIG_KEYS.TERMS_AND_CONDITIONS],
-        sql: "UPDATE settings SET value = ? WHERE key = ?",
-      });
+      await getDb().execute(sql`UPDATE settings SET value = ${newValue} WHERE key = ${CONFIG_KEYS.TERMS_AND_CONDITIONS}`);
     };
 
     test("serves the cached value while the settings version is unchanged", async () => {
@@ -138,10 +136,7 @@ describeWithEnv("page content cache", { db: true }, () => {
 
       // Write a different encrypted value directly to the DB, no version bump.
       const newEncrypted = await encrypt("Changed Title");
-      await getDb().execute({
-        args: [newEncrypted, CONFIG_KEYS.WEBSITE_TITLE],
-        sql: "UPDATE settings SET value = ? WHERE key = ?",
-      });
+      await getDb().execute(sql`UPDATE settings SET value = ${newEncrypted} WHERE key = ${CONFIG_KEYS.WEBSITE_TITLE}`);
 
       await settings.loadKeys(ALL_SETTINGS_KEYS);
       expect(settings.websiteTitle).toBe("Original Title");
@@ -214,10 +209,7 @@ describeWithEnv("page content cache", { db: true }, () => {
       expect(settings.terms).toBe("");
 
       // Write directly to DB, bypassing page cache invalidation
-      await getDb().execute({
-        args: [CONFIG_KEYS.TERMS_AND_CONDITIONS, "Surprise"],
-        sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      });
+      await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.TERMS_AND_CONDITIONS}, ${"Surprise"})`);
 
       // Page cache still holds ""
       expect(settings.terms).toBe("");

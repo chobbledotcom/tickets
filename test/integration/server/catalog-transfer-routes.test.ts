@@ -17,6 +17,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** POST a JSON blob to the import endpoint as an uploaded file. */
 const importUpload = async (blob: unknown): Promise<Response> => {
@@ -92,10 +93,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       // stored row can hold a value the transfer schema rejects. Exporting it
       // must surface an operator-facing error, never a raw 500.
       const listing = await createTestListing({ name: "Bad Days" });
-      await execute("UPDATE listings SET bookable_days = ? WHERE id = ?", [
-        JSON.stringify(["Funday"]),
-        listing.id,
-      ]);
+      await execute(sql`UPDATE listings SET bookable_days = ${JSON.stringify(["Funday"])} WHERE id = ${listing.id}`);
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
       );
@@ -106,10 +104,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     test("returns 422 when a group row holds an unexportable value", async () => {
       const group = await createTestGroup({ name: "Bad Group" });
       // A negative capacity can't be represented by the transfer schema.
-      await execute("UPDATE groups SET max_attendees = ? WHERE id = ?", [
-        -1,
-        group.id,
-      ]);
+      await execute(sql`UPDATE groups SET max_attendees = ${-1} WHERE id = ${group.id}`);
       const response = await adminGet(`/admin/groups/${group.id}/export.json`);
       expect(response.status).toBe(422);
       assertStringIncludes(await response.text(), "can't be exported");

@@ -39,6 +39,7 @@ import {
   singleListingPayment,
   trustedPayment,
 } from "./helpers.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   const fetch = useFetchStub();
@@ -126,8 +127,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // A Square link dies with its first payment, so its end row is gone.
     expect(
       await queryOne(
-        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
-        [await hmacHash(id)],
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await hmacHash(id)}`
       ),
     ).toBeNull();
   });
@@ -201,7 +201,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     );
 
     expect(await getAttendeesRaw(listing.id)).toHaveLength(0);
-    expect(await queryOne("SELECT 1 FROM answers_at_booking LIMIT 1")).toBe(
+    expect(await queryOne(sql`SELECT 1 FROM answers_at_booking LIMIT 1`)).toBe(
       null,
     );
     expect(
@@ -217,8 +217,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     // The reservation was released, so the redelivery starts fresh.
     expect(
       await queryOne(
-        "SELECT 1 FROM processed_payments WHERE payment_session_id = ?",
-        [id],
+        sql`SELECT 1 FROM processed_payments WHERE payment_session_id = ${id}`
       ),
     ).toBeNull();
   });
@@ -276,10 +275,8 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_orphan";
     const { attendeeId, data, listing } =
       await ledgeredPaymentWithoutReservation(id, 700);
-    await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-      attendeeId,
-    ]);
-    await execute("DELETE FROM attendees WHERE id = ?", [attendeeId]);
+    await execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`);
+    await execute(sql`DELETE FROM attendees WHERE id = ${attendeeId}`);
 
     expect(await processPaymentSession(id, data)).toEqual({
       detail: `Ledger already records session ${id} with no live booking (listing ${listing.id})`,
@@ -294,7 +291,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     await setupStripe();
     const id = "cs_direct_deleted_listing";
     const { data, listing } = await singleListingPayment(id, 900);
-    await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
+    await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
     using refund = stubRefundPayment("re_deleted", 900);
 
     const result = await processPaymentSession(id, data);
@@ -311,8 +308,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     ]);
     expect(
       await queryOne<{ listing_id: number; quantity: number }>(
-        "SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ?",
-        [listing.id],
+        sql`SELECT listing_id, quantity FROM listing_attendees WHERE listing_id = ${listing.id}`
       ),
     ).toEqual({ listing_id: listing.id, quantity: 0 });
     await expectSessionFailed(id);

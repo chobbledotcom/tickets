@@ -15,6 +15,7 @@ import {
   postChildren,
 } from "#test-utils/parents.ts";
 import { beforeNextTransaction } from "#test-utils/record-queries.ts";
+import { sql } from "#db/sql.ts";
 
 /** The rendered edit-page HTML for the first attendee of a booking result. */
 const attendeeEditHtml = async (result: unknown): Promise<string> => {
@@ -52,7 +53,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const parent = await createTestListing({ name: "Race parent" });
     const child = await createTestListing({ name: "Race child" });
     const restore = beforeNextTransaction(async () => {
-      await execute("DELETE FROM listings WHERE id = ?", [child.id]);
+      await execute(sql`DELETE FROM listings WHERE id = ${child.id}`);
     });
 
     let response: Response;

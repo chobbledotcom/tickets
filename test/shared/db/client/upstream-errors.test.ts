@@ -2,15 +2,7 @@ import { type Client, LibsqlError, type ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
-import {
-  execute,
-  executeBatch,
-  executeBatchWithoutCacheInvalidation,
-  queryBatch,
-  queryBatchPrimary,
-  type SqlStatement,
-  setDb,
-} from "#db/client.ts";
+import { execute, executeBatch, executeBatchWithoutCacheInvalidation, queryBatch, queryBatchPrimary, setDb } from "#db/client.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import {
   initDb,
@@ -23,6 +15,7 @@ import {
   emptyResultSet,
   stubClient,
 } from "#test-utils/db-helpers/result-set.ts";
+import { type SqlStatement } from "#db/sql.ts";
 
 /**
  * The transient upstream retry: the libsql server itself occasionally answers

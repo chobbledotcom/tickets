@@ -8,6 +8,7 @@ import {
   expectRefused,
   expectRefusedAsRepeat,
 } from "./refuses.ts";
+import { sql } from "#db/sql.ts";
 
 /** A problem the table is happy with. What a problem may *say* is the record
  *  layer's to judge, so these rows only have to be the right shape. */
@@ -67,15 +68,12 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
     // SQLite leaves bytes alone in a TEXT column while GLOB turns them into
     // text just long enough to look at them, so bytes spelling an envelope
     // would pass and be stored as bytes that nothing can read back.
-    await expectRefused({
-      args: [new TextEncoder().encode("hyb:1:a:b:c")],
-      sql: `INSERT INTO payment_cases
+    await expectRefused(sql`INSERT INTO payment_cases
         (payment_id, resource, resource_index, reason, state,
          first_observed_at, last_observed_at, consecutive_count, evidence,
          revision)
-        VALUES ('bytes', ?, 'bytes-index', 'network_error', 'needs_action',
-          1, 1, 1, 'hyb:1:a:b:c', 1)`,
-    });
+        VALUES ('bytes', ${new TextEncoder().encode("hyb:1:a:b:c")}, 'bytes-index', 'network_error', 'needs_action',
+          1, 1, 1, 'hyb:1:a:b:c', 1)`);
   });
 
   test("accepts evidence held behind the owner's key", async () => {
@@ -90,7 +88,7 @@ describeWithEnv("db > payment case rules", { db: true }, () => {
       ),
     );
     const saved = await getDb().execute(
-      "SELECT revision FROM payment_cases WHERE payment_id = 'no-version'",
+      sql`SELECT revision FROM payment_cases WHERE payment_id = 'no-version'`
     );
     expect(Number(saved.rows[0]?.revision)).toBe(1);
   });

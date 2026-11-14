@@ -28,6 +28,7 @@ import {
 } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { apiRequest } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server > listing parents > add-on reachability",
@@ -60,10 +61,10 @@ describeWithEnv(
       });
       await modifierListings.setIds(modifier.id, [child.id]);
       await execute(
-        `CREATE TRIGGER activate_child_add_on
+        sql`CREATE TRIGGER activate_child_add_on
            AFTER UPDATE ON listings
            WHEN NEW.id = ${parent.id}
-           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`,
+           BEGIN UPDATE modifiers SET active = 1 WHERE id = ${modifier.id}; END`
       );
 
       await assertJson(

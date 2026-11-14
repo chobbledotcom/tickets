@@ -28,6 +28,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { createTestAgentSession, testCookie } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** Assign logistics agents (vans) to the owner test user, so the staff run
  * sheet — scoped to the viewer's own agents — has deliveries to show. */
@@ -98,15 +99,7 @@ export const makeBookingOn = async (
     ]),
   );
   const endDate = addDays(startDate, durationDays);
-  await getDb().execute({
-    args: [
-      `${startDate}T00:00:00Z`,
-      `${endDate}T00:00:00Z`,
-      attendee.id,
-      listing.id,
-    ],
-    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  await getDb().execute(sql`UPDATE listing_attendees SET start_at = ${`${startDate}T00:00:00Z`}, end_at = ${`${endDate}T00:00:00Z`} WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`);
   return {
     attendeeId: attendee.id,
     listingId: listing.id,

@@ -27,6 +27,7 @@ import {
   adminGet,
   getTestSession,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const NEW_PATH = "/admin/user/new";
 const LIST_PATH = "/admin/users";
@@ -38,8 +39,7 @@ const invite = (username: string, adminLevel = "manager") =>
 const wrappedKeyOf = async (username: string): Promise<string | null> => {
   const user = await getUserByUsername(username);
   const row = await queryOne<{ invite_wrapped_data_key: string | null }>(
-    "SELECT invite_wrapped_data_key FROM users WHERE id = ?",
-    [user!.id],
+    sql`SELECT invite_wrapped_data_key FROM users WHERE id = ${user!.id}`
   );
   return row!.invite_wrapped_data_key;
 };
@@ -188,7 +188,7 @@ describeWithEnv(
       // it cannot wrap the invite's copy, so the invite is refused rather than
       // creating a user who could never read attendee details.
       const { cookie, csrfToken } = await getTestSession();
-      await execute("UPDATE sessions SET wrapped_data_key = NULL");
+      await execute(sql`UPDATE sessions SET wrapped_data_key = NULL`);
       const { handleRequest } = await import("#routes");
 
       const response = await handleRequest(
@@ -240,10 +240,7 @@ describeWithEnv(
       // way the invite wrote it.
       const { encrypt } = await import("#crypto/encryption.ts");
       const { invalidateUsersCache } = await import("#db/users.ts");
-      await execute("UPDATE users SET invite_expiry = ? WHERE id = ?", [
-        await encrypt(new Date(Date.now() - 1000).toISOString()),
-        user.id,
-      ]);
+      await execute(sql`UPDATE users SET invite_expiry = ${await encrypt(new Date(Date.now() - 1000).toISOString())} WHERE id = ${user.id}`);
       invalidateUsersCache();
 
       const html = await (await adminGet(LIST_PATH)).text();

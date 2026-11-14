@@ -13,6 +13,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
+import { sql } from "#db/sql.ts";
 
 const successRequest = (query: string): Request =>
   mockRequest(`/payment/success?${query}`);
@@ -200,10 +201,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
       "Hidden",
       "hidden@example.com",
     );
-    await getDb().execute({
-      args: [group.id, attendee.id],
-      sql: "UPDATE listing_attendees SET package_group_id = ? WHERE attendee_id = ?",
-    });
+    await getDb().execute(sql`UPDATE listing_attendees SET package_group_id = ${group.id} WHERE attendee_id = ${attendee.id}`);
 
     const html = await (
       await handleRequest(successRequest(`tokens=${encodeURIComponent(token)}`))

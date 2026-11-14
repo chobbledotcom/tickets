@@ -26,17 +26,18 @@ import {
   verifyUserPassword,
 } from "#db/users.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 const emptySite = async (): Promise<void> => {
-  await getDb().execute("DELETE FROM users");
-  await getDb().execute("DELETE FROM settings");
+  await getDb().execute(sql`DELETE FROM users`);
+  await getDb().execute(sql`DELETE FROM settings`);
   settings.setup.clearCache();
   settings.invalidateCache();
 };
 
 const ownerCount = async (): Promise<number> =>
   Number(
-    (await getDb().execute("SELECT COUNT(*) AS total FROM users")).rows[0]!
+    (await getDb().execute(sql`SELECT COUNT(*) AS total FROM users`)).rows[0]!
       .total,
   );
 
@@ -143,8 +144,8 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
 
   describe("the first ceremony", () => {
     test("completeSetup sets all config values and generates key hierarchy", async () => {
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM settings");
+      await getDb().execute(sql`DELETE FROM users`);
+      await getDb().execute(sql`DELETE FROM settings`);
       await settings.setup.complete("setupuser", "mypassword", "US");
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
@@ -163,8 +164,8 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
     });
 
     test("completeSetup clears stale pre-setup settings cache and confirms setup", async () => {
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM settings");
+      await getDb().execute(sql`DELETE FROM users`);
+      await getDb().execute(sql`DELETE FROM settings`);
       settings.setup.clearCache();
       settings.invalidateCache();
       await settings.loadKeys(ALL_SETTINGS_KEYS);
@@ -185,8 +186,8 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
     });
 
     test("completeSetup rolls back every write when the owner insert fails", async () => {
-      await getDb().execute("DELETE FROM users");
-      await getDb().execute("DELETE FROM settings");
+      await getDb().execute(sql`DELETE FROM users`);
+      await getDb().execute(sql`DELETE FROM settings`);
       // Pre-seed a user whose username collides with the owner-to-be, so the
       // owner INSERT violates the unique username index and aborts the batch.
       // Hand-crafted stored hash — test fixture cast.
@@ -213,7 +214,7 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(await settings.setup.isComplete()).toBe(false);
       expect(settings.publicKey).toBe("");
       expect(settings.wrappedPrivateKey).toBe("");
-      const count = await getDb().execute("SELECT COUNT(*) AS n FROM users");
+      const count = await getDb().execute(sql`SELECT COUNT(*) AS n FROM users`);
       expect(Number(count.rows[0]!.n)).toBe(1);
     });
 

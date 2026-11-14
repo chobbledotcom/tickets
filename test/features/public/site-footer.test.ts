@@ -37,6 +37,7 @@ import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 const footerTag = `<footer class="site-footer">`;
 
@@ -221,10 +222,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     const noTicketsId = (
       await createReservedAttendee(1500, { listingName: "No Line Ticket" })
     ).attendeeId;
-    await getDb().execute({
-      args: [noTicketsId],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${noTicketsId}`);
     assertStringIncludes(await getPayPage(noTicketsId), picture);
   });
 
@@ -261,7 +259,7 @@ describeWithEnv("site footer", { db: true, triggers: true }, () => {
     await settings.update.siteFooter(`Sorry.![FooterLimited](img#${image.id})`);
     // Earlier tests in this file have asked for unknown tokens, so the
     // failure window starts empty here.
-    await getDb().execute({ args: [], sql: "DELETE FROM token_attempts" });
+    await getDb().execute(sql`DELETE FROM token_attempts`);
     for (let attempt = 0; attempt < MAX_TOKEN_404S; attempt++) {
       expectStatus(404)(
         await handleRequest(mockRequest(`/t/not-a-real-token-${attempt}`)),

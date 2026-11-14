@@ -23,6 +23,7 @@ import {
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 /** One booking's id, from the create answer. */
 const bookAnswer = async (
@@ -293,9 +294,7 @@ describeWithEnv(
       });
       // A deleted listing removes its lines. The booking and its answer stay,
       // so the link answers with no listing to name.
-      await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-        attendeeId,
-      ]);
+      await execute(sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`);
 
       await assertJson(
         apiRequest(`/api/admin/questions/${size.id}/bookings`),

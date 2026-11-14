@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 
 type StoredAnchor = {
   failure_data: EnvKeyEncrypted | "";
@@ -41,13 +42,12 @@ const makeAttendee = async (): Promise<number> => {
 
 const anchorRows = (attendeeId: number): Promise<StoredAnchor[]> =>
   queryAll<StoredAnchor>(
-    `SELECT failure_data, payment_reference, payment_reference_index,
+    sql`SELECT failure_data, payment_reference, payment_reference_index,
             payment_session_id, protected_state
        FROM processed_payments
-      WHERE attendee_id = ?
+      WHERE attendee_id = ${attendeeId}
         AND payment_session_id LIKE 'legacy:%'
-      ORDER BY payment_session_id`,
-    [attendeeId],
+      ORDER BY payment_session_id`
   );
 
 /** Book an attendee, store a claimed anchor for it, and read the held row. */
@@ -123,8 +123,7 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
 
       expect(
         await queryOne<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ?",
-          [await paymentReferenceIndex(payment)],
+          sql`SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ${await paymentReferenceIndex(payment)}`
         ),
       ).toEqual({ count: 0 });
     });

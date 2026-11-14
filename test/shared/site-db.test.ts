@@ -13,18 +13,16 @@ import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
 } from "#shared/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 /** Build an in-memory libsql client seeded with a settings table. */
 const seededClient = async (rows: [string, string][]): Promise<Client> => {
   const client = createClient({ url: ":memory:" });
   await client.execute(
-    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)",
+    sql`CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)`
   );
   for (const [key, value] of rows) {
-    await client.execute({
-      args: [key, value],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
+    await client.execute(sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})`);
   }
   return client;
 };

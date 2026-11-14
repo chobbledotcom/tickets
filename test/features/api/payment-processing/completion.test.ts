@@ -10,6 +10,7 @@ import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { bookedLine, bookingIntent } from "./index/helpers.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** What the checkout signed, with no answers and nothing added on top. */
 const bareIntent = (): BookingIntent =>
@@ -26,9 +27,7 @@ const raiseFlag = async (
   attendeeId: number,
   column: "email_pending" | "webhooks_pending",
 ): Promise<void> => {
-  await execute(`UPDATE attendees SET ${column} = 1 WHERE id = ?`, [
-    attendeeId,
-  ]);
+  await execute(sql`UPDATE attendees SET ${sqlName(column)} = 1 WHERE id = ${attendeeId}`);
 };
 
 const flagOf = async (
@@ -36,8 +35,7 @@ const flagOf = async (
   column: "email_pending" | "webhooks_pending",
 ): Promise<number> => {
   const row = await queryOne<{ value: number }>(
-    `SELECT ${column} AS value FROM attendees WHERE id = ?`,
-    [attendeeId],
+    sql`SELECT ${sqlName(column)} AS value FROM attendees WHERE id = ${attendeeId}`
   );
   return Number(row!.value);
 };

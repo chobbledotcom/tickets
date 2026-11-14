@@ -12,6 +12,7 @@ import {
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** Judge one listing against one group through the listing-save membership
  *  fence, inside one transaction. Shared by the suites that read the outcome. */
@@ -103,9 +104,6 @@ export const arrangeStoredMember = async (
   await setGroupPackageMembers(group.id, [
     { listingId: member.id, price: 0, quantity },
   ]);
-  await execute("UPDATE listings SET max_quantity = ? WHERE id = ?", [
-    maxQuantity,
-    member.id,
-  ]);
+  await execute(sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${member.id}`);
   return { group, member };
 };

@@ -18,6 +18,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("scan quantity guards", { db: true }, () => {
   /** Create listing + attendee and return session + scan-ready token. */
@@ -110,8 +111,7 @@ describeWithEnv("scan quantity guards", { db: true }, () => {
   const otherDoorAdmitsFirst = (listingId: number, count: number) =>
     beforeNextTransaction(async () => {
       await execute(
-        "UPDATE listing_attendees SET checked_in = checked_in + ? WHERE listing_id = ?",
-        [count, listingId],
+        sql`UPDATE listing_attendees SET checked_in = checked_in + ${count} WHERE listing_id = ${listingId}`
       );
     });
 

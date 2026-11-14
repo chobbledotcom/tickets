@@ -10,6 +10,7 @@ import {
   expectResultNotFound,
 } from "#test-utils/assertions.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 /** Test row type */
 type TestRow = {
@@ -87,7 +88,7 @@ const originalRowData = { name: "Original", value: 50 } as const;
 /** Create test_items table in the current database */
 const createTestItemsTable = async () => {
   const { getDb } = await import("#db/client.ts");
-  await getDb().execute(`
+  await getDb().execute(sql`
     CREATE TABLE IF NOT EXISTS test_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,

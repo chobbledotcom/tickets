@@ -15,6 +15,7 @@ import {
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({
   applySchemaChanges,
@@ -28,40 +29,30 @@ const runContactPreferencesMigration = () =>
 const resetContactPreferenceTables = () =>
   getDb().batch(
     [
-      "DROP TABLE IF EXISTS email_preferences",
-      "DROP TABLE IF EXISTS contact_preferences",
+      sql`DROP TABLE IF EXISTS email_preferences`,
+      sql`DROP TABLE IF EXISTS contact_preferences`,
     ],
     "write",
   );
 
 const createLegacyEmailPreferences = () =>
   getDb().execute(
-    "CREATE TABLE email_preferences (email_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, created TEXT)",
+    sql`CREATE TABLE email_preferences (email_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, created TEXT)`
   );
 
 const createTargetContactPreferences = () =>
   getDb().execute(
-    "CREATE TABLE contact_preferences (contact_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, visits INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', last_activity INTEGER NOT NULL DEFAULT 0)",
+    sql`CREATE TABLE contact_preferences (contact_hash TEXT PRIMARY KEY, unsubscribed INTEGER NOT NULL DEFAULT 0, visits INTEGER NOT NULL DEFAULT 0, stats_blob TEXT NOT NULL DEFAULT '', last_activity INTEGER NOT NULL DEFAULT 0)`
   );
 
 const insertLegacyPreference = (
   hash: string,
   created = "2024-01-02T03:04:05Z",
 ) =>
-  getDb().execute({
-    args: [hash, 1, created],
-    sql:
-      "INSERT INTO email_preferences (email_hash, unsubscribed, created) " +
-      "VALUES (?, ?, ?)",
-  });
+  getDb().execute(sql`INSERT INTO email_preferences (email_hash, unsubscribed, created) VALUES (${hash}, ${1}, ${created})`);
 
 const insertTargetPreference = (hash: string) =>
-  getDb().execute({
-    args: [hash],
-    sql:
-      "INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) " +
-      "VALUES (?, 1, 2, 'stats', 123)",
-  });
+  getDb().execute(sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity) VALUES (${hash}, 1, 2, 'stats', 123)`);
 
 describeWithEnv(
   "db > migrations > 2026-06-18_contact_preferences",
@@ -83,7 +74,7 @@ describeWithEnv(
         );
         assert(!(await columnNames("contact_preferences")).includes("created"));
         const rows = await getDb().execute(
-          "SELECT contact_hash, unsubscribed, visits, stats_blob, last_activity FROM contact_preferences",
+          sql`SELECT contact_hash, unsubscribed, visits, stats_blob, last_activity FROM contact_preferences`
         );
         const row = rows.rows[0];
         expect(row?.contact_hash).toBe("legacy-hash");
@@ -106,7 +97,7 @@ describeWithEnv(
         expect(await tableExists("email_preferences")).toBe(false);
         expect(await tableRowCount("contact_preferences")).toBe(1);
         const rows = await getDb().execute(
-          "SELECT contact_hash FROM contact_preferences",
+          sql`SELECT contact_hash FROM contact_preferences`
         );
         expect(rows.rows[0]?.contact_hash).toBe("legacy-only");
       });
@@ -122,7 +113,7 @@ describeWithEnv(
         expect(await tableExists("email_preferences")).toBe(false);
         expect(await tableRowCount("contact_preferences")).toBe(1);
         const rows = await getDb().execute(
-          "SELECT contact_hash, visits, stats_blob, last_activity FROM contact_preferences",
+          sql`SELECT contact_hash, visits, stats_blob, last_activity FROM contact_preferences`
         );
         expect(rows.rows[0]).toEqual({
           contact_hash: "target-row",
@@ -169,7 +160,7 @@ describeWithEnv(
         await resetContactPreferenceTables();
         await createTargetContactPreferences();
         await getDb().execute(
-          "ALTER TABLE contact_preferences ADD COLUMN email_hash TEXT",
+          sql`ALTER TABLE contact_preferences ADD COLUMN email_hash TEXT`
         );
         await insertTargetPreference("target-with-extra-column");
 

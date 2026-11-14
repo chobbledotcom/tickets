@@ -18,6 +18,7 @@ import {
   checkoutSessionEvent,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server webhooks > custom questions (single-ticket)",
@@ -223,10 +224,7 @@ describeWithEnv(
       // against an id that points at no stored text reads back as absent — the
       // same as never having been saved. Only the row itself tells them apart.
       // Scoped to this booking: other bookings answer these questions too.
-      const savedForBadRefs = await getDb().execute({
-        args: [attendeeId, lostQ.id, nonsenseQ.id],
-        sql: "SELECT question_id FROM attendee_answers WHERE attendee_id = ? AND question_id IN (?, ?)",
-      });
+      const savedForBadRefs = await getDb().execute(sql`SELECT question_id FROM attendee_answers WHERE attendee_id = ${attendeeId} AND question_id IN (${lostQ.id}, ${nonsenseQ.id})`);
       expect(savedForBadRefs.rows).toEqual([]);
 
       // The dropped answer is surfaced loudly, not swallowed silently. This

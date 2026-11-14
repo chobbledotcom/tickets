@@ -28,13 +28,14 @@ import { testListingInput } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { soldOutParentInGroup } from "#test-utils/parents.ts";
 import { disablePublicSite, enablePublicSite } from "#test-utils/settings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server public > sitemap.xml", { db: true }, () => {
   test("answers 404 from a site before setup", async () => {
     // A site before setup has no settings table, so the feature cannot be
     // on. The document answers 404 instead of an error, like robots.txt.
     await enablePublicSite();
-    await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+    await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
     const response = await handleRequest(mockRequest("/sitemap.xml"));
     expect(response.status).toBe(404);
   });

@@ -9,6 +9,7 @@ import { account } from "#shared/ledger/account.ts";
 import type { AccountRef, TransferInput } from "#shared/ledger/types.ts";
 import { setupTransactionalTestDb } from "#test-utils/db.ts";
 import { tx } from "#test-utils/transfer-factory.ts";
+import { sql } from "#db/sql.ts";
 
 /** Post a standalone `writeoff` adjustment in its own transaction — the test-side
  *  convenience over `postWriteoffAdjustmentTx` (production always posts a
@@ -166,10 +167,7 @@ export const refundBookedOrder = async (
     ledger_event_group: string;
     order_count: number;
   }>(
-    "SELECT ledger_event_group, COUNT(DISTINCT ledger_event_group)" +
-      " AS order_count FROM listing_attendees WHERE attendee_id = ?" +
-      " AND listing_id = ? AND ledger_event_group != ''",
-    [attendeeId, listingId],
+    sql`SELECT ledger_event_group, COUNT(DISTINCT ledger_event_group) AS order_count FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} AND ledger_event_group != ''`
   );
   if (stamped === null || stamped.order_count === 0) {
     throw new Error(
@@ -221,12 +219,7 @@ export const postAttendeeRefund = async ({
     listingId,
   });
   await postTransfers(bookingInputs);
-  await getDb().execute({
-    args: [bookingInputs[0]!.eventGroup, attendeeId, listingId],
-    sql:
-      "UPDATE listing_attendees SET ledger_event_group = ?" +
-      " WHERE attendee_id = ? AND listing_id = ? AND ledger_event_group = ''",
-  });
+  await getDb().execute(sql`UPDATE listing_attendees SET ledger_event_group = ${bookingInputs[0]!.eventGroup} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} AND ledger_event_group = ''`);
   await postTransfers(
     await mapRefund({
       occurredAt: BOOKING_OCCURRED_AT,

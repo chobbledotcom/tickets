@@ -27,6 +27,7 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -183,8 +184,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
       const id = `sq_task_${index}`;
       await stageSquareLinkEnd(id, `link_${id}`, "2026-01-01T00:00:00Z");
       await execute(
-        "UPDATE square_link_ends SET next_attempt_at = '2020-01-01T00:00:00Z' WHERE session_index = ?",
-        [await hmacHash(id)],
+        sql`UPDATE square_link_ends SET next_attempt_at = '2020-01-01T00:00:00Z' WHERE session_index = ${await hmacHash(id)}`
       );
     }
     const read = stub(squareApi, "endLink", () =>
@@ -284,10 +284,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const message = await rawActivityMessage(firstId);
     expect(message.startsWith(ENCRYPTION_PREFIX)).toBe(true);
     await executeBatch(
-      Array.from({ length: ACTIVITY_LOG_BACKFILL_BATCH - 1 }, () => ({
-        args: [message, nowIso()],
-        sql: "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      })),
+      Array.from({ length: ACTIVITY_LOG_BACKFILL_BATCH - 1 }, () => (sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${message}, ${nowIso()}, NULL, NULL)`)),
     );
     let followUps = 0;
     const checkpoints: (string | null)[] = [];

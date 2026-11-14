@@ -36,6 +36,7 @@ import {
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
@@ -65,10 +66,7 @@ export const tableColumns = async (table: string): Promise<Set<string>> => {
 };
 
 export const triggerExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ?",
-  });
+  const result = await getDb().execute(sql`SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = ${name}`);
   return result.rows.length > 0;
 };
 
@@ -78,10 +76,7 @@ const indexesReferencingColumn = async (
   table: string,
   column: string,
 ): Promise<string[]> => {
-  const indexes = await getDb().execute({
-    args: [table],
-    sql: "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL",
-  });
+  const indexes = await getDb().execute(sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ${table} AND sql IS NOT NULL`);
   const wanted = column.toLowerCase();
   return indexes.rows
     .filter((row) => schemaSqlIdentifiers(String(row.sql)).has(wanted))
@@ -108,9 +103,9 @@ const dropRequiredColumns = async (
       // idx_listing_attendees_ledger_event_group on ledger_event_group); drop
       // any such index before the column, or SQLite refuses the DROP COLUMN.
       for (const index of await indexesReferencingColumn(table, col)) {
-        await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+        await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(index)}`);
       }
-      await getDb().execute(`ALTER TABLE ${table} DROP COLUMN ${col}`);
+      await getDb().execute(sql`ALTER TABLE ${sqlName(table)} DROP COLUMN ${sqlName(col)}`);
     }
   }
 };
@@ -130,14 +125,14 @@ export const dropOwnedObjects = async (
     ...droppedTriggers.map(({ name }) => name),
   ]);
   for (const trigger of triggerNames) {
-    await getDb().execute(`DROP TRIGGER IF EXISTS ${trigger}`);
+    await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sqlName(trigger)}`);
   }
   for (const index of req.indexes ?? []) {
-    await getDb().execute(`DROP INDEX IF EXISTS ${index}`);
+    await getDb().execute(sql`DROP INDEX IF EXISTS ${sqlName(index)}`);
   }
   await dropRequiredColumns(req.columns);
   for (const table of req.newTables ?? []) {
-    await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
+    await getDb().execute(sql`DROP TABLE IF EXISTS ${sqlName(table)}`);
   }
   return droppedTriggers;
 };
@@ -159,47 +154,47 @@ export const scalar = async (sql: string): Promise<unknown> => {
 const seedPopulatedMigrationFixture = () =>
   getDb().batch(
     [
-      `INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
+      sql`INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
        VALUES (901, 'migration-group', 'group-index', 'Migration Group', 'historic group', 50)`,
-      `INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
+      sql`INSERT INTO listings (id, created, max_attendees, name, slug, slug_index, unit_price, max_quantity, listing_type, date, location, customisable_days, uses_logistics)
        VALUES (902, '2024-01-01T00:00:00Z', 25, 'migration-listing', 'migration-listing', 'listing-index', 1200, 4, 'standard', '2024-02-01', 'Town Hall', 1, 1)`,
-      `INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
+      sql`INSERT INTO attendees (id, created, checked_in, ticket_token_index, pii_blob, status_id, split_logistics_agents, phone_index)
        VALUES (903, '2024-01-02T00:00:00Z', '', 'ticket-index', '{"name":"Migration Guest"}', 1, 1, 'phone-index')`,
-      `INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
+      sql`INSERT INTO listing_attendees (id, listing_id, attendee_id, start_at, end_at, quantity, checked_in, start_agent_id, end_agent_id, start_time, end_time, start_done, end_done)
        VALUES (904, 902, 903, '2024-02-01T10:00:00Z', '2024-02-01T12:00:00Z', 2, 1, NULL, NULL, '10:00', '12:00', 1, 0)`,
-      `INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
+      sql`INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data)
        VALUES ('payment-session', 903, '2024-01-02T00:10:00Z', 'ticket-token', '{"code":"card_declined"}')`,
-      `INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
+      sql`INSERT INTO activity_log (id, created, listing_id, message, attendee_id)
        VALUES (905, '2024-01-02T00:15:00Z', 902, 'fixture activity', 903)`,
-      `INSERT INTO sumup_checkouts (reference_index, wrapped_key, metadata, sumup_id, created_at)
+      sql`INSERT INTO sumup_checkouts (reference_index, wrapped_key, metadata, sumup_id, created_at)
        VALUES ('sumup-reference', 'wrapped', '{"attendeeId":903}', 'sumup-id', '2024-01-02T00:20:00Z')`,
-      `INSERT INTO questions (id, text, sort_order, display_type, assign_all)
+      sql`INSERT INTO questions (id, text, sort_order, display_type, assign_all)
        VALUES (906, 'Meal choice?', 7, 'select', 1)`,
-      `INSERT INTO modifiers (id, name, calc_kind, calc_value, direction, active, trigger, code, code_index, scope, stock, max_per_order, min_subtotal, min_visits)
+      sql`INSERT INTO modifiers (id, name, calc_kind, calc_value, direction, active, trigger, code, code_index, scope, stock, max_per_order, min_subtotal, min_visits)
        VALUES (907, 'VIP uplift', 'fixed', 5, 'increase', 1, 'answer', '', NULL, 'listing', 20, 2, 1000, 1)`,
-      `INSERT INTO answers (id, question_id, text, sort_order, modifier_id)
+      sql`INSERT INTO answers (id, question_id, text, sort_order, modifier_id)
        VALUES (908, 906, 'Vegetarian', 3, 907)`,
-      `INSERT INTO listing_questions (id, listing_id, question_id, sort_order)
+      sql`INSERT INTO listing_questions (id, listing_id, question_id, sort_order)
        VALUES (909, 902, 906, 4)`,
-      `INSERT INTO attendee_answers (id, attendee_id, answer_id, question_id)
+      sql`INSERT INTO attendee_answers (id, attendee_id, answer_id, question_id)
        VALUES (910, 903, 908, 906)`,
-      `INSERT INTO modifier_listings (modifier_id, listing_id)
+      sql`INSERT INTO modifier_listings (modifier_id, listing_id)
        VALUES (907, 902)`,
-      `INSERT INTO modifier_groups (modifier_id, group_id)
+      sql`INSERT INTO modifier_groups (modifier_id, group_id)
        VALUES (907, 901)`,
-      `INSERT INTO modifier_usages (id, modifier_id, attendee_id, quantity, amount_applied, created)
+      sql`INSERT INTO modifier_usages (id, modifier_id, attendee_id, quantity, amount_applied, created)
        VALUES (911, 907, 903, 2, 500, '2024-01-02T00:25:00Z')`,
-      `INSERT INTO holidays (id, name, start_date, end_date)
+      sql`INSERT INTO holidays (id, name, start_date, end_date)
        VALUES (912, 'Fixture holiday', '2024-03-01', '2024-03-03')`,
-      `INSERT INTO built_sites (id, site_data, assignable, assigned_attendee_id, assigned_listing_id, created, renewal_token_index, read_only_from)
+      sql`INSERT INTO built_sites (id, site_data, assignable, assigned_attendee_id, assigned_listing_id, created, renewal_token_index, read_only_from)
        VALUES (913, '{"site":"fixture"}', 1, 903, 902, '2024-01-03T00:00:00Z', 'renewal-index', '')`,
-      `INSERT INTO email_templates (id, subject, body)
+      sql`INSERT INTO email_templates (id, subject, body)
        VALUES (914, 'Fixture subject', 'Fixture body')`,
-      `INSERT INTO sms_messages (id, attendee_id, listing_id, provider_id, created)
+      sql`INSERT INTO sms_messages (id, attendee_id, listing_id, provider_id, created)
        VALUES (915, 903, 902, 'provider-message', '2024-01-03T00:05:00Z')`,
-      `INSERT INTO processed_sms_inbound (webhook_id, created)
+      sql`INSERT INTO processed_sms_inbound (webhook_id, created)
        VALUES ('sms-webhook', '2024-01-03T00:06:00Z')`,
-      `INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity)
+      sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, visits, stats_blob, last_activity)
        VALUES ('contact-hash', 1, 5, '{}', 1700000000)`,
     ],
     "write",
@@ -290,7 +285,7 @@ const assertPopulatedFixtureSurvived = async (
 
 export const sentinelListingExists = async (): Promise<boolean> => {
   const result = await getDb().execute(
-    "SELECT 1 FROM listings WHERE name = 'sentinel-listing'",
+    sql`SELECT 1 FROM listings WHERE name = 'sentinel-listing'`
   );
   return result.rows.length > 0;
 };
@@ -302,19 +297,10 @@ export const markAppliedThrough = async (lastId: string): Promise<void> => {
   );
   await getDb().batch(
     [
-      { args: [], sql: "DELETE FROM schema_migrations" },
-      ...applied.map((migration) => ({
-        args: [migration.id, migration.description],
-        sql: "INSERT INTO schema_migrations (id, description, applied_at) VALUES (?, ?, '2026-01-01T00:00:00.000Z')",
-      })),
-      {
-        args: [LATEST_UPDATE],
-        sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-      },
-      {
-        args: [SCHEMA_HASH],
-        sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-      },
+      sql`DELETE FROM schema_migrations`,
+      ...applied.map((migration) => (sql`INSERT INTO schema_migrations (id, description, applied_at) VALUES (${migration.id}, ${migration.description}, '2026-01-01T00:00:00.000Z')`)),
+      sql`UPDATE settings SET value = ${LATEST_UPDATE} WHERE key = 'latest_db_update'`,
+      sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
     ],
     "write",
   );
@@ -324,8 +310,8 @@ export const markAppliedThrough = async (lastId: string): Promise<void> => {
 export const markSchemaMarkersStale = () =>
   getDb().batch(
     [
-      "UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'",
-      "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'latest_db_update'`,
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
     ],
     "write",
   );

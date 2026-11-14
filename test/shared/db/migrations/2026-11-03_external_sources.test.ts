@@ -12,6 +12,7 @@ import {
   settingsValueOrNull,
   simulateUpgradeFromRelease,
 } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
 
@@ -27,10 +28,7 @@ const settingFromPreviousRelease = (): string => {
 };
 
 const storeFeatures = async (value: string): Promise<void> => {
-  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
-    CONFIG_KEYS.ENABLED_FEATURES,
-    value,
-  ]);
+  await execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${value})`);
 };
 
 const storedFeatures = async () => {

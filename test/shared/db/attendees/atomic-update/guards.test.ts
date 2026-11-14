@@ -13,6 +13,7 @@ import {
   keepLine,
   twoListings,
 } from "./helpers.ts";
+import { sql } from "#db/sql.ts";
 
 const withDatabaseTrigger = async <Result>(
   name: string,
@@ -43,12 +44,11 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
       { name: "No quantity", quantity: 1 },
     );
     await execute(
-      `UPDATE listing_attendees
+      sql`UPDATE listing_attendees
           SET checked_in = 1, start_agent_id = 7, end_agent_id = 8,
               start_time = '09:00', end_time = '10:00',
               start_done = 1, end_done = 1
-        WHERE attendee_id = ?`,
-      [attendee.id],
+        WHERE attendee_id = ${attendee.id}`
     );
 
     const update = await applyAttendeeAtomicEdit(attendee.id, blob, [
@@ -58,10 +58,9 @@ describeWithEnv("db > attendees > atomic edit guards", { db: true }, () => {
     expect(update.success).toBe(true);
     expect(
       await queryOne(
-        `SELECT quantity, checked_in, start_agent_id, end_agent_id,
+        sql`SELECT quantity, checked_in, start_agent_id, end_agent_id,
                 start_time, end_time, start_done, end_done
-           FROM listing_attendees WHERE attendee_id = ?`,
-        [attendee.id],
+           FROM listing_attendees WHERE attendee_id = ${attendee.id}`
       ),
     ).toEqual({
       checked_in: 0,

@@ -22,6 +22,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession and getSession work together", async () => {
@@ -116,7 +117,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
         ...user,
       }.id,
     );
-    await execute("DELETE FROM users WHERE id = ?", [user.id]);
+    await execute(sql`DELETE FROM users WHERE id = ${user.id}`);
 
     const found = await getSessionWithUser("orphan");
 
@@ -182,7 +183,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
       null,
       1,
     );
-    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
     time.now = startTime + 2000;
 
     expect(await getSession("expired-cache")).toBeNull();
@@ -195,7 +196,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
   test("createSession pre-caches so a later read skips the DB", async () => {
     await createSession("precache", "csrf-pre", Date.now() + 60000, null, 1);
     // Remove the row from the DB; the cache still holds the session.
-    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
 
     const session = await getSession("precache");
     expect(session).not.toBeNull();
@@ -209,7 +210,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
     const first = await getSession("dbcache"); // cache miss → DB → caches
     expect(first?.csrf_token).toBe("csrf-db");
 
-    await executeWithoutCacheInvalidation("DELETE FROM sessions"); // remove DB row; cache retains it
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`); // remove DB row; cache retains it
     const second = await getSession("dbcache");
     expect(second).not.toBeNull();
     expect(second?.csrf_token).toBe("csrf-db");
@@ -221,7 +222,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
     await createSession("ttl-requery", "csrf-old", start + 60000, null, 1);
     // Within TTL: cached (stale) value is served even after the DB changes.
     await executeWithoutCacheInvalidation(
-      "UPDATE sessions SET csrf_token = 'csrf-new'",
+      sql`UPDATE sessions SET csrf_token = 'csrf-new'`
     );
     expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
 
@@ -243,7 +244,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
   test("session table invalidation clears cached sessions", async () => {
     await createSession("reset-me", "csrf-reset", Date.now() + 60000, null, 1);
-    await executeWithoutCacheInvalidation("DELETE FROM sessions"); // DB empty; cache still holds it
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`); // DB empty; cache still holds it
 
     invalidateCachesForTable("sessions");
 
@@ -260,9 +261,9 @@ describeWithEnv("db > sessions", { db: true }, () => {
       1,
     );
     const staleReplicaResult = await getDb().execute(
-      "SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions",
+      sql`SELECT token, csrf_token, expires, wrapped_data_key, user_id FROM sessions`
     );
-    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
 
     using _env = withEnv({ DB_URL: "libsql://replica.test" });
     const replicaRead = stub(getDb(), "execute", () =>
@@ -285,7 +286,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
     // The kept session should still be cached: deleting all DB rows leaves a
     // cached read returning it, while the dropped one is gone.
-    await executeWithoutCacheInvalidation("DELETE FROM sessions");
+    await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
     const kept = await getSession("keep");
     expect(kept).not.toBeNull();
     expect(kept?.csrf_token).toBe("csrf-keep");

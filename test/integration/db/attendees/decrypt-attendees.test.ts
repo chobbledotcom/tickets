@@ -12,6 +12,7 @@ import {
   expectNoDecryptedAttendees,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
   test("returns empty array when no attendees", async () => {
@@ -149,16 +150,13 @@ describeWithEnv("db > attendees > decryptAttendees", { db: true }, () => {
     );
 
     // Simulate pre-migration state: set checked_in to empty string directly
-    await getDb().execute({
-      args: [listing.id],
-      sql: `UPDATE attendees
+    await getDb().execute(sql`UPDATE attendees
             SET checked_in = ''
             WHERE id IN (
               SELECT attendee_id
               FROM listing_attendees
-              WHERE listing_id = ?
-            )`,
-    });
+              WHERE listing_id = ${listing.id}
+            )`);
 
     const privateKey = await getTestPrivateKey();
     const rows = await getAttendeesRaw(listing.id);

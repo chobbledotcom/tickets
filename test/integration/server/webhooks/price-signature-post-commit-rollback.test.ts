@@ -24,6 +24,7 @@ import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
+import { sql } from "#db/sql.ts";
 
 /** Two webhook deliveries, each answered 503, and no refund issued: the
  *  proven-rollback answer whose redelivery starts fresh. */
@@ -50,12 +51,7 @@ describeWithEnv(
       const fetchCallsBefore = fetchSpy.calls.length;
       const listing = await setupWithListing();
       await execute(
-        "UPDATE listings SET fields = ?, webhook_url = ? WHERE id = ?",
-        [
-          await encrypt("email"),
-          await encrypt("https://registration.example.com/hook"),
-          listing.id,
-        ],
+        sql`UPDATE listings SET fields = ${await encrypt("email")}, webhook_url = ${await encrypt("https://registration.example.com/hook")} WHERE id = ${listing.id}`
       );
       // A real answered question rides the batch, so the zero answer-row
       // assertion proves the answers rolled back with the booking.
@@ -80,12 +76,12 @@ describeWithEnv(
       expect(await getAttendeesRaw(listing.id)).toEqual([]);
       expect(
         (await queryOne<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM attendee_answers",
+          sql`SELECT COUNT(*) AS count FROM attendee_answers`
         ))!.count,
       ).toBe(0);
       expect(
         (await queryOne<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM contact_preferences",
+          sql`SELECT COUNT(*) AS count FROM contact_preferences`
         ))!.count,
       ).toBe(0);
       expect(await allTransfers()).toEqual([]);
@@ -116,7 +112,7 @@ describeWithEnv(
         await expect503TwiceWithoutRefund(session);
         expect(await getAttendeesRaw(listing.id)).toEqual([]);
       } finally {
-        await execute("DROP TRIGGER test_late_payment_finalize_failure");
+        await execute(sql`DROP TRIGGER test_late_payment_finalize_failure`);
       }
     });
   },

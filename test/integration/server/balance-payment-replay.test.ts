@@ -14,6 +14,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
+import { sql } from "#db/sql.ts";
 
 const balanceSession = (
   sessionId: string,
@@ -63,8 +64,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     );
 
     await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [sessionId],
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`
     );
     expect(await getProcessedPayment(sessionId)).toBe(null);
 

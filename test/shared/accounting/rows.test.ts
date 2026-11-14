@@ -9,20 +9,13 @@ import {
   selectTransfers,
   selectTransfersMany,
 } from "#accounting/rows.ts";
-import {
-  type BatchExecutor,
-  executeBatch,
-  queryBatch,
-  queryOne,
-  type SqlStatement,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { type BatchExecutor, executeBatch, queryBatch, queryOne, type TxScope, withTransaction } from "#db/client.ts";
 import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -134,8 +127,7 @@ const storeTwoLegs = (): Promise<void> =>
  *  one reader must not lean on another to set itself up. */
 const storedIdFor = async (reference: string): Promise<number> => {
   const row = await queryOne<{ id: number | bigint }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [reference],
+    sql`SELECT id FROM transfers WHERE reference = ${reference}`
   );
   if (row === null) throw new Error(`Nothing was stored for ${reference}`);
   return Number(row.id);

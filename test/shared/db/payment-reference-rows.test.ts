@@ -12,6 +12,7 @@ import {
   finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > selected payment reference rows", { db: true }, () => {
   test("returns no rows for no selected attendees", async () => {
@@ -39,19 +40,9 @@ describeWithEnv("db > selected payment reference rows", { db: true }, () => {
       taggedPaymentReference("pi_selected_indexed"),
     );
     await execute(
-      `INSERT INTO processed_payments
+      sql`INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference)
-        VALUES (?, ?, ?, ?), (?, ?, ?, ?)`,
-      [
-        "selected_unindexed",
-        selected.id,
-        "2026-08-13T00:00:00.000Z",
-        "pi_selected_unindexed",
-        "unrelated_unindexed",
-        unrelated.id,
-        "2026-08-13T00:00:00.000Z",
-        "pi_unrelated_unindexed",
-      ],
+        VALUES (${"selected_unindexed"}, ${selected.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_selected_unindexed"}), (${"unrelated_unindexed"}, ${unrelated.id}, ${"2026-08-13T00:00:00.000Z"}, ${"pi_unrelated_unindexed"})`
     );
 
     const rows = await loadSelectedPaymentReferenceRows([selected.id]);

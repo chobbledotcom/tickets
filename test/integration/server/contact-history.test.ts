@@ -21,6 +21,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 const seededRecord = (overrides: Record<string, unknown> = {}) => ({
   adminBookingCount: 0,
@@ -207,8 +208,7 @@ describeWithEnv("server (/admin/history/:hmac)", { db: true }, () => {
       // A row whose encrypted note is corrupt, but whose plaintext counts are
       // intact — the exact state the best-effort SMS path can leave behind.
       await execute(
-        "INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (?, ?, ?, ?, ?, ?)",
-        [hash, 9, 5, 2, "not-valid-ciphertext", Date.now()],
+        sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity) VALUES (${hash}, ${9}, ${5}, ${2}, ${"not-valid-ciphertext"}, ${Date.now()})`
       );
 
       // The editor still renders (not a 500), and crucially pre-fills every

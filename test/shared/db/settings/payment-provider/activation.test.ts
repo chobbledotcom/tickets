@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > settings payment provider", { db: true }, () => {
   describe("activation", () => {
@@ -158,8 +159,7 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       await settings.update.clearPaymentProvider();
       const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"stripe"})`
       );
 
       await expect(
@@ -222,12 +222,10 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       // snapshot still holds the stale "stripe" value.
       const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.PAYMENT_PROVIDER, "square"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"square"})`
       );
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "square"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER}, ${"square"})`
       );
       // The snapshot still has Stripe from the request-start load.
       expect(settings.paymentProvider).toBe("stripe");

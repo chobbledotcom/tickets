@@ -40,6 +40,7 @@ import {
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > processed payments", { db: true }, () => {
   describe("reserveSession", () => {
@@ -253,7 +254,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
     });
 
     test("re-throws non-unique-constraint errors", async () => {
-      await getDb().execute("DROP TABLE processed_payments");
+      await getDb().execute(sql`DROP TABLE processed_payments`);
 
       try {
         await reserveSession("sess_error");

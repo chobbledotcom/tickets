@@ -20,6 +20,7 @@ import {
 } from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import { sql } from "#db/sql.ts";
 
 const addPage = async (name: string, slug: string, sortOrder: number) =>
   sitePages.table.insert({
@@ -122,7 +123,7 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
 
   test("keeps an inactive listing in the nav but not as a link", async () => {
     const { model } = await navShowingListing("Off sale", (listingId) =>
-      execute("UPDATE listings SET active = 0 WHERE id = ?", [listingId]),
+      execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`),
     );
 
     expect(model.currentChildren.map((node) => node.label)).toEqual([

@@ -27,6 +27,7 @@ import {
 } from "#test/integration/db/migration-restore/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { appliedMigrationIds } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const MIGRATIONS = await loadMigrations();
 
@@ -100,9 +101,7 @@ const windBackToIntermediateBuild = async (): Promise<void> => {
 /** One stored charge, as the intermediate build's own writers left it. */
 const storeOneCharge = async (): Promise<void> => {
   await getDb().execute(
-    "INSERT INTO payment_charges " +
-      "(payment_id, provider_reference, created_at, updated_at, observed_at) " +
-      "VALUES ('pay-1', 'sealed-reference', 100, 100, 100)",
+    sql`INSERT INTO payment_charges (payment_id, provider_reference, created_at, updated_at, observed_at) VALUES ('pay-1', 'sealed-reference', 100, 100, 100)`
   );
 };
 
@@ -155,7 +154,7 @@ describeWithEnv(
       );
 
       const stored = await getDb().execute(
-        "SELECT COUNT(*) AS value FROM payment_charges",
+        sql`SELECT COUNT(*) AS value FROM payment_charges`
       );
       expect(Number(stored.rows[0]!.value)).toBe(1);
     });

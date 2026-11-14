@@ -24,25 +24,20 @@ import {
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
 import { stubNtfyFetch } from "#test-utils/mocks.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > migrations > lock", { db: true }, () => {
   const heldLock = (): Promise<string | null> =>
     settingsValueOrNull(MIGRATION_LOCK_KEY);
 
   const holdLockSince = async (stamp: string): Promise<void> => {
-    await getDb().execute({
-      args: [MIGRATION_LOCK_KEY, stamp],
-      sql: "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    });
+    await getDb().execute(sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${MIGRATION_LOCK_KEY}, ${stamp})`);
   };
 
   const holdFreshLock = (): Promise<void> => holdLockSince(freshLockStamp());
 
   const clearLock = async (): Promise<void> => {
-    await getDb().execute({
-      args: [MIGRATION_LOCK_KEY],
-      sql: "DELETE FROM settings WHERE key = ?",
-    });
+    await getDb().execute(sql`DELETE FROM settings WHERE key = ${MIGRATION_LOCK_KEY}`);
   };
 
   /** Take the lock and check the row now holding it is this lease's own. */
@@ -141,12 +136,12 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
       );
 
       const result = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'lock_test_marker'",
+        sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`
       );
       expect(result.rows[0]?.value).toBe("written");
     } finally {
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'lock_test_marker'",
+        sql`DELETE FROM settings WHERE key = 'lock_test_marker'`
       );
       await releaseMigrationLock(lockToken);
     }
@@ -174,7 +169,7 @@ describeWithEnv("db > migrations > lock", { db: true }, () => {
     );
 
     const result = await getDb().execute(
-      "SELECT value FROM settings WHERE key = 'lock_test_marker'",
+      sql`SELECT value FROM settings WHERE key = 'lock_test_marker'`
     );
     expect(result.rows).toEqual([]);
   });

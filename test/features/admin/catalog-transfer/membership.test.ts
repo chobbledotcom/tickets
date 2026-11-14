@@ -5,6 +5,7 @@ import {
   type ImportedMembership,
   membershipStatements,
 } from "#routes/admin/catalog-transfer/membership.ts";
+import { sql } from "#db/sql.ts";
 
 const membership = (
   overrides: Partial<ImportedMembership> = {},
@@ -32,10 +33,7 @@ describe("catalog transfer memberships", () => {
     const statements = membershipStatements([membership()]);
 
     expect(statements).toEqual([
-      {
-        args: [4, 9, 1],
-        sql: "INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (?, ?, ?)",
-      },
+      sql`INSERT INTO group_listings (group_id, listing_id, quantity) VALUES (${4}, ${9}, ${1})`,
     ]);
   });
 
@@ -48,12 +46,7 @@ describe("catalog transfer memberships", () => {
     // The column list is asserted whole: a price row that names its columns
     // wrongly writes the override into the wrong dimension, and the values
     // alone cannot show that.
-    expect(prices).toEqual({
-      args: [9, PRICE_TYPE_GROUP, "4", 2500],
-      sql:
-        "INSERT INTO listing_prices " +
-        "(listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",
-    });
+    expect(prices).toEqual(sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${9}, ${PRICE_TYPE_GROUP}, ${"4"}, ${2500})`);
   });
 
   test("keys a per-day override by its group and day count", () => {

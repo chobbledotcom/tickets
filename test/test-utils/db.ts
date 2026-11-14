@@ -46,6 +46,7 @@ import {
   runSetupCeremony,
   setSetupState,
 } from "#test-utils/test-state.ts";
+import { sql } from "#db/sql.ts";
 
 interface TestDbResource {
   client: Client;
@@ -309,6 +310,5 @@ export const rawListingRange = (
   listingId: number,
 ): Promise<RawListingRange | null> =>
   queryOne<RawListingRange>(
-    "SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id LIMIT 1",
-    [listingId],
+    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id LIMIT 1`
   );

@@ -23,6 +23,7 @@ import {
   settingsValueOrNull,
   takeMigrationLock,
 } from "#test-utils/migrations.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 describeWithEnv("db > migrations > markers", { db: true }, () => {
   const testMigration: Migration = {
@@ -39,10 +40,7 @@ describeWithEnv("db > migrations > markers", { db: true }, () => {
   };
 
   const forgetTestMigration = async (): Promise<void> => {
-    await getDb().execute({
-      args: [testMigration.id],
-      sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    });
+    await getDb().execute(sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${testMigration.id}`);
   };
 
   test("the marker statement records the migration's own id and description", () => {

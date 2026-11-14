@@ -14,6 +14,7 @@ import { matchKey } from "#shared/keys.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 /** The id of the one listing whose name the index resolves. */
 const listingIdByName = async (name: string): Promise<number> => {
@@ -73,9 +74,8 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     const day1Id = await groupIdByName("Day 1");
     const day2Id = await groupIdByName("Day 2");
     const membershipRows = await execute(
-      `SELECT COUNT(*) AS n FROM group_listings
-        WHERE listing_id IN (?, ?) AND group_id IN (?, ?)`,
-      [firstId, lastId, day1Id, day2Id],
+      sql`SELECT COUNT(*) AS n FROM group_listings
+        WHERE listing_id IN (${firstId}, ${lastId}) AND group_id IN (${day1Id}, ${day2Id})`
     );
     expect(membershipRows.rows[0]!.n).toBe(4);
     // One round trip per listing would be 56 alone. The batched import stays

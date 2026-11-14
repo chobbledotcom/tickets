@@ -6,6 +6,7 @@ import builtSitesUpdatesMigration from "#db/migrations/2026-06-24_built_sites_up
 import { applySchemaChanges } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 const context = buildMigrationContext({ applySchemaChanges });
 
@@ -15,14 +16,8 @@ const runMigration = () => builtSitesUpdatesMigration(context).up();
 const createPreUpdatesTable = () =>
   getDb().batch(
     [
-      "DROP TABLE IF EXISTS built_sites",
-      "CREATE TABLE built_sites (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-        "site_data TEXT NOT NULL, assignable INTEGER NOT NULL DEFAULT 0, " +
-        "assigned_attendee_id INTEGER DEFAULT NULL, " +
-        "assigned_listing_id INTEGER DEFAULT NULL, created TEXT NOT NULL, " +
-        "renewal_token_index TEXT DEFAULT NULL, " +
-        "read_only_from TEXT NOT NULL DEFAULT '', " +
-        "last_pruned TEXT NOT NULL DEFAULT '')",
+      sql`DROP TABLE IF EXISTS built_sites`,
+      sql`CREATE TABLE built_sites (id INTEGER PRIMARY KEY AUTOINCREMENT, site_data TEXT NOT NULL, assignable INTEGER NOT NULL DEFAULT 0, assigned_attendee_id INTEGER DEFAULT NULL, assigned_listing_id INTEGER DEFAULT NULL, created TEXT NOT NULL, renewal_token_index TEXT DEFAULT NULL, read_only_from TEXT NOT NULL DEFAULT '', last_pruned TEXT NOT NULL DEFAULT '')`,
     ],
     "write",
   );
@@ -30,18 +25,12 @@ const createPreUpdatesTable = () =>
 const insertSite = (updates?: string) =>
   getDb().execute(
     updates === undefined
-      ? {
-          args: [],
-          sql: "INSERT INTO built_sites (site_data, created) VALUES ('{}', '2026-01-01T00:00:00Z')",
-        }
-      : {
-          args: [updates],
-          sql: "INSERT INTO built_sites (site_data, created, updates) VALUES ('{}', '2026-01-01T00:00:00Z', ?)",
-        },
+      ? sql`INSERT INTO built_sites (site_data, created) VALUES ('{}', '2026-01-01T00:00:00Z')`
+      : sql`INSERT INTO built_sites (site_data, created, updates) VALUES ('{}', '2026-01-01T00:00:00Z', ${updates})`,
   );
 
 const columnNames = async (): Promise<string[]> => {
-  const result = await getDb().execute("PRAGMA table_info(built_sites)");
+  const result = await getDb().execute(sql`PRAGMA table_info(built_sites)`);
   return result.rows.map((row) => String(row.name));
 };
 
@@ -57,7 +46,7 @@ describeWithEnv(
       await runMigration();
 
       assertArrayIncludes(await columnNames(), ["updates"]);
-      const { rows } = await getDb().execute("SELECT updates FROM built_sites");
+      const { rows } = await getDb().execute(sql`SELECT updates FROM built_sites`);
       // A site that predates the channel feature lands on the safe default.
       expect(rows[0]?.updates).toBe("release");
     });
@@ -75,7 +64,7 @@ describeWithEnv(
         await insertSite(tier);
       }
       const { rows } = await getDb().execute(
-        "SELECT updates FROM built_sites ORDER BY updates",
+        sql`SELECT updates FROM built_sites ORDER BY updates`
       );
       expect(rows.map((row) => String(row.updates))).toEqual([
         "alpha",

@@ -36,6 +36,7 @@ import {
   recoverAllSides,
   resend,
 } from "./resend-press.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
   const fetch = stubFetchEachTest(() => new Response("{}"));
@@ -318,12 +319,11 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
     );
     await addWebhook(listing.id);
     await execute(
-      `CREATE TRIGGER reject_admin_restore BEFORE UPDATE ON attendees
+      sql`CREATE TRIGGER reject_admin_restore BEFORE UPDATE ON attendees
        WHEN NEW.email_pending = 2 AND OLD.email_pending = 0
        BEGIN
          SELECT RAISE(ABORT, 'email restore rejected');
-       END`,
-      [],
+       END`
     );
     fetch.reply(() => new Response("no", { status: 500 }));
     try {
@@ -337,7 +337,7 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
         t("success.notification_resent"),
       )(response);
     } finally {
-      await execute("DROP TRIGGER IF EXISTS reject_admin_restore", []);
+      await execute(sql`DROP TRIGGER IF EXISTS reject_admin_restore`);
     }
     expect(await readPendingNotificationFlags(attendee.id)).toEqual({
       email: 0,

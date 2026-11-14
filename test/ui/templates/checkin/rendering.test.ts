@@ -22,6 +22,7 @@ import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
@@ -115,10 +116,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         "orphan@test.com",
       );
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listing_attendees WHERE listing_id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id}`);
       const response = await adminGet(`/checkin/${token}`);
       expect(response.status).toBe(404);
     });

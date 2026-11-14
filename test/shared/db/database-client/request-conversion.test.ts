@@ -5,6 +5,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { createDatabaseClient, databaseFetch } from "#db/database-client.ts";
 import { hranaTestFetch } from "#test-utils/hrana.ts";
+import { sql } from "#db/sql.ts";
 
 /** The engine hands the configured fetch its own Request object; the client
  *  rebuilds it as a native request and forwards the engine's call arguments.
@@ -124,7 +125,7 @@ describe("database request conversion", () => {
     );
     try {
       const client = createDatabaseClient({ url: "libsql://pipeline.test" });
-      await client.execute("SELECT 42");
+      await client.execute(sql`SELECT 42`);
       client.close();
     } finally {
       fetched.restore();
@@ -186,7 +187,7 @@ describe("database request conversion", () => {
       const spreadCallerConfig = callerConfig as { fetch?: unknown };
       spreadCallerConfig.fetch = undefined;
       const client = createDatabaseClient(callerConfig);
-      await client.execute("SELECT 1");
+      await client.execute(sql`SELECT 1`);
       client.close();
     } finally {
       fetched.restore();

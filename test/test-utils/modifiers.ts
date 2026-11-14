@@ -6,6 +6,7 @@ import {
   modifiersTable,
   setModifierAnswers,
 } from "#db/modifiers.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
@@ -33,10 +34,7 @@ export const patchModifier = (
 
 /** Link a "listings"-scoped modifier to a listing. */
 export const linkModifierListing = (modifierId: number, listingId: number) =>
-  getDb().execute({
-    args: [modifierId, listingId],
-    sql: "INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (?, ?)",
-  });
+  getDb().execute(sql`INSERT INTO modifier_listings (modifier_id, listing_id) VALUES (${modifierId}, ${listingId})`);
 
 /** Insert an active opt-in add-on scoped to the given listing ids. */
 export const optInAddOnForListings = async (
@@ -76,17 +74,11 @@ export const activeOptInAddOn = async (name: string) => {
 
 /** Link a "groups"-scoped modifier to a group. */
 export const linkModifierGroup = (modifierId: number, groupId: number) =>
-  getDb().execute({
-    args: [modifierId, groupId],
-    sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
-  });
+  getDb().execute(sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${modifierId}, ${groupId})`);
 
 /** Point a question answer at an "answer"-triggered modifier. */
 export const linkModifierAnswer = (modifierId: number, answerId: number) =>
-  getDb().execute({
-    args: [modifierId, answerId],
-    sql: "UPDATE answers SET modifier_id = ? WHERE id = ?",
-  });
+  getDb().execute(sql`UPDATE answers SET modifier_id = ${modifierId} WHERE id = ${answerId}`);
 
 /** Insert a `modifier_usages` row directly, bypassing the checkout flow —
  *  used by both the modifier-aggregates and server-modifiers test suites to
@@ -97,20 +89,14 @@ export const insertModifierUsage = (
   quantity: number,
   amountApplied: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [modifierId, attendeeId, quantity, amountApplied, "2026-06-17"],
-    sql: "INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (?, ?, ?, ?, ?)",
-  });
+  getDb().execute(sql`INSERT INTO modifier_usages (modifier_id, attendee_id, quantity, amount_applied, created) VALUES (${modifierId}, ${attendeeId}, ${quantity}, ${amountApplied}, ${"2026-06-17"})`);
 
 /** Sum a `modifier_usages` column across a modifier's recorded rows — safe
  *  for one, many, or no rows (no usage sums to 0). */
 const modifierUsageSum =
   (column: "quantity" | "amount_applied") =>
   async (modifierId: number): Promise<number> => {
-    const { rows } = await getDb().execute({
-      args: [modifierId],
-      sql: `SELECT COALESCE(SUM(modifierUsage.${column}), 0) AS total FROM modifier_usages AS modifierUsage WHERE modifierUsage.modifier_id = ?`,
-    });
+    const { rows } = await getDb().execute(sql`SELECT COALESCE(SUM(modifierUsage.${sqlName(column)}), 0) AS total FROM modifier_usages AS modifierUsage WHERE modifierUsage.modifier_id = ${modifierId}`);
     return Number(rows[0]!.total);
   };
 

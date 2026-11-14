@@ -6,6 +6,7 @@ import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "db > attendees > admit and release tickets",
@@ -30,8 +31,7 @@ describeWithEnv(
       listingId: number,
     ): Promise<number> => {
       const row = await queryOne<{ checked_in: number }>(
-        "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        [attendeeId, listingId],
+        sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`
       );
       return row!.checked_in;
     };

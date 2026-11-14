@@ -13,6 +13,7 @@ import { SUMUP_RECOVERY_BATCH } from "#shared/limits.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { plantSumupRecoveryRow, sumupRecoveryRow } from "#test-utils/sumup.ts";
+import { sql, sqlCommas } from "#db/sql.ts";
 
 const PAST = "2000-01-01T00:00:00.000Z";
 const FUTURE = "2999-01-01T00:00:00.000Z";
@@ -143,7 +144,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
     await plantSumupRecoveryRow("co_twin", "waiting", PAST);
     await plantSumupRecoveryRow("co_other", "waiting", PAST);
     await execute(
-      "UPDATE sumup_checkouts SET sumup_id = 'co_twin' WHERE reference_index = 'idx_co_other'",
+      sql`UPDATE sumup_checkouts SET sumup_id = 'co_twin' WHERE reference_index = 'idx_co_other'`
     );
 
     expect(
@@ -152,7 +153,7 @@ describeWithEnv("db > sumup recovery queue", { db: true }, () => {
 
     // The twin kept the check time it was read with.
     const twin = await execute(
-      "SELECT next_check_at FROM sumup_checkouts WHERE reference_index = 'idx_co_other'",
+      sql`SELECT next_check_at FROM sumup_checkouts WHERE reference_index = 'idx_co_other'`
     );
     expect(String(twin.rows[0]!.next_check_at)).toBe(PAST);
   });
@@ -234,14 +235,14 @@ describeWithEnv("db > unanswered sumup money", { db: true }, () => {
     const values = Array.from(
       { length: SCAN_LIMIT + 1 },
       (_, index) =>
-        `('idx_bulk_${String(index).padStart(2, "0")}', '', '', 'co_bulk_${index}',
+        sql`('idx_bulk_${String(index).padStart(2, "0")}', '', '', 'co_bulk_${index}',
           '2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z', 'owed', '${FUTURE}')`,
     );
     await execute(
-      `INSERT INTO sumup_checkouts
+      sql`INSERT INTO sumup_checkouts
          (reference_index, wrapped_key, metadata, sumup_id, created_at,
           recovery_state, next_check_at)
-       VALUES ${values.join(", ")}`,
+       VALUES ${sqlCommas(values)}`
     );
 
     const unanswered = await listUnansweredSumupMoney();
@@ -261,7 +262,7 @@ describeWithEnv("db > unanswered sumup money", { db: true }, () => {
     // disagree — raised, never shown as a state the operator can trust.
     await plantSumupRecoveryRow("co_owed_ok", "owed", FUTURE);
     await execute(
-      "UPDATE sumup_checkouts SET recovery_state = 'owing' WHERE sumup_id = 'co_owed_ok'",
+      sql`UPDATE sumup_checkouts SET recovery_state = 'owing' WHERE sumup_id = 'co_owed_ok'`
     );
     // The unknown word is outside the listed states, so it is simply not
     // counted — the live check reports it as an anomaly instead.

@@ -7,6 +7,7 @@ import { handleRequest } from "#routes";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
 import { createTestDb, describeWithEnv, resetDb } from "#test-utils/db.ts";
 import { mockRequest, mockSetupFormRequest } from "#test-utils/mocks.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("server (setup concurrency)", { db: true }, () => {
   beforeEach(async () => {
@@ -69,13 +70,10 @@ describeWithEnv("server (setup concurrency)", { db: true }, () => {
         responses.map((response) => response.headers.get("location")).sort(),
       ).toEqual(["/", "/setup/complete"]);
       const count = await getDb().execute(
-        "SELECT COUNT(*) AS n FROM users AS user",
+        sql`SELECT COUNT(*) AS n FROM users AS user`
       );
       expect(Number(count.rows[0]!.n)).toBe(1);
-      const setupDone = await getDb().execute({
-        args: [CONFIG_KEYS.SETUP_COMPLETE],
-        sql: "SELECT value FROM settings AS setting WHERE key = ?",
-      });
+      const setupDone = await getDb().execute(sql`SELECT value FROM settings AS setting WHERE key = ${CONFIG_KEYS.SETUP_COMPLETE}`);
       expect(setupDone.rows.map((row) => row.value)).toEqual(["true"]);
     } finally {
       completeStub.restore();

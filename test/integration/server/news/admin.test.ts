@@ -19,6 +19,7 @@ import { withExpectedError } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 import type { NewsPost } from "#types";
+import { sql } from "#db/sql.ts";
 
 const BASE = "/admin/site/news";
 
@@ -117,7 +118,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     });
 
     test("rolls back the post when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_news_activity_log
         BEFORE INSERT ON activity_log
         BEGIN

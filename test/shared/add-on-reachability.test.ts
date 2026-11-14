@@ -21,6 +21,7 @@ import {
   soloChildAddOn,
 } from "#test-utils/listing-parents/helpers.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
+import { sql } from "#db/sql.ts";
 
 const childAddOnError = (name: string): string =>
   t("modifiers.err_child_only_addon", { name });
@@ -58,10 +59,7 @@ const deactivateListing = (
   tx: Parameters<Parameters<typeof withTransaction>[0]>[0],
   listingId: number,
 ): Promise<unknown> =>
-  tx.execute({
-    args: [listingId],
-    sql: "UPDATE listings SET active = 0 WHERE id = ?",
-  });
+  tx.execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`);
 
 describeWithEnv("add-on reachability guards", { db: true }, () => {
   test("rejects moving a parent away from its group-scoped child add-on", async () => {

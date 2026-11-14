@@ -24,6 +24,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {
@@ -231,10 +232,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const ip = "192.168.1.8";
       await loginLimiter.record(ip);
 
-      const row = await getDb().execute({
-        args: [await hmacHash(ip)],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(sql`SELECT attempts FROM login_attempts WHERE ip = ${await hmacHash(ip)}`);
       expect(row.rows).toEqual([{ attempts: 1 }]);
     });
 
@@ -281,10 +279,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
 
       expect(await loginLimiter.isLimited(ip)).toBe(false);
-      const row = await getDb().execute({
-        args: [ipHash],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(sql`SELECT attempts FROM login_attempts WHERE ip = ${ipHash}`);
       expect(row.rows).toEqual([]);
     });
 
@@ -311,12 +306,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(await loginLimiter.isLimited(ip)).toBe(true);
 
       // Simulate expired lockout
-      await getDb().execute({
-        args: [Date.now() - 1000],
-        sql: `UPDATE login_attempts
-              SET locked_until = ?
-              WHERE locked_until IS NOT NULL`,
-      });
+      await getDb().execute(sql`UPDATE login_attempts
+              SET locked_until = ${Date.now() - 1000}
+              WHERE locked_until IS NOT NULL`);
 
       const limited = await loginLimiter.isLimited(ip);
       expect(limited).toBe(false);

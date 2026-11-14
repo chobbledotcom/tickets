@@ -16,6 +16,7 @@ import { nonEmptyString } from "#shared/validation/string.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
+import { sql } from "#db/sql.ts";
 
 describeWithEnv(
   "server images > the image-url lookup",
@@ -299,14 +300,7 @@ describeWithEnv(
         // way the first-class-images backfill did — and the runner then
         // records the batch. Recording moves the shared version, so the next
         // lookup cannot serve the table it held before the migration ran.
-        await getDb().execute({
-          args: [
-            migratedId,
-            await encrypt("migrated.png"),
-            await encrypt("migrated.png"),
-          ],
-          sql: "INSERT INTO images (id, name, filename, filename_thumb, alt_text) VALUES (?, 'Migrated', ?, ?, '')",
-        });
+        await getDb().execute(sql`INSERT INTO images (id, name, filename, filename_thumb, alt_text) VALUES (${migratedId}, 'Migrated', ${await encrypt("migrated.png")}, ${await encrypt("migrated.png")}, '')`);
         await recordMigrationBatch(
           [
             {

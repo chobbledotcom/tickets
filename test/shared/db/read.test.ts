@@ -10,13 +10,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineReader, readStatement } from "#db/read.ts";
 import { equals, inList } from "#db/where-clauses.ts";
+import { sql } from "#db/sql.ts";
 
 describe("readStatement", () => {
   test("says the plainest read with nothing but columns and a table", () => {
-    expect(readStatement({ columns: "id, name", from: "listings" })).toEqual({
-      args: [],
-      sql: "SELECT id, name FROM listings",
-    });
+    expect(readStatement({ columns: "id, name", from: "listings" })).toEqual(sql`SELECT id, name FROM listings`);
   });
 
   test("assembles the parts in SQL order", () => {
@@ -29,12 +27,7 @@ describe("readStatement", () => {
         order: "listing.created DESC",
         where: equals("listing.active", 1),
       }),
-    ).toEqual({
-      args: [1, 5],
-      sql:
-        "SELECT listing.id FROM listings AS listing WHERE listing.active = ?" +
-        " GROUP BY listing.id ORDER BY listing.created DESC LIMIT ?",
-    });
+    ).toEqual(sql`SELECT listing.id FROM listings AS listing WHERE listing.active = ${1} GROUP BY listing.id ORDER BY listing.created DESC LIMIT ${5}`);
   });
 
   test("binds a join's own values before the filter's, then the cap", () => {

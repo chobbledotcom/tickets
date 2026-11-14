@@ -7,7 +7,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
-import { type SqlStatement, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -29,6 +29,7 @@ import {
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
+import { sql, type SqlStatement } from "#db/sql.ts";
 
 const baseInput = (
   overrides: Parameters<typeof testListingInput>[0] = {},
@@ -383,10 +384,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     await expect(
-      persistAfterRowChange(child.id, {
-        args: [child.id],
-        sql: "UPDATE listings SET listing_type = 'daily' WHERE id = ?",
-      }),
+      persistAfterRowChange(child.id, sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child.id}`),
     ).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: child.name }),
     );
@@ -401,10 +399,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await listingChildren.setIds(parent.id, [child.id]);
 
     await expect(
-      persistAfterRowChange(parent.id, {
-        args: [parent.id],
-        sql: "UPDATE listings SET months_per_unit = 1 WHERE id = ?",
-      }),
+      persistAfterRowChange(parent.id, sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent.id}`),
     ).rejects.toThrow(
       t("listings_table.children_err_parent_renewal", { name: parent.name }),
     );

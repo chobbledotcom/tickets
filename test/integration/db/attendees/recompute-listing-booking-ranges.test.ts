@@ -8,12 +8,10 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { sql } from "#db/sql.ts";
 
 const getRow = async (listingId: number) => {
-  const res = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
-  });
+  const res = await getDb().execute(sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`);
   return res.rows[0]!;
 };
 

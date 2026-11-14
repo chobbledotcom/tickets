@@ -6,6 +6,7 @@ import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 import { expectAccepted, expectRefused } from "./schema/payments/refuses.ts";
+import { sql, sqlName } from "#db/sql.ts";
 
 /** The dormant buyer-bearing tables this migration drops and rebuilds. */
 const DORMANT_PAYMENT_TABLES = [
@@ -21,12 +22,7 @@ const migration = () => dormantPaymentOwnerKey(context);
 /** One session row, the buyer's details hidden behind the owner's key. */
 const storeOneSession = async (id: string): Promise<void> => {
   await getDb().execute(
-    "INSERT INTO payment_sessions " +
-      "(id, origin, state, created_at, updated_at, booking_intent, " +
-      " result_state, ticket_state, completion_state) " +
-      "VALUES (?, 'legacy', 'created', 1, 1, 'hyb:1:a:b:c', " +
-      " 'none', 'none', 'none')",
-    [id],
+    sql`INSERT INTO payment_sessions (id, origin, state, created_at, updated_at, booking_intent,  result_state, ticket_state, completion_state) VALUES (${id}, 'legacy', 'created', 1, 1, 'hyb:1:a:b:c',  'none', 'none', 'none')`
   );
 };
 
@@ -43,7 +39,7 @@ describeWithEnv(
       );
 
       await getDb().execute(
-        "DELETE FROM payment_sessions WHERE id = 'not-empty'",
+        sql`DELETE FROM payment_sessions WHERE id = 'not-empty'`
       );
     });
 
@@ -56,8 +52,7 @@ describeWithEnv(
 
       for (const table of DORMANT_PAYMENT_TABLES) {
         const result = await getDb().execute(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-          [table],
+          sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ${table}`
         );
         expect(result.rows.length).toBe(1);
       }
@@ -75,7 +70,7 @@ describeWithEnv(
           'none', 'none', 'none')`);
 
       await getDb().execute(
-        "DELETE FROM payment_sessions WHERE id = 'owner-key'",
+        sql`DELETE FROM payment_sessions WHERE id = 'owner-key'`
       );
     });
 
@@ -84,18 +79,18 @@ describeWithEnv(
       // rows and dropping it must still happen, or the release keeps the old
       // shape and the apply has nothing to rebuild from.
       for (const table of DORMANT_PAYMENT_TABLES) {
-        await getDb().execute(`DROP TABLE IF EXISTS ${table}`);
+        await getDb().execute(sql`DROP TABLE IF EXISTS ${sqlName(table)}`);
       }
       // The surviving table carries the buyer-bearing columns in plain text.
       // The apply can only add columns, never re-constrain an existing one,
       // so only a drop and a recreate can put the owner-key rule in place.
       await getDb().execute(
-        `CREATE TABLE payment_sessions (
+        sql`CREATE TABLE payment_sessions (
            id TEXT PRIMARY KEY NOT NULL,
            origin TEXT NOT NULL,
            session_resource TEXT,
            legacy_runtime TEXT
-         )`,
+         )`
       );
 
       await migration().up();
@@ -111,14 +106,13 @@ describeWithEnv(
 
     test("recreates the dormant tables' indexes", async () => {
       await getDb().execute(
-        "DROP INDEX IF EXISTS idx_payment_sessions_reference",
+        sql`DROP INDEX IF EXISTS idx_payment_sessions_reference`
       );
 
       await migration().up();
 
       const result = await getDb().execute(
-        "SELECT name FROM sqlite_master " +
-          "WHERE type = 'index' AND name = 'idx_payment_sessions_reference'",
+        sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_payment_sessions_reference'`
       );
       expect(result.rows.length).toBe(1);
     });

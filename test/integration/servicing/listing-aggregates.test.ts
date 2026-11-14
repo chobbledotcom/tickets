@@ -32,6 +32,7 @@ import { TICKET_COUNTS_PREDICATE } from "#db/migrations/schema/listing-aggregate
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
+import { sql } from "#db/sql.ts";
 
 /** Create a listing + a servicing hold of `quantity` on it, then invalidate
  *  the listings cache so `getListingWithCount` re-reads the aggregate. */
@@ -83,14 +84,7 @@ describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
     expect(recalc.booked_quantity.recalculated).toBe(3);
     expect(recalc.tickets_count.recalculated).toBe(0);
     // Apply the recalculated values and confirm the trigger-maintained shape.
-    await getDb().execute({
-      args: [
-        recalc.booked_quantity.recalculated,
-        recalc.tickets_count.recalculated,
-        listing.id,
-      ],
-      sql: "UPDATE listings SET booked_quantity = ?, tickets_count = ? WHERE id = ?",
-    });
+    await getDb().execute(sql`UPDATE listings SET booked_quantity = ${recalc.booked_quantity.recalculated}, tickets_count = ${recalc.tickets_count.recalculated} WHERE id = ${listing.id}`);
     invalidateListingsCache();
     const after = await getListingWithCount(listing.id);
     expect(after?.attendee_count).toBe(before?.attendee_count);

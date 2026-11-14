@@ -8,6 +8,7 @@ import type {
   SchemaRequirement,
 } from "#db/migrations/types.ts";
 import { invalidateInitDbCache, LATEST_UPDATE } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 
 /**
  * Stub used for every migration-context member a particular migration's `up()`
@@ -22,18 +23,12 @@ export const unusedMigrationMember = async (): Promise<never> => {
 /** True when a SQLite index with this name exists in the live test DB. Shared by
  *  the migration tests so the `sqlite_master` lookup lives in one place. */
 export const indexExists = async (name: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [name],
-    sql: "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
-  });
+  const result = await getDb().execute(sql`SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ${name}`);
   return result.rows.length > 0;
 };
 
 export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-  });
+  const result = await getDb().execute(sql`SELECT name FROM sqlite_master WHERE type='table' AND name=${table}`);
   return result.rows.length > 0;
 };
 
@@ -44,10 +39,7 @@ export const settingsTableExists = (): Promise<boolean> =>
 export const settingsValueOrNull = async (
   key: string,
 ): Promise<string | null> => {
-  const result = await getDb().execute({
-    args: [key],
-    sql: "SELECT value FROM settings WHERE key = ?",
-  });
+  const result = await getDb().execute(sql`SELECT value FROM settings WHERE key = ${key}`);
   return (result.rows[0]?.value as string) ?? null;
 };
 
@@ -71,14 +63,8 @@ export const simulateUpgradeFromRelease = async (
   migrationId: string,
 ): Promise<void> => {
   expect(previousMarker).not.toBe(LATEST_UPDATE);
-  await getDb().execute({
-    args: [previousMarker],
-    sql: "UPDATE settings SET value = ? WHERE key = 'latest_db_update'",
-  });
-  await getDb().execute({
-    args: [migrationId],
-    sql: "DELETE FROM schema_migrations WHERE id = ?",
-  });
+  await getDb().execute(sql`UPDATE settings SET value = ${previousMarker} WHERE key = 'latest_db_update'`);
+  await getDb().execute(sql`DELETE FROM schema_migrations WHERE id = ${migrationId}`);
   invalidateInitDbCache();
 };
 
