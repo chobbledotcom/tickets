@@ -1,21 +1,25 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { beforeAll, describe, it } from "@std/testing/bdd";
+import { lazyRef } from "#fp";
 import { cancellationFacts } from "#scripts/verify-models/subscriptions/cancellation.ts";
 import type { CancellationFacts } from "#scripts/verify-models/subscriptions/cancellation-facts.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { SubscriptionStatusSchema } from "#shared/subscriptions/plan.ts";
 import { activeOverEnded } from "./cancellation-fixture.ts";
 
-let clean: CancellationFacts;
+/** One clean producer run serves every test in this file. */
+const [clean, setClean] = lazyRef<CancellationFacts>(() => {
+  throw new Error("The cancellation facts load before the first test.");
+});
 const owner = (scenario: string) =>
   requireValue(
-    clean.owners.find((fact) => fact.scenario === scenario),
+    clean().owners.find((fact) => fact.scenario === scenario),
     `Missing owner evidence: ${scenario}`,
   );
 const checkout = (scenario: string, attempt = 1) =>
   requireValue(
-    clean.checkouts.find(
+    clean().checkouts.find(
       (fact) => fact.scenario === scenario && fact.attempt === attempt,
     ),
     `Missing checkout evidence: ${scenario}/${attempt}`,
@@ -34,7 +38,7 @@ const expectReadTarget = (
 
 describe("SubscriptionCancellation production evidence", () => {
   beforeAll(async () => {
-    clean = await cancellationFacts();
+    setClean(await cancellationFacts());
   });
 
   it("runs the complete guarded status domain and preserves an ended row", () => {
@@ -53,11 +57,11 @@ describe("SubscriptionCancellation production evidence", () => {
       ),
     );
     expect(
-      clean.writes
-        .map((fact) => `${fact.snapshot}/${fact.before}/${fact.target}`)
+      clean()
+        .writes.map((fact) => `${fact.snapshot}/${fact.before}/${fact.target}`)
         .toSorted(),
     ).toEqual(expected.toSorted());
-    expect(activeOverEnded(clean.writes)).toEqual([
+    expect(activeOverEnded(clean().writes)).toEqual([
       {
         affected: 0,
         after: "canceled",
@@ -67,8 +71,8 @@ describe("SubscriptionCancellation production evidence", () => {
       },
     ]);
     expect(
-      clean.writes
-        .filter(
+      clean()
+        .writes.filter(
           (fact) =>
             fact.snapshot === "active" &&
             fact.before === "active" &&
@@ -108,7 +112,7 @@ describe("SubscriptionCancellation production evidence", () => {
   });
 
   it("captures the true subscription target at every provider read boundary", () => {
-    for (const fact of [...clean.owners, ...clean.checkouts]) {
+    for (const fact of [...clean().owners, ...clean().checkouts]) {
       expectReadTarget(
         fact.reads,
         fact.readRequestId,
@@ -206,8 +210,8 @@ describe("SubscriptionCancellation production evidence", () => {
 
   it("resumes actual rejected and placeholder orchestration with one refund", () => {
     expect(
-      clean.checkouts
-        .filter((fact) => fact.scenario === "retry")
+      clean()
+        .checkouts.filter((fact) => fact.scenario === "retry")
         .map((fact) => fact.attempt),
     ).toEqual([1, 2, 3]);
     expect(checkout("retry")).toMatchObject({

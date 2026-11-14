@@ -3,17 +3,14 @@
 import { pick } from "@std/collections";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { once } from "#fp";
+import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { members, records } from "#test-utils/tla-data.ts";
-import { registeredModel } from "../registered-model.ts";
 import { checkoutControlCases } from "./checkout-control-cases.ts";
 
 const model = registeredModel("SubscriptionCheckout");
-let cleanData: Promise<string> | undefined;
 /** One clean producer run serves every test in this file. */
-const clean = (): Promise<string> => {
-  cleanData ??= model.data();
-  return cleanData;
-};
+const clean = once(() => model.data());
 const cleanRecords = async (table: string) => records(await clean(), table);
 
 /** Each observed field beside the field that holds its expected value. */
