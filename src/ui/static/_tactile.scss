@@ -2,7 +2,7 @@
 
    Two constraints keep an operator's custom CSS safe:
    - Every selector sits inside :where(), so each rule has zero specificity.
-     A rule in style.scss or in /custom.css always wins.
+     A rule in the base stylesheet or in /custom.css always wins.
    - Each rule sets only properties that the base rule for that element leaves
      alone, and reads its colours from the theme variables. */
 

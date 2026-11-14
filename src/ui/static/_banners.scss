@@ -40,6 +40,8 @@
   white-space: pre-wrap;
 }
 
+/* The print rules join at this point, so they keep the place they held in the
+ * cascade before the split. */
 @include print.print-styles;
 
 /* Hide email API key and from address fields when provider is "None" */
