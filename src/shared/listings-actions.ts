@@ -35,8 +35,6 @@ import {
   deactivationOrphanedAddOnError,
   listingSaveOrphanedAddOnTx,
 } from "#shared/add-on-reachability.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   dayPriceFieldsFromInput,
@@ -47,7 +45,9 @@ import {
   planInGroupError,
   planRuleError,
 } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
+import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
 

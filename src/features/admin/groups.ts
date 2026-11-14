@@ -17,17 +17,14 @@ import {
   entityTabRoutes,
 } from "#routes/admin/route-tables.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  type GroupInput,
-  groupCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
 import {
   applyDemoOverrides,
   GROUP_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { groupRecord, soldHiddenPackageError } from "#shared/records/groups.ts";
+import { formFieldsInput } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
@@ -50,7 +47,7 @@ import {
 import { bindNoteRoutes } from "./record-notes.ts";
 
 const sharedGroupFields = (values: GroupCreateFormValues) =>
-  projectCatalogFields(groupCatalogFields, "form", values);
+  formFieldsInput(GROUP_FIELDS, values);
 
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,

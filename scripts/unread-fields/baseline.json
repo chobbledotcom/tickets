@@ -281,16 +281,6 @@
       "fields": ["Id", "LastModified"]
     }
   ],
-  "src/shared/catalog-fields/fields.ts": [
-    {
-      "path": [{ "name": "ListingInput" }],
-      "fields": ["attachmentName", "attachmentUrl", "maxAttendees"]
-    },
-    {
-      "path": [{ "name": "PackageMemberInput" }],
-      "fields": ["dayPrices", "price"]
-    }
-  ],
   "src/shared/checkout-pricing.ts": [
     {
       "path": [{ "name": "ModifierApplication" }],
@@ -927,6 +917,18 @@
     {
       "path": [{ "name": "QrBookPayload" }],
       "fields": ["e"]
+    }
+  ],
+  "src/shared/records/group-fields.ts": [
+    {
+      "path": [{ "name": "PackageMemberInput" }],
+      "fields": ["dayPrices", "price"]
+    }
+  ],
+  "src/shared/records/listing-fields.ts": [
+    {
+      "path": [{ "name": "ListingInput" }],
+      "fields": ["attachmentName", "attachmentUrl"]
     }
   ],
   "src/shared/reservation-amount.ts": [

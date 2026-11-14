@@ -7,7 +7,9 @@ src/features/response.ts::maybeStashForm.source~05i3xv9  ?? → || audited:1dfd0
 src/features/response.ts::redirect.flash~0r1iimg  ?? → || audited:1dfd0jf # maybeStashForm returns null or a non-empty token from generateSecureToken. Both operators select undefined only for null.
 
 src/features/admin/settings-general.ts::handlePaymentProviderPost.validate~1wzn0s8  0 → 1 audited:04hbhdx # recoveryChoices is never length 1: a single configured provider resolves unambiguously in existingPaymentProviderState, so the list is empty or holds two or more
-src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~1erbpzo  ?? → || audited:1ht6jt6 # joinIds.groupIds is an array or undefined, and arrays are always truthy
+src/features/admin/api-listing-body.ts::bodyToCreateInput.maxPrice~0rkvmol  ?? → || audited:1g4x4x9 # the fallback is 0, so a read of 0 and an absent read both give 0
+src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.maxAttendees~0282dl8  ?? → || audited:1g4x4x9 # the count rule refuses a max_attendees below 1, so a read value is never falsy
+src/features/admin/api-listing-body.ts::bodyToUpdateInput.input.wouldBeGroupIds~18r5byx  ?? → || audited:1g4x4x9 # fields.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/api-listing-joins.ts::persistListingJoins.groupIds~0ey19t2  ?? → || audited:1q4nq0k # value.groupIds is an array or undefined, and arrays are always truthy
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.baseUrl~0v3px31  ?? → || audited:1i6yq97 # opts.baseUrl is a string and the only falsy string is the empty fallback itself
 src/features/admin/entity-pages.ts::defineEntityPage.renderPage.ctx.query~1xs3bh3  ?? → || audited:1i6yq97 # opts.query is a URLSearchParams object when present, so it is always truthy
@@ -67,16 +69,6 @@ src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq
 # always false (m[0] is the whole match), each `? 0 :` fallback feeds a `> bound`
 # guard it can never trip, and the month/day range checks are redundant with the
 # UTC round-trip.
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.s~0gf6dwg@1  6 → 0 audited:1w12n5i # first m[6] is read only as `m[6] === undefined`, and m[0] (the whole match) is never undefined
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.s~14temsn  0 → 1 audited:1w12n5i # the seconds fallback runs only when m[6] is absent, and both 0 and 1 pass `s > 59`
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.oh~0hj1n6d@1  7 → 0 audited:1w12n5i # first m[7] is read only as `m[7] === undefined`, and m[0] is never undefined
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.oh~1pz434n  0 → 1 audited:1w12n5i # the offset-hours fallback runs only when m[7] is absent, and both 0 and 1 pass `oh > 23`
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.om~0hhs8h6@1  8 → 0 audited:1w12n5i # first m[8] is read only as `m[8] === undefined`, and m[0] is never undefined
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime.om~0ewm4dj  0 → 1 audited:1w12n5i # the offset-minutes fallback runs only when m[8] is absent, and both 0 and 1 pass `om > 59`
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~1rz2ivi  1 → 0 audited:1w12n5i # `mo < 1 → mo < 0`: month 0 rolls to the previous December in Date.UTC, which the round-trip rejects exactly as the guard does
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~0wfcsiq  || → && audited:1w12n5i # `mo < 1 ||` → `&&`: the month range guard is redundant with the UTC round-trip, which rolls bad months into a mismatching year
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~0xsreed  || → && audited:1w12n5i # `mo > 12 ||` → `&&`: the month range guard is redundant with the UTC round-trip, which rolls bad months into a mismatching year
-src/features/admin/catalog-transfer/schema.ts::isStorableDatetime~1hwrquc  1 → 0 audited:1w12n5i # `d < 1 → d < 0`: day 0 rolls to the previous month's last day in Date.UTC, which the round-trip rejects exactly as the guard does
 src/features/admin/catalog-transfer/schema.ts::filterDayPricesToDuration.max~0mwju9v  ?? → || audited:1w12n5i # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
 
 # middleware.ts's Content-Type fallback already equals the only falsy string.

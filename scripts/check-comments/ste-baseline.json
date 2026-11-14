@@ -338,9 +338,6 @@
     "semicolon": 5,
     "wordy": 1
   },
-  "src/shared/catalog-fields/fields.ts": {
-    "semicolon": 4
-  },
   "src/shared/catalog-transfer-example.ts": {
     "long-sentence": 3,
     "banned-modal": 2
@@ -1432,7 +1429,7 @@
     "wordy": 1
   },
   "src/shared/types.ts": {
-    "long-sentence": 10,
+    "long-sentence": 9,
     "wordy": 2,
     "contraction": 2,
     "banned-modal": 11,

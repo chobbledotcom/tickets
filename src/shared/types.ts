@@ -18,6 +18,9 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import type { GROUP_FIELDS } from "#shared/records/group-fields.ts";
+import type { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import type { FieldsStored } from "#shared/rest/field-specs.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -272,56 +275,16 @@ export type ItemImageColumns = {
   image_alt_text: string;
 };
 
-export interface Listing extends ItemImageColumns {
-  active: boolean;
-  assign_built_site: boolean;
+/** A stored listing: the declared fields plus the columns other writes own. */
+export interface Listing
+  extends ItemImageColumns,
+    FieldsStored<typeof LISTING_FIELDS> {
   attachment_name: string;
   attachment_url: string;
-  /** When true, a listing that is also a child (offered under one or more
-   * parents) keeps its OWN standalone booking page, catalog entry and API
-   * eligibility, instead of existing only as a foldable add-on. Default false
-   * ⇒ being a child strips standalone existence, the historic behaviour. */
-  bookable_alone: boolean;
-  bookable_days: string[];
-  can_pay_more: boolean;
-  closes_at: string | null;
   created: string;
-  customisable_days: boolean;
-  date: string; // encrypted UTC ISO datetime or empty string
-  day_prices: DayPrices;
-  description: string;
-  duration_days: number;
-  fields: ListingFields;
-  hidden: boolean;
   id: number;
-  initial_site_months: number;
-  listing_type: ListingType;
-  location: string; // encrypted or empty string
-  max_attendees: number;
-  max_price: number;
-  max_quantity: number;
-  maximum_days_after: number;
-  /** The smallest quantity above none that one purchase can book. 1 is the
-   *  identity: the choice set is then exactly today's 0..max_quantity. */
-  min_quantity: number;
-  minimum_days_before: number;
-  months_per_unit: number;
-  name: string;
-  non_transferable: boolean;
-  purchase_only: boolean;
   slug: string;
   slug_index: BlindIndex;
-  thank_you_url: string;
-  unit_price: number;
-  /** When true, the fields covered by the operator's listing defaults are
-   * inherited live from settings rather than this row's own stored values
-   * (see {@link resolveListingDefaults}). A single per-listing flag, never a
-   * per-field one, so a stored `false` is never ambiguous. */
-  use_defaults: boolean;
-  /** When true (and logistics is enabled) this listing is dropped off and
-   * collected from the customer, so its attendees carry logistics agents. */
-  uses_logistics: boolean;
-  webhook_url: string;
 }
 
 export interface Image {
@@ -525,31 +488,11 @@ export interface ApiKey {
   wrapped_data_key: WrappedKey; // DATA_KEY wrapped with the API key token
 }
 
-export interface Group {
-  description: string;
-  hidden: boolean;
-  /** When true (and the group is a package) the package's member listings are
-   * hidden from buyers, tickets, and confirmation emails — only admins see the
-   * breakdown. */
-  hide_package_listings: boolean;
+/** A stored group: the declared fields plus its id and slug pair. */
+export interface Group extends FieldsStored<typeof GROUP_FIELDS> {
   id: number;
-  /** When true the group is a bookable "package": its member listings can carry
-   * per-listing price overrides (the `group` dimension of listing_prices) and
-   * fixed per-package quantities (group_listings.quantity). */
-  is_package: boolean;
-  max_attendees: number;
-  name: string;
-  /** When true one group scan checks in every member listing the ticket holds. */
-  scan_checks_in_all_listings: boolean;
-  /** When true the group's public booking page also offers member listings
-   * marked Hidden (the long-standing behaviour). When false a hidden member
-   * stays off that page — internal to admin and capacity, bookable only
-   * through its direct link. Ignored for packages: a bundle is one product
-   * built from its members, so they always stay. */
-  show_hidden_listings: boolean;
   slug: string;
   slug_index: BlindIndex;
-  terms_and_conditions: string;
 }
 
 /** A group paired with the active member listings used to decide and render it. */

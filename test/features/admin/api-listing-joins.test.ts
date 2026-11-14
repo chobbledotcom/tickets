@@ -20,7 +20,7 @@ import {
   prepareChildEdges,
   prepareListingJoins,
 } from "#routes/admin/api-listing-joins.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,
@@ -83,7 +83,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     // rewritten, which a lagging read would turn into a stale restore.
     const listing = await createTestListing({ name: "Snapshot" });
     const { input } = await unrelatedUpdateInput(listing.id);
-    expect(input.attributeOptionIds).toBeUndefined();
+    expect(input.attributeOptionIds).toStrictEqual(undefined);
   });
 
   test("refuses option ids that do not exist when the links are written", async () => {
@@ -116,7 +116,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
       name: "Group snapshot",
     });
     const { input } = await unrelatedUpdateInput(listing.id);
-    expect(input.groupIds).toBeUndefined();
+    expect(input.groupIds).toStrictEqual(undefined);
     expect(input.wouldBeGroupIds).toEqual([group.id]);
   });
 

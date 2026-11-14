@@ -10,8 +10,9 @@ import * as v from "valibot";
 import { compact } from "#fp";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { fieldOfKey } from "#shared/rest/field-specs.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import {
   AdminGroupSchema,
@@ -255,7 +256,7 @@ describe("documented admin CRUD endpoints", () => {
     // The stored column's own default, which is what a create that says
     // nothing about this field gets.
     expect(created.maximum_days_after).toBe(
-      listingCatalogFields.maximumDaysAfter[1].default!(),
+      fieldOfKey(LISTING_FIELDS, "maximum_days_after").default,
     );
   });
 

@@ -11,7 +11,6 @@ import { groupListings } from "#db/groups/table.ts";
 import { TransactionValidationError, txIdSetInTable } from "#db/transaction.ts";
 import { byId, mapNotNullish, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import {
   memberBlockKey,
   packageMemberMessage,
@@ -19,6 +18,7 @@ import {
   packageMemberQuantityError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 import type { ListingType } from "#types";
 
 type GroupStateRow = {

@@ -6,7 +6,6 @@ import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
   performListingDelete,
@@ -14,6 +13,7 @@ import {
   toggleListingActive,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -397,32 +397,26 @@ describeWithEnv("performListingDelete", { db: true }, () => {
 });
 
 /** The guard's verdict for one listing's would-be daily save. */
-const guardVerdictIs = async (
-  listing: ListingWithCount,
-  expected: string | null,
-): Promise<void> => {
-  await withTransaction(async (tx) => {
-    const refusal = await refuseUndatedListingSwitch(
+const guardVerdict = (listing: ListingWithCount): Promise<string | null> =>
+  withTransaction((tx) =>
+    refuseUndatedListingSwitch(
       tx,
       listing.id,
       inputFor({ groupIds: [], listingType: "daily" }),
-    );
-    expect(refusal).toBe(expected);
-  });
-};
+    ),
+  );
 
 describeWithEnv("refuseUndatedListingSwitch", { db: true }, () => {
   test("names the undated bookings a bare switch would strand", async () => {
     const listing = await listingWithTwoUndatedBookings();
-    await guardVerdictIs(
-      listing,
+    expect(await guardVerdict(listing)).toBe(
       t("listings_table.switch_daily_undated_guard", { count: 2 }),
     );
   });
 
   test("lets a save through when nothing would be stranded", async () => {
     const listing = await createTestListing({ maxAttendees: 10 });
-    await guardVerdictIs(listing, null);
+    expect(await guardVerdict(listing)).toBe(null);
   });
 
   test("reads a missing listing type as the ordinary kind it stays", async () => {

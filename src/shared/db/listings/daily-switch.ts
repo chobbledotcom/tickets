@@ -24,8 +24,8 @@ import {
 } from "#db/client.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { ListingType } from "#types";
 
 /** The move a confirmed save performs: give every undated booking this day. */

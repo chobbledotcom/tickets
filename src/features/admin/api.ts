@@ -26,11 +26,11 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   performListingDelete,
   toggleListingActive,
 } from "#shared/listings-actions.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { listingRecord } from "#shared/records/listings.ts";
 import type {
   CrudSideEffectValidate,

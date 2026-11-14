@@ -19,7 +19,8 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import { fieldColumns, type NamedSortOrderInput } from "#db/common-schema.ts";
+import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
@@ -135,7 +136,7 @@ export const attendeeStatuses = defineCachedListTable<
   orderBy: "sort_order ASC, id ASC",
   primaryKey: "id",
   schema: {
-    ...fieldColumns(STATUS_FIELDS)(encrypt, decrypt),
+    ...fieldColumnsWithId("attendee_statuses", STATUS_FIELDS)(encrypt, decrypt),
     sort_order: col.simple<number>(),
   },
 });

@@ -14,8 +14,8 @@ import {
 import { getGroupPackagePrices, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createHiddenPackageGroup,

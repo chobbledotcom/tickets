@@ -2,64 +2,18 @@
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  encryptedNameSchema,
-  idAndEncryptedSlugSchema,
-} from "#db/common-schema.ts";
+import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
+import { fieldColumns } from "#db/field-columns.ts";
 import { col } from "#db/table.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  type ListingInput,
-  listingCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
-import { ErrorCode, logError } from "#shared/logger.ts";
 import { nowIso } from "#shared/now.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import type { Listing } from "#types";
-
-const TZ_SUFFIX_REGEX = /(?:Z|[+-]\d{2}:\d{2})$/i;
-
-const normalizeUtcDatetime = (value: string, label: string): string => {
-  if (value === "") return "";
-  let normalized = value;
-  if (!TZ_SUFFIX_REGEX.test(value)) {
-    logError({
-      code: ErrorCode.DATA_INVALID,
-      detail: `${label} missing timezone offset (${value})`,
-    });
-    normalized = `${value}Z`;
-  }
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`${label} has invalid datetime: ${value}`);
-  }
-  return date.toISOString();
-};
-
-const encryptDatetime = (
-  value: string,
-  label: string,
-): Promise<EnvKeyEncrypted> => encrypt(normalizeUtcDatetime(value, label));
-
-const decryptDatetime = async (value: EnvKeyEncrypted): Promise<string> => {
-  const decrypted = await decrypt(value);
-  return normalizeUtcDatetime(decrypted, "stored datetime");
-};
-
-const writeClosesAt = (value: string | null): Promise<EnvKeyEncrypted> =>
-  // defineTable skips write transforms for null values.
-  encryptDatetime(value as string, "closes_at");
-
-const readClosesAt = async (value: string | null): Promise<string | null> => {
-  // closes_at is NOT NULL and always stores env-key ciphertext.
-  const result = await decryptDatetime(value as EnvKeyEncrypted);
-  return result === "" ? null : result;
-};
-
-const writeListingDate = (value: string): Promise<EnvKeyEncrypted> =>
-  encryptDatetime(value, "date");
 
 // The `as` cast is the sanctioned read boundary for a projected encrypted
 // column — the raw SELECT value re-enters the typed world here.
@@ -82,19 +36,15 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
   "listings",
   {
     ...idAndEncryptedSlugSchema(encrypt, decrypt),
-    ...encryptedNameSchema(encrypt, decrypt),
-    closes_at: col.transform<string | null>(writeClosesAt, readClosesAt),
+    attachment_name: col.encryptedText(encrypt, decrypt),
+    attachment_url: col.encryptedText(encrypt, decrypt),
     created: col.withDefault(() => nowIso()),
-    date: {
-      default: () => "",
-      ...col.encrypted(writeListingDate, decryptDatetime),
-    },
     image_alt_text: col.projected<string>(readProjectedAltText),
     image_thumb_url: col.projected<string>(
       readProjectedImageFilename("thumbnail image"),
     ),
     image_url: col.projected<string>(readProjectedImageFilename("image")),
-    ...projectCatalogFields(listingCatalogFields, "columns", {}),
+    ...fieldColumns("listings", LISTING_FIELDS)(encrypt, decrypt),
   },
 );
 

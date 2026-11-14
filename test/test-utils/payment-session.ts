@@ -26,27 +26,8 @@ export const wireMetadata = (
  * than the provider's wire record, so a test spreads its own values over this
  * to state the whole expected metadata rather than only the parts it set.
  */
-export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] = {
-  _origin: "",
-  address: "",
-  allocations: "",
-  answer_ids: "",
-  balance_attendee_id: "",
-  date: "",
-  day_count: "",
-  email: "",
-  items: "",
-  modifiers: "",
-  name: "",
-  phone: "",
-  price_proof: "",
-  reservation_amount: "",
-  site_token_index: "",
-  special_instructions: "",
-  tax_policy: "",
-  text_answer_ids: "",
-  thank_you_url: "",
-};
+export const BLANK_SESSION_METADATA: ValidatedPaymentSession["metadata"] =
+  webhookMeta({ _origin: "", name: "" });
 
 /** A paid Stripe session with one valid charge reference. */
 export const paidSession = (

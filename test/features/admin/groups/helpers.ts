@@ -2,7 +2,7 @@
 
 import { expect } from "@std/expect";
 import { hmacHash } from "#crypto/hashing.ts";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import type { GroupInput } from "#shared/records/group-fields.ts";
 import {
   createSoldPackageMember,
   createTestGroup,
