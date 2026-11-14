@@ -6,14 +6,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, getDb } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
@@ -293,9 +294,7 @@ describeWithEnv(
       });
       // A deleted listing removes its lines. The booking and its answer stay,
       // so the link answers with no listing to name.
-      await execute(
-        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
-      );
+      await dropAttendeeBookings(attendeeId);
 
       await assertJson(
         apiRequest(`/api/admin/questions/${size.id}/bookings`),

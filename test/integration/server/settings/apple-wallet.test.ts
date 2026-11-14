@@ -4,7 +4,6 @@ import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
   expectFlashRedirect,
@@ -18,6 +17,7 @@ import {
 } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import {
   nonRsaCertificatePem,
   pemFor,
@@ -102,13 +102,9 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
 
   test("returns 404 for orphaned attendee with no listing links", async () => {
     await configureAppleWallet();
-    const { token, attendee } = await createTestAttendeeWithToken(
+    const { token } = await attendeeWithoutBookings(
       "Orphan",
       "orphan@test.com",
-    );
-    const { getDb } = await import("#db/client.ts");
-    await getDb().execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
     );
     const response = await awaitTestRequest(`/wallet/${token}.pkpass`);
     expect(response.status).toBe(404);

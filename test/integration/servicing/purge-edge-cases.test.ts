@@ -11,6 +11,7 @@
  *     as orphaned history — the transfers ledger is append-only, so the purge
  *     never reverses them.
  */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
@@ -24,6 +25,7 @@ import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { attendeeExists } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   childRowCount,
@@ -45,9 +47,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(oldId, 30);
     // One orphan at the boundary (created == cutoff; NOT swept — strict <).
     const { id: edgeId } = await createServicingHold();
-    await getDb().execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${edgeId}`,
-    );
+    await dropAttendeeBookings(edgeId);
     await getDb().execute(
       sql`UPDATE attendees SET created = ${cutoff} WHERE id = ${edgeId}`,
     );
@@ -89,9 +89,7 @@ describeWithEnv("servicing edge cases — purge", { db: true }, () => {
     await orphanServicingEvent(servicingId);
     const { createRealAttendee } = await import("#test-utils/servicing.ts");
     const { attendee: real } = await createRealAttendee();
-    await getDb().execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${real.id}`,
-    );
+    await dropAttendeeBookings(real.id);
     await getDb().execute(
       sql`UPDATE attendees SET created = ${daysAgoIso(30)} WHERE id = ${real.id}`,
     );

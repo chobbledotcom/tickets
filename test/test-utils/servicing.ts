@@ -31,6 +31,7 @@ import { getAllListings } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { nowMs } from "#shared/now.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockRequest } from "#test-utils/mocks.ts";
 import { getTestSession, withTestSession } from "#test-utils/session.ts";
@@ -188,9 +189,7 @@ export const orphanServicingEvent = async (
   id: number,
   daysAgo = 30,
 ): Promise<void> => {
-  await getDb().execute(
-    sql`DELETE FROM listing_attendees WHERE attendee_id = ${id}`,
-  );
+  await dropAttendeeBookings(id);
   await getDb().execute(
     sql`UPDATE attendees SET created = ${daysAgoIso(daysAgo)} WHERE id = ${id}`,
   );

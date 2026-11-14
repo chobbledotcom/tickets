@@ -6,7 +6,6 @@ import { moveTickets } from "#db/attendees/update.ts";
 import { getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
 import { paymentsApi } from "#shared/payments.ts";
 import { createRefundableAttendee } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -25,6 +24,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { refundBookedOrder } from "#test-utils/ledger.ts";
 import { withMocks } from "#test-utils/mocks.ts";
@@ -188,11 +188,7 @@ describeWithEnv(
 
       test("keeps refresh reachable when attendee has no bookings", async () => {
         const { attendee } = await setupListingAndAttendee();
-        const { getDb: getDbFn } = await import("#db/client.ts");
-        const db = getDbFn();
-        await db.execute(
-          sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
-        );
+        await dropAttendeeBookings(attendee.id);
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/refresh-payment`,
         );

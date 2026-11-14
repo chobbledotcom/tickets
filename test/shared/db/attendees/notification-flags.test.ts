@@ -29,6 +29,7 @@ import {
   readPendingNotificationFlags,
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
+import { personOnCollectingAndStoppedListings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The attendee a test booked, read back the way the admin surfaces read
@@ -237,23 +238,8 @@ describeWithEnv(
       // One person, two bookings. The Ceilidh collects an email, the Quiz
       // stopped. The same flag sits on the person, so only each row's own
       // listing can decide its badge.
-      const collecting = await createTestListing({
-        maxAttendees: 10,
-        name: "Scoped Ceilidh",
-      });
-      const stopped = await createTestListing({
-        maxAttendees: 10,
-        name: "Scoped Quiz",
-      });
-      await execute(
-        sql`UPDATE listings SET fields = 'phone' WHERE id = ${stopped.id}`,
-      );
-      const attendee = await createMultiBookingAttendee(
-        "Scoped Buyer",
-        "scoped-buyer@example.com",
-        [{ listingId: collecting.id }, { listingId: stopped.id }],
-      );
-      await setPendingNotificationFlags(attendee.id, 1, 0);
+      const { attendee, collecting, stopped } =
+        await personOnCollectingAndStoppedListings("Scoped");
 
       const rows = await getAttendeeBookingRowsRaw(attendee.id);
       const owedByListing = new Map(

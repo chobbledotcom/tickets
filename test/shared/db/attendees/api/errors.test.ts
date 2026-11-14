@@ -5,7 +5,6 @@ import { stub } from "@std/testing/mock";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { oneLineAttendeeForm } from "#test-utils/attendee-form/_shared-setup.ts";
-import { attendeeWithNoBookings } from "#test-utils/attendee-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
@@ -14,6 +13,7 @@ import {
   getAttendeesRaw,
   stubRefusedAtomicCreate,
 } from "#test-utils/db-helpers/attendees.ts";
+import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -195,7 +195,7 @@ describeWithEnv(
       });
 
       test("GET edit page for attendee with no bookings renders with no questions", async () => {
-        const attendee = await attendeeWithNoBookings("Orphan");
+        const { attendee } = await attendeeWithoutBookings("Orphan");
         const response = await adminGet(`/admin/attendees/${attendee.id}`);
         expect(response.status).toBe(200);
         const html = await response.text();
@@ -203,7 +203,7 @@ describeWithEnv(
       });
 
       test("POST edit for attendee with no bookings re-renders with no_lines error", async () => {
-        const attendee = await attendeeWithNoBookings("Orphan");
+        const { attendee } = await attendeeWithoutBookings("Orphan");
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}`,
           { name: "Orphan" },

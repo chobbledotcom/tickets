@@ -1,9 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
-import { getDb } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
@@ -47,17 +46,9 @@ describeWithEnv("db > attendees > getAttendeesByTokens", { db: true }, () => {
   });
 
   test("returns empty bookings for orphaned attendee", async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const { createTestAttendeeDirect: createDirect } = await import(
-      "#test-utils/db-helpers/attendees.ts"
-    );
-    const { attendee, token } = await createDirect(
-      listing.id,
+    const { token } = await attendeeWithoutBookings(
       "Orphan",
       "orphan@test.com",
-    );
-    await getDb().execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
     );
     const results = await getAttendeesByTokens([token]);
     expect(results[0]).not.toBeNull();

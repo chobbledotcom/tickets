@@ -20,6 +20,7 @@ import type { ValidatedSession } from "#routes/api/webhook-types.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
@@ -275,9 +276,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
     const id = "cs_direct_orphan";
     const { attendeeId, data, listing } =
       await ledgeredPaymentWithoutReservation(id, 700);
-    await execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
-    );
+    await dropAttendeeBookings(attendeeId);
     await execute(sql`DELETE FROM attendees WHERE id = ${attendeeId}`);
 
     expect(await processPaymentSession(id, data)).toEqual({

@@ -21,10 +21,13 @@ import { buildCheckinUrl } from "#shared/ticket-url.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  createMultiBookingAttendee,
   createTestAttendeeDirect,
   setPendingNotificationFlags,
 } from "#test-utils/db-helpers/attendees.ts";
+import {
+  attendeeWithoutBookings,
+  personOnCollectingAndStoppedListings,
+} from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -99,23 +102,8 @@ describeWithEnv("ticket token utils", { db: true }, () => {
     // One person, two bookings, one flag on the person. The Ceilidh collects
     // an email, the Quiz stopped. The entry that stands for the Quiz's
     // booking shows no notice, and the Ceilidh's entry keeps it.
-    const collecting = await createTestListing({
-      maxAttendees: 10,
-      name: "Entry Ceilidh",
-    });
-    const stopped = await createTestListing({
-      maxAttendees: 10,
-      name: "Entry Quiz",
-    });
-    await getDb().execute(
-      sql`UPDATE listings SET fields = ${"phone"} WHERE id = ${stopped.id}`,
-    );
-    const attendee = await createMultiBookingAttendee(
-      "Entry Buyer",
-      "entry-buyer@example.com",
-      [{ listingId: collecting.id }, { listingId: stopped.id }],
-    );
-    await setPendingNotificationFlags(attendee.id, 1, 0);
+    const { attendee, collecting, stopped } =
+      await personOnCollectingAndStoppedListings("Entry");
 
     const entries = await entriesForToken(attendee.ticket_token);
     expect(entries).toHaveLength(2);
@@ -170,14 +158,9 @@ describeWithEnv("ticket token utils", { db: true }, () => {
   });
 
   test("resolveEntries returns no entries when the attendee has no bookings", async () => {
-    const listing = await createTestListing({ maxAttendees: 10 });
-    const { attendee, token } = await createTestAttendeeDirect(
-      listing.id,
+    const { token } = await attendeeWithoutBookings(
       "No booking",
       "nobooking@example.com",
-    );
-    await getDb().execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
     );
 
     const attendees = await getAttendeesByTokens([token]);

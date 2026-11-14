@@ -13,6 +13,7 @@ import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** A booking on the given listings, recorded at the given time so the read's
@@ -121,9 +122,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
       "2026-06-05T09:00:00.000Z",
     );
     await bookAnswers(attendeeId, [small.id]);
-    await execute(
-      sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
-    );
+    await dropAttendeeBookings(attendeeId);
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
     expect(row!.listing_ids).toEqual([]);

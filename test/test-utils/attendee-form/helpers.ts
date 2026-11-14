@@ -1,12 +1,9 @@
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { testDate } from "#test-utils/dates.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 type AttendeeRow = Awaited<ReturnType<typeof getAttendeesRaw>>[number];
@@ -65,18 +62,3 @@ export const everydayDailyListing = (
 /** Tomorrow's date in the configured timezone (the standard bookable day). */
 export const tomorrowInTz = (): string =>
   addDays(testDate(todayInTz(settings.timezone)), 1);
-
-/** A listing + attendee whose booking rows have been deleted (an orphan). */
-export const attendeeWithNoBookings = async (name: string) => {
-  const event = await createTestListing({ maxAttendees: 100 });
-  const attendee = await createTestAttendee(
-    event.id,
-    event.slug,
-    name,
-    `${name.toLowerCase()}@example.com`,
-  );
-  await getDb().execute(
-    sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
-  );
-  return attendee;
-};
