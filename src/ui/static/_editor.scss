@@ -1,0 +1,242 @@
+/** The rich markdown editor, its toolbar and its popups. */
+
+@use "mixins" as *;
+
+/* Rich markdown editor mounted over a markdown textarea. Whichever of the
+   textarea / editor is inactive carries .md-editor-hidden. */
+.md-editor-hidden {
+  display: none;
+}
+.md-editor {
+  width: 100%;
+  max-width: var(--width-card-wide);
+  box-sizing: border-box;
+  @include panel-border;
+  /* The field sits inside a <label>, which is bold with a tall line-height;
+     reset both so only genuinely bold text is bold and the prose isn't
+     double-spaced. */
+  font-weight: normal;
+  line-height: 1.5;
+}
+.md-editor:focus-within {
+  border-color: var(--color-link);
+}
+/* The minimal subset of ProseMirror's core stylesheet the editor needs
+   (prosemirror-view/style/prosemirror.css); the rest styles features we
+   don't use (gap cursors, column resizing, selection hiding). */
+.md-editor .ProseMirror {
+  position: relative;
+  min-height: 8em;
+  padding: 0.4rem 0.8rem;
+  outline: none;
+  white-space: break-spaces;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+}
+.md-editor .ProseMirror p {
+  margin: 0.5rem 0;
+}
+.md-editor .ProseMirror li {
+  position: relative;
+}
+/* ProseMirror wraps each list item's content in a <p>; without this the
+   page's default paragraph margins double-space every bullet. */
+.md-editor .ProseMirror li > p {
+  margin: 0.15rem 0;
+}
+.md-editor .ProseMirror blockquote {
+  margin: 0.6rem 0;
+  padding-left: var(--space-m);
+  border-left: 3px solid var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+}
+.md-editor .ProseMirror pre {
+  white-space: pre-wrap;
+}
+
+/* Small text-button styled like a link. */
+.md-preview-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-link);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: normal;
+  text-decoration: underline;
+  cursor: pointer;
+  width: auto;
+}
+
+/* Preview dialog: full screen on phones; a centred panel on tablets and up. */
+.md-preview-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  @include surface-colors;
+  overflow: hidden;
+}
+.md-preview-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+.md-preview-close {
+  @include pinned-top-right;
+  z-index: 1;
+  display: flex;
+  width: auto;
+  padding: var(--space-s);
+  border: none;
+  background: none;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.md-preview-content {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-xl) var(--space-m) var(--space-lg);
+}
+
+@media (min-width: 769px) {
+  .md-preview-dialog {
+    width: min(100% - 2 * var(--space-lg), var(--width-content));
+    height: auto;
+    max-height: calc(100% - 2 * var(--space-xl));
+    margin: var(--space-xl) auto;
+    border-radius: var(--space-s);
+  }
+}
+
+label {
+  @include wrap-row-tight;
+  align-items: baseline;
+  font-weight: bold;
+  font-size: inherit;
+  max-width: var(--width-card-wide);
+}
+
+@media (max-width: 768px) {
+  label {
+    width: 100%;
+  }
+}
+
+label > small {
+  color: #666;
+  font-weight: normal;
+  width: 100%;
+}
+
+[data-theme="dark"] label > small {
+  color: #b1aeae;
+}
+
+label > select,
+label > input {
+  flex: 1;
+}
+
+label > input[type="date"],
+label > input[type="time"] {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+input[type="number"] {
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 8ch;
+}
+
+label > input[type="number"] {
+  flex: 0 0 auto;
+}
+
+label > select[name="quantity"],
+label > select[name^="quantity_"],
+label > select[name^="child_qty_"] {
+  width: 8ch;
+  flex: 0 0 auto;
+}
+
+/* Attendee form length select: widen to 20rem. The default `label > select`
+   rule is `flex: 1`, which would stretch it to fill the row and ignore the
+   width, so opt out of growing/shrinking here for the width to take effect. */
+#attendee-form label > select[name="day_count"] {
+  width: 20rem;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+label > input[type="text"],
+label > input[type="password"],
+label > input[type="email"] {
+  width: auto;
+}
+
+label > input[inputmode="decimal"] {
+  flex: 0 0 auto;
+  width: 11ch;
+}
+
+label > textarea {
+  width: 100%;
+}
+
+/* Popups */
+dialog {
+  max-width: 90%;
+  max-height: 85dvh;
+  margin: auto;
+  padding-block: 0;
+  padding-inline: 20px;
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 0.5rem;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  -ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
+  scrollbar-color: transparent transparent;
+  animation: bottom-to-top 0.25s ease-in-out forwards;
+}
+
+dialog::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+dialog::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+dialog::-webkit-scrollbar-thumb {
+  background-color: transparent;
+}
+
+@media (min-width: 650px) {
+  dialog {
+    max-width: 39rem;
+  }
+}
+
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+@keyframes bottom-to-top {
+  0% {
+    opacity: 0;
+    transform: translateY(10%);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

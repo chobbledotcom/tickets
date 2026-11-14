@@ -1,0 +1,248 @@
+/** Listing images, the type picker, the ticket slider, the markup utilities
+ * and the page footers. */
+
+@use "mixins" as *;
+
+/* Utility classes for strict CSP (no inline styles) */
+.hidden {
+  display: none;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.description {
+  font-size: 0.9em;
+}
+
+.description-compact {
+  font-size: 0.9em;
+}
+
+/* Listing images */
+.listing-image {
+  max-width: min(100%, var(--width-card-wide));
+  border-radius: 4px;
+}
+
+.listing-thumbnail {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 4px;
+  object-fit: cover;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+}
+
+.listing-image-preview {
+  max-width: 300px;
+  border-radius: 4px;
+}
+
+.image-library-thumb {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 4px;
+  object-fit: cover;
+  vertical-align: middle;
+}
+
+.image-library-preview .image-library-thumb {
+  width: min(100%, 18rem);
+  height: auto;
+  aspect-ratio: 4 / 3;
+}
+
+.image-picker-checkboxes label {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-xs);
+}
+
+.image-picker-checkboxes label input {
+  margin-right: 0;
+}
+
+.image-picker-checkboxes .image-library-thumb {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* Listing type picker */
+.listing-type-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-m);
+  margin-block: var(--space-m);
+}
+
+.listing-type-card {
+  @include stack-tight;
+  padding: var(--space-m);
+  border: 1px solid var(--color-bg-secondary);
+  border-radius: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.listing-type-card:hover {
+  border-color: var(--color-link);
+}
+
+.listing-type-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Header image */
+.header-image {
+  max-width: 100%;
+  display: block;
+  margin-inline: auto;
+}
+
+/* Secondary button */
+button.secondary,
+.btn.secondary {
+  --color-secondary: #6c757d;
+  --color-secondary-hover: #565e64;
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: var(--color-bg);
+}
+
+button.secondary:hover,
+.btn.secondary:hover {
+  background-color: var(--color-secondary-hover);
+  border-color: var(--color-secondary-hover);
+}
+
+[data-theme="dark"] button.secondary,
+[data-theme="dark"] .btn.secondary {
+  --color-secondary: #6272a4;
+  --color-secondary-hover: #7a8abf;
+}
+
+/* Ticket slider */
+.ticket-slider {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-m);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-m) 0;
+}
+
+.ticket-card {
+  flex: 0 0 auto;
+  width: min(25rem, 100%);
+  padding: var(--space-s);
+  border-radius: var(--border-radius);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
+  scroll-snap-align: start;
+  background: var(--color-bg);
+  border: 1px solid var(--color-bg-secondary);
+  @include stack-tight;
+}
+
+.ticket-card-name {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.ticket-card-date {
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+
+.ticket-card-image {
+  max-width: calc(100% + 1rem);
+  margin: -0.5rem -0.5rem 0.5rem;
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  display: block;
+}
+
+.ticket-card-description {
+  color: var(--color-text-secondary);
+  font-size: 0.95em;
+}
+
+/* Rendered markdown can embed a picture (a poster, a map). Constrain it to
+   its container so it never spills out of the card, the row, or the prose
+   block. */
+.ticket-card-description img,
+.description img,
+.description-compact img,
+.prose img {
+  max-width: 100%;
+}
+
+.ticket-card-price {
+  font-weight: bold;
+}
+
+.ticket-card-qr {
+  text-align: center;
+}
+
+.ticket-card-qr img {
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+[data-theme="dark"] .ticket-card {
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Admin footer: a top row with the Chobble link (growing to fill) and
+   inline utility links, then an optional debug menu below. */
+.admin-footer {
+  margin-top: auto;
+  @include stack-tight;
+  font-size: smaller;
+}
+
+.admin-footer-top {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-s);
+}
+
+/* The Chobble link's span grows to fill, keeping the link itself only as wide
+   as its text; the utility links stay their natural width. */
+.admin-footer-brand {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-footer-links {
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.admin-footer-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-m);
+  opacity: 0.6;
+}
+
+.admin-footer-info ul {
+  font-family: monospace;
+  font-size: small;
+}
+
+/* Homepage footer (Login link) */
+.homepage-footer {
+  margin-top: auto;
+  font-size: smaller;
+  opacity: 0.6;
+}
+

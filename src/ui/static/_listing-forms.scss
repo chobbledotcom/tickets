@@ -1,0 +1,170 @@
+/** Listing forms: the sections, the postcode search, the packages and the
+ * running total. */
+
+@use "mixins" as *;
+
+/* Multi-booking listing list */
+.multi-booking-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+/* A fieldset groups form controls, so by default it stacks like the innards of
+   a form: a flex column with the standard gap and no border or padding of its
+   own. `.inset` opts into a visually grouped box — a little padding inside a
+   deliberately low-contrast border. Row-based groups (.checkboxes/.radios) and
+   grids (.card-grid) set their own display and so opt out of the column. */
+fieldset {
+  @include stack;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+fieldset.inset {
+  @include panel-border;
+  padding: var(--space-m);
+}
+
+/* Postcode search row: the label (with its input) and the Find button sit on
+   one line. The button stays a sibling of the label — not a child — so it never
+   pollutes the input's accessible name. */
+.address-lookup-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-s);
+}
+
+/* The input only needs room for a postcode, so cap it and let the button
+   follow on the same row. */
+.address-lookup-search label > input[type="text"] {
+  flex: 0 0 auto;
+  width: 8rem;
+}
+
+.ticket-listings {
+  @include stack-tight;
+}
+
+/* The "Number of packages" selector only ever holds small counts, so keep it
+   narrow rather than stretching to the container width. */
+select[data-package-members] {
+  max-width: 5rem;
+}
+
+/* Booking-form running total: the "show total" button and the live summary the
+   running-total script renders into the adjacent <output>. */
+.running-total {
+  @include stack-tight;
+}
+
+.order-summary-output {
+  display: block;
+}
+
+.order-summary {
+  width: 100%;
+}
+
+.order-summary th {
+  font-weight: normal;
+  text-align: left;
+}
+
+.order-summary td {
+  text-align: right;
+}
+
+.order-summary-total th,
+.order-summary-total td {
+  font-weight: bold;
+}
+
+.order-summary-message {
+  margin: 0;
+}
+
+.checkboxes,
+.radios {
+  border: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
+  margin: 0;
+  padding: 0;
+}
+
+/* Linked-items list: one .checkboxes row per item type, the type name leading
+   each row. The rows carry their own flex layout, so the list chrome goes. */
+.linked-items {
+  @include stack-tight;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.checkboxes label,
+.radios label {
+  display: inline-block;
+  font-weight: normal;
+  max-width: none;
+}
+
+.checkboxes label input,
+.radios label input {
+  margin-right: 0.5rem;
+}
+
+label.terms-agree {
+  display: block;
+}
+
+.radio-label {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  font-weight: normal;
+  gap: var(--space-s);
+}
+
+.radio-label > input[type="radio"] {
+  flex: 0 0 auto;
+  margin-top: 0.3em;
+}
+
+.radio-label > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Listing form sections: grouped <fieldset>s with a heading legend, and a
+   collapsible <details> for the technical/advanced fields. Each fieldset is a
+   flex column, so it spaces its own fields; the form's gap spaces the sections
+   themselves. */
+.listing-section {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.listing-section > legend {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-lg);
+  @include section-divider;
+  font-weight: bold;
+  font-size: 1.05rem;
+}
+
+.listing-advanced > summary {
+  font-size: 1.05rem;
+}
+
+/* When expanded, the summary reads as a section heading like the legends. */
+.listing-advanced[open] > summary {
+  @include section-divider;
+}
+
+

@@ -1,16 +1,14 @@
 /* The rich markdown editor: its formatting toolbar and the image dropdown
- * control (button plus the panel of image names). The formatting-row and
- * surface declarations are inlined because the shared mixins live in
- * style.scss, which this partial cannot see. */
+ * control (button plus the panel of image names). */
+
+@use "mixins" as *;
 
 .md-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  @include wrap-row-tight;
   /* The image dropdown anchors to this box, not to its control: the control
    * is the last toolbar item and can wrap to a row edge on narrow screens,
    * where a panel pinned to the control would leave the viewport. */
   position: relative;
-  gap: var(--space-s);
   padding: var(--space-s);
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);

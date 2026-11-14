@@ -6,6 +6,8 @@
    - Each rule sets only properties that the base rule for that element leaves
      alone, and reads its colours from the theme variables. */
 
+@use "mixins" as *;
+
 :where(:root) {
   --motion-fast: 120ms;
   --motion-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -55,8 +57,7 @@
 :where(a, button, summary, input, select, textarea, [tabindex]):where(
     :focus-visible
   ) {
-  outline: 2px solid var(--color-secondary);
-  outline-offset: 2px;
+  @include focus-ring;
 }
 
 :where(input[type="checkbox"], input[type="radio"]) {

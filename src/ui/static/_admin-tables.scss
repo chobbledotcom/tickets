@@ -1,0 +1,97 @@
+/** Admin table toolbars, the pagination and the news list. */
+
+@use "mixins" as *;
+
+/* Filter/sort form row */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  max-width: 100%;
+}
+
+/* Override dark-mode form box-shadow (base and focus) which would otherwise apply */
+[data-theme="dark"] .filter-row,
+[data-theme="dark"] .filter-row:focus-within {
+  box-shadow: none;
+}
+
+.filter-row label {
+  margin: 0;
+}
+
+.filter-row button {
+  margin: 0;
+}
+
+.filter-row select {
+  max-width: 15rem;
+}
+
+/* Link/button rows attached to a table.
+   No margin or padding; the surrounding flex container supplies vertical gap. */
+.table-action-btns {
+  align-items: center;
+  @include wrap-row-tight;
+  margin: 0;
+  padding: 0;
+}
+
+.ledger-balance {
+  margin: 0;
+}
+
+/* Action rows attached to a table: filters above or below. No margin of their
+   own; the surrounding flex container supplies the gap around the row. The
+   gap inside runs across, so adjacent links stay apart. */
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  line-height: 1.3rem;
+  margin: 0;
+}
+
+/* Previous/next pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+/* News.
+   The /news list reuses the shared cards; a post page's images render as a
+   pure-CSS gallery. Each image contributes three adjacent siblings — a
+   visually-hidden radio, its full-size image, and its thumbnail label — so
+   the sibling selectors below show only the checked radio's full image (at
+   full content width) and highlight its thumb. The thumbs flex-wrap at up to
+   five per row; clicking one checks its radio and swaps the main image, with
+   no JavaScript anywhere. */
+
+.news-card-snippet,
+.news-post-date {
+  color: var(--color-text-secondary);
+}
+
+/* The gallery is a fieldset (for the visually-hidden legend), so the row
+   direction must be restated over the fieldset default's column stack. */
+.news-gallery {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  margin-bottom: var(--space-m);
+  border: 0;
+  margin-top: 0;
+  padding: 0;
+}
+

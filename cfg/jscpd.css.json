@@ -12,6 +12,9 @@
   "format": [
     "scss"
   ],
+  "path": [
+    "../src/ui/static"
+  ],
   "absolute": true,
   "gitignore": true,
   "exitCode": 1,

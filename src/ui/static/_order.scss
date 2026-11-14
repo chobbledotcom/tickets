@@ -1,0 +1,358 @@
+/** The order page: the gallery, the product cards, the availability and the
+ * floating cart. */
+
+@use "mixins" as *;
+
+/* Visually hidden but still focusable so keyboard users can arrow between
+   images (mirrors .order-select). */
+.news-gallery-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* Every full-size image is pulled to the front of the flex order and spans
+   the full content width; only the checked radio's image is shown. */
+.news-gallery-full {
+  display: none;
+  order: -1;
+  flex: 0 0 100%;
+  width: 100%;
+  border-radius: var(--border-radius);
+}
+
+.news-gallery-radio:checked + .news-gallery-full {
+  display: block;
+}
+
+/* Thumbs: up to five per flex row, wrapping. */
+.news-gallery-thumb {
+  flex: 0 0 calc((100% - 4 * var(--space-s)) / 5);
+  margin: 0;
+  cursor: pointer;
+}
+
+.news-gallery-thumb img {
+  display: block;
+  @include square-thumb;
+  border: 2px solid transparent;
+}
+
+/* The shown image's thumb is highlighted; a keyboard-focused radio outlines
+   it too. */
+.news-gallery-radio:checked + .news-gallery-full + .news-gallery-thumb img {
+  border-color: var(--color-secondary);
+}
+
+.news-gallery-radio:focus-visible
+  + .news-gallery-full
+  + .news-gallery-thumb
+  img {
+  @include focus-ring;
+}
+
+/* Order gallery.
+   The whole gallery is one form: each product card is a <label> wrapping a
+   hidden checkbox, and the floating cart is the submit button. Selection
+   highlighting and the live count are pure CSS (:checked, a counter, and
+   :has()), so the page runs no JavaScript. */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.order-gallery {
+  counter-reset: cart;
+}
+
+/* Cards.
+   The shared media-card layout: a grid of cards, each an image on top of a
+   body column with the item's name and detail lines. The order gallery wraps
+   a card in a selectable <label class="card order-card">; the news list in a
+   plain link (<a class="card news-card">). */
+
+.card-grid {
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.card {
+  position: relative;
+  @include stack-tight;
+  max-width: none;
+  margin: 0;
+  padding: var(--space-m);
+  font-weight: normal;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+  background: var(--color-bg);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.card:hover {
+  border-color: var(--color-secondary);
+}
+
+.card-image {
+  @include square-thumb;
+}
+
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.card-name {
+  font-weight: bold;
+}
+
+/* The order grid is a fieldset, so it clears the fieldset chrome. */
+.order-grid {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* Visually hidden but still focusable/checkable for keyboard + screen readers */
+.order-select {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.order-card-price {
+  color: var(--color-text-secondary);
+}
+
+.order-card-status {
+  font-size: smaller;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+/* Tick badge — revealed only when the card's checkbox is checked */
+.order-card-tick {
+  @include pinned-top-right;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.order-card-tick::after {
+  @include tick-mark;
+}
+
+.order-select:checked ~ .order-card-tick {
+  display: flex;
+}
+
+.order-card:has(.order-select:checked) {
+  border-color: var(--color-secondary);
+  box-shadow: var(--box-shadow) var(--color-secondary-accent);
+}
+
+.order-select:focus-visible ~ .order-card-tick,
+.order-card:has(.order-select:focus-visible) {
+  @include focus-ring;
+}
+
+/* Each checked product increments the cart counter read by .order-cart-count */
+.order-select:checked {
+  counter-increment: cart;
+}
+
+/* Unavailable products: dimmed and not selectable */
+.order-card--unavailable {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+/* Live availability (enhancement script): a card the current selection has
+   squeezed out — or that is sold out for the chosen date — dims like an
+   unavailable card while its state label explains why; the label is empty
+   (and hidden) for plainly selectable cards. */
+.order-card-state {
+  color: var(--color-secondary);
+  font-size: 0.85em;
+}
+
+.order-card-state:empty {
+  display: none;
+}
+
+.order-card[data-order-state="blocked"],
+.order-card[data-order-state="unavailable"] {
+  cursor: not-allowed;
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+/* The optional date field above the grid; highlighted when a selected item
+   needs a date before availability can be judged. */
+.order-date {
+  margin-bottom: var(--space-m);
+}
+
+.order-date-hint {
+  display: none;
+  color: var(--color-secondary);
+  font-size: 0.9em;
+}
+
+.order-date--needed .order-date-hint {
+  display: inline;
+}
+
+.order-date--needed input[type="date"] {
+  outline: 2px solid var(--color-link);
+}
+
+/* Floating cart — fixed bottom-left, last in the DOM so its CSS counter has
+   seen every checkbox. Hidden until at least one product is selected. */
+.order-cart {
+  position: fixed;
+  bottom: var(--space-m);
+  left: var(--space-m);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-s);
+  margin: 0;
+  box-shadow: var(--box-shadow) var(--color-shadow);
+}
+
+.order-cart-count::after {
+  content: counter(cart);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  border-radius: 1rem;
+  background: var(--color-bg);
+  color: var(--color-secondary);
+  font-weight: bold;
+}
+
+.order-gallery:not(:has(.order-select:checked)) .order-cart {
+  display: none;
+}
+
+/* Underneath the item grid — a second, non-floating submit for the same
+   form, for visitors who'd rather keep scrolling than reach for the fixed
+   cart button. Hidden until at least one product is selected, like the cart. */
+.order-continue {
+  display: block;
+  margin: var(--space-m) 0 0;
+}
+
+.order-gallery:not(:has(.order-select:checked)) .order-continue {
+  display: none;
+}
+
+/* Calendar availability checker — reuses the order page's hidden-checkbox
+   selection and floating cart button, but lays the listings out as a table. */
+.availability-checker {
+  margin-bottom: var(--space-m);
+}
+
+.availability-checker > summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.availability-checker-body {
+  padding-top: var(--space-s);
+}
+
+/* The selection form resets the shared cart counter and hides the floating
+   create button until at least one listing is ticked (mirrors .order-gallery). */
+.selectable-form {
+  counter-reset: cart;
+}
+
+.selectable-form:not(:has(.order-select:checked)) .order-cart {
+  display: none;
+}
+
+.availability-table th:first-child,
+.availability-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* A row's tick box: the .order-select checkbox itself is visually hidden
+   (1px, opacity 0) and absolutely positioned, so anchor it here. */
+.row-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+  /* Align by the box's middle, not its baseline: an empty tick box has no text
+     baseline but a ticked one does, and letting that shift the line box made the
+     row jiggle in height as it was selected/deselected. */
+  vertical-align: middle;
+}
+
+.row-select-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 2px solid var(--color-bg-secondary);
+  border-radius: var(--border-radius);
+}
+
+/* In dark mode the unchecked tick border (--color-bg-secondary) is the same
+   colour as the striped alternate rows, hiding the box until it's ticked. Use
+   the accent colour (which also fills the checked box) so the outline reads on
+   every row. */
+[data-theme="dark"] .row-select-tick {
+  border-color: var(--color-secondary);
+}
+
+.order-select:checked + .row-select-tick {
+  border-color: var(--color-secondary);
+  background: var(--color-secondary);
+  color: #fff;
+}
+
+.order-select:checked + .row-select-tick::after {
+  @include tick-mark;
+}
+
+.order-select:focus-visible + .row-select-tick {
+  @include focus-ring;
+}
+
+.availability-table tr:has(.order-select:checked) {
+  background: var(--color-secondary-accent);
+}
+
