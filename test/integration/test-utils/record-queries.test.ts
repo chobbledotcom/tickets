@@ -29,10 +29,10 @@ describeWithEnv("recordQueries", { db: true }, () => {
       expect(getDb().protocol).toBe(real.protocol);
 
       expect(seen).toEqual([
-        "SELECT ? AS n",
-        "SELECT ? AS n",
+        "SELECT ?1 AS n",
+        "SELECT ?1 AS n",
         "SELECT 3 AS n",
-        "batch[SELECT ? AS n]",
+        "batch[SELECT ?1 AS n]",
       ]);
     } finally {
       restore();

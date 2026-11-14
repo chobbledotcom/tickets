@@ -105,7 +105,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
     const execute = client.execute.bind(client);
     return stub(client, "execute", (statement: SqlStatement) =>
       statementSql(statement) ===
-      "DELETE FROM settings WHERE key = ? AND value = ?"
+      "DELETE FROM settings WHERE key = ?1 AND value = ?2"
         ? Promise.reject(new Error("lock release failed"))
         : execute(statement),
     );

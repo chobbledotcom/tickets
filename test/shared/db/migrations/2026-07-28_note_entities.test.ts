@@ -6,7 +6,7 @@ import noteEntities from "#db/migrations/2026-07-28_note_entities.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
 import { recreateTable, syncIndexes } from "#db/migrations/schema-sync.ts";
 import type { Migration, MigrationContext } from "#db/migrations/types.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -175,10 +175,10 @@ describeWithEnv(
       // What a finished table answers to each step, when the read that chose
       // to run them was a moment out of date.
       const finishedDatabase = () => ({
-        execute: (sql: string) =>
+        execute: (statement: SqlStatement) =>
           Promise.reject(
             new Error(
-              sql.startsWith("ALTER")
+              statement.sql.startsWith("ALTER")
                 ? "duplicate column name: entity_type"
                 : "no such column: attendee_id",
             ),
@@ -202,8 +202,8 @@ describeWithEnv(
         // Only this one statement fails, and not with an "already so" answer,
         // so each step's tolerance has to be about its own answer alone.
         const database = () => ({
-          execute: (sql: string) =>
-            sql.startsWith(failing)
+          execute: (statement: SqlStatement) =>
+            statement.sql.startsWith(failing)
               ? Promise.reject(new Error("database or disk is full"))
               : Promise.resolve({}),
         });

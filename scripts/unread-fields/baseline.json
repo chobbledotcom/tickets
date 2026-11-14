@@ -477,12 +477,6 @@
       "fields": ["entity_type"]
     }
   ],
-  "src/shared/db/numbered-statement.ts": [
-    {
-      "path": [{ "name": "SqlParameterToken" }],
-      "fields": ["sql"]
-    }
-  ],
   "src/shared/db/ordered-collection.ts": [
     {
       "path": [{ "name": "OrderedCollection" }, { "name": "nextMany" }, { "way": "()" }, { "way": "operation" }],

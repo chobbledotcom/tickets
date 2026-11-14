@@ -377,7 +377,7 @@ const readProjectedFigureTx = async (
 const figureBySubqueryTx =
   (subquery: (id: SqlStatement) => SqlStatement) =>
   (tx: TxScope, id: number): Promise<number> =>
-    readProjectedFigureTx(tx, subquery(sql`${id}`));
+    readProjectedFigureTx(tx, subquery(sql`${String(id)}`));
 
 /** What an attendee currently owes (−balanceOf(attendee)) read in-transaction. */
 export const attendeeOwedTx = figureBySubqueryTx(attendeeOwedSubquery);

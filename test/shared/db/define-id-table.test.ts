@@ -20,7 +20,7 @@ describe("defineIdTable", () => {
   test("carries the transactional builders defineTable guarantees", async () => {
     const statement = await table.insertStatement({ name: "Sprocket" });
     expect(statement.sql).toBe(
-      "INSERT INTO widgets (name) VALUES (?) RETURNING id",
+      "INSERT INTO widgets (name) VALUES (?1) RETURNING id",
     );
     expect(statement.args).toEqual(["Sprocket"]);
   });

@@ -85,6 +85,6 @@ export const balanceFinalizeStatements = (
     sessionId,
     paymentReference,
     [],
-    sql`${attendeeOwedSubquery(sql`${attendeeId}`)} = ${expectedAmount}`,
+    sql`${attendeeOwedSubquery(sql`${String(attendeeId)}`)} = ${expectedAmount}`,
     noRefundRunHolding(attendeeId),
   );

@@ -9,7 +9,7 @@ import {
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -202,9 +202,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER change_imported_member
          BEFORE INSERT ON group_listings
-         WHEN NEW.listing_id = ${first.id}
+         WHEN NEW.listing_id = ${sqlLiteral(first.id)}
          BEGIN
-           UPDATE listings SET listing_type = 'daily' WHERE id = ${first.id};
+           UPDATE listings SET listing_type = 'daily' WHERE id = ${sqlLiteral(first.id)};
          END`,
     );
 
@@ -227,8 +227,8 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER delete_imported_member
          BEFORE INSERT ON group_listings
-         WHEN NEW.listing_id = ${member.id}
-         BEGIN DELETE FROM listings WHERE id = ${member.id}; END`,
+         WHEN NEW.listing_id = ${sqlLiteral(member.id)}
+         BEGIN DELETE FROM listings WHERE id = ${sqlLiteral(member.id)}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),
@@ -266,7 +266,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     await execute(
       sql`CREATE TRIGGER delete_imported_parent
          AFTER INSERT ON listings
-         BEGIN DELETE FROM listings WHERE id = ${parent.id}; END`,
+         BEGIN DELETE FROM listings WHERE id = ${sqlLiteral(parent.id)}; END`,
     );
     const before = await Promise.all([
       countRows("listings"),

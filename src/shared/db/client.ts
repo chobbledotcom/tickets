@@ -233,7 +233,6 @@ export type StatementClient = Omit<
     mode?: TransactionMode,
   ) => Promise<ResultSet[]>;
   execute: (statement: SqlStatement) => Promise<ResultSet>;
-  migrate: (statements: SqlStatement[]) => Promise<ResultSet[]>;
   transaction: (mode?: TransactionMode) => Promise<StatementTransaction>;
 };
 

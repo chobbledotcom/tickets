@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb, queryAll } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { expectReservedRedirectWithTokens } from "#test-utils/assertions.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -23,7 +23,7 @@ describeWithEnv(
       await getDb().execute(
         sql`CREATE TRIGGER test_reject_free_answers
            BEFORE INSERT ON attendee_answers
-           WHEN NEW.answer_id = ${answerId}
+           WHEN NEW.answer_id = ${sqlLiteral(answerId)}
            BEGIN
              SELECT RAISE(ABORT, 'answers write failed');
            END`,

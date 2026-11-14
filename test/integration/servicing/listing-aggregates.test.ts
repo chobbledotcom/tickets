@@ -48,8 +48,8 @@ const createHoldAndInvalidate = async (quantity: number) => {
 
 describe("servicing §10 — tickets_count predicate excludes servicing by kind", () => {
   test("TICKET_COUNTS_PREDICATE gates on kind='attendee' (mutation: dropping it counts servicing as tickets)", () => {
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/kind\s*=\s*'attendee'/);
-    expect(TICKET_COUNTS_PREDICATE).toMatch(/quantity\s*>\s*0/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/kind\s*=\s*'attendee'/);
+    expect(TICKET_COUNTS_PREDICATE.sql).toMatch(/quantity\s*>\s*0/);
   });
 });
 

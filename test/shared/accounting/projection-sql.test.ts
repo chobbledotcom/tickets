@@ -22,6 +22,7 @@ import {
   signedSumCase,
 } from "#accounting/projection-sql.ts";
 import { sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 // Constants are imported (never hardcoded) so a rename of the kind/account
 // vocabulary updates the expected SQL here too. The SQL *structure* — column
@@ -30,7 +31,7 @@ import { sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
 
 describe("LEG_COLUMNS", () => {
   test("names the source and dest type/id columns", () => {
-    expect(LEG_COLUMNS).toEqual({
+    expect(sqlText(LEG_COLUMNS)).toEqual({
       dest: { id: "dest_id", type: "dest_type" },
       source: { id: "source_id", type: "source_type" },
     });

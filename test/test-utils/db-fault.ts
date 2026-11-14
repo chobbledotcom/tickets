@@ -1,5 +1,5 @@
 import { execute } from "#db/client.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
  * Run `body` with one database fault installed — a trigger that makes a
@@ -90,8 +90,8 @@ export const withConcurrentDoorDrain = <T>(
       BEGIN
         UPDATE listing_attendees
         SET checked_in = checked_in + 1
-        WHERE attendee_id = ${attendeeId}
-          AND listing_id = ${listingId}
+        WHERE attendee_id = ${sqlLiteral(attendeeId)}
+          AND listing_id = ${sqlLiteral(listingId)}
           AND checked_in < quantity;
       END`,
     CONCURRENT_DOOR_DRAIN,

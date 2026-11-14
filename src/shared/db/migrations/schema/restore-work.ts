@@ -9,17 +9,14 @@ export interface RestoreDeferredIndex {
   sql: SqlStatement;
 }
 
-const NON_UNIQUE_INDEX_PREFIX = "CREATE INDEX IF NOT EXISTS ";
+const NON_UNIQUE_INDEX = /^CREATE INDEX IF NOT EXISTS (.+?) ON /;
+
+/** A unique index stays in place for restore, so it gives null here. */
 const restoreDeferredIndexOrNull = (
   statement: SqlStatement,
 ): RestoreDeferredIndex | null => {
-  const text = statement.sql;
-  if (!text.startsWith(NON_UNIQUE_INDEX_PREFIX)) return null;
-  const nameEnd = text.indexOf(" ON ", NON_UNIQUE_INDEX_PREFIX.length);
-  return {
-    name: text.slice(NON_UNIQUE_INDEX_PREFIX.length, nameEnd),
-    sql: statement,
-  };
+  const found = NON_UNIQUE_INDEX.exec(statement.sql);
+  return found === null ? null : { name: found[1]!, sql: statement };
 };
 
 /** Non-unique indexes rebuilt after bulk restore rows are loaded. */

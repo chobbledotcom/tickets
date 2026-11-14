@@ -121,8 +121,8 @@ describeWithEnv("API key records", { db: true }, () => {
         await getApiKeysForUser(1);
         await getApiKeyForUser(id, 1);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
-          "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ? ORDER BY id ASC",
-          "SELECT id, name FROM api_keys WHERE id = ? AND user_id = ? LIMIT ?",
+          "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ?1 ORDER BY id ASC",
+          "SELECT id, name FROM api_keys WHERE id = ?1 AND user_id = ?1 LIMIT ?1",
         ]);
       });
     });

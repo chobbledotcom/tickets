@@ -71,7 +71,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const update = statements[0];
     if (!update) throw new Error("Expected the balance finalize update");
 
-    assertStringIncludes(update.sql, "SET attendee_id = ?,");
+    assertStringIncludes(update.sql, "SET attendee_id = ?1,");
     expect(update.args[0]).toBe(7);
   });
 

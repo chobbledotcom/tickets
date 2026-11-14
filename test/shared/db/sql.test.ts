@@ -4,6 +4,7 @@ import {
   type SqlSlot,
   sql,
   sqlCommas,
+  sqlFromDump,
   sqlJoin,
   sqlList,
   sqlLiteral,
@@ -110,6 +111,60 @@ describe("sql", () => {
     });
   });
 
+  test("refuses a slot inside a quoted SQL literal", () => {
+    expect(() => sql`SELECT 'id_${7}'`).toThrow(
+      "A slot sits inside a quoted SQL literal: SELECT 'id_{slot}'",
+    );
+    expect(() => sql`SELECT ${1}, 'a', 'b${sqlLiteral("c")}'`).toThrow(
+      "A slot sits inside a quoted SQL literal",
+    );
+  });
+
+  test("takes a slot after a closed literal and after a doubled quote", () => {
+    expect(
+      rendered(sql`SELECT 'a', 'it''s', ${1} WHERE note = '' AND id = ${2}`),
+    ).toEqual({
+      args: [1, 2],
+      sql: "SELECT 'a', 'it''s', ?1 WHERE note = '' AND id = ?2",
+    });
+  });
+
+  test("reads an apostrophe in a SQL comment as a comment", () => {
+    expect(
+      sql`SELECT 1 -- the row's id
+ WHERE id = ${1} /* it's */ AND n = ${2}`.args,
+    ).toEqual([1, 2]);
+  });
+
+  test("reads comment marks inside a literal as text", () => {
+    expect(() => sql`SELECT '--', '/*${1}'`).toThrow(
+      "A slot sits inside a quoted SQL literal",
+    );
+    expect(sql`SELECT '--', '/*', ${1}`.args).toEqual([1]);
+  });
+
+  test("a comment ends where SQL says it ends", () => {
+    expect(
+      () => sql`SELECT 1 -- note
+, 'a${1}'`,
+    ).toThrow("A slot sits inside a quoted SQL literal");
+    expect(() => sql`SELECT 1 /* a * b / c */, 'a${1}'`).toThrow(
+      "A slot sits inside a quoted SQL literal",
+    );
+    expect(sql`SELECT 1 /* it's * / still */ + ${1}`.args).toEqual([1]);
+  });
+
+  test("leaves a quote after the last slot alone", () => {
+    expect(sql`SELECT ${1} || 'tail`.sql).toBe("SELECT ?1 || 'tail");
+  });
+
+  test("refuses to become plain text", () => {
+    const statement = sql`id = ${9}`;
+    expect(() => `SELECT 1 WHERE ${statement}`).toThrow(
+      "A statement is not text. Put it into a sql template.",
+    );
+  });
+
   for (const [name, slot, named] of [
     ["an array", [1, 2], "an array"],
     ["a plain object", { args: [], sql: "DROP TABLE x" }, "object"],
@@ -161,6 +216,13 @@ describe("sqlList", () => {
       args: [4, 8],
       sql: "SELECT id FROM t WHERE id IN (?1, ?2, ?1)",
     });
+  });
+
+  test("binds a list too long for one function call", () => {
+    const values = Array.from({ length: 200_000 }, (_value, index) => index);
+    const inner = sqlList(values);
+    expect(sql`SELECT ${inner}`.args).toHaveLength(200_000);
+    expect(sqlJoin([inner, inner], sql` | `).args).toHaveLength(200_000);
   });
 
   test("gives empty text for an empty list", () => {
@@ -252,5 +314,12 @@ describe("sqlLiteral", () => {
     expect(
       rendered(sql`CREATE INDEX i ON t (a) WHERE kind = ${sqlLiteral("sale")}`),
     ).toEqual({ args: [], sql: "CREATE INDEX i ON t (a) WHERE kind = 'sale'" });
+  });
+});
+
+describe("sqlFromDump", () => {
+  test("keeps a dump statement as its own text, with no argument", () => {
+    const text = "INSERT INTO settings (key, value) VALUES ('a?1', 'it''s')";
+    expect(rendered(sqlFromDump(text))).toEqual({ args: [], sql: text });
   });
 });

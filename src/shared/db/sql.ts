@@ -58,6 +58,11 @@ const piecesOfSlot = (slot: SqlSlot): readonly Piece[] => {
   );
 };
 
+/** A statement put into a plain string is a mistake: it loses its values. */
+const refuseToBeText = (): never => {
+  throw new Error("A statement is not text. Put it into a sql template.");
+};
+
 /** Number the slots and collect the arguments. */
 const statementOf = (pieces: readonly Piece[]): SqlStatement => {
   const args: InValue[] = [];
@@ -76,8 +81,56 @@ const statementOf = (pieces: readonly Piece[]): SqlStatement => {
     text += slot;
   }
   const statement = { args, sql: text } as SqlStatement;
+  Object.defineProperty(statement, "toString", { value: refuseToBeText });
   piecesBehind.set(statement, pieces);
   return statement;
+};
+
+/** Add pieces one at a time: a spread of a long list overflows the stack. */
+const appendPieces = (pieces: Piece[], more: readonly Piece[]): void => {
+  for (const piece of more) pieces.push(piece);
+};
+
+/** Where a reader of SQL text is: in SQL, in a quoted literal, or in a comment. */
+type TextPlace = "sql" | "literal" | "line comment" | "block comment";
+
+/** What each place does when the text at `at` starts with `opens`: the place
+ * it moves to. A doubled quote leaves a literal and enters it again. */
+const PLACE_MOVES: Record<TextPlace, readonly [string, TextPlace][]> = {
+  "block comment": [["*/", "sql"]],
+  "line comment": [["\n", "sql"]],
+  literal: [["'", "sql"]],
+  sql: [
+    ["'", "literal"],
+    ["--", "line comment"],
+    ["/*", "block comment"],
+  ],
+};
+
+/** The place a reader is in after `text`, when it started in `place`. */
+const placeAfter = (text: string, place: TextPlace): TextPlace => {
+  let now = place;
+  let at = 0;
+  while (at < text.length) {
+    const move = PLACE_MOVES[now].find(([opens]) => text.startsWith(opens, at));
+    at += move ? move[0].length : 1;
+    if (move) now = move[1];
+  }
+  return now;
+};
+
+/** Refuse a slot inside a quoted SQL literal. SQLite reads `'?1'` as text, so
+ * the value would never bind. */
+const refuseSlotInQuotes = (strings: TemplateStringsArray): void => {
+  let place: TextPlace = "sql";
+  for (const text of strings.slice(0, -1)) {
+    place = placeAfter(text, place);
+    if (place === "literal") {
+      throw new Error(
+        `A slot sits inside a quoted SQL literal: ${strings.join("{slot}")}`,
+      );
+    }
+  }
 };
 
 /** SQL from a template: text stays text, values bind, statements splice. */
@@ -85,9 +138,11 @@ export const sql = (
   strings: TemplateStringsArray,
   ...slots: readonly SqlSlot[]
 ): SqlStatement => {
+  refuseSlotInQuotes(strings);
   const pieces: Piece[] = [strings[0]!];
   for (const [index, slot] of slots.entries()) {
-    pieces.push(...piecesOfSlot(slot), strings[index + 1]!);
+    appendPieces(pieces, piecesOfSlot(slot));
+    pieces.push(strings[index + 1]!);
   }
   return statementOf(pieces);
 };
@@ -99,8 +154,8 @@ export const sqlJoin = (
 ): SqlStatement => {
   const pieces: Piece[] = [];
   for (const [index, part] of parts.entries()) {
-    if (index > 0) pieces.push(...piecesBehind.get(separator)!);
-    pieces.push(...piecesBehind.get(part)!);
+    if (index > 0) appendPieces(pieces, piecesBehind.get(separator)!);
+    appendPieces(pieces, piecesBehind.get(part)!);
   }
   return statementOf(pieces);
 };

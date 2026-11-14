@@ -8,7 +8,7 @@ import {
   setN1GuardNotifyOnly,
   TRANSACTION_ROUNDTRIP_THRESHOLD,
 } from "#db/query-log.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   getSubrequestRemaining,
   runWithSubrequestBudget,
@@ -48,7 +48,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
     withRequestContext(() =>
       withTransaction(async (tx) => {
         for (let i = 0; i < executes; i++) {
-          await tx.execute(sql`SELECT ${i}`);
+          await tx.execute(sql`SELECT ${sqlLiteral(i)}`);
         }
         await tx.batch([sql`SELECT 100`, sql`SELECT 101`]);
       }),
@@ -65,7 +65,7 @@ describeWithEnv("db > client transaction", { db: true }, () => {
       withRequestContext(() =>
         withTransaction(async (tx) => {
           for (let i = 0; i <= TRANSACTION_ROUNDTRIP_THRESHOLD; i++) {
-            await tx.execute(sql`SELECT ${i}`);
+            await tx.execute(sql`SELECT ${sqlLiteral(i)}`);
           }
         }),
       ),

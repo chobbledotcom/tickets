@@ -23,6 +23,7 @@ import {
   sqlCommas,
   sqlJoin,
   sqlList,
+  sqlLiteral,
 } from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
@@ -149,8 +150,8 @@ export const removeGroupPricesStatement = (
     sql` OR `,
   );
   return sql`DELETE FROM listing_prices WHERE listing_id IN (${sqlList(listingIds)}) AND (
-        (price_type = ${PRICE_TYPE_GROUP} AND price_id IN (${sqlList(idText)}))
-        OR (price_type = ${PRICE_TYPE_GROUP_DAY} AND (${dayPriceOfGroup}))
+        (price_type = ${sqlLiteral(PRICE_TYPE_GROUP)} AND price_id IN (${sqlList(idText)}))
+        OR (price_type = ${sqlLiteral(PRICE_TYPE_GROUP_DAY)} AND (${dayPriceOfGroup}))
       )`;
 };
 

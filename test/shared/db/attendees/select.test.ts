@@ -186,11 +186,11 @@ describe("attendee filter and order SQL", () => {
 
   test("a single id is a one-element IN list — one path for one or many", () => {
     const one = attendeeFromWhere("left", { attendeeIds: [9] });
-    assertStringIncludes(one.from, "attendee.id IN (?)");
+    assertStringIncludes(one.from, "attendee.id IN (?1)");
     expect(one.args).toEqual([9]);
 
     const oneListing = attendeeFromWhere("inner", { listingIds: [5] });
-    assertStringIncludes(oneListing.from, "listingAttendee.listing_id IN (?)");
+    assertStringIncludes(oneListing.from, "listingAttendee.listing_id IN (?1)");
     expect(oneListing.args).toEqual([5]);
   });
 
@@ -208,11 +208,14 @@ describe("attendee filter and order SQL", () => {
 
   test("an id list expands to one placeholder each, in order", () => {
     const ids = attendeeFromWhere("inner", { attendeeIds: [3, 1, 2] });
-    assertStringIncludes(ids.from, "attendee.id IN (?, ?, ?)");
+    assertStringIncludes(ids.from, "attendee.id IN (?1, ?2, ?3)");
     expect(ids.args).toEqual([3, 1, 2]);
 
     const listings = attendeeFromWhere("inner", { listingIds: [7, 8] });
-    assertStringIncludes(listings.from, "listingAttendee.listing_id IN (?, ?)");
+    assertStringIncludes(
+      listings.from,
+      "listingAttendee.listing_id IN (?1, ?2)",
+    );
     expect(listings.args).toEqual([7, 8]);
   });
 
@@ -234,7 +237,7 @@ describe("attendee filter and order SQL", () => {
     });
     assertStringIncludes(
       from,
-      "(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?)",
+      "(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?1)",
     );
     expect(args).toEqual(["2026-07-12"]);
   });
@@ -249,10 +252,10 @@ describe("attendee filter and order SQL", () => {
     expectIncludesAll(from, [
       "JOIN listings AS listing ON listingAttendee.listing_id = listing.id",
       "listing.listing_type = 'daily'",
-      "listingAttendee.start_at < ?",
-      "listingAttendee.end_at > ?",
+      "listingAttendee.start_at < ?1",
+      "listingAttendee.end_at > ?2",
     ]);
-    // before fills the `< ?` bound, after the `> ?` bound.
+    // before fills the `< ?3` bound, after the `> ?4` bound.
     expect(args).toEqual(["2026-07-13T00:00:00Z", "2026-07-12T00:00:00Z"]);
   });
 
@@ -262,7 +265,7 @@ describe("attendee filter and order SQL", () => {
     });
     assertStringIncludes(
       from,
-      "attendee.id IN (SELECT newest.id FROM attendees AS newest LIMIT ?)",
+      "attendee.id IN (SELECT newest.id FROM attendees AS newest LIMIT ?1)",
     );
     expect(args).toEqual([10]);
   });
@@ -338,13 +341,13 @@ describe("attendee SELECT — exact generated SQL", () => {
         "created_desc",
       ).from,
     ).toBe(
-      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND listingAttendee.listing_id IN (?, ?) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?) ORDER BY attendee.created DESC",
+      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND listingAttendee.listing_id IN (?1, ?2) AND listingAttendee.quantity > 0 AND (listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ?3) ORDER BY attendee.created DESC",
     );
   });
 
   test("a single-attendee LEFT read omits ORDER BY entirely", () => {
     expect(attendeeFromWhere("left", { attendeeIds: [1] }).from).toBe(
-      "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND attendee.id IN (?)",
+      "FROM attendees AS attendee LEFT JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id WHERE attendee.kind = 'attendee' AND attendee.id IN (?1)",
     );
   });
 
@@ -360,7 +363,7 @@ describe("attendee SELECT — exact generated SQL", () => {
         "upcoming",
       ).from,
     ).toBe(
-      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ? AND listingAttendee.end_at > ? ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
+      "FROM attendees AS attendee JOIN listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id JOIN listings AS listing ON listingAttendee.listing_id = listing.id WHERE attendee.kind IN ('attendee', 'servicing') AND listingAttendee.quantity > 0 AND listing.listing_type = 'daily' AND listingAttendee.start_at < ?1 AND listingAttendee.end_at > ?2 ORDER BY COALESCE(listingAttendee.start_at, attendee.created), attendee.id",
     );
   });
 });

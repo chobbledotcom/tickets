@@ -11,7 +11,7 @@ import { it as test } from "@std/testing/bdd";
 import { claimOutstandingNotificationFlags } from "#db/attendees/notification-flags.ts";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -264,7 +264,7 @@ describeWithEnv(
       // line for this attendee is the resend's.
       await execute(
         sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${attendee.id}
+       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
        END`,
@@ -308,14 +308,14 @@ describeWithEnv(
       await addWebhook(listing.id);
       await execute(
         sql`CREATE TRIGGER reject_resend_activity BEFORE INSERT ON activity_log
-       WHEN NEW.attendee_id = ${attendee.id}
+       WHEN NEW.attendee_id = ${sqlLiteral(attendee.id)}
        BEGIN
          SELECT RAISE(ABORT, 'activity rejected');
        END`,
       );
       await execute(
         sql`CREATE TRIGGER reject_flag_restore BEFORE UPDATE ON attendees
-       WHEN NEW.id = ${attendee.id}
+       WHEN NEW.id = ${sqlLiteral(attendee.id)}
          AND (NEW.email_pending > OLD.email_pending
            OR NEW.webhooks_pending > OLD.webhooks_pending)
        BEGIN

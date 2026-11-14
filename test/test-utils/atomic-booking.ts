@@ -1,5 +1,5 @@
 import { getDb } from "#db/client.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 const withBookingWriteTrigger = async (
   triggerName: string,
@@ -11,7 +11,7 @@ const withBookingWriteTrigger = async (
   await db.execute(
     sql`CREATE TRIGGER ${sqlName(triggerName)}
        BEFORE INSERT ON listing_attendees
-       WHEN NEW.listing_id = ${listingId}
+       WHEN NEW.listing_id = ${sqlLiteral(listingId)}
        BEGIN
          ${action}
        END`,

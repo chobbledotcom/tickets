@@ -322,7 +322,7 @@ describeWithEnv("db > client", { db: true }, () => {
       table: "sessions",
       value: 7,
     });
-    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?");
+    expect(stmt.sql).toBe("DELETE FROM sessions WHERE user_id = ?1");
     expect(stmt.args).toEqual([7]);
   });
 
@@ -331,7 +331,7 @@ describeWithEnv("db > client", { db: true }, () => {
       email: "a@b.com",
       name: "Alice",
     });
-    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?, ?)");
+    expect(stmt.sql).toBe("INSERT INTO users (email, name) VALUES (?1, ?2)");
     expect(stmt.args).toEqual(["a@b.com", "Alice"]);
   });
 
@@ -344,7 +344,7 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(stmt.sql).toBe(
       "INSERT INTO listing_attendees" +
         " (attendee_id, listing_id, quantity)" +
-        " VALUES (last_insert_rowid(), ?, ?)",
+        " VALUES (last_insert_rowid(), ?1, ?2)",
     );
     expect(stmt.args).toEqual([1, 2]);
   });
@@ -358,7 +358,7 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(stmt.sql).toBe(
       "INSERT INTO payments" +
         " (attendee_id, created, id)" +
-        " VALUES (?, ?, ?)",
+        " VALUES (?1, ?2, ?3)",
     );
     expect(stmt.args).toEqual([null, "now", "p1"]);
   });
@@ -382,7 +382,7 @@ describeWithEnv("db > client", { db: true }, () => {
       { id: 4, kind: "attendee" },
     );
     expect(stmt.sql).toBe(
-      "UPDATE attendees SET pii_blob = ? WHERE id = ? AND kind = ?",
+      "UPDATE attendees SET pii_blob = ?1 WHERE id = ?2 AND kind = ?3",
     );
     expect(stmt.args).toEqual(["encrypted", 4, "attendee"]);
   });
@@ -396,7 +396,7 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(stmt.sql).toBe(
       "UPDATE listing_attendees" +
         " SET attachment_downloads = attachment_downloads + 1" +
-        " WHERE attendee_id = ? AND listing_id = ?",
+        " WHERE attendee_id = ?1 AND listing_id = ?2",
     );
     expect(stmt.args).toEqual([1, 2]);
   });
@@ -404,7 +404,7 @@ describeWithEnv("db > client", { db: true }, () => {
   test("update joins multiple SET assignments with commas", () => {
     const stmt = update("listings", { name: "n", slug: "s" }, { id: 3 });
     expect(stmt.sql).toBe(
-      "UPDATE listings SET name = ?, slug = ? WHERE id = ?",
+      "UPDATE listings SET name = ?1, slug = ?2 WHERE id = ?3",
     );
     expect(stmt.args).toEqual(["n", "s", 3]);
   });
@@ -416,8 +416,8 @@ describeWithEnv("db > client", { db: true }, () => {
       { start_agent_id: 7 },
     );
     expect(stmt.sql).toBe(
-      "UPDATE listing_attendees SET start_agent_id = ?" +
-        " WHERE start_agent_id = ?",
+      "UPDATE listing_attendees SET start_agent_id = ?1" +
+        " WHERE start_agent_id = ?2",
     );
     expect(stmt.args).toEqual([null, 7]);
   });

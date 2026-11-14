@@ -235,8 +235,8 @@ describeWithEnv("db > unanswered sumup money", { db: true }, () => {
     const values = Array.from(
       { length: SCAN_LIMIT + 1 },
       (_, index) =>
-        sql`('idx_bulk_${String(index).padStart(2, "0")}', '', '', 'co_bulk_${index}',
-          '2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z', 'owed', '${FUTURE}')`,
+        sql`(${`idx_bulk_${String(index).padStart(2, "0")}`}, '', '', ${`co_bulk_${index}`},
+          ${`2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`}, 'owed', ${FUTURE})`,
     );
     await execute(
       sql`INSERT INTO sumup_checkouts

@@ -21,6 +21,7 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 /** Import a listing that asks for a built site, answering the refusal
  * message the import raises. */
@@ -338,7 +339,7 @@ describeWithEnv(
       // Every member appears in the single group_listings insert (3 args each:
       // group_id, listing_id, quantity — the flat price override, when present,
       // lives in the separate listing_prices insert).
-      expect(statements[0]!.args.length).toBe(40 * 3);
+      expect(placed(statements[0]!).args.length).toBe(40 * 3);
     });
   },
 );

@@ -207,7 +207,6 @@ export const getAttendeesPage = async ({
   // The inner subquery pages the ATTENDEE ids (grouped, so paging counts
   // attendees not lines); getAttendees then returns every booking line for
   // those attendees.
-
   const rows = await loadAttendeeRows({
     order: oldestFirst ? "id_asc" : "id_desc",
     where: {

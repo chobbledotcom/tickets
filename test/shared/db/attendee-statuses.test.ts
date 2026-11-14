@@ -15,7 +15,7 @@ import {
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -300,7 +300,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     await getDb().execute(
       sql`CREATE TRIGGER fail_candidate_status_update
        BEFORE UPDATE ON attendee_statuses
-       WHEN NEW.id = ${candidate.id}
+       WHEN NEW.id = ${sqlLiteral(candidate.id)}
        BEGIN
          SELECT RAISE(ABORT, 'candidate update failed');
        END`,

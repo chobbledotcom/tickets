@@ -23,6 +23,7 @@ import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -34,7 +35,7 @@ const boundValue = (
     .slice(statement.sql.indexOf("(") + 1, statement.sql.indexOf(")"))
     .split(",")
     .map((name) => name.trim());
-  return statement.args[columns.indexOf(column)];
+  return placed(statement).args[columns.indexOf(column)];
 };
 
 describe("accounting > rows > insertStatement", () => {
@@ -90,9 +91,10 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
     );
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    assertStringIncludes(built.sql, "CAST(MAX(id) + ?");
-    expect(built.sql.indexOf("CAST(MAX(id) + ?")).toBe(
-      built.sql.lastIndexOf("CAST(MAX(id) + ?"),
+    const text = placed(built).sql;
+    assertStringIncludes(text, "CAST(MAX(id) + ?");
+    expect(text.indexOf("CAST(MAX(id) + ?")).toBe(
+      text.lastIndexOf("CAST(MAX(id) + ?"),
     );
     assertArrayIncludes(built.args, [7]); // the subquery's bound arg
     assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal

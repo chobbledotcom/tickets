@@ -271,7 +271,7 @@ describe("payment > declared refund authority lifecycle", () => {
       "charge.refund_state_name = 'observing' OR " +
       "charge.refund_state_name = 'ready' OR " +
       "charge.refund_state_name = 'send_armed')";
-    expect(refundAuthorityWorkSql("charge.")).toBe(work);
-    expect(refundAuthorityPrunableSql("charge.")).toBe(`NOT ${work}`);
+    expect(refundAuthorityWorkSql("charge.").sql).toBe(work);
+    expect(refundAuthorityPrunableSql("charge.").sql).toBe(`NOT ${work}`);
   });
 });

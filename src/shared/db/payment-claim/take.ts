@@ -14,7 +14,7 @@ import {
   paymentReferencesByIndex,
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import {
   type ClaimDecision,
   claimLeaseMs,
@@ -138,7 +138,7 @@ const readClaimableRows = async (
     tx,
     sql`attendee_id NOT IN (${sqlList(attendeeIds)})
        AND payment_reference_index IN (${sqlList(indexes)})
-     LIMIT ${MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1}`,
+     LIMIT ${sqlLiteral(MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1)}`,
   );
   return { own, sharing };
 };

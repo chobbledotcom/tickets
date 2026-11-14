@@ -1,5 +1,5 @@
 import { queryAll } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 
 /** Maximum payment-reference rows one attendee refund can open. */
 export const MAX_REFUND_REFERENCES_PER_ATTENDEE = 10;
@@ -56,7 +56,7 @@ export const loadSelectedPaymentReferenceRows = (
               payment_reference_index, protected_state, refund_state_name,
               processed_at, 0 AS unindexed_history, reference_number
          FROM numberedReference
-        WHERE reference_number <= ${MAX_REFUND_REFERENCES_PER_ATTENDEE + 1}
+        WHERE reference_number <= ${sqlLiteral(MAX_REFUND_REFERENCES_PER_ATTENDEE + 1)}
        UNION ALL
        SELECT attendee_id, '', '', '', '', NULL, '', 1, 0
          FROM selectedPayment

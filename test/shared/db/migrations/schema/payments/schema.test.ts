@@ -5,9 +5,10 @@ import { paymentTables } from "#db/migrations/schema/payments/index.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { jsonHash } from "#test-utils/hash.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete payment aggregate schema declaration exact", async () => {
-  expect(await jsonHash(paymentTables)).toBe(
+  expect(await jsonHash(sqlText(paymentTables))).toBe(
     "d747ecf9924c30ecbaccd2c4e1f6020fa8bd8931c97975f576a50caf222f4d60",
   );
 });
@@ -24,7 +25,7 @@ describeWithEnv("db > payment aggregate indexes", { db: true }, () => {
           AND name NOT LIKE 'sqlite_autoindex%'
         ORDER BY name`,
     );
-    expect(result.rows.map((row) => row.name)).toEqual([
+    expect(sqlText(result.rows.map((row) => row.name))).toEqual([
       "idx_payment_case_decisions_retry",
       "idx_payment_case_decisions_revision",
       "idx_payment_cases_alert",

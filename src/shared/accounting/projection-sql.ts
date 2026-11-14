@@ -34,6 +34,8 @@ export const LEG_COLUMNS = {
  * side. `type` is the account type (`'attendee'`, `'revenue'`, …). `idExpr` is
  * the SQL for the account id in the surrounding query. Ledger ids are stored as
  * TEXT, so the id expression is CAST so an integer column still matches.
+ * A bound id must be text. libsql binds a number as a float, and the CAST of a
+ * float gives `5.0`, which matches no account.
  */
 export const accountPredicate = (
   role: "source" | "dest",

@@ -33,7 +33,7 @@ import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
@@ -131,7 +131,7 @@ const flagStatement =
     value: PendingNotificationFlag,
   ): ((tokenIndex: string) => SqlStatement) =>
   (tokenIndex) =>
-    sql`UPDATE attendees SET ${sqlName(column)} = ${value}
+    sql`UPDATE attendees SET ${sqlName(column)} = ${sqlLiteral(value)}
           WHERE ticket_token_index = ${tokenIndex}`;
 
 export type PaidBookingTail = {

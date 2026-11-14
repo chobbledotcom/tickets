@@ -101,6 +101,8 @@ type OrderRow = {
   listing_name: EnvKeyEncrypted | null;
 };
 
+// quantity > 0: a no-quantity sentinel line is not an order line. The pay page
+// must show, and check out against, a real product, never a lower-id ghost.
 const attendeeOrderRowsStatement = (
   attendeeId: number,
 ): SqlStatement => sql`SELECT listingAttendee.listing_id,
@@ -194,9 +196,14 @@ export const settleAttendeeBalance = async (
   // atomic guard: both writes below fire only while they still owe exactly
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
-  const owed = attendeeOwedSubquery(sql`${attendeeId}`);
+  const owed = attendeeOwedSubquery(sql`${String(attendeeId)}`);
   const results = await executeBatchWithResults([
+    // Verdict (first statement): a harmless self-update while they still owe
+    // the expected amount. A mismatched or already-settled balance matches 0
+    // rows.
     sql`UPDATE attendees SET status_id = status_id WHERE id = ${attendeeId} AND ${owed} = ${expectedAmount}`,
+    // Lifecycle move: only reservations advance to the paid default. Other
+    // statuses are operator-owned and stay put once their balance is cleared.
     sql`UPDATE attendees SET status_id = COALESCE(${paid.id}, status_id)
              WHERE id = ${attendeeId}
                AND status_id IN (

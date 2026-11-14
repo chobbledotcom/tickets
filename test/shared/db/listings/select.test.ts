@@ -47,7 +47,7 @@ describe("the listing reader's statement", () => {
 
   test("filters by id with one placeholder per id", () => {
     const { sql, args } = listingReader.statement({ where: { ids: [7, 9] } });
-    expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.id IN (?, ?)`);
+    expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.id IN (?1, ?2)`);
     expect(args).toEqual([7, 9]);
   });
 
@@ -61,7 +61,7 @@ describe("the listing reader's statement", () => {
     const { sql, args } = listingReader.statement({
       where: { slugIndexes: ["abc"] },
     });
-    expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.slug_index IN (?)`);
+    expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.slug_index IN (?1)`);
     expect(args).toEqual(["abc"]);
   });
 
@@ -84,7 +84,7 @@ describe("the listing reader's statement", () => {
       "json_group_array(groupListing.group_id) AS group_ids",
     );
     expect(tail(sql)).toBe(
-      `${GROUPS_FROM} WHERE groupListing.group_id IN (?, ?) GROUP BY listing.id`,
+      `${GROUPS_FROM} WHERE groupListing.group_id IN (?1, ?2) GROUP BY listing.id`,
     );
     expect(args).toEqual([3, 4]);
   });
@@ -119,8 +119,8 @@ describe("the listing reader's statement", () => {
       where: { activeOnly: true, ids: [5], inGroups: [8] },
     });
     expect(tail(sql)).toBe(
-      `${GROUPS_FROM} WHERE listing.id IN (?)` +
-        " AND groupListing.group_id IN (?) AND listing.active = 1" +
+      `${GROUPS_FROM} WHERE listing.id IN (?1)` +
+        " AND groupListing.group_id IN (?2) AND listing.active = 1" +
         " GROUP BY listing.id",
     );
     expect(args).toEqual([5, 8]);
@@ -142,7 +142,7 @@ describe("the listing reader's statement", () => {
       where: { inGroups: [1] },
     });
     expect(tail(sql)).toBe(
-      `${GROUPS_FROM} WHERE groupListing.group_id IN (?)` +
+      `${GROUPS_FROM} WHERE groupListing.group_id IN (?1)` +
         " GROUP BY listing.id ORDER BY listing.created DESC, listing.id DESC",
     );
   });

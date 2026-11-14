@@ -11,28 +11,32 @@ import {
   sortOrderColumn,
   statefulColumns,
 } from "#db/migrations/schema/columns.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 describe("shared schema columns", () => {
   test("the attendee column names the attendee and holds a whole number", () => {
-    expect(attendeeIdColumn).toEqual(["attendee_id", "INTEGER NOT NULL"]);
+    expect(sqlText(attendeeIdColumn)).toEqual([
+      "attendee_id",
+      "INTEGER NOT NULL",
+    ]);
   });
 
   test("the dated row header is its own id and when it was made", () => {
-    expect(datedRowColumns).toEqual([
+    expect(sqlText(datedRowColumns)).toEqual([
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
       ["created", "TEXT NOT NULL"],
     ]);
   });
 
   test("the list position starts at zero", () => {
-    expect(sortOrderColumn).toEqual([
+    expect(sqlText(sortOrderColumn)).toEqual([
       "sort_order",
       "INTEGER NOT NULL DEFAULT 0",
     ]);
   });
 
   test("the slug-named entity header is id, slug, its blind index, and name", () => {
-    expect(slugNamedEntityColumns).toEqual([
+    expect(sqlText(slugNamedEntityColumns)).toEqual([
       ["id", "INTEGER PRIMARY KEY AUTOINCREMENT"],
       ["slug", "TEXT NOT NULL"],
       ["slug_index", "TEXT NOT NULL"],
@@ -41,7 +45,7 @@ describe("shared schema columns", () => {
   });
 
   test("the item link is the polymorphic reference plus its sort order", () => {
-    expect(itemLinkColumns).toEqual([
+    expect(sqlText(itemLinkColumns)).toEqual([
       ["item_type", "TEXT NOT NULL"],
       ["item_id", "INTEGER NOT NULL"],
       ["sort_order", "INTEGER NOT NULL DEFAULT 0"],
@@ -49,7 +53,7 @@ describe("shared schema columns", () => {
   });
 
   test("the stateful tail is the state word and the creation time", () => {
-    expect(statefulColumns).toEqual([
+    expect(sqlText(statefulColumns)).toEqual([
       ["state", "TEXT NOT NULL"],
       ["created_at", "TEXT NOT NULL"],
     ]);
