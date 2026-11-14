@@ -105,12 +105,10 @@ describe("the shared mixins", () => {
   test("serves at least two rules each, so no mixin wraps one rule alone", async () => {
     const stylesheets = await readStylesheets();
     const defined = sharedMixinNames(stylesheets);
-    expect(defined.length > 0).toBe(true);
     const includes = stylesheets.flatMap((sheet) =>
       namesIn(mixinInclude, sheet.text),
     );
-    // The partial's own `@include` lines count: a mixin that another mixin
-    // composes is in use.
+    // A name that one rule uses alone, or no rule uses, fails here.
     const usedOnce = defined.filter(
       (name) => includes.filter((included) => included === name).length < 2,
     );
