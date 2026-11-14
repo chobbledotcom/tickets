@@ -9,7 +9,6 @@
   "statuses.flags_header": "Flags",
   "statuses.move_up_title": "Move up",
   "statuses.move_down_title": "Move down",
-  "statuses.form_title_edit": "Edit Attendee Status",
   "statuses.form_title_add": "Add Attendee Status",
   "statuses.form_reservation_checkbox": "This is a reservation — collect a deposit now, balance later",
   "statuses.form_public_default_checkbox": "Default status for new public bookings",

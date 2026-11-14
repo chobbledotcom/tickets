@@ -97,9 +97,10 @@ describeWithEnv(
         await tokenIndexOf(original.id),
       );
       expect(await kindOf(copy.id)).toBe(SERVICING_KIND);
-      const decrypted = await decryptFirstServicingAttendee(listing.id);
-      expect(decrypted?.email).toBe("");
-      expect(decrypted?.phone).toBe("");
+      expect(await decryptFirstServicingAttendee(listing.id)).toMatchObject({
+        email: "",
+        phone: "",
+      });
     });
 
     test("duplicate-then-edit is independent of the original", async () => {

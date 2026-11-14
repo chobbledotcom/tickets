@@ -117,7 +117,6 @@ export const handleListingEditSuccess = async (
           count: assign.count,
           date: assign.date,
         });
-  await logActivity(`Listing '${row.name}' updated`, row);
   return processUploadsAndRedirect(
     formData,
     id,

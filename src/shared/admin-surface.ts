@@ -13,13 +13,28 @@ import type {
   AdminDestinationId,
   AdminPathParams,
   AdminPatternFor,
+  RecordAreaId,
+  RecordAreaIds,
+  RecordAreaPatterns,
 } from "#shared/admin-surface/ids.ts";
 import { ADMIN_SECTIONS } from "#shared/admin-surface/sections.ts";
 import type { AdminLevel } from "#types";
 
-export type { AdminDestinationId, AdminPathParams, AdminPatternFor };
+export type {
+  AdminDestinationId,
+  AdminPathParams,
+  AdminPatternFor,
+  RecordAreaId,
+  RecordAreaIds,
+  RecordAreaPatterns,
+};
 
 const folded = foldAdminAreas(ADMIN_AREAS);
+
+/** The route ids the record of one record area reads. */
+export const recordAreaIds = (
+  area: RecordAreaId,
+): RecordAreaIds<RecordAreaId> => ADMIN_AREAS[area].record;
 
 /** Look up a declared id, including ids read from the validated table. */
 const destinationFor = (id: string): AdminDestinationDef => {
@@ -64,6 +79,12 @@ export const adminDestinationAt = (route: string): AdminDestinationDef => {
   return destination;
 };
 
+/** The route at a path or id, or null when the surface declares none. */
+export const adminDestinationAtOrNull = (
+  route: string,
+): AdminDestinationDef | null =>
+  folded.byPattern[route] ?? folded.destinations[route] ?? null;
+
 /**
  * The roles that can reach any part of one record's page: the page itself and
  * every route beneath it. This is the floor an entity page's guard enforces,
@@ -105,13 +126,15 @@ export const adminRecordPath = (
   record: string | number,
 ): string => recordPath(adminDestination(id), record);
 
-/** A generated CRUD save uses its route's override, or its collection list. */
+/** A generated CRUD save uses its route's override, or its collection list.
+ *  A record can override the landing for its own surface. */
 export const afterSavePath = (
   route: AdminDestinationDef,
   list: AdminDestinationId,
   record: number,
+  landingOverride?: AdminDestinationId,
 ): string => {
-  const landing = destinationFor(route.afterSave ?? list);
+  const landing = destinationFor(landingOverride ?? route.afterSave ?? list);
   return landing.pattern.includes(":")
     ? recordPath(landing, record)
     : landing.pattern;
@@ -144,3 +167,14 @@ export const ADMIN_SURFACE = {
   destinations: folded.destinations,
   sections: ADMIN_SECTIONS,
 } as const;
+
+/** The list path and the record page path a record area declares. */
+export const recordAreaPatterns = <Area extends RecordAreaId>(
+  area: Area,
+): RecordAreaPatterns<Area> => {
+  const ids = recordAreaIds(area);
+  return {
+    detail: adminDestination(ids.detail).pattern,
+    list: adminDestination(ids.list).pattern,
+  } as RecordAreaPatterns<Area>;
+};

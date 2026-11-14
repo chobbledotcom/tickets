@@ -1,0 +1,180 @@
+SCHEMATISATION BUG REPORT — ROUND 2
+
+Scope
+This hunt excludes the three catalogue validation defects in the first report.
+Another agent owns that fix. This hunt changes no application code.
+
+All three findings below have runtime evidence from real application handlers
+and an isolated test database. The list is not exhaustive.
+
+1. Markdown fields lose meaningful indentation before storage
+Priority: Medium. A successful save changes the meaning of the content.
+
+In plain words
+You paste a code example. The save removes the spaces that make it a code
+example. Your public page then shows an ordinary paragraph instead.
+
+Source
+- src/features/admin/content-form-fields.ts:70-78
+  The content field declares markdown: true and type: textarea.
+- src/shared/forms/submitted-value.ts:14-28
+  The field reader has no raw-text case for Markdown. It uses getString.
+- src/shared/form-data.ts:15-16
+  getString trims the value, including meaningful initial indentation.
+- src/features/admin/content-form-fields.ts:179-185
+  seoContentInput passes the changed value into the write.
+- src/features/admin/api-site-pages-input.ts:59-69,138-141
+  The JSON API also trims content through cleanedText.
+
+Reproduction
+1. Create a page through POST /admin/site/pages with a valid name and slug.
+2. Set content to exactly four spaces, then "const value = 7;", then a newline.
+3. Open its public /page/<slug> route.
+
+Expected
+The write preserves the Markdown source. Four initial spaces make this text
+an indented code block.
+
+Observed
+The form returned HTTP 302 after the save. The database contained:
+  "const value = 7;"
+The public page returned HTTP 200 and rendered:
+  <p>const value = 7;</p>
+
+Control
+The production renderMarkdown function rendered the original submitted text as:
+  <pre><code>const value = 7;
+  </code></pre>
+
+An authenticated POST to /api/admin/site-pages with the same content returned
+HTTP 201. It also stored the trimmed text and produced the paragraph.
+
+Impact
+The shared form reader treats Markdown as plain text that it can trim. Both
+page write surfaces discard formatting that the Markdown renderer understands.
+The shared content form also serves News, but this run did not exercise News.
+
+Fix direction
+Give Markdown fields an explicit raw-text read policy. Preserve their whitespace
+in validation, restoration, and API input mapping. Keep trimming for labels.
+
+2. A rejected page edit replaces your changes with the old saved values
+Priority: Medium. A normal validation error discards unsaved work.
+
+In plain words
+You change the page text and make one mistake in its address. The error appears,
+but the form removes your new text and puts the old text back.
+
+Source
+- src/features/admin/site-pages.ts:93-103
+  The generated page routes have no renderEditError handler.
+- src/shared/rest/record-pages.ts:354-365
+  A rejected edit without that handler redirects to the edit page.
+- src/features/admin/site-content-page.ts:50-55
+  The edit tab renders the stored entity, not a rejected submission.
+- src/ui/templates/admin/site-content.tsx:86-96
+  contentEntityEditPanel supplies the stored field values explicitly.
+- src/shared/forms/rendering.tsx:244-251
+  A non-empty explicit value wins before the renderer reads saved form data.
+
+Reproduction
+1. Create a page with slug "restore-me" and these values:
+   name: Original name
+   meta_title: Original title
+   content: Original body
+2. POST /admin/site/pages/<id>/edit with these values:
+   name: Changed name
+   slug: contact
+   meta_title: Changed title
+   content: Changed body
+3. Follow the redirect with the session and flash cookies that the POST returns.
+
+Expected
+The reserved-slug error appears. The form retains all submitted fields, so the
+operator only needs to correct the slug.
+
+Observed
+The POST returned HTTP 302. The redirected GET returned HTTP 200 and showed
+the reserved-slug error. Its editable fields contained:
+  name: Original name
+  slug: restore-me
+  meta_title: Original title
+  content: Original body
+None of the four submitted changes remained in those fields.
+
+Impact
+The rejection loses the operator's unsaved work even on the same warm process,
+with the form stash and the correct flash cookie available. This is not a
+cold-isolate stash miss.
+
+Fix direction
+Use the existing in-place rejected-edit pattern: renderEditError and
+submittedValueProps. Give the content edit panel the rejected values instead
+of the stored values. Do not reverse global explicit-value precedence blindly.
+
+3. The generated API accepts a holiday name that its generated editor rejects
+Priority: Medium. The two schema projections disagree about valid records.
+
+In plain words
+The API creates a holiday successfully. You then try to change its dates in
+the dashboard. The dashboard refuses because the name is too long, although
+you did not change the name.
+
+Source
+- src/shared/records/holiday-fields.ts:7-27
+  One field list declares the holiday name and dates.
+- src/shared/admin-api-resources.ts:105-120
+  The API derives its schemas from that field list.
+- src/shared/rest/field-specs.ts:35-40,127-131
+  The API maps the name kind to textField.
+- src/shared/rest/api-body-fields.ts:45-55
+  textField checks type and requiredness, but no length limit.
+- src/ui/templates/fields/record-fields.ts:35-49
+  The form maps the same name kind to a text input.
+- src/shared/forms/field.ts:182-191
+  Text inputs receive the automatic MAX_INPUT_LENGTH limit.
+- src/shared/forms/validation.ts:86-92
+  The form enforces that limit on the server.
+- src/shared/records/holidays.ts:13-18
+  The record rule checks only date order, so it does not close the API gap.
+
+Reproduction
+1. Send an authenticated POST to /api/admin/holidays with:
+   name: 251 copies of the letter H
+   start_date: 2027-01-01
+   end_date: 2027-01-02
+2. POST /admin/holidays/<id>/edit with the same name and start date.
+3. Set end_date to 2027-01-03.
+
+Expected
+Both surfaces enforce the same name limit. The API must reject a name that
+the editor cannot accept unchanged.
+
+Observed
+The API returned HTTP 201 with the complete 251-character name.
+The form returned HTTP 400 with:
+  Holiday name must be 250 characters or fewer
+The stored end_date remained 2027-01-02.
+
+Impact
+An API-created record needs a name change before the dashboard can save an
+unrelated date change. Shared field declarations do not currently carry all
+the constraints that their generated surfaces enforce.
+
+Fix direction
+Declare the name limit once and apply it to both projections or their shared
+record rule. Keep the dashboard limit. Do not remove it to match the API.
+
+Verification
+Command:
+  job-submit --max 5m -- deno task test:files .scratch/schema-hunt-two.test.ts
+Final evidence job:
+  20261113T181611Z-tickets-6-29869
+Result:
+  Passed, exit code 0. Three scratch scenarios exercised the real handlers.
+  Observations included stored rows, public HTML, restored form fields, and
+  HTTP status codes. A production Markdown renderer supplied the format control.
+
+This investigation added no permanent tests or application changes. The scratch
+scenario and observation file were temporary. No real browser interaction was
+part of this run. The evidence covers server responses and stored data.

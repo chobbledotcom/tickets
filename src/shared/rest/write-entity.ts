@@ -1,13 +1,8 @@
 /**
- * The shared write step behind both REST factories (`defineResource` and
- * `defineCrudApi`): write one row — transactionally when it has join-table
- * writes that must commit atomically with it, else as a plain single statement —
- * read the committed row back on the primary, then run the post-commit hook.
- *
- * The two factories differ at their edges (a form vs a JSON body in front, a
- * `Result` vs an HTTP `Response` behind), but the write itself is one sequence,
- * kept here so the read-your-writes invariant on the read-back lives in exactly
- * one place.
+ * The shared write step behind the admin record's write path: write one row —
+ * transactionally when it has join writes that must commit atomically with it,
+ * else as a plain single statement — read the committed row back on the
+ * primary, then run the post-commit hook.
  */
 
 import {

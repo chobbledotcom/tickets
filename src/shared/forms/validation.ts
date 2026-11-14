@@ -132,3 +132,16 @@ export const validateForm = <T = FieldValues>(
   }
   return { valid: true, values: values as T };
 };
+
+/** The form's parsed values, after its schema and any cross-field rule, or the
+ *  first refusal. */
+export const checkedValues = <Values>(
+  validation: ValidationResult<Values>,
+  validateValues?: (values: Values) => string | null,
+): { ok: true; value: Values } | { error: string; ok: false } => {
+  if (!validation.valid) return { error: validation.error, ok: false };
+  const valuesError = validateValues?.(validation.values);
+  return valuesError === null || valuesError === undefined
+    ? { ok: true, value: validation.values }
+    : { error: valuesError, ok: false };
+};

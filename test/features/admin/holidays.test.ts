@@ -8,12 +8,14 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
-import { validateDateRange } from "#routes/admin/holidays.ts";
+import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
+import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
-import { expectFlashRedirect } from "#test-utils/assertions.ts";
+import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { describeDemoNameSaves } from "#test-utils/demo-name-saves.ts";
+import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("holidays", { db: true }, () => {
   test("creates a holiday and shows it on the list page", async () => {
@@ -72,36 +74,77 @@ describeWithEnv("holidays", { db: true }, () => {
   });
 });
 
-describeWithEnv("the holiday date rule", { db: true }, () => {
-  test("rejects an end date before the start date", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-01-01",
-        "the backwards-range holiday end date",
-      ),
-      name: "Backwards",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the backwards-range holiday start date",
-      ),
+describeDemoNameSaves({
+  createPath: "/admin/holidays",
+  edit: async (name) => {
+    const holiday = await createTestHoliday({ name: "Before" });
+    await adminFormPost(`/admin/holidays/${holiday.id}/edit`, {
+      end_date: "2026-12-26",
+      name,
+      start_date: "2026-12-25",
+    });
+    return (await holidays.table.read.one({ id: holiday.id }))?.name;
+  },
+  fields: (name) => ({
+    end_date: "2027-01-02",
+    name,
+    start_date: "2027-01-01",
+  }),
+  label: "holiday saves in demo mode",
+  realName: "Real Day",
+  samples: DEMO_HOLIDAY_NAMES,
+  table: holidays.table,
+  typedName: "Typed Day",
+});
+
+describeWithEnv("the holiday rule", { db: true }, () => {
+  const rule = (name: string, start: string, end: string) =>
+    holidayRule({
+      endDate: parseDateStringOrThrow(end, "the holiday rule end date"),
+      name,
+      startDate: parseDateStringOrThrow(start, "the holiday rule start date"),
     });
 
-    expect(error).toBe("End date must be on or after the start date");
+  test("rejects an end date before the start date", async () => {
+    const error = await rule("Backwards", "2026-06-01", "2026-01-01");
+
+    expect(error.ok ? null : error.error).toBe(
+      "End date must be on or after the start date",
+    );
+  });
+
+  test("rejects a name past the text box limit", async () => {
+    const error = await rule("H".repeat(251), "2026-06-01", "2026-06-02");
+
+    expect(error).toEqual({
+      error: "Name must be 250 characters or fewer",
+      ok: false,
+    });
+    expect((await rule("H".repeat(250), "2026-06-01", "2026-06-02")).ok).toBe(
+      true,
+    );
+  });
+
+  test("the API refuses a name that the form cannot save", async () => {
+    await assertJson(
+      apiRequest("/api/admin/holidays", {
+        body: {
+          end_date: "2027-01-02",
+          name: "H".repeat(251),
+          start_date: "2027-01-01",
+        },
+        method: "POST",
+      }),
+      400,
+      (body: { error: string }) => {
+        expect(body.error).toBe("Name must be 250 characters or fewer");
+      },
+    );
   });
 
   test("accepts a single day, where the two dates are equal", async () => {
-    const error = await validateDateRange({
-      endDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday end date",
-      ),
-      name: "One day",
-      startDate: parseDateStringOrThrow(
-        "2026-06-01",
-        "the one-day holiday start date",
-      ),
-    });
+    const error = await rule("One day", "2026-06-01", "2026-06-01");
 
-    expect(error).toBe(null);
+    expect(error.ok).toBe(true);
   });
 });

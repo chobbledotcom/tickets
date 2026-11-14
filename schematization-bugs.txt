@@ -1,0 +1,137 @@
+SCHEMATISATION BUG REPORT
+
+Scope
+The investigation checks shared declarations, generated validation, and their
+production callers. This report contains runtime-confirmed defects, not style
+findings. Application code remains unchanged. The list is not exhaustive.
+
+The common fault
+The catalogue field declaration names a semantic kind, but the admin API often
+checks only its JavaScript type. Catalogue transfer uses stricter schemas for
+the same fields. One declaration therefore produces incompatible boundaries.
+
+1. Prices accept negative amounts and fractions of a minor unit
+Priority: High. The write boundary accepts invalid money values.
+
+Source
+- src/shared/catalog-fields/fields.ts:100,131
+  maxPrice and unitPrice declare the maxPrice and price kinds.
+- src/shared/catalog-fields/definition.ts:13,18,113-129
+  Both kinds map to number. Neither receives the safe-integer or minimum check.
+- src/features/admin/api-listing-body.ts:198-209,244-260
+  The create mapper accepts these values through the generated API check.
+- src/features/admin/catalog-transfer/schema.ts:98-99,132,137
+  Transfer instead requires non-negative safe integers for both kinds.
+
+Reproduction
+Send each body as an authenticated POST to /api/admin/listings:
+  {"name":"Negative price","max_attendees":10,"unit_price":-100}
+  {"name":"Fractional price","max_attendees":10,"unit_price":100.5}
+
+Expected
+Reject each request with a field error before any record write. A minor-unit
+price must be a non-negative safe integer.
+
+Observed
+Both requests returned HTTP 201. The returned records contained unit_price
+values of -100 and 100.5 respectively. The exportListing production function
+then returned CatalogExportError for both records:
+  unitPrice: Invalid value: Expected >=0 but received -100
+  unitPrice: Invalid safe integer: Received 100.5
+
+Impact
+The API stores amounts that violate the money contract. The affected listings
+cannot pass catalogue export. No provider charge or loss of money was tested.
+
+Fix direction
+Use the same non-negative safe-integer schema for money at each write boundary.
+Keep the price relationship rules as separate domain checks.
+
+2. The API stores listing types outside the declared union
+Priority: Medium. A successful write creates an invalid domain state.
+
+Source
+- src/shared/types.ts:116-123
+  ListingTypeSchema permits only standard and daily.
+- src/shared/catalog-fields/fields.ts:80-85
+  The listingType field names the listingType kind.
+- src/shared/catalog-fields/definition.ts:12,101-129
+  That kind checks only for a string, not membership in ListingTypeSchema.
+- src/shared/catalog-fields/definition.ts:170-175
+  The API projection copies the unchecked string into the typed input.
+- src/features/admin/catalog-transfer/schema.ts:131
+  Transfer applies the actual ListingTypeSchema.
+
+Reproduction
+Send an authenticated POST to /api/admin/listings:
+  {"name":"Unknown listing type","max_attendees":10,"listing_type":"daliy"}
+
+Expected
+Reject the unknown type before the write.
+
+Observed
+The request returned HTTP 201. The returned record contained listing_type:
+"daliy". exportListing then returned CatalogExportError:
+  listingType: Invalid type: Expected ("standard" | "daily") but received "daliy"
+
+Impact
+The runtime value violates the type that production consumers trust. The newly
+created listing cannot pass catalogue export.
+
+Fix direction
+Apply ListingTypeSchema in the generated API validation. Do not substitute a
+string-type check for a domain picklist.
+
+3. Unknown weekdays produce a daily listing with no available dates
+Priority: Medium. The API accepts a schedule that the booking calendar cannot use.
+
+Source
+- src/shared/day-names.ts:8-21
+  The valid weekday vocabulary uses Monday, Tuesday, and the other full names.
+- src/shared/catalog-fields/fields.ts:28-36
+  The stored JSON schema permits any array of strings.
+- src/features/admin/api-listing-body.ts:102-107
+  The API also checks only that each entry is text.
+- src/shared/dates.ts:131-137,161-170
+  Availability compares entries with the exact weekday names.
+- src/features/admin/catalog-transfer/schema.ts:95-97,125
+  Transfer instead uses the weekday picklist.
+
+Reproduction
+Send an authenticated POST to /api/admin/listings:
+  {"name":"Unknown weekday","max_attendees":10,"listing_type":"daily",
+   "bookable_days":["monday"]}
+Load the saved listing. Call getAvailableDates(listing, []) without holidays.
+
+Expected
+Reject the unknown weekday before the write. The API must accept the same
+weekday vocabulary that the calendar and transfer schema use.
+
+Observed
+The request returned HTTP 201. The returned record retained ["monday"].
+getAvailableDates returned []. exportListing returned CatalogExportError:
+  bookableDays.0: Invalid type: Expected ("Monday" | "Tuesday" | "Wednesday" |
+  "Thursday" | "Friday" | "Saturday" | "Sunday") but received "monday"
+Control: The same record with ["Monday"] produced 13 available dates.
+
+Impact
+A case error silently removes every available date from a new daily listing.
+The same record also cannot pass catalogue export.
+
+Fix direction
+Use the weekday picklist in the API and stored JSON schema. Reuse the declared
+vocabulary instead of a second array-of-text definition.
+
+Verification
+The reproductions ran through apiRequest and the real application handler in
+an isolated test database. The export checks called the production exportListing
+function. The availability check called the production getAvailableDates function.
+No external payment action occurred.
+
+Command:
+  job-submit --max 5m -- deno task test:files .scratch/schematisation-audit.test.ts
+Final evidence job:
+  20261113T175455Z-tickets-6-9942
+Result:
+  Passed, exit code 0. Runtime observations confirmed all four accepted inputs
+  and their export failures. The scratch reproduction is not a permanent test.

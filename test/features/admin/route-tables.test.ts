@@ -3,7 +3,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   crudRoutes,
   defineAdminRoutes,
+  destinationRoutes,
   entityTabRoutes,
+  orderRoutes,
+  recordRoutes,
 } from "#routes/admin/route-tables.ts";
 
 const request = new Request("http://localhost/admin/things/7");
@@ -141,5 +144,96 @@ describe("defineAdminRoutes", () => {
     ).toThrow(
       'No admin route is declared for "POST /admin/settings/never-declared"',
     );
+  });
+});
+
+describe("orderRoutes", () => {
+  test("binds the two move handlers under the row path", () => {
+    const down = () => new Response("down");
+    const up = () => new Response("up");
+    expect(orderRoutes("/admin/things/:id", { down, up })).toEqual({
+      "POST /admin/things/:id/move-down": down,
+      "POST /admin/things/:id/move-up": up,
+    });
+  });
+});
+
+describe("recordRoutes", () => {
+  for (const [area, expected] of [
+    [
+      "settingsStatuses",
+      [
+        "GET /admin/settings/statuses",
+        "GET /admin/settings/statuses/:id",
+        "GET /admin/settings/statuses/:id/:tab",
+        "GET /admin/settings/statuses/:id/delete",
+        "GET /admin/settings/statuses/new",
+        "POST /admin/settings/statuses",
+        "POST /admin/settings/statuses/:id/delete",
+        "POST /admin/settings/statuses/:id/edit",
+      ],
+    ],
+    [
+      "questions",
+      [
+        "GET /admin/questions",
+        "GET /admin/questions/:id",
+        "GET /admin/questions/:id/:tab",
+        "GET /admin/questions/:id/delete",
+        "POST /admin/questions",
+        "POST /admin/questions/:id/delete",
+        "POST /admin/questions/:id/edit",
+      ],
+    ],
+  ] as const) {
+    test(`binds the routes of ${area} under its area's paths`, () => {
+      const handler = () => Promise.resolve(new Response("ok"));
+      const routes = recordRoutes(
+        area,
+        {
+          createPost: handler,
+          deleteGet: handler,
+          deletePost: handler,
+          editPost: handler,
+          listGet: handler,
+          newGet: handler,
+        },
+        recordingPage(),
+      );
+      expect(Object.keys(routes).toSorted()).toEqual(expected);
+    });
+  }
+});
+
+describe("destinationRoutes", () => {
+  test("binds each method under the path its route declares", async () => {
+    const answer = (body: string) => () => Promise.resolve(new Response(body));
+    const routes = destinationRoutes({
+      attendeeDelete: {
+        delete: answer("delete"),
+        get: answer("get"),
+        post: answer("post"),
+      },
+      attendees: { get: answer("list") },
+    });
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "DELETE /admin/attendees/:attendeeId/delete",
+      "GET /admin/attendees",
+      "GET /admin/attendees/:attendeeId/delete",
+      "POST /admin/attendees/:attendeeId/delete",
+    ]);
+    const bodies = await Promise.all(
+      [
+        "DELETE /admin/attendees/:attendeeId/delete",
+        "GET /admin/attendees",
+        "GET /admin/attendees/:attendeeId/delete",
+        "POST /admin/attendees/:attendeeId/delete",
+      ].map(async (key) => (await routes[key]!(request, {})).text()),
+    );
+    expect(bodies).toEqual(["delete", "list", "get", "post"]);
+  });
+
+  test("binds nothing for an empty table", () => {
+    expect(destinationRoutes({})).toEqual({});
   });
 });

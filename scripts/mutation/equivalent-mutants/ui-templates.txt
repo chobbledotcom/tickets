@@ -50,9 +50,9 @@ src/ui/templates/admin/backup.tsx::backupsTable.key~120g5gv  actions → "" audi
 src/ui/templates/admin/news.tsx::newsTable.key~1qw07sv  name → "" audited:09ud7v6 # a column `key` is read only by renderTable's columnKeys/hiddenKeys lookups and saved-filter value rendering; adminNewsListPage renders the news table with none of those options, so this key is never read
 src/ui/templates/admin/news.tsx::newsTable.key~1353jpe  created → "" audited:09ud7v6 # same as news.tsx's name key — the news list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
 src/ui/templates/admin/news.tsx::newsTable.key~1rsequ7  delete → "" audited:09ud7v6 # same as news.tsx's name key — the news list table is rendered without columnKeys, hiddenKeys, or filters, so its column keys are never read
-src/ui/templates/admin/settings-statuses.tsx::statusColumns~1m0nc07  flags → "" audited:0peqe8g # the statuses list renders these columns with only a reorder option, so it supplies no columnKeys, no hiddenKeys, and no filters, and statusColumns never reaches renderColumnReference, so no reader of a column key is in play
-src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~0evfpwz  ?? → || audited:0peqe8g # status?.name is a string or undefined, and the only falsy string is the empty fallback itself
-src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~053yv47  ?? → || audited:0peqe8g # FormParams.get is a string or undefined, and the only falsy string is the empty fallback itself
+src/ui/templates/admin/settings-statuses.tsx::statusColumns~1m0nc07  flags → "" audited:18ld2xk # the statuses list renders these columns with only a reorder option, so it supplies no columnKeys, no hiddenKeys, and no filters, and statusColumns never reaches renderColumnReference, so no reader of a column key is in play
+src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~0evfpwz  ?? → || audited:18ld2xk # status?.name is a string or undefined, and the only falsy string is the empty fallback itself
+src/ui/templates/admin/settings-statuses.tsx::renderStatusFields.value~053yv47  ?? → || audited:18ld2xk # FormParams.get is a string or null, and the only falsy string is the empty fallback itself
 # attributes list (ui/templates/admin/attributes.tsx) — column keys nothing
 # reads back, same class as the statuses table above.
 src/ui/templates/admin/attributes.tsx::adminAttributesPage.columns.key~0vgsq6i  attribute → "" audited:0yvsr6r # reorderableListPage renders these columns through renderTable with a reorder option and nothing else, so it supplies no columnKeys, no hiddenKeys, and no filters, and the table never reaches renderColumnReference
@@ -61,10 +61,9 @@ src/ui/templates/admin/attributes.tsx::adminAttributesPage.columns.key~0flrsnk  
 # column keys nothing reads back.
 src/ui/templates/admin/groups/list.tsx::groupColumns~0ixy9zk  name → "" audited:1iejhtb # adminGroupsPage renders these columns with a context and nothing else, so it supplies no columnKeys, no hiddenKeys, and no filters, and groupColumns never reaches renderColumnReference
 src/ui/templates/admin/groups/list.tsx::groupColumns~1bp6sm8  slug → "" audited:1iejhtb # same as the name key above — the groups list supplies only a context, so no reader of a column key is in play
-src/ui/templates/admin/holidays.tsx::holidayColumns.key~1lbn6k9  start_date → "" audited:0bymeb7 # HolidayTable renders these columns with a scroll class and nothing else, so no columnKeys, hiddenKeys, or filters read the key, and holidayColumns never reaches renderColumnReference
-src/ui/templates/admin/holidays.tsx::holidayColumns.key~0mip5xw  end_date → "" audited:0bymeb7 # same as the start_date key above — the holidays table supplies only a scroll class
 src/ui/templates/admin/logistics.tsx::agentColumns~15k9yrk  name → "" audited:1jbcaog # AgentsSection renders these columns with no options at all, so nothing supplies a column-key reader, and agentColumns never reaches renderColumnReference
-src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? → || audited:1jbcaog # values is a form-values object or undefined, and an object is always truthy, so || keeps exactly what ?? keeps
+src/ui/templates/admin/logistics.tsx::LogisticsAgentEditPanel.html~01ax7pa  ?? → || audited:0w1zoth # values is a form-values object or undefined, and an object is always truthy, so || keeps exactly what ?? keeps
+src/ui/templates/admin/site-content.tsx::contentEntityEditPanel~1d3i5m5 ??→|| audited:1a8uqhr # submitted.values is a Record<string, string> or undefined, and an object is always truthy, so || keeps exactly what ?? keeps
 src/ui/templates/admin/listings/form-values.tsx::renderDayPricesFieldset.prices~02nzxkd  ?? → || audited:1oog4kz # day_prices is a DayPrices object or undefined, and a present object is always truthy, so || reads it exactly as ?? does
 
 # schema-atlas.tsx: formatTimeAgo returns a formatted string or null, never

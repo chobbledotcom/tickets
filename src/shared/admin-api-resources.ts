@@ -27,10 +27,13 @@ import {
   ImageRowSchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
+import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
   type ApiBody,
   apiBodyPair,
-  dateField,
+  type BodyField,
   fieldViews,
   idRow,
   optionalTextField,
@@ -38,6 +41,7 @@ import {
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
+import { apiFieldsOf, type FieldSpecs } from "#shared/rest/field-specs.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates
@@ -95,19 +99,25 @@ export const GroupRowSchema = v.looseObject({
 
 export type AdminApiGroup = v.InferOutput<typeof GroupRowSchema>;
 
-/** The holiday fields a create or update write carries: the row without its
- *  server-owned id. */
-const holidayFields = {
-  end_date: dateField("end_date"),
-  name: textField("name"),
-  start_date: dateField("start_date"),
+/** One field list's API shapes: its write bodies, and its row with the
+ *  server-owned id. `rowView` names the view the row reads. The row schema
+ *  stays open, because the server owns the rest of the stored row. */
+const fieldResource = <
+  const Fields extends FieldSpecs,
+  View extends keyof BodyField,
+>(
+  fields: Fields,
+  rowView: View,
+) => {
+  const views = apiFieldsOf(fields);
+  return {
+    bodies: apiBodyPair(views),
+    row: idRow(fieldViews(views, rowView)),
+  };
 };
-const holidayBodies = apiBodyPair(holidayFields);
 
-/** One holiday as the server stores it: the writable fields plus its id. The
- *  row schema stays open — the server owns the rest of the stored row. */
-export const HolidayRowSchema = idRow(fieldViews(holidayFields, "create"));
-
+const holidayApi = fieldResource(HOLIDAY_FIELDS, "create");
+export const HolidayRowSchema = holidayApi.row;
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
 /** One listing as the admin API answers with it: the fields the client's
@@ -119,28 +129,14 @@ export const ListingRowSchema = v.looseObject({
 
 export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 
-/** The fields an attendee-status create carries. The three flags and the
- *  reservation amount answer the stored-column defaults (off, "0") when a
- *  caller leaves them out. */
-const attendeeStatusFields = {
-  is_paid_default: switchField("is_paid_default"),
-  is_public_default: switchField("is_public_default"),
-  is_reservation: switchField("is_reservation"),
-  name: textField("name"),
-  reservation_amount: optionalTextField("reservation_amount"),
-};
-const attendeeStatusBodies = apiBodyPair(attendeeStatusFields);
+/** The three flags and the reservation amount of an attendee status answer
+ *  the stored-column defaults (off, "0") when a create leaves them out. The
+ *  row reads the update view, so it requires no flag. */
+const attendeeStatusApi = fieldResource(STATUS_FIELDS, "update");
+export const AttendeeStatusRowSchema = attendeeStatusApi.row;
 export type AdminApiCreateAttendeeStatusBody = ApiBody<
-  typeof attendeeStatusBodies.create
+  typeof attendeeStatusApi.bodies.create
 >;
-
-/** One attendee status as the admin API answers with it: the writable fields
- *  plus its id. The row schema stays open — the server owns the rest of the
- *  stored row (its sort order). */
-export const AttendeeStatusRowSchema = idRow(
-  fieldViews(attendeeStatusFields, "update"),
-);
-
 export type AdminApiAttendeeStatus = v.InferOutput<
   typeof AttendeeStatusRowSchema
 >;
@@ -201,9 +197,7 @@ export type AdminApiSitePage = v.InferOutput<typeof SitePageRowSchema>;
  * vocabulary for a shape the server owns.
  * =========================================================================== */
 
-const attributeBodies = apiBodyPair({
-  name: textField("name"),
-});
+const attributeBodies = apiBodyPair(apiFieldsOf(ATTRIBUTE_FIELDS));
 
 /** One choice option's write body, on the attribute-option and answer
  *  surfaces alike. The server parses the same shape for the option's create
@@ -332,9 +326,9 @@ const attributeTableRow = resourceTableRow(
 
 export const ADMIN_API_RESOURCES = {
   "attendee-statuses": {
-    createBodySchema: attendeeStatusBodies.create,
+    createBodySchema: attendeeStatusApi.bodies.create,
     ...resourceTableRow("Status", "attendee-statuses", AttendeeStatusRowSchema),
-    updateBodySchema: attendeeStatusBodies.update,
+    updateBodySchema: attendeeStatusApi.bodies.update,
   },
   attendees: {
     // The create is the one standard route this surface serves. A booking
@@ -386,9 +380,9 @@ export const ADMIN_API_RESOURCES = {
     ...resourceTableRow("Group", "groups", GroupRowSchema),
   },
   holidays: {
-    createBodySchema: holidayBodies.create,
+    createBodySchema: holidayApi.bodies.create,
     ...resourceTableRow("Holiday", "holidays", HolidayRowSchema),
-    updateBodySchema: holidayBodies.update,
+    updateBodySchema: holidayApi.bodies.update,
   },
   images: {
     createBodySchema: CreateImageBodySchema,

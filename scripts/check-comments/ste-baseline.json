@@ -40,7 +40,7 @@
   },
   "src/features/auth.ts": {
     "long-sentence": 10,
-    "wordy": 5,
+    "wordy": 4,
     "semicolon": 3,
     "contraction": 2,
     "banned-modal": 5
@@ -1222,29 +1222,14 @@
     "banned-modal": 1
   },
   "src/shared/rest/crud-api-types.ts": {
-    "banned-modal": 2,
-    "present-perfect": 2,
-    "wordy": 7,
-    "long-sentence": 4,
-    "semicolon": 2
-  },
-  "src/shared/rest/crud-api.ts": {
-    "long-sentence": 2,
-    "semicolon": 3,
-    "wordy": 1
+    "long-sentence": 1,
+    "banned-modal": 1
   },
   "src/shared/rest/crud-parsers.ts": {
     "contraction": 1
   },
-  "src/shared/rest/resource.ts": {
-    "wordy": 2,
-    "long-sentence": 2,
-    "semicolon": 1,
-    "banned-modal": 1,
-    "contraction": 1
-  },
   "src/shared/rest/write-entity.ts": {
-    "long-sentence": 6,
+    "long-sentence": 5,
     "banned-modal": 1,
     "semicolon": 3,
     "contraction": 3
@@ -1779,7 +1764,7 @@
     "banned-modal": 1
   },
   "src/ui/templates/admin/site-content.tsx": {
-    "long-sentence": 2,
+    "long-sentence": 1,
     "contraction": 1
   },
   "src/ui/templates/admin/site.tsx": {

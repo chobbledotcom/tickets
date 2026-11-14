@@ -7,8 +7,10 @@ src/shared/builder-dry-run.ts::CANNED_BODIES~05ocz8s  export {}; // dry-run site
 src/shared/builder-dry-run.ts::CANNED_BODIES.primary_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
 src/shared/builder-dry-run.ts::CANNED_BODIES.replica_regions.id~10dvhh2  eu-west-1→"" audited:0sa17d1 # the region id reaches only the unsent create-request body, and the valibot RegionConfigSchema accepts any string
 
-src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:18ccc1f # trim returns a string, and its only falsy value is the empty string supplied by the fallback
-src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:03nm4ht # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/shared/form-data.ts::FormParams.getString~0hhlva7  ?? → || audited:1lmi6e2 # trim returns a string, and its only falsy value is the empty string supplied by the fallback
+src/shared/forms/validation.ts::validateSingleField.trimmed~0vrlsmq  = → += audited:1pe2mbz # this assignment runs only when trimmed is the empty string, so replacing it and appending to it produce the same defaultValue
+src/shared/forms/submitted-value.ts::readSubmittedFieldValue~012mra6  ??→|| audited:1g9kpu4 # parseDateString answers null or a valid calendar date, and a valid date is never the empty string
+src/shared/forms/submitted-value.ts::readSubmittedFieldValue~1q5kqa7  ??→|| audited:1g9kpu4 # form.get answers string or null over the fallback "", so "" ?? "" and "" || "" are both ""
 src/features/admin/dashboard.ts::handleAdminLog.entries~1bmdvzm  1 → 2 audited:18dzm9u # The query needs any number above the 200-row display limit only to detect overflow; both limits produce the same truncated flag and the same first 200 displayed rows
 src/shared/bearer.ts::bearerTokenOrNull~0zm5hxk  ?? → || audited:110btoy # the optional regex capture is non-empty because the capture uses +, so only undefined reaches the null fallback
 src/shared/uptime-kuma/socket.ts::KumaSocket.%23changeListeners~0x9mfb4  0 → -1 audited:0r62zcl # the private map's missing set and retained empty set behave identically: once adds to either, while off and emit are no-ops for both
@@ -74,9 +76,11 @@ src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? �
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → || audited:0zfjs24 # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → && audited:1o7wako # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
 src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:12gdroc # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
-src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → || audited:0kyy7de # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
-src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → || audited:0kyy7de # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
-src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → || audited:0kyy7de # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → || audited:14jncpb # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
+src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → || audited:14jncpb # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::groupDestinations.audience~1c9r0s3  ?? → || audited:14jncpb # `object.audience ?? areaAudience`: a declared audience is a readonly array, and an array (even empty) is always truthy, so only undefined reaches the fallback
+src/shared/admin-surface/definitions.ts::validateAfterSave~1m1m6ct  ?? → || audited:14jncpb # `pattern.match(/:\w+/g) ?? []`: a global match returns null or a non-empty array, so the fallback is reached on exactly the same input either way
+src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → || audited:14jncpb # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "" audited:07n2pxx # the placeholder key is never stored: a failed condition always aborts on its NULL value
 src/shared/db/admin-features.ts::requireSettingCondition.args~1i6rv6b  __required_setting_condition__ → "__required_setting_condition__ mutated" audited:07n2pxx # same as above; no successful statement exposes this key
 src/shared/db/admin-features.ts::usageJsonEntry~0041kmq  ?? → || audited:07n2pxx # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
@@ -241,7 +245,7 @@ src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? �
 src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0 audited:1oetlmc # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
 src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → || audited:1oetlmc # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → || audited:1oetlmc # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
-src/shared/admin-surface.ts::recordPath~11evcma  ?? → || audited:1j1wylx # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
+src/shared/admin-surface.ts::recordPath~11evcma  ?? → || audited:14pq1qs # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
 # falsy-but-present value that differs from the fallback itself.

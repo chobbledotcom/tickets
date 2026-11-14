@@ -67,3 +67,10 @@ export class FormParams extends URLSearchParams {
     );
   }
 }
+
+/** The rejected state of a form: the message, and the values the person
+ *  submitted. Both are absent on a first view. */
+export interface SubmittedValueProps {
+  error?: string;
+  values?: Record<string, string>;
+}

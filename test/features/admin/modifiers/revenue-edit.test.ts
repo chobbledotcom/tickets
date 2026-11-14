@@ -1,12 +1,10 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import {
   getAllModifiers,
   getModifier,
   modifierAggregates,
-  modifiersTable,
 } from "#db/modifiers.ts";
 import { handleRequest } from "#routes";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -227,24 +225,6 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData(),
       );
       expectStatus(404)(response);
-    });
-
-    test("returns 404 when a modifier disappears during update", async () => {
-      await adminFormPost("/admin/modifiers", createData({ name: "Stale" }));
-      const { id } = await lastModifier();
-      const updateStub = stub(modifiersTable, "update", () =>
-        Promise.resolve(null),
-      );
-
-      try {
-        const { response } = await adminFormPost(
-          `/admin/modifiers/${id}/edit`,
-          createData({ name: "Gone" }),
-        );
-        expectStatus(404)(response);
-      } finally {
-        updateStub.restore();
-      }
     });
   });
 

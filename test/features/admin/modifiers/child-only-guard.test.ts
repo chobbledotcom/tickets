@@ -13,7 +13,7 @@ import {
   expectHtmlResponse,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createGroupOfOneChild } from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -212,13 +212,11 @@ describeWithEnv(
     });
 
     test("blocks scoping an opt-in add-on to a group of only children", async () => {
-      const group = await createTestGroup({ name: "Add-ons" });
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({
-        groupId: group.id,
-        name: "Add-on",
+      const group = await createGroupOfOneChild({
+        child: "Add-on",
+        group: "Add-ons",
+        parent: "Base unit",
       });
-      await listingChildren.setIds(parent.id, [child.id]);
       const modifier = await insertModifier({ name: "Group child extra" });
       await patchModifier(modifier.id, {
         active: 1,

@@ -41,6 +41,7 @@ import {
   type CreateAdjustment,
 } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
+import { answerParsed } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
 import type { Attendee } from "#types";
@@ -227,15 +228,15 @@ const createFromParsed = async (parsed: ParsedApiCreate): Promise<Response> => {
 /** Handle POST /api/admin/attendees. Staff-only, matching the dashboard's
  *  attendee create surface (areas-a-l.ts "attendees"). */
 export const handleCreateAttendee: RouteHandlerFn = (request) =>
-  withAuth(request, ADMIN_API, async (_session, body) => {
-    const parsed = await parseCreateBody(body);
-    if (!parsed.ok) return apiErrorResponse(parsed.error);
-    // A caller-supplied token makes a retry a no-op: the booking already
-    // exists under it, so nothing is written and the existing attendee is
-    // returned.
-    if (parsed.value.ticketToken !== undefined) {
-      const retried = await retriedAttendeeResponse(parsed.value.ticketToken);
-      if (retried !== null) return retried;
-    }
-    return createFromParsed(parsed.value);
-  });
+  withAuth(request, ADMIN_API, async (_session, body) =>
+    answerParsed(parseCreateBody(body), async (parsedValue) => {
+      // A caller-supplied token makes a retry a no-op: the booking already
+      // exists under it, so nothing is written and the existing attendee is
+      // returned.
+      if (parsedValue.ticketToken !== undefined) {
+        const retried = await retriedAttendeeResponse(parsedValue.ticketToken);
+        if (retried !== null) return retried;
+      }
+      return createFromParsed(parsedValue);
+    }),
+  );

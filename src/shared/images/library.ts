@@ -36,3 +36,11 @@ export const siteContentBlocksManager = async (
   imageId: number,
 ): Promise<boolean> =>
   !isSiteRole(adminLevel) && (await imageHasSiteContentUse(imageId));
+
+/** Run a surface's refusal when public Site content blocks the image. */
+export const whenSiteContentBlocksManager = async (
+  adminLevel: AdminLevel,
+  imageId: number,
+  refusal: Response,
+): Promise<Response | null> =>
+  (await siteContentBlocksManager(adminLevel, imageId)) ? refusal : null;

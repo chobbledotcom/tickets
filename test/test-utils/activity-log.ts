@@ -26,6 +26,7 @@ import {
   getListingWithActivityLogOrNull as realGetListingWithActivityLogOrNull,
 } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { ALL_SETTINGS_KEYS, settings } from "#db/settings.ts";
 import { nowIso } from "#shared/now.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
@@ -82,3 +83,11 @@ export const wasActivityLogged = async (message: string): Promise<boolean> =>
 /** The decrypted messages currently in the activity log, for "was it logged" asserts. */
 export const activityMessages = async (): Promise<string[]> =>
   (await getAllActivityLog()).map((entry) => entry.message);
+
+/** The activity log's messages. A library write bumps the settings version,
+ *  which leaves the snapshot at its defaults until it reloads, and the log's
+ *  decryption needs the wrapped private key the snapshot holds. */
+export const loggedMessages = async (): Promise<string[]> => {
+  await settings.loadKeys(ALL_SETTINGS_KEYS);
+  return activityMessages();
+};

@@ -1,4 +1,4 @@
-import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
+import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 /**
  * Admin CRUD for user-created content Pages, under Site → Pages. Owner +
@@ -12,7 +12,6 @@ import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
  * route wiring.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { rowExists } from "#db/client.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
@@ -23,11 +22,9 @@ import {
   sitePageItemOrder,
 } from "#db/site-page-items.ts";
 import {
-  createSitePage,
   getSitePageById,
   type SitePageWriteInput,
   sitePageOrder,
-  updateSitePage,
 } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
@@ -38,8 +35,11 @@ import {
   throughParent,
 } from "#routes/entity.ts";
 import { errorRedirect } from "#routes/response.ts";
+import { adminPattern } from "#shared/admin-surface.ts";
 import { createOrderedCollectionHandlers } from "#shared/app-forms.ts";
-import { eligibleChildPages, isReservedSlug } from "#shared/site-pages/core.ts";
+import { sitePageRecord } from "#shared/records/site-pages.ts";
+import { recordPages } from "#shared/rest/record-pages.ts";
+import { eligibleChildPages } from "#shared/site-pages/core.ts";
 import { loadPageForest } from "#shared/site-pages/load.ts";
 import {
   type SitePageItemTarget,
@@ -59,10 +59,11 @@ import {
 } from "#types";
 import { seoContentInput } from "./content-form-fields.ts";
 import {
-  contentWriteOrError,
-  defineSiteContent,
+  contentImageHandlers,
+  contentPagePaths,
+  contentRecordRoutes,
   saveContent,
-} from "./site-content.ts";
+} from "./content-save.ts";
 import { buildListModel, offerableListing } from "./site-pages-data.ts";
 import { sitePageEditForm, sitePageForm } from "./site-pages-form.ts";
 import { sitePageEntityPage } from "./site-pages-page.ts";
@@ -81,91 +82,34 @@ const contentFields = (
   slug,
 });
 
-type SitePageContentValues = Parameters<typeof contentFields>[0] & {
-  slug: string;
-};
-
-/** Normalize a validated slug and reject reserved public paths. The write itself
- * checks ownership atomically across listings, groups, and pages. */
-const reservedSlugError = (
-  value: string,
-  errorPath: string,
-): Response | undefined => {
-  // The slug field's own validator already ran `validateSlug(normalizeSlug())`
-  // (so the format is known-good here). Re-normalise for the reserved check
-  // and storage.
-  const slug = normalizeSlug(value);
-  if (isReservedSlug(slug)) {
-    return errorRedirect(errorPath, t("site.pages.error.reserved"));
-  }
-  return;
-};
-
 // ─── Page CRUD ──────────────────────────────────────────────────
 
-/** The shared words of a page write: the flash and the log line both name
- * what happened to the page. */
-const pageWriteWords = (verb: "created" | "updated") => ({
-  flashMessage: t(`site.pages.${verb}`),
-  logMessage: (_page: SitePage, values: SitePageContentValues) =>
-    `Page '${values.name}' ${verb}`,
+const LIST_PATH = adminPattern("sitePages");
+
+const pageSlugInput = (
+  values: Parameters<typeof contentFields>[0] & { slug: string },
+): SitePageWriteInput => contentFields(values, normalizeSlug(values.slug));
+
+const pages = recordPages(sitePageRecord, {
+  ...contentPagePaths(sitePageRecord),
+  editForm: sitePageEditForm,
+  form: sitePageForm,
+  renderDelete: adminSitePageDeletePage,
+  renderEditError: sitePageEntityPage.renderEditError,
+  renderList: async (_rows, session, successMessage) =>
+    adminSitePagesListPage(await buildListModel(), session, successMessage),
+  renderNew: adminSitePageNewPage,
+  toEditInput: pageSlugInput,
+  toInput: pageSlugInput,
 });
 
-const content = defineSiteContent("/admin/site/pages", (paths) => ({
-  create: {
-    ...pageWriteWords("created"),
-    validate: (values: SitePageContentValues) =>
-      reservedSlugError(values.slug, paths.newPage),
-    write: async (values: SitePageContentValues, transaction) =>
-      contentWriteOrError(
-        await createSitePage(
-          contentFields(values, normalizeSlug(values.slug)),
-          transaction,
-        ),
-        paths.newPage,
-        t("site.pages.error.slug_taken"),
-      ),
-  },
-  createForm: sitePageForm,
-  delete: {
-    identifier: (page: SitePage) => page.name,
-    identifierLabel: t("site.pages.name_label"),
-    onConfirm: async (page: SitePage) => {
-      const { deleteSitePageWithEdges } = await import(
-        "#db/site-page-items.ts"
-      );
-      await deleteSitePageWithEdges(page.id);
-      await logActivity(`Page '${page.name}' deleted`);
-    },
-    render: adminSitePageDeletePage,
-    successMessage: t("site.pages.deleted"),
-  },
-  editForm: sitePageEditForm,
-  entityPage: sitePageEntityPage,
-  imageType: "page",
+const images = contentImageHandlers({
+  itemType: "page",
   load: getSitePageById,
-  loadList: buildListModel,
-  renderList: adminSitePagesListPage,
-  renderNew: adminSitePageNewPage,
-  update: {
-    ...pageWriteWords("updated"),
-    validate: (values: SitePageContentValues, page: SitePage) =>
-      reservedSlugError(values.slug, paths.edit(page.id)),
-    write: async (values: SitePageContentValues, transaction, page) =>
-      contentWriteOrError(
-        await updateSitePage(
-          page.id,
-          contentFields(values, normalizeSlug(values.slug)),
-          transaction,
-        ),
-        paths.edit(page.id),
-        t("site.pages.error.slug_taken"),
-      ),
-  },
-}));
+  nameOf: (page) => page.name,
+  record: sitePageRecord,
+});
 
-const { paths } = content;
-const LIST_PATH = paths.list;
 /** The Items and Images tabs live under the entity page. Their POST
  * sub-actions bounce back to the relevant tab, not the Edit form. */
 const itemsPath = (id: number): string => `${LIST_PATH}/${id}/items`;
@@ -313,22 +257,12 @@ const pageItemOrder = createOrderedCollectionHandlers({
 // ─── Routes ─────────────────────────────────────────────────────
 
 export const adminHandlers = defineAdminRoutes({
-  "GET /admin/site/pages": content.list,
-  "GET /admin/site/pages/:id": content.entity,
-  "GET /admin/site/pages/:id/:tab": content.entityTab,
-  "GET /admin/site/pages/:id/delete": content.deletePage,
-  "GET /admin/site/pages/new": content.newPage,
-  "POST /admin/site/pages": content.create,
-  "POST /admin/site/pages/:id/delete": content.delete,
-  "POST /admin/site/pages/:id/edit": content.update,
-  "POST /admin/site/pages/:id/images": content.images.set,
-  "POST /admin/site/pages/:id/images/upload": content.images.upload,
+  ...contentRecordRoutes("sitePages", pages, images, sitePageEntityPage),
   "POST /admin/site/pages/:id/items": handleAddItem,
-  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-down":
-    pageItemOrder.down,
-  "POST /admin/site/pages/:id/items/:itemType/:itemId/move-up":
-    pageItemOrder.up,
+  ...orderRoutes(
+    "/admin/site/pages/:id/items/:itemType/:itemId",
+    pageItemOrder,
+  ),
   "POST /admin/site/pages/:id/items/:itemType/:itemId/remove": handleRemoveItem,
-  "POST /admin/site/pages/:id/move-down": rootPageOrder.down,
-  "POST /admin/site/pages/:id/move-up": rootPageOrder.up,
+  ...orderRoutes("/admin/site/pages/:id", rootPageOrder),
 });

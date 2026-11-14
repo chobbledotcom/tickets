@@ -31,6 +31,15 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
     expect(await builtSitesCrudTable.read.many()).toHaveLength(2);
   });
 
+  test("exists answers by id without opening the site's blob", async () => {
+    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+
+    expect(await builtSitesCrudTable.read.exists({ id: site.id })).toBe(true);
+    expect(await builtSitesCrudTable.read.exists({ id: site.id + 1 })).toBe(
+      false,
+    );
+  });
+
   test("refuses to filter on fields kept inside the blob", () => {
     // A site's name lives in the encrypted blob, not in a column, so no read
     // can find a site by it — saying so is better than reading every site.

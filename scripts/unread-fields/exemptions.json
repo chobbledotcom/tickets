@@ -1,16 +1,4 @@
 {
-  "src/features/admin/api-attributes.ts": [
-    {
-      "path": [{ "name": "CreateAttributeBody" }],
-      "kind": "dynamic-read",
-      "evidence": "toAttributeInput on a create body reads the field by key off the raw JSON body record"
-    },
-    {
-      "path": [{ "name": "UpdateAttributeBody" }],
-      "kind": "dynamic-read",
-      "evidence": "toAttributeInput on an update body reads the field by key off the raw JSON body record"
-    }
-  ],
   "src/features/admin/api-listing-body.ts": [
     {
       "path": [{ "name": "CreateListingBody" }],
@@ -46,11 +34,6 @@
   ],
   "src/shared/admin-api-external-sources.ts": [
     {
-      "path": [{ "name": "AdminApiCreateExternalSourceBody" }],
-      "kind": "dynamic-read",
-      "evidence": "the route reads each field by key off the raw JSON body record"
-    },
-    {
       "path": [{ "name": "AdminApiCreateExternalLinkBody" }],
       "kind": "dynamic-read",
       "evidence": "the route reads each field by key off the raw JSON body record"
@@ -78,11 +61,6 @@
       "evidence": "jsonResponse serialises the complete site-page row"
     },
     {
-      "path": [{ "name": "AdminApiCreateAttendeeStatusBody" }],
-      "kind": "dynamic-read",
-      "evidence": "statusInputFrom reads the field by key off the raw JSON body record"
-    },
-    {
       "path": [{ "name": "AdminApiAttendeeStatus" }],
       "kind": "external-output",
       "evidence": "jsonResponse serialises the complete attendee-status row"
@@ -100,6 +78,13 @@
       "path": [{ "name": "BodyField" }],
       "kind": "dynamic-read",
       "evidence": "fieldViews reads the create or update view by key when it assembles a body"
+    }
+  ],
+  "src/shared/db/api-keys.ts": [
+    {
+      "path": [{ "name": "ApiKeyName" }],
+      "kind": "schema-driven",
+      "evidence": "the record spreads the row into its display shape and the delete answers it"
     }
   ],
   "src/shared/db/attendees/pii.ts": [
@@ -126,13 +111,6 @@
       "path": [{ "name": "BuiltSitePlainInput" }],
       "kind": "schema-driven",
       "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
-    }
-  ],
-  "src/shared/db/external-sources/types.ts": [
-    {
-      "path": [{ "name": "ExternalSourceInput" }],
-      "kind": "schema-driven",
-      "evidence": "defineTable's toDbValues reads each input field through the table's input key map"
     }
   ],
   "src/shared/db/invoices.ts": [
@@ -217,26 +195,102 @@
       "evidence": "storeSlot reads and writes the slot field by key"
     }
   ],
-  "src/shared/rest/resource.ts": [
+  "src/features/admin/listings-form.ts": [
     {
-      "path": [
-        { "name": "Resource" },
-        { "name": "delete" },
-        { "way": "()" },
-        { "way": "result" }
-      ],
+      "path": [{ "name": "ListingUpdateResult" }],
+      "kind": "dynamic-read",
+      "evidence": "operationResponse in listings-edit narrows the union and reads row, error, and notFound"
+    }
+  ],
+  "src/shared/db/table.ts": [
+    {
+      "path": [{ "name": "Table" }],
       "kind": "schema-driven",
-      "evidence": "operationResponse reads notFound through OperationFailure"
+      "evidence": "defineTable's toDbValues reads inputKeyMap and its statement builders read the schema by key"
+    }
+  ],
+  "src/shared/forms/definition.ts": [
+    {
+      "path": [{ "name": "FormSchema" }],
+      "kind": "schema-driven",
+      "evidence": "defineForm's render and validate read the declared fields"
+    }
+  ],
+  "src/shared/records/images.ts": [
+    {
+      "path": [{ "name": "ImageMetadata" }],
+      "kind": "schema-driven",
+      "evidence": "imageRule and the API mapper read both fields through the Result value"
+    }
+  ],
+  "src/shared/records/email-templates.ts": [
+    {
+      "path": [{ "name": "EmailTemplateRow" }],
+      "kind": "schema-driven",
+      "evidence": "answerTemplateSave reads verdict.row.id, which the scan cannot follow through WriteVerdict"
+    }
+  ],
+  "src/shared/rest/field-specs.ts": [
+    {
+      "path": [{ "name": "InputValue" }],
+      "kind": "schema-driven",
+      "evidence": "FieldsInput and the body reads take each kind's input value through indexed access"
     },
     {
-      "path": [
-        { "name": "Resource" },
-        { "name": "update" },
-        { "way": "()" },
-        { "way": "result" }
-      ],
+      "path": [{ "name": "StoredValue" }],
       "kind": "schema-driven",
-      "evidence": "operationResponse reads notFound through OperationFailure"
+      "evidence": "FieldsStored, the body reads, and the kind columns take each kind's stored value through indexed access"
+    }
+  ],
+  "src/shared/rest/record-pages.ts": [
+    {
+      "path": [{ "name": "RecordPagesConfig" }],
+      "kind": "schema-driven",
+      "evidence": "resolvePagePaths reads createErrorPath and savePath from the config through its structural PagePathConfig"
+    },
+    {
+      "path": [{ "name": "RecordPagesConfig" }, { "name": "routes" }],
+      "kind": "schema-driven",
+      "evidence": "resolvePagePaths reads the new and edit route ids through its structural PagePathConfig"
+    }
+  ],
+  "src/shared/rest/crud-api-types.ts": [
+    {
+      "path": [{ "name": "PreparedResult" }],
+      "kind": "schema-driven",
+      "evidence": "runWrite narrows the prepared result to its error or value arm"
+    }
+  ],
+  "src/shared/rest/record-contract.ts": [
+    {
+      "path": [{ "name": "RecordShape" }],
+      "kind": "schema-driven",
+      "evidence": "RowOf, InputOf, FullRowOf, ListRowOf, and StateOf read each member through indexed access"
+    },
+    {
+      "path": [{ "name": "RecordShape" }, { "name": "fullRow" }],
+      "kind": "schema-driven",
+      "evidence": "FullRowOf reads the optional read row through indexed access"
+    },
+    {
+      "path": [{ "name": "AnswersOf" }],
+      "kind": "schema-driven",
+      "evidence": "defineRecord passes the declared answers to AdminRecord, which reads each command answer through indexed access"
+    },
+    {
+      "path": [{ "name": "RecordAnswers" }],
+      "kind": "schema-driven",
+      "evidence": "AdminRecord types its create, update, and remove commands through indexed access on its answers"
+    },
+    {
+      "path": [{ "name": "RecordShapeOf" }],
+      "kind": "schema-driven",
+      "evidence": "defineRecord reads the built shape through RowOf, InputOf, FullRowOf, ListRowOf, and StateOf"
+    },
+    {
+      "path": [{ "name": "AdminRecord" }],
+      "kind": "schema-driven",
+      "evidence": "recordPages and recordApi read the record through the page and JSON doors"
     }
   ],
   "src/shared/settings/form-schema.ts": [

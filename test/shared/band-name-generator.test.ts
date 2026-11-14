@@ -219,6 +219,7 @@ const VENUE_PATTERNS = [
   "{person}'s {venue}",
 ];
 
+/* jscpd:ignore-start -- a list of strings, not code */
 const DESCRIPTION_PATTERNS = [
   "{intensity} {listingType} of {showItem}, {showItem}, and {showItem}",
   "{intensity} {genre} {listingType} — {ageNote}, no {prohibition}",
@@ -246,6 +247,7 @@ const DESCRIPTION_PATTERNS = [
   "{number} {genre} acts {connector} {number} {oddInstrument}",
   "{bandDescriptor} of {genre} return for one {tourAdj} {listingType}",
 ];
+/* jscpd:ignore-end */
 
 // Mirrors the private SLOT_POOLS map in band-name-generator.ts, so each
 // slot's regex only accepts its actual pool words — not any string. A loose

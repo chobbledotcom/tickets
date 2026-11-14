@@ -1,44 +1,44 @@
-import type { Question, QuestionWithAnswers } from "#db/question-types.ts";
+import type {
+  Answer,
+  Question,
+  QuestionWithAnswers,
+} from "#db/question-types.ts";
 import {
   getAnswerSelectionTotals,
   getAnswerSelectionTotalsOnPrimary,
 } from "#db/questions/aggregates.ts";
 import { getQuestionBookings } from "#db/questions/attendee-answers/bookings.ts";
-import { deleteQuestion } from "#db/questions/delete.ts";
 import {
-  getAllQuestionsWithAnswers,
   getQuestionWithAnswers,
   getQuestionWithAnswersOnPrimary,
   requireQuestionWithAnswersOnPrimary,
 } from "#db/questions/queries.ts";
-import {
-  type QuestionInput,
-  questionsOrder,
-  questionsTable,
-} from "#db/questions/tables.ts";
+import type { QuestionInput } from "#db/questions/tables.ts";
 
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { OWNER_API } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import {
+import type {
   ADMIN_API_RESOURCES,
-  type AdminApiCreateQuestionBody,
-  type AdminApiUpdateQuestionBody,
+  AdminApiCreateQuestionBody,
+  AdminApiUpdateQuestionBody,
 } from "#shared/admin-api-resources.ts";
-import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { ownerChildSurface } from "#shared/rest/child-surface.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { questionRecord } from "#shared/records/questions.ts";
+import {
+  childTextConfig,
+  recordChildSurface,
+} from "#shared/rest/child-surface.ts";
 import type { HydratedRows } from "#shared/rest/crud-api-types.ts";
-import { ownerCatalogConfig } from "#shared/rest/crud-config.ts";
 import {
   type RequiredTextReader,
   withApiEntity,
   withRequiredText,
 } from "#shared/rest/crud-parsers.ts";
-import { appendOnCreate } from "#shared/rest/crud-side-effects.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
+import { recordApi, recordJsonPolicy } from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import {
@@ -53,53 +53,29 @@ import {
 // DELETE /api/admin/questions/:questionId/answers/:answerId take the shared
 // DeleteBody the crud-parsers module exports.
 
-/** The form's length refusal for one question text. */
-const questionTextCap = (text: string): Result<string> =>
-  text.length > MAX_TEXTAREA_LENGTH
-    ? errorResult(
-        t("fields.validation.max_length", {
-          label: t("questions.name_label"),
-          max: MAX_TEXTAREA_LENGTH,
-        }),
-      )
-    : okResult(text);
-
 /** The create mapping. The schema proves the text and the display type. The
- *  form's cap runs here. */
+ *  record's rule applies the form's cap and the type rules. */
 const createQuestionInput = (
   body: AdminApiCreateQuestionBody,
-): Result<QuestionInput> => {
-  const capped = questionTextCap(body.text);
-  return capped.ok
-    ? okResult({
-        assignAll: body.assign_all ?? false,
-        displayType: body.display_type,
-        text: capped.value,
-      })
-    : capped;
-};
+): Result<QuestionInput> =>
+  okResult({
+    assignAll: body.assign_all ?? false,
+    displayType: body.display_type,
+    text: body.text,
+  });
 
-/** The update mapping. An absent field keeps the stored one. A type
- *  conversion orphans existing answers. A free-text question stays free-text.
- *  A choice question can switch only between radio and select. */
+/** The update mapping. An absent field keeps the stored one. The record's
+ *  rule refuses a type conversion that can orphan existing answers. */
 const updateQuestionInput = (
   body: AdminApiUpdateQuestionBody,
   existing: QuestionWithAnswers,
 ): Result<QuestionInput> => {
   const text = (body.text ?? existing.text).trim();
   if (text === "") return errorResult("text cannot be empty");
-  const capped = questionTextCap(text);
-  if (!capped.ok) return capped;
-  const displayType =
-    body.display_type === undefined ||
-    existing.display_type === "free_text" ||
-    body.display_type === "free_text"
-      ? existing.display_type
-      : body.display_type;
   return okResult({
     assignAll: body.assign_all ?? existing.assign_all,
-    displayType,
-    text: capped.value,
+    displayType: body.display_type ?? existing.display_type,
+    text,
   });
 };
 
@@ -107,13 +83,14 @@ const updateQuestionInput = (
  *  question and immediately posts its first answer, so the parent read pins
  *  to the primary. A lagging replica must not 404 the row the create just
  *  made. */
-const answerSurface = ownerChildSurface(
+const answerSurface = recordChildSurface<QuestionWithAnswers, Answer>(
+  questionRecord,
   "questionId",
   "Question",
   "answerId",
   "Answer",
   getQuestionWithAnswersOnPrimary,
-  (question: QuestionWithAnswers) => question.answers,
+  (question) => question.answers,
 );
 
 /** The answer write's text read: the shared required-text rule, then the
@@ -190,34 +167,24 @@ const questionResponse = async (
   );
 };
 
-/** POST /api/admin/questions/:questionId/answers */
-const handleAnswerCreate: RouteHandlerFn = (request, params) =>
-  answerSurface.parent(request, params, (question, body) =>
-    withAnswerText(body, async (text) => {
-      // Free-text questions collect a typed value, never an answer id, so
-      // the request is refused with the same message the HTML form answers.
-      if (question.display_type === "free_text") {
-        return apiErrorResponse(t("questions.answers.free_text_no_options"));
-      }
-      await addAnswerWithLog(question.id, text);
-      return questionResponse(question.id, 201);
-    }),
-  );
-
-/** PUT /api/admin/questions/:questionId/answers/:answerId */
-const handleAnswerUpdate = answerSurface.textUpdate(
-  withAnswerText,
-  async (question, answer, text) => {
-    await updateAnswerWithLog(question, answer, { text });
-    return questionResponse(question.id);
-  },
-);
-
-/** DELETE /api/admin/questions/:questionId/answers/:answerId */
-const handleAnswerDelete = answerSurface.confirmedDelete(
-  (answer) => answer.text,
+const answerHandlers = childTextConfig(
+  answerSurface,
   "Answer text",
-  (question, answer) => deleteAnswerWithLog(question, answer),
+  withAnswerText,
+  (answer) => answer.text,
+  {
+    add: (question, text) => addAnswerWithLog(question.id, text),
+    // Free-text questions collect a typed value, never an answer id, so the
+    // request is refused with the same message the HTML form answers.
+    refuseAdd: (question) =>
+      question.display_type === "free_text"
+        ? apiErrorResponse(t("questions.answers.free_text_no_options"))
+        : null,
+    remove: deleteAnswerWithLog,
+    rename: (question, answer, text) =>
+      updateAnswerWithLog(question, answer, { text }),
+    respond: questionResponse,
+  },
 );
 
 /** GET /api/admin/questions/:questionId/bookings — the bookings that answered
@@ -236,35 +203,17 @@ const handleQuestionBookings: RouteHandlerFn = (request, params) =>
           await requireRequestPrivateKey(),
         ),
       }),
-    OWNER_API,
+    recordJsonPolicy(questionRecord),
   );
 
-export const questionApiRoutes = defineCrudApi<
+export const questionApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.questions,
-  Question,
-  QuestionInput,
-  QuestionWithAnswers,
-  boolean
->(ADMIN_API_RESOURCES.questions, {
-  childHandlers: {
-    answers: {
-      create: handleAnswerCreate,
-      delete: handleAnswerDelete,
-      update: handleAnswerUpdate,
-    },
-  },
+  RecordShapeOf<Question, QuestionInput, QuestionWithAnswers>
+>(questionRecord, {
+  childHandlers: { answers: answerHandlers },
   customHandlers: { bookings: handleQuestionBookings },
   hydrate: hydrateAnswerStats,
   hydrateAfterWrite: hydrateAnswerStatsAfterWrite,
-  ...ownerCatalogConfig(
-    getAllQuestionsWithAnswers,
-    getQuestionWithAnswers,
-    getQuestionWithAnswersOnPrimary,
-    "text",
-    (id) => deleteQuestion(Number(id)),
-    questionsTable,
-  ),
-  sideEffect: appendOnCreate(questionsOrder),
   toCreateInput: createQuestionInput,
   toUpdateInput: updateQuestionInput,
 });

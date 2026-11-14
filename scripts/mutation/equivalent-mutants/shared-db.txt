@@ -143,7 +143,7 @@ src/shared/db/attendees/notification-flags.ts::emailBadgePendingOrNull.pending~0
 # The news card query names a single table, so its columns need no alias to
 # resolve.
 src/shared/db/news-posts.ts::getNewsPostCards.rows.columns~0dqqett  news_post → "" audited:1h1r8sz # dropping the alias leaves the column names unqualified, and the read selects from one table (news_posts AS news_post) plus scalar subqueries that carry their own qualified id, so every name still resolves to the same column
-src/features/admin/api-keys.ts::apiKeyPage.load~0c5nk11  ?? → || audited:1uwf155 # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
+src/features/admin/api-keys.ts::apiKeyPage.load~0lkrqs4  ?? → || audited:0se4ray # entity-page load: find() returns a key row object or undefined — a row object is always truthy, so `?? null` and `|| null` agree on every input
 
 src/shared/db/activity-log.ts::logActivity~078kit2  Activity log row missing → "" audited:1938nnu # logActivities returns one row per activity it was given, so the single-activity call always has its row and requireValue never raises this message
 

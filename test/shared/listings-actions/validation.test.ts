@@ -92,6 +92,28 @@ describeWithEnv("validateListingInput boundaries", { db: true }, () => {
     assertStringIncludes(error ?? "", "same type");
   });
 
+  test("throws when the loaded group members leave out a group it joins", async () => {
+    const group = await createTestGroup({ name: "Unloaded Group" });
+
+    await expect(
+      validateListingInput(
+        inputFor({ groupIds: [group.id], name: "Unloaded Candidate" }),
+        undefined,
+        { siblingsByGroup: new Map() },
+      ),
+    ).rejects.toThrow("Missing group listing membership");
+  });
+
+  test("refuses a contact field it does not know, and only that field", async () => {
+    const withFields = (fields: string) =>
+      validateListingInput(inputFor({ fields, name: "Odd Fields" }));
+
+    await expect(withFields("email,shoe_size")).resolves.toBe(
+      t("error.listing_fields_unknown"),
+    );
+    await expect(withFields("email,phone")).resolves.toBeNull();
+  });
+
   test("defaults an omitted customisable-days flag to false for group checks", async () => {
     const group = await createTestGroup({ name: "Standard Group" });
     await createTestListing({ groupId: group.id, name: "Standard Member" });

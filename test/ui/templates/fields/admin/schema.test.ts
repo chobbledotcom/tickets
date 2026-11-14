@@ -348,3 +348,14 @@ describe("admin field schemas", () => {
     ]);
   });
 });
+
+describe("the built-site form", () => {
+  test("the site URL label links to the saved address", () => {
+    const [, siteUrl] = getBuiltSiteForm("https://a.example/?x=1&y=2").fields;
+    expect(siteUrl).toMatchObject({
+      labelSuffixHtml:
+        ' <a href="https://a.example/?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">(visit)</a>',
+      name: "site_url",
+    });
+  });
+});

@@ -190,26 +190,6 @@ export const expectAttendeeCounts = async (
   }
 };
 
-export const expectResultError =
-  (expectedError: string) =>
-  <T extends { ok: boolean; error?: string }>(result: T): T => {
-    expect(result.ok).toBe(false);
-    if (!result.ok && "error" in result) {
-      expect(result.error).toBe(expectedError);
-    }
-    return result;
-  };
-
-export const expectResultNotFound = <
-  T extends { ok: boolean; notFound?: boolean },
->(
-  result: T,
-): T => {
-  expect(result.ok).toBe(false);
-  expect("notFound" in result && result.notFound).toBe(true);
-  return result;
-};
-
 /** Assert `fn` throws an error of `errorClass` and (optionally) whose message
  *  matches `pattern`. Runs `fn` twice — once per assertion — so only use for
  *  idempotent predicates (validators, pure checks), not stateful operations. */
