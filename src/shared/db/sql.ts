@@ -94,8 +94,8 @@ const appendPieces = (pieces: Piece[], more: readonly Piece[]): void => {
 /** Where a reader of SQL text is: in SQL, in a quoted literal, or in a comment. */
 type TextPlace = "sql" | "literal" | "line comment" | "block comment";
 
-/** What each place does when the text at `at` starts with `opens`: the place
- * it moves to. A doubled quote leaves a literal and enters it again. */
+/** The marks that move a reader out of each place, and the place each mark
+ * moves to. A doubled quote leaves a literal and enters it again. */
 const PLACE_MOVES: Record<TextPlace, readonly [string, TextPlace][]> = {
   "block comment": [["*/", "sql"]],
   "line comment": [["\n", "sql"]],
@@ -107,16 +107,16 @@ const PLACE_MOVES: Record<TextPlace, readonly [string, TextPlace][]> = {
   ],
 };
 
-/** The place a reader is in after `text`, when it started in `place`. */
-const placeAfter = (text: string, place: TextPlace): TextPlace => {
-  let now = place;
-  let at = 0;
-  while (at < text.length) {
-    const move = PLACE_MOVES[now].find(([opens]) => text.startsWith(opens, at));
-    at += move ? move[0].length : 1;
-    if (move) now = move[1];
-  }
-  return now;
+/** The place a reader is in after `text`, when it started in `place` at
+ * `from`. The nearest mark moves the reader, and the read goes on after it. */
+const placeAfter = (text: string, place: TextPlace, from = 0): TextPlace => {
+  const [nearest] = PLACE_MOVES[place]
+    .map(([mark, to]) => ({ at: text.indexOf(mark, from), mark, to }))
+    .filter((move) => move.at >= 0)
+    .sort((left, right) => left.at - right.at);
+  return nearest
+    ? placeAfter(text, nearest.to, nearest.at + nearest.mark.length)
+    : place;
 };
 
 /** Refuse a slot inside a quoted SQL literal. SQLite reads `'?1'` as text, so

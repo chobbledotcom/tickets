@@ -156,6 +156,25 @@ describe("sql", () => {
     expect(sql`SELECT 1 /* it's * / still */ + ${1}`.args).toEqual([1]);
   });
 
+  test("reads a mark at the start of the text", () => {
+    expect(() => sql`'${1}'`).toThrow(
+      "A slot sits inside a quoted SQL literal",
+    );
+    expect(
+      sql`${1}--'
+${2}`.args,
+    ).toEqual([1, 2]);
+  });
+
+  test("a character that ends one mark does not start the next mark", () => {
+    // The comment stays open after `/*/`, so the quote is comment text.
+    expect(sql`SELECT 1 /*/ it's */ + ${1}`.args).toEqual([1]);
+    // The first `*/` ends the comment, so the quote starts a literal.
+    expect(() => sql`SELECT 1 /* a */*/ 'b${1}'`).toThrow(
+      "A slot sits inside a quoted SQL literal",
+    );
+  });
+
   test("leaves a quote after the last slot alone", () => {
     expect(sql`SELECT ${1} || 'tail`.sql).toBe("SELECT ?1 || 'tail");
   });
