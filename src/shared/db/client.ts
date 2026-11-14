@@ -218,10 +218,8 @@ const [dbGetter, dbSetter] = lazyRef(createDbClient);
 export type StatementTransaction = Omit<
   Transaction,
   "batch" | "execute" | "executeMultiple"
-> & {
-  batch: (statements: SqlStatement[]) => Promise<ResultSet[]>;
-  execute: (statement: SqlStatement) => Promise<ResultSet>;
-};
+> &
+  TxScope;
 
 /** The libsql client, narrowed to run only statements the `sql` tag built. */
 export type StatementClient = Omit<
@@ -859,7 +857,9 @@ export const insertOrIgnore = insertStartingWith(sql`INSERT OR IGNORE INTO`);
 
 /** One `column = value` per entry: the shared clause shape of {@link update}'s
  * SET and WHERE parts. */
-const equalityClauses = (values: Record<string, SqlSlot>): SqlStatement[] =>
+export const equalityClauses = (
+  values: Record<string, SqlSlot>,
+): SqlStatement[] =>
   Object.entries(values).map(
     ([column, value]) => sql`${sqlName(column)} = ${value}`,
   );

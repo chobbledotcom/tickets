@@ -318,10 +318,10 @@ describeWithEnv(
       );
       expect(
         (await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt,
-      ).toBeUndefined();
-      expect(
-        (await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt,
-      ).toBeUndefined();
+      ).toBe(undefined);
+      expect((await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt).toBe(
+        undefined,
+      );
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
 
@@ -337,9 +337,9 @@ describeWithEnv(
       await expect(acknowledge(attendeeId)).rejects.toThrow(
         "activity unavailable",
       );
-      expect(
-        (await reviewOf(attendeeId, "sess-log")).acknowledgedAt,
-      ).toBeUndefined();
+      expect((await reviewOf(attendeeId, "sess-log")).acknowledgedAt).toBe(
+        undefined,
+      );
     });
 
     test("changes only the named attendee's exact review", async () => {
@@ -352,9 +352,9 @@ describeWithEnv(
       expect((await reviewOf(named, "sess-named")).acknowledgedAt).toEqual(
         expect.any(String),
       );
-      expect(
-        (await reviewOf(other, "sess-other")).acknowledgedAt,
-      ).toBeUndefined();
+      expect((await reviewOf(other, "sess-other")).acknowledgedAt).toBe(
+        undefined,
+      );
       expect(await getAttendeeActivityLog(other)).toEqual([]);
     });
   },

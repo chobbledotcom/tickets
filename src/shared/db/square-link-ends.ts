@@ -87,6 +87,21 @@ export const stageSquareLinkEnd = async (
   );
 };
 
+/** Write a state and an attempt time to a row that is still as this worker
+ * read it. Returns whether the write landed. */
+const moveRowAsRead = async (
+  row: DueSquareLinkEnd,
+  state: string,
+  nextAttemptAt: string,
+): Promise<boolean> => {
+  const result = await execute(
+    sql`UPDATE square_link_ends
+        SET state = ${state}, next_attempt_at = ${nextAttemptAt}
+      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
+  );
+  return result.rowsAffected === 1;
+};
+
 /**
  * Claim one row for this worker, giving it a lease to answer inside. Returns
  * the lease's attempt time — the value the following write must match — or
@@ -96,12 +111,12 @@ export const claimSquareLinkEnd = async (
   row: DueSquareLinkEnd,
 ): Promise<string | null> => {
   const leaseUntil = isoAfter(SQUARE_LINK_LEASE_MS);
-  const result = await execute(
-    sql`UPDATE square_link_ends
-        SET state = ${squareLinkEndMoveTo("pending", "claim_due")}, next_attempt_at = ${leaseUntil}
-      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
+  const claimed = await moveRowAsRead(
+    row,
+    squareLinkEndMoveTo("pending", "claim_due"),
+    leaseUntil,
   );
-  return result.rowsAffected === 1 ? leaseUntil : null;
+  return claimed ? leaseUntil : null;
 };
 
 /** The attempt time a row carries after one event lands on it. A row keeps
@@ -125,12 +140,7 @@ export const applySquareLinkEndEvent = async (
   if (to === "gone") {
     return deleteSquareLinkEnd(row.sessionIndex, row.state, row.claimedAt);
   }
-  const result = await execute(
-    sql`UPDATE square_link_ends
-        SET state = ${to}, next_attempt_at = ${nextAttemptFor(event)}
-      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
-  );
-  return result.rowsAffected === 1;
+  return moveRowAsRead(row, to, nextAttemptFor(event));
 };
 
 /** Delete one row by its index, fenced on the state — and, for a claimed

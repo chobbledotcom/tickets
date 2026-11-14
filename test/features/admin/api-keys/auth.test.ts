@@ -30,7 +30,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });
@@ -73,7 +73,6 @@ describeWithEnv("API key authentication", { db: true }, () => {
         handleRequest(requestAsApiKey("/api/admin/listings", apiKey)),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
           expect(body.listings.length).toBeGreaterThan(0);
           expect(body.admin_level).toBe("owner");
         },
@@ -82,10 +81,10 @@ describeWithEnv("API key authentication", { db: true }, () => {
       // Verify snake_case keys and no internal fields
       const listing = body.listings[0];
       expect(listing.name).toBe("Test Listing");
-      expect(listing.max_attendees).toBeDefined();
-      expect(listing.attendee_count).toBeDefined();
-      expect(listing.listing_type).toBeDefined();
-      expect(listing.slug_index).toBeUndefined();
+      expect(typeof listing.max_attendees).toBe("number");
+      expect(listing.attendee_count).toBe(0);
+      expect(typeof listing.listing_type).toBe("string");
+      expect(Object.hasOwn(listing, "slug_index")).toBe(false);
     });
 
     test("GET /api/admin/listings returns listings via cookie+CSRF", async () => {
@@ -100,7 +99,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         ),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });
@@ -174,7 +173,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
         ),
         200,
         (body) => {
-          expect(body.listings).toBeDefined();
+          expect(Array.isArray(body.listings)).toBe(true);
         },
       );
     });

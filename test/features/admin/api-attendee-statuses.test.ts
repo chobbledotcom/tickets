@@ -52,7 +52,7 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
           });
           // The answer carries the three default flags and the amount, but not
           // the dashboard-only sort order.
-          expect(confirmed.sort_order).toBeUndefined();
+          expect(Object.hasOwn(confirmed, "sort_order")).toBe(false);
         },
       );
     });

@@ -57,7 +57,9 @@ describeWithEnv("db > client transaction", { db: true }, () => {
   test("a transaction may use the full statement budget", async () => {
     // Off-by-one in the running count would fire the guard one statement
     // early, failing a legitimate transaction at exactly the threshold.
-    await runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1);
+    await expect(
+      runChattyTransaction(TRANSACTION_ROUNDTRIP_THRESHOLD - 1),
+    ).resolves.toBe(undefined);
   });
 
   test("the single-statement over the budget throws", async () => {

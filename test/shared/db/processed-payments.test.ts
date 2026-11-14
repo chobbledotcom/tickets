@@ -380,6 +380,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
 
     test("is a no-op if the session was pruned", async () => {
       await finalizeSessionIfUnresolved("sess_gone", 1, null);
+      expect(await getProcessedPayment("sess_gone")).toBeNull();
     });
 
     test("clears stored ticket tokens", async () => {

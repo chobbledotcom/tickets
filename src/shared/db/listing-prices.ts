@@ -20,10 +20,10 @@ import {
 import {
   type SqlStatement,
   sql,
+  sqlInsertRowsOrNull,
   sqlJoin,
   sqlList,
   sqlLiteral,
-  sqlRows,
 } from "#db/sql.ts";
 import { compact, mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
@@ -64,10 +64,12 @@ const priceDimensionDelete =
  * transaction, and a per-row insert would trip the round-trip guard. */
 const multiInsertPriceStatement = (
   rows: readonly PriceRow[],
-): SqlStatement | null => {
-  if (rows.length === 0) return null;
-  return sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${sqlRows(rows)}`;
-};
+): SqlStatement | null =>
+  sqlInsertRowsOrNull(
+    "listing_prices",
+    ["listing_id", "price_type", "price_id", "unit_price"],
+    rows,
+  );
 
 /** The delete-then-insert statements that make a package group's `group_day`
  * rows exactly match the submitted members — a full replace per group, so a

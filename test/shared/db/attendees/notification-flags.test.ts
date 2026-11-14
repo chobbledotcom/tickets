@@ -150,7 +150,7 @@ describeWithEnv(
      * direct edit or a restored backup can leave pad characters at a token
      * edge. The read trims the pad characters there, so the stored token
      * still reads. */
-    const paddedStoredFieldsStayOwed = async (
+    const expectPaddedStoredFieldsStayOwed = async (
       name: string,
       fields: string,
     ): Promise<void> => {
@@ -165,22 +165,25 @@ describeWithEnv(
     };
 
     test("reads the owed email through a space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed("Space Padded Buyer", " email ");
+      await expectPaddedStoredFieldsStayOwed("Space Padded Buyer", " email ");
     });
 
     test("reads the owed email through a non-breaking-space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed(
+      await expectPaddedStoredFieldsStayOwed(
         "Narrow Padded Buyer",
         "\u00a0email\u00a0",
       );
     });
 
     test("reads the owed email through a repeatedly space-padded stored fields value", async () => {
-      await paddedStoredFieldsStayOwed("Wide Padded Buyer", "   email   ");
+      await expectPaddedStoredFieldsStayOwed(
+        "Wide Padded Buyer",
+        "   email   ",
+      );
     });
 
     test("reads the owed email through mixed space and non-breaking-space padding", async () => {
-      await paddedStoredFieldsStayOwed(
+      await expectPaddedStoredFieldsStayOwed(
         "Mixed Padded Buyer",
         " \u00a0 \u00a0email \u00a0 ",
       );

@@ -9,11 +9,12 @@
  * leg exists, and would otherwise read as a bare sale.
  */
 
-import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
+import { REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
   accountPredicate,
   attendeeOwedSubquery,
+  paymentLegExists,
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
@@ -76,13 +77,10 @@ const incompleteRowPredicate = (paid: boolean): SqlStatement => {
     sql`listingAttendee.listing_id`,
     sql`listingAttendee.ledger_event_group`,
   )})`;
-  const hasPayment = sql`EXISTS (SELECT 1 FROM transfers WHERE kind = ${sqlLiteral(
-    KIND.payment,
-  )} AND ${accountPredicate(
-    "dest",
-    ATTENDEE,
+  const hasPayment = paymentLegExists(
     sql`listingAttendee.attendee_id`,
-  )} AND event_group = listingAttendee.ledger_event_group)`;
+    sql`listingAttendee.ledger_event_group`,
+  );
   const hasProviderReference = sql`EXISTS (SELECT 1 FROM processed_payments AS payment WHERE payment.attendee_id = listingAttendee.attendee_id AND payment.payment_reference != '')`;
   const nothingOwed = sql`${attendeeOwedSubquery(
     sql`listingAttendee.attendee_id`,

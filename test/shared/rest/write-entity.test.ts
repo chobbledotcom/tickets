@@ -229,7 +229,7 @@ describe("writeEntity", () => {
     }
 
     expect((thrown as Error).message).toBe("no orphaning");
-    expect(txSeen).toBeDefined();
+    expect(typeof txSeen?.execute).toBe("function");
     expect(plainWriteRan).toBe(false);
   });
 

@@ -292,7 +292,7 @@ describe("accounting > rows > stored-row round-trip", () => {
     expect(first!.occurredAt).toBe("2026-06-21T00:00:00.000Z");
 
     // NULL reverses_id maps to undefined; a real id maps to the Number.
-    expect(first!.reversesId).toBeUndefined();
+    expect(first!.reversesId).toBe(undefined);
     expect(second!.reversesId).toBe(999);
   });
 
@@ -309,7 +309,6 @@ describe("accounting > rows > stored-row round-trip", () => {
     const [stored] = await selectTransfers(queryBatch);
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
-    expect(stored!.kind).toBeUndefined();
     expect("kind" in stored!).toBe(false);
   });
 
@@ -361,7 +360,6 @@ describe("accounting > rows > stored-row round-trip", () => {
 
     const all = await selectTransfers(queryBatch, { order: sql`id` });
     const [sale, reversal] = all;
-    expect(sale!.reversesGroup).toBeUndefined();
     expect("reversesGroup" in sale!).toBe(false);
     expect(reversal!.reversesGroup).toBe("evt-order");
   });

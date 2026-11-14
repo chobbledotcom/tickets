@@ -99,6 +99,7 @@ describeWithEnv("db > processed payment outcome advance", { db: true }, () => {
 
   test("a pruned row leaves nothing to advance", async () => {
     await advanceSessionFailure("advance_session_gone", PENDING, FINAL);
+    expect(await getProcessedPayment("advance_session_gone")).toBeNull();
   });
 
   test("an unresolved reservation is not an outcome to advance", async () => {

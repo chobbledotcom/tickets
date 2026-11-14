@@ -11,6 +11,7 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import {
+  equalityClauses,
   execute,
   insertedRowId,
   queryOne,
@@ -268,11 +269,7 @@ const buildInsertSql = (
 
 /** One `column = value` per written column, joined by commas. */
 const setClauses = (values: Record<string, InValue>): SqlStatement =>
-  sqlCommas(
-    Object.entries(values).map(
-      ([column, value]) => sql`${sqlName(column)} = ${value}`,
-    ),
-  );
+  sqlCommas(equalityClauses(values));
 
 /** The shape that defines a table: its name, primary key, and column schema. */
 export type TableDefinition<Row> = {

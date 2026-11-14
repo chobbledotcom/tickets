@@ -131,13 +131,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers does nothing for an empty map", async () => {
-      await saveAttendeeAnswers(new Map());
       // No error thrown, no batch executed
+      await expect(saveAttendeeAnswers(new Map())).resolves.toBe(undefined);
     });
 
     test("saveAttendeeAnswers skips inserts for an answerless attendee", async () => {
       await saveAttendeeAnswers(new Map([[1, []]]));
-      // No error thrown, no rows inserted (delete-only path)
+      const after = await getAttendeeAnswersBatch([1], { texts: false });
+      expect(after.has(1)).toBe(false);
     });
 
     test("saveAttendeeAnswers skips answer ids whose answer was deleted", async () => {
@@ -149,7 +150,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [999_999]]]));
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
@@ -369,7 +370,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[att.id, []]]));
 
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
   });
 });

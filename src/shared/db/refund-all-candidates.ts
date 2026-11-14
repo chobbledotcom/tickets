@@ -1,10 +1,8 @@
 /** Bounded, PII-free candidate admission for a listing-wide refund. */
 
 import type { ResultSet } from "@libsql/client";
-import { ATTENDEE } from "#accounting/accounts.ts";
-import { KIND } from "#accounting/kinds.ts";
 import {
-  accountPredicate,
+  paymentLegExists,
   saleLegPredicate,
 } from "#accounting/projection-sql.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
@@ -71,13 +69,10 @@ const paidBooking = sql`EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate
   sql`listingAttendee.attendee_id`,
   sql`listingAttendee.listing_id`,
   sql`listingAttendee.ledger_event_group`,
-)}) AND EXISTS (SELECT 1 FROM transfers WHERE kind = ${sqlLiteral(
-  KIND.payment,
-)} AND ${accountPredicate(
-  "dest",
-  ATTENDEE,
+)}) AND ${paymentLegExists(
   sql`listingAttendee.attendee_id`,
-)} AND event_group = listingAttendee.ledger_event_group)`;
+  sql`listingAttendee.ledger_event_group`,
+)}`;
 
 /** Payment facts for real ticket holders on one listing. */
 const refundCandidateCtes = (listingId: number): SqlStatement => sql`

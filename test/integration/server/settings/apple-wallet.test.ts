@@ -71,7 +71,7 @@ const fetchWalletTicketBody = async (token: string): Promise<string> => {
 };
 
 /** Create a test attendee, fetch pkpass, and assert 200 with correct content type */
-const fetchValidPkpassForNewAttendee = async () => {
+const expectValidPkpassForNewAttendee = async () => {
   const { token } = await createTestAttendeeWithToken(
     "Alice",
     "alice@test.com",
@@ -134,7 +134,7 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
 
   test("returns pkpass with correct content type", async () => {
     await configureAppleWallet();
-    await fetchValidPkpassForNewAttendee();
+    await expectValidPkpassForNewAttendee();
   });
 
   test("returns pkpass with cache-control headers", async () => {
@@ -188,9 +188,9 @@ describeWithEnv("wallet route (/wallet/:token)", { db: true }, () => {
     const bytes = new Uint8Array(await response.arrayBuffer());
     const files = unzipSync(bytes);
 
-    expect(files["pass.json"]).toBeDefined();
-    expect(files["manifest.json"]).toBeDefined();
-    expect(files.signature).toBeDefined();
+    expect(Object.keys(files)).toEqual(
+      expect.arrayContaining(["pass.json", "manifest.json", "signature"]),
+    );
   });
 
   test("pass.json contains correct listing data", async () => {
@@ -643,7 +643,7 @@ describeWithEnv(
 
     test("wallet route works with env var config", async () => {
       using _env = setWalletEnvVars();
-      const { token } = await fetchValidPkpassForNewAttendee();
+      const { token } = await expectValidPkpassForNewAttendee();
 
       const passJson = await parsePkpassJson(token);
       expect(passJson.passTypeIdentifier).toBe("pass.com.env.tickets");

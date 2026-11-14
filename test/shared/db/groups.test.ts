@@ -540,7 +540,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const { e1 } = await createCappedGroupWithListings(3, "single-daily", {
         listingType: "daily",
       });
-      expect(await getGroupRemainingForListing(e1)).toBeUndefined();
+      expect(await getGroupRemainingForListing(e1)).toBe(undefined);
     });
 
     test("getGroupRemainingForListing returns undefined when no group", async () => {
@@ -548,7 +548,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         maxAttendees: 50,
         name: "no-group",
       });
-      expect(await getGroupRemainingForListing(ungrouped)).toBeUndefined();
+      expect(await getGroupRemainingForListing(ungrouped)).toBe(undefined);
     });
 
     test("getGroupRemainingByGroupId is per-date for daily-listing groups", async () => {

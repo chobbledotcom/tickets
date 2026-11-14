@@ -166,7 +166,7 @@ describe("primary read results", () => {
     expect(result!.columns).toEqual(["", ""]);
     expect(result!.columnTypes).toEqual(["", ""]);
     expect(Array.from(result!.rows[0]!)).toEqual(["first", null]);
-    expect(result!.lastInsertRowid).toBeUndefined();
+    expect(result!.lastInsertRowid).toBe(undefined);
     expect(result!.toJSON().lastInsertRowid).toBeNull();
   });
 

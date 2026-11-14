@@ -66,7 +66,7 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     // price_paid is no longer a column — a booking's amount projects from the
     // transfers ledger. Like the dropped refunded flag, the legacy price_paid_v2
     // value isn't carried by the reconcile (no live site predates the ledger).
-    expect(ea.rows[0]!.price_paid).toBeUndefined();
+    expect(Object.hasOwn(ea.rows[0]!, "price_paid")).toBe(false);
     expect(ea.rows[0]!.start_at).toBe("2024-06-15T00:00:00Z");
     expect(ea.rows[0]!.end_at).toBe("2024-06-16T00:00:00Z");
 

@@ -94,7 +94,9 @@ describeAdminSettings(() => {
 
   test("disables Logistics without creating a listing default", async () => {
     await expectFeatureSaved("logistics", false, "Logistics disabled.");
-    expect(settings.listingDefaults.usesLogistics).toBeUndefined();
+    expect(Object.hasOwn(settings.listingDefaults, "usesLogistics")).toBe(
+      false,
+    );
     expect(
       await queryOne(
         sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`,

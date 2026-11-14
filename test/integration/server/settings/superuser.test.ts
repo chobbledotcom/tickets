@@ -265,7 +265,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
         const user = await getUserByUsername("admin");
         expect(user).not.toBeNull();
         const ok = await verifyUserPassword(user!, captured.value);
-        expect(ok).toBeTruthy();
+        expect(ok).toMatch(/^pbkdf2:/);
       });
     });
   });

@@ -26,7 +26,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           expect(body.listing.name).toBe("New API Listing");
           expect(body.listing.max_attendees).toBe(50);
           expect(body.listing.id).toBeGreaterThan(0);
-          expect(body.listing.slug_index).toBeUndefined();
+          expect(Object.hasOwn(body.listing, "slug_index")).toBe(false);
         },
       );
     });

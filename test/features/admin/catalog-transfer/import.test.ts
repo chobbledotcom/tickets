@@ -148,7 +148,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
       name: "Plan Group Member",
     });
 
-    await refusePlanMemberImport({ name: "Plan Member Group" }, member);
+    await expectPlanMemberImportRefused({ name: "Plan Member Group" }, member);
   });
 
   test("rejects a group import when the member gains its plan inside the transaction", async () => {
@@ -163,7 +163,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
     );
 
     try {
-      await refusePlanMemberImport(
+      await expectPlanMemberImportRefused(
         { isPackage: true, name: "Tx flipped member group" },
         member,
       );
@@ -175,7 +175,7 @@ describeWithEnv("in-tx member validation", { db: true }, () => {
 
 /** Run a group import naming one member and assert the shared built-site plan
  *  refusal plus that no group was created — nothing partially imports. */
-async function refusePlanMemberImport(
+async function expectPlanMemberImportRefused(
   group: { isPackage?: boolean; name: string },
   member: { name: string },
 ): Promise<void> {
@@ -193,5 +193,5 @@ async function refusePlanMemberImport(
   const { groups } = await import("#db/groups.ts");
   expect(
     (await groups.cache.getAll()).find((row) => row.name === group.name),
-  ).toBeUndefined();
+  ).toBe(undefined);
 }

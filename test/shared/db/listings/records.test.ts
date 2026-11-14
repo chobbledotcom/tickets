@@ -204,7 +204,7 @@ describeWithEnv(
         unitPrice: 800,
       });
       const prices = await getListingDayPrices(listing.id);
-      expect(prices[2]).toBeUndefined();
+      expect(prices[2]).toBe(undefined);
       expect(prices[3]).toBe(900);
       const base = await queryOne<{ unit_price: number }>(
         sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${listing.id} AND price_type = ${PRICE_TYPE_BASE}`,

@@ -20,7 +20,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const response = await create("about");
       expectRedirect(response);
       expectFlash(response, "Page created", true);
-      expect(await findPage("about")).toBeTruthy();
+      expect((await findPage("about")).slug).toBe("about");
       expect(await wasLogged("Page 'Name about' created")).toBe(true);
     });
 

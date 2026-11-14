@@ -215,7 +215,7 @@ describeWithEnv("maintenance registry", { db: true }, () => {
     const ipHash = await insertLoginAttempt("192.0.2.10", 1, 0, 0);
     expect(await loginAttemptExists(ipHash)).toBe(true);
 
-    expect(await runTask(taskNamed("database_pruning"))).toBeUndefined();
+    expect(await runTask(taskNamed("database_pruning"))).toBe(undefined);
 
     expect(await loginAttemptExists(ipHash)).toBe(false);
   });

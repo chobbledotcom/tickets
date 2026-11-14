@@ -17,6 +17,7 @@ import {
   externalCashBalanceSubquery,
   LEG_COLUMNS,
   orderTotalSubquery,
+  paymentLegExists,
   reservationSubtotalSubquery,
   saleLegPredicate,
   signedSumCase,
@@ -71,6 +72,18 @@ describe("saleLegPredicate", () => {
         ` AND source_type = '${ATTENDEE}' AND source_id = CAST(la.attendee_id AS TEXT)` +
         ` AND dest_type = '${REVENUE}' AND dest_id = CAST(la.listing_id AS TEXT)` +
         " AND event_group = la.ledger_event_group",
+    );
+  });
+});
+
+describe("paymentLegExists", () => {
+  test("asks for a payment leg into the attendee in the event group", () => {
+    expect(
+      paymentLegExists(sql`la.attendee_id`, sql`la.ledger_event_group`).sql,
+    ).toBe(
+      `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
+        ` AND dest_type = '${ATTENDEE}' AND dest_id = CAST(la.attendee_id AS TEXT)` +
+        " AND event_group = la.ledger_event_group)",
     );
   });
 });

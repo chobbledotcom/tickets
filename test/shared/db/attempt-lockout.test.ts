@@ -55,7 +55,7 @@ describeWithEnv("attempt lockout", { db: true }, () => {
     expect(await lockoutActive("login_attempts", hashedIp, expired)).toBe(
       false,
     );
-    expect(await storedLockedUntil(hashedIp)).toBeUndefined();
+    expect(await storedLockedUntil(hashedIp)).toBe(undefined);
   });
 
   test("cleanup of an expired lockout keeps a fresh lockout another request wrote", async () => {
@@ -82,7 +82,7 @@ describeWithEnv("attempt lockout", { db: true }, () => {
 
     await clearAttemptsFor("login_attempts")(cleared);
 
-    expect(await storedLockedUntil(await hmacHash(cleared))).toBeUndefined();
+    expect(await storedLockedUntil(await hmacHash(cleared))).toBe(undefined);
     expect(await storedLockedUntil(keptHash)).toBe(2);
   });
 });

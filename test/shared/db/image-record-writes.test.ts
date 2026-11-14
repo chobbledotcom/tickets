@@ -61,7 +61,7 @@ describeWithEnv("db > image record writes", { db: true }, () => {
     await createTestDbWithSetup();
 
     const carried = await imageUrlsFor([text]);
-    expect(carried.get(image.id)).toBeUndefined();
+    expect(carried.has(image.id)).toBe(false);
   });
 
   test("refuse an update that names no column", async () => {

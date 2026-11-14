@@ -248,10 +248,11 @@ describeWithEnv("db > client round-trip limit", { db: true }, () => {
     // guard on top: each statement would then count two round trips, halving
     // the real budget (the 26th statement would throw here).
     setDb(rawDbClient());
-    await withRequestContext(async () => {
-      await Promise.all(
+    const results = await withRequestContext(() =>
+      Promise.all(
         Array.from({ length: 30 }, () => rawDbClient().execute(sql`SELECT 1`)),
-      );
-    });
+      ),
+    );
+    expect(results).toHaveLength(30);
   });
 });

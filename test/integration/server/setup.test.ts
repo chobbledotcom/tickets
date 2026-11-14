@@ -62,7 +62,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
    *  page, read its CSRF token, then POST the standard valid credentials.
    *  Asserts the GET returns 200, a token is present, and the POST redirects to
    *  /setup/complete. */
-  async function completeSetupViaBrowser(setupUrl: string): Promise<void> {
+  async function expectSetupViaBrowser(setupUrl: string): Promise<void> {
     const getResponse = await handleRequest(
       new Request(setupUrl, {
         headers: { host: "localhost" },
@@ -504,12 +504,12 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // 1. GET /setup/ - browser receives the page with CSRF token
         // 2. User fills form and submits
         // 3. Browser sends POST with signed CSRF token
-        await completeSetupViaBrowser("http://localhost/setup/");
+        await expectSetupViaBrowser("http://localhost/setup/");
       });
 
       test("setup form works when accessed via /setup (no trailing slash)", async () => {
         // Same full flow, but reached at /setup with no trailing slash.
-        await completeSetupViaBrowser("http://localhost/setup");
+        await expectSetupViaBrowser("http://localhost/setup");
       });
 
       test("GET /setup/complete redirects to setup when not yet complete", async () => {

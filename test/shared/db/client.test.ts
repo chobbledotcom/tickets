@@ -61,13 +61,11 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ?",
     );
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["checked_in"]);
   });
 
   test("multiple column assignments", () => {
     const cols = extractUpdateColumns("UPDATE t SET a = a + 1, b = ?");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
@@ -75,7 +73,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual([
       "invite_code_hash",
       "invite_expiry",
@@ -85,19 +82,16 @@ describe("extractUpdateColumns", () => {
 
   test("table-qualified column name strips the qualifier", () => {
     const cols = extractUpdateColumns("UPDATE t SET t.col = ?");
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["col"]);
   });
 
   test("quoted column name strips the quotes", () => {
     const cols = extractUpdateColumns('UPDATE t SET "my_col" = ?');
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["my_col"]);
   });
 
   test("commas inside parentheses in an expression do not split the assignment", () => {
     const cols = extractUpdateColumns("UPDATE t SET a = coalesce(x, 0), b = ?");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["a", "b"]);
   });
 
@@ -108,7 +102,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE t SET note = \u{1F600}, quantity = 1",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -116,7 +109,6 @@ describe("extractUpdateColumns", () => {
     // A value like ')(' must not stop the scan. A stop there would drop
     // every later column from the sniff, so its cache is never invalidated.
     const cols = extractUpdateColumns("UPDATE t SET note = ')(', quantity = 1");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -124,7 +116,6 @@ describe("extractUpdateColumns", () => {
     // A lone closer inside a quoted value used to shift the level for the
     // rest of the clause, dropping every later column from the sniff.
     const cols = extractUpdateColumns("UPDATE t SET note = ')', quantity = 1");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -132,7 +123,6 @@ describe("extractUpdateColumns", () => {
     const cols = extractUpdateColumns(
       "UPDATE t SET note = 'a'', b', quantity = 1",
     );
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["note", "quantity"]);
   });
 
@@ -141,7 +131,6 @@ describe("extractUpdateColumns", () => {
     // see that first character, otherwise depth goes negative at ")" and the
     // top-level comma never splits — losing the second assignment ("b").
     const cols = extractUpdateColumns("UPDATE t SET (a) = 1, b = 2");
-    expect(cols).toBeDefined();
     expect([...cols!].sort()).toEqual(["(a)", "b"]);
   });
 
@@ -157,7 +146,6 @@ describe("extractUpdateColumns", () => {
 
   test("column names are lower-cased", () => {
     const cols = extractUpdateColumns("UPDATE t SET MyCol = ?");
-    expect(cols).toBeDefined();
     expect([...cols!]).toEqual(["mycol"]);
   });
 });
@@ -212,7 +200,7 @@ describeWithEnv("db > client", { db: true }, () => {
     setDb(null);
     using _env = withEnv({ DB_URL: ":memory:" });
     const client = getDb();
-    expect(client).toBeDefined();
+    expect(typeof client.execute).toBe("function");
   });
 
   test("getDb returns existing client when db is set", () => {

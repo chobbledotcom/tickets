@@ -5,6 +5,7 @@ import {
   sql,
   sqlCommas,
   sqlFromDump,
+  sqlInsertRowsOrNull,
   sqlJoin,
   sqlList,
   sqlLiteral,
@@ -255,6 +256,32 @@ describe("sqlRows", () => {
 
   test("gives empty text for no rows", () => {
     expect(rendered(sqlRows([]))).toEqual({ args: [], sql: "" });
+  });
+});
+
+describe("sqlInsertRowsOrNull", () => {
+  test("writes every row in one INSERT", () => {
+    const statement = sqlInsertRowsOrNull(
+      "group_listings",
+      ["group_id", "listing_id"],
+      [
+        [1, 2],
+        [3, sql`last_insert_rowid()`],
+      ],
+    );
+    expect(statement).toEqual(
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${1}, ${2}), (${3}, last_insert_rowid())`,
+    );
+  });
+
+  test("gives null for no rows", () => {
+    expect(sqlInsertRowsOrNull("group_listings", ["group_id"], [])).toBeNull();
+  });
+
+  test("refuses a column that is not a name", () => {
+    expect(() => sqlInsertRowsOrNull("listings", ["id) --"], [[1]])).toThrow(
+      'Not a valid SQL name: "id) --"',
+    );
   });
 });
 

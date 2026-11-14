@@ -109,7 +109,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const required = col.json(v.array(v.string()), {
       context: "records.required_items",
     });
-    expect(required.default).toBeUndefined();
+    expect(required.default).toBe(undefined);
     expect(await required.write?.(["required"])).toBe('["required"]');
   });
 
@@ -153,8 +153,8 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
     const { col } = await import("#db/table.ts");
     const def = col.encryptedNullable(col.simple<string>());
-    expect(def.write).toBeUndefined();
-    expect(def.read).toBeUndefined();
+    expect(def.write).toBe(undefined);
+    expect(def.read).toBe(undefined);
   });
 
   test("col.encryptedNullable handles null values", async () => {

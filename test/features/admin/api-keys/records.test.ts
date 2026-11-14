@@ -22,7 +22,6 @@ describeWithEnv("API key records", { db: true }, () => {
       const { apiKey, id } = await createTestApiKeyFull();
 
       expect(id).toBeGreaterThan(0);
-      expect(apiKey).toBeTruthy();
 
       const found = await getApiKeyByToken(apiKey);
       expect(found).not.toBeNull();

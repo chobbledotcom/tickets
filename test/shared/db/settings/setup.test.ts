@@ -154,13 +154,12 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       const user = await getUserByUsername("setupuser");
       expect(user).not.toBeNull();
       const hash = await verifyUserPassword(user!, "mypassword");
-      expect(hash).toBeTruthy();
       assertStringIncludes(hash ?? "", "pbkdf2:");
       expect(settings.currency).toBe("USD");
 
-      expect(settings.publicKey).toBeTruthy();
-      expect(user!.wrapped_data_key).toBeTruthy();
-      expect(settings.wrappedPrivateKey).toBeTruthy();
+      expect(settings.publicKey).not.toBe("");
+      expect(user!.wrapped_data_key).toMatch(/./);
+      expect(settings.wrappedPrivateKey).not.toBe("");
     });
 
     test("completeSetup clears stale pre-setup settings cache and confirms setup", async () => {
@@ -179,8 +178,8 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(settings.wrappedPrivateKey).toBe("");
       expect(settings.publicKey).toBe("");
       await settings.loadKeys(ALL_SETTINGS_KEYS);
-      expect(settings.wrappedPrivateKey).toBeTruthy();
-      expect(settings.publicKey).toBeTruthy();
+      expect(settings.wrappedPrivateKey).not.toBe("");
+      expect(settings.publicKey).not.toBe("");
       expect(settings.country).toBe("US");
       expect(settings.currency).toBe("USD");
     });

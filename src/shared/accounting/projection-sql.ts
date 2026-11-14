@@ -76,6 +76,20 @@ export const saleLegPredicate: BookingLegSql = (
     listingIdExpr,
   )} AND event_group = ${eventGroupExpr}`;
 
+/** Whether a booking has a payment leg: money that the attendee received for
+ * the booking's event group. */
+export const paymentLegExists = (
+  attendeeIdExpr: SqlStatement,
+  eventGroupExpr: SqlStatement,
+): SqlStatement =>
+  sql`EXISTS (SELECT 1 FROM transfers WHERE kind = ${sqlLiteral(
+    KIND.payment,
+  )} AND ${accountPredicate(
+    "dest",
+    ATTENDEE,
+    attendeeIdExpr,
+  )} AND event_group = ${eventGroupExpr})`;
+
 /** One booking's recognised ticket price, including signed tax corrections. */
 export const bookingSaleTotalSubquery: BookingLegSql = (
   attendeeIdExpr,

@@ -90,7 +90,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
         200,
         (body) => {
           expect(body.serialNumbers).toEqual(["my-serial"]);
-          expect(body.lastUpdated).toBeDefined();
+          expect(body.lastUpdated).toMatch(/^\d+$/);
         },
       );
     });
@@ -151,7 +151,7 @@ describeWithEnv("Apple Wallet web service (/v1)", { db: true }, () => {
 
       const bytes = new Uint8Array(await response.arrayBuffer());
       const files = unzipSync(bytes);
-      expect(files["pass.json"]).toBeDefined();
+      expect(Object.keys(files)).toContain("pass.json");
 
       const passJson = JSON.parse(
         new TextDecoder().decode(files["pass.json"]!),

@@ -84,7 +84,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     // rewritten, which a lagging read would turn into a stale restore.
     const listing = await createTestListing({ name: "Snapshot" });
     const { input } = await unrelatedUpdateInput(listing.id);
-    expect(input.attributeOptionIds).toBeUndefined();
+    expect(input.attributeOptionIds).toBe(undefined);
   });
 
   test("refuses option ids that do not exist when the links are written", async () => {
@@ -117,7 +117,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
       name: "Group snapshot",
     });
     const { input } = await unrelatedUpdateInput(listing.id);
-    expect(input.groupIds).toBeUndefined();
+    expect(input.groupIds).toBe(undefined);
     expect(input.wouldBeGroupIds).toEqual([group.id]);
   });
 

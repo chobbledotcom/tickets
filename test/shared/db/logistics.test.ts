@@ -77,7 +77,7 @@ describeWithEnv("db logistics agents", { db: true }, () => {
     await logisticsAgents.table.deleteById(agent.id);
     logisticsAgents.invalidate();
     const agents = await logisticsAgents.getAll();
-    expect(agents.find((a) => a.id === agent.id)).toBeUndefined();
+    expect(agents.find((a) => a.id === agent.id)).toBe(undefined);
   });
 });
 

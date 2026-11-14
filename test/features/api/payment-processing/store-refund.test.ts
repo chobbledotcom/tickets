@@ -185,7 +185,7 @@ describeWithEnv("keeping a booking we could not honour", { db: true }, () => {
 
     test("does not claim the refund happened", async () => {
       const { result } = await storedPlaceholder("cs_unrefunded_flag");
-      expect(result.refunded).toBeUndefined();
+      expect(Object.hasOwn(result, "refunded")).toBe(false);
     });
 
     test("keeps only a non-sensitive explanatory note", async () => {

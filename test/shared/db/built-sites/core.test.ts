@@ -61,8 +61,8 @@ describeWithEnv("built-site storage", { db: true }, () => {
       name: "Test Site",
       siteUrl: "test.b-cdn.net",
     });
-    expect(parsed.d).toBeUndefined();
-    expect(parsed.t).toBeUndefined();
+    expect(Object.hasOwn(parsed, "d")).toBe(false);
+    expect(Object.hasOwn(parsed, "t")).toBe(false);
   });
 
   test("toDbValues includes hosting id when provided", async () => {
@@ -79,22 +79,22 @@ describeWithEnv("built-site storage", { db: true }, () => {
       name: "Test Site",
       siteUrl: "test.b-cdn.net",
     });
-    expect(parsed.s).toBeUndefined();
+    expect(Object.hasOwn(parsed, "s")).toBe(false);
   });
 
   test("parseSiteDataBlob handles legacy blobs without optional keys", () => {
     const parsed = parseSiteDataBlob(
       JSON.stringify({ n: "Old Site", u: "old.b-cdn.net", v: 1 }),
     );
-    expect(parsed.d).toBeUndefined();
-    expect(parsed.t).toBeUndefined();
-    expect(parsed.s).toBeUndefined();
+    expect(Object.hasOwn(parsed, "d")).toBe(false);
+    expect(Object.hasOwn(parsed, "t")).toBe(false);
+    expect(Object.hasOwn(parsed, "s")).toBe(false);
   });
 
   test("insertBuiltSite creates a row with encrypted site data", async () => {
     const row = await insertBuiltSite("Alpha Site", "alpha.b-cdn.net");
     expect(row.id).toBe(1);
-    expect(row.created).toBeTruthy();
+    expect(row.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   test("insertBuiltSite stores credentials and hosting id", async () => {

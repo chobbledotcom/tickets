@@ -6,16 +6,13 @@
  * passes {@link TRANSACTION_ROUNDTRIP_THRESHOLD} on a ~30-member export.
  */
 
-import type { InValue } from "@libsql/client";
 import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import {
   type SqlStatement,
   sql,
+  sqlInsertRowsOrNull,
   sqlLiteral,
-  sqlName,
-  sqlNames,
-  sqlRows,
 } from "#db/sql.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
@@ -48,15 +45,6 @@ export type ImportedMembership = {
   dayPrices: DayPrices;
 };
 
-const multiRowInsert = (
-  table: string,
-  columns: readonly string[],
-  rows: readonly InValue[][],
-): SqlStatement | null => {
-  if (rows.length === 0) return null;
-  return sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlRows(rows)}`;
-};
-
 /** The (at most two) batched statements that create every membership row plus
  * its price overrides. The `group_listings` row carries only membership +
  * `quantity`. The flat package override and each per-day override are `group` /
@@ -86,12 +74,12 @@ export const membershipStatements = (
     ]),
   );
   return [
-    multiRowInsert(
+    sqlInsertRowsOrNull(
       "group_listings",
       ["group_id", "listing_id", "quantity"],
       memberRows,
     ),
-    multiRowInsert(
+    sqlInsertRowsOrNull(
       "listing_prices",
       ["listing_id", "price_type", "price_id", "unit_price"],
       [...flatRows, ...dayRows],

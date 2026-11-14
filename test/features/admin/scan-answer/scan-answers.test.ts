@@ -102,7 +102,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     expect(answer.response.status).toBe(404);
     expect(answer.json.status).toBe("not_found");
-    expect(answer.json.name).toBeUndefined();
+    expect(Object.hasOwn(answer.json, "name")).toBe(false);
     expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
   });
 

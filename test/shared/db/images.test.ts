@@ -430,7 +430,7 @@ describeWithEnv("db > images", { db: true }, () => {
         questions: [],
       });
 
-      expect(currentRequestStore()).toBeUndefined();
+      expect(currentRequestStore()).toBe(undefined);
     });
   });
 

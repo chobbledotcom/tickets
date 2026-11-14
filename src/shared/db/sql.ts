@@ -193,6 +193,17 @@ export const sqlName = (name: string): SqlStatement => {
 export const sqlNames = (names: readonly string[]): SqlStatement =>
   sqlCommas(names.map(sqlName));
 
+/** One INSERT that writes every row, or null when there is no row. An INSERT
+ * with an empty VALUES list is not valid SQL, so the caller leaves it out. */
+export const sqlInsertRowsOrNull = (
+  table: string,
+  columns: readonly string[],
+  rows: readonly (readonly SqlSlot[])[],
+): SqlStatement | null =>
+  rows.length === 0
+    ? null
+    : sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlRows(rows)}`;
+
 /** A constant written into the SQL text as a literal. For schema text, which
  * takes no bound arguments, and for a constant that a partial index names. */
 export const sqlLiteral = (value: string | number): SqlStatement => {

@@ -179,13 +179,15 @@ describeWithEnv(
       // The held-back round-trips are the whole reason a stale database moves
       // forward: a batch that spent every call could not write its markers, so
       // the next request would replay the same work behind a held lock.
-      await asOneRequest(async (lockToken) => {
-        const completed = await runPendingMigrations(
+      const completed = await asOneRequest(async (lockToken) => {
+        const ran = await runPendingMigrations(
           [migrationOf("spend", () => spendAllBut(0))],
           lockToken,
         );
-        await recordMigrationBatch(completed, false, lockToken);
+        await recordMigrationBatch(ran, false, lockToken);
+        return ran;
       });
+      expect(completed.map((migration) => migration.id)).toEqual(["spend"]);
     });
 
     test("runs one migration on the last call the request has", async () => {

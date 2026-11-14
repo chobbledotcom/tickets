@@ -208,8 +208,10 @@ describeSquare(() => {
 
           const args = checkoutCreate.calls[0]
             ?.args[0] as CreatePaymentLinkInput;
-          expect(args.prePopulatedData.buyerPhoneNumber).toBeUndefined();
-          expect(args.order.metadata.phone).toBeUndefined();
+          expect(Object.hasOwn(args.prePopulatedData, "buyerPhoneNumber")).toBe(
+            false,
+          );
+          expect(Object.hasOwn(args.order.metadata, "phone")).toBe(false);
           expect(args.order.lineItems[0]!.note).toBe("Tickets (x1)");
         },
       );

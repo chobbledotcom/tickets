@@ -84,7 +84,7 @@ const setupPlaceholderForRefresh = async (
 
 /** Submit the refresh with the provider reporting the refund as settled,
  *  and verify the refund_cash leg was posted to the attendee's account. */
-const refreshAndVerifyRefundCash = async (
+const expectRefreshRecordsRefundCash = async (
   attendee: Attendee,
 ): Promise<void> => {
   await submitRefreshPayment(attendee, () => Promise.resolve(true));
@@ -104,7 +104,7 @@ describeWithEnv(
           "placeholder-refresh-session",
           "pi_placeholder_refresh",
         );
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
       });
 
       test("a current payment refresh creates no refund work or delete blocker", async () => {
@@ -140,7 +140,7 @@ describeWithEnv(
           "pi_placeholder_deleted",
           deleteListing,
         );
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
       });
 
       // The fault this closes: refresh found the money already back at the
@@ -204,7 +204,7 @@ describeWithEnv(
           UNRECORDED_MIRROR,
         );
 
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
 
         expect(await protectedStateOf("caught-up-session")).toBe("");
       });
