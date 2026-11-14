@@ -17,16 +17,12 @@ import {
 import {
   ATTENDEE_DEMO_FIELDS,
   applyDemoOverrides,
-  type DemoFieldMap,
   LISTING_DEMO_FIELDS,
   LOGISTICS_DEMO_FIELDS,
-  wrapResourceForDemo,
 } from "#shared/demo/overrides.ts";
 import * as demoSamples from "#shared/demo/samples.ts";
 import {
   DEMO_EMAILS,
-  DEMO_GROUP_NAMES,
-  DEMO_HOLIDAY_NAMES,
   DEMO_LISTING_DESCRIPTIONS,
   DEMO_LISTING_LOCATIONS,
   DEMO_LISTING_NAMES,
@@ -186,91 +182,6 @@ describe("applyDemoOverrides", () => {
     assertArrayIncludes(DEMO_LISTING_LOCATIONS as readonly string[], [
       form.get("location"),
     ]);
-  });
-});
-
-describe("wrapResourceForDemo", () => {
-  beforeEach(() => setDemoModeForTest(false));
-  afterEach(() => setDemoModeForTest(false));
-
-  const makeFakeResource = () => {
-    let lastCreateForm: URLSearchParams | null = null;
-    let lastUpdateForm: URLSearchParams | null = null;
-
-    const resource = {
-      create: (form: URLSearchParams) => {
-        lastCreateForm = form;
-        return Promise.resolve({
-          ok: true as const,
-          row: { id: 1, name: "" },
-        });
-      },
-      delete: () => Promise.resolve({ ok: true as const }),
-      fields: [],
-      loadOrNull: () => Promise.resolve({ id: 1, name: "" }),
-      parseInput: (_form: URLSearchParams) =>
-        Promise.resolve({ ok: true as const, value: {} }),
-      parsePartialInput: (_form: URLSearchParams) =>
-        Promise.resolve({ ok: true as const, value: {} }),
-      table: {} as never,
-      update: (_id: unknown, form: URLSearchParams) => {
-        lastUpdateForm = form;
-        return Promise.resolve({
-          ok: true as const,
-          row: { id: 1, name: "" },
-        });
-      },
-    };
-    return {
-      getLastCreateForm: () => lastCreateForm,
-      getLastUpdateForm: () => lastUpdateForm,
-      resource,
-    };
-  };
-
-  test("delegates create with demo overrides applied", () => {
-    setDemoModeForTest(true);
-
-    const { resource, getLastCreateForm } = makeFakeResource();
-    const wrapped = wrapResourceForDemo(resource, {
-      name: DEMO_GROUP_NAMES,
-    } as DemoFieldMap);
-
-    const form = new FormParams({ name: "Real Group" });
-    wrapped.create(form);
-
-    // applyDemoOverrides mutates the form in place before passing to resource
-    assertArrayIncludes(DEMO_GROUP_NAMES as readonly string[], [
-      getLastCreateForm()!.get("name"),
-    ]);
-  });
-
-  test("delegates update with demo overrides applied", () => {
-    setDemoModeForTest(true);
-
-    const { resource, getLastUpdateForm } = makeFakeResource();
-    const wrapped = wrapResourceForDemo(resource, {
-      name: DEMO_HOLIDAY_NAMES,
-    } as DemoFieldMap);
-
-    const form = new FormParams({ name: "Real Holiday" });
-    wrapped.update(42, form);
-
-    assertArrayIncludes(DEMO_HOLIDAY_NAMES as readonly string[], [
-      getLastUpdateForm()!.get("name"),
-    ]);
-  });
-
-  test("does not apply overrides when demo mode is off", () => {
-    const { resource, getLastCreateForm } = makeFakeResource();
-    const wrapped = wrapResourceForDemo(resource, {
-      name: DEMO_NAMES,
-    } as DemoFieldMap);
-
-    const form = new FormParams({ name: "Unchanged" });
-    wrapped.create(form);
-
-    expect(getLastCreateForm()!.get("name")).toBe("Unchanged");
   });
 });
 

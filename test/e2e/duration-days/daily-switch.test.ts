@@ -11,6 +11,7 @@ import {
   allDays,
   bookableStartDates,
   createTestListing,
+  dailySwitchForm,
 } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -26,27 +27,6 @@ const rawRows = async (
   );
 };
 
-/** The minimal valid edit form for a switch to booked by the day: the fields
- * the real form always submits, at the listing's stored values — the day
- * boxes (one field per ticked day, as a browser sends a checkbox group), the
- * calendar window, and the stored capacity. */
-const switchForm = (
-  listing: { name: string; slug: string; max_attendees: number },
-  extra: Record<string, string> = {},
-): TestFormValues => ({
-  bookable_days: allDays,
-  duration_days: "1",
-  listing_type: "daily",
-  max_attendees: String(listing.max_attendees),
-  max_quantity: "1",
-  maximum_days_after: "90",
-  minimum_days_before: "1",
-  name: listing.name,
-  slug: listing.slug,
-  thank_you_url: "https://example.com",
-  ...extra,
-});
-
 /** A two-place listing with both places taken by undated bookings — the
  * sold-out state a switch must not silently reopen. */
 const hallWithTwoBookings = async () => {
@@ -60,16 +40,32 @@ const hallWithTwoBookings = async () => {
   return listing;
 };
 
+/** Post the listing's edit form as a switch to booked by the day. */
+const postSwitch = async (
+  listing: Parameters<typeof dailySwitchForm>[0] & { id: number },
+  extra?: TestFormValues,
+): Promise<Response> =>
+  (
+    await adminFormPost(
+      `/admin/listing/${listing.id}/edit`,
+      dailySwitchForm(listing, extra),
+    )
+  ).response;
+
+const expectListingType = async (
+  listingId: number,
+  type: "daily" | "standard",
+): Promise<void> => {
+  expect((await getListingWithCount(listingId))?.listing_type).toBe(type);
+};
+
 /** Save the confirmed switch for `day`, and assert the flash names the two
  * moved bookings and the listing now reads as a daily one. */
 const confirmSwitchOfTwo = async (
   listing: { id: number; max_attendees: number; name: string; slug: string },
   day: string,
 ): Promise<void> => {
-  const { response } = await adminFormPost(
-    `/admin/listing/${listing.id}/edit`,
-    switchForm(listing, { assign_undated_to: day }),
-  );
+  const response = await postSwitch(listing, { assign_undated_to: day });
   await expectFlashRedirect(
     `/admin/listing/${listing.id}`,
     t("listings_table.listing_updated", {
@@ -79,7 +75,7 @@ const confirmSwitchOfTwo = async (
       }),
     }),
   )(response);
-  expect((await getListingWithCount(listing.id))?.listing_type).toBe("daily");
+  await expectListingType(listing.id, "daily");
 };
 
 describeWithEnv(
@@ -89,10 +85,7 @@ describeWithEnv(
     test("the switch serves the assign page and saves nothing", async () => {
       const listing = await hallWithTwoBookings();
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm(listing),
-      );
+      const response = await postSwitch(listing);
       expect(response.status).toBe(200);
       const gatePage = await response.text();
       expect(gatePage).toContain(
@@ -102,9 +95,7 @@ describeWithEnv(
 
       // Nothing was written: the listing is still standard and both rows
       // still carry no day.
-      expect((await getListingWithCount(listing.id))?.listing_type).toBe(
-        "standard",
-      );
+      await expectListingType(listing.id, "standard");
       const rows = await rawRows(listing.id);
       expect(rows).toHaveLength(2);
       for (const row of rows) expect(row.start_at).toBeNull();
@@ -182,10 +173,7 @@ describeWithEnv(
         [`${day}T00:00:00Z`, `${day}T23:59:59Z`, undated[0]!.attendee_id],
       );
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm(listing, { assign_undated_to: day }),
-      );
+      const response = await postSwitch(listing, { assign_undated_to: day });
       expect(response.status).toBe(400);
       const page = await response.text();
       expect(page).toContain(
@@ -197,9 +185,7 @@ describeWithEnv(
       );
 
       // The refusal left everything as it stood.
-      expect((await getListingWithCount(listing.id))?.listing_type).toBe(
-        "standard",
-      );
+      await expectListingType(listing.id, "standard");
       const rows = await rawRows(listing.id);
       const moved = rows.filter((row) => row.start_at !== null);
       expect(moved).toHaveLength(1);
@@ -214,10 +200,7 @@ describeWithEnv(
         listing.id,
       ]);
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm({ ...listing, max_attendees: 1 }),
-      );
+      const response = await postSwitch({ ...listing, max_attendees: 1 });
       expect(response.status).toBe(200);
       const page = await response.text();
       expect(page).toContain(
@@ -238,25 +221,18 @@ describeWithEnv(
       expect(body.error).toBe(
         t("listings_table.switch_daily_undated_guard", { count: 2 }),
       );
-      expect((await getListingWithCount(listing.id))?.listing_type).toBe(
-        "standard",
-      );
+      await expectListingType(listing.id, "standard");
     });
 
     test("an ordinary save of a listing with undated bookings is not refused", async () => {
       const listing = await hallWithTwoBookings();
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm(listing, { listing_type: "standard" }),
-      );
+      const response = await postSwitch(listing, { listing_type: "standard" });
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
       )(response);
-      expect((await getListingWithCount(listing.id))?.listing_type).toBe(
-        "standard",
-      );
+      await expectListingType(listing.id, "standard");
     });
 
     test("the assign page carries the pending switch, not the stored row", async () => {
@@ -265,10 +241,7 @@ describeWithEnv(
       // quietly write the stored row back and drop the switch.
       const listing = await hallWithTwoBookings();
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        switchForm(listing, { max_attendees: "1" }),
-      );
+      const response = await postSwitch(listing, { max_attendees: "1" });
       expect(response.status).toBe(200);
       const page = await response.text();
       const room =

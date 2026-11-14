@@ -445,6 +445,11 @@ instead.
 `deno task check:copy` enforces the mechanical rules. The judgement is yours on
 every copy change.
 
+A catalog key must have a reader. `test/scripts/i18n-coverage.test.ts` fails on
+a key that no source file references. When you delete the code that reads a
+key, delete the key in the same change. `scripts/check-i18n/unused.ts` says
+what counts as a reference.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
@@ -514,8 +519,14 @@ for why.
 
 `deno task cpd` runs jscpd, and every scan fails on a clone that its committed
 baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
-pair is one merge:
+annotations, so a renamed copy is a clone. The baselines only shrink. The scan
+configs and the committed baselines live in `cfg/`. A tool or a platform that
+must read its config from the repository root keeps the file there, as
+`biome.json`, `deno.json`, `devenv.nix`, `fly.toml` and `render.yaml` do. Biome
+refuses a second root configuration in a subdirectory, and the platforms look
+for their file at the root.
+
+A flagged pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one
@@ -525,21 +536,32 @@ pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan holds accepted matches in `.jscpd.renamed-baseline.json`. Add
-  a pair only after you try the curry, with `deno task cpd:renamed --update`.
+- The renamed scan holds accepted matches in
+  `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
+  with `deno task cpd:renamed --update`.
 - The strict scans hold the clones that existed when they started to count
-  renamed copies, in `.jscpd.baseline.json`, `.jscpd.test-baseline.json`,
-  `.jscpd.helpers-baseline.json`, and `.jscpd.support-baseline.json`. After a
-  merge, remove the fixed clones with
+  renamed copies, in `cfg/.jscpd.baseline.json`,
+  `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
+  `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
+  with
   `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines.
-- A branch must not raise a baseline. The ratchet in `deno task cpd` fails
-  when a baseline accepts more clones than the same baseline at the merge
-  base on `origin/main`. A clone can get a new fingerprint when other code
-  changes, so the ratchet compares the total, not each fingerprint. It reads
-  every `.jscpd.*baseline.json` in the repository root, and fails on a scan
-  task that names another path, so a new scan's baseline is compared too. Run
-  it on its own with `deno task check:jscpd-baselines`.
+  Never add a clone to these baselines. The one exception is a re-paired
+  clone, which the next item defines.
+- A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
+  a clone that the merge base on `origin/main` does not hold, and on a count
+  above the base's, so precommit and CI catch both. It reads every
+  `.jscpd.*baseline.json` in `cfg/`, and matches each one to the merge base by
+  file name, so a baseline that moves between directories does not count as
+  new. It fails on a scan task that names another path, so a new scan's
+  baseline is compared too. Run it on its own with
+  `deno task check:jscpd-baselines`.
+- The ratchet accepts a re-paired clone. A clone pair has one fingerprint.
+  When a branch deletes one side of a pair, the scan pairs the other side
+  with a new partner, and that pair has a new fingerprint. When a baseline
+  holds a fingerprint that the merge base does not hold, the ratchet repeats
+  the scan with the merge base's baseline. An added clone passes when the
+  branch changed neither of its files. The count of added clones must not
+  exceed the count of such re-pairs.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The

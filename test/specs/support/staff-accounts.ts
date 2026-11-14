@@ -58,7 +58,7 @@ export const ownerSendsInviteForm: InvitesSomebody = async (
   who,
   role,
 ) => {
-  const browser = await openAdminPage(world, "/admin/user/new");
+  const browser = await openAdminPage(world, "/admin/users/new");
   await fillInAndSend(
     browser,
     { admin_level: role, username: who },

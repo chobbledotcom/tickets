@@ -6,18 +6,19 @@
  * drifting.
  */
 
-import {
-  defineEntityPage,
-  deleteActionTab,
-  type EntityPage,
-  type TabDef,
-} from "#routes/admin/entity-pages.ts";
+import type { TabDef } from "#routes/admin/entity-pages.ts";
 import type { AdminDestinationId } from "#shared/admin-surface/ids.ts";
 import { adminRecordPath } from "#shared/admin-surface.ts";
+import type { SubmittedValueProps } from "#shared/form-data.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { contentGuideFooter } from "#templates/admin/site-content.tsx";
 import type { ImageUseItemType } from "#types";
-import { writeFormTab } from "./entity-write-tab.ts";
+import {
+  defineEditEntityPage,
+  type EditEntityPage,
+  submittedValueProps,
+  writeFormTab,
+} from "./entity-write-tab.ts";
 import { loadItemImagesPanel } from "./item-images.ts";
 
 /** The Edit (and Items) tabs mutate the entity, so they hide in read-only
@@ -28,31 +29,24 @@ const imagesVisible = (): boolean => isStorageEnabled();
 /** One Site content editor's page definition. `E` is the stored entity (it
  * carries its own numeric `id`). `extraTabs` slot in between Edit and Images
  * (Pages uses this for its Items manager). */
-export interface SiteContentPageDef<E extends { id: number }> {
+export interface SiteContentPageDef<E extends { id: number; name: string }> {
   /** The write route the delete action leads to. */
   deleteDestination: AdminDestinationId;
   /** The locale key for the delete action on the Actions tab. */
   deleteLabelKey: string;
   destination: AdminDestinationId;
   /** The Edit tab's fields form. */
-  editPanel: (entity: E) => JSX.Element;
+  editPanel: (entity: E, submitted?: SubmittedValueProps) => JSX.Element;
   extraTabs?: readonly TabDef<E>[];
-  /** A guide section anchor (for example "public-site") linked in the page's
-   * guide footer, so the operator can jump to the relevant help. */
-  guideAnchor: string;
   /** The image-use type for this entity's Images tab. */
   itemType: ImageUseItemType;
   load: (id: number) => Promise<E | null>;
   navActive: string;
-  titleOf: (entity: E) => string;
 }
 
-export const defineSiteContentPage = <E extends { id: number }>(
+export const defineSiteContentPage = <E extends { id: number; name: string }>(
   def: SiteContentPageDef<E>,
-): EntityPage<E> => {
-  const editTab = writeFormTab<E>("edit", "entity.tab.edit", (entity) =>
-    Promise.resolve(def.editPanel(entity)),
-  );
+): EditEntityPage<E> => {
   const imagesTab = writeFormTab<E>(
     "images",
     "entity.tab.images",
@@ -64,23 +58,19 @@ export const defineSiteContentPage = <E extends { id: number }>(
       ),
     imagesVisible,
   );
-  // Delete is the only action, and the delete confirmation GET is itself
-  // blocked in read-only mode (READ_ONLY_GET_PATTERNS). The shared helper
-  // makes the whole tab write-only.
-  const actionsTab = deleteActionTab<E>(
-    def.deleteLabelKey,
-    def.deleteDestination,
-  );
-  return defineEntityPage({
+  return defineEditEntityPage<E>({
+    deleteDestination: def.deleteDestination,
+    deleteLabelKey: def.deleteLabelKey,
     destination: def.destination,
+    edit: (entity, _ctx, rejected) =>
+      Promise.resolve(def.editPanel(entity, submittedValueProps(rejected))),
+    extraTabs: [...(def.extraTabs ?? []), imagesTab],
     guideFooter: (_entity, ctx) =>
       Promise.resolve(
-        contentGuideFooter(def.guideAnchor, ctx.session.adminLevel),
+        contentGuideFooter("public-site", ctx.session.adminLevel),
       ),
     load: def.load,
     navActive: def.navActive,
     recordId: (entity) => entity.id,
-    tabs: [editTab, ...(def.extraTabs ?? []), imagesTab, actionsTab],
-    titleOf: def.titleOf,
   });
 };

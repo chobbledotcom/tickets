@@ -5,6 +5,7 @@ import { getStoredListingWithCount } from "#db/listings/records.ts";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
+  type ListingUpdateResult,
 } from "#routes/admin/listings-form.ts";
 import {
   type TestFormValues,
@@ -29,19 +30,27 @@ export const createListing = async (
   return result.row;
 };
 
+/** Run one edit save against the stored row, as the production edit handler
+ *  does. A daily listing's effective date is already empty, so the save's date
+ *  guard must see the value the row still stores. */
+export const saveListingEdit = async (
+  id: number,
+  extra: TestFormValues = {},
+): Promise<ListingUpdateResult> => {
+  const form = listingForm({ slug: "kept-slug", ...extra });
+  const stored = (await getStoredListingWithCount(id))!;
+  return buildUpdateListingResource(stored).update(id, form);
+};
+
 export const updateListing = async (
   id: number,
   extra: TestFormValues = {},
 ): Promise<Listing> => {
-  const form = listingForm({ slug: "kept-slug", ...extra });
-  // The production edit handler passes the stored row, not the effective one:
-  // a daily listing's effective date is already empty, and the save's date
-  // guard must see the value the row still stores.
-  const stored = (await getStoredListingWithCount(id))!;
-  const result = await buildUpdateListingResource(form, stored).update(
-    id,
-    form,
-  );
-  if (!result.ok) throw new Error(`update failed: ${result.error}`);
+  const result = await saveListingEdit(id, extra);
+  if (!result.ok) {
+    throw new Error(
+      "error" in result ? `update failed: ${result.error}` : "update not found",
+    );
+  }
   return result.row;
 };

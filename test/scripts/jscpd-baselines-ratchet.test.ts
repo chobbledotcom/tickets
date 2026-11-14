@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   baselineFileNames,
   baselinePathsNamed,
+  basePathFor,
   fingerprintCounts,
   RATCHET_GUIDE,
   riseFindings,
@@ -17,30 +18,32 @@ import {
 } from "#scripts/check-jscpd-baselines/ratchet-run.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
+import { directoryNames } from "#test-utils/files.ts";
 import {
   type GitStubAnswer,
   gitShow,
   holds,
+  lsPaths,
   lsTree,
   stubRun,
 } from "#test-utils/git-stub.ts";
 
-const BASELINE = ".jscpd.baseline.json";
+const BASELINE = "cfg/.jscpd.baseline.json";
 
 /** A baseline file's text, in the shape jscpd writes. */
 const baseline = (counts: Record<string, number>): string =>
   JSON.stringify({ fingerprints: counts, version: 1 });
 
 describe("baselineFileNames", () => {
-  test("keeps the root baseline files and sorts them", () => {
+  test("keeps the baseline files and sorts them", () => {
     expect(
       baselineFileNames([
         ".jscpd.test-baseline.json",
-        ".jscpd.json",
+        "jscpd.json",
         "deno.json",
         ".jscpd.renamed-baseline.json",
         ".jscpd.baseline.json",
-        ".jscpd.test.json",
+        "jscpd.test.json",
       ]),
     ).toEqual([
       ".jscpd.baseline.json",
@@ -49,8 +52,39 @@ describe("baselineFileNames", () => {
     ]);
   });
 
-  test("keeps nothing when the root holds no baseline", () => {
-    expect(baselineFileNames(["deno.json", ".jscpd.specs.json"])).toEqual([]);
+  test("keeps nothing when the directory holds no baseline", () => {
+    expect(baselineFileNames(["deno.json", "jscpd.specs.json"])).toEqual([]);
+  });
+});
+
+describe("basePathFor", () => {
+  const base = [
+    ".jscpd.baseline.json",
+    "cfg/.jscpd.test-baseline.json",
+    "deno.json",
+  ];
+
+  test("finds the base copy by file name, wherever the tree holds it", () => {
+    expect(
+      [
+        BASELINE,
+        "cfg/.jscpd.test-baseline.json",
+        "cfg/.jscpd.specs-baseline.json",
+      ].map((path) => basePathFor(base, path)),
+    ).toEqual([
+      ".jscpd.baseline.json",
+      "cfg/.jscpd.test-baseline.json",
+      undefined,
+    ]);
+  });
+
+  test("refuses a base that holds two files of the name", () => {
+    expect(() =>
+      basePathFor([BASELINE, ".jscpd.baseline.json"], BASELINE),
+    ).toThrow(
+      "The merge base holds more than one file named .jscpd.baseline.json: " +
+        "cfg/.jscpd.baseline.json, .jscpd.baseline.json.",
+    );
   });
 });
 
@@ -60,20 +94,21 @@ describe("baselinePathsNamed", () => {
       baselinePathsNamed({
         "check:copy": "deno run -A scripts/check-copy.ts",
         cpd:
-          "deno run -A scripts/cpd.ts --config .jscpd.json " +
-          "--baseline .jscpd.test-baseline.json && deno run -A scripts/cpd.ts " +
-          "--config .jscpd.test.json --baseline .jscpd.test-baseline.json",
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.json " +
+          "--baseline cfg/.jscpd.test-baseline.json && deno run -A " +
+          "scripts/cpd.ts --config cfg/jscpd.test.json " +
+          "--baseline cfg/.jscpd.test-baseline.json",
         "cpd:helpers":
-          "deno run -A scripts/cpd.ts --config .jscpd.helpers.json " +
-          "--baseline=.jscpd.helpers-baseline.json",
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.helpers.json " +
+          "--baseline=cfg/.jscpd.helpers-baseline.json",
         "cpd:renamed":
-          "deno run -A scripts/cpd.ts --config .jscpd.renamed.json " +
-          "--baseline .jscpd.baseline.json",
+          "deno run -A scripts/cpd.ts --config cfg/jscpd.renamed.json " +
+          "--baseline cfg/.jscpd.baseline.json",
       }),
     ).toEqual([
-      ".jscpd.baseline.json",
-      ".jscpd.helpers-baseline.json",
-      ".jscpd.test-baseline.json",
+      "cfg/.jscpd.baseline.json",
+      "cfg/.jscpd.helpers-baseline.json",
+      "cfg/.jscpd.test-baseline.json",
     ]);
   });
 
@@ -86,25 +121,25 @@ describe("unreadBaselineFindings", () => {
   test("passes when the scans name only baselines the ratchet reads", () => {
     expect(
       unreadBaselineFindings(
-        [".jscpd.baseline.json"],
-        [".jscpd.baseline.json", ".jscpd.test-baseline.json"],
+        [BASELINE],
+        [BASELINE, "cfg/.jscpd.test-baseline.json"],
       ),
     ).toEqual([]);
   });
 
-  test("names a scan baseline outside the root pattern, in path order", () => {
+  test("names a scan baseline outside the cfg pattern, in path order", () => {
     expect(
       unreadBaselineFindings(
-        [".jscpd.zzz-baseline.json", "scripts/jscpd/aaa-baseline.json"],
-        [".jscpd.baseline.json"],
+        ["cfg/.jscpd.zzz-baseline.json", "scripts/jscpd/aaa-baseline.json"],
+        [BASELINE],
       ),
     ).toEqual([
-      ".jscpd.zzz-baseline.json [unread-baseline]: is a scan baseline that " +
-        "this check cannot read — keep the baseline in the repository root, " +
-        "named .jscpd.<scan>-baseline.json",
+      "cfg/.jscpd.zzz-baseline.json [unread-baseline]: is a scan baseline " +
+        "that this check cannot read — keep the baseline in cfg/, named " +
+        ".jscpd.<scan>-baseline.json",
       "scripts/jscpd/aaa-baseline.json [unread-baseline]: is a scan baseline " +
-        "that this check cannot read — keep the baseline in the repository " +
-        "root, named .jscpd.<scan>-baseline.json",
+        "that this check cannot read — keep the baseline in cfg/, named " +
+        ".jscpd.<scan>-baseline.json",
     ]);
   });
 });
@@ -137,79 +172,90 @@ describe("fingerprintCounts", () => {
 });
 
 describe("riseFindings", () => {
-  for (const [name, head, base] of [
-    ["passes when the clone total matches the base", { aaa: 1 }, { aaa: 1 }],
-    [
-      "passes a clone the branch removed and one it lowered",
-      { aaa: 1 },
-      { aaa: 2, bbb: 1 },
-    ],
-    [
-      "passes a clone whose fingerprint changed",
-      { zzz: 2 },
-      { aaa: 1, bbb: 1 },
-    ],
-  ] as const) {
-    test(name, () => {
-      expect(riseFindings(BASELINE, baseline(head), baseline(base))).toEqual(
-        [],
-      );
-    });
-  }
+  test("passes when every clone count matches the base", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 }), 0),
+    ).toEqual([]);
+  });
 
-  test("names a clone total above the base's", () => {
+  test("passes a clone the branch removed and one it lowered", () => {
     expect(
       riseFindings(
         BASELINE,
-        baseline({ aaa: 2, zzz: 1 }),
-        baseline({ aaa: 2 }),
+        baseline({ aaa: 1 }),
+        baseline({ aaa: 2, bbb: 1 }),
+        0,
       ),
+    ).toEqual([]);
+  });
+
+  test("names a clone the base does not hold", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}), 0),
     ).toEqual([
-      `${BASELINE} [raised-clones]: accepts 3 clone(s), up from 2 — merge the ` +
+      `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
+        "does not hold — merge the duplicated code, then lower the baseline " +
+        "with --update",
+    ]);
+  });
+
+  test("names a clone count above the base's", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 }), 0),
+    ).toEqual([
+      `${BASELINE}:aaa [raised-clone]: holds 3 clone(s), up from 2 — merge the ` +
         "duplicated code, then lower the baseline with --update",
     ]);
   });
 
+  test("reports raised clones in fingerprint order", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({}), 0).map(
+        (line) => line.slice(0, line.indexOf(" ")),
+      ),
+    ).toEqual([`${BASELINE}:aaa`, `${BASELINE}:zzz`]);
+  });
+
   test("fails a new baseline that accepts clones", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 3, bbb: 1 }), undefined),
+      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined, 0),
     ).toEqual([
-      `${BASELINE} [added-baseline]: is a new baseline that accepts 4 ` +
+      `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
         "clone(s) — merge the duplicated code before you add the scan",
     ]);
   });
 
   test("passes a new baseline that accepts no clone", () => {
-    expect(riseFindings(BASELINE, baseline({}), undefined)).toEqual([]);
-  });
-
-  test("passes a new baseline whose recorded counts are zero", () => {
-    expect(riseFindings(BASELINE, baseline({ aaa: 0 }), undefined)).toEqual([]);
+    expect(riseFindings(BASELINE, baseline({}), undefined, 0)).toEqual([]);
   });
 });
 
 describe("ratchetExit", () => {
   const output = capturedCheckOutput();
 
-  /** A git stub that holds `base` at the merge base: text, or undefined when
-   * the base holds no such file. */
-  const stubFor = (base: Record<string, string | undefined>) => {
+  /** A git stub that holds `base` at the merge base: the text at each path,
+   * keyed by the path the base keeps. */
+  const stubFor = (base: Record<string, string>) => {
     const answers: Record<string, GitStubAnswer> = {
+      "git diff --name-only base123": { code: 0, stdout: "" },
       "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
+      [lsPaths("base123")]: {
+        code: 0,
+        stdout: Object.keys(base)
+          .map((path) => `${path}\n`)
+          .join(""),
+      },
     };
     for (const [path, text] of Object.entries(base)) {
-      answers[lsTree("base123", path)] =
-        text === undefined ? { code: 0, stdout: "" } : holds(path);
-      if (text !== undefined) {
-        answers[gitShow("base123", path)] = { code: 0, stdout: text };
-      }
+      answers[lsTree("base123", path)] = holds(path);
+      answers[gitShow("base123", path)] = { code: 0, stdout: text };
     }
     return stubRun(answers);
   };
 
   const exitFor = async (
     files: BaselineFile[],
-    base: Record<string, string | undefined>,
+    base: Record<string, string>,
     named: string[] = files.map(({ path }) => path),
   ): Promise<number> => {
     output.lines.length = 0;
@@ -218,17 +264,20 @@ describe("ratchetExit", () => {
       readBaselines: () => Promise.resolve(files),
       readNamedBaselines: () => Promise.resolve(named),
       run: stubFor(base),
+      scanNewClones: () => Promise.resolve([]),
     });
   };
 
-  test("passes when no baseline rose", async () => {
+  test("passes a baseline the base holds, at its own path or its old one", async () => {
+    const files: BaselineFile[] = [
+      { path: BASELINE, text: baseline({ aaa: 1 }) },
+    ];
+    expect(await exitFor(files, { [BASELINE]: baseline({ aaa: 1 }) })).toBe(0);
     expect(
-      await exitFor([{ path: BASELINE, text: baseline({ aaa: 1 }) }], {
-        [BASELINE]: baseline({ aaa: 1 }),
-      }),
+      await exitFor(files, { ".jscpd.baseline.json": baseline({ aaa: 1 }) }),
     ).toBe(0);
     expect(output.lines).toEqual([
-      "No jscpd baseline accepts more clones than the merge base on origin/main.",
+      "No jscpd baseline holds a clone above the merge base on origin/main.",
     ]);
   });
 
@@ -236,13 +285,13 @@ describe("ratchetExit", () => {
     expect(await exitFor([], {})).toBe(0);
   });
 
-  test("fails on a baseline that accepts more clones than the base", async () => {
+  test("fails on a clone the merge base does not hold", async () => {
     expect(
       await exitFor(
         [
           { path: BASELINE, text: baseline({ aaa: 1 }) },
           {
-            path: ".jscpd.renamed-baseline.json",
+            path: "cfg/.jscpd.renamed-baseline.json",
             text: baseline({ bbb: 1 }),
           },
         ],
@@ -253,18 +302,16 @@ describe("ratchetExit", () => {
       ),
     ).toBe(1);
     expect(output.lines).toEqual([
-      ".jscpd.renamed-baseline.json [raised-clones]: accepts 1 clone(s), up " +
-        "from 0 — merge the duplicated code, then lower the baseline with " +
-        "--update",
+      "cfg/.jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 clone(s) " +
+        "that the merge base does not hold — merge the duplicated code, then " +
+        "lower the baseline with --update",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
     ]);
   });
 
   test("fails on a baseline the merge base does not hold", async () => {
     expect(
-      await exitFor([{ path: BASELINE, text: baseline({ aaa: 1 }) }], {
-        [BASELINE]: undefined,
-      }),
+      await exitFor([{ path: BASELINE, text: baseline({ aaa: 1 }) }], {}),
     ).toBe(1);
     expect(output.lines).toEqual([
       `${BASELINE} [added-baseline]: is a new baseline that accepts 1 clone(s) ` +
@@ -283,10 +330,33 @@ describe("ratchetExit", () => {
     ).toBe(1);
     expect(output.lines).toEqual([
       "scripts/jscpd/other-baseline.json [unread-baseline]: is a scan " +
-        "baseline that this check cannot read — keep the baseline in the " +
-        "repository root, named .jscpd.<scan>-baseline.json",
+        "baseline that this check cannot read — keep the baseline in cfg/, " +
+        "named .jscpd.<scan>-baseline.json",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
     ]);
+  });
+
+  test("fails loudly when the merge base tree cannot be read", async () => {
+    const run = stubRun({
+      "git merge-base HEAD origin/main": { code: 0, stdout: "base123" },
+      [lsPaths("base123")]: {
+        code: 128,
+        stderr: "fatal: bad object base123",
+        stdout: "",
+      },
+    });
+    await expect(
+      ratchetExit({
+        output,
+        readBaselines: () =>
+          Promise.resolve([{ path: BASELINE, text: baseline({}) }]),
+        readNamedBaselines: () => Promise.resolve([BASELINE]),
+        run,
+        scanNewClones: () => Promise.resolve([]),
+      }),
+    ).rejects.toThrow(
+      "git ls-tree -r --name-only base123 failed: fatal: bad object base123",
+    );
   });
 
   test("fails loudly when origin/main is missing", async () => {
@@ -303,23 +373,19 @@ describe("ratchetExit", () => {
         readBaselines: () => Promise.resolve([]),
         readNamedBaselines: () => Promise.resolve([]),
         run,
+        scanNewClones: () => Promise.resolve([]),
       }),
     ).rejects.toThrow(/git fetch origin main/);
   });
 });
 
-/** The file names the repository root holds. */
-const rootNames = async (): Promise<string[]> => {
-  const names: string[] = [];
-  for await (const entry of Deno.readDir(projectRoot)) names.push(entry.name);
-  return names;
-};
-
 describe("baselineFiles", () => {
-  test("reads the text of every committed baseline in the root", async () => {
+  test("reads the text of every committed baseline in cfg", async () => {
     const files = await baselineFiles();
     expect(files.map(({ path }) => path)).toEqual(
-      baselineFileNames(await rootNames()),
+      baselineFileNames(await directoryNames(join(projectRoot, "cfg"))).map(
+        (name) => `cfg/${name}`,
+      ),
     );
     for (const { path, text } of files) {
       expect(text).toBe(await Deno.readTextFile(join(projectRoot, path)));
@@ -330,7 +396,7 @@ describe("baselineFiles", () => {
 describe("taskBaselines", () => {
   test("names only baselines that the ratchet reads", async () => {
     const named = await taskBaselines();
-    expect(named).toContain(".jscpd.baseline.json");
+    expect(named).toContain("cfg/.jscpd.baseline.json");
     expect(
       unreadBaselineFindings(
         named,

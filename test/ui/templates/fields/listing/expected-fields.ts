@@ -14,6 +14,16 @@ const MONEY_TEXT = {
 } as const;
 
 /* jscpd:ignore-start -- a list of strings, not code */
+const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
 const INTERVAL_CHOICES = [
   ["Never", ""],
   ["Week", "week"],
@@ -105,36 +115,7 @@ export const LISTING_FIELDS = [
     hint: "Select which days of the week are available for booking",
     label: "Bookable days (for daily listings)",
     name: "bookable_days",
-    options: [
-      {
-        label: "Monday",
-        value: "Monday",
-      },
-      {
-        label: "Tuesday",
-        value: "Tuesday",
-      },
-      {
-        label: "Wednesday",
-        value: "Wednesday",
-      },
-      {
-        label: "Thursday",
-        value: "Thursday",
-      },
-      {
-        label: "Friday",
-        value: "Friday",
-      },
-      {
-        label: "Saturday",
-        value: "Saturday",
-      },
-      {
-        label: "Sunday",
-        value: "Sunday",
-      },
-    ],
+    options: WEEKDAYS.map((day) => ({ label: day, value: day })),
     section: "daily",
     type: "checkbox-group",
   },

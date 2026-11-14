@@ -1,10 +1,12 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { listingAttributeOptions } from "#db/attributes.ts";
 import { getDb } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { deleteListing } from "#db/listings/delete.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
@@ -16,9 +18,11 @@ import {
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
+import { listingRecord } from "#shared/records/listings.ts";
 import {
   createListing,
   listingForm,
+  saveListingEdit,
   updateListing,
 } from "#test/features/admin/listings-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -286,6 +290,39 @@ describeWithEnv("listings form", { db: true }, () => {
   });
 
   describe("update", () => {
+    test("answers not found when the row vanished before the update", async () => {
+      const created = await createListing();
+      const stored = (await getStoredListingWithCount(created.id))!;
+      const form = listingForm({ slug: "kept-slug" });
+      await deleteListing(created.id);
+
+      expect(
+        await buildUpdateListingResource(stored).update(created.id, form),
+      ).toEqual({ notFound: true, ok: false });
+    });
+
+    test("answers not found when the write loses the row", async () => {
+      const created = await createListing();
+      using _update = stub(listingRecord, "update", () =>
+        Promise.resolve({ kind: "not-found" as const }),
+      );
+
+      expect(await saveListingEdit(created.id, {})).toEqual({
+        notFound: true,
+        ok: false,
+      });
+    });
+
+    test("answers a record refusal with its message", async () => {
+      const first = await createListing();
+      const second = await createListing({ name: "Second listing" });
+
+      expect(await saveListingEdit(second.id, { name: first.name })).toEqual({
+        error: t("error.name_in_use"),
+        ok: false,
+      });
+    });
+
     test("the slug is normalized and its lookup code recomputed", async () => {
       const created = await createListing();
       const row = await updateListing(created.id, { slug: "  New-Slug  " });
@@ -340,6 +377,20 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.bookable_days).toEqual([...VALID_DAY_NAMES]);
     });
 
+    test("an unreadable day price rejects an update with a plain message", async () => {
+      const created = await createListing({ duration_days: "2" });
+      const result = await saveListingEdit(created.id, {
+        day_price_1: "abc",
+        duration_days: "2",
+      });
+
+      expect(result).toEqual({
+        error: "Enter a valid day price for each duration, or leave it blank.",
+        ok: false,
+      });
+      expect(await getListingDayPrices(created.id)).toEqual({});
+    });
+
     test("refuses a max_quantity below a package membership quantity", async () => {
       const group = await createTestGroup({ name: "Cap package" });
       const created = await createListing({
@@ -358,15 +409,10 @@ describeWithEnv("listings form", { db: true }, () => {
         [`package_qty_${created.id}`]: "3",
       });
 
-      const form = listingForm({
+      const result = await saveListingEdit(created.id, {
         group_ids: [String(group.id)],
         max_quantity: "2",
-        slug: "kept-slug",
       });
-      const result = await buildUpdateListingResource(
-        form,
-        (await getStoredListingWithCount(created.id))!,
-      ).update(created.id, form);
 
       expect(result).toEqual({
         error: t("error.package_member_cap", {
