@@ -66,7 +66,7 @@ test("the record delete policy admits the delete page roles", () => {
   });
 });
 
-test("the route table carries the standard, child, and custom routes", () => {
+test("the route table carries the standard, child, and custom routes", async () => {
   const archive: RouteHandlerFn = () => Promise.resolve(new Response("a"));
   const optionCreate: RouteHandlerFn = () => Promise.resolve(new Response("c"));
   const routes = widgetRoutes({
@@ -92,6 +92,10 @@ test("the route table carries the standard, child, and custom routes", () => {
   );
   expect(routes["POST /api/admin/widgets/:widgetId/archive"]).toBe(archive);
   expect(routes["GET /api/admin/widgets"]).not.toBe(unused);
+  const optionDelete =
+    routes["DELETE /api/admin/widgets/:widgetId/options/:optionId"]!;
+  const answer = await optionDelete(new Request("http://localhost"), {});
+  expect(await answer.text()).toBe("unused");
 });
 
 test("an override replaces each standard route it names", () => {

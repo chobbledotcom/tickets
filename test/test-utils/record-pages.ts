@@ -8,18 +8,20 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { CrudHandlers } from "#routes/admin/route-tables.ts";
 import type { FormSchema } from "#shared/forms/definition.ts";
-import {
-  type AdminRecord,
-  defineRecord,
-  type RecordShapeOf,
-  type RecordSpec,
+import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type {
+  AdminRecord,
+  RecordShapeOf,
+  RecordSpec,
 } from "#shared/rest/record.ts";
 import {
   type RecordPagesConfig,
   recordPages,
 } from "#shared/rest/record-pages.ts";
-import { okResult } from "#shared/result.ts";
-import { expectRedirectWithFlash } from "#test-utils/assertions/redirect.ts";
+import {
+  expectRedirect as expectRedirectTo,
+  expectRedirectWithFlash,
+} from "#test-utils/assertions/redirect.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { testCookie, testCsrfToken } from "#test-utils/session.ts";
@@ -38,18 +40,18 @@ export const form = (name: string): FormSchema<Values> => ({
 
 export const toInput = (values: Values): Input => ({ name: values.name });
 
+/** The one stored widget row. */
+const WIDGET = { id: 7, name: "Widget" };
+
 /** The widget record. Row 7 is stored, and the writes answer as written. */
 export const recordWith = (
   write: Partial<WriteSet> = {},
   spec: Partial<RecordSpec<Shape>> = {},
 ): AdminRecord<Shape> =>
-  defineRecord<Shape>()({
+  defineNamedRowRecord<Shape>()({
     activityName: "Widget",
-    getAll: () => Promise.resolve([{ id: 7, name: "Widget" }]),
-    load: (id) => Promise.resolve(id === 7 ? { id: 7, name: "Widget" } : null),
-    logName: (input) => input.name,
-    nameOf: (row) => row.name,
-    rule: (input) => okResult(input),
+    getAll: () => Promise.resolve([WIDGET]),
+    load: () => Promise.resolve(WIDGET),
     surface: "holidays",
     ...spec,
     write: {
@@ -105,13 +107,11 @@ export const deleteAs = async (
     { id: 7 },
   );
 
-const pathOf = (response: Response): string =>
-  new URL(response.headers.get("location") ?? "", "http://localhost").pathname;
-
-/** Assert the PRG answer a page gives after a write. */
+/** Assert the PRG answer a page gives after a write: a 302 to this path. */
 export const expectRedirect = (response: Response, path: string): void => {
-  expect(response.status).toBe(302);
-  expect(pathOf(response)).toBe(path);
+  expect(new URL(expectRedirectTo(response), "http://localhost").pathname).toBe(
+    path,
+  );
 };
 
 export const editUrl = "/admin/holidays/7/edit";

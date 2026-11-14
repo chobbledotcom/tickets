@@ -10,12 +10,12 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
 } from "#shared/admin-api-resources.ts";
-import {
-  type DeleteVerdict,
-  defineRecord,
-  type RecordShapeOf,
-  type WritePlan,
-  type WriteVerdict,
+import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
+import type {
+  DeleteVerdict,
+  RecordShapeOf,
+  WritePlan,
+  WriteVerdict,
 } from "#shared/rest/record.ts";
 import { type RecordApiConfig, recordApi } from "#shared/rest/record-api.ts";
 import { okResult } from "#shared/result.ts";
@@ -70,14 +70,11 @@ export const widgetRoutes = (
   verdicts: Verdicts = {},
   calls: WriteCalls = { create: [], remove: [], update: [] },
 ): Record<string, RouteHandlerFn> => {
-  const record = defineRecord<Shape>()({
+  const record = defineNamedRowRecord<Shape>()({
     activityName: "Widget",
     api: WIDGET_ENTRY,
     getAll: () => Promise.resolve([...stored]),
     load: (id) => Promise.resolve(stored.find((row) => row.id === id) ?? null),
-    logName: (input) => input.name,
-    nameField: "name",
-    nameOf: (row) => row.name,
     surface: "groups",
   });
   return recordApi<typeof WIDGET_ENTRY, Shape, string>(
@@ -106,10 +103,7 @@ export const widgetRoutes = (
       },
       customHandlers: { archive: unused },
       toCreateInput: (body) => okResult({ name: body.name }),
-      toUpdateInput: (body, existing) =>
-        okResult({
-          name: body.name === undefined ? existing.name : String(body.name),
-        }),
+      toUpdateInput: (body) => okResult({ name: String(body.name) }),
       ...config,
     },
   );

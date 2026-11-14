@@ -1,17 +1,19 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 type RecordWords = { activityName: string; nameLabel?: string };
 
 /** The words a record's delete page shows above the name it asks for. */
-export const deleteConfirmLabel = (record: { nameLabel?: string }): string => {
-  if (record.nameLabel === undefined) {
-    throw new Error("The record declares no delete confirmation label");
-  }
-  return t(record.nameLabel);
-};
+export const deleteConfirmLabel = (record: { nameLabel?: string }): string =>
+  t(
+    requireValue(
+      record.nameLabel,
+      "The record declares no delete confirmation label",
+    ),
+  );
 
 /** What a record calls itself on its pages, and the label its delete page
  *  asks for, or null when it has no delete page label. */

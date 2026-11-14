@@ -91,8 +91,8 @@ export const writtenRow = async <Row>(
   verdict: Promise<WriteVerdict<Row>>,
 ): Promise<Row> => {
   const answer = await verdict;
-  if (answer.kind !== "written") throw new Error(`write ${answer.kind}`);
-  return answer.row;
+  expect(answer.kind).toBe("written");
+  return (answer as Extract<WriteVerdict<Row>, { kind: "written" }>).row;
 };
 
 /** The names a record lists, in the order it lists them. */
