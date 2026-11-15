@@ -3,10 +3,10 @@ import {
   text,
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
-import type { Table } from "#db/migrations/schema/types.ts";
+import type { NamedTable } from "#db/migrations/schema/types.ts";
 
 /** One durable operator-visible completion for an exact returned payment set. */
-export const refundConfirmationTable: [name: string, table: Table] = [
+export const refundConfirmationTable = [
   "refund_confirmations",
   {
     columns: [
@@ -21,10 +21,10 @@ export const refundConfirmationTable: [name: string, table: Table] = [
       },
     ],
   },
-];
+] as const satisfies NamedTable;
 
 /** The queryable members of each exact returned payment set. */
-export const refundConfirmationReferenceTable: [name: string, table: Table] = [
+export const refundConfirmationReferenceTable = [
   "refund_confirmation_references",
   {
     columns: [
@@ -39,4 +39,4 @@ export const refundConfirmationReferenceTable: [name: string, table: Table] = [
       },
     ],
   },
-];
+] as const satisfies NamedTable;

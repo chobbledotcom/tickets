@@ -15,14 +15,15 @@ import {
 import { accountBalance, allTransfers } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { queryOne } from "#db/client.ts";
+import { literal } from "#db/select/expression.ts";
 import { sql } from "#db/sql.ts";
 import { tx, useTransactionalDb } from "#test-utils/ledger.ts";
 
 const customerTotals = () =>
   queryOne<{ cash: number; total: number; deposit_base: number }>(sql`SELECT
-  ${externalCashBalanceSubquery("attendee", sql`1`)} AS cash,
-  ${orderTotalSubquery("attendee", sql`1`)} AS total,
-  ${reservationSubtotalSubquery("attendee", sql`1`)} AS deposit_base`);
+  ${externalCashBalanceSubquery("attendee", literal(1))} AS cash,
+  ${orderTotalSubquery("attendee", literal(1))} AS total,
+  ${reservationSubtotalSubquery("attendee", literal(1))} AS deposit_base`);
 
 describe("db > accounting > tax modifier corrections", () => {
   useTransactionalDb();

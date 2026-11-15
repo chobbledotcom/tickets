@@ -25,18 +25,18 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Column, Table } from "./types.ts";
+import { type Column, declaredTables } from "./types.ts";
 
 /** The plan Stripe reported at subscription time, with the VAT inside each
  * payment. A later listing edit never changes it. */
-const subscriptionPlanColumns: Column[] = [
+const subscriptionPlanColumns = [
   ...recurringOfferColumns,
   ["recurring_tax", wholeNumberStartingAtZero],
   ["subscription_id", textStartingBlank],
   ["subscription_status", textStartingBlank],
-];
+] as const satisfies readonly Column[];
 
-export const attendeeTables: [name: string, table: Table][] = [
+export const attendeeTables = declaredTables([
   [
     "attendee_statuses",
     {
@@ -436,4 +436,4 @@ export const attendeeTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

@@ -26,6 +26,15 @@ export type SqlStatement = {
   readonly [MADE_BY_SQL_TAG]: true;
 };
 
+declare const ROWS: unique symbol;
+
+/** A statement that also names the row each result holds. A runner reads the
+ * row type from the statement, so the caller does not name it again. */
+export type RowsStatement<Row> = SqlStatement & { readonly [ROWS]: Row };
+
+/** A read: a statement that names its row, or one whose caller names it. */
+export type Read<Row> = SqlStatement | RowsStatement<Row>;
+
 /** What a template slot can hold: a value to bind, or SQL to splice in. */
 export type SqlSlot = InValue | SqlStatement;
 
@@ -206,10 +215,6 @@ export const sqlInsertRowsOrNull = (
   rows.length === 0
     ? null
     : sql`INSERT INTO ${sqlName(table)} (${sqlNames(columns)}) VALUES ${sqlRows(rows)}`;
-
-/** Whether a row of `table` satisfies `where`: an EXISTS probe. */
-export const sqlExists = (table: string, where: SqlStatement): SqlStatement =>
-  sql`EXISTS(SELECT 1 FROM ${sqlName(table)} WHERE ${where})`;
 
 /** A constant written into the SQL text as a literal. For schema text, which
  * takes no bound arguments, and for a constant that a partial index names. */

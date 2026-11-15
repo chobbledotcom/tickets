@@ -19,31 +19,34 @@ import type { Column } from "./types.ts";
  * Callers spread this then append their own columns (description, meta_title,
  * etc.) — the four columns above are the shared header.
  */
-export const slugNamedEntityColumns: Column[] = [
+export const slugNamedEntityColumns = [
   ["id", rowId],
   ["slug", text],
   ["slug_index", text],
   ["name", text],
-];
+] as const satisfies readonly Column[];
 
 /** The attendee an owned row belongs to. Every attendee-owned table declares
  *  it the same way. */
-export const attendeeIdColumn: Column = ["attendee_id", wholeNumber];
+export const attendeeIdColumn = [
+  "attendee_id",
+  wholeNumber,
+] as const satisfies Column;
 
 /**
  * The header a dated table carries: its own id, and when its row was made.
  * Callers spread this first, then append their own columns.
  */
-export const datedRowColumns: Column[] = [
+export const datedRowColumns = [
   ["id", rowId],
   ["created", text],
-];
+] as const satisfies readonly Column[];
 
 /** The position of a row within its list. A new row starts at zero. */
-export const sortOrderColumn: Column = [
+export const sortOrderColumn = [
   "sort_order",
   wholeNumberStartingAtZero,
-];
+] as const satisfies Column;
 
 /**
  * Columns shared by ordered link tables keyed by a polymorphic (item_type,
@@ -51,25 +54,25 @@ export const sortOrderColumn: Column = [
  * FK column (e.g. image_id, page_id) is declared by each caller before
  * spreading these.
  */
-export const itemLinkColumns: Column[] = [
+export const itemLinkColumns = [
   ["item_type", text],
   ["item_id", wholeNumber],
   sortOrderColumn,
-];
+] as const satisfies readonly Column[];
 
 /**
  * The tail a stateful table carries: its state word, and when its row was
  * made. Callers spread this last, after their own columns.
  */
-export const statefulColumns: Column[] = [
+export const statefulColumns = [
   ["state", text],
   ["created_at", text],
-];
+] as const satisfies readonly Column[];
 
 /** A subscription plan: minor units each period, and week, month, or year. A
  * listing states the plan a new subscriber gets, before VAT. A booking row
  * keeps the plan Stripe started, VAT included. A price of 0 means none. */
-export const recurringOfferColumns: Column[] = [
+export const recurringOfferColumns = [
   ["recurring_price", wholeNumberStartingAtZero],
   ["recurring_interval", textStartingBlank],
-];
+] as const satisfies readonly Column[];

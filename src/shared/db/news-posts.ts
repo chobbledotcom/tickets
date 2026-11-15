@@ -33,6 +33,9 @@ import {
   imageUseTargets,
 } from "#db/images.ts";
 import { readRows } from "#db/read.ts";
+import { desc } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   freshSlugIndexWrites,
   unclaimedSlugCondition,
@@ -142,11 +145,15 @@ export const getNewsPostSummaries = newsSummaryColumns.every({
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
-  const rows = await readRows<SealedCardRow>({
-    columns: sql`${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", sql`news_post.id`)}`,
-    from: sql`news_posts AS news_post`,
-    order: sql`news_post.created DESC, news_post.id DESC`,
-  });
+  const rows = await readRows<SealedCardRow>(
+    from(tables.news_posts)
+      .as("news_post")
+      .orderBy((post) => [desc(post.created), desc(post.id)])
+      .columns(
+        (post) =>
+          sql`${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", post.id)}`,
+      ),
+  );
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await newsSummaryColumns.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),

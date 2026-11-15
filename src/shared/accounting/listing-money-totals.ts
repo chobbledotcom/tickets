@@ -7,8 +7,8 @@ import {
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
 import { requireOne } from "#db/client.ts";
 import type { WholeNumberRow } from "#db/query.ts";
+import { whereTail, wholeCondition } from "#db/select/expression.ts";
 import { sql, sqlLiteral, sqlRows } from "#db/sql.ts";
-import { whereSql } from "#db/where-clauses.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;
@@ -61,7 +61,7 @@ export const listingMoneyTotals = async (
   const revenueDebit = sql`transfer.source_type = ${sqlLiteral(REVENUE)} AND transfer.source_id IN (${selectedIds})`;
   const costDebit = sql`transfer.source_type = ${sqlLiteral(COST)} AND transfer.source_id IN (${selectedIds})`;
   const costCredit = sql`transfer.dest_type = ${sqlLiteral(COST)} AND transfer.dest_id IN (${selectedIds})`;
-  const rangeParts = occurredAtRange(range, "transfer.occurred_at");
+  const rangeParts = occurredAtRange(range);
   // An aggregate without GROUP BY always returns one row. COALESCE supplies
   // zeroes when no transfers match, so the result cannot be null.
   const row = await requireOne<ListingMoneyTotalsRow>(
@@ -95,10 +95,10 @@ export const listingMoneyTotals = async (
        COALESCE(SUM(CASE WHEN ${revenueCredit} THEN transfer.amount ELSE 0 END
                   - CASE WHEN ${revenueDebit} THEN transfer.amount ELSE 0 END), 0) AS net_balance
       FROM transfers AS transfer
-     ${whereSql([
-       {
-         clause: sql`(${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})`,
-       },
+     ${whereTail([
+       wholeCondition(
+         sql`(${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})`,
+       ),
        ...rangeParts,
      ])}`,
   );

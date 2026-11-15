@@ -2,9 +2,9 @@ import { sql } from "#db/sql.ts";
 import { TAX_STATE_KINDS } from "#shared/tax/transitions.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, oneOf, text, wholeNumber } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const taxTables: [string, Table][] = [
+export const taxTables = declaredTables([
   [
     "booking_tax_assessments",
     {
@@ -35,4 +35,4 @@ export const taxTables: [string, Table][] = [
       ],
     },
   ],
-];
+]);

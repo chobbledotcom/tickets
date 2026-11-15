@@ -7,24 +7,41 @@
 import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
-  accountPredicate,
+  type AccountId,
   attendeeOwedSubquery,
   bookingSaleTotalSubquery,
-  saleLegPredicate,
+  type Leg,
+  type LegTest,
+  ledgerLegs,
+  onAccount,
+  saleLeg,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
-import { defineReader } from "#db/read.ts";
+import { readRows } from "#db/read.ts";
 import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlExists,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
-import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
+  among,
+  amongConstants,
+  and,
+  atMost,
+  type Condition,
+  type Expr,
+  equal,
+  given,
+  greaterThan,
+  inStatement,
+  lessThan,
+  literal,
+  matchesGlob,
+  not,
+  orZero,
+  sum,
+  when,
+  wholeCondition,
+} from "#db/select/expression.ts";
+import { from, type Node, type Query, tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import type { Attendee } from "#types";
 
 /**
@@ -41,77 +58,116 @@ import type { Attendee } from "#types";
  *  who booked, on which listing, in which order, and when the row is a
  *  quantity-0 placeholder. */
 export type RefundedRowExprs = {
-  attendeeId: SqlStatement;
-  eventGroup: SqlStatement;
-  listingId: SqlStatement;
-  placeholderWhen: SqlStatement;
+  attendeeId: Expr<number>;
+  eventGroup: Expr<string>;
+  listingId: Expr<number>;
+  placeholderWhen: Condition;
 };
 
-/** The row expressions every read through the `listingAttendee` alias shares. */
-export const LISTING_ATTENDEE_REFUNDED_ROW: RefundedRowExprs = {
-  attendeeId: sql`listingAttendee.attendee_id`,
-  eventGroup: sql`listingAttendee.ledger_event_group`,
-  listingId: sql`listingAttendee.listing_id`,
-  placeholderWhen: sql`listingAttendee.quantity = 0`,
-};
+/** One booking row, as a statement reads it. */
+export type BookingRow = Node<"listing_attendees">;
 
-const legCameBack = bindFirst(sqlExists)("transfers");
+/** The booking row of a statement that names the table
+ *  `listing_attendees AS <word>`. */
+export const bookingRow = (word: string): BookingRow =>
+  tableNode(tables.listing_attendees, word);
 
-export const refundedForBooking = (row: RefundedRowExprs): SqlStatement => {
+export const BOOKING_ROW = bookingRow("listingAttendee");
+
+/** What a booking row tells the refunded projection. */
+export const refundedRowOf = (row: BookingRow): RefundedRowExprs => ({
+  attendeeId: row.attendee_id,
+  eventGroup: row.ledger_event_group,
+  listingId: row.listing_id,
+  placeholderWhen: equal(row.quantity, literal(0)),
+});
+
+/** Each side of a refund leg, and the side of the leg it gives back: the
+ *  money returns along the same accounts. */
+const MIRRORED_SIDES = [
+  ["source_type", "dest_type"],
+  ["source_id", "dest_id"],
+  ["dest_type", "source_type"],
+  ["dest_id", "source_id"],
+] as const;
+
+const legExists = (test: LegTest): Expr<boolean> =>
+  ledgerLegs().where(test).exists();
+
+const isRefund = (leg: Leg): Expr<boolean> => matchesGlob(leg.kind, "refund_*");
+
+export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
   const { attendeeId, eventGroup, listingId, placeholderWhen } = row;
-  const wasSold = legCameBack(
-    saleLegPredicate(attendeeId, listingId, eventGroup),
-  );
-  const saleCameBack = legCameBack(
-    sql`kind = ${sqlLiteral(KIND.refundSale)} AND ${accountPredicate(
-      "source",
-      REVENUE,
-      listingId,
-    )} AND ${accountPredicate(
-      "dest",
-      ATTENDEE,
-      attendeeId,
-    )} AND reverses_group = ${eventGroup}`,
-  );
+  const wasSold = legExists(saleLeg(attendeeId, listingId, eventGroup));
+  /** The leg that gives the sale of one listing back to the attendee. */
+  const saleRefund =
+    (listing: AccountId): LegTest =>
+    (leg) =>
+      and(
+        equal(leg.kind, literal(KIND.refundSale)),
+        onAccount("source", REVENUE, listing)(leg),
+        onAccount("dest", ATTENDEE, attendeeId)(leg),
+        equal(leg.reverses_group, eventGroup),
+      );
+  const saleCameBack = legExists(saleRefund(listingId));
   // A free line has no sale of its own, so it reads the order as a whole:
   // refunded only once the order was reversed AND every sale leg of it came
   // back. A partial reversal must not refund a free package member beside an
   // unreversed line — and a stamped order with no sale legs (a free listing
   // plus a booking fee, or a surcharge) must not read refunded off an empty
   // sale set, so the reversal itself is the positive evidence.
-  const orderWasReversed = legCameBack(
-    sql`kind GLOB 'refund_*' AND reverses_group = ${eventGroup}`,
+  const orderWasReversed = legExists((leg) =>
+    and(isRefund(leg), equal(leg.reverses_group, eventGroup)),
   );
-  const orderFullyReturned = sql`NOT EXISTS(SELECT 1 FROM transfers AS unreturned WHERE kind = ${sqlLiteral(
-    KIND.sale,
-  )} AND ${accountPredicate(
-    "source",
-    ATTENDEE,
-    attendeeId,
-  )} AND unreturned.dest_type = ${sqlLiteral(
-    REVENUE,
-  )} AND unreturned.event_group = ${eventGroup} AND NOT EXISTS(SELECT 1 FROM transfers AS returned WHERE returned.kind = ${sqlLiteral(
-    KIND.refundSale,
-  )} AND ${accountPredicate(
-    "source",
-    REVENUE,
-    sql`unreturned.dest_id`,
-  )} AND ${accountPredicate(
-    "dest",
-    ATTENDEE,
-    attendeeId,
-  )} AND returned.reverses_group = ${eventGroup}))`;
-  const cashCameBack = legCameBack(
-    sql`kind = ${sqlLiteral(KIND.refundCash)} AND ${accountPredicate(
-      "source",
-      ATTENDEE,
-      attendeeId,
-    )}`,
+  const unreturnedSale = ledgerLegs()
+    .as("unreturned")
+    .where((sale) => [
+      equal(sale.kind, literal(KIND.sale)),
+      onAccount("source", ATTENDEE, attendeeId)(sale),
+      equal(sale.dest_type, literal(REVENUE)),
+      equal(sale.event_group, eventGroup),
+      not(ledgerLegs().as("returned").where(saleRefund(sale.dest_id)).exists()),
+    ]);
+  const orderFullyReturned = not(unreturnedSale.exists());
+  const cashCameBack = legExists((leg) =>
+    and(
+      equal(leg.kind, literal(KIND.refundCash)),
+      onAccount("source", ATTENDEE, attendeeId)(leg),
+    ),
   );
-  const chainFullyReturned = sql`NOT EXISTS(SELECT 1 FROM booking_tax_assessments AS assessment JOIN transfers AS chain ON chain.event_group = assessment.event_group WHERE assessment.booking_group = ${eventGroup} AND chain.kind NOT GLOB 'refund_*' AND NOT EXISTS(SELECT 1 FROM transfers AS returned WHERE returned.kind GLOB 'refund_*' AND returned.reverses_group = chain.event_group AND returned.amount = chain.amount AND returned.source_type = chain.dest_type AND returned.source_id = chain.dest_id AND returned.dest_type = chain.source_type AND returned.dest_id = chain.source_id))`;
+  const unreturnedChainLeg = from(tables.booking_tax_assessments)
+    .join("chain", tables.transfers, (assessment) =>
+      equal(assessment.chain.event_group, assessment.event_group),
+    )
+    .where((assessment) => [
+      equal(assessment.booking_group, eventGroup),
+      not(isRefund(assessment.chain)),
+      not(
+        ledgerLegs()
+          .as("returned")
+          .where((refund) => [
+            isRefund(refund),
+            equal(refund.reverses_group, assessment.chain.event_group),
+            equal(refund.amount, assessment.chain.amount),
+            ...MIRRORED_SIDES.map(([back, out]) =>
+              equal(refund[back], assessment.chain[out]),
+            ),
+          ])
+          .exists(),
+      ),
+    ]);
+  const chainFullyReturned = not(unreturnedChainLeg.exists());
   // A row with no recorded order has nothing to reverse into: its group is
   // '' and every leg test after it would match nothing, so never fall through.
-  return sql`(SELECT CASE WHEN ${wasSold} THEN ${saleCameBack} AND ${chainFullyReturned} WHEN ${placeholderWhen} THEN ${cashCameBack} WHEN ${eventGroup} = '' THEN 0 ELSE ${orderWasReversed} AND ${orderFullyReturned} AND ${chainFullyReturned} END)`;
+  const refunded = when<boolean>(
+    [
+      [wasSold, and(saleCameBack, chainFullyReturned)],
+      [placeholderWhen, cashCameBack],
+      [equal(eventGroup, literal("")), and(false)],
+    ],
+    and(orderWasReversed, orderFullyReturned, chainFullyReturned),
+  );
+  return wholeCondition(sql`(SELECT ${refunded})`);
 };
 
 /** {@link refundedForBooking} under the alias the booking row type reads. */
@@ -121,36 +177,40 @@ export const refundedFromLedger = (row: RefundedRowExprs): SqlStatement =>
 /**
  * One booking's ticket income, including its tax corrections, split between
  * rows in quantity proportion by row id. The shares telescope to the full
- * amount without losing a penny. Expressions must be table-qualified so the
- * inner `sibling` alias cannot shadow them.
+ * amount without losing a penny.
  */
-export const pricePaidFromLedger = (
-  attendeeIdExpr: SqlStatement,
-  listingIdExpr: SqlStatement,
-  eventGroupExpr: SqlStatement,
-  rowIdExpr: SqlStatement,
-): SqlStatement => {
-  const saleTotal = bookingSaleTotalSubquery(
-    attendeeIdExpr,
-    listingIdExpr,
-    eventGroupExpr,
-  );
-  const siblingQty = (idBound: SqlStatement): SqlStatement =>
-    sql`(SELECT COALESCE(SUM(sibling.quantity), 0) FROM listing_attendees AS sibling WHERE sibling.attendee_id = ${attendeeIdExpr} AND sibling.listing_id = ${listingIdExpr} AND sibling.ledger_event_group = ${eventGroupExpr}${idBound})`;
-  const through = siblingQty(sql` AND sibling.id <= ${rowIdExpr}`);
-  const before = siblingQty(sql` AND sibling.id < ${rowIdExpr}`);
+export const pricePaidFromLedger = (row: BookingRow): SqlStatement => {
+  const attendeeId = row.attendee_id;
+  const listingId = row.listing_id;
+  const eventGroup = row.ledger_event_group;
+  const rowId = row.id;
+  const saleTotal = bookingSaleTotalSubquery(attendeeId, listingId, eventGroup);
+  const siblingQuantity = (
+    upTo: (sibling: Node<"listing_attendees">) => Condition,
+  ) =>
+    from(tables.listing_attendees)
+      .as("sibling")
+      .where((sibling) => [
+        equal(sibling.attendee_id, attendeeId),
+        equal(sibling.listing_id, listingId),
+        equal(sibling.ledger_event_group, eventGroup),
+        upTo(sibling),
+      ])
+      .aggregate((sibling) => orZero(sum(sibling.quantity)));
+  const through = siblingQuantity((sibling) => atMost(sibling.id, rowId));
+  const before = siblingQuantity((sibling) => lessThan(sibling.id, rowId));
   // NULLIF avoids dividing by zero when no sibling has quantity. The COALESCE
   // turns the resulting NULL back into 0.
-  const totalQty = sql`NULLIF(${siblingQty(sql``)}, 0)`;
+  const totalQty = sql`NULLIF(${siblingQuantity(() => true)}, 0)`;
   return sql`COALESCE(CAST(${saleTotal} * ${through} / ${totalQty} AS INTEGER) - CAST(${saleTotal} * ${before} / ${totalQty} AS INTEGER), 0) AS price_paid`;
 };
 
 /** What the attendee still owes, read from the ledger: their account balance,
  *  negated. 0 for a fully paid booking and for one with no legs at all. */
 export const remainingBalanceFromLedger = (
-  attendeeIdExpr: SqlStatement,
+  attendeeId: AccountId,
 ): SqlStatement =>
-  sql`${attendeeOwedSubquery(attendeeIdExpr)} AS remaining_balance`;
+  sql`${attendeeOwedSubquery(attendeeId)} AS remaining_balance`;
 
 /** Callers MUST pass the join their own FROM clause uses: `left` COALESCEs the
  *  per-listing columns so an attendee with no booking row reads zeros. */
@@ -202,6 +262,10 @@ const listingIntColumn = (join: AttendeeJoin, name: string): SqlStatement => {
  * says what any of the person's bookings owes. */
 export type AttendeeOwedScope = "attendee" | "booking";
 
+/** The attendee row of a statement that names the table
+ *  `attendees AS attendee`. */
+export const ATTENDEE_ROW = tableNode(tables.attendees, "attendee");
+
 /** The columns that identify an attendee in every read of the table. */
 export const ATTENDEE_IDENTITY_COLUMNS: readonly SqlStatement[] = [
   sql`attendee.id`,
@@ -237,15 +301,9 @@ const FIELD_SQL: Record<AttendeeField, (join: AttendeeJoin) => SqlStatement> = {
     listingIntColumn(join, "attachment_downloads"),
   end_date: () => sql`SUBSTR(listingAttendee.end_at, 1, 10) as end_date`,
   package_group_id: (join) => listingIntColumn(join, "package_group_id"),
-  price_paid: () =>
-    pricePaidFromLedger(
-      sql`listingAttendee.attendee_id`,
-      sql`listingAttendee.listing_id`,
-      sql`listingAttendee.ledger_event_group`,
-      sql`listingAttendee.id`,
-    ),
-  refunded: () => refundedFromLedger(LISTING_ATTENDEE_REFUNDED_ROW),
-  remaining_balance: () => remainingBalanceFromLedger(sql`attendee.id`),
+  price_paid: () => pricePaidFromLedger(BOOKING_ROW),
+  refunded: () => refundedFromLedger(refundedRowOf(BOOKING_ROW)),
+  remaining_balance: () => remainingBalanceFromLedger(ATTENDEE_ROW.id),
 };
 
 /**
@@ -269,12 +327,13 @@ export type AttendeeKindFilter =
   | "servicing"
   | "attendee-or-servicing";
 
-const KIND_CLAUSE: Record<AttendeeKindFilter, SqlStatement> = {
-  attendee: sql`attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
-  "attendee-or-servicing": sql`attendee.kind IN (${sqlLiteral(
+const KIND_CONDITION: Record<AttendeeKindFilter, Expr<boolean>> = {
+  attendee: equal(ATTENDEE_ROW.kind, literal(ATTENDEE_KIND)),
+  "attendee-or-servicing": amongConstants(ATTENDEE_ROW.kind, [
     ATTENDEE_KIND,
-  )}, ${sqlLiteral(SERVICING_KIND)})`,
-  servicing: sql`attendee.kind = ${sqlLiteral(SERVICING_KIND)}`,
+    SERVICING_KIND,
+  ]),
+  servicing: equal(ATTENDEE_ROW.kind, literal(SERVICING_KIND)),
 };
 
 /**
@@ -315,44 +374,52 @@ const ORDER_SQL: Record<AttendeeOrder, SqlStatement> = {
   upcoming: sql`COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
 };
 
-const whereClauses = (where: AttendeeWhere): WhereClause[] => {
-  const parts: WhereClause[] = [
-    { clause: KIND_CLAUSE[where.kind ?? "attendee"] },
-    ...inList("attendee.id", where.attendeeIds),
-  ];
-  if (where.attendeeIdsSubquery !== undefined) {
-    parts.push(...inSubquery("attendee.id", where.attendeeIdsSubquery));
-  }
-  parts.push(...inList("listingAttendee.listing_id", where.listingIds));
-  if (where.realLinesOnly) {
-    parts.push({ clause: sql`listingAttendee.quantity > 0` });
-  }
-  if (where.upcomingFrom !== undefined) {
-    parts.push({
-      clause: sql`(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ${where.upcomingFrom})`,
-    });
-  }
-  if (where.dailyRange !== undefined) {
-    parts.push({
-      clause: sql`listing.listing_type = 'daily' AND listingAttendee.start_at < ${where.dailyRange.before} AND listingAttendee.end_at > ${where.dailyRange.after}`,
-    });
-  }
-  return parts;
-};
+/** The listing row of a daily range read. */
+const LISTING_ROW = tableNode(tables.listings, "listing");
 
-const BOOKING_JOIN: Record<AttendeeJoin, SqlStatement> = {
-  inner: sql`JOIN`,
-  left: sql`LEFT JOIN`,
-};
+const whereConditions = (where: AttendeeWhere): Condition[] => [
+  KIND_CONDITION[where.kind ?? "attendee"],
+  given(where.attendeeIds, (ids) => among(ATTENDEE_ROW.id, ids)),
+  given(where.attendeeIdsSubquery, (chosen) =>
+    inStatement(ATTENDEE_ROW.id, chosen),
+  ),
+  given(where.listingIds, (ids) => among(BOOKING_ROW.listing_id, ids)),
+  where.realLinesOnly ? greaterThan(BOOKING_ROW.quantity, literal(0)) : true,
+  given(where.upcomingFrom, (day) =>
+    wholeCondition(
+      sql`(${BOOKING_ROW.start_at} IS NULL OR DATE(${BOOKING_ROW.start_at}) >= ${day})`,
+    ),
+  ),
+  given(where.dailyRange, ({ after, before }) =>
+    and(
+      equal(LISTING_ROW.listing_type, literal("daily")),
+      lessThan(BOOKING_ROW.start_at, before),
+      greaterThan(BOOKING_ROW.end_at, after),
+    ),
+  ),
+];
 
-/** A daily range is the one filter that also needs the listings table, because
- *  it asks about the listing rather than the booking. */
-const attendeeFrom = (join: AttendeeJoin, where: AttendeeWhere): SqlStatement =>
-  sql`attendees AS attendee ${BOOKING_JOIN[join]} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${
-    where.dailyRange === undefined
-      ? sql``
-      : sql` JOIN listings AS listing ON listingAttendee.listing_id = listing.id`
-  }`;
+/** The attendees with their booking rows. A daily range is the one filter
+ *  that also needs the listings table, because it asks about the listing
+ *  and not about the booking. */
+const attendeesWithBookings = (
+  join: AttendeeJoin,
+  where: AttendeeWhere,
+): Query<unknown> => {
+  const everyAttendee = from(tables.attendees);
+  const withLines =
+    join === "left" ? everyAttendee.leftJoin : everyAttendee.join;
+  const booked: Query<unknown> = withLines(
+    "listingAttendee",
+    tables.listing_attendees,
+    (attendee) => equal(attendee.listingAttendee.attendee_id, attendee.id),
+  );
+  return where.dailyRange === undefined
+    ? booked
+    : booked.join("listing", tables.listings, (row) =>
+        equal(BOOKING_ROW.listing_id, row.listing.id),
+      );
+};
 
 export type GetAttendeesQuery<F extends AttendeeField> = {
   fields: readonly F[];
@@ -370,21 +437,17 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
    *  missing, which reads as a single `listing_id = 0` row. */
   join?: AttendeeJoin;
 };
-const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
-  ORDER_SQL,
-  (query) => {
-    const join = query.join ?? "inner";
-    return {
-      columns: attendeeColumns(
-        join,
-        query.fields,
-        query.owedScope ?? "attendee",
-      ),
-      from: attendeeFrom(join, query.where),
-      where: whereClauses(query.where),
-    };
-  },
-);
+const attendeeStatement = (
+  query: GetAttendeesQuery<AttendeeField>,
+): SqlStatement => {
+  const join = query.join ?? "inner";
+  return attendeesWithBookings(join, query.where)
+    .where(() => whereConditions(query.where))
+    .orderBy(() => (query.order === undefined ? [] : [ORDER_SQL[query.order]]))
+    .columns(() =>
+      attendeeColumns(join, query.fields, query.owedScope ?? "attendee"),
+    );
+};
 
 /**
  * SQL and bound args for a read, for callers that want it inside a batch — such
@@ -392,9 +455,10 @@ const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
  */
 export const attendeeBatchStatement = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): SqlStatement => attendees.statement(query);
+): SqlStatement => attendeeStatement(query);
 
 /** Runs the read and returns raw rows typed to exactly the fields asked for. */
 export const getAttendees = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): Promise<AttendeeRowFor<F>[]> => attendees.rows<AttendeeRowFor<F>>(query);
+): Promise<AttendeeRowFor<F>[]> =>
+  readRows<AttendeeRowFor<F>>(attendeeStatement(query));

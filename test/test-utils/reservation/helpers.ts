@@ -7,11 +7,11 @@ import {
 } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
-import { pricePaidFromLedger } from "#db/attendees/select.ts";
+import { bookingRow, pricePaidFromLedger } from "#db/attendees/select.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -64,12 +64,7 @@ export const latestAttendee = async (): Promise<{
   // stored column. For a reservation this is the gross sale, not the deposit —
   // the accepted gross-sale divergence (deposit accuracy returns in concern 5).
   const paid = await getDb().execute(
-    sql`SELECT ${pricePaidFromLedger(
-      sqlName("listing_attendees.attendee_id"),
-      sqlName("listing_attendees.listing_id"),
-      sqlName("listing_attendees.ledger_event_group"),
-      sqlName("listing_attendees.id"),
-    )} FROM listing_attendees WHERE attendee_id = ${id}`,
+    sql`SELECT ${pricePaidFromLedger(bookingRow("listing_attendees"))} FROM listing_attendees WHERE attendee_id = ${id}`,
   );
   return {
     id,
