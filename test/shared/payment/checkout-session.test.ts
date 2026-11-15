@@ -9,6 +9,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
@@ -96,12 +97,10 @@ describeWithEnv(
         squareLinkEndsAt(createdAt),
       );
       await execute(
-        "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
       await execute(
-        "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
       await runDatabasePruning();
     };

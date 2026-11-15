@@ -9,6 +9,7 @@ import {
 import { listingChildren } from "#db/listing-parents.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 /** A bare booking line for a listing id (other fields default at insert time). */
 const line = (listingId: number): ListingBooking => ({ listingId });
@@ -24,9 +25,10 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
   });
 
   test("shares one token and records each child's parent", async () => {
-    const parent = await createTestListing({ name: "Base" });
-    const child = await createTestListing({ name: "Add-on" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child, parent } = await makeParent({
+      children: [{ name: "Add-on" }],
+      parent: { name: "Base" },
+    });
 
     const result = await annotateOrderParents([
       line(parent.id),
@@ -35,7 +37,9 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
     const parentRow = result.find((b) => b.listingId === parent.id)!;
     const childRow = result.find((b) => b.listingId === child.id)!;
 
-    expect(parentRow.orderToken).toBeTruthy();
+    expect(parentRow.orderToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+    );
     expect(childRow.orderToken).toBe(parentRow.orderToken);
     expect(parentRow.parentListingId ?? 0).toBe(0);
     expect(childRow.parentListingId).toBe(parent.id);
@@ -44,9 +48,10 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
   test("ignores a child whose parent is not booked in this order", async () => {
     // The child has a parent edge, but the parent listing is not in the order —
     // so there is no in-order pairing to record and the order stays plain.
-    const parent = await createTestListing({ name: "Absent base" });
-    const child = await createTestListing({ name: "Lonely add-on" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child } = await makeParent({
+      children: [{ name: "Lonely add-on" }],
+      parent: { name: "Absent base" },
+    });
 
     const result = await annotateOrderParents([line(child.id)]);
     expect(result).toEqual([line(child.id)]);
@@ -55,10 +60,11 @@ describeWithEnv("db > attendees > annotateOrderParents", { db: true }, () => {
   test("records the first in-order parent for a child shared by two parents", async () => {
     // The rare multi-parent corner: the summed child row holds one parent, the
     // first whose listing is booked in the order.
-    const parentA = await createTestListing({ name: "Base A" });
+    const { child, parent: parentA } = await makeParent({
+      children: [{ name: "Shared add-on" }],
+      parent: { name: "Base A" },
+    });
     const parentB = await createTestListing({ name: "Base B" });
-    const child = await createTestListing({ name: "Shared add-on" });
-    await listingChildren.setIds(parentA.id, [child.id]);
     await listingChildren.setIds(parentB.id, [child.id]);
 
     const result = await annotateOrderParents([
@@ -119,7 +125,9 @@ describe("db > attendees > expandChildAllocations", () => {
     expect(parentRow.parentListingId ?? 0).toBe(0);
     expect(childRow.parentListingId).toBe(10);
     // All rows share one token.
-    expect(parentRow.orderToken).toBeTruthy();
+    expect(parentRow.orderToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+    );
     expect(childRow.orderToken).toBe(parentRow.orderToken);
   });
 
@@ -158,7 +166,9 @@ describe("db > attendees > expandChildAllocations", () => {
     // Listing 99 has no allocation entry — it's a standalone row.
     const result = expandChildAllocations([booking(99)], []);
     expect(result).toHaveLength(1);
-    expect(result[0]!.orderToken).toBeTruthy();
+    expect(result[0]!.orderToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+    );
     expect(result[0]!.parentListingId ?? 0).toBe(0);
   });
 

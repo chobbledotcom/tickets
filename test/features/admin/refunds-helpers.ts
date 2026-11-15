@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { sql } from "#db/sql.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,
@@ -129,7 +130,6 @@ export const setBookingLineQuantity = async (
 ): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
   await getDb().execute(
-    "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ? AND listing_id = ?",
-    [quantity, attendeeId, listingId],
+    sql`UPDATE listing_attendees SET quantity = ${quantity} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
   );
 };

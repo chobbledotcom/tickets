@@ -5,15 +5,19 @@ import { settings } from "#db/settings.ts";
 import { expectHtml, expectRedirect } from "#test-utils/assertions.ts";
 import { generateGoogleTestCreds } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestAttendeeWithToken,
-  fetchAliceTicketPageBody,
-} from "#test-utils/db-helpers/attendees.ts";
+import { fetchAliceTicketPageBody } from "#test-utils/db-helpers/attendees.ts";
 import {
   configureGoogleWallet,
   setGoogleWalletEnvVars,
 } from "#test-utils/google-wallet.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import {
+  expectMultiTokenPass404,
+  expectPassRouteIgnoresNonGet,
+  expectWalletCacheControl,
+  expectWalletPass404,
+  walletAliceToken,
+} from "#test-utils/wallet-passes.ts";
 
 describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   beforeEach(() => {
@@ -23,46 +27,30 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   });
 
   test("returns 404 when Google Wallet is not configured", async () => {
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-    const response = await awaitTestRequest(`/gwallet/${token}`);
-    expect(response.status).toBe(404);
+    const token = await walletAliceToken();
+    await expectWalletPass404(`/gwallet/${token}`);
   });
 
   test("returns 404 for invalid token", async () => {
     await configureGoogleWallet();
-    const response = await awaitTestRequest("/gwallet/nonexistent-token");
-    expect(response.status).toBe(404);
+    await expectWalletPass404("/gwallet/nonexistent-token");
   });
 
   test("returns 404 for multi-token request", async () => {
     await configureGoogleWallet();
-    const { token: a } = await createTestAttendeeWithToken("A", "a@test.com");
-    const { token: b } = await createTestAttendeeWithToken("B", "b@test.com");
-    const response = await awaitTestRequest(`/gwallet/${a}+${b}`);
-    expect(response.status).toBe(404);
+    await expectMultiTokenPass404(
+      (first, second) => `/gwallet/${first}+${second}`,
+    );
   });
 
   test("redirects to Google Wallet save URL", async () => {
-    await configureGoogleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureGoogleWallet);
     const response = await awaitTestRequest(`/gwallet/${token}`);
     expectRedirect(response, /^https:\/\/pay\.google\.com\/gp\/v\/save\//);
   });
 
   test("redirect URL contains a valid JWT", async () => {
-    await configureGoogleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureGoogleWallet);
     const response = await awaitTestRequest(`/gwallet/${token}`);
     const location = expectRedirect(
       response,
@@ -74,29 +62,17 @@ describeWithEnv("google wallet route (/gwallet/:token)", { db: true }, () => {
   });
 
   test("returns cache-control headers", async () => {
-    await configureGoogleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
-
+    const token = await walletAliceToken(configureGoogleWallet);
     const response = await awaitTestRequest(`/gwallet/${token}`);
-    const cacheControl = response.headers.get("Cache-Control");
-    assertStringIncludes(cacheControl ?? "", "public");
-    assertStringIncludes(cacheControl ?? "", "s-maxage=3600");
+    expectWalletCacheControl(response);
   });
 
   test("returns null for non-GET methods", async () => {
     const { routeGoogleWallet } = await import("#routes/wallet/google.ts");
-    const request = new Request("http://localhost/gwallet/some-token", {
-      method: "POST",
-    });
-    const result = await routeGoogleWallet(
-      request,
+    await expectPassRouteIgnoresNonGet(
+      routeGoogleWallet,
       "/gwallet/some-token",
-      "POST",
     );
-    expect(result).toBeNull();
   });
 });
 
@@ -111,11 +87,7 @@ describeWithEnv("ticket view google wallet link", { db: true }, () => {
   });
 
   test("shows google wallet link when configured", async () => {
-    await configureGoogleWallet();
-    const { token } = await createTestAttendeeWithToken(
-      "Alice",
-      "alice@test.com",
-    );
+    const token = await walletAliceToken(configureGoogleWallet);
     const response = await awaitTestRequest(`/t/${token}`);
     await expectHtml(response, {
       contains: ["Google Wallet", `/gwallet/${token}`],
@@ -193,10 +165,7 @@ describeWithEnv(
 
     test("gwallet route works with env var config", async () => {
       using _env = setGoogleWalletEnvVars();
-      const { token } = await createTestAttendeeWithToken(
-        "Alice",
-        "alice@test.com",
-      );
+      const token = await walletAliceToken();
       const response = await awaitTestRequest(`/gwallet/${token}`);
       expect(response.status).toBe(302);
       expect(response.headers.get("Location")).toMatch(
@@ -206,10 +175,7 @@ describeWithEnv(
 
     test("ticket view shows google wallet link with env var config", async () => {
       using _env = setGoogleWalletEnvVars();
-      const { token } = await createTestAttendeeWithToken(
-        "Alice",
-        "alice@test.com",
-      );
+      const token = await walletAliceToken();
       const response = await awaitTestRequest(`/t/${token}`);
       await expectHtml(response, { contains: ["Google Wallet"] });
     });

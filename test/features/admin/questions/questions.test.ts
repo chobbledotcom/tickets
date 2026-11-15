@@ -294,6 +294,23 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(updated!.text).toBe("After edit");
     });
 
+    test("renaming a question keeps its place in the order", async () => {
+      const firstId = await createQuestion("First question?");
+      await createQuestion("Second question?");
+
+      await adminFormPost(`/admin/questions/${firstId}/edit`, {
+        display_type: "radio" as const,
+        text: "First renamed?",
+      });
+
+      const { getAllQuestionsWithAnswers } = await import(
+        "#db/questions/queries.ts"
+      );
+      expect(
+        (await getAllQuestionsWithAnswers()).map(({ text }) => text),
+      ).toEqual(["First renamed?", "Second question?"]);
+    });
+
     test("does not update a question when enabling the feature fails", async () => {
       const { questionsTable } = await import("#db/questions/tables.ts");
       const question = await questionsTable.insert({

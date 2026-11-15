@@ -1,11 +1,6 @@
 /** Taking an all-or-none hold on the exact refund snapshot an admin loaded. */
 
-import {
-  inPlaceholders,
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { claimRequestFor } from "#db/payment-claim/scope.ts";
 import {
   asPaymentRowRecord,
@@ -19,6 +14,7 @@ import {
   paymentReferencesByIndex,
   type TaggedRefundPaymentReference,
 } from "#db/payment-references.ts";
+import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import {
   type ClaimDecision,
   claimLeaseMs,
@@ -133,18 +129,16 @@ const readClaimableRows = async (
 }> => {
   const own = await readPaymentClaimRows(
     tx,
-    `attendee_id IN (${inPlaceholders(attendeeIds)})
+    sql`attendee_id IN (${sqlList(attendeeIds)})
        AND payment_reference != ''`,
-    [...attendeeIds],
   );
   const indexes = [...new Set(matchingIndexes)].filter((index) => index !== "");
   if (indexes.length === 0) return { own, sharing: [] };
   const sharing = await readPaymentClaimRows(
     tx,
-    `attendee_id NOT IN (${inPlaceholders(attendeeIds)})
-       AND payment_reference_index IN (${inPlaceholders(indexes)})
-     LIMIT ${MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1}`,
-    [...attendeeIds, ...indexes],
+    sql`attendee_id NOT IN (${sqlList(attendeeIds)})
+       AND payment_reference_index IN (${sqlList(indexes)})
+     LIMIT ${sqlLiteral(MAX_SHARED_PAYMENT_ROWS_PER_CLAIM + 1)}`,
   );
   return { own, sharing };
 };
@@ -256,12 +250,10 @@ export const claimAttendeeRows = async (
   const writtenAt = nowIso();
   const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return await withTransaction(async (tx) => {
-    const attendeeRead = await tx.execute({
-      args: [...attendeeIds],
-      sql: `SELECT attendee.id, attendee.pii_blob
+    const attendeeRead =
+      await tx.execute(sql`SELECT attendee.id, attendee.pii_blob
               FROM attendees AS attendee
-             WHERE attendee.id IN (${inPlaceholders(attendeeIds)})`,
-    });
+             WHERE attendee.id IN (${sqlList(attendeeIds)})`);
     if (!attendeesMatch(attendees, resultRows<StoredAttendee>(attendeeRead))) {
       return { kind: "changed" };
     }

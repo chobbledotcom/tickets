@@ -6,6 +6,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql, sqlCommas } from "#db/sql.ts";
 import { MAX_EMAIL_TEMPLATES } from "#shared/limits.ts";
 import { seedTemplate } from "#test/integration/server/bulk-email/helpers.ts";
 import {
@@ -87,10 +88,10 @@ describeWithEnv("bulk email templates", { db: true }, () => {
     // rows, so the (opaque) content here need not be real encrypted blobs.
     const rows = Array.from(
       { length: MAX_EMAIL_TEMPLATES },
-      () => "('x', 'y')",
-    ).join(", ");
+      () => sql`('x', 'y')`,
+    );
     await getDb().execute(
-      `INSERT INTO email_templates (subject, body) VALUES ${rows}`,
+      sql`INSERT INTO email_templates (subject, body) VALUES ${sqlCommas(rows)}`,
     );
     expectFlash(
       await postTemplate({}),

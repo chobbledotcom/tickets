@@ -7,6 +7,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -511,8 +512,7 @@ describeWithEnv(
       const { copy } = await duplicateListingResponse(source.id, "Loner copy");
       expect(
         await queryAll(
-          "SELECT price_type FROM listing_prices WHERE listing_id = ? AND price_type IN ('group', 'group_day')",
-          [copy.id],
+          sql`SELECT price_type FROM listing_prices WHERE listing_id = ${copy.id} AND price_type IN ('group', 'group_day')`,
         ),
       ).toEqual([]);
     });

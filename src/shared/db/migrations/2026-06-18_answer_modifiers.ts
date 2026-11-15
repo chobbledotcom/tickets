@@ -1,3 +1,4 @@
+import { sql, sqlName } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -27,7 +28,7 @@ export default schemaMigration(
       "trg_attendee_answers_aggregates_delete",
       "trg_attendee_answers_aggregates_update",
     ]) {
-      await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
+      await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
     }
     await recreateTable("answers");
     await syncTriggers();

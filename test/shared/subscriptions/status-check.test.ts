@@ -7,6 +7,7 @@ import { stub } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { selectByEventGroup } from "#accounting/rows.ts";
 import { execute, queryAll, queryBatch, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { MaintenanceTaskContext } from "#shared/maintenance/definition.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { SUBSCRIPTION_CHECK_BATCH } from "#shared/subscriptions/limits.ts";
@@ -71,8 +72,7 @@ const renewalLegs = async (invoiceId: string) =>
 
 const statusOf = async (booking: TestBooking): Promise<string> =>
   (await queryOne<{ subscription_status: string }>(
-    "SELECT subscription_status FROM listing_attendees WHERE attendee_id = ?",
-    [booking.attendeeId],
+    sql`SELECT subscription_status FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
   ))!.subscription_status;
 
 const PAID_AT = "2026-03-01T00:00:00.000Z";
@@ -228,8 +228,7 @@ describeWithEnv("subscription status check", { db: true }, () => {
     );
     expect(
       await queryAll(
-        "SELECT attendee_id, subscription_status FROM listing_attendees WHERE subscription_id = ?",
-        ["sub_merged"],
+        sql`SELECT attendee_id, subscription_status FROM listing_attendees WHERE subscription_id = 'sub_merged'`,
       ),
     ).toEqual([{ attendee_id: target.id, subscription_status: "active" }]);
     const attendee = `attendee:${target.id}`;
@@ -275,8 +274,7 @@ describeWithEnv("subscription status check", { db: true }, () => {
     await checkWhileStripeAnswers(async (id) => {
       // An owner cancel lands while Stripe answers the check.
       await execute(
-        "UPDATE listing_attendees SET subscription_status = 'canceled' WHERE attendee_id = ?",
-        [ada.attendeeId],
+        sql`UPDATE listing_attendees SET subscription_status = 'canceled' WHERE attendee_id = ${ada.attendeeId}`,
       );
       return stripeSubscription({ id, status: "past_due" });
     });
@@ -324,8 +322,7 @@ describeWithEnv("subscription status check", { db: true }, () => {
     await withStripeRenewals("active", invoices, async () => {
       await runCheck();
       await execute(
-        "UPDATE listing_attendees SET recurring_tax = 50, subscription_status = 'trialing' WHERE attendee_id = ?",
-        [ada.attendeeId],
+        sql`UPDATE listing_attendees SET recurring_tax = 50, subscription_status = 'trialing' WHERE attendee_id = ${ada.attendeeId}`,
       );
       expect((await rejection(runCheck())).name).toBe("LedgerConflictError");
     });

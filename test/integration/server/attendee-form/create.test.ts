@@ -20,6 +20,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   attendeeLineFields,
   buildAttendeeEditForm,
+  createMultiBookingAttendee,
   createTestAttendee,
   getAttendeesRaw,
 } from "#test-utils/db-helpers/attendees.ts";
@@ -219,20 +220,11 @@ describeWithEnv(
           maxAttendees: 50,
           name: "E2",
         });
-        const { attendeesApi } = await import("#db/attendees/api.ts");
-        const result = await attendeesApi.createAttendeeAtomic({
-          bookings: [
-            { listingId: event1.id, quantity: 1 },
-            {
-              listingId: event2.id,
-              quantity: 1,
-            },
-          ],
-          email: "",
-          name: "Multi",
-        });
-        if (!result.success) throw new Error("setup");
-        const attendeeId = result.attendees[0]!.id;
+        const { id: attendeeId } = await createMultiBookingAttendee(
+          "Multi",
+          "",
+          [{ listingId: event1.id }, { listingId: event2.id }],
+        );
         const { loadExistingLines } = await import(
           "#db/attendees/atomic-update.ts"
         );

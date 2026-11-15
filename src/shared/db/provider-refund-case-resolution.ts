@@ -12,6 +12,7 @@ import {
   refundCaseWholeNumber,
   type StoredProviderRefundCase,
 } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import { markRefundLocalRecorded } from "#payment/refund-authority.ts";
 import {
   type RefundOwnerChoice,
@@ -51,9 +52,7 @@ const resolutionRow = async (
   id: number,
 ): Promise<ResolutionRow | null> => {
   const rows = resultRows<ResolutionRow>(
-    await transaction.execute({
-      args: [id],
-      sql: `SELECT charge.id,
+    await transaction.execute(sql`SELECT charge.id,
                    charge.provider,
                    charge.provider_reference,
                    charge.reference_index,
@@ -67,9 +66,8 @@ const resolutionRow = async (
                    charge.refund_revision AS revision,
                    charge.updated_at
               FROM payment_charges AS charge
-             WHERE charge.id = ?
-             LIMIT 1`,
-    }),
+             WHERE charge.id = ${id}
+             LIMIT 1`),
   );
   return rows[0] ?? null;
 };

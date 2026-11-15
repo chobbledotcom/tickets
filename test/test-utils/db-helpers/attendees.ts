@@ -5,10 +5,11 @@ import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, requireOnePrimary } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { extractCsrfToken } from "#test-utils/csrf.ts";
@@ -183,8 +184,7 @@ export const attendeeExists = async (id: number): Promise<boolean> => {
   const { queryOne } = await import("#db/client.ts");
   return (
     (await queryOne<{ one: number }>(
-      "SELECT 1 AS one FROM attendees WHERE id = ?",
-      [id],
+      sql`SELECT 1 AS one FROM attendees WHERE id = ${id}`,
     )) !== null
   );
 };
@@ -383,8 +383,7 @@ export const setPendingNotificationFlags = async (
   webhooks: number,
 ): Promise<void> => {
   await execute(
-    "UPDATE attendees SET email_pending = ?, webhooks_pending = ? WHERE id = ?",
-    [email, webhooks, attendeeId],
+    sql`UPDATE attendees SET email_pending = ${email}, webhooks_pending = ${webhooks} WHERE id = ${attendeeId}`,
   );
 };
 
@@ -418,8 +417,7 @@ export const readPendingNotificationFlags = async (
   attendeeId: number,
 ): Promise<{ email: number; webhooks: number }> =>
   requireOnePrimary(
-    "SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ?",
-    [attendeeId],
+    sql`SELECT email_pending AS email, webhooks_pending AS webhooks FROM attendees WHERE id = ${attendeeId}`,
   );
 
 export const createTestAttendeeWithPhone = async (

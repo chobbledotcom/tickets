@@ -102,7 +102,7 @@ export const queuedBody = async (
  * first tier once. The retry answers the delivery's own landing — the tier
  * the first send put in, not the tier a fresh decision would pick now —
  * and the second tier still waits for its own scan. */
-export const deliverTwoTier = async (
+export const expectDeliveredTwoTier = async (
   door: Awaited<ReturnType<typeof twoTierDoor>>["door"],
   attendee: Attendee,
   operationId: string,

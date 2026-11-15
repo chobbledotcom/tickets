@@ -3,10 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   assertAdminHtml,
   assertJson,
+  expectApiError,
   expectRejectsEmptyName,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -64,9 +66,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("returns 404 when the listing vanishes during update", async () => {
       const listing = await createTestListing({ name: "Vanishing listing" });
       await getDb().execute(
-        `CREATE TRIGGER delete_listing_during_update
+        sql`CREATE TRIGGER delete_listing_during_update
          AFTER UPDATE ON listings
-         WHEN NEW.id = ${listing.id}
+         WHEN NEW.id = ${sqlLiteral(listing.id)}
          BEGIN
            DELETE FROM listings WHERE id = NEW.id;
          END`,
@@ -87,15 +89,13 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 400 when a bookable day is not text", async () => {
       const listing = await createTestListing({ name: "Named Days" });
-      await assertJson(
+      await expectApiError(
         apiRequest(`/api/admin/listings/${listing.id}`, {
           body: { bookable_days: ["Monday", 2] },
           method: "PUT",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe("bookable_days must contain only text");
-        },
+        "bookable_days has an invalid value",
       );
     });
 
@@ -113,9 +113,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe(
-            "day_prices numeric values must be safe integers",
-          );
+          expect(body.error).toBe("day_prices has an invalid value");
         },
       );
       expect((await getListingWithCount(listing.id))?.day_prices).toEqual({

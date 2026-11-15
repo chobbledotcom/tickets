@@ -6,6 +6,7 @@ import { type Stub, stub } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { selectByEventGroup } from "#accounting/rows.ts";
 import { execute, queryBatch, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { CANCELLABLE_STATUSES } from "#payment/subscription-machine-spec.ts";
 import type { StripeSubscription } from "#shared/stripe/schemas.ts";
@@ -76,14 +77,12 @@ const withStripe = (
 
 const bookingIdOf = async (booking: TestBooking): Promise<number> =>
   (await queryOne<{ id: number }>(
-    "SELECT id FROM listing_attendees WHERE attendee_id = ?",
-    [booking.attendeeId],
+    sql`SELECT id FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
   ))!.id;
 
 const statusOf = async (booking: TestBooking): Promise<string> =>
   (await queryOne<{ subscription_status: string }>(
-    "SELECT subscription_status FROM listing_attendees WHERE attendee_id = ?",
-    [booking.attendeeId],
+    sql`SELECT subscription_status FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
   ))!.subscription_status;
 
 const renewalLegCount = async (): Promise<number> =>
@@ -180,8 +179,7 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
         cancel: async (id) => {
           // The scheduled check stores "active" while Stripe answers.
           await execute(
-            "UPDATE listing_attendees SET subscription_status = 'active' WHERE attendee_id = ?",
-            [ada.attendeeId],
+            sql`UPDATE listing_attendees SET subscription_status = 'active' WHERE attendee_id = ${ada.attendeeId}`,
           );
           return found("canceled")(id);
         },

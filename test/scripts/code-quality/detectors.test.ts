@@ -20,6 +20,7 @@ import {
 } from "#test/scripts/code-quality/detectors.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import { tempDir } from "#test-utils/files.ts";
+import { testCases } from "#test-utils/test-cases.ts";
 
 /**
  * Fixture-driven tests for the code-quality detectors. The integration test
@@ -246,122 +247,113 @@ describe("detectRelativeImport", () => {
     `src/a.ts:1: ${snippet}... (use a # alias instead of a ../ relative import)`,
   ];
 
-  test("flags a side-effect import", () => {
-    expect(detect('import "../b.ts";')).toEqual(violation('import "../b.ts"'));
-  });
-
-  test("flags a static named import", () => {
-    expect(detect('import { x } from "../b.ts";')).toEqual(
-      violation('import { x } from "../b.ts"'),
-    );
-  });
-
-  test("flags a static default import", () => {
-    expect(detect('import x from "../b.ts";')).toEqual(
-      violation('import x from "../b.ts"'),
-    );
-  });
-
-  test("flags a static namespace import", () => {
-    expect(detect('import * as ns from "../b.ts";')).toEqual(
-      violation('import * as ns from "../b.ts"'),
-    );
-  });
-
-  test("flags a static type-only import", () => {
-    expect(detect('import type { Foo } from "../b.ts";')).toEqual(
-      violation('import type { Foo } from "../b.ts"'),
-    );
-  });
-
   test("flags a single-line dynamic import", () => {
     expect(detect('const mod = await import("../b.ts");')).toEqual(
       violation('import("../b.ts"'),
     );
   });
 
-  test("flags the ./../ form", () => {
-    expect(detect('import { x } from "./../b.ts";')).toEqual(
-      violation('import { x } from "./../b.ts"'),
-    );
-  });
+  // Each source names exactly the snippet the report shows, so one loop holds
+  // every case that flags its own text.
+  for (const [name, source] of [
+    ["flags a side-effect import", 'import "../b.ts";'],
+    ["flags a static named import", 'import { x } from "../b.ts";'],
+    ["flags a static default import", 'import x from "../b.ts";'],
+    ["flags a static namespace import", 'import * as ns from "../b.ts";'],
+    ["flags a static type-only import", 'import type { Foo } from "../b.ts";'],
+    ["flags the ./../ form", 'import { x } from "./../b.ts";'],
+    [
+      "flags a named re-export from a parent path",
+      'export { x } from "../b.ts";',
+    ],
+    [
+      "flags a namespace re-export from a parent path",
+      'export * from "../b.ts";',
+    ],
+    [
+      "flags a type-only re-export from a parent path",
+      'export type { Foo } from "../b.ts";',
+    ],
+  ] as const) {
+    test(name, () => {
+      // The report shows the import without its closing semicolon.
+      expect(detect(source)).toEqual(violation(source.replace(/;$/, "")));
+    });
+  }
 
-  test("flags a multi-line dynamic import whose specifier is on the next line", () => {
-    const contents = [
-      "const x = 1;",
-      "const mod = await import(",
-      '  "../setup.ts"',
-      ");",
-    ].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:2: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
+  testCases(
+    [
+      [
+        "flags a multi-line dynamic import whose specifier is on the next line",
+        [
+          [
+            "const x = 1;",
+            "const mod = await import(",
+            '  "../setup.ts"',
+            ");",
+          ].join("\n"),
+        ],
+        [
+          'src/a.ts:2: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
+        ],
+      ],
+      [
+        "flags a dynamic import with whitespace and blank lines between",
+        [["const mod = await import(", "", '  "../setup.ts"', ");"].join("\n")],
+        violation('import( "../setup.ts"'),
+      ],
+      // The comment between `(` and `"../setup.ts"` is trivia the walk skips
+      // over — the rule has to catch this form even though comments once
+      // broke the old regex's `\\s*` gap.
+      [
+        "flags a dynamic import with a comment between import( and the specifier",
+        [
+          [
+            "const mod = await import(",
+            "  // a comment",
+            '  "../setup.ts"',
+            ");",
+          ].join("\n"),
+        ],
+        violation('import( "../setup.ts"'),
+      ],
+      [
+        "flags a dynamic import with a block comment between import( and the specifier",
+        [
+          [
+            "const mod = await import(",
+            "  /* a comment that",
+            "     spans lines */",
+            '  "../setup.ts"',
+            ");",
+          ].join("\n"),
+        ],
+        violation('import( "../setup.ts"'),
+      ],
+    ],
+    detect,
+  );
 
-  test("flags a dynamic import with whitespace and blank lines between", () => {
-    const contents = [
-      "const mod = await import(",
-      "",
-      '  "../setup.ts"',
-      ");",
-    ].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
-
-  test("flags a dynamic import with a comment between import( and the specifier", () => {
-    // The comment between `(` and `"../setup.ts"` is trivia the walk skips
-    // over — the rule has to catch this form even though comments once
-    // broke the old regex's `\\s*` gap.
-    const contents = [
-      "const mod = await import(",
-      "  // a comment",
-      '  "../setup.ts"',
-      ");",
-    ].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
-
-  test("flags a dynamic import with a block comment between import( and the specifier", () => {
-    const contents = [
-      "const mod = await import(",
-      "  /* a comment that",
-      "     spans lines */",
-      '  "../setup.ts"',
-      ");",
-    ].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import( "../setup.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
-
-  test("flags a multi-line static import whose `from` is on a new line", () => {
-    const contents = ["import { x }", '  from "../b.ts";'].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
-
-  test("flags a multi-line static import whose specifier is on a new line", () => {
-    const contents = ["import { x } from", '  "../b.ts";'].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
-
-  test("flags a multi-line static import with a comment between `from` and the specifier", () => {
-    const contents = [
-      "import { x } from",
-      "  // a comment",
-      '  "../b.ts";',
-    ].join("\n");
-    expect(detectRelativeImport("src/a.ts", contents)).toEqual([
-      'src/a.ts:1: import { x } from "../b.ts"... (use a # alias instead of a ../ relative import)',
-    ]);
-  });
+  testCases(
+    [
+      [
+        "flags a multi-line static import whose `from` is on a new line",
+        [["import { x }", '  from "../b.ts";'].join("\n")],
+        violation('import { x } from "../b.ts"'),
+      ],
+      [
+        "flags a multi-line static import whose specifier is on a new line",
+        [["import { x } from", '  "../b.ts";'].join("\n")],
+        violation('import { x } from "../b.ts"'),
+      ],
+      [
+        "flags a multi-line static import with a comment between `from` and the specifier",
+        [["import { x } from", "  // a comment", '  "../b.ts";'].join("\n")],
+        violation('import { x } from "../b.ts"'),
+      ],
+    ],
+    detect,
+  );
 
   test("reports every offending import, not just the first", () => {
     expect(detect('import "../a.ts";\nimport { y } from "../b.ts";')).toEqual([
@@ -370,132 +362,131 @@ describe("detectRelativeImport", () => {
     ]);
   });
 
-  test("does not flag a sibling side-effect import", () => {
-    expect(detect('import "./b.ts";')).toEqual([]);
-  });
-
-  test("does not flag a sibling named import", () => {
-    expect(detect('import { x } from "./b.ts";')).toEqual([]);
-  });
-
-  test("does not flag a # alias import", () => {
-    expect(detect('import { x } from "#shared/b.ts";')).toEqual([]);
-  });
-
-  test("does not flag a package import", () => {
-    expect(detect('import { x } from "valibot";')).toEqual([]);
-  });
-
-  test("does not flag a multi-line package dynamic import", () => {
-    const contents = ["const mod = await import(", '  "valibot"', ");"].join(
-      "\n",
-    );
-    expect(detect(contents)).toEqual([]);
-  });
-
-  test('does not flag `from "../x"` inside a line comment', () => {
-    expect(detect('// from "../b.ts"')).toEqual([]);
-    expect(detect('// import { x } from "../b.ts";')).toEqual([]);
-  });
-
-  test('does not flag `from "../x"` inside a block comment', () => {
-    expect(detect('/* from "../b.ts" */')).toEqual([]);
-    expect(detect('/*\n import { x } from "../b.ts";\n*/')).toEqual([]);
-  });
-
-  test('does not flag `from "../x"` inside a string literal', () => {
-    // A test fixture may quote an import statement as data; the walk skips
-    // strings, so the inner text never parses as an import.
-    expect(detect("const c = 'from \"../b.ts\"';")).toEqual([]);
-    expect(detect('const c = "import { x } from \\"../b.ts\\";";')).toEqual([]);
-    expect(detect('const c = `import { x } from "../b.ts";`;')).toEqual([]);
-  });
-
-  test("does not flag a template specifier whose static prefix is not parent-walking", () => {
-    // A template literal with `\${...}` whose static prefix is `./` or a
-    // package name is left alone — only `../` prefixes are flagged.
-    expect(detect("import `./${x}`;")).toEqual([]);
-    expect(detect("import `pages/${x}`;")).toEqual([]);
-  });
-
-  test("returns no violations for code without imports", () => {
-    expect(detect("const x = 1;\n")).toEqual([]);
-    expect(detect("")).toEqual([]);
-  });
-
-  test("does not flag a static import whose bindings run to end of file without a specifier", () => {
-    // No `;` and no `from` — the bindings walk reaches end of input and
-    // returns null (the `return null` tail of `findStaticSpecifier`).
-    expect(detect("import { x }")).toEqual([]);
-    expect(detect("import { x } from")).toEqual([]);
-  });
-
-  test("does not flag a static import whose `from` is not followed by a string literal", () => {
-    // `from` followed by an identifier (not a string) parses no specifier.
-    expect(detect("import { x } from something;")).toEqual([]);
-  });
-
-  test("does not flag a dynamic import whose paren body closes without a string specifier", () => {
-    // `import(foo)` where foo is an identifier — no string literal to flag,
-    // so `findDynamicSpecifier` runs off the end of the paren body.
-    expect(detect("const mod = await import(foo);")).toEqual([]);
-  });
-
-  test("does not flag a dynamic import whose first argument is a malformed string", () => {
-    // An unterminated string literal inside `import(...)` — `readStringLiteral`
-    // returns null (the escape-sequence and unterminated tails).
-    const broken = 'const mod = await import("../broken\\';
-    expect(detect(broken)).toEqual([]);
-  });
-
-  test("does not flag a specifier shorter than five characters", () => {
-    // `"."` is 3 chars — `isParentRelativeSpecifier` returns false before
-    // checking the prefix (the `length < 5` guard).
-    expect(detect('import ".";')).toEqual([]);
-  });
-
-  test("flags a named re-export from a parent path", () => {
-    expect(detect('export { x } from "../b.ts";')).toEqual(
-      violation('export { x } from "../b.ts"'),
-    );
-  });
-
-  test("flags a namespace re-export from a parent path", () => {
-    expect(detect('export * from "../b.ts";')).toEqual(
-      violation('export * from "../b.ts"'),
-    );
-  });
-
-  test("flags a type-only re-export from a parent path", () => {
-    expect(detect('export type { Foo } from "../b.ts";')).toEqual(
-      violation('export type { Foo } from "../b.ts"'),
-    );
-  });
+  testCases(
+    [
+      ["does not flag a sibling side-effect import", ['import "./b.ts";'], []],
+      [
+        "does not flag a sibling named import",
+        ['import { x } from "./b.ts";'],
+        [],
+      ],
+      [
+        "does not flag a # alias import",
+        ['import { x } from "#shared/b.ts";'],
+        [],
+      ],
+      ["does not flag a package import", ['import { x } from "valibot";'], []],
+      [
+        "does not flag a multi-line package dynamic import",
+        [["const mod = await import(", '  "valibot"', ");"].join("\n")],
+        [],
+      ],
+      [
+        'does not flag `from "../x"` inside a line comment',
+        ['// from "../b.ts"', '// import { x } from "../b.ts";'],
+        [],
+      ],
+      [
+        'does not flag `from "../x"` inside a block comment',
+        ['/* from "../b.ts" */', '/*\n import { x } from "../b.ts";\n*/'],
+        [],
+      ],
+      [
+        'does not flag `from "../x"` inside a string literal',
+        [
+          // A test fixture may quote an import statement as data; the walk
+          // skips strings, so the inner text never parses as an import.
+          "const c = 'from \"../b.ts\"';",
+          'const c = "import { x } from \\"../b.ts\\";";',
+          'const c = `import { x } from "../b.ts";`;',
+        ],
+        [],
+      ],
+      [
+        "does not flag a template specifier whose static prefix is not parent-walking",
+        [
+          // A template literal with `\${...}` whose static prefix is `./` or a
+          // package name is left alone — only `../` prefixes are flagged.
+          "import `./${x}`;",
+          "import `pages/${x}`;",
+        ],
+        [],
+      ],
+      [
+        "returns no violations for code without imports",
+        ["const x = 1;\n", ""],
+        [],
+      ],
+      [
+        "does not flag a static import whose bindings run to end of file without a specifier",
+        [
+          // No `;` and no `from` — the bindings walk reaches end of input and
+          // returns null (the `return null` tail of `findStaticSpecifier`).
+          "import { x }",
+          "import { x } from",
+        ],
+        [],
+      ],
+      [
+        "does not flag a static import whose `from` is not followed by a string literal",
+        // `from` followed by an identifier (not a string) parses no specifier.
+        ["import { x } from something;"],
+        [],
+      ],
+      [
+        "does not flag a dynamic import whose paren body closes without a string specifier",
+        // `import(foo)` where foo is an identifier — no string literal to
+        // flag, so `findDynamicSpecifier` runs off the end of the paren body.
+        ["const mod = await import(foo);"],
+        [],
+      ],
+      [
+        "does not flag a dynamic import whose first argument is a malformed string",
+        // An unterminated string literal inside `import(...)` —
+        // `readStringLiteral` returns null (the escape-sequence and
+        // unterminated tails).
+        ['const mod = await import("../broken\\'],
+        [],
+      ],
+      [
+        "does not flag a specifier shorter than five characters",
+        // `"."` is 3 chars — `isParentRelativeSpecifier` returns false before
+        // checking the prefix (the `length < 5` guard).
+        ['import ".";'],
+        [],
+      ],
+    ],
+    detect,
+  );
 
   test("does not flag a re-export from a sibling or package", () => {
     expect(detect('export { x } from "./b.ts";')).toEqual([]);
     expect(detect('export { x } from "valibot";')).toEqual([]);
   });
 
-  test("flags a side-effect import with a parent-walking template prefix", () => {
-    // The template has a `${…}` substitution, but the static prefix `../`
-    // still walks to the parent — flagged via `readTemplatePrefix`.
-    expect(detect("import `../pages/${name}.ts`;")).toEqual(
-      violation("import `../pages/"),
-    );
-  });
-
-  test("flags a dynamic import with a parent-walking template prefix", () => {
-    expect(detect("const mod = await import(`../pages/${name}.ts`);")).toEqual(
-      violation("import(`../pages/"),
-    );
-  });
-
-  test("flags a static import with a parent-walking template specifier", () => {
-    expect(detect("import { x } from `../pages/${name}.ts`;")).toEqual(
-      violation("import { x } from `../pages/"),
-    );
-  });
+  // The template has a `${…}` substitution, so the report names only the
+  // static prefix that walks to the parent.
+  for (const [name, source, snippet] of [
+    [
+      "flags a side-effect import with a parent-walking template prefix",
+      "import `../pages/${name}.ts`;",
+      "import `../pages/",
+    ],
+    [
+      "flags a dynamic import with a parent-walking template prefix",
+      "const mod = await import(`../pages/${name}.ts`);",
+      "import(`../pages/",
+    ],
+    [
+      "flags a static import with a parent-walking template specifier",
+      "import { x } from `../pages/${name}.ts`;",
+      "import { x } from `../pages/",
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(detect(source)).toEqual(violation(snippet));
+    });
+  }
 
   test("does not flag a template specifier without a parent-walking prefix", () => {
     expect(detect("import `./pages/${name}.ts`;")).toEqual([]);

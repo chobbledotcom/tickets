@@ -8,6 +8,7 @@ import {
   getSmsMessageByProviderId,
   recordSmsMessage,
 } from "#db/sms-messages.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { encryptField } from "#shared/sms/e2e.ts";
 import { computePhoneIndex } from "#shared/sms/phone-index.ts";
@@ -175,12 +176,10 @@ describeWithEnv("api > sms webhook", { db: true }, () => {
       providerId: "msg-stale",
     });
     await execute(
-      "UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ?",
-      ["msg-fresh"],
+      sql`UPDATE sms_messages SET created = datetime('now', '-1 day') WHERE provider_id = ${"msg-fresh"}`,
     );
     await execute(
-      "UPDATE sms_messages SET created = datetime('now', '-31 days') WHERE provider_id = ?",
-      ["msg-stale"],
+      sql`UPDATE sms_messages SET created = datetime('now', '-31 days') WHERE provider_id = ${"msg-stale"}`,
     );
 
     await postWebhook({ event: "sms:sent", payload: {} });

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { sql } from "#db/sql.ts";
 import { agentUsers, userAgents } from "#db/user-agents.ts";
 import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -34,8 +35,7 @@ describeRecord(
       const listing = await createTestListing({ name: "Delivery" });
       await createAttendeeOn(listing, "Ann", "ann@example.com");
       await execute(
-        "UPDATE listing_attendees SET start_agent_id = ?, end_agent_id = ?",
-        [agent.id, agent.id],
+        sql`UPDATE listing_attendees SET start_agent_id = ${agent.id}, end_agent_id = ${agent.id}`,
       );
       await userAgents.setIds(1, [agent.id]);
 
@@ -46,7 +46,7 @@ describeRecord(
         await logisticsAgents.table.read.one({ id: agent.id }),
         await agentUsers.getIds(agent.id),
         await queryAll<AgentColumns>(
-          "SELECT start_agent_id, end_agent_id FROM listing_attendees",
+          sql`SELECT start_agent_id, end_agent_id FROM listing_attendees`,
         ),
       ]).toEqual([null, [], [{ end_agent_id: null, start_agent_id: null }]]);
       expect((await activityMessages())[0]).toBe(

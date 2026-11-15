@@ -7,14 +7,18 @@ import type {
 import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attendees/capacity/checks.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { execute, queryAll } from "#db/client.ts";
-import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
-  createDailyTestListing,
-  createTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+  dailyListingBesideBookedStandard,
+  dailyListingBooked,
+  groupWithDailyAndStandardMember,
+  groupWithMembers,
+  setStoredBookedQuantity,
+} from "#test-utils/db-helpers/capacity-fixtures.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectWriteRefused } from "#test-utils/db-helpers/refused-booking.ts";
 
 /**
  * The read-time availability preflight (`checkBatchAvailability`) and the
@@ -35,12 +39,14 @@ describeWithEnv(
   "db > attendees > availability preflight matches the write",
   { db: true },
   () => {
-    /** Run the cart through both paths and assert they agree. Returns the
-     * shared verdict so callers can additionally assert the expected outcome. */
-    const assertConsistent = async (
+    /** Run the cart through both paths and assert they agree on `fits`: every
+     * line books when the cart fits, and the write lands nothing when it does
+     * not. */
+    const expectConsistent = async (
       bookings: ListingBooking[],
+      fits: boolean,
       date?: string | null,
-    ): Promise<boolean> => {
+    ): Promise<void> => {
       const items: BatchAvailabilityItem[] = bookings.map((b) => ({
         listingId: b.listingId,
         quantity: b.quantity ?? 1,
@@ -58,136 +64,137 @@ describeWithEnv(
       let fullyBooked = false;
       if (write.success) {
         const rows = await queryAll<{ c: number }>(
-          "SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ?",
-          [write.attendees[0]!.id],
+          sql`SELECT COUNT(*) AS c FROM listing_attendees WHERE attendee_id = ${write.attendees[0]!.id}`,
         );
         fullyBooked = rows[0]!.c === bookings.length;
       }
-      expect(fullyBooked).toBe(preflight);
-      return preflight;
+      expect(preflight).toBe(fits);
+      expect(fullyBooked).toBe(fits);
     };
 
-    test("a simple in-capacity cart is admitted and books", async () => {
-      const listing = await createTestListing({ maxAttendees: 5 });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 2 }]),
-      ).toBe(true);
-    });
+    /** One line on a listing that no group caps, so the listing cap alone
+     * decides. */
+    for (const { cap, fits, name, quantity } of [
+      {
+        cap: 5,
+        fits: true,
+        name: "a simple in-capacity cart is admitted and books",
+        quantity: 2,
+      },
+      {
+        cap: 3,
+        fits: false,
+        name: "a single line over the listing cap is rejected and fails to book",
+        quantity: 4,
+      },
+    ]) {
+      test(name, async () => {
+        const listing = await createTestListing({ maxAttendees: cap });
+        await expectConsistent([{ listingId: listing.id, quantity }], fits);
+      });
+    }
 
-    test("a single line over the listing cap is rejected and fails to book", async () => {
-      const listing = await createTestListing({ maxAttendees: 3 });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 4 }]),
-      ).toBe(false);
-    });
-
-    /** A capped group with two standard members (each individually roomy at 10),
-     * so only the SHARED group cap can constrain a cross-listing cart. */
-    const groupWithTwoMembers = async (groupCap: number) => {
-      const group = await createTestGroup({ maxAttendees: groupCap });
-      const member = (): Promise<{ id: number }> =>
-        createTestListing({ groupId: group.id, maxAttendees: 10 });
-      return { a: await member(), b: await member() };
-    };
-
-    test("cross-listing demand on a shared group cap that fits exactly", async () => {
-      const { a, b } = await groupWithTwoMembers(4);
-      expect(
-        await assertConsistent([
-          { listingId: a.id, quantity: 2 },
-          { listingId: b.id, quantity: 2 },
-        ]),
-      ).toBe(true);
-    });
-
-    test("cross-listing demand exceeding a shared group cap is rejected by BOTH", async () => {
-      const { a, b } = await groupWithTwoMembers(4);
-      // 2 + 3 = 5 against a group cap of 4: each line fits its OWN listing cap,
-      // only the combined group demand overflows — the case a per-line check
-      // would miss but the aggregated preflight and the sequential write catch.
-      expect(
-        await assertConsistent([
-          { listingId: a.id, quantity: 2 },
-          { listingId: b.id, quantity: 3 },
-        ]),
-      ).toBe(false);
-    });
+    /** Two standard members of one capped group, each individually roomy at
+     * 10, so only the SHARED group cap can constrain a cross-listing cart. */
+    for (const { demand, fits, name } of [
+      {
+        demand: [2, 2],
+        fits: true,
+        name: "cross-listing demand on a shared group cap that fits exactly",
+      },
+      {
+        demand: [2, 3],
+        fits: false,
+        name: "cross-listing demand exceeding a shared group cap is rejected by BOTH",
+      },
+    ]) {
+      test(name, async () => {
+        const { members } = await groupWithMembers({ cap: 4, count: 2 });
+        const [a, b] = members;
+        // Each line fits its OWN listing cap; only the combined group demand
+        // overflows the cap of 4 — the case a per-line check would miss but
+        // the aggregated preflight and the sequential write catch.
+        await expectConsistent(
+          [
+            { listingId: a!.id, quantity: demand[0]! },
+            { listingId: b!.id, quantity: demand[1]! },
+          ],
+          fits,
+        );
+      });
+    }
 
     test("a shared group already partly full, combined cart tips it over", async () => {
-      const { a, b } = await groupWithTwoMembers(6);
-      await bookAttendee(a, { quantity: 3 });
+      const { members } = await groupWithMembers({ cap: 6, count: 2 });
+      const [a, b] = members;
+      await bookAttendee(a!, { quantity: 3 });
       // 3 already booked + a cart of 2 + 2 = 7 > 6.
-      expect(
-        await assertConsistent([
-          { listingId: a.id, quantity: 2 },
-          { listingId: b.id, quantity: 2 },
-        ]),
-      ).toBe(false);
+      await expectConsistent(
+        [
+          { listingId: a!.id, quantity: 2 },
+          { listingId: b!.id, quantity: 2 },
+        ],
+        false,
+      );
     });
-
-    /** A daily listing capped at 2, fully booked on `fullDate` (1-day booking).
-     * `durationDays` sets the listing's bookable span for the cart under test. */
-    const dailyListingFullOn = async (
-      fullDate: string,
-      durationDays?: number,
-    ): Promise<{ id: number }> => {
-      const listing = await createDailyTestListing({
-        maxAttendees: 2,
-        ...(durationDays !== undefined && { durationDays }),
-      });
-      await bookAttendee(listing, { date: fullDate, quantity: 2 });
-      return listing;
-    };
 
     /** One daily ticket on the cart date beside one undated standard ticket —
      * the smallest cart whose two lines a shared cap can bind together. */
-    const dailyAndStandardCart = (
+    const expectDailyAndStandardCart = (
       dailyId: number,
       standardId: number,
-    ): Promise<boolean> =>
-      assertConsistent(
+      fits: boolean,
+    ): Promise<void> =>
+      expectConsistent(
         [
           { date: "2026-05-01", listingId: dailyId, quantity: 1 },
           { listingId: standardId, quantity: 1 },
         ],
+        fits,
         "2026-05-01",
       );
 
     test("a mixed standard+daily dated cart agrees when the standard line is full", async () => {
       // The date must not leak into the standard line's counting: its running
       // total is what's full, on every date.
-      const standard = await createTestListing({ maxAttendees: 2 });
-      await bookAttendee(standard, { quantity: 2 });
-      const daily = await createDailyTestListing({ maxAttendees: 5 });
-      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
+      const { daily, standard } = await dailyListingBesideBookedStandard({
+        booked: 2,
+        standardCap: 2,
+      });
+      await expectDailyAndStandardCart(daily.id, standard.id, false);
     });
 
     test("daily per-date capacity agrees on a full date", async () => {
-      const listing = await dailyListingFullOn("2026-05-01");
-      expect(
-        await assertConsistent(
-          [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
-          "2026-05-01",
-        ),
-      ).toBe(false);
+      const listing = await dailyListingBooked({
+        booked: [{ day: "2026-05-01", quantity: 2 }],
+        maxAttendees: 2,
+      });
+      await expectConsistent(
+        [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
+        false,
+        "2026-05-01",
+      );
     });
 
     test("daily multi-day cart agrees when one day in the span is full", async () => {
       // The listing spans 3 days; day 2 of the span is already full.
-      const listing = await dailyListingFullOn("2026-05-02", 3);
-      expect(
-        await assertConsistent(
-          [
-            {
-              date: "2026-05-01",
-              durationDays: 3,
-              listingId: listing.id,
-              quantity: 1,
-            },
-          ],
-          "2026-05-01",
-        ),
-      ).toBe(false);
+      const listing = await dailyListingBooked({
+        booked: [{ day: "2026-05-02", quantity: 2 }],
+        durationDays: 3,
+        maxAttendees: 2,
+      });
+      await expectConsistent(
+        [
+          {
+            date: "2026-05-01",
+            durationDays: 3,
+            listingId: listing.id,
+            quantity: 1,
+          },
+        ],
+        false,
+        "2026-05-01",
+      );
     });
 
     test("a date-less line on a daily member counts against the group's running total on both paths", async () => {
@@ -195,18 +202,10 @@ describeWithEnv(
       // running total is what tips the group cap. The write's date-less
       // statement counts every member's running total; the preflight must
       // run the same undated check beside its per-day one.
-      const group = await createTestGroup({ maxAttendees: 3 });
-      const daily = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      const standard = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
+      const { daily, standard } = await groupWithDailyAndStandardMember(3);
       await bookAttendee(daily, { date: "2026-05-05", quantity: 2 });
 
-      expect(await dailyAndStandardCart(daily.id, standard.id)).toBe(false);
+      await expectDailyAndStandardCart(daily.id, standard.id, false);
     });
 
     test("a zero-quantity line books on an over-full listing and both paths agree", async () => {
@@ -215,42 +214,28 @@ describeWithEnv(
       // total sits.
       const listing = await createTestListing({ maxAttendees: 2 });
       await bookAttendee(listing, { quantity: 2 });
-      await listingAggregates.update(listing.id, {
-        booked_quantity: 5,
-        tickets_count: 0,
-      });
-      expect(
-        await assertConsistent([{ listingId: listing.id, quantity: 0 }]),
-      ).toBe(true);
+      await setStoredBookedQuantity(listing.id, 5);
+      await expectConsistent([{ listingId: listing.id, quantity: 0 }], true);
     });
 
     test("a multi-day dated daily line beside a standard line counts the dated units once on both paths", async () => {
       // The two-day daily line bumps the group's running total once; the
       // standard line's undated guard reads one unit from it, not one per
       // occupied day. Both lines write against a group cap of 2.
-      const group = await createTestGroup({ maxAttendees: 2 });
-      const daily = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      const standard = await createTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      expect(
-        await assertConsistent(
-          [
-            {
-              date: "2026-05-01",
-              durationDays: 2,
-              listingId: daily.id,
-              quantity: 1,
-            },
-            { listingId: standard.id, quantity: 1 },
-          ],
-          "2026-05-01",
-        ),
-      ).toBe(true);
+      const { daily, standard } = await groupWithDailyAndStandardMember(2);
+      await expectConsistent(
+        [
+          {
+            date: "2026-05-01",
+            durationDays: 2,
+            listingId: daily.id,
+            quantity: 1,
+          },
+          { listingId: standard.id, quantity: 1 },
+        ],
+        true,
+        "2026-05-01",
+      );
     });
 
     test("a zero-quantity line refuses when its listing row is gone", async () => {
@@ -260,13 +245,8 @@ describeWithEnv(
       // validation and the write. The preflight refuses a missing listing
       // outright, so this pins the write side alone.
       const listing = await createTestListing({ maxAttendees: 2 });
-      await execute("DELETE FROM listings WHERE id = ?", [listing.id]);
-      const write = await createAttendeeAtomic({
-        bookings: [{ listingId: listing.id, quantity: 0 }],
-        email: "gone@example.com",
-        name: "Gone",
-      });
-      expect(write.success).toBe(false);
+      await execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
+      await expectWriteRefused({ listingId: listing.id, quantity: 0 });
     });
   },
 );

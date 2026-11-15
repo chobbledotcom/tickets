@@ -7,15 +7,10 @@
  */
 
 import * as v from "valibot";
-import {
-  inPlaceholders,
-  queryIdColumn,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { chunk } from "#fp";
 
 /** A `listings` row projected to the one column the `base` mirror derives
@@ -29,29 +24,23 @@ const ListingPriceSourceRowSchema = v.object({
  *  `unit_price` can write a mirror, so a drifted text value leaves the
  *  existing rows standing instead of deleting them for a write that never
  *  lands. */
-const numericUnitPrice = "typeof(unit_price) IN ('integer', 'real', 'null')";
+const numericUnitPrice = sql`typeof(unit_price) IN ('integer', 'real', 'null')`;
 
 /** Clear one listing's `base` row, but only while its source column can
  *  still write a clean mirror. */
 const guardedBaseDelete = (listingId: number) =>
-  numberedStatement(
-    (bind) =>
-      `DELETE FROM listing_prices
-       WHERE listing_id = ${bind(listingId)} AND price_type = ${bind(PRICE_TYPE_BASE)}
+  sql`DELETE FROM listing_prices
+       WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_BASE}
          AND EXISTS (SELECT 1 FROM listings
-                      WHERE id = ${bind(listingId)} AND ${numericUnitPrice})`,
-  );
+                      WHERE id = ${listingId} AND ${numericUnitPrice})`;
 
 /** Mirror the column on the database side — the INSERT reads the very
  *  `unit_price` it mirrors, so no separate read round trip. A missing
  *  listing inserts no row, and a NULL `unit_price` mirrors as 0. */
 const guardedBaseInsert = (listingId: number) =>
-  numberedStatement(
-    (bind) =>
-      `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
-       SELECT ${bind(listingId)}, ${bind(PRICE_TYPE_BASE)}, ${bind("")}, COALESCE(unit_price, 0)
-         FROM listings WHERE id = ${bind(listingId)} AND ${numericUnitPrice}`,
-  );
+  sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
+       SELECT ${listingId}, ${PRICE_TYPE_BASE}, ${""}, COALESCE(unit_price, 0)
+         FROM listings WHERE id = ${listingId} AND ${numericUnitPrice}`;
 
 /** Listings synced per one batch — one validation read plus two guarded
  *  writes each, so a full page is 401 statements, inside the libsql batch
@@ -74,11 +63,8 @@ export const syncListingPricesForIds = async (
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
     const statements = [
-      {
-        args: [...page],
-        sql: `SELECT id, unit_price FROM listings
-               WHERE id IN (${inPlaceholders(page)})`,
-      },
+      sql`SELECT id, unit_price FROM listings
+               WHERE id IN (${sqlList(page)})`,
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
     ];
     const results = await batchOnScope(statements, transaction);
@@ -101,6 +87,6 @@ export const syncListingPrices = (
  * per-write paths keep them in step thereafter.)
  */
 export const backfillListingPrices = async (): Promise<void> => {
-  const ids = await queryIdColumn("SELECT id FROM listings ORDER BY id");
+  const ids = await queryIdColumn(sql`SELECT id FROM listings ORDER BY id`);
   await syncListingPricesForIds(ids);
 };

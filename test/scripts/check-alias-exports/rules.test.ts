@@ -19,12 +19,16 @@ describe("check-alias-exports rules", () => {
   /** The issues a TokenEntry-importing source holds, over the given extras. */
   const tokenIssues = (extra: string) => findIssues("token.ts", extra);
 
-  /** What one CheckinEntry rename of TokenEntry looks like. */
-  const expectCheckinEntryRename = (issues: AliasExportIssue[]): void => {
+  /** What one CheckinEntry rename of TokenEntry looks like, for the caller
+   *  that checks anything more. */
+  const expectCheckinEntryRename = (
+    issues: AliasExportIssue[],
+  ): AliasExportIssue => {
     expect(issues).toHaveLength(1);
     const issue = issues[0]!;
     expect(issue.exported).toBe("CheckinEntry");
     expect(issue.target).toBe("TokenEntry");
+    return issue;
   };
 
   test("flags an exported const whose whole value is one imported name", () => {
@@ -69,42 +73,35 @@ describe("check-alias-exports rules", () => {
     expect(issues[0]?.target).toBe("TokenEntry");
   });
 
-  test("lets an exported type of its own shape stand", () => {
-    expect(
-      tokenIssues(importingToken("export type Local = { a: number };\n")),
-    ).toEqual([]);
-  });
-
-  test("lets an exported type that specializes an import stand", () => {
-    expect(
-      tokenIssues(importingToken("export type Sized = Array<TokenEntry>;\n")),
-    ).toEqual([]);
-  });
-
-  test("lets an exported function stand", () => {
-    expect(
-      tokenIssues(importingToken("export function helper(): void {}\n")),
-    ).toEqual([]);
-  });
-
-  test("lets an unrenamed re-export from another module publish its name", () => {
-    expect(
-      findIssues(
-        "three.ts",
-        'export { TokenEntry } from "#routes/tickets/token-utils.ts";\n',
-      ),
-    ).toEqual([]);
-  });
+  /** TokenEntry sources the rule leaves alone. */
+  for (const [name, source] of [
+    [
+      "lets an exported type of its own shape stand",
+      importingToken("export type Local = { a: number };\n"),
+    ],
+    [
+      "lets an exported type that specializes an import stand",
+      importingToken("export type Sized = Array<TokenEntry>;\n"),
+    ],
+    [
+      "lets an exported function stand",
+      importingToken("export function helper(): void {}\n"),
+    ],
+    [
+      "lets an unrenamed re-export from another module publish its name",
+      'export { TokenEntry } from "#routes/tickets/token-utils.ts";\n',
+    ],
+  ] as const) {
+    test(name, () => expect(tokenIssues(source)).toEqual([]));
+  }
 
   test("flags a re-export that renames the foreign name", () => {
-    const issues = findIssues(
-      "seventeen.ts",
-      'export { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n',
+    const issue = expectCheckinEntryRename(
+      findIssues(
+        "seventeen.ts",
+        'export { TokenEntry as CheckinEntry } from "#routes/tickets/token-utils.ts";\n',
+      ),
     );
-    expect(issues).toHaveLength(1);
-    const issue = issues[0]!;
-    expect(issue.exported).toBe("CheckinEntry");
-    expect(issue.target).toBe("TokenEntry");
     assertStringIncludes(issue.fix, "its own module");
   });
 

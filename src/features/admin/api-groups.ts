@@ -11,28 +11,23 @@ import {
 import { requiredMapValue } from "#fp";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
-  type CatalogApiBody,
-  invalidApiValueField,
-  projectCatalogFields,
-} from "#shared/catalog-fields/definition.ts";
-import {
-  type GroupInput,
-  groupCatalogFields,
-  type PackageMemberInput,
-} from "#shared/catalog-fields/fields.ts";
-import {
   isValidMemberPrice,
   isValidMemberQuantity,
   memberDayPricesFault,
 } from "#shared/groups/package-member-values.ts";
 import { packageGroups } from "#shared/package-membership.ts";
+import {
+  GROUP_FIELDS,
+  type GroupInput,
+  type PackageMemberInput,
+} from "#shared/records/group-fields.ts";
 import { groupRecord } from "#shared/records/groups.ts";
 import {
   parseOptionalArray,
   parseUpdateSlug,
-  requireEntityField,
-  requireStrings,
 } from "#shared/rest/crud-parsers.ts";
+import { readOpenBody } from "#shared/rest/field-reads.ts";
+import type { FieldsBody } from "#shared/rest/field-specs.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import {
@@ -61,7 +56,7 @@ export type PackageMemberBody = {
 export type CreateGroupBody = {
   name: string;
   package_members?: PackageMemberBody[];
-} & CatalogApiBody<typeof groupCatalogFields>;
+} & FieldsBody<typeof GROUP_FIELDS>;
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
@@ -182,13 +177,8 @@ const toGroupInput = async (
   body: Record<string, unknown>,
   existing: Group | null,
 ): Promise<Result<GroupInput>> => {
-  const name = existing
-    ? requireEntityField(body, "name", existing.name)
-    : requireStrings(body, ["name"]);
-  if (!name.ok) return name;
-  const invalid = invalidApiValueField(groupCatalogFields, body);
-  if (invalid) return errorResult(`${invalid} has an invalid value`);
-  const fields = projectCatalogFields(groupCatalogFields, "api", body);
+  const fields = readOpenBody(GROUP_FIELDS, body, existing);
+  if (!fields.ok) return fields;
 
   const members = parsePackageMembers(body);
   if (!members.ok) return members;
@@ -202,13 +192,8 @@ const toGroupInput = async (
     ? await parseUpdateSlug(body, existing.slug, normalizeSlug, hmacHash)
     : await generateUniqueGroupSlug();
   return okResult({
-    ...(existing
-      ? projectCatalogFields(groupCatalogFields, "storedApi", existing)
-      : {}),
-    ...fields,
+    ...fields.value,
     ...slug,
-    maxAttendees: fields.maxAttendees ?? existing?.max_attendees ?? 0,
-    name: typeof name.value === "string" ? name.value : name.value.name,
     packageMembers: members.value,
   });
 };

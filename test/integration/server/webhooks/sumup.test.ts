@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
@@ -277,7 +278,7 @@ describeWithEnv("server webhooks > SumUp", { db: true }, () => {
         await queryAll<{
           refund_revision: number;
           refund_state_name: string;
-        }>("SELECT refund_revision, refund_state_name FROM payment_charges"),
+        }>(sql`SELECT refund_revision, refund_state_name FROM payment_charges`),
       ).toEqual([{ refund_revision: 3, refund_state_name: "observing" }]);
     } finally {
       refund.send.restore();

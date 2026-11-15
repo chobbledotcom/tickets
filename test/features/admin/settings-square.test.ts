@@ -10,6 +10,7 @@ import type { SquareConnectionTestResult } from "#shared/square/connection.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   assertJson,
+  expectErrorFlash,
   expectFlash,
   expectHtmlResponse,
   expectIncludesAll,
@@ -123,12 +124,7 @@ describeAdminSettings(() => {
         square_access_token: "sq0idp-EXAMPLE",
         square_location_id: "L_test_456",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("application ID or secret"),
-        false,
-      );
+      expectErrorFlash(response, "application ID or secret");
     });
 
     test("rejects a location ID that looks like an application ID", async () => {
@@ -136,12 +132,7 @@ describeAdminSettings(() => {
         square_access_token: "EAAAl_test_new",
         square_location_id: "sq0idp-EXAMPLE",
       });
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not a Location ID"),
-        false,
-      );
+      expectErrorFlash(response, "not a Location ID");
     });
 
     test("settings page shows Square is not configured initially", async () => {
@@ -209,12 +200,7 @@ describeAdminSettings(() => {
         "/admin/settings/square-webhook",
         { square_webhook_signature_key: "sq0idp-EXAMPLE" },
       );
-      expect(response.status).toBe(302);
-      expectFlash(
-        response,
-        expect.stringContaining("not a webhook signature key"),
-        false,
-      );
+      expectErrorFlash(response, "not a webhook signature key");
     });
   });
 

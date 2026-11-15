@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
@@ -37,8 +38,7 @@ const postDismiss = (cookie: string, csrfToken: string): Promise<Response> =>
 const storedWelcome = async (): Promise<string | null> => {
   await settingsAsStored();
   const row = await queryOne<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.WELCOME_ENABLED],
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.WELCOME_ENABLED}`,
   );
   return row?.value ?? null;
 };
@@ -46,9 +46,9 @@ const storedWelcome = async (): Promise<string | null> => {
 /** Remove the stored welcome flag, so the store reads as one from before the
  *  flag existed. */
 const forgetWelcomeKey = async (): Promise<void> => {
-  await execute("DELETE FROM settings WHERE key = ?", [
-    CONFIG_KEYS.WELCOME_ENABLED,
-  ]);
+  await execute(
+    sql`DELETE FROM settings WHERE key = ${CONFIG_KEYS.WELCOME_ENABLED}`,
+  );
 };
 
 /** The banner's own HTML, cut out of the page. */

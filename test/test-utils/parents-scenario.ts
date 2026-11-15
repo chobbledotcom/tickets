@@ -6,6 +6,7 @@
  */
 
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import type { Group, ListingWithCount } from "#types";
 import { createTestAttendee } from "./db-helpers/attendees.ts";
 import { createTestGroup } from "./db-helpers/groups.ts";
@@ -152,9 +153,9 @@ export const makeParentWithDeactivatedChild = async (): Promise<{
   const okChild = children[0]!;
   const inactiveChild = children[1]!;
   const { execute } = await import("#db/client.ts");
-  await execute("UPDATE listings SET active = 0 WHERE id = ?", [
-    inactiveChild.id,
-  ]);
+  await execute(
+    sql`UPDATE listings SET active = 0 WHERE id = ${inactiveChild.id}`,
+  );
   return { inactiveChild, okChild, parent };
 };
 

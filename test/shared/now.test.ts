@@ -10,10 +10,11 @@ import {
   nowSeconds,
   parseDateMs,
 } from "#shared/now.ts";
+import { expectConstantValue } from "#test-utils/assertions/constant.ts";
 
 describe("DAY_MS", () => {
   test("is the exact length of one day in milliseconds", () => {
-    expect(DAY_MS).toBe(86_400_000);
+    expectConstantValue("DAY_MS", DAY_MS, 86_400_000);
   });
 });
 

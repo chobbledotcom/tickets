@@ -1,10 +1,53 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { ActiveListingStats } from "#db/attendee-types.ts";
 import { getActiveListingStats } from "#db/attendees/stats.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+
+/** One booking to place: the attendee's name, the listing's ticket price, and
+ *  what the attendee paid, both in minor units. */
+type Booking = readonly [name: string, unitPrice: number, amount: number];
+
+/** One case: the bookings to place, the listings to read as inactive, and the
+ *  stats that must come back. */
+type StatsCase = readonly [
+  name: string,
+  bookings: readonly Booking[],
+  inactive: readonly string[],
+  expected: ActiveListingStats,
+];
+
+/** Read the active-listing stats after placing each booking on a listing of
+ *  its own. A listing named in `inactive` reads as an inactive row. */
+const statsFor = async (
+  bookings: readonly Booking[],
+  inactive: readonly string[] = [],
+) => {
+  for (const [name, unitPrice, amount] of bookings) {
+    const listing = await createTestListing({
+      maxAttendees: 50,
+      name,
+      unitPrice,
+    });
+    const slug = name.toLowerCase().replaceAll(" ", "-");
+    await createPaidTestAttendee(
+      listing.id,
+      name,
+      `${slug}@example.com`,
+      amount === 0 ? "" : `pay_${slug}`,
+      amount,
+    );
+  }
+  const listings = await getAllListings();
+  return getActiveListingStats(
+    listings.map((listing) =>
+      inactive.includes(listing.name) ? { ...listing, active: false } : listing,
+    ),
+  );
+};
 
 describeWithEnv(
   "db > attendees > getActiveListingStats",
@@ -14,104 +57,50 @@ describeWithEnv(
   },
   () => {
     test("returns zeros for empty listings", async () => {
-      const stats = await getActiveListingStats([]);
-      expect(stats).toEqual({ attendees: 0, income: 0, tickets: 0 });
+      expect(await getActiveListingStats([])).toEqual({
+        attendees: 0,
+        income: 0,
+        tickets: 0,
+      });
     });
 
-    test("returns zeros when all listings inactive", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
-      await createPaidTestAttendee(
-        listing.id,
-        "Alice",
-        "alice@example.com",
-        "pay_1",
-        1000,
-      );
-      const listings = await getAllListings();
-      const inactive = listings.map((e) => ({ ...e, active: false }));
-      const stats = await getActiveListingStats(inactive);
-      expect(stats).toEqual({ attendees: 0, income: 0, tickets: 0 });
-    });
+    const cases: readonly StatsCase[] = [
+      [
+        "returns zeros when all listings inactive",
+        [["Alice", 500, 1000]],
+        ["Alice"],
+        { attendees: 0, income: 0, tickets: 0 },
+      ],
+      [
+        "counts tickets and sums income for active listings",
+        [
+          ["Alice", 500, 1000],
+          ["Bob", 500, 2000],
+        ],
+        [],
+        { attendees: 2, income: 3000, tickets: 2 },
+      ],
+      [
+        "excludes inactive listings",
+        [
+          ["Alice", 500, 1000],
+          ["Bob", 500, 2000],
+        ],
+        ["Bob"],
+        { attendees: 1, income: 1000, tickets: 1 },
+      ],
+      [
+        "includes a free booking with zero income",
+        [["Free Alice", 0, 0]],
+        [],
+        { attendees: 1, income: 0, tickets: 1 },
+      ],
+    ];
 
-    test("counts tickets and sums income for active listings", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 500,
+    for (const [name, bookings, inactive, expected] of cases) {
+      test(name, async () => {
+        expect(await statsFor(bookings, inactive)).toEqual(expected);
       });
-      await createPaidTestAttendee(
-        listing.id,
-        "Alice",
-        "alice@example.com",
-        "pay_1",
-        1000,
-      );
-      await createPaidTestAttendee(
-        listing.id,
-        "Bob",
-        "bob@example.com",
-        "pay_2",
-        2000,
-      );
-      const listings = await getAllListings();
-      const stats = await getActiveListingStats(listings);
-      expect(stats.tickets).toBe(2);
-      expect(stats.income).toBe(3000);
-      expect(stats.attendees).toBe(2);
-    });
-
-    test("excludes inactive listings", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 500,
-      });
-      await createPaidTestAttendee(
-        listing1.id,
-        "Alice",
-        "alice@example.com",
-        "pay_1",
-        1000,
-      );
-      await createPaidTestAttendee(
-        listing2.id,
-        "Bob",
-        "bob@example.com",
-        "pay_2",
-        2000,
-      );
-      const listings = await getAllListings();
-      const mixed = listings.map((e) =>
-        e.id === listing2.id ? { ...e, active: false } : e,
-      );
-      const stats = await getActiveListingStats(mixed);
-      expect(stats.tickets).toBe(1);
-      expect(stats.income).toBe(1000);
-      expect(stats.attendees).toBe(1);
-    });
-
-    test("includes a free booking with zero income", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 0,
-      });
-      await createPaidTestAttendee(
-        listing.id,
-        "Free Alice",
-        "free@example.com",
-        "",
-        0,
-      );
-      const listings = await getAllListings();
-      const stats = await getActiveListingStats(listings);
-      expect(stats.tickets).toBe(1);
-      expect(stats.income).toBe(0);
-      expect(stats.attendees).toBe(1);
-    });
+    }
   },
 );

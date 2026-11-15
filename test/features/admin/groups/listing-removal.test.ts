@@ -3,7 +3,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { queryAll } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { getListingsByGroupId, setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -15,7 +14,10 @@ import {
   expectIncludesAll,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { groupOverrideRows } from "#test-utils/db-helpers/group-prices.ts";
 import {
+  createGroupWithListings,
+  createPackageWithMember,
   createTestGroup,
   listingGroupIdsOf,
 } from "#test-utils/db-helpers/groups.ts";
@@ -44,17 +46,12 @@ const confirmRemoval = async (
   );
 };
 
-const flatOverrideRows = (listingId: number, groupId: number) =>
-  queryAll<{ unit_price: number }>(
-    "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'group' AND price_id = ?",
-    [listingId, String(groupId)],
-  );
-
 describeWithEnv("admin group listing removal", { db: true }, () => {
   test("the confirmation page lists the chosen members and their stakes", async () => {
-    const group = await createTestGroup({ name: "Shows" });
-    const listing = await createTestListing({ name: "Saturday Gig" });
-    await assignListingsToGroup([listing.id], group.id);
+    const { group, listings } = await createGroupWithListings("Shows", [
+      "Saturday Gig",
+    ]);
+    const listing = listings[0]!;
 
     const html = await (
       await adminGet(
@@ -81,9 +78,10 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
   });
 
   test("a wrong group name refuses the removal", async () => {
-    const group = await createTestGroup({ name: "Shows" });
-    const listing = await createTestListing({ name: "Friday Social" });
-    await assignListingsToGroup([listing.id], group.id);
+    const { group, listings } = await createGroupWithListings("Shows", [
+      "Friday Social",
+    ]);
+    const listing = listings[0]!;
 
     const response = await confirmRemoval(group.id, "Not the name", [
       listing.id,
@@ -116,15 +114,16 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
   });
 
   test("removes the chosen listings once the name matches", async () => {
-    const group = await createTestGroup({ name: "Shows" });
-    const one = await createTestListing({ name: "One" });
-    const two = await createTestListing({ name: "Two" });
-    await assignListingsToGroup([one.id, two.id], group.id);
-
-    const response = await confirmRemoval(group.id, group.name, [
-      one.id,
-      two.id,
+    const { group, listings } = await createGroupWithListings("Shows", [
+      "One",
+      "Two",
     ]);
+
+    const response = await confirmRemoval(
+      group.id,
+      group.name,
+      listings.map((listing) => listing.id),
+    );
 
     expectFlash(response, "Listings removed from group", true);
     expect(await getListingsByGroupId(group.id)).toEqual([]);
@@ -144,9 +143,9 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
   });
 
   test("a package member loses its quantity and price overrides on purpose", async () => {
-    const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-    const listing = await createTestListing({ name: "In the bundle" });
-    await assignListingsToGroup([listing.id], group.id);
+    const { group, member: listing } = await createPackageWithMember("Bundle", {
+      name: "In the bundle",
+    });
     await setGroupPackageMembers(group.id, [
       { listingId: listing.id, price: 1500, quantity: 2 },
     ]);
@@ -155,13 +154,14 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
 
     expectFlash(response, "Listings removed from group", true);
     expect(await listingGroupIdsOf(listing.id)).toEqual([]);
-    expect(await flatOverrideRows(listing.id, group.id)).toEqual([]);
+    expect(await groupOverrideRows(listing.id, group.id)).toEqual([]);
   });
 
   test("the removed listing is offered by the add form again", async () => {
-    const group = await createTestGroup({ name: "Shows" });
-    const listing = await createTestListing({ name: "Saturday Gig" });
-    await assignListingsToGroup([listing.id], group.id);
+    const { group, listings } = await createGroupWithListings("Shows", [
+      "Saturday Gig",
+    ]);
+    const listing = listings[0]!;
 
     await confirmRemoval(group.id, group.name, [listing.id]);
     const html = await (await adminGet(`/admin/groups/${group.id}`)).text();

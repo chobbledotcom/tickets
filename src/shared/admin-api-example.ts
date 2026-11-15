@@ -27,10 +27,11 @@ import {
   type AdminApiOptionBody,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
-import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
+import { fieldOfKey } from "#shared/rest/field-specs.ts";
 import type { AdminListing } from "#types";
 import {
   childDocBase,
@@ -313,8 +314,10 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 } satisfies AdminApiAttendee;
 
 /** The booking window a listing gets when its create body says nothing. */
-const LISTING_DEFAULT_DAYS_AFTER =
-  listingCatalogFields.maximumDaysAfter[1].default!();
+const LISTING_DEFAULT_DAYS_AFTER = fieldOfKey(
+  LISTING_FIELDS,
+  "maximum_days_after",
+).default;
 
 /** The documented base path of the option routes: the attribute's id param and
  *  the `options` segment both come from the resource table. */

@@ -6,7 +6,6 @@ import {
   capacityConditionFor,
   dateToRange,
 } from "#db/capacity.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
@@ -35,7 +34,7 @@ const dayRangeArgs = (day: string): unknown[] => {
 
 const capacityStatement = (
   ...args: Parameters<typeof buildCapacityCondition>
-) => numberedStatement(buildCapacityCondition(...args));
+) => buildCapacityCondition(...args);
 
 describe("dateToRange", () => {
   test("returns exact half-open UTC timestamps", () => {
@@ -59,33 +58,33 @@ describe("buildCapacityCondition", () => {
     expect(occurrences(cond.sql, "- COALESCE((")).toBe(2);
     assertStringIncludes(
       flatSql(cond.sql),
-      "FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND attendee.attendee_id = ?3",
+      "FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND attendee.attendee_id = ?2",
     );
     assert(!cond.sql.includes("undefined"));
   });
 
   test("date-less with exclusion: both counts subtract the attendee's rows", () => {
     const cond = capacityStatement(LISTING, QTY, null, EXCLUDE);
-    expect(cond.args).toEqual([LISTING, QTY, EXCLUDE]);
+    expect(cond.args).toEqual([LISTING, EXCLUDE, QTY]);
   });
 
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expectIncludesAll(cond.sql, [
-      capacityRuleTypeSql("perDateCap", "listing.listing_type"),
-      capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
-      capacityRuleTypeSql("perDateCap", "memberListing.listing_type"),
+      capacityRuleTypeSql("perDateCap", "listing.listing_type").sql,
+      capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
+      capacityRuleTypeSql("perDateCap", "memberListing.listing_type").sql,
     ]);
     // No hand-written type comparison survives anywhere in the guard.
     assert(!cond.sql.includes("!= 'daily'"));
     assert(!cond.sql.includes("= 'daily'"));
-    expect(cond.args).toEqual([LISTING, QTY, ...dayRangeArgs(DAY)]);
+    expect(cond.args).toEqual([LISTING, ...dayRangeArgs(DAY), QTY]);
   });
 
   test("dated: exactly the per-date listing cap plus the split group pool guard", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expect(flatSql(cond.sql)).toBe(
-      "(( (SELECT CASE WHEN listing.listing_type IN ('daily') THEN ( SELECT COALESCE(SUM(attendee.quantity), 0) FROM listing_attendees AS attendee WHERE attendee.listing_id = ?1 AND attendee.start_at < ?3 AND attendee.end_at > ?4 ) ELSE listing.booked_quantity END FROM listings AS listing WHERE listing.id = ?1) ) + ?2 <= (SELECT max_attendees FROM listings WHERE id = ?1 AND active = 1) AND NOT EXISTS ( SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND ((COALESCE(( SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS groupListing ON groupListing.listing_id = memberListing.id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('standard') ), 0) + COALESCE(( SELECT SUM(attendee.quantity) FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id JOIN listings AS memberListing ON memberListing.id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('daily') AND attendee.start_at < ?3 AND attendee.end_at > ?4 ), 0))) + ?2 > groupRow.max_attendees ))",
+      "(( (SELECT CASE WHEN listing.listing_type IN ('daily') THEN ( SELECT COALESCE(SUM(attendee.quantity), 0) FROM listing_attendees AS attendee WHERE attendee.listing_id = ?1 AND attendee.start_at < ?2 AND attendee.end_at > ?3 ) ELSE listing.booked_quantity END FROM listings AS listing WHERE listing.id = ?1) ) + ?4 <= (SELECT max_attendees FROM listings WHERE id = ?1 AND active = 1) AND NOT EXISTS ( SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND ((COALESCE(( SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS groupListing ON groupListing.listing_id = memberListing.id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('standard') ), 0) + COALESCE(( SELECT SUM(attendee.quantity) FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id JOIN listings AS memberListing ON memberListing.id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('daily') AND attendee.start_at < ?2 AND attendee.end_at > ?3 ), 0))) + ?4 > groupRow.max_attendees ))",
     );
   });
 
@@ -98,11 +97,11 @@ describe("buildCapacityCondition", () => {
     expect(
       occurrences(
         cond.sql,
-        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type"),
+        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
       ),
     ).toBe(2);
     assert(!cond.sql.includes("undefined"));
-    expect(cond.args).toEqual([LISTING, QTY, EXCLUDE, endAt, startAt]);
+    expect(cond.args).toEqual([LISTING, EXCLUDE, endAt, startAt, QTY]);
   });
 
   test("multi-day: one clause per day, each with its own day's range", () => {
@@ -111,8 +110,8 @@ describe("buildCapacityCondition", () => {
     expect(occurrences(flatSql(cond.sql), ") AND (")).toBe(2);
     expect(cond.args).toEqual([
       LISTING,
-      QTY,
       ...dayRangeArgs("2026-05-01"),
+      QTY,
       ...dayRangeArgs("2026-05-02"),
       ...dayRangeArgs("2026-05-03"),
     ]);
@@ -129,24 +128,20 @@ describe("buildCapacityCondition", () => {
     // the trivially-true clause, so no full or inactive listing can strand
     // it — while any real quantity still gets the full condition.
     expect(
-      numberedStatement(
-        capacityConditionFor({
-          date: null,
-          durationDays: 1,
-          listingId: LISTING,
-          quantity: 0,
-        }),
-      ).sql,
+      capacityConditionFor({
+        date: null,
+        durationDays: 1,
+        listingId: LISTING,
+        quantity: 0,
+      }).sql,
     ).toBe("1");
     expect(
-      numberedStatement(
-        capacityConditionFor({
-          date: null,
-          durationDays: 1,
-          listingId: LISTING,
-          quantity: QTY,
-        }),
-      ).sql,
+      capacityConditionFor({
+        date: null,
+        durationDays: 1,
+        listingId: LISTING,
+        quantity: QTY,
+      }).sql,
     ).not.toBe("1");
   });
 });

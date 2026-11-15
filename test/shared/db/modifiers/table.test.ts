@@ -13,8 +13,10 @@ import {
   modifierAggregates,
   modifiersTable,
 } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
+import { insertModifierWithUsages } from "#test-utils/db-helpers/modifier-usages.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db modifiers table", { db: true }, () => {
   describe("modifiersTable", () => {
@@ -75,14 +77,12 @@ describeWithEnv("db modifiers table", { db: true }, () => {
 
     test("group scopes resolve through each group's listings", async () => {
       const row = await insertModifier({ name: "Scoped" });
-      await getDb().execute({
-        args: [row.id, 42],
-        sql: "INSERT INTO modifier_groups (modifier_id, group_id) VALUES (?, ?)",
-      });
-      await getDb().execute({
-        args: [42, 7],
-        sql: "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-      });
+      await getDb().execute(
+        sql`INSERT INTO modifier_groups (modifier_id, group_id) VALUES (${row.id}, ${42})`,
+      );
+      await getDb().execute(
+        sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${42}, ${7})`,
+      );
 
       expect(await getModifierGroupListingIdsByModifierId([row.id])).toEqual(
         new Map([[row.id, [7]]]),
@@ -93,28 +93,21 @@ describeWithEnv("db modifiers table", { db: true }, () => {
   describe("aggregates", () => {
     test("manual aggregate writes persist", async () => {
       const row = await insertModifier({ name: "Counted" });
-      await modifierAggregates.update(row.id, {
-        total_uses: 9,
-        usage_count: 4,
-      });
-      const stored = await getModifier(row.id);
-      expect(stored?.total_uses).toBe(9);
-      expect(stored?.usage_count).toBe(4);
+      const totals = { total_uses: 9, usage_count: 4 };
+      await modifierAggregates.update(row.id, totals);
+      expect(await getModifier(row.id)).toMatchObject(totals);
     });
 
     test("resetting the aggregates recalculates them from usage rows", async () => {
-      const row = await insertModifier({ name: "Recounted" });
-      await insertModifierUsage(row.id, 1, 3, 150);
-      await insertModifierUsage(row.id, 2, 2, 100);
-      await modifierAggregates.update(row.id, {
-        total_uses: 99,
-        usage_count: 99,
-      });
+      const row = await insertModifierWithUsages({ name: "Recounted" });
+      const wrong = { total_uses: 99, usage_count: 99 };
+      await modifierAggregates.update(row.id, wrong);
 
       await modifierAggregates.reset(row.id, [...MODIFIER_AGGREGATE_FIELDS]);
-      const stored = await getModifier(row.id);
-      expect(stored?.total_uses).toBe(5);
-      expect(stored?.usage_count).toBe(2);
+      expect(await getModifier(row.id)).toMatchObject({
+        total_uses: 5,
+        usage_count: 2,
+      });
     });
 
     test("adjustModifierRevenue moves the projected total to the target", async () => {

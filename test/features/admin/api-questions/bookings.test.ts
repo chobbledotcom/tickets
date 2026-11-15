@@ -3,26 +3,32 @@
  * question, and the selection total each answer carries.
  */
 
-import type { InStatement } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { execute, getDb } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { getAnswerSelectionTotals } from "#db/questions/aggregates.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  type QuestionBooking,
+  questionBookingRow,
+} from "#test-utils/question-booking-rows.ts";
 import {
   apiRequest,
   createTestManagerSession,
   requestAsSession,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { ascending } from "#types";
 
 /** One booking's id, from the create answer. */
 const bookAnswer = async (
@@ -41,6 +47,17 @@ const bookAnswer = async (
 const selectedTotals = (
   answers: { times_selected?: number }[],
 ): (number | undefined)[] => answers.map((answer) => answer.times_selected);
+
+/** The booking links the admin API answers for one question, newest first. */
+const questionBookings = async (
+  questionId: number,
+): Promise<QuestionBooking[]> =>
+  (
+    await assertJson<{ bookings: QuestionBooking[] }>(
+      apiRequest(`/api/admin/questions/${questionId}/bookings`),
+      200,
+    )
+  ).bookings;
 
 describeWithEnv(
   "Admin API - question bookings and stats",
@@ -61,31 +78,30 @@ describeWithEnv(
         created: "2026-06-02T09:00:00Z",
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: small.id,
-              answer_text: "Small",
-              attendee_id: newer,
-              created: "2026-06-02T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [listing.id],
-              question_id: size.id,
-            },
-            {
-              answer_id: large.id,
-              answer_text: "Large",
-              attendee_id: older,
-              created: "2026-06-01T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [listing.id],
-              question_id: size.id,
-            },
-          ]);
+      // Both bookings answered the size question, newest booking first.
+      const answered = [
+        {
+          answer: { id: small.id, text: "Small" },
+          attendeeId: newer,
+          created: "2026-06-02T09:00:00.000Z",
         },
+        {
+          answer: { id: large.id, text: "Large" },
+          attendeeId: older,
+          created: "2026-06-01T09:00:00.000Z",
+        },
+      ];
+
+      expect(await questionBookings(size.id)).toEqual(
+        answered.map(({ answer, attendeeId, created }) =>
+          questionBookingRow(
+            size.id,
+            attendeeId,
+            created,
+            [listing.id],
+            answer,
+          ),
+        ),
       );
     });
 
@@ -100,34 +116,21 @@ describeWithEnv(
         created: "2026-06-03T09:00:00Z",
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${notes.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: null,
-              answer_text: null,
-              attendee_id: attendeeId,
-              created: "2026-06-03T09:00:00.000Z",
-              free_text: "Peanuts",
-              listing_ids: [listing.id],
-              question_id: notes.id,
-            },
-          ]);
-        },
-      );
+      expect(await questionBookings(notes.id)).toEqual([
+        questionBookingRow(
+          notes.id,
+          attendeeId,
+          "2026-06-03T09:00:00.000Z",
+          [listing.id],
+          null,
+          "Peanuts",
+        ),
+      ]);
     });
 
     test("answers no bookings for a question nobody answered", async () => {
       const { size } = await seedChoiceAndTextQuestions();
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([]);
-        },
-      );
+      expect(await questionBookings(size.id)).toEqual([]);
     });
 
     test("carries each answer's selection total on the single and list reads", async () => {
@@ -216,8 +219,8 @@ describeWithEnv(
       using _laggingReplica = stub(
         database,
         "execute",
-        (statement: InStatement) => {
-          const sql = typeof statement === "string" ? statement : statement.sql;
+        (statement: SqlStatement) => {
+          const sql = statement.sql;
           return sql.includes("answer.times_selected")
             ? Promise.resolve(emptyResultSet())
             : liveExecute(statement);
@@ -274,14 +277,9 @@ describeWithEnv(
         ],
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings[0].listing_ids).toEqual(
-            [listing.id, second.id].sort((left, right) => left - right),
-          );
-        },
+      const [booking] = await questionBookings(size.id);
+      expect(booking?.listing_ids).toEqual(
+        [listing.id, second.id].sort(ascending),
       );
     });
 
@@ -293,36 +291,24 @@ describeWithEnv(
       });
       // A deleted listing removes its lines. The booking and its answer stay,
       // so the link answers with no listing to name.
-      await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-        attendeeId,
-      ]);
+      await dropAttendeeBookings(attendeeId);
 
-      await assertJson(
-        apiRequest(`/api/admin/questions/${size.id}/bookings`),
-        200,
-        (body) => {
-          expect(body.bookings).toEqual([
-            {
-              answer_id: small.id,
-              answer_text: "Small",
-              attendee_id: attendeeId,
-              created: "2026-06-04T09:00:00.000Z",
-              free_text: null,
-              listing_ids: [],
-              question_id: size.id,
-            },
-          ]);
-        },
-      );
+      expect(await questionBookings(size.id)).toEqual([
+        questionBookingRow(
+          size.id,
+          attendeeId,
+          "2026-06-04T09:00:00.000Z",
+          [],
+          { id: small.id, text: "Small" },
+        ),
+      ]);
     });
 
     test("returns 404 for a question that does not exist", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/questions/99999/bookings"),
         404,
-        (body) => {
-          expect(body.error).toBe("Question not found");
-        },
+        "Question not found",
       );
     });
 

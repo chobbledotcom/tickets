@@ -22,6 +22,7 @@ import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
 import {
@@ -111,10 +112,9 @@ export const expectStoredOrder = async (
     quantity: number;
     start_day: string | null;
   }>(
-    `SELECT listing_id, package_group_id, parent_listing_id, quantity,
+    sql`SELECT listing_id, package_group_id, parent_listing_id, quantity,
             DATE(start_at) AS start_day
-       FROM listing_attendees WHERE attendee_id = ?`,
-    [attendeeId],
+       FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
   );
   expect(
     rows
@@ -342,8 +342,7 @@ export const runOrderJourney = async (spec: {
   const expectedRows = spec.rows(catalog);
   const firstListingId = expectedRows[0]![0];
   const attendee = await queryAll<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE listing_id = ? LIMIT 1",
-    [firstListingId],
+    sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${firstListingId} LIMIT 1`,
   );
   const ctx: OrderJourneyCtx = {
     attendeeId: Number(attendee[0]!.attendee_id),

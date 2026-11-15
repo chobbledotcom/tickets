@@ -25,9 +25,13 @@ import {
   editorGetStatus,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import type { AdminLevel } from "#types";
 
-const listingForm = (name: string) =>
-  buildCreateListingForm(testListingInput({ listingType: "standard", name }));
+const listingForm = (name: string, adminLevel: AdminLevel = "owner") =>
+  buildCreateListingForm(
+    testListingInput({ listingType: "standard", name }),
+    adminLevel,
+  );
 
 describeWithEnv("creating a listing", { db: true }, () => {
   test("sends staff to their own landing page", async () => {
@@ -57,7 +61,10 @@ describeWithEnv("creating a listing", { db: true }, () => {
     const response = await handleRequest(
       mockMultipartRequest(
         "/admin/listing",
-        { ...listingForm("Made By Editor"), csrf_token: await testCsrfToken() },
+        {
+          ...listingForm("Made By Editor", "editor"),
+          csrf_token: await testCsrfToken(),
+        },
         cookie,
       ),
     );

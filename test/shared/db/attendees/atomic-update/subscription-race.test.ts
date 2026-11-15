@@ -7,6 +7,7 @@ import {
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { execute, executeBatchWithResults, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { CANCELLABLE_STATUSES } from "#payment/subscription-machine-spec.ts";
 import { bookingKey } from "#shared/merge/attendee-merge.ts";
 import {
@@ -106,25 +107,23 @@ describeWithEnv(
         });
         expect(await loadExistingLines(source.id)).toEqual([]);
         const beforePii = await queryOne(
-          "SELECT pii_blob FROM attendees WHERE id = ?",
-          [target.id],
+          sql`SELECT pii_blob FROM attendees WHERE id = ${target.id}`,
         );
 
         await expect(executeBatchWithResults(statements)).rejects.toThrow();
 
         expect(await loadExistingLines(target.id)).toEqual(beforeEdit);
         expect(
-          await queryOne("SELECT pii_blob FROM attendees WHERE id = ?", [
-            target.id,
-          ]),
+          await queryOne(
+            sql`SELECT pii_blob FROM attendees WHERE id = ${target.id}`,
+          ),
         ).toEqual(beforePii);
         expect(
           await getAttendeeOrNull(target.id, await getTestPrivateKey()),
         ).toMatchObject({ email: "before@example.com", name: "Alice" });
         expect(
           await queryOne(
-            "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-            [replacement.id],
+            sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${replacement.id}`,
           ),
         ).toBeNull();
       });
@@ -136,8 +135,7 @@ describeWithEnv(
         [{ listingId: listing.id, quantity: 1 }],
       );
       await execute(
-        "DELETE FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        [attendee.id, listing.id],
+        sql`DELETE FROM listing_attendees WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`,
       );
 
       await executeBatchWithResults(statements);

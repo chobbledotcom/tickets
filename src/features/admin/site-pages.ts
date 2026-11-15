@@ -26,6 +26,7 @@ import {
   type SitePageWriteInput,
   sitePageOrder,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
@@ -96,8 +97,12 @@ const pages = recordPages(sitePageRecord, {
   form: sitePageForm,
   renderDelete: adminSitePageDeletePage,
   renderEditError: sitePageEntityPage.renderEditError,
-  renderList: async (_rows, session, successMessage) =>
-    adminSitePagesListPage(await buildListModel(), session, successMessage),
+  renderList: async (navRows, session, successMessage) =>
+    adminSitePagesListPage(
+      await buildListModel(navRows),
+      session,
+      successMessage,
+    ),
   renderNew: adminSitePageNewPage,
   toEditInput: pageSlugInput,
   toInput: pageSlugInput,
@@ -167,7 +172,7 @@ const isEligibleTarget = async (
   }
   if (type === "group") {
     // Single-row check: no name decryption, never the whole table.
-    return rowExists("SELECT 1 FROM groups WHERE id = ? LIMIT 1", [itemId]);
+    return rowExists(sql`SELECT 1 FROM groups WHERE id = ${itemId} LIMIT 1`);
   }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,

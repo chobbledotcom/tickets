@@ -16,6 +16,7 @@ import {
   setLegDone,
 } from "#db/logistics-run-sheet.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -56,17 +57,9 @@ const makeBooking = async (opts: {
         ],
       ]),
   );
-  await getDb().execute({
-    args: [
-      `${opts.startDate}T00:00:00Z`,
-      `${opts.endDate}T00:00:00Z`,
-      opts.startDone ? 1 : 0,
-      opts.endDone ? 1 : 0,
-      attendeeId,
-      listingId,
-    ],
-    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ?, start_done = ?, end_done = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${`${opts.startDate}T00:00:00Z`}, end_at = ${`${opts.endDate}T00:00:00Z`}, start_done = ${opts.startDone ? 1 : 0}, end_done = ${opts.endDone ? 1 : 0} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
   return { attendeeId, listingId };
 };
 
@@ -98,10 +91,9 @@ const stampLogistics = async (
     false,
     new Map([[listingId, vanAssignment(van)]]),
   );
-  await getDb().execute({
-    args: [`${D1}T00:00:00Z`, `${D2}T00:00:00Z`, attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${`${D1}T00:00:00Z`}, end_at = ${`${D2}T00:00:00Z`} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
 };
 
 /** A dual-path booking — the listing booked through its package AND its own
@@ -287,18 +279,9 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         [91, 12345],
         [911, 2345],
       ]) {
-        await getDb().execute({
-          args: [
-            listingId!,
-            attendeeId!,
-            van,
-            `${D1}T00:00:00Z`,
-            `${D2}T00:00:00Z`,
-          ],
-          sql: `INSERT INTO listing_attendees
+        await getDb().execute(sql`INSERT INTO listing_attendees
                   (listing_id, attendee_id, quantity, start_agent_id, start_time, start_done, start_at, end_at)
-                VALUES (?, ?, 1, ?, '', 0, ?, ?)`,
-        });
+                VALUES (${listingId!}, ${attendeeId!}, 1, ${van}, '', 0, ${`${D1}T00:00:00Z`}, ${`${D2}T00:00:00Z`})`);
       }
       const legs = await getAgentRunSheet([van], [D1]);
       expect(
@@ -331,10 +314,9 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       });
       // Null out end_at so the collection leg's date is null even though its
       // agent is in the set.
-      await getDb().execute({
-        args: [attendeeId, listingId],
-        sql: "UPDATE listing_attendees SET end_at = NULL WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET end_at = NULL WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+      );
       const legs = await getAgentRunSheet([van], [D1]);
       expect(legs.map((l) => l.kind)).toEqual(["start"]);
     });
@@ -384,11 +366,8 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       const { attendeeId, listingId } = await makeDualPathBooking(van);
       // One path ticked (say a stray direct write): the delivery is still
       // outstanding, whichever order the rows arrive in.
-      await getDb().execute({
-        args: [attendeeId, listingId],
-        sql: `UPDATE listing_attendees SET start_done = 1
-              WHERE attendee_id = ? AND listing_id = ? AND package_group_id > 0`,
-      });
+      await getDb().execute(sql`UPDATE listing_attendees SET start_done = 1
+              WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} AND package_group_id > 0`);
       const before = await getAgentRunSheet([van], [D1]);
       expect(before.find((l) => l.kind === "start")?.done).toBe(false);
 
@@ -397,8 +376,7 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
       const after = await getAgentRunSheet([van], [D1]);
       expect(after.find((l) => l.kind === "start")?.done).toBe(true);
       const rows = await queryAll<{ start_done: number }>(
-        "SELECT start_done FROM listing_attendees WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT start_done FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
       );
       expect(rows.map((row) => row.start_done)).toEqual([1, 1]);
     });
@@ -548,10 +526,9 @@ describeWithEnv("db logistics run-sheet", { db: true }, () => {
         startAgentId: van,
         startDate: D1,
       });
-      await getDb().execute({
-        args: [attendeeId, listingId],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ? AND listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+      );
       expect(await getAgentRunSheetDates([van])).toEqual([]);
     });
   });

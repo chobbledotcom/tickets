@@ -10,8 +10,7 @@
  * This module is pure and never touches the database itself.
  */
 
-import type { SqlStatement } from "#db/client.ts";
-import type { SqlParameterToken } from "#db/numbered-statement.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import {
   deleteWhere,
   equals,
@@ -57,7 +56,7 @@ export interface RecordTargets<Kind extends string> {
   /** Delete one record's rows from `table` (a trusted constant). */
   deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
   /** A condition that only holds while this kind of record still exists. */
-  existsSql: (kind: Kind, idSql: SqlParameterToken) => string;
+  existsSql: (kind: Kind, id: SqlSlot) => SqlStatement;
   /** The record a key names. Refuses a key this domain did not mint, because
    *  a key that names no record of ours is a bug, not a miss. */
   fromKey: (key: RecordTargetKey<Kind>) => RecordTarget<Kind>;
@@ -120,13 +119,13 @@ export const defineRecordTarget = <Kind extends string>({
     deleteChosenBy: (table) => (kind, idsQuery) =>
       deleteWhere(table)(whereChosenBy(kind, idsQuery)),
     deleteFrom: (table) => (target) => deleteWhere(table)(where(target)),
-    existsSql: (kind, idSql) => {
+    existsSql: (kind, id) => {
       if (!tables) {
         throw new Error(
           `No table listed for ${kind} records: this kind of target cannot be checked for existence`,
         );
       }
-      return `EXISTS (SELECT 1 FROM ${tables[kind]} WHERE id = ${idSql})`;
+      return sql`EXISTS (SELECT 1 FROM ${sqlName(tables[kind])} WHERE id = ${id})`;
     },
     fromKey: (stored) => {
       const divider = stored.indexOf(":");

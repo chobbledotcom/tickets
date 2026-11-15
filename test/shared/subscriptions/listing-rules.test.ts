@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { beforeEach, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -9,6 +9,7 @@ import {
   setAnswerModifier,
 } from "#db/questions/aggregates.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -35,8 +36,7 @@ const questionWithADriftedTotal = async () => {
 const storedTotal = async (answerId: number): Promise<number | undefined> =>
   (
     await queryOne<{ times_selected: number }>(
-      "SELECT times_selected FROM answers WHERE id = ?",
-      [answerId],
+      sql`SELECT times_selected FROM answers WHERE id = ${answerId}`,
     )
   )?.times_selected;
 

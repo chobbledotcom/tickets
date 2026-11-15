@@ -28,6 +28,7 @@ import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { refundedForBooking } from "#db/attendees/select.ts";
 import { execute, queryAll, queryOne } from "#db/client.ts";
 import { updateTaxPolicy } from "#db/settings/tax.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { computeAttendeeRefund } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
@@ -44,6 +45,15 @@ import { refundLedgerResult } from "#test-utils/refund-ledger.ts";
 
 const basis = { lines: [{ gross: 1000, listingId: 1 }], modifiers: [] };
 
+/** Every assessment row is still open: a batch that failed must leave the
+ *  chain exactly as it found it. */
+const expectAllAssessmentsActive = async () => {
+  const states = await queryAll<{ state: string }>(
+    sql`SELECT state FROM booking_tax_assessments`,
+  );
+  expect(states.every(({ state }) => state === "active")).toBe(true);
+};
+
 /** No refund leg of any kind has been written for the attendee. */
 const expectNoRefundLegs = async () => {
   expect(
@@ -59,15 +69,7 @@ const assessment = async (
   policy: TaxPolicy,
 ) => {
   await execute(
-    "INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) VALUES (?, ?, ?, ?, 'active', ?, ?)",
-    [
-      await bookingEventGroup("tax-chain"),
-      revision,
-      ATTENDEE,
-      eventGroup,
-      JSON.stringify(assessTax(basis, policy)),
-      BOOKING_AT,
-    ],
+    sql`INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) VALUES (${await bookingEventGroup("tax-chain")}, ${revision}, ${ATTENDEE}, ${eventGroup}, 'active', ${JSON.stringify(assessTax(basis, policy))}, ${BOOKING_AT})`,
   );
 };
 
@@ -133,7 +135,7 @@ const expectChainCleared = async () => {
   expect(await accountBalance(revenueAccount(1))).toBe(0);
   expect(await accountBalance(TAX_VAT)).toBe(0);
   const states = await queryAll<{ state: string }>(
-    "SELECT state FROM booking_tax_assessments ORDER BY revision DESC LIMIT 1",
+    sql`SELECT state FROM booking_tax_assessments ORDER BY revision DESC LIMIT 1`,
   );
   expect(states[0]!.state).toBe("refunded");
 };
@@ -141,11 +143,11 @@ const expectChainCleared = async () => {
 const bookingRefunded = async () => {
   const group = await bookingEventGroup("tax-chain");
   return (await queryOne<{ value: number }>(
-    `SELECT ${refundedForBooking({
-      attendeeId: String(ATTENDEE),
-      eventGroup: `'${group}'`,
-      listingId: "1",
-      placeholderWhen: "0",
+    sql`SELECT ${refundedForBooking({
+      attendeeId: sqlLiteral(ATTENDEE),
+      eventGroup: sqlLiteral(group),
+      listingId: sql`1`,
+      placeholderWhen: sql`0`,
     })} AS value`,
   ))!.value;
 };
@@ -280,13 +282,10 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     await assertRejects(() =>
       postTransferGroups(computed.groups, [
         ...computed.statements,
-        { args: [], sql: "INSERT INTO missing_refund_test_table VALUES (1)" },
+        sql`INSERT INTO missing_refund_test_table VALUES (1)`,
       ]),
     );
-    const states = await queryAll<{ state: string }>(
-      "SELECT state FROM booking_tax_assessments",
-    );
-    expect(states.every(({ state }) => state === "active")).toBe(true);
+    await expectAllAssessmentsActive();
     expect(
       (await transfersByAccount(attendeeAccount(ATTENDEE))).some((leg) =>
         leg.kind?.startsWith("refund_"),
@@ -308,22 +307,19 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     expect(await recordAttendeeRefund(ATTENDEE, [reference])).toEqual(
       refundLedgerResult([], [reference]),
     );
-    const states = await queryAll<{ state: string }>(
-      "SELECT state FROM booking_tax_assessments",
-    );
-    expect(states.every(({ state }) => state === "active")).toBe(true);
+    await expectAllAssessmentsActive();
     expect(await bookingRefunded()).toBe(0);
   });
 
   test("reports signed tax income without altering cash, and refunds the corrected income", async () => {
     await postChain();
     const group = await bookingEventGroup("tax-chain");
-    const row = await queryOne<Record<string, number>>(`SELECT
-      ${bookingSaleTotalSubquery(String(ATTENDEE), "1", `'${group}'`)} AS price,
-      ${creditsLessWriteoffDebits("revenue", "1")} AS income,
-      ${orderTotalSubquery("attendee", String(ATTENDEE))} AS total,
-      ${reservationSubtotalSubquery("attendee", String(ATTENDEE))} AS deposit_base,
-      ${externalCashBalanceSubquery("attendee", String(ATTENDEE))} AS cash`);
+    const row = await queryOne<Record<string, number>>(sql`SELECT
+      ${bookingSaleTotalSubquery(sqlLiteral(ATTENDEE), sql`1`, sqlLiteral(group))} AS price,
+      ${creditsLessWriteoffDebits("revenue", sql`1`)} AS income,
+      ${orderTotalSubquery("attendee", sqlLiteral(ATTENDEE))} AS total,
+      ${reservationSubtotalSubquery("attendee", sqlLiteral(ATTENDEE))} AS deposit_base,
+      ${externalCashBalanceSubquery("attendee", sqlLiteral(ATTENDEE))} AS cash`);
     expect(row).toEqual({
       cash: 1000,
       deposit_base: 1000,
@@ -342,7 +338,7 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     expect(after.netBalance).toBe(0);
     expect(
       (await queryOne<{ value: number }>(
-        `SELECT ${creditsLessWriteoffDebits("revenue", "1")} AS value`,
+        sql`SELECT ${creditsLessWriteoffDebits("revenue", sql`1`)} AS value`,
       ))!.value,
     ).toBe(909);
   });

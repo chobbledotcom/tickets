@@ -5,6 +5,7 @@
  */
 
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { personBookedOnListing } from "#test/specs/support/booked-person.ts";
 import { rowsOnList } from "#test/specs/support/form-controls/reading.ts";
@@ -48,9 +49,9 @@ export const listingStopsCollectingAnEmail: ActOnOneThing = async (
   world,
   listing,
 ) => {
-  await execute("UPDATE listings SET fields = 'phone' WHERE id = ?", [
-    listingNamed(world, listing).id,
-  ]);
+  await execute(
+    sql`UPDATE listings SET fields = 'phone' WHERE id = ${listingNamed(world, listing).id}`,
+  );
 };
 
 /** The pair the merge story set up owes different sends: the booking kept

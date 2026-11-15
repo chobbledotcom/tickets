@@ -2,14 +2,13 @@
 
 import * as v from "valibot";
 import {
-  inPlaceholders,
   queryAll,
   queryAllPrimary,
   queryOnePrimary,
   resultRows,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   CANCELLABLE_STATUSES,
@@ -38,16 +37,17 @@ const SubscribedRowSchema = v.object({
 
 export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
 
-const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries)
-  .map((column) => `booking.${column}`)
-  .join(", ");
+/** The subscribed columns, each named for its booking alias. */
+const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries).map(
+  (column) => `booking.${column}`,
+);
 
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   v.parse(
     v.array(SubscribedRowSchema),
     await queryAll(
-      `SELECT ${SUBSCRIBED_COLUMNS}
+      sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
          FROM listing_attendees AS booking
         WHERE booking.subscription_id != ''
         ORDER BY booking.id DESC`,
@@ -61,10 +61,9 @@ export const getSubscribedRowOrNull = async (
   id: number,
 ): Promise<SubscribedRow | null> => {
   const row = await queryOnePrimary(
-    `SELECT ${SUBSCRIBED_COLUMNS}
+    sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
        FROM listing_attendees AS booking
-      WHERE booking.id = ? AND booking.subscription_id != ''`,
-    [id],
+      WHERE booking.id = ${id} AND booking.subscription_id != ''`,
   );
   return row === null ? null : v.parse(SubscribedRowSchema, row);
 };
@@ -90,30 +89,27 @@ export const getCheckedRows = async (
   v.parse(
     v.array(CheckedRowSchema),
     await queryAll(
-      `SELECT booking.id, booking.attendee_id, booking.listing_id,
+      sql`SELECT booking.id, booking.attendee_id, booking.listing_id,
               booking.recurring_price, booking.recurring_tax,
               booking.subscription_id, booking.subscription_status
          FROM listing_attendees AS booking
-        WHERE booking.subscription_status IN (${inPlaceholders(CHECKED_STATUSES)})
-          AND booking.id > ?
+        WHERE booking.subscription_status IN (${sqlList(CHECKED_STATUSES)})
+          AND booking.id > ${afterId}
         ORDER BY booking.id
-        LIMIT ?`,
-      [...CHECKED_STATUSES, afterId, limit],
+        LIMIT ${limit}`,
     ),
   );
 
 /** A merge can replace this booking while Stripe answers. Refuse stale money
  * in the same batch as its ledger legs. */
-export const renewalBookingGuard = (row: CheckedRow): SqlStatement => ({
-  args: [row.id, row.attendee_id, row.listing_id, row.subscription_id],
-  sql: `INSERT INTO listing_attendees (listing_id)
+export const renewalBookingGuard = (row: CheckedRow): SqlStatement =>
+  sql`INSERT INTO listing_attendees (listing_id)
         SELECT NULL
          WHERE NOT EXISTS (
            SELECT 1 FROM listing_attendees AS booking
-            WHERE booking.id = ? AND booking.attendee_id = ?
-              AND booking.listing_id = ? AND booking.subscription_id = ?
-         )`,
-});
+            WHERE booking.id = ${row.id} AND booking.attendee_id = ${row.attendee_id}
+              AND booking.listing_id = ${row.listing_id} AND booking.subscription_id = ${row.subscription_id}
+         )`;
 
 /** The stored words that a write of `status` can replace. An ended status is
  * final, so it replaces any live one. A live status needs the row to hold the
@@ -130,35 +126,29 @@ const replaceableBy = (
 export const statusWrite = (
   row: CheckedRow,
   status: SubscriptionStatus,
-): SqlStatement => {
-  const replaceable = replaceableBy(row, status);
-  return {
-    args: [status, row.id, ...replaceable],
-    sql: `UPDATE listing_attendees
-             SET subscription_status = ?
-           WHERE id = ? AND subscription_status IN (${inPlaceholders(replaceable)})`,
-  };
-};
+): SqlStatement =>
+  sql`UPDATE listing_attendees
+             SET subscription_status = ${status}
+           WHERE id = ${row.id} AND subscription_status IN (${sqlList(
+             replaceableBy(row, status),
+           )})`;
 
 /** A read that finds one booking row, among the rows `where` picks, whose
  * subscription still charges. Such a row cannot be deleted. */
-const liveSubscriptionStatement = (where: SqlStatement): SqlStatement => ({
-  args: [...where.args, ...CANCELLABLE_STATUSES],
-  sql: `SELECT booking.id
+const liveSubscriptionStatement = (where: SqlStatement): SqlStatement =>
+  sql`SELECT booking.id
           FROM listing_attendees AS booking
-         WHERE ${where.sql}
-           AND booking.subscription_status IN (${inPlaceholders(CANCELLABLE_STATUSES)})
-         LIMIT 1`,
-});
+         WHERE ${where}
+           AND booking.subscription_status IN (${sqlList(CANCELLABLE_STATUSES)})
+         LIMIT 1`;
 
 /** The read for a live subscription among the bookings of these attendees. */
 export const liveBookingOfAttendees = (
   attendeeIds: readonly number[],
 ): SqlStatement =>
-  liveSubscriptionStatement({
-    args: [...attendeeIds],
-    sql: `booking.attendee_id IN (${inPlaceholders(attendeeIds)})`,
-  });
+  liveSubscriptionStatement(
+    sql`booking.attendee_id IN (${sqlList(attendeeIds)})`,
+  );
 
 /** Why one listing cannot be deleted, or null. The read joins the caller's
  * transaction when it runs inside one. */
@@ -170,10 +160,9 @@ export type ListingCheck = (
 /** The refusal while a booking of the listing has a subscription that still
  * charges. */
 export const liveListingRefusal: ListingCheck = async (listingId, tx) => {
-  const read = liveSubscriptionStatement({
-    args: [listingId],
-    sql: "booking.listing_id = ?",
-  });
+  const read = liveSubscriptionStatement(
+    sql`booking.listing_id = ${listingId}`,
+  );
   const rows =
     tx === undefined
       ? await queryAllPrimary(read)

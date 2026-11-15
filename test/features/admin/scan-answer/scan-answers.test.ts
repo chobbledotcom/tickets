@@ -13,6 +13,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,6 +23,16 @@ import {
   createMultiBookingAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
+import {
+  bookedScanAnswer,
+  doorWithAttendee,
+  expectAdmitted,
+  expectCheckinRow,
+  expectNamedAnswer,
+  expectPlacesTaken,
+  expectScanAnswer,
+  strangerAtAnotherDoor,
+} from "#test-utils/door-scan.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { refundThroughLedger } from "#test-utils/ledger.ts";
 import { insertSecondBookingRow } from "#test-utils/logistics.ts";
@@ -47,8 +58,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       token: "no-token-any-attendee-holds",
     });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectScanAnswer(answer, 404, "not_found");
   });
 
   test("a manual pick of an id no attendee holds answers not_found", async () => {
@@ -56,8 +66,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     const answer = await scanAtDoor(group.id, { attendee_id: 987654 });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectScanAnswer(answer, 404, "not_found");
   });
 
   test("a scan with neither token nor attendee id answers Missing token", async () => {
@@ -65,32 +74,22 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     const answer = await scanAtDoor(group.id, {});
 
-    expect(answer.response.status).toBe(400);
-    expect(answer.json.error).toBe("Missing token");
+    expectScanAnswer(answer, 400, { error: "Missing token" });
   });
 
   test("a manual pick admits by attendee id, with no ticket token in the request", async () => {
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
+    const { answer, attendee } = await bookedScanAnswer(
       "Picked Person",
       "picked@example.com",
+      ({ attendee: booked }) => ({ attendee_id: booked.id }),
     );
 
-    const answer = await scanAtDoor(door.group.id, {
-      attendee_id: attendee.id,
-    });
-
-    expect(answer.json.status).toBe("checked_in");
-    expect(answer.json.name).toBe("Picked Person");
-    expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+    expectAdmitted(answer, "Picked Person");
+    await expectCheckinRow(attendee.id, 1);
   });
 
   test("a manual pick for a person on another door's listings answers not_found and names nobody", async () => {
-    const door = await groupDoor(1);
-    const otherDoor = await groupDoor(1, {}, ["Stranger hall"], "Other doors");
-    const stranger = await bookTestAttendee(
-      [otherDoor.members[0]!.id],
+    const { door, stranger } = await strangerAtAnotherDoor(
       "Stranger Person",
       "stranger@example.com",
     );
@@ -99,10 +98,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       attendee_id: stranger.id,
     });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
-    expect(answer.json.name).toBeUndefined();
-    expect(await storedCheckinRows(stranger.id)).toEqual([{ checked_in: 0 }]);
+    expectScanAnswer(answer, 404, "not_found");
+    expect(Object.hasOwn(answer.json, "name")).toBe(false);
+    await expectCheckinRow(stranger.id, 0);
   });
 
   test("a line owing more than one ticket asks how many, then admits the answer", async () => {
@@ -116,32 +114,25 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     const ask = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
     });
-    expect(ask.json.status).toBe("select_quantity");
+    expectScanAnswer(ask, 200, "select_quantity");
 
     const admission = await scanAtDoor(door.group.id, {
       quantity: 2,
       token: attendee.ticket_token,
     });
-    expect(admission.json.status).toBe("checked_in");
-    expect(admission.json.quantity).toBe(2);
-    expect(admission.json.remaining).toBe(1);
+    expectScanAnswer(admission, 200, "checked_in");
+    expectPlacesTaken(admission, 2, 1);
   });
 
   test("a quantity the door cannot read answers Invalid quantity", async () => {
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
-      "Pia",
-      "pia@example.com",
-    );
+    const { attendee, door } = await doorWithAttendee("Pia", "pia@example.com");
 
     for (const quantity of [0, -1, 1.5, "2"]) {
       const answer = await scanAtDoor(door.group.id, {
         quantity,
         token: attendee.ticket_token,
       });
-      expect(answer.response.status).toBe(400);
-      expect(answer.json.error).toBe("Invalid quantity");
+      expectScanAnswer(answer, 400, { error: "Invalid quantity" });
     }
   });
 
@@ -154,33 +145,24 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     // The line points at a listing that no longer resolves, so the ticket
     // matches no door. A camera read may name the person it decoded — the
     // guest presented the credential.
-    expect(answer.response.status).toBe(200);
-    expect(answer.json.status).toBe("wrong_listing");
-    expect(answer.json.name).toBe("Owen");
+    expectNamedAnswer(answer, "wrong_listing", "Owen");
   });
 
   test("a ticket whose every line is a no-quantity sentinel answers Unknown listing", async () => {
     // The "no quantity" box keeps a line as a quantity-0 sentinel, and a
     // ticket holding nothing else resolves to no checkable row at all. The
     // door cannot name a listing, so it says so.
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
-      "Ola",
-      "ola@example.com",
-    );
+    const { attendee, door } = await doorWithAttendee("Ola", "ola@example.com");
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendee.id}`,
+    );
 
     const answer = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
     });
 
-    expect(answer.response.status).toBe(200);
-    expect(answer.json.status).toBe("wrong_listing");
+    expectScanAnswer(answer, 200, "wrong_listing");
     expect(answer.json.listingName).toBe("Unknown listing");
   });
 
@@ -190,8 +172,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
 
     const answer = await scanAtDoor(door.group.id, { force: true, token });
 
-    expect(answer.response.status).toBe(404);
-    expect(answer.json.status).toBe("not_found");
+    expectScanAnswer(answer, 404, "not_found");
   });
 
   test("a ticket with only no-check-in rows never admits, forceably too", async () => {
@@ -199,10 +180,9 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     // listing, and the attendee's one row sits on exactly that listing.
     const { group, members } = await groupDoor(1);
     const { getDb } = await import("#db/client.ts");
-    await getDb().execute({
-      args: [1, members[0]!.id],
-      sql: "UPDATE listings SET purchase_only = 1 WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET purchase_only = 1 WHERE id = ${members[0]!.id}`,
+    );
     const attendee = await bookTestAttendee(
       [members[0]!.id],
       "No Door Person",
@@ -214,18 +194,15 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       { force: true, token: attendee.ticket_token },
     ]) {
       const answer = await scanAtDoor(group.id, body);
-      expect(answer.response.status).toBe(200);
-      expect(answer.json.status).toBe("wrong_listing");
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+      expectScanAnswer(answer, 200, "wrong_listing");
+      await expectCheckinRow(attendee.id, 0);
     }
   });
 
   test("a door action leaves a merged attendee's refunded order untouched", async () => {
     // One attendee, two orders on the same listing: the first is refunded
     // (the state an attendee merge supports), the second still waits.
-    const door = await groupDoor(1);
-    const attendee = await bookTestAttendee(
-      [door.members[0]!.id],
+    const { attendee, door } = await doorWithAttendee(
       "Merged Person",
       "merged@example.com",
     );
@@ -239,7 +216,7 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
     const answer = await scanAtDoor(door.group.id, {
       token: attendee.ticket_token,
     });
-    expect(answer.json.status).toBe("checked_in");
+    expectScanAnswer(answer, 200, "checked_in");
 
     // The live order checked in; the refunded order kept its state.
     const rows = await storedCheckinRows(attendee.id);
@@ -266,28 +243,26 @@ describeWithEnv("group scanner answer edges", { db: true }, () => {
       const { getDb } = await import("#db/client.ts");
       const { settings } = await import("#db/settings.ts");
       const stored = await getDb().execute(
-        "SELECT value FROM settings WHERE key = 'wrapped_private_key'",
+        sql`SELECT value FROM settings WHERE key = 'wrapped_private_key'`,
       );
       const savedKey = stored.rows[0]?.value;
       await getDb().execute(
-        "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+        sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`,
       );
       settings.invalidateCache();
       try {
         const answer = await scanAtDoor(door.group.id, {
           token: ticket.ticket_token,
         });
-        expect(answer.response.status).toBe(500);
-        expect(answer.json.error).toBe("Decryption unavailable");
+        expectScanAnswer(answer, 500, { error: "Decryption unavailable" });
         expect(errorLog.contains("Scanner: private key unavailable")).toBe(
           true,
         );
       } finally {
         if (savedKey !== undefined) {
-          await getDb().execute({
-            args: [savedKey as string],
-            sql: "INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ?)",
-          });
+          await getDb().execute(
+            sql`INSERT OR REPLACE INTO settings (key, value) VALUES ('wrapped_private_key', ${savedKey as string})`,
+          );
         }
         settings.invalidateCache();
       }

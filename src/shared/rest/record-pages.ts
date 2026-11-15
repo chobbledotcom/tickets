@@ -38,6 +38,8 @@ import type {
   ListRowOf,
   LoadCommand,
   RecordShape,
+  StateOf,
+  WritePlan,
   WriteVerdict,
 } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -113,6 +115,11 @@ export type RecordPagesConfig<
   overrides?: Partial<CrudHandlers>;
   /** Render a rejected edit in place. Keep the submitted values. */
   renderEditError?: EditErrorRenderer;
+  /** The side writes an edit commits with its row, read from the edit form.
+   * A create form never reaches them. */
+  editPlan?: (
+    form: FormParams,
+  ) => Promise<WritePlan<undefined, StateOf<Shape>>>;
   /** The display name the confirmation must match. Defaults to the record's
    * display name. A page whose input cannot carry newlines uses the flattened
    * form, which is what the operator can type. */
@@ -395,7 +402,12 @@ export const recordPages = <
               async (input) =>
                 editVerdict(
                   editPath,
-                  await record.update(id, input, undefined, { session }),
+                  await record.update(
+                    id,
+                    input,
+                    await config.editPlan?.(form),
+                    { session },
+                  ),
                   id,
                   session,
                   form,

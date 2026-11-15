@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, queryAll, queryOne } from "#db/client.ts";
 import { createSystemNote, getNotesFor } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
+import { sql } from "#db/sql.ts";
 import { confirmRefund } from "#routes/admin/refunds/confirmation.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -76,10 +77,9 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toBe(true);
     expect(await confirmationCount(refund.attendee.id)).toBe(1);
     const stored = await queryOne<{ identity: string }>(
-      `SELECT confirmation.identity
+      sql`SELECT confirmation.identity
          FROM refund_confirmations AS confirmation
-        WHERE confirmation.attendee_id = ?`,
-      [refund.attendee.id],
+        WHERE confirmation.attendee_id = ${refund.attendee.id}`,
     );
     if (stored === null) throw new Error("the confirmation was not stored");
     assert(!stored.identity.includes(refund.reference.reference));
@@ -114,13 +114,12 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(await confirmationCount(refund.attendee.id)).toBe(1);
     expect(
       await queryAll<{ reference_index: string }>(
-        `SELECT reference.reference_index
+        sql`SELECT reference.reference_index
            FROM refund_confirmation_references AS reference
            JOIN refund_confirmations AS confirmation
              ON confirmation.identity = reference.confirmation_identity
-          WHERE confirmation.attendee_id = ?
+          WHERE confirmation.attendee_id = ${refund.attendee.id}
           ORDER BY reference.reference_index`,
-        [refund.attendee.id],
       ),
     ).toEqual(
       refund.references
@@ -146,7 +145,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
   test("rolls the replay identity and every visible effect back together", async () => {
     const refund = await setup();
     await execute(
-      `CREATE TRIGGER fail_refund_confirmation_activity
+      sql`CREATE TRIGGER fail_refund_confirmation_activity
        BEFORE INSERT ON activity_log
        BEGIN
          SELECT RAISE(ABORT, 'activity write failed');
@@ -162,7 +161,7 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     expect(await confirmationCount(refund.attendee.id)).toBe(0);
     expect(
       await queryOne<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM refund_confirmation_references",
+        sql`SELECT COUNT(*) AS count FROM refund_confirmation_references`,
       ),
     ).toEqual({ count: 0 });
     await expectNoVisibleConfirmation(refund.attendee.id, refund.privateKey);
@@ -183,21 +182,14 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
   test("does not open unrelated history for a current payment", async () => {
     const refund = await setup();
     await execute(
-      `INSERT INTO activity_log
+      sql`INSERT INTO activity_log
          (created, listing_id, attendee_id, message)
-       VALUES (?, ?, ?, ?)`,
-      [
-        "2026-08-01T00:00:00.000Z",
-        refund.listingId,
-        refund.attendee.id,
-        "not encrypted activity",
-      ],
+       VALUES (${"2026-08-01T00:00:00.000Z"}, ${refund.listingId}, ${refund.attendee.id}, ${"not encrypted activity"})`,
     );
     await execute(
-      `INSERT INTO system_notes
+      sql`INSERT INTO system_notes
          (created, entity_type, entity_id, type, note)
-       VALUES (?, 'attendee', ?, 'system', ?)`,
-      ["2026-08-01T00:00:00.000Z", refund.attendee.id, "not encrypted note"],
+       VALUES (${"2026-08-01T00:00:00.000Z"}, 'attendee', ${refund.attendee.id}, 'system', ${"not encrypted note"})`,
     );
 
     expect(
@@ -207,10 +199,9 @@ describeWithEnv("admin refunds > confirmation", { db: true }, () => {
     ).toBe("new");
 
     const activityCount = await queryOne<{ count: number }>(
-      `SELECT COUNT(*) AS count
+      sql`SELECT COUNT(*) AS count
          FROM activity_log AS activity
-        WHERE activity.attendee_id = ?`,
-      [refund.attendee.id],
+        WHERE activity.attendee_id = ${refund.attendee.id}`,
     );
     if (activityCount === null) {
       throw new Error("the attendee activity count was not found");

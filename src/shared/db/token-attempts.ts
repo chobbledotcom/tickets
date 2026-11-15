@@ -17,7 +17,7 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
-import type { SqlParameter } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
@@ -42,37 +42,36 @@ interface TokenFailureValues {
  * stored set is cleared to "[]" (no fingerprint kept while locked). While a
  * lockout is active, both arms keep it: a straggling failure that queued
  * behind the locking one must not restart the count and drop the lock. */
-const recordFailureStatement = (
-  bind: SqlParameter,
-  values: TokenFailureValues,
-): string => {
-  const ip = bind(values.hashedIp);
-  const newTokens = bind(values.newTokens);
-  const tokenLimit = bind(values.tokenLimit);
-  const lockDeadline = bind(values.lockDeadline);
-  const now = bind(values.now);
-  const windowMs = bind(values.windowMs);
+const recordFailureStatement = (values: TokenFailureValues): SqlStatement => {
+  const {
+    hashedIp: ip,
+    lockDeadline,
+    newTokens,
+    now,
+    tokenLimit,
+    windowMs,
+  } = values;
 
   /** The stored tokens that still count: the saved set while the window is
    * live, an empty set once the window has tumbled. */
-  const liveTokens = `CASE
+  const liveTokens = sql`CASE
     WHEN ${now} - token_attempts.window_start > ${windowMs} THEN '[]'
     ELSE token_attempts.recent_tokens
   END`;
 
   /** The live tokens and this request's tokens as one set (UNION removes
    * duplicates, so retries of a known token never grow the set). */
-  const unionTokens = `(
+  const unionTokens = sql`(
     SELECT value FROM json_each(${liveTokens})
     UNION
     SELECT value FROM json_each(${newTokens})
   ) AS hashedToken`;
 
-  const mergedCount = `(SELECT count(*) FROM ${unionTokens})`;
-  const mergedJson = `(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`;
-  const lockIsActive = `token_attempts.locked_until > ${now}`;
+  const mergedCount = sql`(SELECT count(*) FROM ${unionTokens})`;
+  const mergedJson = sql`(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`;
+  const lockIsActive = sql`token_attempts.locked_until > ${now}`;
 
-  return `
+  return sql`
   INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
   VALUES (
     ${ip},

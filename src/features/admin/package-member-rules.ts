@@ -4,9 +4,9 @@
  *  the coverage run attributes them from one isolate. */
 
 import { t } from "#i18n";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { isValidMemberQuantity } from "#shared/groups/package-member-values.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
 import { parsePositiveInt } from "#shared/validation/number.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";

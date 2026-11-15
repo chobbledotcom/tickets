@@ -11,6 +11,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllListings } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -45,7 +46,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
 
     expect(response.status).toBe(400);
     assertStringIncludes(await response.text(), DATE_REQUIRED);
-    expect(await storedListing("No Date")).toBeUndefined();
+    expect((await getAllListings()).map((one) => one.name)).toEqual([]);
   });
 
   test("accepts the same form once a date is filled in", async () => {
@@ -55,7 +56,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     );
 
     expectRedirect(response);
-    expect(await storedListing("With Date")).toBeDefined();
+    expect((await storedListing("With Date"))?.listing_type).toBe("standard");
   });
 
   test("does not ask a daily listing for a date", async () => {
@@ -69,7 +70,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     });
 
     expectRedirect(response);
-    expect(await storedListing("Every Week")).toBeDefined();
+    expect((await storedListing("Every Week"))?.listing_type).toBe("daily");
   });
 });
 
@@ -130,30 +131,32 @@ describeWithEnv("an editor creating a listing", { db: true }, () => {
     );
   };
 
-  test("cannot set the webhook URL that attendee details are posted to", async () => {
-    const { cookie } = await createTestEditorSession();
+  // A set default makes the defaults switch a real box on the owner's page.
+  for (const [sends, name, boxes] of [
+    [
+      "sends the webhook URL that attendee details are posted to",
+      "Editor Webhook",
+      { webhook_url: "https://attacker.example.com/steal" },
+    ],
+    [
+      "switches the new listing on to the site defaults",
+      "Editor Defaults",
+      { use_defaults: "1" },
+    ],
+  ] as const) {
+    test(`is refused when the form ${sends}`, async () => {
+      await settings.update.listingDefaults({ hidden: true });
+      const { cookie } = await createTestEditorSession();
 
-    await editorCreate(cookie, {
-      ...buildCreateListingForm(
-        testListingInput({
-          name: "Editor Webhook",
-          webhookUrl: "https://attacker.example.com/steal",
-        }),
-      ),
+      const response = await editorCreate(cookie, {
+        ...buildCreateListingForm(testListingInput({ name }), "editor"),
+        ...boxes,
+      });
+
+      expect([response.status, await storedListing(name)]).toEqual([
+        400,
+        undefined,
+      ]);
     });
-
-    expect((await storedListing("Editor Webhook"))?.webhook_url).toBe("");
-  });
-
-  test("cannot switch the new listing on to the site defaults", async () => {
-    const { cookie } = await createTestEditorSession();
-
-    await editorCreate(cookie, {
-      ...buildCreateListingForm(
-        testListingInput({ name: "Editor Defaults", useDefaults: true }),
-      ),
-    });
-
-    expect((await storedListing("Editor Defaults"))?.use_defaults).toBe(false);
-  });
+  }
 });

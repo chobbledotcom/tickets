@@ -47,7 +47,7 @@ export default function attendeeOrderParentMigration(
     // recreated under its old name, so existence alone can't prove widening).
     verify: async () => {
       await ctx.verifyRequirement(requires)();
-      await verifySlotIndex(ctx)();
+      await verifySlotIndex();
     },
   };
 }

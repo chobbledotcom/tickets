@@ -22,22 +22,17 @@ import {
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
   describe("a code the site cannot resolve", () => {
-    test("answers 404 for a token nothing was booked under", async () => {
-      const response = await awaitTestRequest("/t/nonexistent-token");
-      expect(response.status).toBe(404);
-    });
-
-    test("answers 404 when the path carries no token at all", async () => {
-      const response = await awaitTestRequest("/t/");
-      expect(response.status).toBe(404);
-    });
-
-    test("answers 404 for a QR image whose token nothing was booked under", async () => {
-      const response = await awaitTestRequest("/t/nonexistent-token/svg");
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "answers 404 for a QR image whose token nothing was booked under": () =>
+        awaitTestRequest("/t/nonexistent-token/svg"),
+      "answers 404 for a token nothing was booked under": () =>
+        awaitTestRequest("/t/nonexistent-token"),
+      "answers 404 when the path carries no token at all": () =>
+        awaitTestRequest("/t/"),
     });
   });
 
@@ -91,8 +86,9 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
     const signed = body.match(
       /\/attachment\/(\d+)\?a=(\d+)&amp;exp=(\d+)&amp;sig=([^"]+)/,
     );
-    if (!signed)
+    if (!signed) {
       throw new Error("The ticket carried no signed attachment link");
+    }
     expect(Number(signed[1])).toBe(listing.id);
     expect(Number(signed[2])).toBe(attendee.id);
     expect(

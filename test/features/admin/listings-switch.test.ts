@@ -1,10 +1,12 @@
 // test-groups: run-alone
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   planListingTypeSwitch,
@@ -12,8 +14,9 @@ import {
   type SwitchStep,
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -37,10 +40,9 @@ import type { ListingWithCount } from "#types";
 /** Set a listing's stored capacity, so a test can seat a dated booking past
  * the cap the switch later judges against. */
 const setCapacity = (listingId: number, max: number) =>
-  queryAll("UPDATE listings SET max_attendees = ? WHERE id = ?", [
-    max,
-    listingId,
-  ]);
+  queryAll(
+    sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${listingId}`,
+  );
 
 /** A would-be daily input over the stored row: the row's own fields with the
  * caller's submitted daily fields on top. */
@@ -59,8 +61,7 @@ const rawRows = async (
 ): Promise<{ start_at: string | null }[]> => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll(
-    "SELECT start_at FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT start_at FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
 };
 
@@ -82,15 +83,22 @@ const switchForm = (
 const hallWithOneUndatedBooking = (): Promise<ListingWithCount> =>
   listingWithOneBooking({ maxAttendees: 2, name: "Hall" }, { quantity: 1 });
 
+/** The owner's plan for a switch form over the listing. */
+const planSwitch = (
+  listing: ListingWithCount,
+  extra: TestFormValues = {},
+): Promise<SwitchStep> =>
+  planListingTypeSwitch(
+    listing,
+    switchForm(listing, extra),
+    listingFormView("owner"),
+  );
+
 /** The plan for a save that names its day: the confirmed pick's step. */
 const confirmedPickStep = (
   listing: ListingWithCount,
   day: string,
-): Promise<SwitchStep> =>
-  planListingTypeSwitch(
-    listing,
-    switchForm(listing, { assign_undated_to: day }),
-  );
+): Promise<SwitchStep> => planSwitch(listing, { assign_undated_to: day });
 
 /** Confirms a pick of the listing's first bookable day, and checks that the
  * plan moves `count` bookings to that day. */
@@ -198,17 +206,17 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const day = (await bookableStartDates(listing.id))[0]!;
     // One dated place occupies the day; the cap only widens while it is set.
     const { queryAll } = await import("#db/client.ts");
-    await queryAll("UPDATE listings SET max_attendees = 6 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 6 WHERE id = ${listing.id}`,
+    );
     await bookAttendee(listing, {
       date: day,
       email: "z@example.com",
       name: "Z",
     });
-    await queryAll("UPDATE listings SET max_attendees = 5 WHERE id = ?", [
-      listing.id,
-    ]);
+    await queryAll(
+      sql`UPDATE listings SET max_attendees = 5 WHERE id = ${listing.id}`,
+    );
     // The two bookings hold five places against four free: asking for their
     // row count (2) would wrongly fit.
     const fits = await probeAssignDates(
@@ -235,27 +243,18 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     ).rejects.toThrow();
   });
 
-  test("the plan reads none when the save touches no undated booking", async () => {
-    const listing = await createTestListing({ name: "Hall" });
-    const step = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, { listing_type: "standard" }),
-    );
-    expect(step.kind).toBe("none");
-  });
-
-  test("a form that fails validation stops the switch with the edit error", async () => {
-    const listing = await hallWithOneUndatedBooking();
-    const step = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, { name: "" }),
-    );
-    expect(step.kind).toBe("invalid");
+  test("the plan reads none when the save touches no undated booking, and invalid when the form fails validation", async () => {
+    const untouched = await createTestListing({ name: "Quiet hall" });
+    const booked = await hallWithOneUndatedBooking();
+    expect([
+      (await planSwitch(untouched, { listing_type: "standard" })).kind,
+      (await planSwitch(booked, { name: "" })).kind,
+    ]).toEqual(["none", "invalid"]);
   });
 
   test("an unconfirmed plan serves the page and names the missing pick", async () => {
     const listing = await hallWithOneUndatedBooking();
-    const step = await planListingTypeSwitch(listing, switchForm(listing));
+    const step = await planSwitch(listing);
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
     expect(step.error).toContain("Pick a date to move the bookings to.");
@@ -274,10 +273,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
   test("a pick outside the offered dates is refused with the pick error", async () => {
     const listing = await hallWithOneUndatedBooking();
-    const step = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, { assign_undated_to: "2020-01-01" }),
-    );
+    const step = await planSwitch(listing, { assign_undated_to: "2020-01-01" });
     expect(step).toMatchObject({ kind: "page", status: 400 });
   });
 
@@ -285,10 +281,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const listing = await hallWithOneUndatedBooking();
     // The submission checks no bookable day, so the would-be calendar is
     // empty and there is no date to pick.
-    const step = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, { bookable_days: [] }),
-    );
+    const step = await planSwitch(listing, { bookable_days: [] });
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
     expect(step.page.card.noDates).toBe(true);
@@ -300,10 +293,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const listing = await hallWithOneUndatedBooking();
     // One offered day: tomorrow, for a one-day stay.
     const oneDay = { duration_days: "1", maximum_days_after: "1" };
-    const open = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, oneDay),
-    );
+    const open = await planSwitch(listing, oneDay);
     expect(open).toMatchObject({ kind: "page" });
     if (open.kind !== "page") return;
     expect(open.page.card.noneFits).toBe(false);
@@ -318,10 +308,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     });
     await setCapacity(listing.id, 2);
 
-    const full = await planListingTypeSwitch(
-      listing,
-      switchForm(listing, oneDay),
-    );
+    const full = await planSwitch(listing, oneDay);
     expect(full).toMatchObject({
       kind: "page",
       page: { card: { dates: [day], noneFits: true } },

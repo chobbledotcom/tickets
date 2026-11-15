@@ -8,6 +8,7 @@ import {
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
@@ -28,8 +29,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     );
 
     const raw = await queryOne<{ site_data: string }>(
-      "SELECT site_data FROM built_sites WHERE id = ?",
-      [row.id],
+      sql`SELECT site_data FROM built_sites WHERE id = ${row.id}`,
     );
     assert(!raw!.site_data.includes(TEST_SCHEDULED_KEY));
     assert(!JSON.stringify(raw).includes(TEST_SCHEDULED_KEY));

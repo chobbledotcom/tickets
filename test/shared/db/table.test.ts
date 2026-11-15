@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -33,22 +34,6 @@ const buildListingsTestTable = <TInput>(
   });
 
 describeWithEnv("db > table utilities", { db: true }, () => {
-  test("toCamelCase converts snake_case to camelCase", async () => {
-    const { toCamelCase } = await import("#db/table.ts");
-    expect(toCamelCase("max_attendees")).toBe("maxAttendees");
-    expect(toCamelCase("thank_you_url")).toBe("thankYouUrl");
-    expect(toCamelCase("name")).toBe("name");
-    expect(toCamelCase("payment_id")).toBe("paymentId");
-  });
-
-  test("toSnakeCase converts camelCase to snake_case", async () => {
-    const { toSnakeCase } = await import("#db/table.ts");
-    expect(toSnakeCase("maxAttendees")).toBe("max_attendees");
-    expect(toSnakeCase("thankYouUrl")).toBe("thank_you_url");
-    expect(toSnakeCase("name")).toBe("name");
-    expect(toSnakeCase("paymentId")).toBe("payment_id");
-  });
-
   test("buildInputKeyMap creates mapping from DB columns to input keys", async () => {
     const { buildInputKeyMap } = await import("#db/table.ts");
     const columns = ["max_attendees", "thank_you_url", "name"];
@@ -108,7 +93,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const required = col.json(v.array(v.string()), {
       context: "records.required_items",
     });
-    expect(required.default).toBeUndefined();
+    expect("default" in required).toBe(false);
     expect(await required.write?.(["required"])).toBe('["required"]');
   });
 
@@ -152,8 +137,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
     const { col } = await import("#db/table.ts");
     const def = col.encryptedNullable(col.simple<string>());
-    expect(def.write).toBeUndefined();
-    expect(def.read).toBeUndefined();
+    expect([def.write, def.read]).toEqual([undefined, undefined]);
   });
 
   test("col.encryptedNullable handles null values", async () => {
@@ -213,6 +197,9 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
     const rows = await testTable.read.many();
     expect(rows.length).toBe(2);
+    expect((await testTable.read.every()()).map((row) => row.id)).toEqual(
+      rows.map((row) => row.id),
+    );
   });
 
   test("defineTable reads one id and a list of them the same way", async () => {
@@ -319,7 +306,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const { col, defineTable } = await import("#db/table.ts");
     const { getDb } = await import("#db/client.ts");
 
-    await getDb().execute(`
+    await getDb().execute(sql`
       CREATE TABLE IF NOT EXISTS kv_store (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL

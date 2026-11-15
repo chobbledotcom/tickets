@@ -18,6 +18,99 @@ const expectListingImportError = async (
   assertStringIncludes(result.error, contains);
 };
 
+/** Import a one-listing blob and read back the stored listing. */
+const importStoredListing = async (listing: Record<string, unknown>) =>
+  requireListingWithCount(
+    requireEntityImport(
+      await importCatalog({ kind: "listing", listing, version: 1 }),
+    ).id,
+  );
+
+/** A listing the import refuses: the extra fields beside the required
+ * `maxAttendees: 1`, and a fragment the refusal message must carry. */
+type ImportRefusal = {
+  label: string;
+  listing: Record<string, unknown>;
+  contains: string;
+};
+
+/** closesAt values the import refuses, keyed by the test label. */
+const refusedClosesAt: Record<string, string> = {
+  "refuses a naive datetime: the file must name a UTC time": "2026-06-01T12:00",
+  "refuses an empty closesAt: null means no closing time": "",
+  // A well-formed prefix with an impossible timezone offset ("+99:99") must be
+  // a field error, not stored as an empty datetime by the storage normaliser.
+  "rejects a datetime with an out-of-range offset": "2030-01-01T00:00+99:99",
+  // A valid prefix followed by garbage ("…T00:00not-a-zone") must be a field
+  // error, not stored as an empty datetime.
+  "rejects a datetime with trailing junk": "2030-01-01T00:00not-a-zone",
+  "rejects a non-date closesAt": "not-a-date",
+  // A real-looking but non-existent date (Feb 30) must be a field error, not
+  // silently rolled over into March by the storage layer.
+  "rejects an impossible calendar date": "2026-02-30T00:00:00Z",
+  // Hour 25 is not a valid time even though the calendar date exists.
+  "rejects an out-of-range time": "2026-06-01T25:00:00Z",
+  // Fractional seconds are only meaningful after a seconds field; a bare
+  // "T00:00.123Z" is not a real instant and the storage layer would empty it.
+  "rejects fractional seconds without a seconds component":
+    "2030-01-01T00:00.123Z",
+};
+
+const importRefusals: ImportRefusal[] = [
+  {
+    contains: "minQuantity",
+    label: "rejects a minimum quantity below one",
+    listing: { minQuantity: 0, name: "Zero Floor" },
+  },
+  {
+    // The shared listing-input rule runs inside the import transaction, so
+    // the pairing refusal lands before any insert.
+    contains:
+      "Min tickets per purchase must not be more than Max tickets per purchase",
+    label: "rejects a minimum quantity above the maximum",
+    listing: { maxQuantity: 2, minQuantity: 3, name: "High Floor" },
+  },
+  {
+    contains: "date",
+    label: "rejects a non-date event date",
+    listing: { date: "soon", name: "Bad Date" },
+  },
+  ...Object.entries(refusedClosesAt).map(([label, closesAt]) => ({
+    contains: "closesAt",
+    label,
+    listing: { closesAt, name: label },
+  })),
+  {
+    // 1e100 is an "integer" to Number.isInteger but not safe; the money layer
+    // rejects such minor-unit amounts, so the import must too rather than round
+    // it or throw a raw storage error.
+    contains: "unitPrice",
+    label: "rejects a price above the safe-integer range",
+    listing: { name: "Rich", unitPrice: 1e100 },
+  },
+  {
+    // durationDays above the 90-day max is a field error, not silently clamped
+    // by the storage normaliser.
+    contains: "90",
+    label: "rejects an over-cap duration",
+    listing: { durationDays: 365, name: "Too Long" },
+  },
+  {
+    contains: "fields",
+    label: "rejects an unknown contact field",
+    listing: { fields: "email,fax", name: "Bad Fields" },
+  },
+  {
+    contains: "bookableDays",
+    label: "rejects an invalid bookable day name",
+    listing: {
+      bookableDays: ["Funday"],
+      listingType: "daily",
+      name: "Bad Days",
+    },
+  },
+];
+
 // The listing form validates field VALUES (datetime, duration cap, contact
 // fields, weekday names) via its field definitions; the catalog import builds a
 // listing directly, so the transfer schema re-checks the same rules at its wire
@@ -26,223 +119,64 @@ const expectListingImportError = async (
 // N+1 guard.
 describeWithEnv("catalog-transfer field validation", { db: true }, () => {
   test("imports a minimum quantity and stores it", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        maxAttendees: 1,
-        maxQuantity: 5,
-        minQuantity: 2,
-        name: "Batched",
-      },
-      version: 1,
+    const imported = await importStoredListing({
+      maxAttendees: 1,
+      maxQuantity: 5,
+      minQuantity: 2,
+      name: "Batched",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
     expect(imported.min_quantity).toBe(2);
   });
 
   test("defaults an absent minimum quantity to the stored 1", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "No Floor" },
-      version: 1,
+    const imported = await importStoredListing({
+      maxAttendees: 1,
+      name: "No Floor",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
     expect(imported.min_quantity).toBe(1);
   });
 
-  test("rejects a minimum quantity below one", async () => {
-    await expectListingImportError(
-      { maxAttendees: 1, minQuantity: 0, name: "Zero Floor" },
-      "minQuantity",
-    );
-  });
-
-  test("rejects a minimum quantity above the maximum", async () => {
-    // The shared listing-input rule runs inside the import transaction, so
-    // the pairing refusal lands before any insert.
-    await expectListingImportError(
-      {
-        maxAttendees: 1,
-        maxQuantity: 2,
-        minQuantity: 3,
-        name: "High Floor",
-      },
-      "Min tickets per purchase must not be more than Max tickets per purchase",
-    );
-  });
-
-  test("rejects a non-date closesAt", async () => {
-    await expectListingImportError(
-      { closesAt: "not-a-date", maxAttendees: 1, name: "Bad Close" },
-      "closesAt",
-    );
-  });
-
-  test("rejects a non-date event date", async () => {
-    await expectListingImportError(
-      { date: "soon", maxAttendees: 1, name: "Bad Date" },
-      "date",
-    );
-  });
-
-  test("accepts datetimes with and without a timezone suffix", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        // With an explicit offset and without one (treated as UTC).
-        closesAt: "2026-06-01T12:00:00Z",
-        date: "2026-06-02T09:00:00",
-        maxAttendees: 1,
-        name: "Timed Listing",
-      },
-      version: 1,
+  for (const { contains, label, listing } of importRefusals) {
+    test(label, async () => {
+      await expectListingImportError({ maxAttendees: 1, ...listing }, contains);
     });
-    const importedResult = requireEntityImport(result);
-    const imported = await requireListingWithCount(importedResult.id);
-    expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
-    expect(imported.date).toBe("2026-06-02T09:00:00.000Z");
-  });
+  }
 
-  test("rejects an impossible calendar date", async () => {
-    // A real-looking but non-existent date (Feb 30) must be a field error, not
-    // silently rolled over into March by the storage layer.
-    await expectListingImportError(
-      { closesAt: "2026-02-30T00:00:00Z", maxAttendees: 1, name: "Imp" },
-      "closesAt",
-    );
-  });
-
-  test("accepts a naive datetime without seconds", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { closesAt: "2026-06-01T12:00", maxAttendees: 1, name: "NoSec" },
-      version: 1,
+  test("stores each UTC datetime as a full instant, fractional seconds kept", async () => {
+    const timed = await importStoredListing({
+      closesAt: "2026-06-01T12:00:00Z",
+      date: "2026-06-02T09:00Z",
+      maxAttendees: 1,
+      name: "Timed Listing",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
-    expect(imported.closes_at).toBe("2026-06-01T12:00:00.000Z");
-  });
-
-  test("rejects an out-of-range time", async () => {
-    // Hour 25 is not a valid time even though the calendar date exists.
-    await expectListingImportError(
-      { closesAt: "2026-06-01T25:00:00Z", maxAttendees: 1, name: "BadTime" },
-      "closesAt",
-    );
-  });
-
-  test("rejects a datetime with trailing junk", async () => {
-    // A valid prefix followed by garbage ("…T00:00not-a-zone") must be a field
-    // error, not stored as an empty datetime.
-    await expectListingImportError(
-      { closesAt: "2030-01-01T00:00not-a-zone", maxAttendees: 1, name: "Junk" },
-      "closesAt",
-    );
-  });
-
-  test("rejects a datetime with an out-of-range offset", async () => {
-    // A well-formed prefix with an impossible timezone offset ("+99:99") must be
-    // a field error, not stored as an empty datetime by the storage normaliser.
-    await expectListingImportError(
-      { closesAt: "2030-01-01T00:00+99:99", maxAttendees: 1, name: "Offset" },
-      "closesAt",
-    );
-  });
-
-  test("rejects a price above the safe-integer range", async () => {
-    // 1e100 is an "integer" to Number.isInteger but not safe; the money layer
-    // rejects such minor-unit amounts, so the import must too rather than round
-    // it or throw a raw storage error.
-    await expectListingImportError(
-      { maxAttendees: 1, name: "Rich", unitPrice: 1e100 },
-      "unitPrice",
-    );
-  });
-
-  test("rejects fractional seconds without a seconds component", async () => {
-    // Fractional seconds are only meaningful after a seconds field; a bare
-    // "T00:00.123Z" is not a real instant and the storage layer would empty it.
-    await expectListingImportError(
-      { closesAt: "2030-01-01T00:00.123Z", maxAttendees: 1, name: "Frac" },
-      "closesAt",
-    );
-  });
-
-  test("accepts fractional seconds after a seconds component", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        closesAt: "2030-01-01T00:00:00.500Z",
-        maxAttendees: 1,
-        name: "Frac OK",
-      },
-      version: 1,
+    const fractional = await importStoredListing({
+      closesAt: "2030-01-01T00:00:00.500Z",
+      maxAttendees: 1,
+      name: "Frac OK",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
-    expect(imported.closes_at).toBe("2030-01-01T00:00:00.500Z");
+    expect([timed.closes_at, timed.date, fractional.closes_at]).toEqual([
+      "2026-06-01T12:00:00.000Z",
+      "2026-06-02T09:00:00.000Z",
+      "2030-01-01T00:00:00.500Z",
+    ]);
   });
 
-  test("accepts an explicitly empty closesAt (never closes)", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: { closesAt: "", maxAttendees: 1, name: "Open Listing" },
-      version: 1,
+  test("stores a null closesAt as no closing time, and the column default max price", async () => {
+    const imported = await importStoredListing({
+      closesAt: null,
+      maxAttendees: 1,
+      name: "Open Listing",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
-    expect(imported.closes_at).toBeNull();
-  });
-
-  test("rejects an over-cap duration", async () => {
-    // durationDays above the 90-day max is a field error, not silently clamped
-    // by the storage normaliser.
-    await expectListingImportError(
-      { durationDays: 365, maxAttendees: 1, name: "Too Long" },
-      "90",
-    );
-  });
-
-  test("rejects an unknown contact field", async () => {
-    await expectListingImportError(
-      { fields: "email,fax", maxAttendees: 1, name: "Bad Fields" },
-      "fields",
-    );
-  });
-
-  test("rejects an invalid bookable day name", async () => {
-    await expectListingImportError(
-      {
-        bookableDays: ["Funday"],
-        listingType: "daily",
-        maxAttendees: 1,
-        name: "Bad Days",
-      },
-      "bookableDays",
-    );
+    expect([imported.closes_at, imported.max_price]).toEqual([null, 0]);
   });
 
   test("accepts valid bookable day names", async () => {
-    const result = await importCatalog({
-      kind: "listing",
-      listing: {
-        bookableDays: ["Monday", "Wednesday"],
-        listingType: "daily",
-        maxAttendees: 1,
-        name: "Good Days",
-      },
-      version: 1,
+    const imported = await importStoredListing({
+      bookableDays: ["Monday", "Wednesday"],
+      listingType: "daily",
+      maxAttendees: 1,
+      name: "Good Days",
     });
-    const imported = await requireListingWithCount(
-      requireEntityImport(result).id,
-    );
     expect(imported.bookable_days).toEqual(["Monday", "Wednesday"]);
   });
 });

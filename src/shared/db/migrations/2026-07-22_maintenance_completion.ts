@@ -1,4 +1,5 @@
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -6,17 +7,10 @@ export default schemaMigration(
   "Keep completed maintenance work dormant.",
   { columns: { maintenance_tasks: ["completed_at"] } },
   async ({ getDb }) => {
-    await getDb().execute({
-      args: [
-        Date.now(),
-        "activity_log_backfill",
-        ACTIVITY_LOG_BACKFILL_COMPLETE,
-      ],
-      sql: `UPDATE maintenance_tasks
-               SET completed_at = ?
-             WHERE name = ?
-               AND checkpoint = ?
-               AND completed_at IS NULL`,
-    });
+    await getDb().execute(sql`UPDATE maintenance_tasks
+               SET completed_at = ${Date.now()}
+             WHERE name = ${"activity_log_backfill"}
+               AND checkpoint = ${ACTIVITY_LOG_BACKFILL_COMPLETE}
+               AND completed_at IS NULL`);
   },
 );

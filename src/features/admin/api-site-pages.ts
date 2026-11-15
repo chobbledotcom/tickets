@@ -25,6 +25,7 @@ import {
   sitePagesTable,
   updateSitePage,
 } from "#db/site-pages.ts";
+import { sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { filter, map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -52,7 +53,7 @@ import {
 } from "#shared/rest/record-api.ts";
 import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
 import type { Result } from "#shared/result.ts";
-import type { SitePage, SitePageItem } from "#types";
+import type { SitePage, SitePageItem, SitePageNavRow } from "#types";
 import {
   planParentChange,
   toFixedPageContent,
@@ -63,7 +64,12 @@ const ENTRY = ADMIN_API_RESOURCES["site-pages"];
 const RESPONSE_KEY = "page";
 
 /** The page rows the list answers with, in the order the form's list shows. */
-const LIST_ORDER = { order: "sort_order ASC, id ASC" } as const;
+const LIST_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
+
+/** The API's collection read: a client manages whole pages, so the list
+ *  answers the full stored row. This is the resource's one whole-table read. */
+const allPages = (): Promise<SitePage[]> =>
+  sitePagesTable.read.many({}, LIST_ORDER);
 
 /** The page-write audience: the roles the Site → Pages page declares, with
  *  API-key auth. The surface table is the one place the roles are written. */
@@ -128,13 +134,7 @@ const withPage =
 
 const handleList: RouteHandlerFn = (request) =>
   withAuth(request, SITE_API, async () => {
-    const [pages, parents] = await Promise.all([
-      // The API's collection read: a client manages whole pages, so the list
-      // answers the full stored row. This is the resource's one whole-table
-      // read.
-      sitePagesTable.read.many({}, LIST_ORDER),
-      parentsNow(),
-    ]);
+    const [pages, parents] = await Promise.all([allPages(), parentsNow()]);
     return jsonResponse({
       [ENTRY.path]: pages.map((page) => toRow(page, parents)),
     });
@@ -345,19 +345,22 @@ const fixedPageHandlers = Object.fromEntries(
 
 export const sitePageApiRoutes = recordApi<
   typeof ENTRY,
-  RecordShapeOf<SitePage, SitePageWriteInput, SitePage>
->(sitePageRecord, {
-  customHandlers: fixedPageHandlers,
-  overrides: apiHandlerSet(
-    handleCreate,
-    handleDelete,
-    handleGet,
-    handleList,
-    handleUpdate,
-  ),
-  // The page body mapper is one function for both doors: its `existing`
-  // argument is null on a create. The handlers above call it directly, so the
-  // record's generated write path reads the same declaration.
-  toCreateInput: toPageWrite,
-  toUpdateInput: toPageWrite,
-});
+  RecordShapeOf<SitePage, SitePageWriteInput, SitePage, never, SitePageNavRow>
+>(
+  { ...sitePageRecord, getAll: allPages },
+  {
+    customHandlers: fixedPageHandlers,
+    overrides: apiHandlerSet(
+      handleCreate,
+      handleDelete,
+      handleGet,
+      handleList,
+      handleUpdate,
+    ),
+    // The page body mapper is one function for both doors: its `existing`
+    // argument is null on a create. The handlers above call it directly, so the
+    // record's generated write path reads the same declaration.
+    toCreateInput: toPageWrite,
+    toUpdateInput: toPageWrite,
+  },
+);

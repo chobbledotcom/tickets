@@ -14,6 +14,7 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createLiveSessions } from "#test-utils/live-sessions.ts";
 import {
   awaitTestRequest,
   mockFormRequest,
@@ -45,13 +46,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
     test("shows logout button when other sessions exist", async () => {
       // Create an extra session
-      await createSession(
-        "other-session",
-        "other-csrf",
-        Date.now() + 10000,
-        null,
-        1,
-      );
+      await createLiveSessions(["other-session"]);
 
       const { cookie } = await loginAsAdmin();
 
@@ -109,8 +104,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
     test("logs out other sessions and shows success message", async () => {
       // Create other sessions before login
-      await createSession("other1", "csrf1", Date.now() + 10000, null, 1);
-      await createSession("other2", "csrf2", Date.now() + 10000, null, 1);
+      await createLiveSessions(["other1", "other2"]);
 
       const { cookie, csrfToken } = await loginAsAdmin();
 
@@ -130,7 +124,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
     });
 
     test("keeps current session active after logging out others", async () => {
-      await createSession("other", "csrf-other", Date.now() + 10000, null, 1);
+      await createLiveSessions(["other"]);
 
       const { cookie, csrfToken } = await loginAsAdmin();
 

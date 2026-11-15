@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { stub } from "@std/testing/mock";
 import { queryAll } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { sumOf } from "#fp";
 import { nowSeconds } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -181,11 +182,10 @@ export const plansOnBookings = (world: TicketsWorld, name: string) =>
     recurring_tax: number;
     subscription_id: string;
   }>(
-    `SELECT booking.recurring_price, booking.recurring_tax,
+    sql`SELECT booking.recurring_price, booking.recurring_tax,
             booking.recurring_interval, booking.subscription_id
        FROM listing_attendees AS booking
-      WHERE booking.listing_id = ?`,
-    [listingNamed(world, name).id],
+      WHERE booking.listing_id = ${listingNamed(world, name).id}`,
   );
 
 /** Stripe reports `status` for the story's subscription, and one paid
@@ -215,8 +215,7 @@ export const subscriberOn = async (
 ): Promise<number> =>
   onlyOne(
     await queryAll<{ attendee_id: number }>(
-      "SELECT booking.attendee_id FROM listing_attendees AS booking WHERE booking.listing_id = ?",
-      [listingNamed(world, name).id],
+      sql`SELECT booking.attendee_id FROM listing_attendees AS booking WHERE booking.listing_id = ${listingNamed(world, name).id}`,
     ),
   ).attendee_id;
 

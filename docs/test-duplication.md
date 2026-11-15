@@ -17,7 +17,8 @@ pairs the scan reports, not the number of places to edit: one merge usually
 clears several pairs.
 
 The scan configs and the committed baselines live in `cfg/`. The ratchet in
-`deno task cpd` reads each baseline there.
+`deno task cpd` reads each baseline there. `deno task cpd:update` rewrites
+every baseline from the working tree.
 
 ## The six scans, and why there are six
 
@@ -32,7 +33,7 @@ lower number is a tighter net.
 | `cfg/jscpd.support.json` | `test/specs/support`             | 40        |
 | `cfg/jscpd.helpers.json` | `src` + `test/test-utils`        | 40        |
 | `cfg/jscpd.test.json`    | `test`                           | 48        |
-| `cfg/jscpd.css.json`     | `src/ui/static/style.scss`       | 50        |
+| `cfg/jscpd.css.json`     | `src/ui/static`                  | 50        |
 
 The last one holds no tests, so the rest of this document leaves it out. Its
 number is high because design-token CSS repeats short declaration runs by
@@ -188,15 +189,15 @@ worked example was the slug-index family — `computeGroupSlugIndex`,
 four spellings of `(slug) => hmacHash(slug)`, each one identifier short of
 detection. All four were deleted and every caller now uses `hmacHash` directly.
 
-Since jscpd 5.2.0 the gate is jscpd's own. `deno task cpd:renamed` runs
+Since jscpd 5.2.0 the scan is jscpd's own. `deno task cpd:renamed` runs
 `cfg/jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
 methods and arrow functions are compared by AST shape, with names and literals
 left out, so a renamed copy scores 1.0 and is reported with kind `similar`. The
 accepted matches live in the committed baseline
-`cfg/.jscpd.renamed-baseline.json`. The flag `--fail-on-new-clones` fails the
-build on a pair the baseline does not carry, and
-`deno task cpd:renamed --update` rewrites the baseline after a merge. The
-baseline records no written reason — the merge history carries it.
+`cfg/.jscpd.renamed-baseline.json`. The wrapper fails the build on a snippet
+that the baseline does not carry, and `deno task cpd:renamed --update` rewrites
+the baseline after a merge. The baseline records no written reason — the merge
+history carries it.
 
 Since jscpd 5.4.2 the strict scans (`cfg/jscpd.json`, `cfg/jscpd.test.json`,
 `cfg/jscpd.helpers.json`, `cfg/jscpd.support.json`) enable the Type-2 clone
@@ -224,16 +225,20 @@ At these limits, the strict scans found these clones:
 | `cfg/jscpd.helpers.json` |        40 |    852 |
 | `cfg/jscpd.support.json` |        40 |     17 |
 
-Each scan holds these clones in its committed baseline and runs with
-`--fail-on-new-clones`. A new renamed copy fails the gate. The fingerprints do
-not change when lines move. A code change can pair a recorded window with a
-different identical copy. That pair has a new fingerprint, so the gate fails
-on code that it already recorded. Record the new pair with `--update`. The
-ratchet in `deno task cpd` accepts that fingerprint when the baseline does not
-accept more clones than the merge base on `main`. When the total rises, the
-ratchet accepts only a re-paired clone. Merge any other pair. After a merge,
-run the scan with `--update` to remove the fixed clones, and the baseline
-shrinks.
+Each scan holds the places of these clones in its committed baseline, one count
+per duplicated snippet, and runs with `--fail-on-new-clones`. A new renamed copy
+fails the gate. The fingerprint covers the snippet's text with every run of
+whitespace removed, so a line that moves, a blank line, a file rename and a new
+partner for a recorded place all keep the count. jscpd's own baseline hashes the
+raw text of a clone pair, so a blank line inside the pair changed its
+fingerprint and the gate failed on code it already recorded. This repository
+therefore writes its own baseline (`scripts/jscpd/baseline.ts`) over the scan
+report. After a merge, run `deno task cpd:update` to remove the fixed clones,
+and the baseline shrinks.
+
+A rewrite changes the text of a recorded place, so the place gets a new
+fingerprint. The ratchet accepts those places while the baseline's total falls.
+A baseline whose total rises still fails.
 
 Each TypeScript scan skips import and re-export statements through its
 `ignorePattern` list. The list also skips a destructured dynamic import,

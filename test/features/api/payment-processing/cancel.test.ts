@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import type {
   SessionMetadata,
@@ -120,10 +121,9 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    await getDb().execute({
-      args: [turnedOff.id],
-      sql: "UPDATE listings SET active = 0 WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE listings SET active = 0 WHERE id = ${turnedOff.id}`,
+    );
     return { group, member };
   };
 

@@ -1,35 +1,32 @@
-import type { InValue, ResultSet } from "@libsql/client";
+import type { ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, queryBatch } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import {
+  type SqlStatement,
+  sql,
+  sqlLiteral,
+  sqlName,
+  sqlNames,
+} from "#db/sql.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-/** Run many plain SQL strings as a single batched write round-trip. */
-export const executeStatements = (sqls: readonly string[]): Promise<void> =>
-  executeBatch(sqls.map((sql) => ({ args: [], sql })));
+/** Run many statements as a single batched write round-trip. */
+export const executeStatements = (
+  statements: readonly SqlStatement[],
+): Promise<void> => executeBatch([...statements]);
 
 /** A read statement paired with a label, so a batch's results can be read by
- *  name instead of by position. Keeps the batch list and the assertion list
- *  self-aligning: insert or reorder a statement and its follow-up read stays
- *  attached to the same label. */
-export type LabelledStatement = {
-  label: string;
-  args: InValue[];
-  sql: string;
-};
+ *  name instead of by position. */
+type LabelledStatement = { label: string; statement: SqlStatement };
 
-/** Run a list of labelled read statements in one batch round-trip and return
- *  the results keyed by label. The caller reads specific results by name
- *  instead of remembering which index a statement landed at. */
-export const queryLabelledBatch = async (
+const queryLabelledBatch = async (
   statements: readonly LabelledStatement[],
 ): Promise<Map<string, ResultSet>> => {
-  const results = await queryBatch(
-    statements.map((stmt) => ({ args: stmt.args, sql: stmt.sql })),
-  );
-  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]!));
+  const results = await queryBatch(statements.map((stmt) => stmt.statement));
+  return new Map(statements.map((stmt, i) => [stmt.label, results[i]!]));
 };
 
 export type SchemaRenameStep =
@@ -47,10 +44,10 @@ export const renameColumnStep = (
   to: string,
 ): SchemaRenameStep => ({ from, kind: "column", table, to });
 
-const renameStepSql = (step: SchemaRenameStep): string =>
+const renameStepSql = (step: SchemaRenameStep): SqlStatement =>
   step.kind === "table"
-    ? `ALTER TABLE ${step.from} RENAME TO ${step.to}`
-    : `ALTER TABLE ${step.table} RENAME COLUMN ${step.from} TO ${step.to}`;
+    ? sql`ALTER TABLE ${sqlName(step.from)} RENAME TO ${sqlName(step.to)}`
+    : sql`ALTER TABLE ${sqlName(step.table)} RENAME COLUMN ${sqlName(step.from)} TO ${sqlName(step.to)}`;
 
 export const applySchemaRenameSteps = (steps: readonly SchemaRenameStep[]) =>
   getDb().batch(steps.map(renameStepSql), "write");
@@ -74,20 +71,20 @@ export const markCurrentSchemaMigrationPending = () => {
   // Clearing recorded history must also clear the per-isolate ready cache,
   // otherwise initDb never re-inspects this client.
   invalidateInitDbCache();
-  return getDb().execute("DROP TABLE IF EXISTS schema_migrations");
+  return getDb().execute(sql`DROP TABLE IF EXISTS schema_migrations`);
 };
 
 export const markMigrationsForRerun = async (): Promise<void> => {
   await executeStatements([
-    "DROP TABLE IF EXISTS schema_migrations",
-    "UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')",
+    sql`DROP TABLE IF EXISTS schema_migrations`,
+    sql`UPDATE settings SET value = 'stale' WHERE key IN ('latest_db_update', 'db_schema_hash')`,
   ]);
   invalidateInitDbCache();
 };
 
 export const schemaHashMarker = async (): Promise<unknown> => {
   const result = await getDb().execute(
-    "SELECT value FROM settings WHERE key = 'db_schema_hash'",
+    sql`SELECT value FROM settings WHERE key = 'db_schema_hash'`,
   );
   return result.rows[0]?.value;
 };
@@ -95,26 +92,10 @@ export const schemaHashMarker = async (): Promise<unknown> => {
 export const seedListingDomainRows = async (): Promise<number> => {
   const listing = await createTestListing();
   await executeBatch([
-    {
-      args: [listing.id, 999],
-      sql: "INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (?, ?)",
-    },
-    {
-      args: [listing.id, 999],
-      sql: "INSERT INTO listing_questions (listing_id, question_id) VALUES (?, ?)",
-    },
-    {
-      args: [listing.id],
-      sql:
-        "INSERT INTO activity_log (created, listing_id, message) " +
-        "VALUES ('2024-01-01T00:00:00Z', ?, 'legacy listing activity')",
-    },
-    {
-      args: [listing.id],
-      sql:
-        "INSERT INTO built_sites (site_data, assigned_listing_id, created) " +
-        "VALUES ('{}', ?, '2024-01-01T00:00:00Z')",
-    },
+    sql`INSERT INTO listing_attendees (listing_id, attendee_id) VALUES (${listing.id}, ${999})`,
+    sql`INSERT INTO listing_questions (listing_id, question_id) VALUES (${listing.id}, ${999})`,
+    sql`INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ${listing.id}, 'legacy listing activity')`,
+    sql`INSERT INTO built_sites (site_data, assigned_listing_id, created) VALUES ('{}', ${listing.id}, '2024-01-01T00:00:00Z')`,
   ]);
   return listing.id;
 };
@@ -132,8 +113,8 @@ export const seedListingDomainRows = async (): Promise<number> => {
  */
 export const seedPreDropLedgerColumns = (): Promise<void> =>
   executeStatements([
-    "ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0",
-    "ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0",
+    sql`ALTER TABLE listing_attendees ADD COLUMN refunded INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE listing_attendees ADD COLUMN price_paid INTEGER NOT NULL DEFAULT 0`,
   ]);
 
 /**
@@ -147,75 +128,61 @@ export const stampHistoricalPricePaid = (
   listingId: number,
   amount: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [amount, attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET price_paid = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET price_paid = ${amount} WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
 
 export const columnNames = async (table: string): Promise<string[]> => {
   const result = await getDb().execute(
-    `SELECT name FROM pragma_table_info('${table}')`,
+    sql`SELECT name FROM pragma_table_info(${sqlLiteral(table)})`,
   );
   return result.rows.map((row) => String(row.name));
 };
 
-export const tableExists = async (table: string): Promise<boolean> => {
-  const result = await getDb().execute({
-    args: [table],
-    sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-  });
-  return result.rows.length > 0;
-};
-
 export const tableNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'table'",
+    sql`SELECT name FROM sqlite_master WHERE type = 'table'`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
 
 export const tableRowCount = async (table: string): Promise<number> => {
-  const result = await getDb().execute(`SELECT COUNT(*) AS n FROM ${table}`);
+  const result = await getDb().execute(
+    sql`SELECT COUNT(*) AS n FROM ${sqlName(table)}`,
+  );
   return Number(result.rows[0]!.n);
 };
 
-/** Read `total_uses` and `usage_count` for a modifier — the two columns the
- *  modifier_usages triggers maintain. Shared by the modifier-aggregates test
- *  suite and the drop_modifiers_total_revenue migration test. */
-export const readModifierAggregates = async (
-  modifierId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [modifierId],
-    sql: "SELECT total_uses, usage_count FROM modifiers WHERE id = ?",
-  });
-  const row = result.rows[0]!;
-  return {
-    total_uses: Number(row.total_uses),
-    usage_count: Number(row.usage_count),
+/** A reader of the count columns that a table's triggers maintain, by row id. */
+const countColumnsReader =
+  (table: string, columns: readonly string[]) =>
+  async (id: number): Promise<Record<string, number>> => {
+    const result = await getDb().execute(
+      sql`SELECT ${sqlNames(columns)} FROM ${sqlName(table)} WHERE id = ${id}`,
+    );
+    const row = result.rows[0]!;
+    return Object.fromEntries(
+      columns.map((column) => [column, Number(row[column])]),
+    );
   };
-};
 
-/** Read `booked_quantity` and `tickets_count` for a listing — the two columns
- *  the listing_attendees triggers maintain. Shared by the listing-aggregates
- *  test suite and the drop_listing_income migration test. */
-export const readListingAggregates = async (
-  listingId: number,
-): Promise<Record<string, number>> => {
-  const result = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT booked_quantity, tickets_count FROM listings WHERE id = ?",
-  });
-  const row = result.rows[0]!;
-  return {
-    booked_quantity: Number(row.booked_quantity),
-    tickets_count: Number(row.tickets_count),
-  };
-};
+/** Read `total_uses` and `usage_count` for a modifier: the two columns that
+ * the modifier_usages triggers maintain. */
+export const readModifierAggregates = countColumnsReader("modifiers", [
+  "total_uses",
+  "usage_count",
+]);
+
+/** Read `booked_quantity` and `tickets_count` for a listing: the two columns
+ * that the listing_attendees triggers maintain. */
+export const readListingAggregates = countColumnsReader("listings", [
+  "booked_quantity",
+  "tickets_count",
+]);
 
 export const triggerNames = async (): Promise<Set<string>> => {
   const result = await getDb().execute(
-    "SELECT name FROM sqlite_master WHERE type = 'trigger'",
+    sql`SELECT name FROM sqlite_master WHERE type = 'trigger'`,
   );
   return new Set(result.rows.map((row) => String(row.name)));
 };
@@ -261,7 +228,7 @@ export type LegacyAggregateTriggerSpec = {
   /** Columns listed in the `AFTER UPDATE OF <cols>` clause of the update trigger. */
   readonly updateOfColumns: readonly string[];
   /** Incrementing SQL the legacy triggers apply to the target row (signed `+`/`-`, `NEW`/`OLD`). */
-  readonly contribution: (sign: "+" | "-", row: "NEW" | "OLD") => string;
+  readonly contribution: (sign: "+" | "-", row: "NEW" | "OLD") => SqlStatement;
   /** Create the subject target row before restoring the dropped column, so the app's
    *  ledger-based read isn't run against a table that also carries the stored column. */
   readonly createSubject: () => Promise<{ id: number }>;
@@ -296,18 +263,17 @@ export const installLegacyAggregateTriggers = async (
   const [insertName, deleteName, updateName] = legacyAggregateTriggerNames(
     spec.triggerStem,
   );
-  const bodies: Record<string, string> = {
-    [deleteName]: `AFTER DELETE ON ${spec.usageTable}
+  const usageTable = sqlName(spec.usageTable);
+  const bodies: Record<string, SqlStatement> = {
+    [deleteName]: sql`AFTER DELETE ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("-", "OLD")}
 END`,
-    [insertName]: `AFTER INSERT ON ${spec.usageTable}
+    [insertName]: sql`AFTER INSERT ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("+", "NEW")}
 END`,
-    [updateName]: `AFTER UPDATE OF ${spec.updateOfColumns.join(
-      ", ",
-    )} ON ${spec.usageTable}
+    [updateName]: sql`AFTER UPDATE OF ${sqlNames(spec.updateOfColumns)} ON ${usageTable}
 FOR EACH ROW BEGIN
   ${spec.contribution("-", "OLD")}
   ${spec.contribution("+", "NEW")}
@@ -315,10 +281,12 @@ END`,
   };
   const names = legacyAggregateTriggerNames(spec.triggerStem);
   await executeStatements(
-    names.map((name) => `DROP TRIGGER IF EXISTS ${name}`),
+    names.map((name) => sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`),
   );
   for (const name of names) {
-    await getDb().execute(`CREATE TRIGGER ${name} ${bodies[name]}`);
+    await getDb().execute(
+      sql`CREATE TRIGGER ${sqlName(name)} ${bodies[name]!}`,
+    );
   }
 };
 
@@ -340,10 +308,20 @@ export const seedLegacyAggregateColumnDropSchema = async (
   >,
 ): Promise<void> => {
   await getDb().execute(
-    `ALTER TABLE ${spec.targetTable} ADD COLUMN ${spec.dropColumn} INTEGER NOT NULL DEFAULT 0`,
+    sql`ALTER TABLE ${sqlName(spec.targetTable)} ADD COLUMN ${sqlName(spec.dropColumn)} INTEGER NOT NULL DEFAULT 0`,
   );
   await installLegacyAggregateTriggers(spec);
 };
+
+/** The tables that the rename migration removes. */
+const LEGACY_EVENT_TABLES = ["events", "event_attendees", "event_questions"];
+
+/** The tables that the rename migration leaves, each with one seeded row. */
+const LISTING_DOMAIN_TABLES = [
+  "listings",
+  "listing_attendees",
+  "listing_questions",
+];
 
 /**
  * Assert the post-`renameEventsToListings` schema state: the three legacy
@@ -358,73 +336,32 @@ export const expectListingDomainRestored = async (
   listingId: number,
 ): Promise<void> => {
   const results = await queryLabelledBatch([
+    ...[...LEGACY_EVENT_TABLES, ...LISTING_DOMAIN_TABLES].map((table) => ({
+      label: `${table}_exists`,
+      statement: sql`SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=${table}`,
+    })),
+    ...LISTING_DOMAIN_TABLES.map((table) => ({
+      label: `${table}_count`,
+      statement: sql`SELECT COUNT(*) AS v FROM ${sqlName(table)}`,
+    })),
     {
-      args: ["events"],
-      label: "events_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: ["event_attendees"],
-      label: "event_attendees_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: ["event_questions"],
-      label: "event_questions_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: ["listings"],
-      label: "listings_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: ["listing_attendees"],
-      label: "listing_attendees_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: ["listing_questions"],
-      label: "listing_questions_exists",
-      sql: "SELECT 1 AS v FROM sqlite_master WHERE type='table' AND name=?",
-    },
-    {
-      args: [],
-      label: "listings_count",
-      sql: "SELECT COUNT(*) AS v FROM listings",
-    },
-    {
-      args: [],
-      label: "listing_attendees_count",
-      sql: "SELECT COUNT(*) AS v FROM listing_attendees",
-    },
-    {
-      args: [],
-      label: "listing_questions_count",
-      sql: "SELECT COUNT(*) AS v FROM listing_questions",
-    },
-    {
-      args: [],
       label: "activity_log_listing_id",
-      sql: "SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'",
+      statement: sql`SELECT listing_id AS v FROM activity_log WHERE message = 'legacy listing activity'`,
     },
     {
-      args: [],
       label: "built_sites_listing_id",
-      sql: "SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'",
+      statement: sql`SELECT assigned_listing_id AS v FROM built_sites WHERE site_data = '{}'`,
     },
   ]);
   const exists = (label: string) => results.get(label)!.rows.length > 0;
   const scalar = (label: string) => results.get(label)!.rows[0]?.v;
-  expect(exists("events_exists")).toBe(false);
-  expect(exists("event_attendees_exists")).toBe(false);
-  expect(exists("event_questions_exists")).toBe(false);
-  expect(exists("listings_exists")).toBe(true);
-  expect(exists("listing_attendees_exists")).toBe(true);
-  expect(exists("listing_questions_exists")).toBe(true);
-  expect(Number(scalar("listings_count"))).toBe(1);
-  expect(Number(scalar("listing_attendees_count"))).toBe(1);
-  expect(Number(scalar("listing_questions_count"))).toBe(1);
+  for (const table of LEGACY_EVENT_TABLES) {
+    expect(exists(`${table}_exists`)).toBe(false);
+  }
+  for (const table of LISTING_DOMAIN_TABLES) {
+    expect(exists(`${table}_exists`)).toBe(true);
+    expect(Number(scalar(`${table}_count`))).toBe(1);
+  }
   expect(scalar("activity_log_listing_id")).toBe(listingId);
   expect(scalar("built_sites_listing_id")).toBe(listingId);
 };

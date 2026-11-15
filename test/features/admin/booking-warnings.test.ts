@@ -14,6 +14,7 @@ import {
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { createNamedListings } from "#test-utils/named-listings.ts";
 import type { ListingWithCount } from "#types";
 
 /** Book places on one listing through the same atomic create the ticket page
@@ -56,9 +57,11 @@ const warningsForBooking = async (
 
 describeWithEnv("booking warnings", { db: true }, () => {
   test("names every required child when a parent is booked alone", async () => {
-    const parent = await createTestListing({ name: "Main pass" });
-    const firstChild = await createTestListing({ name: "Morning child" });
-    const secondChild = await createTestListing({ name: "Evening child" });
+    const [parent, firstChild, secondChild] = await createNamedListings(
+      "Main pass",
+      "Morning child",
+      "Evening child",
+    );
     await listingChildren.setIds(parent.id, [firstChild.id, secondChild.id]);
 
     const warnings = await warningsForBooking([

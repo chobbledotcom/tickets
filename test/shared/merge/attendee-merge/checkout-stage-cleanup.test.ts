@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, insert, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   createMergePair,
   runMerge,
@@ -31,12 +32,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     expect(result.success).toBe(true);
     expect(
       await queryAll(
-        "SELECT attendee_id FROM checkout_stages ORDER BY attendee_id",
+        sql`SELECT attendee_id FROM checkout_stages ORDER BY attendee_id`,
       ),
     ).toEqual([]);
     expect(
       await queryAll(
-        "SELECT payment_session_id, attendee_id FROM processed_payments ORDER BY payment_session_id",
+        sql`SELECT payment_session_id, attendee_id FROM processed_payments ORDER BY payment_session_id`,
       ),
     ).toEqual([
       {

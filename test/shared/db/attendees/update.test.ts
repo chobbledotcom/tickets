@@ -8,13 +8,16 @@ import {
   updateAttendeePII,
 } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendeePair } from "#test-utils/db-helpers/attendee-pair.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createTestAttendeeDirect,
   decryptFirstAttendee,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -30,24 +33,21 @@ describeWithEnv(
       listingId: number,
     ): Promise<number> => {
       const row = await queryOne<{ attachment_downloads: number }>(
-        "SELECT attachment_downloads FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-        [attendeeId, listingId],
+        sql`SELECT attachment_downloads FROM listing_attendees WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
       );
       return row!.attachment_downloads;
     };
 
     test("adds 1 per call for the matching pair, leaving other rows alone", async () => {
-      const listingA = await createTestListing({ maxAttendees: 10 });
-      const listingB = await createTestListing({ maxAttendees: 10 });
-      const { attendee: onA } = await createTestAttendeeDirect(
-        listingA.id,
-        "Downloader",
-        "down@example.com",
-      );
-      const { attendee: onB } = await createTestAttendeeDirect(
-        listingB.id,
-        "Bystander",
-        "by@example.com",
+      const [listingA, listingB] = await createListingPair({
+        maxAttendees: 10,
+      });
+      const [{ attendee: onA }, { attendee: onB }] = await bookAttendeePair(
+        [listingA, listingB],
+        [
+          { email: "down@example.com", name: "Downloader" },
+          { email: "by@example.com", name: "Bystander" },
+        ],
       );
 
       await incrementAttachmentDownloads(onA.id, listingA.id);
@@ -59,8 +59,9 @@ describeWithEnv(
     });
 
     test("a mismatched attendee+listing pair matches no row", async () => {
-      const listingA = await createTestListing({ maxAttendees: 10 });
-      const listingB = await createTestListing({ maxAttendees: 10 });
+      const [listingA, listingB] = await createListingPair({
+        maxAttendees: 10,
+      });
       const { attendee } = await createTestAttendeeDirect(
         listingA.id,
         "Only A",
@@ -77,17 +78,13 @@ describeWithEnv(
 
 describeWithEnv("db > attendees > updateAttendeePII", { db: true }, () => {
   test("rewrites the stored PII blob for that attendee only", async () => {
-    const listingA = await createTestListing({ maxAttendees: 10 });
-    const listingB = await createTestListing({ maxAttendees: 10 });
-    const { attendee: edited } = await createTestAttendeeDirect(
-      listingA.id,
-      "Old Name",
-      "old@example.com",
-    );
-    const { attendee: other } = await createTestAttendeeDirect(
-      listingB.id,
-      "Untouched",
-      "same@example.com",
+    const [listingA, listingB] = await createListingPair({ maxAttendees: 10 });
+    const [{ attendee: edited }, { attendee: other }] = await bookAttendeePair(
+      [listingA, listingB],
+      [
+        { email: "old@example.com", name: "Old Name" },
+        { email: "same@example.com", name: "Untouched" },
+      ],
     );
 
     await updateAttendeePII(edited.id, {
@@ -153,8 +150,7 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
     await recomputeListingBookingRanges(listing.id, 3);
 
     const row = await queryOne<{ end_at: string; start_at: string }>(
-      "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
-      [listing.id],
+      sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listing.id}`,
     );
     expect(row).toEqual({
       end_at: "2026-09-04T00:00:00.000Z",
@@ -283,8 +279,7 @@ describeWithEnv("db > attendees > moveTickets", { db: true }, () => {
     ]);
 
     const row = await queryOne<{ checked_in: number }>(
-      "SELECT checked_in FROM listing_attendees WHERE attendee_id = ? AND listing_id = ?",
-      [attendee.id, listing.id],
+      sql`SELECT checked_in FROM listing_attendees WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`,
     );
     // The write itself is the point: the answer alone cannot tell a stored
     // count from a skipped one.

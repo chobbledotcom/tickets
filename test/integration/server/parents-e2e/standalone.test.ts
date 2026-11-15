@@ -6,6 +6,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -30,9 +31,8 @@ const bookingRowsFor = async (
 > => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll(
-    `SELECT quantity, parent_listing_id, package_group_id FROM listing_attendees
-     WHERE listing_id = ? ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT quantity, parent_listing_id, package_group_id FROM listing_attendees
+     WHERE listing_id = ${listingId} ORDER BY id DESC`,
   );
 };
 
