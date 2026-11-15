@@ -13,7 +13,10 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { submitListingEdit } from "#test-utils/listing-submits.ts";
+import {
+  submitListingEdit,
+  submitOwnListingEdit,
+} from "#test-utils/listing-submits.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -28,10 +31,8 @@ describeWithEnv(
         listing: { id: number; name: string; slug: string },
         groupId: number,
       ) =>
-        submitListingEdit(listing.id, {
+        submitOwnListingEdit(listing, {
           group_ids: String(groupId),
-          name: listing.name,
-          slug: listing.slug,
         });
 
       const expectListingUpdated = (id: number, response: Response) =>

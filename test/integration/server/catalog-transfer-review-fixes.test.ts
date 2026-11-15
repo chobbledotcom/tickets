@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
+  importedListing,
   requireEntityImport,
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
@@ -38,6 +39,20 @@ const refusedPlanImportError = async (name: string): Promise<string> => {
     throw new Error(`the built-site plan import was accepted: ${name}`);
   }
   return result.error;
+};
+
+/** A listing with a webhook and the defaults switch, exported by an editor and
+ * renamed so it imports as a new listing. The editor's export leaves out the
+ * fields an editor cannot set. */
+const editorExportCopy = async () => {
+  const source = await createTestListing({
+    name: "Editor Listing",
+    useDefaults: true,
+    webhookUrl: "https://example.com/hook",
+  });
+  const blob = unwrapExport(await exportListing(source.id, "editor"));
+  blob.listing.name = "Editor Listing copy";
+  return blob;
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -97,8 +112,28 @@ describeWithEnv(
       assertStringIncludes(result.error, "referenced more than once");
     });
 
-    test("keeps the webhook URL for a non-editor import", async () => {
+    test("strips webhook URL and use-defaults for an editor import", async () => {
       const result = await importCatalog(
+        {
+          kind: "listing",
+          listing: {
+            maxAttendees: 5,
+            name: "Editor Listing",
+            useDefaults: true,
+            webhookUrl: "https://example.com/hook",
+          },
+          version: 1,
+        },
+        "editor",
+      );
+      expect(result).toEqual({
+        error: "editors cannot set useDefaults",
+        ok: false,
+      });
+    });
+
+    test("keeps the webhook URL for a non-editor import", async () => {
+      const imported = await importedListing(
         {
           kind: "listing",
           listing: {
@@ -110,10 +145,6 @@ describeWithEnv(
         },
         "owner",
       );
-      if (!result.ok) throw new Error(result.error);
-      const imported = (await getListingWithCount(
-        requireEntityImport(result).id,
-      ))!;
       expect(imported.webhook_url).toBe("https://example.com/hook");
     });
 
@@ -126,6 +157,12 @@ describeWithEnv(
         t("catalog_transfer.site_plan_listing_refused", {
           name: "Builder On",
         }),
+      );
+    });
+
+    test("clears uses-logistics when logistics is disabled", async () => {
+      await expect(importLogisticsListing("Logi Off")).rejects.toThrow(
+        "usesLogistics needs logistics turned on",
       );
     });
 

@@ -12,7 +12,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
-import { submitListingEdit } from "#test-utils/listing-submits.ts";
+import {
+  submitListingEdit,
+  submitOwnListingEdit,
+} from "#test-utils/listing-submits.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
@@ -29,11 +32,7 @@ const LISTING_SETUP = { maxAttendees: 100, thankYouUrl: "https://example.com" };
  *  the given boxes. */
 const saveFirstListing = async (boxes: TestFormValues) => {
   const { listing } = await setupListingAndLogin(LISTING_SETUP);
-  const { response } = await submitListingEdit(listing.id, {
-    name: listing.name,
-    slug: listing.slug,
-    ...boxes,
-  });
+  const { response } = await submitOwnListingEdit(listing, boxes);
   return { response, updated: await getListingWithCount(listing.id) };
 };
 

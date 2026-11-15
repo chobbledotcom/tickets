@@ -7,7 +7,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
-import { submitListingEdit } from "#test-utils/listing-submits.ts";
+import { submitOwnListingEdit } from "#test-utils/listing-submits.ts";
 import { setupListingAndLogin } from "#test-utils/session.ts";
 
 /** A signed-in owner's listing that shares a group with one sibling of the
@@ -34,10 +34,8 @@ const refusedRegroup = async (
   boxes: TestFormValues,
   message: string,
 ) => {
-  const { response } = await submitListingEdit(listing.id, {
+  const { response } = await submitOwnListingEdit(listing, {
     group_ids: String(groupId),
-    name: listing.name,
-    slug: listing.slug,
     ...boxes,
   });
   await expectHtmlResponse(response, 400, message);

@@ -25,9 +25,6 @@ import { readTicketPage, setupCheckinTest } from "./helpers.ts";
 
 describeWithEnv("check-in page role authorization", { db: true }, () => {
   describe("GET /checkin/:tokens (delivery agent session)", () => {
-    // Delivery agents and their run sheets belong to logistics.
-    beforeEach(() => enableFeature("logistics"));
-
     test("delivery agents cannot use check-in tokens for another agent's booking", async () => {
       const assignedAgent = (
         await logisticsAgents.table.insert({ name: "Assigned van" })
@@ -247,6 +244,9 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await readTicketPage(token, cookie);
       assertStringIncludes(body, "Tomorrow Person");
     });
+
+    // Delivery agents and their run sheets belong to logistics.
+    beforeEach(() => enableFeature("logistics"));
   });
 
   describe("GET /checkin/:tokens (editor session)", () => {
