@@ -1,20 +1,29 @@
 /**
  * The jscpd baseline ratchet: a branch must not accept a clone that the merge
  * base on `origin/main` does not accept. Every `.jscpd.*baseline.json` holds
- * one count per accepted clone fingerprint, so the ratchet compares those
+ * one count per duplicated snippet fingerprint, so the ratchet compares those
  * counts with the base. A fingerprint the base does not hold, and a count
  * above the base's, both fail. A fingerprint that is gone, and a count below
- * the base's, pass: a baseline only shrinks. The one accepted rise is a
- * re-paired clone (see ./re-pairs.ts). See "Code Duplication" in AGENTS.md.
+ * the base's, pass: a baseline only shrinks.
+ *
+ * The fingerprint covers the snippet's content with every run of whitespace
+ * removed (see ../jscpd/baseline.ts), so a shifted line and a re-paired clone
+ * keep their count. A baseline the merge base holds in an older fingerprint
+ * version cannot be compared, so this check passes it and the next scan in
+ * `deno task cpd` holds the working tree to it. See "Code Duplication" in
+ * AGENTS.md.
  */
 
 import { basename } from "node:path";
-import * as v from "valibot";
 import { flatMap, sort, sortStrings, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
-import { parseJsonWith } from "#scripts/read-json.ts";
+import {
+  type FingerprintCounts,
+  readBaseline,
+  rises,
+  versionMismatch,
+} from "#scripts/jscpd/baseline.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { integerAtLeast } from "#shared/validation/number.ts";
 
 /** The prefix every committed jscpd baseline carries. */
 const JSCPD_PREFIX = ".jscpd.";
@@ -26,16 +35,6 @@ const BASELINE_SUFFIX = "baseline.json";
 
 /** Where a reader finds the rule and the way out. */
 export const RATCHET_GUIDE = '"Code Duplication" in AGENTS.md';
-
-/** One accepted clone's fingerprint, and how often the scan reported it. */
-export type FingerprintCounts = Record<string, number>;
-
-/** A baseline file's shape: the version jscpd wrote, and one count per
- * accepted clone fingerprint. */
-const BASELINE_SCHEMA = v.object({
-  fingerprints: v.record(v.string(), integerAtLeast(0)),
-  version: v.number(),
-});
 
 /** The baseline file names among `names`: the `.jscpd.*baseline.json` files
  * that `cfg/` holds, sorted. A new scan's baseline is found without a second
@@ -113,110 +112,69 @@ export const unreadBaselineFindings = (
   );
 };
 
-/** One baseline file's clone counts, read from its text. Text that is not a
- * baseline fails loudly and names the file. */
-export const fingerprintCounts = (
-  path: string,
-  text: string,
-): FingerprintCounts => {
-  const parsed = v.safeParse(
-    BASELINE_SCHEMA,
-    parseJsonWith(() => {
-      throw new Error(`The jscpd baseline ${path} does not hold JSON.`);
-    })(text),
-  );
-  if (!parsed.success) {
-    throw new Error(
-      `The jscpd baseline ${path} does not hold the shape jscpd writes: ` +
-        v.summarize(parsed.issues),
-    );
-  }
-  return parsed.output.fingerprints;
-};
-
-/** How many clones `head` holds under fingerprints the base does not hold. */
-const addedClones = (
-  head: FingerprintCounts,
-  base: FingerprintCounts,
-): number =>
-  Object.entries(head).reduce(
-    (total, [fingerprint, count]) =>
-      base[fingerprint] === undefined ? total + count : total,
-    0,
-  );
-
-/** How many clones one baseline file holds that its merge base copy does not
- * hold. The ratchet scans for re-pairs only when this is above zero. */
-export const addedCloneCount = (
-  path: string,
-  headText: string,
-  baseText: string,
-): number =>
-  addedClones(
-    fingerprintCounts(path, headText),
-    fingerprintCounts(path, baseText),
-  );
-
 /** The finding lines for one baseline file's clones above the base's counts,
  * in fingerprint order. A fingerprint the base does not hold is absent from
  * the scan's record, so it counts as zero accepted clones there, and any
- * count above zero is a rise. The added clones pass together when the scan
- * finds at least that many re-pairs. */
+ * count above zero is a rise. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
-  rePairs: number,
-): string[] => {
-  const addedPass = addedClones(head, base) <= rePairs;
-  const rises = Object.entries(head).filter(
-    ([fingerprint, count]) =>
-      count > (base[fingerprint] ?? 0) &&
-      !(addedPass && base[fingerprint] === undefined),
-  );
-  return sort((left: [string, number], right: [string, number]) =>
-    left[0].localeCompare(right[0]),
-  )(rises).map(([fingerprint, count]) => {
+): string[] =>
+  rises(head, base).map(([fingerprint, count]) => {
     const recorded = base[fingerprint];
     return recorded === undefined
       ? formatFinding(`${path}:${fingerprint}`, {
           fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s) that the merge base does not hold`,
+          problem: `holds ${count} place(s) that the merge base does not hold`,
           rule: "added-clone",
         })
       : formatFinding(`${path}:${fingerprint}`, {
           fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s), up from ${recorded}`,
+          problem: `holds ${count} place(s), up from ${recorded}`,
           rule: "raised-clone",
         });
   });
-};
 
 /**
  * One baseline file's rises against the merge base, in fingerprint order.
  * `baseText` is undefined when the merge base holds no such file: a new
  * baseline accepts clones that main never accepted, so it fails unless it
- * holds none. `rePairs` is the count of re-paired clones the scan found.
+ * holds none. A baseline this tree cannot read the counts of is a finding:
+ * refreshing it is the only way to hold it to the scan.
  */
 export const riseFindings = (
   path: string,
   headText: string,
   baseText: string | undefined,
-  rePairs: number,
 ): string[] => {
-  const head = fingerprintCounts(path, headText);
+  const head = readBaseline(path, headText);
+  const mismatch = versionMismatch(head);
+  if (mismatch !== undefined) {
+    return [
+      formatFinding(path, {
+        fix: "refresh the baseline with --update",
+        problem: mismatch,
+        rule: "baseline-version",
+      }),
+    ];
+  }
   if (baseText === undefined) {
-    const accepted = Object.keys(head).length;
+    const accepted = Object.keys(head.counts).length;
     return accepted === 0
       ? []
       : [
           formatFinding(path, {
             fix: "merge the duplicated code before you add the scan",
-            problem: `is a new baseline that accepts ${accepted} clone(s)`,
+            problem: `is a new baseline that accepts ${accepted} place(s)`,
             rule: "added-baseline",
           }),
         ];
   }
-  const base = fingerprintCounts(path, baseText);
-  return risenFindings(path, head, base, rePairs);
+  const base = readBaseline(path, baseText);
+  // A merge base that holds another fingerprint version has counts this tree
+  // cannot compare. The migration passes here, and the scan that follows the
+  // ratchet holds the working tree to the refreshed baseline.
+  if (versionMismatch(base) !== undefined) return [];
+  return risenFindings(path, head.counts, base.counts);
 };

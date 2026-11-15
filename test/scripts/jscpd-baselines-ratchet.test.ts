@@ -5,7 +5,6 @@ import {
   baselineFileNames,
   baselinePathsNamed,
   basePathFor,
-  fingerprintCounts,
   RATCHET_GUIDE,
   riseFindings,
   unreadBaselineFindings,
@@ -16,6 +15,7 @@ import {
   ratchetExit,
   taskBaselines,
 } from "#scripts/check-jscpd-baselines/ratchet-run.ts";
+import { BASELINE_VERSION } from "#scripts/jscpd/baseline.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { capturedCheckOutput } from "#test-utils/check-script.ts";
 import { directoryNames } from "#test-utils/files.ts";
@@ -30,9 +30,11 @@ import {
 
 const BASELINE = "cfg/.jscpd.baseline.json";
 
-/** A baseline file's text, in the shape jscpd writes. */
-const baseline = (counts: Record<string, number>): string =>
-  JSON.stringify({ fingerprints: counts, version: 1 });
+/** A baseline file's text, in the shape this tree writes. */
+const baseline = (
+  counts: Record<string, number>,
+  version: number = BASELINE_VERSION,
+): string => JSON.stringify({ fingerprints: counts, version });
 
 describe("baselineFileNames", () => {
   test("keeps the baseline files and sorts them", () => {
@@ -144,37 +146,10 @@ describe("unreadBaselineFindings", () => {
   });
 });
 
-describe("fingerprintCounts", () => {
-  test("reads one count per fingerprint", () => {
-    expect(fingerprintCounts(BASELINE, baseline({ aaa: 1, bbb: 3 }))).toEqual({
-      aaa: 1,
-      bbb: 3,
-    });
-  });
-
-  test("refuses text that is not JSON, naming the file", () => {
-    expect(() => fingerprintCounts(BASELINE, "{,}")).toThrow(
-      `${BASELINE} does not hold JSON`,
-    );
-  });
-
-  test("refuses a file that is not a baseline, naming the file", () => {
-    expect(() => fingerprintCounts(BASELINE, '{"version": 1}')).toThrow(
-      `${BASELINE} does not hold the shape jscpd writes`,
-    );
-  });
-
-  test("refuses a clone count above a whole number", () => {
-    expect(() =>
-      fingerprintCounts(BASELINE, JSON.stringify({ fingerprints: { a: 1.5 } })),
-    ).toThrow(`${BASELINE} does not hold the shape jscpd writes`);
-  });
-});
-
 describe("riseFindings", () => {
   test("passes when every clone count matches the base", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 }), 0),
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 })),
     ).toEqual([]);
   });
 
@@ -184,16 +159,13 @@ describe("riseFindings", () => {
         BASELINE,
         baseline({ aaa: 1 }),
         baseline({ aaa: 2, bbb: 1 }),
-        0,
       ),
     ).toEqual([]);
   });
 
   test("names a clone the base does not hold", () => {
-    expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}), 0),
-    ).toEqual([
-      `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
+    expect(riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}))).toEqual([
+      `${BASELINE}:aaa [added-clone]: holds 1 place(s) that the merge base ` +
         "does not hold — merge the duplicated code, then lower the baseline " +
         "with --update",
     ]);
@@ -201,16 +173,16 @@ describe("riseFindings", () => {
 
   test("names a clone count above the base's", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 }), 0),
+      riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 })),
     ).toEqual([
-      `${BASELINE}:aaa [raised-clone]: holds 3 clone(s), up from 2 — merge the ` +
+      `${BASELINE}:aaa [raised-clone]: holds 3 place(s), up from 2 — merge the ` +
         "duplicated code, then lower the baseline with --update",
     ]);
   });
 
   test("reports raised clones in fingerprint order", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({}), 0).map(
+      riseFindings(BASELINE, baseline({ aaa: 1, zzz: 1 }), baseline({})).map(
         (line) => line.slice(0, line.indexOf(" ")),
       ),
     ).toEqual([`${BASELINE}:aaa`, `${BASELINE}:zzz`]);
@@ -218,15 +190,38 @@ describe("riseFindings", () => {
 
   test("fails a new baseline that accepts clones", () => {
     expect(
-      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined, 0),
+      riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined),
     ).toEqual([
       `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
-        "clone(s) — merge the duplicated code before you add the scan",
+        "place(s) — merge the duplicated code before you add the scan",
     ]);
   });
 
   test("passes a new baseline that accepts no clone", () => {
-    expect(riseFindings(BASELINE, baseline({}), undefined, 0)).toEqual([]);
+    expect(riseFindings(BASELINE, baseline({}), undefined)).toEqual([]);
+  });
+
+  test("passes a baseline the merge base holds in an older fingerprint version", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 1 }),
+        baseline({ bbb: 9 }, BASELINE_VERSION - 1),
+      ),
+    ).toEqual([]);
+  });
+
+  test("fails a baseline this tree cannot compare", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 1 }, BASELINE_VERSION - 1),
+        baseline({ aaa: 1 }),
+      ),
+    ).toEqual([
+      `${BASELINE} [baseline-version]: holds fingerprint version 1, but this ` +
+        "tree writes version 2 — refresh the baseline with --update",
+    ]);
   });
 });
 
@@ -264,7 +259,6 @@ describe("ratchetExit", () => {
       readBaselines: () => Promise.resolve(files),
       readNamedBaselines: () => Promise.resolve(named),
       run: stubFor(base),
-      scanNewClones: () => Promise.resolve([]),
     });
   };
 
@@ -302,7 +296,7 @@ describe("ratchetExit", () => {
       ),
     ).toBe(1);
     expect(output.lines).toEqual([
-      "cfg/.jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 clone(s) " +
+      "cfg/.jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 place(s) " +
         "that the merge base does not hold — merge the duplicated code, then " +
         "lower the baseline with --update",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
@@ -314,7 +308,7 @@ describe("ratchetExit", () => {
       await exitFor([{ path: BASELINE, text: baseline({ aaa: 1 }) }], {}),
     ).toBe(1);
     expect(output.lines).toEqual([
-      `${BASELINE} [added-baseline]: is a new baseline that accepts 1 clone(s) ` +
+      `${BASELINE} [added-baseline]: is a new baseline that accepts 1 place(s) ` +
         "— merge the duplicated code before you add the scan",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
     ]);
@@ -352,7 +346,6 @@ describe("ratchetExit", () => {
           Promise.resolve([{ path: BASELINE, text: baseline({}) }]),
         readNamedBaselines: () => Promise.resolve([BASELINE]),
         run,
-        scanNewClones: () => Promise.resolve([]),
       }),
     ).rejects.toThrow(
       "git ls-tree -r --name-only base123 failed: fatal: bad object base123",
@@ -373,7 +366,6 @@ describe("ratchetExit", () => {
         readBaselines: () => Promise.resolve([]),
         readNamedBaselines: () => Promise.resolve([]),
         run,
-        scanNewClones: () => Promise.resolve([]),
       }),
     ).rejects.toThrow(/git fetch origin main/);
   });
