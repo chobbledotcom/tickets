@@ -76,7 +76,7 @@ export type ListingDefaultField = {
  * - `uses_logistics` is inert while logistics is off, so a listing created in a
  *   logistics-off window cannot silently become one if the feature returns.
  * - `hidden` never applies to a renewal tier, which must stay hidden and
- *   purchase-only or renewal extension breaks. {@link catalogVisibleSql}
+ *   purchase-only or renewal extension breaks. {@link catalogVisible}
  *   mirrors this gate in SQL.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [

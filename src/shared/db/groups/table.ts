@@ -3,6 +3,8 @@
  * side, listing records read the other, so the table homes apart from both. */
 
 import { linkTableSide } from "#db/link-table.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { requiredMapValue } from "#fp";
 
 /** The listing ids in a group, and the reverse listing-to-groups side. */
@@ -24,3 +26,6 @@ export const listingGroups = {
       "Missing listing group membership",
     ),
 };
+
+/** The group row of a read that names the table `groups AS groupRecord`. */
+export const GROUP_ROW = tableNode(tables.groups, "groupRecord");

@@ -10,8 +10,13 @@
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
-import { sql, sqlName } from "#db/sql.ts";
-import type { WhereClause } from "#db/where-clauses.ts";
+import { atLeast, type Condition, lessThan } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+
+/** The ledger row of a statement written by hand. The statement must name
+ *  the table `transfers AS transfer`, the word a read from the builder uses. */
+export const LEDGER_ROW = tableNode(tables.transfers, "transfer");
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
  *  null bound is open on that side, and both null is "forever". */
@@ -26,18 +31,15 @@ export type LedgerRange = {
 export const emptyRange: LedgerRange = { endMs: null, startMs: null };
 
 /**
- * The `occurred_at` bounds of a range as filter clauses — one per bound that is
- * set, none for an unbounded range. Compose them with the other clauses of a
- * ledger read and let `whereSql` build the tail.
+ * The `occurred_at` bounds of a range as conditions: one for each bound that
+ * is set, none for an unbounded range. They read the ledger row of a statement
+ * that names the table `transfers AS transfer`.
  */
-export const occurredAtRange = (
-  range: LedgerRange,
-  column = "occurred_at",
-): WhereClause[] => [
+export const occurredAtRange = (range: LedgerRange): Condition[] => [
   ...(range.startMs === null
     ? []
-    : [{ clause: sql`${sqlName(column)} >= ${range.startMs}` }]),
+    : [atLeast(LEDGER_ROW.occurred_at, range.startMs)]),
   ...(range.endMs === null
     ? []
-    : [{ clause: sql`${sqlName(column)} < ${range.endMs}` }]),
+    : [lessThan(LEDGER_ROW.occurred_at, range.endMs)]),
 ];

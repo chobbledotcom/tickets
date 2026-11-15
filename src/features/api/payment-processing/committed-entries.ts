@@ -1,6 +1,8 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { contactFields } from "#db/attendees/pii.ts";
 import {
+  ATTENDEE_ROW,
+  BOOKING_ROW,
   pricePaidFromLedger,
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
@@ -45,14 +47,9 @@ export const committedEntries = async (
                    attendee.kind,
                    listingAttendee.listing_id,
                    listingAttendee.package_group_id,
-                   ${pricePaidFromLedger(
-                     sql`listingAttendee.attendee_id`,
-                     sql`listingAttendee.listing_id`,
-                     sql`listingAttendee.ledger_event_group`,
-                     sql`listingAttendee.id`,
-                   )},
+                   ${pricePaidFromLedger(BOOKING_ROW)},
                    listingAttendee.quantity,
-                   ${remainingBalanceFromLedger(sql`attendee.id`)},
+                   ${remainingBalanceFromLedger(ATTENDEE_ROW.id)},
                    attendee.status_id,
                    attendee.ticket_token_index,
                    attendee.webhooks_pending

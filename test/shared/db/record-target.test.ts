@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineRecordTarget, ITEM_TARGET_COLUMNS } from "#db/record-target.ts";
+import { and, matchesNothing, whereTail } from "#db/select/expression.ts";
 import { sql } from "#db/sql.ts";
-import { rowsUnlessNoneMatch, whereSql } from "#db/where-clauses.ts";
 
 /** A make-believe domain: notes-style columns, two kinds, tables listed. */
 const targets = defineRecordTarget({
@@ -76,15 +76,15 @@ describe("asking for a record's rows", () => {
 
   for (const { clause, expectedArgs, expectedSql, name } of singleRecordAsks) {
     test(name, () => {
-      expect(whereSql(clause()).sql).toBe(expectedSql);
-      expect(whereSql(clause()).args).toEqual(expectedArgs);
+      expect(whereTail(clause()).sql).toBe(expectedSql);
+      expect(whereTail(clause()).args).toEqual(expectedArgs);
     });
   }
 
   test("names the table when the read joins", () => {
     const where = targets.where({ id: 4, kind: "attendee" }, "note");
 
-    expect(whereSql(where).sql).toBe(
+    expect(whereTail(where).sql).toBe(
       " WHERE note.entity_type = ?1 AND note.entity_id = ?2",
     );
   });
@@ -92,32 +92,27 @@ describe("asking for a record's rows", () => {
   test("asks for several records of one kind in one go", () => {
     const where = targets.whereMany("attendee", [4, 5]);
 
-    expect(whereSql(where).sql).toBe(
+    expect(whereTail(where).sql).toBe(
       " WHERE entity_type = ?1 AND entity_id IN (?2, ?3)",
     );
-    expect(whereSql(where).args).toEqual(["attendee", 4, 5]);
+    expect(whereTail(where).args).toEqual(["attendee", 4, 5]);
   });
 
   test("names the table for several records too", () => {
-    expect(whereSql(targets.whereMany("attendee", [4], "note")).sql).toBe(
+    expect(whereTail(targets.whereMany("attendee", [4], "note")).sql).toBe(
       " WHERE note.entity_type = ?1 AND note.entity_id IN (?2)",
     );
   });
 
-  test("asking about no records is a question no row can answer", async () => {
-    // The reader sees this and skips the round trip, rather than building
-    // `IN ()` — SQL no database accepts.
-    let asked = false;
-    const rows = await rowsUnlessNoneMatch(
-      targets.whereMany("attendee", []),
-      () => {
-        asked = true;
-        return Promise.resolve([{ id: 1 }]);
-      },
-    );
+  test("asking about no records is a question no row can answer", () => {
+    // A reader sees this and skips the round trip. The text stays valid SQL,
+    // not `IN ()`, which no database accepts.
+    const where = targets.whereMany("attendee", []);
 
-    expect(rows).toEqual([]);
-    expect(asked).toBe(false);
+    expect(matchesNothing(and(...where))).toBe(true);
+    expect(whereTail(where).sql).toBe(
+      " WHERE entity_type = ?1 AND entity_id IN (NULL)",
+    );
   });
 
   test("keeps another query's own arguments after the kind", () => {
@@ -126,11 +121,11 @@ describe("asking for a record's rows", () => {
       sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`,
     );
 
-    expect(whereSql(where).sql).toBe(
+    expect(whereTail(where).sql).toBe(
       " WHERE entity_type = ?1 AND entity_id IN" +
         " (SELECT attendee_id FROM listing_attendees WHERE listing_id = ?2)",
     );
-    expect(whereSql(where).args).toEqual(["attendee", 12]);
+    expect(whereTail(where).args).toEqual(["attendee", 12]);
   });
 });
 

@@ -2,7 +2,7 @@
  * Read queries for attendees and their per-listing bookings.
  */
 
-import { saleLegPredicate } from "#accounting/projection-sql.ts";
+import { ledgerLegs, saleLeg } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
@@ -11,13 +11,18 @@ import {
   ATTENDEE_FIELDS,
   type AttendeeKindFilter,
   type AttendeeRowFor,
+  bookingRow,
   type GetAttendeesQuery,
   getAttendees,
   pricePaidFromLedger,
   refundedFromLedger,
+  refundedRowOf,
 } from "#db/attendees/select.ts";
 import { queryOne, rowExists } from "#db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
+import { among, equal, literal } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type SqlStatement,
   sql,
@@ -38,24 +43,15 @@ export const listingAttendeeRowColumnsFrom = (
   sourceName: string,
 ): SqlStatement => {
   const column = columnFrom(sourceName);
+  const row = bookingRow(sourceName);
   return sqlCommas([
     column("listing_id"),
     column("start_at"),
     column("end_at"),
     column("quantity"),
     column("checked_in"),
-    refundedFromLedger({
-      attendeeId: column("attendee_id"),
-      eventGroup: column("ledger_event_group"),
-      listingId: column("listing_id"),
-      placeholderWhen: sql`${column("quantity")} = 0`,
-    }),
-    pricePaidFromLedger(
-      column("attendee_id"),
-      column("listing_id"),
-      column("ledger_event_group"),
-      column("id"),
-    ),
+    refundedFromLedger(refundedRowOf(row)),
+    pricePaidFromLedger(row),
     column("ledger_event_group"),
     column("attachment_downloads"),
     column("order_token"),
@@ -284,16 +280,18 @@ export const hasPaidLine = (
   listingIds: number[],
 ): Promise<boolean> =>
   rowExists(
-    sql`SELECT 1 FROM listing_attendees AS listingAttendee
-     WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.listing_id IN (${sqlList(listingIds)})
-       AND EXISTS (
-         SELECT 1 FROM transfers
-         WHERE ${saleLegPredicate(
-           sql`listingAttendee.attendee_id`,
-           sql`listingAttendee.listing_id`,
-           sql`listingAttendee.ledger_event_group`,
-         )}
-       ) LIMIT 1`,
+    from(tables.listing_attendees)
+      .where((line) => [
+        equal(line.attendee_id, attendeeId),
+        among(line.listing_id, listingIds),
+        ledgerLegs()
+          .where(
+            saleLeg(line.attendee_id, line.listing_id, line.ledger_event_group),
+          )
+          .exists(),
+      ])
+      .limit(1)
+      .select(() => ({ found: literal(1) })),
   );
 
 /**

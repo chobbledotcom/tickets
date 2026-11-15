@@ -21,9 +21,10 @@ import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { type Condition, whereTail } from "#db/select/expression.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteWhere, type WhereClause, whereSql } from "#db/where-clauses.ts";
+import { deleteWhere } from "#db/where-clauses.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
@@ -39,10 +40,8 @@ import type { SitePageItem, SitePageItemType } from "#types";
 const SELECT_COLS = sql`page_id, item_type, item_id, sort_order`;
 
 /** One item on one page — the composite key the edge table is unique on. */
-const itemOnPage = (
-  pageId: number,
-  target: SitePageItemTarget,
-): WhereClause[] => sitePageItemTargets.whereAlso(target, "page_id", pageId);
+const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
+  sitePageItemTargets.whereAlso(target, "page_id", pageId);
 
 /**
  * The statement that clears every edge pointing at one listing, group, or page,
@@ -153,7 +152,7 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
   );
   const duplicate = resultRows<SitePageItem>(
     await tx.execute(
-      sql`SELECT ${SELECT_COLS} FROM site_page_items${whereSql(onThisPage)}`,
+      sql`SELECT ${SELECT_COLS} FROM site_page_items${whereTail(onThisPage)}`,
     ),
   );
   if (duplicate.length > 0) return false;

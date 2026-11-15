@@ -2,14 +2,21 @@
 
 import type { ResultSet } from "@libsql/client";
 import {
+  ledgerLegs,
   paymentLegExists,
-  saleLegPredicate,
+  saleLeg,
 } from "#accounting/projection-sql.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { refundedForBooking } from "#db/attendees/select.ts";
+import {
+  ATTENDEE_ROW,
+  BOOKING_ROW,
+  refundedForBooking,
+  refundedRowOf,
+} from "#db/attendees/select.ts";
 import { queryAllPrimary, queryBatchPrimary, resultRows } from "#db/client.ts";
 import { paymentAnchorSessionCondition } from "#db/payment-anchor/session.ts";
+import { and } from "#db/select/expression.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { rowWorkMirrorSql } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
@@ -54,25 +61,29 @@ type RefundAllCandidateRow = {
   refunded: number;
 };
 
+// The read keeps rows with a quantity, so no row is a placeholder.
 const refundStatus = refundedForBooking({
-  attendeeId: sql`attendee.id`,
-  eventGroup: sql`listingAttendee.ledger_event_group`,
-  listingId: sql`listingAttendee.listing_id`,
-  placeholderWhen: sql`0`,
+  ...refundedRowOf(BOOKING_ROW),
+  attendeeId: ATTENDEE_ROW.id,
+  placeholderWhen: false,
 });
 
 const anchorSession = paymentAnchorSessionCondition(
   sql`payment.payment_session_id`,
 );
 const providerRefundWork = refundAuthorityWorkSql("charge.");
-const paidBooking = sql`EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
-  sql`listingAttendee.attendee_id`,
-  sql`listingAttendee.listing_id`,
-  sql`listingAttendee.ledger_event_group`,
-)}) AND ${paymentLegExists(
-  sql`listingAttendee.attendee_id`,
-  sql`listingAttendee.ledger_event_group`,
-)}`;
+const paidBooking = and(
+  ledgerLegs()
+    .where(
+      saleLeg(
+        BOOKING_ROW.attendee_id,
+        BOOKING_ROW.listing_id,
+        BOOKING_ROW.ledger_event_group,
+      ),
+    )
+    .exists(),
+  paymentLegExists(BOOKING_ROW.attendee_id, BOOKING_ROW.ledger_event_group),
+);
 
 /** Payment facts for real ticket holders on one listing. */
 const refundCandidateCtes = (listingId: number): SqlStatement => sql`
