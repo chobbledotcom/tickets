@@ -11,147 +11,192 @@ import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
 import {
   accountBalanceSubquery,
-  accountPredicate,
   attendeeOwedSubquery,
+  bookingSaleTotalSubquery,
   creditsLessWriteoffDebits,
   externalCashBalanceSubquery,
-  LEG_COLUMNS,
+  type Leg,
+  ledgerLegs,
+  modifierLeg,
+  onAccount,
   orderTotalSubquery,
   paymentLegExists,
   reservationSubtotalSubquery,
-  saleLegPredicate,
-  signedSumCase,
+  saleLeg,
+  signedSum,
 } from "#accounting/projection-sql.ts";
-import { sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
-import { sqlText } from "#test-utils/sql-text.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 
 // Constants are imported (never hardcoded) so a rename of the kind/account
 // vocabulary updates the expected SQL here too. The SQL *structure* — column
 // names, the `CAST(… AS TEXT)`, the CASE/COALESCE shape — is spelled out
 // independently below, so a regression in a builder shows as a mismatch.
 
-describe("LEG_COLUMNS", () => {
-  test("names the source and dest type/id columns", () => {
-    expect(sqlText(LEG_COLUMNS)).toEqual({
-      dest: { id: "dest_id", type: "dest_type" },
-      source: { id: "source_id", type: "source_type" },
-    });
-  });
-});
+const leg: Leg = tableNode(tables.transfers, "leg");
+const la = tableNode(tables.listing_attendees, "la");
+const a = tableNode(tables.attendees, "a");
+const listing = tableNode(tables.listings, "listing");
 
-describe("accountPredicate", () => {
-  test("matches the source leg with a TEXT-cast id expression", () => {
-    expect(accountPredicate("source", ATTENDEE, sql`la.attendee_id`).sql).toBe(
-      `source_type = '${ATTENDEE}' AND source_id = CAST(la.attendee_id AS TEXT)`,
-    );
-  });
+/** The account test of one side, as the projections write it. */
+const side = (role: string, type: string, id: string): string =>
+  `leg.${role}_type = '${type}' AND leg.${role}_id = CAST(${id} AS TEXT)`;
 
-  test("matches the dest leg using the dest_* columns", () => {
-    expect(accountPredicate("dest", REVENUE, sql`listing.id`).sql).toBe(
-      `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT)`,
-    );
-  });
+/** The signed sum of the ledger amounts, as the projections write it. */
+const signed = (adds: string, subtracts: string): string =>
+  `COALESCE(SUM(CASE WHEN ${adds} THEN leg.amount WHEN ${subtracts} THEN -leg.amount ELSE 0 END), 0)`;
 
-  test("interpolates the account type verbatim", () => {
-    expect(accountPredicate("dest", WRITEOFF_TYPE, sql`0`).sql).toBe(
-      `dest_type = '${WRITEOFF_TYPE}' AND dest_id = CAST(0 AS TEXT)`,
+/** A figure of its own over the rows that add or subtract. */
+const figure = (adds: string, subtracts: string, scope = ""): string =>
+  `(SELECT ${signed(adds, subtracts)} FROM transfers AS leg WHERE ${scope}((${adds}) OR (${subtracts})))`;
+
+describe("ledgerLegs", () => {
+  test("reads the ledger under the word leg", () => {
+    expect(ledgerLegs().select((row) => ({ id: row.id })).sql).toBe(
+      "SELECT leg.id AS id FROM transfers AS leg",
     );
   });
 });
 
-describe("saleLegPredicate", () => {
+describe("onAccount", () => {
+  test("matches the source side with the id CAST to TEXT", () => {
+    expect(onAccount("source", ATTENDEE, la.attendee_id)(leg).sql).toBe(
+      side("source", ATTENDEE, "la.attendee_id"),
+    );
+  });
+
+  test("matches the dest side on the dest columns", () => {
+    expect(onAccount("dest", REVENUE, listing.id)(leg).sql).toBe(
+      side("dest", REVENUE, "listing.id"),
+    );
+  });
+
+  test("writes the account type as it is", () => {
+    expect(onAccount("dest", WRITEOFF_TYPE, a.id)(leg).sql).toBe(
+      side("dest", WRITEOFF_TYPE, "a.id"),
+    );
+  });
+
+  test("binds an id that is text", () => {
+    expect(onAccount("dest", ATTENDEE, "7")(leg)).toEqual(
+      sql`leg.dest_type = 'attendee' AND leg.dest_id = CAST(${"7"} AS TEXT)`,
+    );
+  });
+});
+
+const saleLegText =
+  `leg.kind = '${KIND.sale}'` +
+  ` AND ${side("source", ATTENDEE, "la.attendee_id")}` +
+  ` AND ${side("dest", REVENUE, "la.listing_id")}` +
+  " AND leg.event_group = la.ledger_event_group";
+
+describe("saleLeg", () => {
   test("scopes a gross sale leg: kind + attendee source + revenue dest + event group", () => {
     expect(
-      saleLegPredicate(
-        sql`la.attendee_id`,
-        sql`la.listing_id`,
-        sql`la.ledger_event_group`,
-      ).sql,
-    ).toBe(
-      `kind = '${KIND.sale}'` +
-        ` AND source_type = '${ATTENDEE}' AND source_id = CAST(la.attendee_id AS TEXT)` +
-        ` AND dest_type = '${REVENUE}' AND dest_id = CAST(la.listing_id AS TEXT)` +
-        " AND event_group = la.ledger_event_group",
-    );
+      saleLeg(la.attendee_id, la.listing_id, la.ledger_event_group)(leg).sql,
+    ).toBe(saleLegText);
   });
 });
 
 describe("paymentLegExists", () => {
   test("asks for a payment leg into the attendee in the event group", () => {
-    expect(
-      paymentLegExists(sql`la.attendee_id`, sql`la.ledger_event_group`).sql,
-    ).toBe(
-      `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-        ` AND dest_type = '${ATTENDEE}' AND dest_id = CAST(la.attendee_id AS TEXT)` +
-        " AND event_group = la.ledger_event_group)",
+    expect(paymentLegExists(la.attendee_id, la.ledger_event_group).sql).toBe(
+      `EXISTS (SELECT 1 FROM transfers AS leg WHERE leg.kind = '${KIND.payment}'` +
+        ` AND ${side("dest", ATTENDEE, "la.attendee_id")}` +
+        " AND leg.event_group = la.ledger_event_group)",
     );
   });
 });
 
-describe("signedSumCase", () => {
-  test("adds `plus` legs, subtracts `minus` legs, zero otherwise", () => {
-    expect(signedSumCase(sql`P`, sql`M`).sql).toBe(
-      "COALESCE(SUM(CASE WHEN P THEN amount WHEN M THEN -amount ELSE 0 END), 0)",
+describe("signedSum", () => {
+  test("adds the rows of the first test, subtracts the rows of the second, zero otherwise", () => {
+    expect(
+      signedSum(
+        onAccount("dest", ATTENDEE, a.id),
+        onAccount("source", ATTENDEE, a.id),
+      )(leg).sql,
+    ).toBe(
+      signed(side("dest", ATTENDEE, "a.id"), side("source", ATTENDEE, "a.id")),
     );
   });
 
-  test("keeps the values the predicate fragments bind", () => {
+  test("keeps the values the tests bind", () => {
     expect(
-      signedSumCase(sql`dest_id = ${"a"}`, sql`source_id = ${"b"}`),
-    ).toEqual(
-      sql`COALESCE(SUM(CASE WHEN dest_id = ${"a"} THEN amount WHEN source_id = ${"b"} THEN -amount ELSE 0 END), 0)`,
+      signedSum(
+        onAccount("dest", ATTENDEE, "a"),
+        onAccount("source", ATTENDEE, "b"),
+      )(leg).args,
+    ).toEqual(["a", "b"]);
+  });
+});
+
+describe("bookingSaleTotalSubquery", () => {
+  test("sums the sale leg and the tax corrections of the booking", () => {
+    const credit = `${side("source", ATTENDEE, "la.attendee_id")} AND ${side("dest", REVENUE, "la.listing_id")}`;
+    const debit = `${side("dest", ATTENDEE, "la.attendee_id")} AND ${side("source", REVENUE, "la.listing_id")}`;
+    const corrected =
+      "SELECT assessment.event_group FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = la.ledger_event_group";
+    expect(
+      bookingSaleTotalSubquery(
+        la.attendee_id,
+        la.listing_id,
+        la.ledger_event_group,
+      ).sql,
+    ).toBe(
+      `(SELECT ${signed(credit, debit)} FROM transfers AS leg WHERE ((${saleLegText})` +
+        ` OR (leg.kind = '${KIND.taxSale}' AND leg.event_group IN (${corrected})` +
+        ` AND ((${credit}) OR (${debit})))))`,
     );
   });
 });
 
 describe("creditsLessWriteoffDebits", () => {
   test("sums dest credits minus writeoff-directed source debits, scanning only both legs", () => {
-    const credited = `dest_type = '${REVENUE}' AND dest_id = CAST(listing.id AS TEXT) AND (kind IS NULL OR kind NOT IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}'))`;
+    const credited = `${side("dest", REVENUE, "listing.id")} AND NOT leg.kind IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}')`;
     const writtenOff =
-      `source_type = '${REVENUE}' AND source_id = CAST(listing.id AS TEXT)` +
-      ` AND (dest_type = '${WRITEOFF_TYPE}' OR kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
-    expect(creditsLessWriteoffDebits(REVENUE, sql`listing.id`).sql).toBe(
-      "(SELECT COALESCE(SUM(" +
-        `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
-        `), 0) FROM transfers WHERE ${credited} OR ${writtenOff})`,
+      side("source", REVENUE, "listing.id") +
+      ` AND (leg.dest_type = '${WRITEOFF_TYPE}' OR leg.kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
+    expect(creditsLessWriteoffDebits(REVENUE, listing.id).sql).toBe(
+      figure(credited, writtenOff),
     );
   });
 });
 
+const attendeeIn = side("dest", ATTENDEE, "a.id");
+const attendeeOut = side("source", ATTENDEE, "a.id");
+
 describe("accountBalanceSubquery", () => {
   test("is a bare signed-sum subquery over the account's own legs", () => {
-    const asDest = `dest_type = '${ATTENDEE}' AND dest_id = CAST(a.id AS TEXT)`;
-    const asSource = `source_type = '${ATTENDEE}' AND source_id = CAST(a.id AS TEXT)`;
-    expect(accountBalanceSubquery(ATTENDEE, sql`a.id`).sql).toBe(
-      `(SELECT COALESCE(SUM(CASE WHEN ${asDest} THEN amount` +
-        ` WHEN ${asSource} THEN -amount ELSE 0 END), 0)` +
-        ` FROM transfers WHERE ${asDest} OR ${asSource})`,
+    expect(accountBalanceSubquery(ATTENDEE, a.id).sql).toBe(
+      figure(attendeeIn, attendeeOut),
     );
   });
 });
 
 describe("externalCashBalanceSubquery", () => {
   test("adds cash received and subtracts cash returned", () => {
-    const received = sql`dest_type = ${sqlLiteral(ATTENDEE)} AND dest_id = CAST(a.id AS TEXT) AND source_type = ${sqlLiteral(WORLD.type)} AND source_id = ${sqlLiteral(WORLD.id)}`;
-    const returned = sql`source_type = ${sqlLiteral(ATTENDEE)} AND source_id = CAST(a.id AS TEXT) AND dest_type = ${sqlLiteral(WORLD.type)} AND dest_id = ${sqlLiteral(WORLD.id)}`;
-    expect(externalCashBalanceSubquery(ATTENDEE, sql`a.id`).sql).toBe(
-      sql`(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`
-        .sql,
+    const world = (role: string): string =>
+      `leg.${role}_type = '${WORLD.type}' AND leg.${role}_id = '${WORLD.id}'`;
+    expect(externalCashBalanceSubquery(ATTENDEE, a.id).sql).toBe(
+      figure(
+        `${attendeeIn} AND ${world("source")}`,
+        `${attendeeOut} AND ${world("dest")}`,
+      ),
     );
   });
 });
 
 describe("order amount subqueries", () => {
-  const expectedTotal = (kinds: readonly string[]): string => {
-    const billed = sql`source_type = ${sqlLiteral(ATTENDEE)} AND source_id = CAST(a.id AS TEXT)`;
-    const discounted = sql`dest_type = ${sqlLiteral(ATTENDEE)} AND dest_id = CAST(a.id AS TEXT)`;
-    const kindList = sqlCommas(kinds.map(sqlLiteral));
-    return sql`(SELECT ${signedSumCase(billed, discounted)} FROM transfers WHERE kind IN (${kindList}) AND (${billed} OR ${discounted}))`
-      .sql;
-  };
+  const expectedTotal = (kinds: readonly string[]): string =>
+    figure(
+      attendeeOut,
+      attendeeIn,
+      `leg.kind IN (${kinds.map((kind) => `'${kind}'`).join(", ")}) AND `,
+    );
 
   test("keeps fees and manual charges out of the reservation subtotal", () => {
-    expect(reservationSubtotalSubquery(ATTENDEE, sql`a.id`).sql).toBe(
+    expect(reservationSubtotalSubquery(ATTENDEE, a.id).sql).toBe(
       expectedTotal([
         KIND.sale,
         KIND.modifier,
@@ -163,7 +208,7 @@ describe("order amount subqueries", () => {
   });
 
   test("includes fees, VAT and manual charges in the full order total", () => {
-    expect(orderTotalSubquery(ATTENDEE, sql`a.id`).sql).toBe(
+    expect(orderTotalSubquery(ATTENDEE, a.id).sql).toBe(
       expectedTotal([
         KIND.sale,
         KIND.modifier,
@@ -179,15 +224,33 @@ describe("order amount subqueries", () => {
 
 describe("attendeeOwedSubquery", () => {
   test("is the negation of the attendee's balance subquery", () => {
-    expect(attendeeOwedSubquery(sql`a.id`).sql).toBe(
-      `-${accountBalanceSubquery(ATTENDEE, sql`a.id`).sql}`,
+    expect(attendeeOwedSubquery(a.id).sql).toBe(
+      `-${accountBalanceSubquery(ATTENDEE, a.id).sql}`,
     );
   });
 
   test("scopes to the attendee account type, not revenue", () => {
-    const { sql: text } = attendeeOwedSubquery(sql`a.id`);
+    const { sql: text } = attendeeOwedSubquery(a.id);
     expect(text.startsWith("-(SELECT")).toBe(true);
-    assertStringIncludes(text, `dest_type = '${ATTENDEE}'`);
+    assertStringIncludes(text, `leg.dest_type = '${ATTENDEE}'`);
     assert(!text.includes(`'${REVENUE}'`));
+  });
+});
+
+describe("modifierLeg", () => {
+  test("reads the modifier from the side that holds it", () => {
+    expect(modifierLeg.accountId(leg).sql).toBe(
+      "CASE WHEN leg.dest_type = 'modifier' THEN leg.dest_id ELSE leg.source_id END",
+    );
+  });
+
+  test("adds a surcharge and subtracts a discount", () => {
+    expect(modifierLeg.signedAmount(leg).sql).toBe(
+      signed("leg.dest_type = 'modifier'", "leg.source_type = 'modifier'"),
+    );
+  });
+
+  test("keeps the modifier legs only", () => {
+    expect(modifierLeg.filter(leg).sql).toBe(`leg.kind = '${KIND.modifier}'`);
   });
 });

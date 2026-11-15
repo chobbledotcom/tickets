@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { valued } from "#db/select/expression.ts";
 import { sqlName } from "#db/sql.ts";
 import {
   allCapacityFacets,
@@ -107,17 +108,20 @@ describe("capacity rules", () => {
   describe("capacityRuleTypeSql", () => {
     test("emits the type predicate the SQL guard interpolates", () => {
       expect(
-        capacityRuleTypeSql("perDateCap", sqlName("listing.listing_type")).sql,
+        capacityRuleTypeSql(
+          "perDateCap",
+          valued<string>(sqlName("listing.listing_type")),
+        ).sql,
       ).toBe("listing.listing_type IN ('daily')");
       expect(
         capacityRuleTypeSql(
           "dateLessCap",
-          sqlName("memberListing.listing_type"),
+          valued<string>(sqlName("memberListing.listing_type")),
         ).sql,
       ).toBe("memberListing.listing_type IN ('standard')");
-      expect(capacityRuleTypeSql("groupPoolCap", sqlName("t")).sql).toBe(
-        "t IN ('standard', 'daily')",
-      );
+      expect(
+        capacityRuleTypeSql("groupPoolCap", valued<string>(sqlName("t"))).sql,
+      ).toBe("t IN ('standard', 'daily')");
     });
   });
 

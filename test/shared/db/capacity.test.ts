@@ -6,6 +6,7 @@ import {
   capacityConditionFor,
   dateToRange,
 } from "#db/capacity.ts";
+import { valued } from "#db/select/expression.ts";
 import { sqlName } from "#db/sql.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -72,11 +73,18 @@ describe("buildCapacityCondition", () => {
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expectIncludesAll(cond.sql, [
-      capacityRuleTypeSql("perDateCap", sqlName("listing.listing_type")).sql,
-      capacityRuleTypeSql("dateLessCap", sqlName("memberListing.listing_type"))
-        .sql,
-      capacityRuleTypeSql("perDateCap", sqlName("memberListing.listing_type"))
-        .sql,
+      capacityRuleTypeSql(
+        "perDateCap",
+        valued<string>(sqlName("listing.listing_type")),
+      ).sql,
+      capacityRuleTypeSql(
+        "dateLessCap",
+        valued<string>(sqlName("memberListing.listing_type")),
+      ).sql,
+      capacityRuleTypeSql(
+        "perDateCap",
+        valued<string>(sqlName("memberListing.listing_type")),
+      ).sql,
     ]);
     // No hand-written type comparison survives anywhere in the guard.
     assert(!cond.sql.includes("!= 'daily'"));
@@ -102,7 +110,7 @@ describe("buildCapacityCondition", () => {
         cond.sql,
         capacityRuleTypeSql(
           "dateLessCap",
-          sqlName("memberListing.listing_type"),
+          valued<string>(sqlName("memberListing.listing_type")),
         ).sql,
       ),
     ).toBe(2);

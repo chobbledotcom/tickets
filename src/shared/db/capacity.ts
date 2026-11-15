@@ -153,7 +153,7 @@ export const buildListingCountSql = (
 
 /** The running total of the group's members, or of its members that carry
  *  `rule`. */
-const memberRunningTotal = (
+export const groupRunningTotal = (
   groupId: Operand<number>,
   rule: CapacityRuleKey | null,
 ): Expr<Counted> =>
@@ -217,7 +217,7 @@ const dailyGroupCount = (
 ): Expr<Counted> =>
   plus(
     lessOwnRows(
-      memberRunningTotal(groupId, "dateLessCap"),
+      groupRunningTotal(groupId, "dateLessCap"),
       memberLinesWithRule(groupId, "dateLessCap"),
       excludeAttendeeId,
     ),
@@ -238,7 +238,7 @@ export const buildGroupCountSql = (
 ): Expr<Counted> =>
   dayRange === null
     ? lessOwnRows(
-        memberRunningTotal(groupId, null),
+        groupRunningTotal(groupId, null),
         memberLines(groupId),
         excludeAttendeeId,
       )

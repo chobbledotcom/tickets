@@ -11,23 +11,30 @@
  */
 
 import {
+  type AccountId,
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { defineReader } from "#db/read.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList, type WhereClause } from "#db/where-clauses.ts";
 import type { ListingWithCount } from "#types";
 
+/** The listing row of a statement that names the table
+ *  `listings AS listing`. */
+export const LISTING_ROW = tableNode(tables.listings, "listing");
+
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */
-const listingMoneyProjections = (idExpression: SqlStatement): SqlStatement =>
+const listingMoneyProjections = (idExpression: AccountId): SqlStatement =>
   sql`${creditsLessWriteoffDebits("revenue", idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
 
 /** A complete stored listing row plus its ledger, day-price, and image values. */
 const storedListingColumns = (): SqlStatement => {
-  const idExpression = sql`listing.id`;
+  const idExpression = LISTING_ROW.id;
   return sql`listing.*,
        ${listingMoneyProjections(idExpression)},
        COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)

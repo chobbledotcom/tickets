@@ -11,6 +11,7 @@ import type { InValue } from "@libsql/client";
 import {
   type SqlStatement,
   sql,
+  sqlCommas,
   sqlJoin,
   sqlList,
   sqlLiteral,
@@ -39,6 +40,10 @@ export const valued = <Value>(statement: SqlStatement): Expr<Value> =>
 /** Conditions that one operator cannot split: a comparison, a test, a call.
  *  They join with AND or OR without brackets. */
 const wholeConditions = new WeakSet<SqlStatement>();
+
+/** The conditions that each AND joins, so an AND inside an AND reads as one
+ *  list. */
+const joinedByAnd = new WeakMap<SqlStatement, readonly Expr<boolean>[]>();
 
 /** Conditions that no row can pass, so a read can skip the database. */
 const emptyConditions = new WeakSet<SqlStatement>();
@@ -81,9 +86,13 @@ const joinedBy = (
 
 /** Every condition holds. With no condition, every row passes. */
 export const and = (...conditions: readonly Condition[]): Expr<boolean> => {
-  const needed = conditions.filter((condition) => condition !== true);
+  const needed = conditions
+    .filter((condition) => condition !== true)
+    .map(asExpr)
+    .flatMap((condition) => joinedByAnd.get(condition) ?? [condition]);
   if (needed.length === 0) return ALWAYS;
-  const all = joinedBy(needed.map(asExpr), sql` AND `);
+  const all = joinedBy(needed, sql` AND `);
+  if (needed.length > 1) joinedByAnd.set(all, needed);
   return needed.some(matchesNothing) ? matchingNothing(all) : all;
 };
 
@@ -151,6 +160,21 @@ export const among = <Value extends Comparable | null>(
   values.length === 0
     ? matchingNothing(wholeCondition(sql`${value} IN (NULL)`))
     : wholeCondition(sql`${value} IN (${sqlList(values)})`);
+
+/** The value is one of these constants, each written into the SQL text. The
+ *  list comes from the code, never from a request. */
+export const amongConstants = <Value extends string | number | null>(
+  value: Expr<Value>,
+  constants: readonly Extract<NoInfer<Value>, string | number>[],
+): Expr<boolean> =>
+  wholeCondition(sql`${value} IN (${sqlCommas(constants.map(sqlLiteral))})`);
+
+/** The text matches the GLOB pattern. The pattern is a constant of the code,
+ *  written into the SQL text. */
+export const matchesGlob = (
+  value: Expr<string | null>,
+  pattern: string,
+): Expr<boolean> => wholeCondition(sql`${value} GLOB ${sqlLiteral(pattern)}`);
 
 /** A constant written into the SQL text. A partial index matches a query only
  *  when the query names the constant of the index as text. */

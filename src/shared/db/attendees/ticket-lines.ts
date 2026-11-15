@@ -8,8 +8,9 @@ import {
   type TicketPair,
 } from "#booking/ticket-moves.ts";
 import {
-  LISTING_ATTENDEE_REFUNDED_ROW,
+  BOOKING_ROW,
   refundedForBooking,
+  refundedRowOf,
 } from "#db/attendees/select.ts";
 import { queryAll } from "#db/client.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -27,7 +28,7 @@ export const ticketLinesQuery = (
           WHERE listingAttendee.attendee_id IN (${sqlList(attendeeIds)})
             AND listingAttendee.listing_id IN (${sqlList(listingIds)})
             AND listingAttendee.quantity > 0
-            AND NOT (${refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW)})
+            AND NOT (${refundedForBooking(refundedRowOf(BOOKING_ROW))})
           ORDER BY listingAttendee.start_at, listingAttendee.id`;
 };
 

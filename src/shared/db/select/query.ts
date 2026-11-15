@@ -204,6 +204,9 @@ export type Query<Root> = Readonly<{
   values: <Value>(pick: (node: Root) => Expr<Value>) => ValuesStatement<Value>;
   /** The value of the first row, as an expression. Null with no row. */
   scalar: <Value>(pick: (node: Root) => Expr<Value>) => Expr<Value | null>;
+  /** The one value of a read that folds every row, as an expression. A fold
+   *  with no group always has a row, so the value is never missing. */
+  aggregate: <Value>(pick: (node: Root) => Expr<Value>) => Expr<Value>;
   /** Whether the read has a row, as a condition. */
   exists: () => Expr<boolean>;
 }>;
@@ -378,6 +381,14 @@ const query = <Root>(
   };
 
   return {
+    aggregate: (pick) => {
+      if (listing.group !== undefined) {
+        throw new Error(
+          "A grouped read has many rows, so it has no one value.",
+        );
+      }
+      return valued(sql`(${statement(pick)})`);
+    },
     as: (alias) => next({ alias }),
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),
     groupBy: (group) => next({ group }),
@@ -402,6 +413,14 @@ const query = <Root>(
     where: (conditions) => next({ wheres: [...listing.wheres, conditions] }),
   };
 };
+
+/** The node of `table` under `word`, for a statement that the builder does
+ *  not write: a UNION, a CTE, or a write. The statement must name the table
+ *  `table AS word`. */
+export const tableNode = <Name extends TableName>(
+  table: TableHandle<Name>,
+  word: string,
+): Node<Name> => nodeOf(table, word, { aliases: [], parts: [] }) as Node<Name>;
 
 /** Rows of `table`, joined as `spec` says. */
 export const from = <Name extends TableName, const Joined extends Spec = None>(

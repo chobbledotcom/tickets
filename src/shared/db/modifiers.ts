@@ -34,6 +34,8 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { equals, type WhereClause, whereSql } from "#db/where-clauses.ts";
@@ -111,8 +113,8 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
  * never off the now-dropped column. The trailing `AS total_revenue` names the
  * projected column.
  */
-const modifierRevenueSubquery = (idExpr: SqlStatement): SqlStatement =>
-  sql`${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
+const modifierRevenueSubquery = (): SqlStatement =>
+  sql`${accountBalanceSubquery("modifier", tableNode(tables.modifiers, "modifiers").id)} AS total_revenue`;
 
 /** Decrypt a modifier row and merge the ledger-projected total_revenue its
  * loader selected alongside the stored modifier columns. The row carries
@@ -129,7 +131,7 @@ const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
 const modifierSelect = (parts: WhereClause[]): SqlStatement =>
-  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery(sql`modifiers.id`)} FROM modifiers${whereSql(parts)} ORDER BY id ASC`;
+  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery()} FROM modifiers${whereSql(parts)} ORDER BY id ASC`;
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
 const queryModifiersWhere = (parts: WhereClause[]): Promise<Modifier[]> =>
