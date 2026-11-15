@@ -6,6 +6,7 @@
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
+import { requireValue } from "#shared/required-value.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 
@@ -42,7 +43,10 @@ export const expectMultiTokenPass404 = async (
 
 /** Insist the pass response lets a shared cache hold it for the hour. */
 export const expectWalletCacheControl = (response: Response): void => {
-  const cacheControl = response.headers.get("Cache-Control") ?? "";
+  const cacheControl = requireValue(
+    response.headers.get("Cache-Control"),
+    "The wallet pass has no Cache-Control header.",
+  );
   assertStringIncludes(cacheControl, "public");
   assertStringIncludes(cacheControl, "s-maxage=3600");
 };

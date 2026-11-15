@@ -5,7 +5,6 @@ import { checkBatchAvailabilityImpl as checkBatchAvailability } from "#db/attend
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import type { ListingWithCount } from "#types";
 
 /** A capped group with two listings, each with a listing-level cap of 10. */
 export const createCappedGroupWithListings = async (
@@ -18,26 +17,16 @@ export const createCappedGroupWithListings = async (
     name: slug,
     slug,
   });
-  const members: ListingWithCount[] = [];
-  for (const suffix of ["a", "b"]) {
-    members.push(
-      await createTestListing({
-        groupId: group.id,
-        ...(overrides?.listingType !== undefined
-          ? { listingType: overrides.listingType }
-          : {}),
-        maxAttendees: 10,
-        name: `${slug}-${suffix}`,
-      }),
-    );
-  }
-  const [e1, e2] = members;
-  if (e1 === undefined || e2 === undefined) {
-    throw new Error(
-      "createCappedGroupWithListings made fewer than two members",
-    );
-  }
-  return { e1, e2, group };
+  const member = (suffix: string) =>
+    createTestListing({
+      groupId: group.id,
+      ...(overrides?.listingType !== undefined
+        ? { listingType: overrides.listingType }
+        : {}),
+      maxAttendees: 10,
+      name: `${slug}-${suffix}`,
+    });
+  return { e1: await member("a"), e2: await member("b"), group };
 };
 
 /** Book attendees atomically with minimal boilerplate. The generated

@@ -1,4 +1,5 @@
 import { assertStringIncludes } from "@std/assert";
+import { requireValue } from "#shared/required-value.ts";
 
 /** Assert `response` is a download of `contentType` whose
  *  `content-disposition` carries `disposition` — the headers every export
@@ -8,9 +9,18 @@ export const expectDownloadHeaders = (
   contentType: string,
   disposition: string,
 ): void => {
-  assertStringIncludes(response.headers.get("content-type") ?? "", contentType);
   assertStringIncludes(
-    response.headers.get("content-disposition") ?? "",
+    requireValue(
+      response.headers.get("content-type"),
+      "The download has no content-type header.",
+    ),
+    contentType,
+  );
+  assertStringIncludes(
+    requireValue(
+      response.headers.get("content-disposition"),
+      "The download has no content-disposition header.",
+    ),
     disposition,
   );
 };

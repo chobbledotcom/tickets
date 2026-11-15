@@ -1,4 +1,4 @@
-import { expect } from "@std/expect";
+import { assert } from "@std/assert";
 import type {
   CreateAttendeeResult,
   ListingBooking,
@@ -29,9 +29,6 @@ export const expectWriteRefused = async (
     email: contact.email,
     name: contact.name,
   });
-  expect(result.success).toBe(false);
-  if (result.success) {
-    throw new Error("The write admitted a cart it must refuse");
-  }
+  assert(!result.success, "The write admitted a cart it must refuse");
   return result;
 };

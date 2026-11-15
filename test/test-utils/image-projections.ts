@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { getImageFilenamesForItem, imagesTable } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import type { ItemImageColumns } from "#types";
@@ -28,11 +29,8 @@ export const expectImageFields = (
 };
 
 /** One stored listing as its image fields; a missing listing fails the read. */
-const listingFieldsOf = async (id: number): Promise<ItemImageColumns> => {
-  const listing = await getListingWithCount(id);
-  if (listing === null) throw new Error(`Listing ${id} is missing`);
-  return listing;
-};
+const listingFieldsOf = async (id: number): Promise<ItemImageColumns> =>
+  requireValue(await getListingWithCount(id), `Listing ${id} is missing`);
 
 /** A stored image whose filename or thumbnail decrypts empty projects the
  * marker instead. */

@@ -4,6 +4,7 @@
 
 import { expect } from "@std/expect";
 import type { Table } from "#db/migrations/schema/types.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
@@ -21,11 +22,8 @@ export const expectSchemaDeclarationExact = async (
 
 /** The named table in a declaration. The throw names the missing table, so a
  *  rename fails loudly rather than asserting against `undefined`. */
-export const schemaTableNamed = (
-  tables: DeclaredTables,
-  name: string,
-): Table => {
-  const found = tables.find(([tableName]) => tableName === name);
-  if (!found) throw new Error(`${name} schema is missing`);
-  return found[1];
-};
+export const schemaTableNamed = (tables: DeclaredTables, name: string): Table =>
+  requireValue(
+    tables.find(([tableName]) => tableName === name),
+    `${name} schema is missing`,
+  )[1];
