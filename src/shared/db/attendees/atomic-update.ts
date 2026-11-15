@@ -266,7 +266,7 @@ export const lineStatementFor = (
   line: DesiredListingLine,
   attendeeId: number,
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): { guarded: boolean; statement: SqlStatement } => {
   if (!line.exists) {
     return {
@@ -308,7 +308,7 @@ export const buildAttendeeEditBatch = (
   attendeeId: number,
   desired: readonly DesiredListingLine[],
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): SqlStatement[] => {
   const statements = removedLines(desired, existingByKey).flatMap(
     (booking): SqlStatement[] => {

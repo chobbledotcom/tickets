@@ -38,6 +38,7 @@ const attendeeWithStaleEdit = async (
       attendee.id,
       [addLine(replacement.id)],
       new Map(existing.map(({ key, booking }) => [key, booking])),
+      false,
     ),
   ];
   return { attendee, existing, replacement, statements };
