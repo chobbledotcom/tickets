@@ -106,16 +106,22 @@ stripe-mock start costs 0.85 s per run, so it stays out of the plan below.
 
 5. **Remove redundant tests, as maintenance work.**
    - Change:
-     - Keep one auth-gate test per channel and one CSRF test per channel.
-     - Merge the per-route 404 tests into one table per route family.
+     - Delete the per-route `testRequiresAuth` copies. The central role matrix
+       already proves the auth gate for every declared route.
+     - Keep one invalid-token CSRF check for every mutating route. Generate the
+       checks from the route table as one case matrix. A new route then gets
+       its check without a hand-copied test. A route with missing CSRF wiring
+       must fail a test.
+     - Merge the per-route 404 tests into one table per route family, with one
+       row per route.
      - Turn identical-body ladders into input and expected tables.
      - Replace `toBeDefined` with the assertion that names the value or shape.
      - Delete a test that pins an export alias or a constant to its own
        literal.
    - Evidence: 172 `testRequiresAuth` sites in
-     `test/test-utils/assertions.ts`, 27 per-route CSRF tests against the gate
-     in `src/features/auth.ts`, 63 per-route 404 tests, 1,361 identical-body
-     tests, and 94 `toBeDefined`.
+     `test/test-utils/assertions.ts`, 27 CSRF rows in the generated matrix
+     against the gate in `src/features/auth.ts`, 63 per-route 404 tests, 1,361
+     identical-body tests, and 94 `toBeDefined`.
    - Payoff: no large time win. Each of these tests costs milliseconds. The
      gain is fewer copies to keep in step and a failure name that points at one
      case.
