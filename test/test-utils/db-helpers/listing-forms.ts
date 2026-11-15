@@ -1,6 +1,12 @@
+import { settings } from "#db/settings.ts";
 import { isNotNullish } from "#fp";
 import { toMajorUnits } from "#shared/currency.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { showUseDefaultsToggle } from "#templates/admin/listings/form-values.tsx";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import type { DayPrices, ListingWithCount } from "#types";
 
@@ -9,8 +15,6 @@ const checked = (name: string, value: unknown): TestFormValues =>
 const flagChoice = (value: unknown): string => (value ? "1" : "");
 const optionalNumber = (v: number | null | undefined): string =>
   isNotNullish(v) ? String(v) : "";
-const optionalPrice = (v: number | null | undefined): string =>
-  isNotNullish(v) ? toMajorUnits(v) : "";
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
@@ -47,7 +51,23 @@ const formatPrice = (update: number | undefined, existing: number): string =>
 export const priceFormValue = (minorUnits: number): string =>
   toMajorUnits(minorUnits);
 
+/** Keep only the boxes an owner's listing page shows: the page hides the box
+ *  of each field the site closes, and refuses a form that sends one. */
+const ownerPageBoxes = (values: TestFormValues): TestFormValues => {
+  const closed = closedFieldsFor(LISTING_FIELDS, "owner");
+  const shownDefaults = showUseDefaultsToggle(closed, settings.listingDefaults);
+  return Object.fromEntries(
+    Object.entries(values).filter(
+      ([key]) => !closed.has(key) && (shownDefaults || key !== "use_defaults"),
+    ),
+  );
+};
+
 export const buildCreateListingForm = (
+  input: Omit<ListingInput, "slug" | "slugIndex">,
+): TestFormValues => ownerPageBoxes(createListingBoxes(input));
+
+const createListingBoxes = (
   input: Omit<ListingInput, "slug" | "slugIndex">,
 ): TestFormValues => {
   const closesAtParts = splitClosesAt(input.closesAt, null);
@@ -85,7 +105,7 @@ export const buildCreateListingForm = (
     non_transferable: flagChoice(input.nonTransferable),
     ...checked("purchase_only", input.purchaseOnly),
     thank_you_url: input.thankYouUrl ?? "",
-    unit_price: optionalPrice(input.unitPrice),
+    unit_price: toMajorUnits(input.unitPrice ?? 0),
     ...checked("use_defaults", input.useDefaults),
     webhook_url: input.webhookUrl ?? "",
   };
@@ -181,7 +201,7 @@ export const buildUpdateListingForm = (
 ): TestFormValues => {
   const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
   const dateParts = splitClosesAt(updates.date, existing.date);
-  return {
+  return ownerPageBoxes({
     ...buildUpdateBoolFields(updates, existing),
     ...buildUpdateNumericFields(updates, existing),
     ...buildUpdateStringFields(updates, existing),
@@ -199,5 +219,5 @@ export const buildUpdateListingForm = (
     ...(updates.assignUndatedTo === undefined
       ? {}
       : { assign_undated_to: updates.assignUndatedTo }),
-  };
+  });
 };

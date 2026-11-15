@@ -20,6 +20,7 @@ import {
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { listingRecord } from "#shared/records/listings.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -40,12 +41,16 @@ const listingForm = (extra: TestFormValues = {}) =>
     max_attendees: "50",
     max_quantity: "5",
     name: "Parsed listing",
+    unit_price: "0",
     ...extra,
   });
 
 const createListing = async (extra: TestFormValues = {}): Promise<Listing> => {
   const form = listingForm(extra);
-  const result = await buildCreateListingResource(form).create(form);
+  const result = await buildCreateListingResource(
+    form,
+    listingFormView("owner"),
+  ).create(form);
   if (!result.ok) throw new Error(`create failed: ${result.error}`);
   return result.row;
 };
@@ -59,7 +64,10 @@ const saveListingEdit = async (
 ): Promise<ListingUpdateResult> => {
   const form = listingForm({ slug: "kept-slug", ...extra });
   const stored = (await getStoredListingWithCount(id))!;
-  return buildUpdateListingResource(stored).update(id, form);
+  return buildUpdateListingResource(stored, listingFormView("owner")).update(
+    id,
+    form,
+  );
 };
 
 const updateListing = async (
@@ -95,7 +103,10 @@ describeWithEnv("listings form", { db: true }, () => {
         ["min_quantity", "0"],
       ] as const) {
         const form = listingForm({ [field]: value });
-        const result = await buildCreateListingResource(form).create(form);
+        const result = await buildCreateListingResource(
+          form,
+          listingFormView("owner"),
+        ).create(form);
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBe(
@@ -161,7 +172,10 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("an impossible date is refused before anything is saved", async () => {
       const form = listingForm({ date_date: "2026-02-30", date_time: "10:00" });
-      const result = await buildCreateListingResource(form).create(form);
+      const result = await buildCreateListingResource(
+        form,
+        listingFormView("owner"),
+      ).create(form);
       expect(result).toEqual({
         error: "Please enter a valid date and time",
         ok: false,
@@ -251,7 +265,10 @@ describeWithEnv("listings form", { db: true }, () => {
         max_quantity: "2",
         name: "Undercapped copy",
       });
-      const result = await buildCreateListingResource(form).create(form);
+      const result = await buildCreateListingResource(
+        form,
+        listingFormView("owner"),
+      ).create(form);
       expect(result).toEqual({
         error: t("error.package_member_cap", {
           max_quantity: 2,
@@ -289,7 +306,10 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("an unreadable day price rejects the save with a plain message", async () => {
       const form = listingForm({ day_price_1: "abc", duration_days: "2" });
-      const result = await buildCreateListingResource(form).create(form);
+      const result = await buildCreateListingResource(
+        form,
+        listingFormView("owner"),
+      ).create(form);
       expect(result).toEqual({
         error: "Enter a valid day price for each duration, or leave it blank.",
         ok: false,
@@ -337,7 +357,10 @@ describeWithEnv("listings form", { db: true }, () => {
       await deleteListing(created.id);
 
       expect(
-        await buildUpdateListingResource(stored).update(created.id, form),
+        await buildUpdateListingResource(
+          stored,
+          listingFormView("owner"),
+        ).update(created.id, form),
       ).toEqual({ notFound: true, ok: false });
     });
 

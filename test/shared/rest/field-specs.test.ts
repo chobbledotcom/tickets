@@ -1,21 +1,22 @@
 /** The values one field list builds, keyed by its columns, and the fields
- *  each door reads. */
+ *  each writer cannot set. */
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   byFieldKey,
   byFieldKind,
+  closedFieldErrorOrNull,
+  closedFields,
   type FieldKind,
   fieldOfKey,
-  fieldsOnDoor,
 } from "#shared/rest/field-specs.ts";
 
 const FIELDS = [
   { key: "start_date", kind: "date" },
   { key: "name", kind: "name" },
-  { doors: ["api"], key: "is_public", kind: "switch" },
-  { doors: ["form", "transfer"], key: "note", kind: "text" },
+  { feature: "logistics", key: "is_public", kind: "switch" },
+  { key: "note", kind: "text", lockedFor: ["demo", "editor"] },
 ] as const;
 
 describe("field specs", () => {
@@ -55,14 +56,55 @@ describe("field specs", () => {
     ).toEqual({ is_public: 0, name: 1, note: 2, start_date: 10 });
   });
 
-  test("each door reads the fields that name it, and every door reads a field that names none", () => {
-    const keysOn = (door: "api" | "form" | "transfer") =>
-      fieldsOnDoor(FIELDS, door).map((field) => field.key);
+  test("a field closes for its feature turned off and for each writer it locks out", () => {
+    const closedFor = (
+      editor: boolean,
+      demo: boolean,
+      logistics: boolean,
+    ): [string, string][] => [
+      ...closedFields(FIELDS, {
+        demo,
+        editor,
+        features: { builder: true, logistics },
+      }),
+    ];
 
-    expect([keysOn("api"), keysOn("form"), keysOn("transfer")]).toEqual([
-      ["start_date", "name", "is_public"],
-      ["start_date", "name", "note"],
-      ["start_date", "name", "note"],
+    expect([
+      closedFor(false, false, true),
+      closedFor(false, false, false),
+      closedFor(true, false, true),
+      closedFor(false, true, true),
+    ]).toEqual([
+      [],
+      [["is_public", "logistics"]],
+      [["note", "editor"]],
+      [["note", "demo"]],
+    ]);
+  });
+
+  test("a supplied closed field is refused with its reason, and an open one passes", () => {
+    const closed = new Map([
+      ["assign_built_site", "builder"],
+      ["webhook_url", "demo"],
+      ["active", "editor"],
+      ["uses_logistics", "logistics"],
+    ] as const);
+    const refusal = (key: string) => closedFieldErrorOrNull(closed, [key]);
+
+    expect([
+      refusal("assign_built_site"),
+      refusal("webhook_url"),
+      refusal("active"),
+      refusal("uses_logistics"),
+      refusal("name"),
+      closedFieldErrorOrNull(closed, ["name", "active", "webhook_url"]),
+    ]).toEqual([
+      "assign_built_site needs site building turned on",
+      "webhook_url cannot be set in the demo",
+      "editors cannot set active",
+      "uses_logistics needs logistics turned on",
+      null,
+      "editors cannot set active",
     ]);
   });
 

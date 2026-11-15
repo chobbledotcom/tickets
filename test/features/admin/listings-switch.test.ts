@@ -1,4 +1,5 @@
 // test-groups: run-alone
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll, withTransaction } from "#db/client.ts";
@@ -14,6 +15,7 @@ import {
 } from "#routes/admin/listings-switch.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -90,6 +92,7 @@ const confirmedPickStep = (
   planListingTypeSwitch(
     listing,
     switchForm(listing, { assign_undated_to: day }),
+    listingFormView("owner"),
   );
 
 /** Confirms a pick of the listing's first bookable day, and checks that the
@@ -240,6 +243,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const step = await planListingTypeSwitch(
       listing,
       switchForm(listing, { listing_type: "standard" }),
+      listingFormView("owner"),
     );
     expect(step.kind).toBe("none");
   });
@@ -249,13 +253,18 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const step = await planListingTypeSwitch(
       listing,
       switchForm(listing, { name: "" }),
+      listingFormView("owner"),
     );
     expect(step.kind).toBe("invalid");
   });
 
   test("an unconfirmed plan serves the page and names the missing pick", async () => {
     const listing = await hallWithOneUndatedBooking();
-    const step = await planListingTypeSwitch(listing, switchForm(listing));
+    const step = await planListingTypeSwitch(
+      listing,
+      switchForm(listing),
+      listingFormView("owner"),
+    );
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
     expect(step.error).toContain("Pick a date to move the bookings to.");
@@ -277,6 +286,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const step = await planListingTypeSwitch(
       listing,
       switchForm(listing, { assign_undated_to: "2020-01-01" }),
+      listingFormView("owner"),
     );
     expect(step).toMatchObject({ kind: "page", status: 400 });
   });
@@ -288,6 +298,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const step = await planListingTypeSwitch(
       listing,
       switchForm(listing, { bookable_days: [] }),
+      listingFormView("owner"),
     );
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
@@ -303,6 +314,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const open = await planListingTypeSwitch(
       listing,
       switchForm(listing, oneDay),
+      listingFormView("owner"),
     );
     expect(open).toMatchObject({ kind: "page" });
     if (open.kind !== "page") return;
@@ -321,6 +333,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const full = await planListingTypeSwitch(
       listing,
       switchForm(listing, oneDay),
+      listingFormView("owner"),
     );
     expect(full).toMatchObject({
       kind: "page",

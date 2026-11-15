@@ -185,10 +185,12 @@ export const LISTING_FIELDS = [
   },
   {
     inputmode: "decimal",
-    label: "Ticket price (leave empty for free)",
+    label: "Ticket price",
     name: "unit_price",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",
+    required: true,
+    requiredMessage: "Enter a ticket price. Type 0 for free.",
     section: "tickets",
     title: "A non-negative number (e.g. 10.00)",
     type: "text",
@@ -311,7 +313,7 @@ export const LISTING_FIELDS = [
     ],
     section: "options",
     type: "checkbox-group",
-    visible: false,
+    visible: true,
   },
   {
     hint: "How many months one ticket buys. Leave 0 for non-renewal listings.",
@@ -321,7 +323,7 @@ export const LISTING_FIELDS = [
     name: "months_per_unit",
     section: "advanced",
     type: "number",
-    visible: false,
+    visible: true,
   },
   {
     hint: "How many months the site starts with for each unit bought. Required when assigning a built site.",
@@ -331,7 +333,7 @@ export const LISTING_FIELDS = [
     name: "initial_site_months",
     section: "advanced",
     type: "number",
-    visible: false,
+    visible: true,
   },
   {
     hint: "Automatically assign a site when someone books this listing. Quantity buys months, not extra sites.",
@@ -345,7 +347,7 @@ export const LISTING_FIELDS = [
     ],
     section: "advanced",
     type: "checkbox-group",
-    visible: false,
+    visible: true,
   },
   {
     label: "Attachment (any file — max 25MB)",

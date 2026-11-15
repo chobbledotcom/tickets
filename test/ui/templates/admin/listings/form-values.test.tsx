@@ -15,7 +15,6 @@ import {
   renderDayPricesFieldset,
   showUseDefaultsToggle,
 } from "#templates/admin/listings/form-values.tsx";
-import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -177,11 +176,13 @@ describe("listingFormClassAttr", () => {
 });
 
 describe("showUseDefaultsToggle", () => {
-  test("only an owner sees the toggle, and only once a default exists", () => {
+  test("the toggle shows once a default exists, unless the writer cannot set it", () => {
     const defaults: ListingDefaults = { hidden: true };
-    expect(showUseDefaultsToggle(OWNER_SESSION, defaults)).toBe(true);
-    expect(showUseDefaultsToggle(OWNER_SESSION, {})).toBe(false);
-    const editor = { ...OWNER_SESSION, adminLevel: "editor" } as const;
-    expect(showUseDefaultsToggle(editor, defaults)).toBe(false);
+    const locked = new Map([["use_defaults", "editor"]] as const);
+    expect([
+      showUseDefaultsToggle(new Map(), defaults),
+      showUseDefaultsToggle(new Map(), {}),
+      showUseDefaultsToggle(locked, defaults),
+    ]).toEqual([true, false, false]);
   });
 });
