@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getListingWithCount } from "#db/listings/records.ts";
@@ -7,141 +6,135 @@ import {
   bodyToCreateInput,
   bodyToUpdateInput,
 } from "#routes/admin/api-listing-body.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
-/** The message a refused create body names. An accepted body fails the test:
- *  the message of a body that passed would prove nothing. */
-const createRefusal = async (
-  body: Record<string, unknown>,
-): Promise<string> => {
-  const result = await bodyToCreateInput(body);
-  if (result.ok) throw new Error("The body was accepted but must be refused");
-  return result.error;
-};
-
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("bodyToCreateInput", () => {
-    test("returns error for non-string name", async () => {
-      expect(await createRefusal({ max_attendees: 10, name: 123 })).toBe(
-        "name is required",
-      );
-    });
+    /** A create body the API refuses, and the exact refusal it answers. */
+    type CreateRefusal = {
+      label: string;
+      body: Record<string, unknown>;
+      error: string;
+    };
 
-    test("returns error for a whitespace-only name", async () => {
-      expect(await createRefusal({ max_attendees: 10, name: "  " })).toBe(
-        "name is required",
-      );
-    });
+    /** A body with a valid name and capacity, plus the fields under test. */
+    const listingBody = (
+      name: string,
+      extra: Record<string, unknown>,
+    ): Record<string, unknown> => ({ max_attendees: 10, name, ...extra });
 
-    test("returns error for missing max_attendees", async () => {
-      expect(await createRefusal({ name: "Test" })).toBe(
-        "max_attendees is required",
-      );
-    });
-
-    test("returns error when max_attendees is zero", async () => {
-      expect(await createRefusal({ max_attendees: 0, name: "Test" })).toBe(
-        "max_attendees has an invalid value",
-      );
-    });
-
-    test("rejects non-text bookable days", async () => {
-      const result = await bodyToCreateInput({
-        bookable_days: ["Monday", 2],
-        max_attendees: 10,
-        name: "Test",
-      });
-
-      expect(result).toEqual({
-        error: "bookable_days must contain only text",
-        ok: false,
-      });
-    });
-
-    test("rejects a text duration", async () => {
-      const result = await bodyToCreateInput({
-        duration_days: "3",
-        max_attendees: 10,
-        name: "Test",
-      });
-
-      expect(result).toEqual({
-        error: "duration_days must be a whole number from 1 to 90",
-        ok: false,
-      });
-    });
-
-    test("handles all field types correctly", async () => {
-      const result = await bodyToCreateInput({
-        active: false,
-        bookable_alone: true,
-        bookable_days: ["Monday"],
-        closes_at: "2026-06-14T23:59:00Z",
-        date: "2026-06-15T10:00:00Z",
-        day_prices: { 0: 900, 1: 0, 2: 1200 },
-        duration_days: 3,
-        max_attendees: 10,
-        max_price: 5000,
-        name: "Test",
-      });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value.active).toBe(false);
-        expect(result.value.bookableAlone).toBe(true);
-        expect(result.value.bookableDays).toEqual(["Monday"]);
-        expect(result.value.date).toBe("2026-06-15T10:00:00Z");
-        expect(result.value.dayPrices).toEqual({ 1: 0, 2: 1200 });
-        expect(result.value.durationDays).toBe(3);
-        expect(result.value.maxPrice).toBe(5000);
-        expect(result.value.slug).toMatch(/^[a-z0-9]+$/u);
-      }
+    const badDayPrices = (
+      label: string,
+      dayPrices: unknown,
+    ): CreateRefusal => ({
+      body: listingBody("Bad Prices", { day_prices: dayPrices }),
+      error: "day_prices has an invalid value",
+      label,
     });
 
     // The listing datetimes are UTC instants whose date half must be a real
     // calendar day: the shared real-day rule runs at the JSON boundary.
-    test("refuses unusable datetime shapes with the field message", async () => {
-      const cases: Record<string, unknown>[] = [
-        {
-          closes_at: "2026-06-14T23:59:00Z",
-          date: "2026-6-15T10:00:00Z",
-          max_attendees: 10,
-          name: "Unpadded",
-        },
-        {
-          closes_at: "2026-06-14T23:59:00Z",
-          date: "2026-02-30T10:00:00Z",
-          max_attendees: 10,
-          name: "Rollover",
-        },
-        {
-          closes_at: "2026-06-14T23:59:00Z",
-          date: "soon",
-          max_attendees: 10,
-          name: "Wording",
-        },
-        {
-          closes_at: "2026-06-14T23:59:00Z",
-          date: "2026-06-15T99:99:99Z",
-          max_attendees: 10,
-          name: "Outside clock",
-        },
-      ];
-      for (const body of cases) {
-        expect(await createRefusal(body)).toBe(
-          "date must be a UTC instant of a real calendar day",
-        );
-      }
-      expect(
-        await createRefusal({
+    const badDate = (name: string, date: string): CreateRefusal => ({
+      body: listingBody(name, { closes_at: "2026-06-14T23:59:00Z", date }),
+      error: "date must be a UTC instant of a real calendar day",
+      label: `refuses an unusable date: ${name}`,
+    });
+
+    const createRefusals: CreateRefusal[] = [
+      {
+        body: { max_attendees: 10, name: 123 },
+        error: "name is required",
+        label: "returns error for non-string name",
+      },
+      {
+        body: listingBody("  ", {}),
+        error: "name is required",
+        label: "returns error for a whitespace-only name",
+      },
+      {
+        body: { name: "Test" },
+        error: "max_attendees is required",
+        label: "returns error for missing max_attendees",
+      },
+      {
+        body: listingBody("Test", { max_attendees: 0 }),
+        error: "max_attendees has an invalid value",
+        label: "returns error when max_attendees is zero",
+      },
+      {
+        body: listingBody("Test", { bookable_days: ["Monday", 2] }),
+        error: "bookable_days has an invalid value",
+        label: "rejects non-text bookable days",
+      },
+      {
+        body: listingBody("Test", { duration_days: "3" }),
+        error: "duration_days must be a whole number from 1 to 90",
+        label: "rejects a text duration",
+      },
+      badDate("Unpadded", "2026-6-15T10:00:00Z"),
+      badDate("Rollover", "2026-02-30T10:00:00Z"),
+      badDate("Wording", "soon"),
+      badDate("Outside clock", "2026-06-15T99:99:99Z"),
+      {
+        body: listingBody("Surplus segment", {
           closes_at: "2026-06-15T10:00:00ZTextra",
           date: "2026-06-15T10:00:00Z",
-          max_attendees: 10,
-          name: "Surplus segment",
         }),
-      ).toBe("closes_at must be a UTC instant of a real calendar day");
+        error: "closes_at must be a UTC instant of a real calendar day",
+        label: "refuses a closing time with a surplus segment",
+      },
+      {
+        body: listingBody("Bad Groups", { group_ids: "5" }),
+        error: "group_ids must be an array",
+        label: "rejects a non-array group_ids",
+      },
+      {
+        body: listingBody("Bad Entry", { group_ids: ["5"] }),
+        error: "group_ids must contain only positive integer ids",
+        label: "rejects group_ids with non-positive-integer entries",
+      },
+      badDayPrices("refuses a negative day price", { 1: -5 }),
+      badDayPrices("refuses a text day price", { 1: "500" }),
+      badDayPrices("refuses day prices given as an array", [500]),
+      badDayPrices("refuses day prices given as text", "500"),
+      badDayPrices("rejects unsafe day prices", {
+        1: Number.MAX_SAFE_INTEGER + 1,
+      }),
+    ];
+
+    for (const { body, error, label } of createRefusals) {
+      test(label, async () => {
+        expect(await bodyToCreateInput(body)).toEqual({ error, ok: false });
+      });
+    }
+
+    test("handles all field types correctly", async () => {
+      const value = requireSuccess(
+        await bodyToCreateInput({
+          active: false,
+          bookable_alone: true,
+          bookable_days: ["Monday"],
+          closes_at: "2026-06-14T23:59:00Z",
+          date: "2026-06-15T10:00:00Z",
+          day_prices: { 1: 0, 2: 1200 },
+          duration_days: 3,
+          max_attendees: 10,
+          max_price: 5000,
+          name: "Test",
+        }),
+      );
+
+      expect(value.active).toBe(false);
+      expect(value.bookableAlone).toBe(true);
+      expect(value.bookableDays).toEqual(["Monday"]);
+      expect(value.date).toBe("2026-06-15T10:00:00Z");
+      expect(value.dayPrices).toEqual({ 1: 0, 2: 1200 });
+      expect(value.durationDays).toBe(3);
+      expect(value.maxPrice).toBe(5000);
+      expect(value.slug).toMatch(/^[0-9a-h]{5}$/);
     });
 
     test("maps every supported scalar without changing neutral values", async () => {
@@ -213,100 +206,49 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("defaults max_price to zero", async () => {
-      const result = await bodyToCreateInput({
-        max_attendees: 10,
-        name: "No Maximum Price",
-      });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) expect(result.value.maxPrice).toBe(0);
-    });
-
-    test("rejects a non-array group_ids", async () => {
-      expect(
-        await createRefusal({
-          group_ids: "5",
-          max_attendees: 10,
-          name: "Bad Groups",
-        }),
-      ).toBe("group_ids must be an array");
-    });
-
-    test("rejects group_ids with non-positive-integer entries", async () => {
-      assertStringIncludes(
-        await createRefusal({
-          group_ids: ["5"],
-          max_attendees: 10,
-          name: "Bad Entry",
-        }),
-        "positive integer ids",
+      const value = requireSuccess(
+        await bodyToCreateInput(listingBody("No Maximum Price", {})),
       );
+      expect(value.maxPrice).toBe(0);
     });
 
-    test("rejects unsafe day prices", async () => {
-      expect(
-        await createRefusal({
-          day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 },
-          max_attendees: 10,
-          name: "Unsafe Price",
-        }),
-      ).toBe("day_prices numeric values must be safe integers");
-    });
-
-    test("maps the use_defaults flag both ways and omits it when absent", async () => {
+    test("maps the use_defaults flag both ways and turns it off when absent", async () => {
       // true/false both round-trip (so the API can opt in *and* out), and an
-      // absent flag stays absent rather than defaulting to either value.
-      const cases: [boolean | undefined, boolean | undefined][] = [
+      // absent flag on create takes the column default, off.
+      const cases: [boolean | undefined, boolean][] = [
         [true, true],
         [false, false],
-        [undefined, undefined],
+        [undefined, false],
       ];
       for (const [sent, expected] of cases) {
-        const body: Record<string, unknown> = {
-          max_attendees: 10,
-          name: "Inheriting",
-        };
+        const body = listingBody("Inheriting", {});
         if (sent !== undefined) body.use_defaults = sent;
-        const result = await bodyToCreateInput(body);
-        expect(result.ok).toBe(true);
-        if (result.ok) expect(result.value.useDefaults).toBe(expected);
+        const value = requireSuccess(await bodyToCreateInput(body));
+        expect(value.useDefaults).toBe(expected);
       }
     });
   });
 
   describe("bodyToUpdateInput", () => {
-    test("rejects a maximum attendee count below one", async () => {
-      const result = await bodyToUpdateInput(
-        { max_attendees: 0 },
-        testListingWithCount({ max_attendees: 10 }),
-      );
-
-      expect(result).toEqual({
-        error: "max_attendees has an invalid value",
-        ok: false,
-      });
-    });
-
-    test("rejects a maximum attendee count beyond the safe integer range", async () => {
+    test("rejects a maximum attendee count below one or beyond the safe integer range", async () => {
       // Number.isInteger passes 1e100: the stored column could never hold a
       // capacity whose neighbours JavaScript cannot tell apart.
-      const result = await bodyToUpdateInput(
-        { max_attendees: 1e100 },
-        testListingWithCount({ max_attendees: 10 }),
-      );
-
-      expect(result).toEqual({
-        error: "max_attendees has an invalid value",
-        ok: false,
-      });
+      for (const maxAttendees of [0, 1e100]) {
+        expect(
+          await bodyToUpdateInput(
+            { max_attendees: maxAttendees },
+            testListingWithCount({ max_attendees: 10 }),
+          ),
+        ).toEqual({ error: "max_attendees has an invalid value", ok: false });
+      }
     });
 
-    test("uses supplied prices and groups", async () => {
+    test("uses supplied prices, a zero maximum price included, and groups", async () => {
       const result = await bodyToUpdateInput(
         {
           day_prices: { 2: 2_000 },
           group_ids: [7],
-          max_price: 3_000,
+          max_price: 0,
         },
         testListingWithCount({
           day_prices: { 1: 1_000 },
@@ -319,8 +261,16 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       if (result.ok) {
         expect(result.value.dayPrices).toEqual({ 2: 2_000 });
         expect(result.value.groupIds).toEqual([7]);
-        expect(result.value.maxPrice).toBe(3_000);
+        expect(result.value.maxPrice).toBe(0);
       }
+    });
+
+    test("takes a supplied name, trimmed", async () => {
+      const result = await bodyToUpdateInput(
+        { name: " Renamed " },
+        testListingWithCount({ max_attendees: 10, name: "Old" }),
+      );
+      expect(result.ok && result.value.name).toBe("Renamed");
     });
 
     test("rejects malformed group_ids instead of silently clearing membership", async () => {
@@ -330,7 +280,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         slug: "has-groups",
       });
       expect(await bodyToUpdateInput({ group_ids: ["5"] }, existing)).toEqual({
-        error: expect.stringContaining("positive integer ids"),
+        error: "group_ids must contain only positive integer ids",
         ok: false,
       });
     });
@@ -403,15 +353,13 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
       const kept = await bodyToUpdateInput({}, existing);
-      if (!kept.ok) throw new Error("the omitted flag was refused");
-      expect(kept.value.useDefaults).toBe(true);
+      expect(kept).toMatchObject({ ok: true, value: { useDefaults: true } });
       // Explicit false → turned off.
       const off = await bodyToUpdateInput({ use_defaults: false }, existing);
-      if (!off.ok) throw new Error("the false flag was refused");
-      expect(off.value.useDefaults).toBe(false);
+      expect(off).toMatchObject({ ok: true, value: { useDefaults: false } });
     });
 
-    test("preserves existing closes_at null as empty string", async () => {
+    test("leaves an unset closing time out of an update that omits it", async () => {
       const existing = testListingWithCount({
         closes_at: null,
         max_attendees: 10,
@@ -420,10 +368,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
 
       const result = await bodyToUpdateInput({}, existing);
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.value.closesAt).toBe("");
-      }
+      expect(result.ok && Object.hasOwn(result.value, "closesAt")).toBe(false);
     });
   });
 

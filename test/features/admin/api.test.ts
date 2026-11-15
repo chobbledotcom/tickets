@@ -8,6 +8,7 @@ import { t } from "#i18n";
 import {
   assertAdminHtml,
   assertJson,
+  expectApiError,
   expectRejectsEmptyName,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -88,15 +89,13 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("returns 400 when a bookable day is not text", async () => {
       const listing = await createTestListing({ name: "Named Days" });
-      await assertJson(
+      await expectApiError(
         apiRequest(`/api/admin/listings/${listing.id}`, {
           body: { bookable_days: ["Monday", 2] },
           method: "PUT",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe("bookable_days must contain only text");
-        },
+        "bookable_days has an invalid value",
       );
     });
 
@@ -114,9 +113,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         400,
         (body) => {
-          expect(body.error).toBe(
-            "day_prices numeric values must be safe integers",
-          );
+          expect(body.error).toBe("day_prices has an invalid value");
         },
       );
       expect((await getListingWithCount(listing.id))?.day_prices).toEqual({

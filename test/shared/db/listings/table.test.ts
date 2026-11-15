@@ -7,7 +7,7 @@ import { getDb } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { sql } from "#db/sql.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { testCases } from "#test-utils/case-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";

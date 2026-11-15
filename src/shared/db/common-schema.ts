@@ -13,12 +13,6 @@ import {
   registerDependencies,
   registerTableInvalidation,
 } from "#shared/cache-registry.ts";
-import {
-  byFieldKind,
-  type FieldKind,
-  type FieldSpecs,
-  type StoredValue,
-} from "#shared/rest/field-specs.ts";
 
 // Re-exported for users.ts, which caches a table-less query and so wires the
 // cache by hand rather than through cachedEntityTable.
@@ -86,8 +80,8 @@ export const aggregateRepairs = <F extends string>(
   },
 });
 
-type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
-type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
+export type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
+export type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
 
 /** Encrypted `slug` + its plaintext blind-index `slug_index` (the permalink
  * pair shared by pages and news posts). */
@@ -124,31 +118,6 @@ export const idAndEncryptedSlugSchema = withGeneratedId(encryptedSlugSchema);
 
 /** Shared columns for tables with a generated id plus an encrypted name. */
 export const idAndEncryptedNameSchema = withGeneratedId(encryptedNameSchema);
-
-/** The stored column each field kind gives. */
-type KindColumns = { [Kind in FieldKind]: ColumnDef<StoredValue[Kind]> };
-
-/** The stored column of each field kind. A display name is encrypted. The
- *  other kinds stay plaintext, so SQL can order and filter by them. */
-const KIND_COLUMNS: {
-  [Kind in FieldKind]: (
-    encrypt: EncryptFn,
-    decrypt: DecryptFn,
-  ) => KindColumns[Kind];
-} = {
-  date: () => col.simple<string>(),
-  name: (encrypt, decrypt) => col.encrypted(encrypt, decrypt),
-  switch: () => col.boolean(false),
-  text: () => col.simple<string>(),
-};
-
-/** The columns one field declaration stores, with a generated id. */
-export const fieldColumns = <const Fields extends FieldSpecs>(fields: Fields) =>
-  withGeneratedId((encrypt, decrypt) =>
-    byFieldKind<Fields, KindColumns>(fields, (field) =>
-      KIND_COLUMNS[field.kind](encrypt, decrypt),
-    ),
-  );
 
 /** Shared generated `id` + plaintext `created` stamp columns. `created` stays
  * unencrypted so SQL can order and prune by time without decrypting. */

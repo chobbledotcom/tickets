@@ -8,6 +8,7 @@ import {
 import {
   expectWebpContainer,
   makeTestPng,
+  orientedTestJpeg,
   testJpeg,
 } from "#test-utils/test-image.ts";
 
@@ -49,6 +50,12 @@ describe("decodeImage", () => {
     const decoded = await decodeImage(testJpeg(), "image/jpeg");
     expect(decoded.width).toBe(120);
     expect(decoded.height).toBe(90);
+  });
+
+  test("turns a JPEG upright from its EXIF orientation", async () => {
+    const decoded = await decodeImage(orientedTestJpeg(6), "image/jpeg");
+
+    expect([decoded.width, decoded.height]).toEqual([90, 120]);
   });
 
   test("round-trips through WebP decode", async () => {

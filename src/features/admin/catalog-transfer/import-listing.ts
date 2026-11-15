@@ -1,10 +1,8 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { settings } from "#db/settings.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import type {
-  GroupInput,
-  ListingInput,
-} from "#shared/catalog-fields/fields.ts";
+import type { GroupInput } from "#shared/records/group-fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { errorResult, type Result } from "#shared/result.ts";
 import {
   type AdminLevel,

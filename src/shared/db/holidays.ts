@@ -3,7 +3,7 @@
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { fieldColumns } from "#db/common-schema.ts";
+import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { defineCachedListTable } from "#db/table.ts";
@@ -23,7 +23,7 @@ export const holidays = defineCachedListTable<Holiday, HolidayInput>({
   name: "holidays",
   orderBy: sql`start_date ASC`,
   primaryKey: "id",
-  schema: fieldColumns(HOLIDAY_FIELDS)(encrypt, decrypt),
+  schema: fieldColumnsWithId("holidays", HOLIDAY_FIELDS)(encrypt, decrypt),
 });
 
 /**

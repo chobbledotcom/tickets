@@ -20,9 +20,9 @@ import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import { dayPriceFieldsFromInput } from "#shared/listing-edge.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { ListingType } from "#types";
 
 /** The move a confirmed save performs: give every undated booking this day. */

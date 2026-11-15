@@ -16,7 +16,8 @@ import {
   queryOne,
   type TxScope,
 } from "#db/client.ts";
-import { fieldColumns, type NamedSortOrderInput } from "#db/common-schema.ts";
+import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import {
   type ListingOption,
@@ -67,7 +68,7 @@ export const attributesTable = defineTable<Attribute, NamedSortOrderInput>({
   name: "attributes",
   primaryKey: "id",
   schema: {
-    ...fieldColumns(ATTRIBUTE_FIELDS)(encrypt, decrypt),
+    ...fieldColumnsWithId("attributes", ATTRIBUTE_FIELDS)(encrypt, decrypt),
     sort_order: col.withDefault(() => 0),
   },
 });

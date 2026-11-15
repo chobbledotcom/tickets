@@ -9,7 +9,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import * as v from "valibot";
+import type * as v from "valibot";
 import {
   execute,
   insertedRowId,
@@ -35,6 +35,7 @@ import {
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
+import { toCamelCase } from "#shared/column-names.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
@@ -73,26 +74,6 @@ export type ReadColumn<Row> = <K extends keyof Row & string>(
   value: Row[K],
   rowId?: unknown,
 ) => Promise<Row[K]>;
-
-// Case conversion is delegated to valibot's `toCamelCase`/`toSnakeCase` actions
-// rather than bespoke regexes. The schemas are built once at module load and
-// reused on every call. valibot's word-splitting is more robust than a plain
-// regex (it handles digits and acronyms sensibly), and produces byte-identical
-// output to the previous implementation for every column name in the app's
-// table schemas, in both directions. These run only at table-definition time
-// (see `buildInputKeyMap` in `defineTable`), so the parse has no hot-path cost.
-const camelCaseSchema = v.pipe(v.string(), v.toCamelCase());
-const snakeCaseSchema = v.pipe(v.string(), v.toSnakeCase());
-
-/**
- * Convert snake_case to camelCase (e.g. `max_attendees` → `maxAttendees`).
- */
-export const toCamelCase = (s: string): string => v.parse(camelCaseSchema, s);
-
-/**
- * Convert camelCase to snake_case (the inverse of {@link toCamelCase}).
- */
-export const toSnakeCase = (s: string): string => v.parse(snakeCaseSchema, s);
 
 /**
  * Build input key mapping from DB columns

@@ -34,22 +34,6 @@ const buildListingsTestTable = <TInput>(
   });
 
 describeWithEnv("db > table utilities", { db: true }, () => {
-  test("toCamelCase converts snake_case to camelCase", async () => {
-    const { toCamelCase } = await import("#db/table.ts");
-    expect(toCamelCase("max_attendees")).toBe("maxAttendees");
-    expect(toCamelCase("thank_you_url")).toBe("thankYouUrl");
-    expect(toCamelCase("name")).toBe("name");
-    expect(toCamelCase("payment_id")).toBe("paymentId");
-  });
-
-  test("toSnakeCase converts camelCase to snake_case", async () => {
-    const { toSnakeCase } = await import("#db/table.ts");
-    expect(toSnakeCase("maxAttendees")).toBe("max_attendees");
-    expect(toSnakeCase("thankYouUrl")).toBe("thank_you_url");
-    expect(toSnakeCase("name")).toBe("name");
-    expect(toSnakeCase("paymentId")).toBe("payment_id");
-  });
-
   test("buildInputKeyMap creates mapping from DB columns to input keys", async () => {
     const { buildInputKeyMap } = await import("#db/table.ts");
     const columns = ["max_attendees", "thank_you_url", "name"];
@@ -109,7 +93,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const required = col.json(v.array(v.string()), {
       context: "records.required_items",
     });
-    expect(required.default).toBe(undefined);
+    expect("default" in required).toBe(false);
     expect(await required.write?.(["required"])).toBe('["required"]');
   });
 
@@ -153,8 +137,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
   test("col.encryptedNullable wrapping simple column has no transforms", async () => {
     const { col } = await import("#db/table.ts");
     const def = col.encryptedNullable(col.simple<string>());
-    expect(def.write).toBe(undefined);
-    expect(def.read).toBe(undefined);
+    expect([def.write, def.read]).toEqual([undefined, undefined]);
   });
 
   test("col.encryptedNullable handles null values", async () => {

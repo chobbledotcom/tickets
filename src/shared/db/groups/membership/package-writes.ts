@@ -29,7 +29,7 @@ import {
 import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
-import type { PackageMemberInput } from "#shared/catalog-fields/fields.ts";
+import type { PackageMemberInput } from "#shared/records/group-fields.ts";
 
 /** Rechecks every member after a group becomes a package or hides its members.
  *  A built-site plan can be no group's final member — ordinary or package —

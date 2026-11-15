@@ -196,16 +196,6 @@ export const optionalDateString = (
 ): Result<DateString> =>
   readDateField(body, key, optionalDateAbsent(key, fallback));
 
-/**
- * Read an optional number from a JSON body, falling back to `fallback` when the
- * key is absent or holds the wrong type.
- */
-export const bodyNumber = (
-  body: Record<string, unknown>,
-  key: string,
-  fallback: number,
-): number => (typeof body[key] === "number" ? body[key] : fallback);
-
 /** Read one optional field of a named type. An absent key keeps the stored
  *  value. A supplied value of another type is refused with the field-named
  *  message. */

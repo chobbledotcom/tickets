@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { sql } from "#db/sql.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import {
   createPaidAttendeeWithoutLedger,
   createPaidTestAttendee,

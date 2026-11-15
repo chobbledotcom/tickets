@@ -16,10 +16,10 @@ import {
 } from "#db/client.ts";
 import {
   cachedEntityTable,
-  encryptedNameSchema,
   idAndEncryptedSlugSchema,
 } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { fieldColumns } from "#db/field-columns.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
 import { groupListings, listingGroups } from "#db/groups/table.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
@@ -52,13 +52,12 @@ import {
   mapParallel,
   requiredMapValue,
 } from "#fp";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  type GroupInput,
-  groupCatalogFields,
-  type PackageMemberInput,
-} from "#shared/catalog-fields/fields.ts";
 import { packageMemberError } from "#shared/package-membership.ts";
+import {
+  GROUP_FIELDS,
+  type GroupInput,
+  type PackageMemberInput,
+} from "#shared/records/group-fields.ts";
 import { generateUniqueSlug, type SlugWithIndex } from "#shared/slug.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { Group, GroupListing, ListingWithCount } from "#types";
@@ -72,9 +71,8 @@ const groupIdsJson = defineStoredJson(
 
 /** Raw groups table with CRUD operations */
 const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
-  ...encryptedNameSchema(encrypt, decrypt),
   ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  ...projectCatalogFields(groupCatalogFields, "columns", {}),
+  ...fieldColumns("groups", GROUP_FIELDS)(encrypt, decrypt),
 });
 
 const packageDisplayColumns = rawGroupsTable.read.pick([

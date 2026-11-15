@@ -32,7 +32,7 @@ import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import type { GroupInput } from "#shared/records/group-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";

@@ -13,8 +13,8 @@ import {
   type SwitchStep,
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { inputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
