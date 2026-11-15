@@ -24,11 +24,6 @@ import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
-import { projectCatalogFields } from "#shared/catalog-fields/definition.ts";
-import {
-  type ListingInput,
-  listingCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
@@ -44,7 +39,12 @@ import {
   keepDailyListingDate,
   refuseUndatedListingSwitch,
 } from "#shared/listings-actions.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { listingRecord } from "#shared/records/listings.ts";
+import { formFieldsInput } from "#shared/rest/field-reads.ts";
 import type { WriteVerdict } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
@@ -215,7 +215,7 @@ const extractCommonFields = (
   );
   const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
   return {
-    ...projectCatalogFields(listingCatalogFields, "form", values),
+    ...formFieldsInput(LISTING_FIELDS, values),
     assignBuiltSite: enabledChoice(
       isBuilderEnabled(),
       values.assign_built_site,
@@ -252,7 +252,7 @@ const extractListingInput = async (
 const extractListingUpdateInput = async (
   values: ListingEditFormValues,
   form: FormParams,
-): Promise<ListingInput> => {
+): Promise<ListingInput & { date: string }> => {
   const slug = normalizeSlug(values.slug);
   const slugIndex = await hmacHash(slug);
   return {

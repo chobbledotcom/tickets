@@ -338,9 +338,6 @@
     "semicolon": 5,
     "wordy": 1
   },
-  "src/shared/catalog-fields/fields.ts": {
-    "semicolon": 4
-  },
   "src/shared/catalog-transfer-example.ts": {
     "long-sentence": 3,
     "banned-modal": 2
@@ -947,9 +944,9 @@
     "semicolon": 3
   },
   "src/shared/db/table.ts": {
-    "wordy": 10,
+    "wordy": 8,
     "banned-modal": 6,
-    "long-sentence": 9,
+    "long-sentence": 8,
     "semicolon": 3,
     "contraction": 1
   },
@@ -1432,7 +1429,7 @@
     "wordy": 1
   },
   "src/shared/types.ts": {
-    "long-sentence": 10,
+    "long-sentence": 9,
     "wordy": 2,
     "contraction": 2,
     "banned-modal": 11,

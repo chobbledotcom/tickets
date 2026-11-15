@@ -14,11 +14,11 @@ import { envNameSource } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import { byId, mapParallel } from "#fp";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   resolveListingDate,
   resolveListingDefaults,
 } from "#shared/listing-defaults.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type {
   DayPrices,

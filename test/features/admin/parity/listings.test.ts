@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
   assertJson,
+  expectApiError,
   expectFlashRedirect,
   expectRedirectWithFlash,
 } from "#test-utils/assertions.ts";
@@ -35,18 +36,21 @@ import {
 } from "./helpers.ts";
 
 describeWithEnv("Listing parity pins", { db: true }, () => {
-  test("api create parses day prices, dropping day zero", async () => {
-    await assertJson(
+  test("api create keeps a zero day price and refuses day zero", async () => {
+    const post = (dayPrices: Record<number, number>) =>
       ownerApiPost("/api/admin/listings", {
-        day_prices: { 0: 900, 1: 0, 2: 1200 },
+        day_prices: dayPrices,
         listing_type: "standard",
         max_attendees: 10,
         name: "Pinned Day Prices",
-      }),
-      201,
-      (body) => {
-        expect(body.listing.day_prices).toEqual({ 1: 0, 2: 1200 });
-      },
+      });
+    await assertJson(post({ 1: 0, 2: 1200 }), 201, (body) => {
+      expect(body.listing.day_prices).toEqual({ 1: 0, 2: 1200 });
+    });
+    await expectApiError(
+      post({ 0: 900, 1: 0 }),
+      400,
+      "day_prices has an invalid value",
     );
   });
 

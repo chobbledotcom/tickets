@@ -1,6 +1,6 @@
 import { isNotNullish } from "#fp";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { toMajorUnits } from "#shared/currency.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
 import type { DayPrices, ListingWithCount } from "#types";
 

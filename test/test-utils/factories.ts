@@ -8,12 +8,13 @@ import type {
 } from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
 import { generateTestListingName } from "#test-utils/internal.ts";
+import { blankMetadata } from "#test-utils/session-metadata.ts";
 import type {
   Attendee,
   Group,
@@ -273,7 +274,7 @@ export const testBuiltSite = (
  * `{ groupIds }`. Membership is written via setListingGroups by the factory. */
 export type TestListingOverrides = Partial<
   Omit<ListingInput, "slug" | "slugIndex" | "groupIds">
-> & { groupId?: number; groupIds?: number[] };
+> & { groupId?: number; groupIds?: number[] | undefined };
 
 /** Resolve the group-id list a test override describes: explicit `groupIds`
  * wins; otherwise a positive `groupId` becomes a single-group list; `groupId: 0`
@@ -309,24 +310,8 @@ export const baseListingForm: Record<string, string> = {
 export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
+  ...blankMetadata,
   _origin: "localhost",
-  address: "",
-  allocations: "",
-  answer_ids: "",
-  balance_attendee_id: "",
-  date: "",
-  day_count: "",
-  email: "",
-  items: "",
-  modifiers: "",
-  phone: "",
-  price_proof: "",
-  reservation_amount: "",
-  site_token_index: "",
-  special_instructions: "",
-  tax_policy: "",
-  text_answer_ids: "",
-  thank_you_url: "",
   ...metadata,
 });
 

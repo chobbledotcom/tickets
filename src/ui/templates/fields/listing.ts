@@ -5,11 +5,6 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import {
-  type CatalogField,
-  isWholeNumberKind,
-} from "#shared/catalog-fields/definition.ts";
-import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -24,6 +19,9 @@ import {
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { fieldOfKey } from "#shared/rest/field-specs.ts";
+import { isWholeNumberField } from "#shared/rest/field-values.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
@@ -82,13 +80,6 @@ type ListingNumberField<
   type: "number";
 };
 
-/** The catalog entry behind each listing form number field, keyed by the
- *  submitted name. The entry's kind is the shared declaration the listing
- *  JSON API enforces on the same value. */
-const CATALOG_FIELD_BY_NAME: Record<string, CatalogField> = Object.fromEntries(
-  Object.values(listingCatalogFields).map((entry) => [entry[0], entry]),
-);
-
 const listingNumberField = <
   TName extends ListingNumberFieldName,
   TSection extends string,
@@ -100,7 +91,6 @@ const listingNumberField = <
 ): ListingNumberField<TName, TSection> & TOptions => {
   const copy = LISTING_NUMBER_COPY[name];
   const label = t(`fields.listing.${copy}`);
-  const catalogField = CATALOG_FIELD_BY_NAME[name];
   return {
     hint: t(`fields.listing.${copy}_hint`),
     label,
@@ -108,8 +98,7 @@ const listingNumberField = <
     // A whole-number kind refuses a fraction on the form, the same rule the
     // API check enforces on the body value. The field's declared bounds stay
     // responsible for the range, and its message.
-    ...(catalogField !== undefined &&
-    isWholeNumberKind(catalogField) &&
+    ...(isWholeNumberField(fieldOfKey(LISTING_FIELDS, name)) &&
     options.validate === undefined
       ? { validate: validateWholeNumber(label) }
       : {}),

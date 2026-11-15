@@ -10,7 +10,7 @@ import {
 } from "#db/listings/daily-switch.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { expectListingActivityLogContains } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";

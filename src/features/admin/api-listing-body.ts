@@ -1,43 +1,41 @@
 /** JSON body → ListingInput conversion for the admin listing API routes.
  *  Extracted from `api.ts` so that route file stays focused. */
 
-import * as v from "valibot";
 import { listingGroups } from "#db/groups/table.ts";
 import { getStoredListingWithCount } from "#db/listings/records.ts";
-import { reduce } from "#fp";
-import {
-  type CatalogApiBody,
-  invalidApiValueField,
-  projectCatalogFields,
-} from "#shared/catalog-fields/definition.ts";
-import {
-  type ListingInput,
-  listingCatalogFields,
-} from "#shared/catalog-fields/fields.ts";
 import {
   generateUniqueListingSlug,
   keepDailyListingDate,
   parseUpdatedListingSlug,
 } from "#shared/listings-actions.ts";
 import {
-  bodyNumber,
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
+import {
   parseOptionalArray,
   requireEntityField,
   requireStrings,
 } from "#shared/rest/crud-parsers.ts";
+import { readBody } from "#shared/rest/field-reads.ts";
+import { type FieldsBody, fieldsOnDoor } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { isUtcInstantOfRealDay } from "#shared/validation/date-string.ts";
-import { integerAtLeast } from "#shared/validation/number.ts";
 import {
   type AdminSession,
   type ListingWithCount,
-  MAX_DURATION_DAYS,
+  parseDayPrices,
 } from "#types";
+
+/** The listing fields the JSON API reads. */
+const API_FIELDS = fieldsOnDoor(LISTING_FIELDS, "api");
+
+/** The listing fields as one JSON write reads them. */
+type ApiFields = Partial<ListingInput>;
 
 /** JSON body accepted by POST /api/admin/listings. */
 export type CreateListingBody = Omit<
-  CatalogApiBody<typeof listingCatalogFields>,
-  "date"
+  FieldsBody<typeof LISTING_FIELDS>,
+  "date" | "day_prices"
 > & {
   /** Selected attribute option ids (the Attributes feature). */
   attribute_option_ids?: number[];
@@ -89,67 +87,6 @@ const withoutEditorLockedFields = (
   );
 };
 
-const INSTANT_OR_NULL = v.union([
-  v.null(),
-  v.pipe(v.string(), v.check(isUtcInstantOfRealDay)),
-]);
-
-/** The listing date accepts "" beside the usual instants. An undated
- *  listing stores "" and the GET reads it back as "", so the update
- *  boundary accepts the sentinel and keeps the round trip. */
-const DATE_OR_EMPTY = v.union([INSTANT_OR_NULL, v.literal("")]);
-
-const API_BODY_FIELD_RULES = [
-  [
-    "bookable_days",
-    v.array(v.string()),
-    "bookable_days must contain only text",
-  ],
-  [
-    "duration_days",
-    v.pipe(integerAtLeast(1), v.maxValue(MAX_DURATION_DAYS)),
-    `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
-  ],
-  [
-    "closes_at",
-    INSTANT_OR_NULL,
-    "closes_at must be a UTC instant of a real calendar day",
-  ],
-  ["date", DATE_OR_EMPTY, "date must be a UTC instant of a real calendar day"],
-  [
-    "day_prices",
-    v.pipe(
-      v.unknown(),
-      v.check(
-        (raw) =>
-          typeof raw !== "object" ||
-          raw === null ||
-          Object.values(raw).every(
-            (price) => typeof price !== "number" || Number.isSafeInteger(price),
-          ),
-      ),
-    ),
-    "day_prices numeric values must be safe integers",
-  ],
-] as const;
-
-/** Parse a day_prices object from a JSON body into DayPrices. Keeps only
- * positive-integer day counts mapped to numeric prices. Everything else is
- * dropped so validateCustomisableDays sees a clean structure. */
-const parseDayPrices = (raw: unknown): Record<number, number> => {
-  if (typeof raw !== "object" || raw === null) return {};
-  return reduce(
-    (kept: Record<number, number>, [key, value]: [string, unknown]) => {
-      const day = Number(key);
-      if (Number.isInteger(day) && day >= 1 && typeof value === "number") {
-        kept[day] = value;
-      }
-      return kept;
-    },
-    {},
-  )(Object.entries(raw));
-};
-
 /** Parse an optional array of positive integer ids (group membership or
  * selected attribute options). An absent field yields `undefined` and leaves
  * the stored links unchanged. An explicit array (including `[]`) replaces
@@ -166,23 +103,23 @@ const parseOptionalIdArray = (
       : errorResult(`${label} must contain only positive integer ids`),
   );
 
-/** The join-table id arrays a listing write body can carry, keyed by the JSON
- * field names the clients send. */
-export type ListingJoinIds = {
-  attributeOptionIds: number[] | undefined;
-  groupIds: number[] | undefined;
-};
-
-/** Validate mapped fields and the join-table id arrays before building the
- * listing input. Attribute assignment is owner-only in the dashboard: the
- * listing choice post runs under OWNER_FORM and the attributes resource under
- * OWNER_API. The JSON field is therefore owner-only too. A write that carries
- * it without an owner session is refused, and one without the field keeps the
- * writer's normal listing access. */
-const withParsedJoinIds = (
+/** Read the listing fields and the join-table id arrays before building the
+ * listing input. Each field's kind carries its value rule, so a hand-built
+ * body cannot set max_attendees 0 or a negative min_quantity. The read takes
+ * the body after the editor lock strip, so a locked field keeps its stored
+ * value or its column default. Attribute assignment is owner-only in the
+ * dashboard: the listing choice post runs under OWNER_FORM and the attributes
+ * resource under OWNER_API. The JSON field is therefore owner-only too. A
+ * write that carries it without an owner session is refused, and one without
+ * the field keeps the writer's normal listing access. An omitted id array
+ * stays undefined: persistListingJoins skips the link write for it, so an
+ * unrelated update never restores a stale set. `existing` is null on
+ * create. */
+const withParsedJoinIds = <Read extends ApiFields>(
   session: AdminSession | undefined,
   body: Record<string, unknown>,
-  build: (joinIds: ListingJoinIds) => Promise<Result<ListingInput>>,
+  existing: ListingWithCount | null,
+  build: (fields: Read) => Promise<Result<ListingInput>>,
 ): Promise<Result<ListingInput>> => {
   if (
     body.attribute_option_ids !== undefined &&
@@ -190,36 +127,27 @@ const withParsedJoinIds = (
   ) {
     return Promise.resolve(errorResult("attribute_option_ids is owner-only"));
   }
-  // The same declared bounds the listing form enforces. Each field's kind
-  // carries its minimum, so a hand-built body cannot set max_attendees 0 or
-  // a negative min_quantity/max_quantity. The check reads the body after the
-  // editor lock strip, so a locked field keeps its ignore semantics. It runs
-  // after the per-field rules so their messages stay the specific ones.
-  const invalid = API_BODY_FIELD_RULES.find(
-    ([apiKey, schema]) =>
-      body[apiKey] !== undefined && !v.is(schema, body[apiKey]),
+  const fields = readBody(
+    API_FIELDS,
+    withoutEditorLockedFields(body, session),
+    existing,
   );
-  if (invalid) return Promise.resolve(errorResult(invalid[2]));
-  const applicableBody = withoutEditorLockedFields(body, session);
-  const invalidField = invalidApiValueField(
-    listingCatalogFields,
-    applicableBody,
-  );
-  if (invalidField) {
-    return Promise.resolve(errorResult(`${invalidField} has an invalid value`));
-  }
+  if (!fields.ok) return Promise.resolve(fields);
   const groupIds = parseOptionalIdArray(body.group_ids, "group_ids");
   if (!groupIds.ok) return Promise.resolve(groupIds);
   const attributeOptionIds = parseOptionalIdArray(
     body.attribute_option_ids,
     "attribute_option_ids",
   );
-  return attributeOptionIds.ok
-    ? build({
-        attributeOptionIds: attributeOptionIds.value,
-        groupIds: groupIds.value,
-      })
-    : Promise.resolve(attributeOptionIds);
+  if (!attributeOptionIds.ok) return Promise.resolve(attributeOptionIds);
+  // The read keys each checked value by its input name.
+  const read = fields.value as Read;
+  return build({
+    ...read,
+    attributeOptionIds: attributeOptionIds.value,
+    dayPrices: parseDayPrices(read.dayPrices),
+    groupIds: groupIds.value,
+  });
 };
 
 /** The answer both listing write mappers give. */
@@ -233,32 +161,32 @@ export const bodyToCreateInput = async (
 ): ListingWriteResult => {
   const nameField = requireStrings(body, ["name"]);
   if (!nameField.ok) return nameField;
-  // Requiredness only. A supplied value's range is the field kind's declared
-  // minimum, refused by the shared catalog field check in withParsedJoinIds.
+  // Requiredness only. A supplied value's range is the field kind's value
+  // rule, which the field read in withParsedJoinIds applies.
   if (typeof body.max_attendees !== "number") {
     return { error: "max_attendees is required", ok: false };
   }
   const name = nameField.value.name;
   const maxAttendees = body.max_attendees;
 
-  return withParsedJoinIds(session, body, async (joinIds) => {
+  return withParsedJoinIds(session, body, null, async (fields) => {
     const { slug, slugIndex } = await generateUniqueListingSlug();
     return okResult({
-      ...projectCatalogFields(
-        listingCatalogFields,
-        "api",
-        withoutEditorLockedFields(body, session),
-      ),
-      attributeOptionIds: joinIds.attributeOptionIds,
-      dayPrices: parseDayPrices(body.day_prices),
-      groupIds: joinIds.groupIds,
+      ...fields,
       maxAttendees,
-      maxPrice: bodyNumber(body, "max_price", 0),
+      maxPrice: fields.maxPrice ?? 0,
       name,
       slug,
       slugIndex,
-    } as ListingInput);
+    });
   });
+};
+
+/** An update read keeps the stored value of each field the body leaves out. */
+type StoredRead = ApiFields & {
+  date: string;
+  maxAttendees: number;
+  maxPrice: number;
 };
 
 /** Convert JSON body to ListingInput for update (merges with existing) */
@@ -272,70 +200,41 @@ export const bodyToUpdateInput = async (
   const parsedName = requireEntityField(body, "name", existing.name);
   if (!parsedName.ok) return parsedName;
 
-  return withParsedJoinIds(session, body, async (joinIds) => {
-    // An absent max_attendees keeps the stored value. A supplied one already
-    // passed the field kind's declared minimum in withParsedJoinIds.
-    const maxAttendees = bodyNumber(
-      body,
-      "max_attendees",
-      existing.max_attendees,
-    );
+  return withParsedJoinIds<StoredRead>(
+    session,
+    body,
+    existing,
+    async (fields) => {
+      const { slug, slugIndex } = await parseUpdatedListingSlug(
+        body,
+        existing.slug,
+      );
 
-    const { slug, slugIndex } = await parseUpdatedListingSlug(
-      body,
-      existing.slug,
-    );
-
-    const input = {
-      ...projectCatalogFields(listingCatalogFields, "storedApi", existing),
-      ...projectCatalogFields(
-        listingCatalogFields,
-        "api",
-        withoutEditorLockedFields(body, session),
-      ),
-      // The JSON API cannot set these four fields, so fold the stored ones in
-      // as the update's final facts. An update that adds groups or children
-      // must read them the way the validators do, not as absent-and-false.
-      assignBuiltSite: existing.assign_built_site,
-      // An omitted attribute_option_ids leaves the stored links untouched.
-      // persistListingJoins skips the link write for an undefined selection.
-      // So an unrelated update never restores a stale one. group_ids behaves
-      // the same way.
-      attributeOptionIds: joinIds.attributeOptionIds,
-      dayPrices:
-        body.day_prices !== undefined
-          ? parseDayPrices(body.day_prices)
-          : existing.day_prices,
-      groupIds: joinIds.groupIds,
-      initialSiteMonths: existing.initial_site_months,
-      maxAttendees,
-      maxPrice: bodyNumber(body, "max_price", existing.max_price),
-      monthsPerUnit: existing.months_per_unit,
-      name: parsedName.value,
-      purchaseOnly: existing.purchase_only,
-      slug,
-      slugIndex,
-      // The validators judge the membership as it will stand after the write:
-      // the submitted set, or the stored set when the body omits group_ids.
-      wouldBeGroupIds:
-        joinIds.groupIds ?? (await listingGroups.getIds(existing.id)),
-    } as ListingInput;
-    // An absent body date means "the stored value stands", exactly as the
-    // stored fallback projection has always written. A null date is a
-    // submitted empty date: it clears a standard listing's date. A non-string
-    // date is not a submitted date. The field checks reject it.
-    const submittedDate =
-      typeof body.date === "string"
-        ? body.date
-        : body.date === null
-          ? ""
-          : undefined;
-    return okResult({
-      ...input,
-      // A daily listing's date must survive an empty-date update, so the owner
-      // can switch the type back to standard and get it back. The type itself
-      // can flip in this same update.
-      date: keepDailyListingDate(submittedDate, existing, input.listingType),
-    });
-  });
+      const input: ListingInput = {
+        ...fields,
+        // The JSON API cannot set these four fields, so fold the stored ones in
+        // as the update's final facts. An update that adds groups or children
+        // must read them the way the validators do, not as absent-and-false.
+        assignBuiltSite: existing.assign_built_site,
+        initialSiteMonths: existing.initial_site_months,
+        monthsPerUnit: existing.months_per_unit,
+        name: parsedName.value,
+        purchaseOnly: existing.purchase_only,
+        slug,
+        slugIndex,
+        // The validators judge the membership as it will stand after the write:
+        // the submitted set, or the stored set when the body omits group_ids.
+        wouldBeGroupIds:
+          fields.groupIds ?? (await listingGroups.getIds(existing.id)),
+      };
+      return okResult({
+        ...input,
+        // The field read keeps the stored date when the body has none, and reads
+        // a null date as empty. A daily listing's date must survive an
+        // empty-date update, so the owner can switch the type back to standard
+        // and get it back. The type itself can flip in this same update.
+        date: keepDailyListingDate(fields.date, existing, input.listingType),
+      });
+    },
+  );
 };
