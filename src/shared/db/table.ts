@@ -11,7 +11,6 @@
 import type { InValue } from "@libsql/client";
 import * as v from "valibot";
 import {
-  equalityClauses,
   execute,
   insertedRowId,
   queryOne,
@@ -29,6 +28,7 @@ import {
   sqlNames,
 } from "#db/sql.ts";
 import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
+import { equalityClauses } from "#db/where-clauses.ts";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {
   type DependsOnEntry,

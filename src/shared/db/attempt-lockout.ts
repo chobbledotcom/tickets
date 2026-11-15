@@ -9,11 +9,11 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   deleteByField,
-  deleteFrom,
   execute,
   executeReturningRow,
   queryOne,
 } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
 

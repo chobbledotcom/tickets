@@ -10,7 +10,8 @@
  */
 
 import * as v from "valibot";
-import { deleteFrom, execute, queryAll, type TxScope } from "#db/client.ts";
+import { execute, queryAll, type TxScope } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import {
   PRICE_TYPE_DAY_COUNT,

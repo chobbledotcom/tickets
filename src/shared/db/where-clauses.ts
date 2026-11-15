@@ -8,7 +8,14 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { type SqlStatement, sql, sqlJoin, sqlList, sqlName } from "#db/sql.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 
 /** One filter clause, with the values it binds.
  * `matchesNothing` marks a clause that no row can ever pass, so a reader can
@@ -101,3 +108,13 @@ export const deleteWhere =
   (table: string): DeleteFromTable =>
   (where) =>
     sql`DELETE FROM ${sqlName(table)}${whereSql(where)}`;
+
+/** One `column = value` per entry: the shared clause shape of an UPDATE's SET
+ *  and WHERE parts, and of a DELETE's WHERE part. A value can be a statement,
+ *  such as a counter increment. */
+export const equalityClauses = (
+  values: Record<string, SqlSlot>,
+): SqlStatement[] =>
+  Object.entries(values).map(
+    ([column, value]) => sql`${sqlName(column)} = ${value}`,
+  );

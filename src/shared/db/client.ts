@@ -14,6 +14,7 @@ import type {
   TransactionMode,
 } from "@libsql/client";
 import { createDatabaseClient } from "#db/database-client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import {
   beginTransaction,
@@ -39,6 +40,7 @@ import {
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
+import { equalityClauses } from "#db/where-clauses.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
@@ -819,15 +821,6 @@ export const insert = insertStartingWith(sql`INSERT INTO`);
  */
 export const insertOrIgnore = insertStartingWith(sql`INSERT OR IGNORE INTO`);
 
-/** One `column = value` per entry: the shared clause shape of {@link update}'s
- * SET and WHERE parts. */
-export const equalityClauses = (
-  values: Record<string, SqlSlot>,
-): SqlStatement[] =>
-  Object.entries(values).map(
-    ([column, value]) => sql`${sqlName(column)} = ${value}`,
-  );
-
 /**
  * Build an UPDATE statement, the WHERE record ANDed as equality checks. A SET
  * value can be a statement, such as a counter increment. A write needing a
@@ -849,17 +842,3 @@ export const update = (
 export const executeUpdate = (
   ...parts: Parameters<typeof update>
 ): Promise<ResultSet> => execute(update(...parts));
-
-/**
- * Build a DELETE statement, the WHERE record ANDed as equality checks. A
- * delete needing a richer guard — `IS NULL`, an inequality, a subquery — keeps
- * its own SQL rather than bending this one.
- */
-export const deleteFrom = (
-  table: string,
-  where: Record<string, InValue>,
-): SqlStatement =>
-  sql`DELETE FROM ${sqlName(table)} WHERE ${sqlJoin(
-    equalityClauses(where),
-    sql` AND `,
-  )}`;
