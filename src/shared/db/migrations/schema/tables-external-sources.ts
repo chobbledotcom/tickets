@@ -8,6 +8,7 @@ import { datedRowColumns } from "./columns.ts";
 import {
   checked,
   oneOf,
+  refersTo,
   text,
   textOrNull,
   wholeNumber,
@@ -40,7 +41,7 @@ export const externalSourceTables = [
     {
       columns: [
         ...datedRowColumns,
-        ["source_id", wholeNumber],
+        ["source_id", refersTo("external_sources")(wholeNumber)],
         ["link_type", linkKind],
         ["link_id", wholeNumber],
         ["external_id", textOrNull],

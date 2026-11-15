@@ -4,6 +4,7 @@ import { attendeeIdColumn, slugNamedEntityColumns } from "./columns.ts";
 import {
   defaulted,
   real,
+  refersTo,
   rowId,
   text,
   textOrNull,
@@ -53,8 +54,8 @@ export const catalogTables = [
     "group_listings",
     {
       columns: [
-        ["group_id", wholeNumber],
-        ["listing_id", wholeNumber],
+        ["group_id", refersTo("groups")(wholeNumber)],
+        ["listing_id", refersTo("listings")(wholeNumber)],
         ["quantity", wholeNumberStartingAtOne],
       ],
       indexes: [
@@ -105,8 +106,8 @@ export const catalogTables = [
     "modifier_listings",
     {
       columns: [
-        ["modifier_id", wholeNumber],
-        ["listing_id", wholeNumber],
+        ["modifier_id", refersTo("modifiers")(wholeNumber)],
+        ["listing_id", refersTo("listings")(wholeNumber)],
       ],
       indexes: [
         {
@@ -128,8 +129,8 @@ export const catalogTables = [
     "listing_parents",
     {
       columns: [
-        ["parent_listing_id", wholeNumber],
-        ["child_listing_id", wholeNumber],
+        ["parent_listing_id", refersTo("listings")(wholeNumber)],
+        ["child_listing_id", refersTo("listings")(wholeNumber)],
       ],
       indexes: [
         {
@@ -146,8 +147,8 @@ export const catalogTables = [
     "modifier_groups",
     {
       columns: [
-        ["modifier_id", wholeNumber],
-        ["group_id", wholeNumber],
+        ["modifier_id", refersTo("modifiers")(wholeNumber)],
+        ["group_id", refersTo("groups")(wholeNumber)],
       ],
       indexes: [
         {
@@ -165,7 +166,7 @@ export const catalogTables = [
     {
       columns: [
         ["id", rowId],
-        ["modifier_id", wholeNumber],
+        ["modifier_id", refersTo("modifiers")(wholeNumber)],
         attendeeIdColumn,
         ["quantity", wholeNumber],
         ["amount_applied", wholeNumber],
@@ -195,7 +196,7 @@ export const catalogTables = [
     {
       columns: [
         ["id", rowId],
-        ["user_id", wholeNumber],
+        ["user_id", refersTo("users")(wholeNumber)],
         ["key_index", text],
         ["wrapped_data_key", text],
         ["name", text],

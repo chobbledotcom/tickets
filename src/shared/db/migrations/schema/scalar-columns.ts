@@ -21,32 +21,59 @@ import {
 } from "#db/sql.ts";
 import type { ColumnKind, RefersTo } from "./types.ts";
 
-/** Name the value a stored row holds in a column of this type. */
+/** What a read must know about a column type beyond its SQL text. */
+type ColumnFacts = {
+  /** Whether a row can hold nothing in the column. */
+  readonly canBeNull: boolean;
+  /** The table whose `id` the column holds, or null for a plain value. */
+  readonly refersTo: string | null;
+};
+
+const factsOfType = new WeakMap<SqlStatement, ColumnFacts>();
+
+const withFacts = <Kind extends SqlStatement>(
+  type: SqlStatement,
+  facts: ColumnFacts,
+): Kind => {
+  factsOfType.set(type, facts);
+  return type as Kind;
+};
+
+/** The facts of a column type. Every type that this module makes has them. */
+export const columnFacts = (type: SqlStatement): ColumnFacts => {
+  const facts = factsOfType.get(type);
+  if (facts === undefined) {
+    throw new Error(`Not a column type from scalar-columns.ts: ${type.sql}`);
+  }
+  return facts;
+};
+
+/** A type whose column always holds a value. */
 const storing = <Stored>(type: SqlStatement): ColumnKind<Stored> =>
-  type as ColumnKind<Stored>;
+  withFacts(type, { canBeNull: false, refersTo: null });
+
+/** A type whose column can hold nothing. */
+const storingOrNull = <Stored>(type: SqlStatement): ColumnKind<Stored | null> =>
+  withFacts(type, { canBeNull: true, refersTo: null });
 
 /** A type with more SQL after it holds the same value as the type it wraps. */
 const sameKind = <Kind extends SqlStatement>(
-  _wrapped: Kind,
+  wrapped: Kind,
   built: SqlStatement,
-): Kind => built as Kind;
+): Kind => withFacts(built, columnFacts(wrapped));
 
 /** Text that the column always holds. */
 export const text = storing<string>(sql`TEXT NOT NULL`);
 
 /** Text, or nothing. */
-export const textOrNull = storing<string | null>(sql`TEXT`);
+export const textOrNull = storingOrNull<string>(sql`TEXT`);
 
 /** Text that the column always holds, and that starts blank. */
-export const textStartingBlank = storing<string>(
-  sql`TEXT NOT NULL DEFAULT ''`,
-);
+export const textStartingBlank = storing<string>(sql`TEXT NOT NULL DEFAULT ''`);
 
 /** Text, or nothing, that starts at nothing. Older columns hold their empty
  *  value this way. */
-export const textStartingAtNull = storing<string | null>(
-  sql`TEXT DEFAULT NULL`,
-);
+export const textStartingAtNull = storingOrNull<string>(sql`TEXT DEFAULT NULL`);
 
 /** A required type with the value a new row starts at. A number stands as
  *  itself, and text is quoted. */
@@ -59,7 +86,7 @@ export const defaulted = <Kind extends SqlStatement>(
 export const wholeNumber = storing<number>(sql`INTEGER NOT NULL`);
 
 /** A whole number, or nothing. */
-export const wholeNumberOrNull = storing<number | null>(sql`INTEGER`);
+export const wholeNumberOrNull = storingOrNull<number>(sql`INTEGER`);
 
 /** A whole number that the column always holds, and that starts at zero. */
 export const wholeNumberStartingAtZero = storing<number>(
@@ -73,9 +100,8 @@ export const wholeNumberStartingAtOne = storing<number>(
 
 /** A whole number, or nothing, that starts at nothing. Older columns hold
  *  their empty value this way. */
-export const wholeNumberStartingAtNull = storing<number | null>(
-  sql`INTEGER DEFAULT NULL`,
-);
+export const wholeNumberStartingAtNull =
+  storingOrNull<number>(sql`INTEGER DEFAULT NULL`);
 
 /** A measured number that the column always holds. */
 export const real = storing<number>(sql`REAL NOT NULL`);
@@ -88,9 +114,7 @@ export const rowId = storing<number>(sql`INTEGER PRIMARY KEY AUTOINCREMENT`);
 export const textKey = storing<string>(sql`TEXT PRIMARY KEY`);
 
 /** A text key that must always be found. */
-export const requiredTextKey = storing<string>(
-  sql`TEXT PRIMARY KEY NOT NULL`,
-);
+export const requiredTextKey = storing<string>(sql`TEXT PRIMARY KEY NOT NULL`);
 
 /** A rule about this column's own value, in SQL. */
 export const checked =
@@ -122,20 +146,9 @@ export const aboutTheRow =
       ),
     );
 
-/** The table each referring column type points at. */
-const referredTables = new WeakMap<SqlStatement, string>();
-
 /** A column that holds the `id` of a row in `target`. The SQL text of the type
  *  stays the same. A read joins the two tables along this column. */
 export const refersTo =
   <Target extends string>(target: Target) =>
-  <Kind extends SqlStatement>(type: Kind): Kind & RefersTo<Target> => {
-    const referring = sql`${type}`;
-    referredTables.set(referring, target);
-    return referring as Kind & RefersTo<Target>;
-  };
-
-/** The table that a column type refers to. Null for a column that holds no
- *  reference, which is most columns. */
-export const referredTableOrNull = (type: SqlStatement): string | null =>
-  referredTables.get(type) ?? null;
+  <Kind extends SqlStatement>(type: Kind): Kind & RefersTo<Target> =>
+    withFacts(sql`${type}`, { ...columnFacts(type), refersTo: target });

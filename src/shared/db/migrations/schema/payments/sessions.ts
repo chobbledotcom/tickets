@@ -1,6 +1,7 @@
 import {
   aboutTheRow,
   defaulted,
+  refersTo,
   requiredTextKey,
   text,
   textOrNull,
@@ -51,7 +52,7 @@ export const paymentSessionTable = [
       ["lease_token", textOrNull],
       ["lease_expires_at", wholeNumberOrNull],
       ["next_reconcile_at", wholeNumberOrNull],
-      ["attendee_id", wholeNumberOrNull],
+      ["attendee_id", refersTo("attendees")(wholeNumberOrNull)],
       ["result_state", defaulted(text, "none")],
       ["result", textOrNull],
       ["ticket_state", defaulted(text, "none")],

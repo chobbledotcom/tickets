@@ -11,6 +11,7 @@ import {
 import {
   checked,
   defaulted,
+  refersTo,
   requiredTextKey,
   rowId,
   text,
@@ -66,7 +67,7 @@ export const attendeeTables = [
         // refunds. Empty proves PII has no payment id. Otherwise this names
         // the canonical payment row that proves the PII payment id.
         ["pii_payment_session_id", textOrNull],
-        ["status_id", wholeNumberStartingAtNull],
+        ["status_id", refersTo("attendee_statuses")(wholeNumberStartingAtNull)],
         ["split_logistics_agents", wholeNumberStartingAtZero],
         // Whether a notification send is owed for this booking, and who the
         // booking came from: 0 none, 1 booked online, 2 added by an admin.
@@ -112,7 +113,7 @@ export const attendeeTables = [
     {
       columns: [
         ["id", rowId],
-        ["listing_id", wholeNumber],
+        ["listing_id", refersTo("listings")(wholeNumber)],
         attendeeIdColumn,
         ["start_at", textStartingAtNull],
         ["end_at", textStartingAtNull],
@@ -127,8 +128,14 @@ export const attendeeTables = [
         // booking creation and by the backfill; '' for rows with no ledger legs.
         ["ledger_event_group", textStartingBlank],
         ["attachment_downloads", wholeNumberStartingAtZero],
-        ["start_agent_id", wholeNumberStartingAtNull],
-        ["end_agent_id", wholeNumberStartingAtNull],
+        [
+          "start_agent_id",
+          refersTo("logistics_agents")(wholeNumberStartingAtNull),
+        ],
+        [
+          "end_agent_id",
+          refersTo("logistics_agents")(wholeNumberStartingAtNull),
+        ],
         ["start_time", textStartingBlank],
         ["end_time", textStartingBlank],
         ["start_done", wholeNumberStartingAtZero],
@@ -140,13 +147,13 @@ export const attendeeTables = [
         // For a folded child row, the parent listing the buyer chose it under
         // (0 = not a folded child). A child summed across two parents records the
         // first — the common case is one parent → one child.
-        ["parent_listing_id", wholeNumberStartingAtZero],
+        ["parent_listing_id", refersTo("listings")(wholeNumberStartingAtZero)],
         // The package group this order belongs to (0 = not a package), stamped on
         // every booking row of one package checkout like order_token. Tickets and
         // confirmation emails group the order's lines under the package by this
         // persisted id, so a standalone order of the same listings is not
         // mistaken for the package by membership equality.
-        ["package_group_id", wholeNumberStartingAtZero],
+        ["package_group_id", refersTo("groups")(wholeNumberStartingAtZero)],
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application
@@ -232,7 +239,7 @@ export const attendeeTables = [
     {
       columns: [
         ["payment_session_id", textKey],
-        ["attendee_id", wholeNumberOrNull],
+        ["attendee_id", refersTo("attendees")(wholeNumberOrNull)],
         ["processed_at", text],
         ["ticket_tokens", textStartingBlank],
         ["failure_data", textStartingBlank],
@@ -313,9 +320,9 @@ export const attendeeTables = [
     {
       columns: [
         ...datedRowColumns,
-        ["listing_id", wholeNumberOrNull],
+        ["listing_id", refersTo("listings")(wholeNumberOrNull)],
         ["message", text],
-        ["attendee_id", wholeNumberOrNull],
+        ["attendee_id", refersTo("attendees")(wholeNumberOrNull)],
       ],
       indexes: [
         {

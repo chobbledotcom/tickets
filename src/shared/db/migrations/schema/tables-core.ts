@@ -5,6 +5,7 @@ import { datedRowColumns, itemLinkColumns } from "./columns.ts";
 import {
   checked,
   defaulted,
+  refersTo,
   rowId,
   text,
   textKey,
@@ -151,7 +152,7 @@ export const coreTables = [
     "listing_prices",
     {
       columns: [
-        ["listing_id", wholeNumber],
+        ["listing_id", refersTo("listings")(wholeNumber)],
         ["price_type", text],
         ["price_id", textStartingBlank],
         ["unit_price", wholeNumber],
@@ -222,7 +223,7 @@ export const coreTables = [
         ["csrf_token", text],
         ["expires", wholeNumber],
         ["wrapped_data_key", textOrNull],
-        ["user_id", wholeNumberOrNull],
+        ["user_id", refersTo("users")(wholeNumberOrNull)],
       ],
     },
   ],
@@ -250,7 +251,10 @@ export const coreTables = [
     // one item.
     "image_uses",
     {
-      columns: [["image_id", wholeNumber], ...itemLinkColumns],
+      columns: [
+        ["image_id", refersTo("images")(wholeNumber)],
+        ...itemLinkColumns,
+      ],
       indexes: [
         {
           columns: ["item_type", "item_id", "sort_order"],
@@ -275,8 +279,8 @@ export const coreTables = [
     {
       columns: [
         ["id", rowId],
-        ["user_id", wholeNumber],
-        ["agent_id", wholeNumber],
+        ["user_id", refersTo("users")(wholeNumber)],
+        ["agent_id", refersTo("logistics_agents")(wholeNumber)],
       ],
       indexes: [
         {

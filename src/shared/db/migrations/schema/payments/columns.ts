@@ -11,15 +11,12 @@
 
 import {
   checked,
+  refersTo,
   rowId,
   text,
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
-import type {
-  Column,
-  NamedTable,
-  Table,
-} from "#db/migrations/schema/types.ts";
+import type { Column, NamedTable, Table } from "#db/migrations/schema/types.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
@@ -79,7 +76,11 @@ export const paymentRecord = <
   [
     name,
     {
-      columns: [["id", rowId], ["payment_id", text], ...parts.columns],
+      columns: [
+        ["id", rowId],
+        ["payment_id", refersTo("payment_sessions")(text)],
+        ...parts.columns,
+      ],
       indexes: parts.indexes,
     },
   ] as const satisfies NamedTable;

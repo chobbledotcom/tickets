@@ -10,13 +10,8 @@
  * This module is pure and never touches the database.
  */
 
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { type Expr, wholeCondition } from "#db/select/expression.ts";
+import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
 import { type ListingType, ListingTypeSchema } from "#types";
 
 /** The two listing facts that decide which capacity checks apply. */
@@ -212,11 +207,11 @@ export const listingTypesWithRule = (
  */
 export const capacityRuleTypeSql = (
   key: CapacityRuleKey,
-  column: string,
-): SqlStatement =>
-  sql`${sqlName(column)} IN (${sqlCommas(
-    listingTypesWithRule(key).map(sqlLiteral),
-  )})`;
+  column: SqlStatement,
+): Expr<boolean> =>
+  wholeCondition(
+    sql`${column} IN (${sqlCommas(listingTypesWithRule(key).map(sqlLiteral))})`,
+  );
 
 const perDateTypes = listingTypesWithRule("perDateCap");
 

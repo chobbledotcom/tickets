@@ -23,10 +23,7 @@ const columnNamed = (table: string, column: string): string => {
 
 /** The columns one declared index covers, in order, failing when the table
  *  declares no index under that name. */
-const indexColumns = (
-  table: string,
-  indexName: string,
-): readonly string[] => {
+const indexColumns = (table: string, indexName: string): readonly string[] => {
   const found = tableNamed(table).indexes?.find(
     (one) => one.name === indexName,
   );

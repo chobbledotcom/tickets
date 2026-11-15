@@ -33,7 +33,9 @@ export const TYPED_SCHEMA = [
 export const SCHEMA: readonly NamedTable[] = TYPED_SCHEMA;
 
 /** Ordered table names — matches FK dependency order (parents before children) */
-export const SCHEMA_TABLE_NAMES: readonly string[] = SCHEMA.map(([name]) => name);
+export const SCHEMA_TABLE_NAMES: readonly string[] = SCHEMA.map(
+  ([name]) => name,
+);
 
 // ─── Schema hash (auto-detects changes even when LATEST_UPDATE is not bumped) ──
 

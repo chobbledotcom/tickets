@@ -2,7 +2,7 @@ import { dateToRange } from "#db/capacity.ts";
 import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { columnMapByIds } from "#db/query.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { sql, sqlList, sqlName } from "#db/sql.ts";
 import { mapBy, mapById, requiredMapValue, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
@@ -43,17 +43,14 @@ export const getGroupRemainingByGroupId: RemainingLookup<number> = (
         SELECT SUM(listing.booked_quantity)
           FROM listings AS listing
           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
-           "dateLessCap",
-           "listing.listing_type",
-         )}
+         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", sqlName("listing.listing_type"))}
       ), 0) + COALESCE((
         SELECT SUM(attendee.quantity)
           FROM listing_attendees AS attendee
           JOIN listings AS listing ON listing.id = attendee.listing_id
           JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
          WHERE groupListing.group_id = groupRow.id
-           AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
+           AND ${capacityRuleTypeSql("perDateCap", sqlName("listing.listing_type"))}
            AND attendee.start_at < ${range.endAt} AND attendee.end_at > ${range.startAt}
       ), 0)`
       : sql`COALESCE((
@@ -94,10 +91,7 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
               SELECT SUM(listing.booked_quantity)
                 FROM listings AS listing
                 JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
-                 "dateLessCap",
-                 "listing.listing_type",
-               )}
+               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql("dateLessCap", sqlName("listing.listing_type"))}
             ), 0) AS base
        FROM groups AS groupRow
       WHERE groupRow.id IN (${sqlList(ids)}) AND groupRow.max_attendees > 0`,
@@ -112,7 +106,7 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
        JOIN listings AS listing ON listing.id = attendee.listing_id
        JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
       WHERE groupListing.group_id IN (${sqlList(cappedIds)})
-        AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
+        AND ${capacityRuleTypeSql("perDateCap", sqlName("listing.listing_type"))}
         AND attendee.start_at < ${endAt} AND attendee.end_at > ${startAt}`,
   );
   const rowsByGroup = Map.groupBy(rows, (row) => row.group_id);

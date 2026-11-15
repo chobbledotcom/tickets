@@ -26,6 +26,12 @@ export type SqlStatement = {
   readonly [MADE_BY_SQL_TAG]: true;
 };
 
+declare const ROWS: unique symbol;
+
+/** A statement that also names the row each result holds. A runner reads the
+ * row type from the statement, so the caller does not name it again. */
+export type RowsStatement<Row> = SqlStatement & { readonly [ROWS]: Row };
+
 /** What a template slot can hold: a value to bind, or SQL to splice in. */
 export type SqlSlot = InValue | SqlStatement;
 

@@ -1,6 +1,7 @@
 import {
   aboutTheRow,
   checked,
+  refersTo,
   rowId,
   text,
   textOrNull,
@@ -17,7 +18,7 @@ export const paymentCaseDecisionTable = [
   {
     columns: [
       ["id", rowId],
-      ["case_id", wholeNumber],
+      ["case_id", refersTo("payment_cases")(wholeNumber)],
       ["case_revision", wholeNumber],
       ownerEncryptedColumn("claim"),
       ["decision", checked(ownerEncryptedRuleOrNull("decision"))(textOrNull)],

@@ -20,6 +20,7 @@ import {
   type CountingDayRange,
   dateToRange,
 } from "#db/capacity.ts";
+import { valued } from "#db/select/expression.ts";
 
 import {
   type SqlStatement,
@@ -125,8 +126,8 @@ const dayDemandRows = (bucket: CapacityBucket): SqlStatement =>
   );
 
 const DAY_RANGE: CountingDayRange = {
-  endSql: sqlName("dayDemand.column2"),
-  startSql: sqlName("dayDemand.column1"),
+  end: valued(sqlName("dayDemand.column2")),
+  start: valued(sqlName("dayDemand.column1")),
 };
 
 /** The per-kind cap rule: whether an overflow against a cap is a refusal. */

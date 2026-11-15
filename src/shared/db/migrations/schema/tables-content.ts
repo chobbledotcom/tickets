@@ -11,6 +11,7 @@ import {
 import {
   checked,
   defaulted,
+  refersTo,
   rowId,
   text,
   textKey,
@@ -78,7 +79,7 @@ export const contentTables = [
       columns: [
         ["id", rowId],
         attendeeIdColumn,
-        ["listing_id", wholeNumber],
+        ["listing_id", refersTo("listings")(wholeNumber)],
         ["provider_id", text],
         ["created", text],
       ],
@@ -132,7 +133,7 @@ export const contentTables = [
         ["event_group", text],
         ["kind", textStartingBlank],
         ["memo", textStartingBlank],
-        ["reverses_id", wholeNumberStartingAtNull],
+        ["reverses_id", refersTo("transfers")(wholeNumberStartingAtNull)],
         // The event group of the booking order a refund leg reverses — the
         // join a per-order read (the refunded status) uses to tell two orders
         // of one listing apart. Empty on every non-refund leg.
@@ -178,9 +179,9 @@ export const contentTables = [
     {
       columns: [
         ["id", rowId],
-        ["servicing_attendee_id", wholeNumber],
-        ["listing_id", wholeNumber],
-        ["transfer_id", wholeNumber],
+        ["servicing_attendee_id", refersTo("attendees")(wholeNumber)],
+        ["listing_id", refersTo("listings")(wholeNumber)],
+        ["transfer_id", refersTo("transfers")(wholeNumber)],
         ["occurred_at", text],
         ["memo", textStartingBlank],
         ["created", text],
@@ -261,7 +262,10 @@ export const contentTables = [
     // (the schema can't express a partial-unique index).
     "site_page_items",
     {
-      columns: [["page_id", wholeNumber], ...itemLinkColumns],
+      columns: [
+        ["page_id", refersTo("site_pages")(wholeNumber)],
+        ...itemLinkColumns,
+      ],
       indexes: [
         {
           columns: ["page_id", "sort_order"],
