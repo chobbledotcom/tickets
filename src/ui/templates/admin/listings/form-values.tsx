@@ -16,14 +16,11 @@ import {
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import type { ListingTemplate } from "#shared/listing-templates.ts";
+import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
-import {
-  type AdminSession,
-  clampDurationDays,
-  type ListingWithCount,
-} from "#types";
+import { clampDurationDays, type ListingWithCount } from "#types";
 import { formatBookableDays } from "./helpers.ts";
 
 const formatDatetimeLocal = (iso: string | null): string | null =>
@@ -66,7 +63,7 @@ const listingFieldFormatters: Partial<
     e.initial_site_months ? String(e.initial_site_months) : "",
   max_price: (e) => toMajorUnits(e.max_price),
   months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
-  unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  unit_price: (e) => toMajorUnits(e.unit_price),
 };
 
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
@@ -133,7 +130,9 @@ export const listingFormClassAttr = (
   return classes ? { class: classes } : {};
 };
 
+/** True when the page shows the "use listing defaults" switch: some default
+ *  is set, and the writer can set the switch. */
 export const showUseDefaultsToggle = (
-  session: AdminSession,
+  closed: ClosedFields,
   defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && session.adminLevel !== "editor";
+): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");

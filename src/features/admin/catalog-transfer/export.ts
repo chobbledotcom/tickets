@@ -23,6 +23,7 @@ import { withGroupOrNull } from "#routes/admin/find-group.ts";
 import { namedError } from "#shared/named-error.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
 import { transferValues } from "#shared/rest/field-reads.ts";
 import type { AdminLevel } from "#types";
 import { getListingGroupMemberships } from "./membership.ts";
@@ -104,7 +105,7 @@ export const exportListing = async (
     transferValues(
       LISTING_FIELDS,
       listing,
-      adminLevel === "editor" ? ["webhook_url"] : [],
+      closedFieldsFor(LISTING_FIELDS, adminLevel),
     ),
     "listing",
   );

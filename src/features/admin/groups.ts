@@ -7,6 +7,7 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateUniqueGroupSlug, getGroupById } from "#db/groups.ts";
+import { t } from "#i18n";
 import {
   handleAddListingsToGroup,
   handleRemoveListingsGet,
@@ -24,7 +25,11 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { groupRecord, soldHiddenPackageError } from "#shared/records/groups.ts";
-import { formFieldsInput } from "#shared/rest/field-reads.ts";
+import {
+  formFieldsInput,
+  shownFieldKeys,
+  unshownFieldOrNull,
+} from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
@@ -46,8 +51,21 @@ import {
 } from "./package-member-rules.ts";
 import { bindNoteRoutes } from "./record-notes.ts";
 
+/** The group fields the group pages show. The create and edit pages show the
+ *  same field boxes. */
+const shownGroupFields = (): ReadonlySet<string> =>
+  shownFieldKeys(GROUP_FIELDS, getGroupCreateForm().fields, []);
+
 const sharedGroupFields = (values: GroupCreateFormValues) =>
-  formFieldsInput(GROUP_FIELDS, values);
+  formFieldsInput(GROUP_FIELDS, values, shownGroupFields());
+
+/** Refuse a form that sends a field box its page did not show, then check
+ *  the package members. */
+const validateGroupForm = (form: FormParams): string | null =>
+  unshownFieldOrNull(GROUP_FIELDS, [...form.keys()], shownGroupFields()) ===
+  null
+    ? validatePackageMemberForm(form)
+    : t("fields.validation.unshown_field");
 
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,
@@ -82,7 +100,7 @@ const pages = recordPages(groupRecord, {
   renderNew: adminGroupNewPage,
   toEditInput: extractGroupEditInput,
   toInput: extractGroupCreateInput,
-  validateForm: validatePackageMemberForm,
+  validateForm: validateGroupForm,
 });
 
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));

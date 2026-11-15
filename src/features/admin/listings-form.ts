@@ -22,18 +22,18 @@ import {
 import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
+import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
-import { toMinorUnits } from "#shared/currency.ts";
-import { normalizeDatetime } from "#shared/dates.ts";
-import { isDemoMode } from "#shared/demo/mode.ts";
 import {
   applyDemoOverrides,
   LISTING_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { checkedValues } from "#shared/forms/validation.ts";
+import {
+  checkedValues,
+  type ValidationResult,
+} from "#shared/forms/validation.ts";
 import {
   generateUniqueListingSlug,
   keepDailyListingDate,
@@ -44,78 +44,39 @@ import {
   type ListingInput,
 } from "#shared/records/listing-fields.ts";
 import { listingRecord } from "#shared/records/listings.ts";
-import { formFieldsInput } from "#shared/rest/field-reads.ts";
+import {
+  formFieldsInput,
+  shownFieldKeys,
+  unshownFieldOrNull,
+} from "#shared/rest/field-reads.ts";
 import type { WriteVerdict } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
+import { showUseDefaultsToggle } from "#templates/admin/listings/form-values.tsx";
 import {
   getListingEditForm,
   getListingForm,
-  type ListingEditFormValues,
   type ListingFormValues,
+  type ListingFormView,
 } from "#templates/fields/listing.ts";
 import {
-  type AdminSession,
   type DayPrices,
   type ListingType,
   type ListingWithCount,
   parseDayPrices,
 } from "#types";
-import { EDITOR_LOCKED_LISTING_FIELDS } from "./api-listing-body.ts";
 import {
   persistListingJoins,
   prepareListingJoins,
 } from "./api-listing-joins.ts";
 
-/** The stored values an editor's submitted form freezes the locked fields
- *  back to. */
-type EditorFormExisting = { useDefaults: boolean; webhookUrl: string };
-
 type ListingWriteMode = "create" | "update";
 type EmptyBookableDaysPolicy = "defaultAllDays" | "preserveEmpty";
 
-/**
- * Editors must not set a listing's webhook URL. The registration webhook posts
- * full attendee PII to that endpoint, so a crafted URL exfiltrates exactly the
- * data the keyless editor role cannot otherwise read. They must not toggle
- * `use_defaults` either, because that changes the same effective webhook.
- *
- * Both fields are forced to their existing values, so a submitted value is
- * ignored. The editor form hides them too. This is the backstop. The field
- * list is the API's own EDITOR_LOCKED_LISTING_FIELDS, so the surfaces cannot
- * drift. The freeze map is exhaustive over that list, so a new locked field
- * must name its page behaviour to compile.
- */
-const EDITOR_FORM_FREEZE: Record<
-  (typeof EDITOR_LOCKED_LISTING_FIELDS)[number],
-  ((form: FormParams, existing: EditorFormExisting) => void) | null
-> = {
-  // The page form has no active control, so the page parser never reads the
-  // key and there is nothing to freeze.
-  active: null,
-  use_defaults: (form, existing) =>
-    form.set("use_defaults", existing.useDefaults ? "1" : ""),
-  webhook_url: (form, existing) => form.set("webhook_url", existing.webhookUrl),
-};
-
-export const parseListingForm = (
-  session: AdminSession,
-  formData: FormData,
-  existing: EditorFormExisting,
-): FormParams => {
-  const form = formDataToParams(formData);
-  applyDemoOverrides(form, LISTING_DEMO_FIELDS);
-  if (session.adminLevel === "editor") {
-    for (const field of EDITOR_LOCKED_LISTING_FIELDS) {
-      EDITOR_FORM_FREEZE[field]?.(form, existing);
-    }
-  }
-  return form;
-};
-
-const DEFAULT_LISTING_TYPE: ListingType = "standard";
+export const parseListingForm = (formData: FormData): FormParams =>
+  applyDemoOverrides(formDataToParams(formData), LISTING_DEMO_FIELDS);
 
 const EMPTY_BOOKABLE_DAYS_POLICY = {
   create: {
@@ -130,10 +91,6 @@ const EMPTY_BOOKABLE_DAYS_POLICY = {
   ListingWriteMode,
   Record<ListingType, EmptyBookableDaysPolicy>
 >;
-
-const resolveListingType = (
-  value: ListingFormValues["listing_type"],
-): ListingType => value || DEFAULT_LISTING_TYPE;
 
 const parseBookableDays = (
   value: string,
@@ -190,76 +147,92 @@ const validateDayPricesFromForm = (form: FormParams): string | null => {
     : null;
 };
 
-const normalizeOptionalDatetime = (raw: string, field: string): string =>
-  raw ? normalizeDatetime(raw, field) : raw;
+/** A listing form definition, for a create or an edit. */
+type ListingDefinition<Values> = {
+  readonly fields: readonly {
+    readonly name: string;
+    readonly visible?: boolean;
+  }[];
+  readonly validate: (form: FormParams) => ValidationResult<Values>;
+};
 
-const enabledChoice = (enabled: boolean, value: string): boolean =>
-  enabled && value === "1";
-
-const extractCommonFields = (
-  values: ListingFormValues,
-  form: FormParams,
+/** Read one submitted listing form. A form that sends a field box its page
+ *  did not show is refused. Each shown box is read by its field kind. The
+ *  "use listing defaults" switch sits outside the form definition. */
+const readListingForm = <Values extends ListingFormValues>(
+  definition: ListingDefinition<Values>,
+  view: ListingFormView,
+  submitted: FormParams,
   mode: ListingWriteMode,
-) => {
-  const webhookUrl = isDemoMode() ? "" : values.webhook_url;
-  const durationDays = values.duration_days ?? 1;
-  const listingType = resolveListingType(values.listing_type);
-  // Blank/invalid unit price ⇒ unset (the column defaults to 0 = free). A valid
-  // value is the currency-checked minor-units amount. `unit_price` is always a
-  // string here, so no nullish fallback is needed before parsing.
-  const unitPrice = parseOptionalMinorUnits(values.unit_price) ?? undefined;
-  const bookableDays = parseBookableDays(
-    values.bookable_days,
-    listingType,
-    mode,
+): Result<{
+  input: Omit<ListingInput, "slug" | "slugIndex">;
+  values: Values;
+}> => {
+  const shown = shownFieldKeys(
+    LISTING_FIELDS,
+    definition.fields,
+    showUseDefaultsToggle(view.closed, settings.listingDefaults)
+      ? ["use_defaults"]
+      : [],
   );
-  const closesAt = normalizeOptionalDatetime(values.closes_at, "closes_at");
-  return {
-    ...formFieldsInput(LISTING_FIELDS, values),
-    assignBuiltSite: enabledChoice(
-      isBuilderEnabled(),
-      values.assign_built_site,
-    ),
-    bookableDays,
-    closesAt: closesAt === "" ? null : closesAt,
-    date: normalizeOptionalDatetime(values.date, "date"),
-    dayPrices: parseDayPricesFromForm(form, durationDays),
-    groupIds: form.getNumberArray("group_ids"),
-    listingType,
-    maxPrice: toMinorUnits(Number.parseFloat(values.max_price)),
-    unitPrice,
-    useDefaults: form.getFlag("use_defaults"),
-    usesLogistics: enabledChoice(
-      settings.features.logistics,
-      values.uses_logistics,
-    ),
-    webhookUrl,
-  };
+  if (
+    unshownFieldOrNull(LISTING_FIELDS, [...submitted.keys()], shown) !== null
+  ) {
+    return errorResult(t("fields.validation.unshown_field"));
+  }
+  const parsed = checkedValues(definition.validate(submitted));
+  if (!parsed.ok) return parsed;
+  const dayError = validateDayPricesFromForm(submitted);
+  if (dayError !== null) return errorResult(dayError);
+  const values = parsed.value;
+  const fields = formFieldsInput(
+    LISTING_FIELDS,
+    { ...values, use_defaults: submitted.getString("use_defaults") },
+    shown,
+  );
+  return okResult({
+    input: {
+      ...fields,
+      bookableDays: parseBookableDays(
+        values.bookable_days,
+        fields.listingType,
+        mode,
+      ),
+      dayPrices: parseDayPricesFromForm(submitted, values.duration_days ?? 1),
+      groupIds: submitted.getNumberArray("group_ids"),
+    },
+    values,
+  });
 };
 
+/** Read a create form into the listing input, with a fresh slug. */
 const extractListingInput = async (
-  values: ListingFormValues,
-  form: FormParams,
-): Promise<ListingInput> => {
+  view: ListingFormView,
+  submitted: FormParams,
+): Promise<Result<ListingInput>> => {
+  const read = readListingForm(getListingForm(view), view, submitted, "create");
+  if (!read.ok) return read;
   const { slug, slugIndex } = await generateUniqueListingSlug();
-  return {
-    ...extractCommonFields(values, form, "create"),
-    slug,
-    slugIndex,
-  };
+  return okResult({ ...read.value.input, slug, slugIndex });
 };
 
+/** Read an edit form into the listing input, with its submitted slug. */
 const extractListingUpdateInput = async (
-  values: ListingEditFormValues,
-  form: FormParams,
-): Promise<ListingInput & { date: string }> => {
-  const slug = normalizeSlug(values.slug);
+  view: ListingFormView,
+  submitted: FormParams,
+): Promise<Result<ListingInput & { date: string }>> => {
+  const read = readListingForm(
+    getListingEditForm(view),
+    view,
+    submitted,
+    "update",
+  );
+  if (!read.ok) return read;
+  const slug = normalizeSlug(read.value.values.slug);
   const slugIndex = await hmacHash(slug);
-  return {
-    ...extractCommonFields(values, form, "update"),
-    slug,
-    slugIndex,
-  };
+  // The page always shows the date box.
+  const input = read.value.input as ListingInput & { date: string };
+  return okResult({ ...input, slug, slugIndex });
 };
 
 /** The page save's join write, through the same pair the JSON API uses. The
@@ -301,17 +274,6 @@ const writeCreateListingJoins: (form: FormParams) => ListingJoinWriter =
     }
   };
 
-/**
- * Build a per-request listings create resource whose `toInput` closes over the
- * raw form, so the dynamic `day_price_*` inputs can be read alongside the
- * validated fields. The resource only hands `toInput` the validated values.
- */
-/** The listing validation for a request: reject an invalid day price first
- *  (the dynamic fields the static schema cannot see). The record's one rule
- *  then runs the standard input validation. */
-const dayPriceError = (form: FormParams): string | null =>
-  validateDayPricesFromForm(form);
-
 /** One listing write's answer: the row, or the text that refused it. */
 type ListingWriteResult =
   | { ok: true; row: ListingWithCount }
@@ -321,9 +283,6 @@ export type ListingCreateResult = ListingWriteResult;
 export type ListingUpdateResult =
   | ListingWriteResult
   | { ok: false; notFound: true };
-
-/** One rejected form answer. */
-const invalidInput = (error: string) => ({ error, ok: false as const });
 
 /** One write's success answer, or null for its failure. */
 const writtenResult = <Row>(verdict: WriteVerdict<Row>) =>
@@ -342,13 +301,14 @@ const failedResult = <Row, Missing>(
 
 /** Parse the create form into the record's input, then write through the
  * record with the create door's join plan. */
-export const buildCreateListingResource = (form: FormParams) => ({
+export const buildCreateListingResource = (
+  form: FormParams,
+  view: ListingFormView,
+) => ({
   create: async (submitted: FormParams): Promise<ListingCreateResult> => {
-    const parsed = checkedValues(getListingForm().validate(submitted));
-    if (!parsed.ok) return invalidInput(parsed.error);
-    const dayError = dayPriceError(submitted);
-    if (dayError !== null) return invalidInput(dayError);
-    const input = await extractListingInput(parsed.value, submitted);
+    const parsed = await extractListingInput(view, submitted);
+    if (!parsed.ok) return parsed;
+    const input = parsed.value;
     const verdict = await listingRecord.create(input, {
       persist: (tx, id) => writeCreateListingJoins(form)(tx, id, input),
     });
@@ -367,6 +327,7 @@ export const buildCreateListingResource = (form: FormParams) => ({
  * remain. */
 export const buildUpdateListingResource = (
   stored: ListingWithCount,
+  view: ListingFormView,
   assign?: AssignPlan,
 ) => {
   /** The validated edit input, with the stored daily date kept when the form
@@ -374,11 +335,9 @@ export const buildUpdateListingResource = (
   const parseInput = async (
     submitted: FormParams,
   ): Promise<Result<ListingInput>> => {
-    const parsed = checkedValues(getListingEditForm().validate(submitted));
+    const parsed = await extractListingUpdateInput(view, submitted);
     if (!parsed.ok) return parsed;
-    const dayError = dayPriceError(submitted);
-    if (dayError !== null) return errorResult(dayError);
-    const input = await extractListingUpdateInput(parsed.value, submitted);
+    const input = parsed.value;
     return okResult({
       ...input,
       date: keepDailyListingDate(input.date, stored, input.listingType),

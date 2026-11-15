@@ -20,7 +20,7 @@ export const GROUP_FIELDS = [
   // overrides and fixed quantities for each package.
   { key: "is_package", kind: "switch" },
   { default: 0, key: "max_attendees", kind: "count", min: 0 },
-  { doors: ["form", "transfer"], key: "name", kind: "name", required: true },
+  { key: "name", kind: "name", required: true },
   // On, one group scan checks in every member listing the ticket holds.
   { key: "scan_checks_in_all_listings", kind: "switch" },
   // On, the group's booking page also offers hidden member listings. Off, a
