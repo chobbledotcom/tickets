@@ -7,7 +7,7 @@ import {
   wholeNumberOrNull,
   wholeNumberStartingAtOne,
 } from "#db/migrations/schema/scalar-columns.ts";
-import type { Table } from "#db/migrations/schema/types.ts";
+import type { NamedTable } from "#db/migrations/schema/types.ts";
 import { sql } from "#db/sql.ts";
 import { madeAndTouched, ownerEncryptedRuleOrNull } from "./columns.ts";
 
@@ -28,7 +28,7 @@ const ABOUT_THE_PAYMENT = HIDDEN_COLUMNS.map(
   (name) => sql`(${ownerEncryptedRuleOrNull(name)})`,
 );
 
-export const paymentSessionTable: [name: string, table: Table] = [
+export const paymentSessionTable = [
   "payment_sessions",
   {
     columns: [
@@ -81,4 +81,4 @@ export const paymentSessionTable: [name: string, table: Table] = [
       },
     ],
   },
-];
+] as const satisfies NamedTable;

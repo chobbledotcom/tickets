@@ -29,6 +29,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import {
+  type Read,
   type SqlSlot,
   type SqlStatement,
   sql,
@@ -345,57 +346,52 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
  * pinned to the primary, because a replica can lag behind the write and miss
  * them. See {@link queryBatchPrimary}.
  */
-export const queryAllPrimary = async <T>(
-  statement: SqlStatement,
-): Promise<T[]> => {
+export const queryAllPrimary = async <T>(statement: Read<T>): Promise<T[]> => {
   const [result] = await queryBatchPrimary([statement]);
   return resultRows<T>(result!);
 };
 
 /** Query all rows as a typed array. A read whose cache refill requires
  *  read-your-writes goes to the primary instead. */
-export const queryAll = async <T>(statement: SqlStatement): Promise<T[]> =>
+export const queryAll = async <T>(statement: Read<T>): Promise<T[]> =>
   mustReadFromPrimary() && primaryReadMode() !== "read"
     ? queryAllPrimary<T>(statement)
     : resultRows<T>(await execute(statement));
 
-/** The first row that `readAll` returns for a statement, or null when the
- * query returns none. */
+/** A read of the first row, or of null when the query returns none. */
+type OneRow = <T>(statement: Read<T>) => Promise<T | null>;
+
 const firstRowOn =
-  (readAll: typeof queryAll) =>
-  async <T>(statement: SqlStatement): Promise<T | null> =>
-    (await readAll<T>(statement))[0] ?? null;
+  (readAll: typeof queryAll): OneRow =>
+  async (statement) =>
+    (await readAll(statement))[0] ?? null;
 
 /** Query one row, or null when the query returns none. */
 export const queryOne = firstRowOn(queryAll);
 
-const requireQueryRow = async <T>(
-  row: Promise<T | null>,
-  sql: string,
-  label: string,
-): Promise<T> => {
-  const found = await row;
-  if (found === null) {
-    throw new Error(`${label} query returned no rows: ${sql}`);
-  }
-  return found;
-};
+/** A read of one required row. It names the query when no row exists. */
+const requiredOn =
+  (one: OneRow, label: string) =>
+  async <T>(statement: Read<T>): Promise<T> => {
+    const found = await one<T>(statement);
+    if (found === null) {
+      throw new Error(`${label} query returned no rows: ${statement.sql}`);
+    }
+    return found;
+  };
 
 /** Query one required row and name the failed query when none exists. */
-export const requireOne = <T>(statement: SqlStatement): Promise<T> =>
-  requireQueryRow(queryOne<T>(statement), statement.sql, "Required");
+export const requireOne = requiredOn(queryOne, "Required");
 
 /** Query an optional row on the primary — the singular of
  *  {@link queryAllPrimary}, as {@link queryOne} is of {@link queryAll}. */
 export const queryOnePrimary = firstRowOn(queryAllPrimary);
 
 /** Query one required row from the primary. */
-export const requireOnePrimary = <T>(statement: SqlStatement): Promise<T> =>
-  requireQueryRow(
-    queryOnePrimary<T>(statement),
-    statement.sql,
-    "Required primary",
-  );
+export const requireOnePrimary = requiredOn(
+  queryOnePrimary,
+  "Required primary",
+);
 
 /** True when the query returns a row. The statement should be an existence probe such as
  *  `SELECT 1 ... LIMIT 1`; which columns it selects is ignored. */

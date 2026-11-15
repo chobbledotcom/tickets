@@ -13,9 +13,9 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const catalogTables: [name: string, table: Table][] = [
+export const catalogTables = declaredTables([
   [
     "groups",
     {
@@ -211,4 +211,4 @@ export const catalogTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

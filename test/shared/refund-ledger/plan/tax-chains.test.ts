@@ -27,8 +27,9 @@ import { postTransferGroups, postTransfers } from "#accounting/store.ts";
 import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { refundedForBooking } from "#db/attendees/select.ts";
 import { execute, queryAll, queryOne } from "#db/client.ts";
+import { literal } from "#db/select/expression.ts";
 import { updateTaxPolicy } from "#db/settings/tax.ts";
-import { sql, sqlLiteral } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import { computeAttendeeRefund } from "#shared/refund-ledger/plan.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
@@ -144,10 +145,10 @@ const bookingRefunded = async () => {
   const group = await bookingEventGroup("tax-chain");
   return (await queryOne<{ value: number }>(
     sql`SELECT ${refundedForBooking({
-      attendeeId: sqlLiteral(ATTENDEE),
-      eventGroup: sqlLiteral(group),
-      listingId: sql`1`,
-      placeholderWhen: sql`0`,
+      attendeeId: literal(ATTENDEE),
+      eventGroup: literal(group),
+      listingId: literal(1),
+      placeholderWhen: false,
     })} AS value`,
   ))!.value;
 };
@@ -315,11 +316,11 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     await postChain();
     const group = await bookingEventGroup("tax-chain");
     const row = await queryOne<Record<string, number>>(sql`SELECT
-      ${bookingSaleTotalSubquery(sqlLiteral(ATTENDEE), sql`1`, sqlLiteral(group))} AS price,
-      ${creditsLessWriteoffDebits("revenue", sql`1`)} AS income,
-      ${orderTotalSubquery("attendee", sqlLiteral(ATTENDEE))} AS total,
-      ${reservationSubtotalSubquery("attendee", sqlLiteral(ATTENDEE))} AS deposit_base,
-      ${externalCashBalanceSubquery("attendee", sqlLiteral(ATTENDEE))} AS cash`);
+      ${bookingSaleTotalSubquery(literal(ATTENDEE), literal(1), literal(group))} AS price,
+      ${creditsLessWriteoffDebits("revenue", literal(1))} AS income,
+      ${orderTotalSubquery("attendee", literal(ATTENDEE))} AS total,
+      ${reservationSubtotalSubquery("attendee", literal(ATTENDEE))} AS deposit_base,
+      ${externalCashBalanceSubquery("attendee", literal(ATTENDEE))} AS cash`);
     expect(row).toEqual({
       cash: 1000,
       deposit_base: 1000,
@@ -338,7 +339,7 @@ describeWithEnv("refund ledger > tax assessment chains", { db: true }, () => {
     expect(after.netBalance).toBe(0);
     expect(
       (await queryOne<{ value: number }>(
-        sql`SELECT ${creditsLessWriteoffDebits("revenue", sql`1`)} AS value`,
+        sql`SELECT ${creditsLessWriteoffDebits("revenue", literal(1))} AS value`,
       ))!.value,
     ).toBe(909);
   });

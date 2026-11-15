@@ -31,6 +31,8 @@ import {
   resultRows,
 } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
@@ -60,7 +62,7 @@ export const getAttendeeBalanceState = async (
     remaining_balance: number;
   }>(
     sql`SELECT status_id, ${remainingBalanceFromLedger(
-      sql`attendees.id`,
+      tableNode(tables.attendees, "attendees").id,
     )} FROM attendees WHERE id = ${attendeeId} AND kind = ${ATTENDEE_KIND}`,
   );
   return row
@@ -102,7 +104,7 @@ type OrderRow = {
 };
 
 const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
-  const id = sql`${String(attendeeId)}`;
+  const id = String(attendeeId);
   return sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
                ${orderTotalSubquery("attendee", id)} AS full_price,
                ${reservationSubtotalSubquery("attendee", id)} AS reservation_subtotal`;
@@ -193,7 +195,7 @@ export const settleAttendeeBalance = async (
   // atomic guard: both writes below fire only while they still owe exactly
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
-  const owed = attendeeOwedSubquery(sql`${String(attendeeId)}`);
+  const owed = attendeeOwedSubquery(String(attendeeId));
   const results = await executeBatchWithResults([
     // Verdict (first statement): a harmless self-update while they still owe
     // the expected amount. A mismatched or already-settled balance matches 0

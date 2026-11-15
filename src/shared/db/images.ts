@@ -14,13 +14,16 @@ import {
 import { defineIdTable } from "#db/define-id-table.ts";
 import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
+import { readOneRow, readRows } from "#db/read.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
+import { among, and, equal } from "#db/select/expression.ts";
+import { from, type Node } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type SqlStatement,
@@ -33,7 +36,6 @@ import {
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
-import { equals, everyClause, inList } from "#db/where-clauses.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -148,15 +150,17 @@ const imagesOfItem = (
   columns: SqlStatement,
   itemType: ImageUseItemType,
   itemId: number,
-): Read => ({
-  columns,
-  from: sql`image_uses AS imageUse JOIN images AS image ON image.id = imageUse.image_id`,
-  order: sql`imageUse.sort_order ASC, imageUse.image_id ASC`,
-  where: imageUseTargets.where(
-    imageUseTargets.of(itemType)(itemId),
-    "imageUse",
-  ),
-});
+  limit?: number,
+): SqlStatement => {
+  const ordered = from(tables.image_uses, { image: {} })
+    .where(() =>
+      imageUseTargets.where(imageUseTargets.of(itemType)(itemId), "imageUse"),
+    )
+    .orderBy((use) => [use.sort_order, use.image_id]);
+  return (limit === undefined ? ordered : ordered.limit(limit)).columns(
+    () => columns,
+  );
+};
 
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
@@ -166,7 +170,7 @@ export const getImageFilenamesForItem = async (
     id: number;
   };
   const stored = await readOneRow<ImageFileRow>(
-    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId),
+    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId, 1),
   );
   if (!stored)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
@@ -202,6 +206,14 @@ export const getImagesForItem = async (
   }));
 };
 
+/** The columns of one link between an image and a record. */
+const imageUseColumns = (use: Node<"image_uses">) => ({
+  image_id: use.image_id,
+  item_id: use.item_id,
+  item_type: use.item_type,
+  sort_order: use.sort_order,
+});
+
 /** The item links of several images, keyed by image id. One query covers the
  *  whole list. An image with no links has no entry. The links of one image
  *  stay in the order the image's own read answers them. */
@@ -209,12 +221,12 @@ export const getImageUsesForImages = async (
   imageIds: readonly number[],
 ): Promise<Map<number, ImageUse[]>> => {
   if (imageIds.length === 0) return new Map();
-  const rows = await readRows<ImageUse>({
-    columns: sql`image_id, item_type, item_id, sort_order`,
-    from: sql`image_uses`,
-    order: sql`image_id ASC, item_type ASC, item_id ASC`,
-    where: inList("image_id", [...imageIds]),
-  });
+  const rows = await readRows<ImageUse>(
+    from(tables.image_uses)
+      .where((use) => among(use.image_id, imageIds))
+      .orderBy((use) => [use.image_id, use.item_type, use.item_id])
+      .select(imageUseColumns),
+  );
   return groupToMap(
     (use: ImageUse) => use.image_id,
     (use: ImageUse) => use,
@@ -226,15 +238,11 @@ export const getImageUsesForImages = async (
 const imageUsesForImage =
   (primary: boolean) =>
   (imageId: number): Promise<ImageUse[]> => {
-    const read: Read = {
-      columns: sql`image_id, item_type, item_id, sort_order`,
-      from: sql`image_uses`,
-      order: sql`item_type ASC, item_id ASC`,
-      where: equals("image_id", imageId),
-    };
-    return primary
-      ? queryAllPrimary<ImageUse>(readStatement(read))
-      : readRows<ImageUse>(read);
+    const read = from(tables.image_uses)
+      .where((use) => equal(use.image_id, imageId))
+      .orderBy((use) => [use.item_type, use.item_id])
+      .select(imageUseColumns);
+    return primary ? queryAllPrimary<ImageUse>(read) : readRows<ImageUse>(read);
   };
 
 export const getImageUsesForImage = imageUsesForImage(false);
@@ -319,7 +327,7 @@ const clearStaleImageUseTargetsStatement = (
   targets: readonly ImageUseTarget[],
 ): SqlStatement => {
   const kept = targets.map(
-    (target) => sql`(${everyClause(imageUseTargets.where(target))})`,
+    (target) => sql`(${and(...imageUseTargets.where(target))})`,
   );
   return sql`DELETE FROM image_uses WHERE image_id = ${imageId}${
     kept.length === 0 ? sql`` : sql` AND NOT (${sqlJoin(kept, sql` OR `)})`

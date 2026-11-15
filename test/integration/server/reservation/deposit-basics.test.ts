@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { pricePaidFromLedger } from "#db/attendees/select.ts";
+import { bookingRow, pricePaidFromLedger } from "#db/attendees/select.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -85,12 +85,7 @@ describeWithEnv(
       // not the distributed £1 / £2 deposit — the gross-sale divergence. The
       // £27 owed stays accurate; concern 5 restores the deposit distribution.
       const paidRows = await getDb().execute(
-        sql`SELECT listing_id, ${pricePaidFromLedger(
-          sqlName("listing_attendees.attendee_id"),
-          sqlName("listing_attendees.listing_id"),
-          sqlName("listing_attendees.ledger_event_group"),
-          sqlName("listing_attendees.id"),
-        )} FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+        sql`SELECT listing_id, ${pricePaidFromLedger(bookingRow("listing_attendees"))} FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
       );
       const paidByListing = new Map(
         paidRows.rows.map((row) => [

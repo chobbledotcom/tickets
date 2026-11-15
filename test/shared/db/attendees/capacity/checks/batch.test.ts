@@ -385,6 +385,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // cancellation yet must not decide the verdict. Every preflight read
     // pins to the primary, which a write-mode batch names.
     const answerFor = (sql: string): ResultSet => {
+      if (sql.includes("AS fits")) return stubResultSet([{ fits: 1 }]);
       if (sql.includes("FROM listings AS listing")) {
         return stubResultSet([
           {
@@ -395,8 +396,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
           },
         ]);
       }
-      if (sql.includes("group_listings")) return emptyResultSet();
-      return stubResultSet([{ fits: 1 }]);
+      return emptyResultSet();
     };
     const modes: string[] = [];
     using _env = withEnv({ DB_URL: "http://primary.example" });

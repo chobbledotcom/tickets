@@ -34,9 +34,11 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
+import { type Condition, equal, whereTail } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
-import { equals, type WhereClause, whereSql } from "#db/where-clauses.ts";
 import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
 import type {
   CalcKind,
@@ -99,6 +101,9 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
   },
 );
 
+/** The modifier row of a statement that names the table `modifiers` bare. */
+const MODIFIER_ROW = tableNode(tables.modifiers, "modifiers");
+
 /**
  * Subquery projecting a modifier's revenue from the ledger: the modifier
  * account's NET balance (`balanceOf(modifier:M)`), read directly — never
@@ -111,8 +116,8 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
  * never off the now-dropped column. The trailing `AS total_revenue` names the
  * projected column.
  */
-const modifierRevenueSubquery = (idExpr: SqlStatement): SqlStatement =>
-  sql`${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
+const modifierRevenueSubquery = (): SqlStatement =>
+  sql`${accountBalanceSubquery("modifier", MODIFIER_ROW.id)} AS total_revenue`;
 
 /** Decrypt a modifier row and merge the ledger-projected total_revenue its
  * loader selected alongside the stored modifier columns. The row carries
@@ -128,12 +133,13 @@ const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
  * ledger-projected total_revenue every loader selects. */
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
-const modifierSelect = (parts: WhereClause[]): SqlStatement =>
-  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery(sql`modifiers.id`)} FROM modifiers${whereSql(parts)} ORDER BY id ASC`;
+const modifierSelect = (parts: readonly Condition[]): SqlStatement =>
+  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery()} FROM modifiers${whereTail(parts)} ORDER BY id ASC`;
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
-const queryModifiersWhere = (parts: WhereClause[]): Promise<Modifier[]> =>
-  queryModifiers(modifierSelect(parts));
+const queryModifiersWhere = (
+  parts: readonly Condition[],
+): Promise<Modifier[]> => queryModifiers(modifierSelect(parts));
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
@@ -149,7 +155,7 @@ export const getModifierNamesByIds = envNameSource(
  * reads the same rows through it, so a reachability guard inside a write
  * transaction sees that transaction's own earlier writes. */
 export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
-  const parts = equals("active", 1);
+  const parts = [equal(MODIFIER_ROW.active, 1)];
   return tx === undefined
     ? queryModifiersWhere(parts)
     : mapParallel(mapModifierRow)(
@@ -162,7 +168,9 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
  * they see the projected figure rather than the dropped column (the bare
  * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const row = await queryOne<Modifier>(modifierSelect(equals("id", id)));
+  const row = await queryOne<Modifier>(
+    modifierSelect([equal(MODIFIER_ROW.id, id)]),
+  );
   return row ? mapModifierRow(row) : null;
 };
 

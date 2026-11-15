@@ -94,7 +94,7 @@ export const balanceFinalizeStatements = (
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements({
     attendeeId,
-    guard: sql`${attendeeOwedSubquery(sql`${String(attendeeId)}`)} = ${expectedAmount}`,
+    guard: sql`${attendeeOwedSubquery(String(attendeeId))} = ${expectedAmount}`,
     paymentReference,
     sessionId,
     standDownWhen: noRefundRunHolding(attendeeId),

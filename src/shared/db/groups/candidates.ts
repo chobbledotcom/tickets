@@ -1,10 +1,11 @@
 /** The listings a group's "add listings" form can offer. */
 
-import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
+import { LISTING_ORDER_SQL, LISTING_ROW } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { equal, notInQuery } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
-import { notInSubquery } from "#db/where-clauses.ts";
 import {
   resolveListingDate,
   resolveListingDefaults,
@@ -45,15 +46,15 @@ const candidateColumns = rawListingsTable.read.pick([
 export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
+  const memberIds = from(tables.group_listings)
+    .where((member) => equal(member.group_id, groupId))
+    .values((member) => member.listing_id);
   const rows = await candidateColumns.many(
     {},
     {
       alias: "listing",
       order: LISTING_ORDER_SQL.created_desc,
-      where: notInSubquery(
-        "listing.id",
-        sql`SELECT groupListing.listing_id FROM group_listings AS groupListing WHERE groupListing.group_id = ${groupId}`,
-      ),
+      where: [notInQuery(LISTING_ROW.id, memberIds)],
     },
   );
   return rows.map((row) => {

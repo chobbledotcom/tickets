@@ -6,6 +6,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import {
   aboutTheRow,
   checked,
+  columnFacts,
   defaulted,
   oneOf,
   real,
@@ -121,5 +122,23 @@ describe("schema column types", () => {
 
   test("leaves a row with no rules as it is", () => {
     expect(sqlText(aboutTheRow([])(wholeNumberOrNull).sql)).toBe("INTEGER");
+  });
+});
+
+describe("columnFacts", () => {
+  test("says whether a row can hold nothing in the column", () => {
+    expect(columnFacts(text)).toEqual({ canBeNull: false });
+    expect(columnFacts(textOrNull)).toEqual({ canBeNull: true });
+  });
+
+  test("keeps the facts of a type under a rule and a starting value", () => {
+    const ruled = checked(sql`a > 0`)(defaulted(wholeNumberOrNull, 1));
+    expect(columnFacts(ruled)).toEqual({ canBeNull: true });
+  });
+
+  test("refuses SQL that is not a column type of this module", () => {
+    expect(() => columnFacts(sql`TEXT NOT NULL`)).toThrow(
+      "Not a column type from scalar-columns.ts: TEXT NOT NULL",
+    );
   });
 });

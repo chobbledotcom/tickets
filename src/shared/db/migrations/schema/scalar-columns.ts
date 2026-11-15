@@ -19,79 +19,126 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
+import type { ColumnKind } from "./types.ts";
+
+/** What a read must know about a column type beyond its SQL text. */
+type ColumnFacts = {
+  /** Whether a row can hold nothing in the column. */
+  readonly canBeNull: boolean;
+};
+
+const factsOfType = new WeakMap<SqlStatement, ColumnFacts>();
+
+const withFacts = <Kind extends SqlStatement>(
+  type: SqlStatement,
+  facts: ColumnFacts,
+): Kind => {
+  factsOfType.set(type, facts);
+  return type as Kind;
+};
+
+/** The facts of a column type. Every type that this module makes has them. */
+export const columnFacts = (type: SqlStatement): ColumnFacts => {
+  const facts = factsOfType.get(type);
+  if (facts === undefined) {
+    throw new Error(`Not a column type from scalar-columns.ts: ${type.sql}`);
+  }
+  return facts;
+};
+
+/** A type whose column always holds a value. */
+const storing = <Stored>(type: SqlStatement): ColumnKind<Stored> =>
+  withFacts(type, { canBeNull: false });
+
+/** A type whose column can hold nothing. */
+const storingOrNull = <Stored>(type: SqlStatement): ColumnKind<Stored | null> =>
+  withFacts(type, { canBeNull: true });
+
+/** A type with more SQL after it holds the same value as the type it wraps. */
+const sameKind = <Kind extends SqlStatement>(
+  wrapped: Kind,
+  built: SqlStatement,
+): Kind => withFacts(built, columnFacts(wrapped));
 
 /** Text that the column always holds. */
-export const text = sql`TEXT NOT NULL`;
+export const text = storing<string>(sql`TEXT NOT NULL`);
 
 /** Text, or nothing. */
-export const textOrNull = sql`TEXT`;
+export const textOrNull = storingOrNull<string>(sql`TEXT`);
 
 /** Text that the column always holds, and that starts blank. */
-export const textStartingBlank = sql`TEXT NOT NULL DEFAULT ''`;
+export const textStartingBlank = storing<string>(sql`TEXT NOT NULL DEFAULT ''`);
 
 /** Text, or nothing, that starts at nothing. Older columns hold their empty
  *  value this way. */
-export const textStartingAtNull = sql`TEXT DEFAULT NULL`;
+export const textStartingAtNull = storingOrNull<string>(sql`TEXT DEFAULT NULL`);
 
 /** A required type with the value a new row starts at. A number stands as
  *  itself, and text is quoted. */
-export const defaulted = (
-  type: SqlStatement,
+export const defaulted = <Kind extends SqlStatement>(
+  type: Kind,
   startingAt: string | number,
-): SqlStatement => sql`${type} DEFAULT ${sqlLiteral(startingAt)}`;
+): Kind => sameKind(type, sql`${type} DEFAULT ${sqlLiteral(startingAt)}`);
 
 /** A whole number that the column always holds. */
-export const wholeNumber = sql`INTEGER NOT NULL`;
+export const wholeNumber = storing<number>(sql`INTEGER NOT NULL`);
 
 /** A whole number, or nothing. */
-export const wholeNumberOrNull = sql`INTEGER`;
+export const wholeNumberOrNull = storingOrNull<number>(sql`INTEGER`);
 
 /** A whole number that the column always holds, and that starts at zero. */
-export const wholeNumberStartingAtZero = sql`INTEGER NOT NULL DEFAULT 0`;
+export const wholeNumberStartingAtZero = storing<number>(
+  sql`INTEGER NOT NULL DEFAULT 0`,
+);
 
 /** A whole number that the column always holds, and that starts at one. */
-export const wholeNumberStartingAtOne = sql`INTEGER NOT NULL DEFAULT 1`;
+export const wholeNumberStartingAtOne = storing<number>(
+  sql`INTEGER NOT NULL DEFAULT 1`,
+);
 
 /** A whole number, or nothing, that starts at nothing. Older columns hold
  *  their empty value this way. */
-export const wholeNumberStartingAtNull = sql`INTEGER DEFAULT NULL`;
+export const wholeNumberStartingAtNull =
+  storingOrNull<number>(sql`INTEGER DEFAULT NULL`);
 
 /** A measured number that the column always holds. */
-export const real = sql`REAL NOT NULL`;
+export const real = storing<number>(sql`REAL NOT NULL`);
 
 /** The row's own id, which the database grows by itself. */
-export const rowId = sql`INTEGER PRIMARY KEY AUTOINCREMENT`;
+export const rowId = storing<number>(sql`INTEGER PRIMARY KEY AUTOINCREMENT`);
 
 /** A text key. SQLite still lets a text key hold nothing, so a key that must
  *  always be found uses {@link requiredTextKey}. */
-export const textKey = sql`TEXT PRIMARY KEY`;
+export const textKey = storing<string>(sql`TEXT PRIMARY KEY`);
 
 /** A text key that must always be found. */
-export const requiredTextKey = sql`TEXT PRIMARY KEY NOT NULL`;
+export const requiredTextKey = storing<string>(sql`TEXT PRIMARY KEY NOT NULL`);
+
+/** A column type with a rule added. The type still stores the same value. */
+type WithRule = <Kind extends SqlStatement>(type: Kind) => Kind;
 
 /** A rule about this column's own value, in SQL. */
 export const checked =
-  (rule: SqlStatement) =>
-  (type: SqlStatement): SqlStatement =>
-    sql`${type} CHECK (${rule})`;
+  (rule: SqlStatement): WithRule =>
+  (type) =>
+    sameKind(type, sql`${type} CHECK (${rule})`);
 
 /** A type that must hold one of a fixed set of words, in SQL. Read the words
  *  from the one module that names them, so the column and the form or API that
  *  sends them cannot drift apart. */
-export const oneOf =
-  (column: string, words: readonly string[]) =>
-  (type: SqlStatement): SqlStatement =>
-    checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`)(
-      type,
-    );
+export const oneOf = (column: string, words: readonly string[]): WithRule =>
+  checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`);
 
 /** Rules about the whole row. SQLite lets a table say them only on a column.
  *  They hang on the row's last column, one per line, aligned to read inside the
  *  generated statement. */
 export const aboutTheRow =
-  (rules: readonly SqlStatement[]) =>
-  (type: SqlStatement): SqlStatement =>
-    sqlJoin(
-      [type, ...rules.map((rule) => sql`CHECK (${rule})`)],
-      sql`\n          `,
+  (rules: readonly SqlStatement[]): WithRule =>
+  (type) =>
+    sameKind(
+      type,
+      sqlJoin(
+        [type, ...rules.map((rule) => sql`CHECK (${rule})`)],
+        sql`\n          `,
+      ),
     );

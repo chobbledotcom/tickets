@@ -14,6 +14,8 @@ import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
 import { listingAttendeeRowColumnsFrom } from "#db/attendees/queries.ts";
 import {
   ATTENDEE_IDENTITY_COLUMNS,
+  ATTENDEE_ROW,
+  BOOKING_ROW,
   pricePaidFromLedger,
   remainingBalanceFromLedger,
 } from "#db/attendees/select.ts";
@@ -91,12 +93,7 @@ const bookingRowsByAttendeeIds = (
     bookingRowWithoutAttendee,
   );
 
-const PREVIOUS_BOOKING_LINE_COLS = sql`listingAttendee.listing_id, listingAttendee.quantity, ${pricePaidFromLedger(
-  sql`listingAttendee.attendee_id`,
-  sql`listingAttendee.listing_id`,
-  sql`listingAttendee.ledger_event_group`,
-  sql`listingAttendee.id`,
-)}`;
+const PREVIOUS_BOOKING_LINE_COLS = sql`listingAttendee.listing_id, listingAttendee.quantity, ${pricePaidFromLedger(BOOKING_ROW)}`;
 
 const previousBookingLineWithoutAttendee = (
   row: RowWithAttendee<PreviousBookingLine>,
@@ -228,7 +225,7 @@ const IS_ATTENDEE_KIND = sql`attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`;
  * rule, so the merge preview's badges resolve like every other read. */
 const ATTENDEE_SCAN_COLUMNS = sqlCommas([
   ...ATTENDEE_IDENTITY_COLUMNS,
-  remainingBalanceFromLedger(sql`attendee.id`),
+  remainingBalanceFromLedger(ATTENDEE_ROW.id),
   sql`attendee.email_pending`,
   sql`attendee.webhooks_pending`,
   emailOwedColumn("attendee"),
@@ -251,20 +248,7 @@ type AttendeeScanRow = {
 const attendeeWithBookingsBuild = (
   row: AttendeeScanRow,
   bookings: TokenBookingRow[],
-): AttendeeWithBookings => ({
-  bookings,
-  created: row.created,
-  email_owed: row.email_owed,
-  email_pending: row.email_pending,
-  id: row.id,
-  kind: row.kind,
-  pii_blob: row.pii_blob,
-  remaining_balance: row.remaining_balance,
-  status_id: row.status_id,
-  ticket_token: "",
-  ticket_token_index: row.ticket_token_index,
-  webhooks_pending: row.webhooks_pending,
-});
+): AttendeeWithBookings => ({ ...row, bookings, ticket_token: "" });
 
 /**
  * Look up attendees by plaintext tokens, returning full booking data.
