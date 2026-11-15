@@ -15,6 +15,7 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -34,12 +35,11 @@ describeWithEnv(
         });
 
         await adminFormPost(`/admin/listing/${listing.id}/edit`, {
+          ...baseListingForm,
           max_attendees: "200",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
           thank_you_url: "https://example.com/updated",
-          unit_price: "0",
         });
 
         const logs = await getListingActivityLog(listing.id);

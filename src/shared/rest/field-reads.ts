@@ -37,11 +37,10 @@ type BodyRead = (
 
 /** Read one name. An update without a name keeps the stored one. */
 const nameRead: BodyRead = (field, body, stored) => {
-  const value = body[field.key];
-  if (value !== undefined && typeof value !== "string") {
-    return errorResult(`${field.key} must be a string`);
-  }
-  return writeEntityName(value, stored as string | null);
+  const name = body[field.key];
+  return name === undefined || typeof name === "string"
+    ? writeEntityName(name, stored as string | null)
+    : errorResult(`${field.key} must be a string`);
 };
 
 /** The value a create reads for a field it does not supply. A switch and a
@@ -153,11 +152,16 @@ const asInput = <Fields extends FieldSpecs>(
     ),
   ) as FieldsInput<Fields>;
 
+/** One JSON write: the body, and the stored row or null on create. */
+type BodyWrite = readonly [
+  body: Record<string, unknown>,
+  stored: object | null,
+];
+
 /** Read one field of a JSON write. A create must supply a required field. */
 const fieldOfBody = (
   field: FieldSpec,
-  body: Record<string, unknown>,
-  stored: object | null,
+  ...[body, stored]: BodyWrite
 ): Result<unknown> => {
   if (stored === null) {
     return field.required && (body[field.key] ?? null) === null
@@ -197,10 +201,8 @@ const NOTHING_CLOSED: ClosedFields = new Map();
  *  not need to know the writer. */
 export const readOpenBody = <const Fields extends readonly OpenField[]>(
   fields: Fields,
-  body: Record<string, unknown>,
-  stored: object | null,
-): Result<FieldsInput<Fields>> =>
-  readBody(fields, body, stored, NOTHING_CLOSED);
+  ...write: BodyWrite
+): Result<FieldsInput<Fields>> => readBody(fields, ...write, NOTHING_CLOSED);
 
 /** The create and update mappers a record's JSON API takes. */
 export const bodyMappers = <const Fields extends readonly OpenField[]>(

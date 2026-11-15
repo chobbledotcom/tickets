@@ -11,16 +11,15 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { adminFormPost, adminMultipartPost } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > create validation", { db: true }, () => {
   describe("POST /admin/listing with unit_price", () => {
     test("creates listing with unit_price when authenticated", async () => {
       const { response } = await adminFormPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Paid Listing",
-        thank_you_url: "https://example.com/thanks",
         unit_price: "10.00",
       });
       expect(response.status).toBe(302);
@@ -28,10 +27,8 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
       const { response } = await adminFormPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Free Listing",
-        thank_you_url: "https://example.com/thanks",
         unit_price: "",
       });
       expect(response.status).toBe(400);
@@ -47,12 +44,9 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
       // would be silently dropped; instead the save is rejected.
       const { response } = await adminFormPost("/admin/listing", {
+        ...baseListingForm,
         day_price_1: "10.005",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Bad Day Price",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       expect(response.status).toBe(400);
       assertStringIncludes(await response.text(), "valid day price");
@@ -62,13 +56,11 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("keeps repeated bookable days after a rejected create", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         bookable_days: ["Monday", "Wednesday"],
         day_price_1: "10.005",
         listing_type: "daily",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Bad Day Price",
-        unit_price: "0",
       });
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -80,12 +72,9 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("accepts a create with a valid day price and stores it", async () => {
       const { response } = await adminFormPost("/admin/listing", {
+        ...baseListingForm,
         day_price_1: "10.00",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Good Day Price",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       expect(response.status).toBe(302);
       expect((await getListingWithCount(1))?.day_prices).toEqual({ 1: 1000 });
@@ -94,9 +83,8 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
   describe("POST /admin/listing with can_pay_more", () => {
     test("creates listing with can_pay_more enabled", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         can_pay_more: "1",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Pay More Listing",
         unit_price: "10.00",
       });
@@ -109,8 +97,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("creates listing with can_pay_more disabled by default", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Normal Listing",
         unit_price: "5.00",
       });
@@ -159,10 +146,9 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         can_pay_more: "1",
-        max_attendees: "50",
         max_price: "10.50",
-        max_quantity: "1",
         name: "Bad Max Price",
         unit_price: "10.00",
       });

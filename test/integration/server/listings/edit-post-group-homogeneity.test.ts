@@ -6,6 +6,7 @@ import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -36,13 +37,11 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
+            ...baseListingForm,
             group_ids: String(group.id),
             listing_type: "standard",
-            max_attendees: "50",
-            max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
-            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -77,14 +76,12 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
+            ...baseListingForm,
             customisable_days: "1",
             day_price_1: "1.00",
             group_ids: String(group.id),
-            max_attendees: "50",
-            max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
-            unit_price: "0",
           },
         );
         await expectHtmlResponse(

@@ -10,6 +10,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
@@ -21,12 +22,10 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
   describe("POST /admin/listing/:id/edit", () => {
     testRequiresAuth("/admin/listing/1/edit", {
       body: {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Updated Listing",
         slug: "updated-listing",
         thank_you_url: "https://example.com/updated",
-        unit_price: "0",
       },
       multipart: true,
       setup: async () => {
@@ -39,12 +38,10 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost("/admin/listing/999/edit", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Updated Listing",
         slug: "updated-listing",
         thank_you_url: "https://example.com/updated",
-        unit_price: "0",
       });
       expect(response.status).toBe(404);
     });
@@ -59,13 +56,11 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         mockFormRequest(
           "/admin/listing/1/edit",
           {
+            ...baseListingForm,
             csrf_token: "invalid-token",
-            max_attendees: "50",
-            max_quantity: "1",
             name: "Updated Listing",
             slug: "updated-listing",
             thank_you_url: "https://example.com/updated",
-            unit_price: "0",
           },
           cookie,
         ),
@@ -80,12 +75,9 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/listing/1/edit", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "",
         slug: "test-slug",
-        thank_you_url: "https://example.com",
-        unit_price: "0",
       });
       await expectHtmlResponse(response, 400, "Listing name is required");
     });
@@ -125,14 +117,11 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
+          ...baseListingForm,
           booked_quantity: "12",
-          max_attendees: "100",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
-          thank_you_url: "https://example.com",
           tickets_count: "4",
-          unit_price: "0",
         },
       );
       await expectFlashRedirect(
@@ -156,14 +145,11 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
+          ...baseListingForm,
           booked_quantity: "-1",
-          max_attendees: "100",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
-          thank_you_url: "https://example.com",
           tickets_count: "4",
-          unit_price: "0",
         },
       );
 

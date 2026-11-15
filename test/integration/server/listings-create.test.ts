@@ -21,6 +21,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { mockMultipartRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminMultipartPost,
@@ -38,11 +39,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
   describe("POST /admin/listing", () => {
     testRequiresAuth("/admin/listing", {
       body: {
-        max_attendees: "100",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Test Listing",
-        thank_you_url: "https://example.com",
-        unit_price: "0",
       },
       multipart: true,
     });
@@ -50,12 +48,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
     test("redirects to picker when posting a logistics template with logistics disabled", async () => {
       settings.setForTest(featureSetting());
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "100",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Hireable",
         template_id: "hireable-item",
-        thank_you_url: "https://example.com",
-        unit_price: "0",
       });
       await expectHtmlResponse(
         response,
@@ -67,14 +62,11 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("returns date required error for one-off-event template with no date", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         listing_type: "standard",
-        max_attendees: "100",
-        max_quantity: "1",
         name: "My Event",
         purchase_only: "",
         template_id: "one-off-event",
-        thank_you_url: "https://example.com",
-        unit_price: "0",
         uses_logistics: "",
       });
       expect(response.status).toBe(400);
@@ -87,7 +79,6 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         template_id: "online-digital",
         thank_you_url: "https://example.com",
-        unit_price: "0",
         // name omitted → validation error
       });
       expect(response.status).toBe(400);
@@ -96,11 +87,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("creates listing when authenticated", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "New Listing",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
@@ -122,11 +110,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
         () =>
           withExpectedError(() =>
             adminMultipartPost("/admin/listing", {
+              ...baseListingForm,
               max_attendees: "50",
-              max_quantity: "1",
               name: "Saved before error",
-              thank_you_url: "https://example.com/thanks",
-              unit_price: "0",
             }),
           ),
       );
@@ -147,11 +133,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
       );
       try {
         const { response } = await adminMultipartPost("/admin/listing", {
-          max_attendees: "50",
-          max_quantity: "1",
+          ...baseListingForm,
           name: "Lagged Listing",
-          thank_you_url: "https://example.com/thanks",
-          unit_price: "0",
         });
         await expectFlashRedirect("/admin", "Listing created")(response);
       } finally {
@@ -167,10 +150,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
       setDemoModeForTest(true);
 
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Demo Listing",
-        unit_price: "0",
         webhook_url: "https://example.com/webhook",
       });
 
@@ -186,12 +167,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
         slug: "listing-group",
       });
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         group_ids: String(group.id),
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Grouped Listing",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
@@ -201,12 +179,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("rejects non-existent group_id on create", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         group_ids: "999",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Bad Group Listing",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       expectStatus(400)(response);
 
@@ -227,13 +202,10 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
 
       const { response } = await adminMultipartPost("/admin/listing", {
+        ...baseListingForm,
         group_ids: String(group.id),
         listing_type: "daily",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Daily Mismatch",
-        thank_you_url: "https://example.com/thanks",
-        unit_price: "0",
       });
       expectStatus(400)(response);
       const body = await response.clone().text();
@@ -245,12 +217,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
         mockMultipartRequest(
           "/admin/listing",
           {
+            ...baseListingForm,
             csrf_token: "invalid-csrf-token",
-            max_attendees: "50",
-            max_quantity: "1",
             name: "New Listing",
-            thank_you_url: "https://example.com/thanks",
-            unit_price: "0",
           },
           await testCookie(),
         ),
@@ -263,11 +232,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
         mockMultipartRequest(
           "/admin/listing",
           {
-            max_attendees: "50",
-            max_quantity: "1",
+            ...baseListingForm,
             name: "New Listing",
-            thank_you_url: "https://example.com/thanks",
-            unit_price: "0",
           },
           await testCookie(),
         ),
@@ -280,7 +246,6 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_attendees: "",
         name: "",
         thank_you_url: "",
-        unit_price: "0",
       });
       await expectHtmlResponse(response, 400, "Add Listing");
     });
@@ -292,7 +257,6 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_attendees: "",
         name: "",
         thank_you_url: "",
-        unit_price: "0",
       });
       const html = await response.text();
       expect(response.status).toBe(400);
@@ -317,11 +281,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
       // A second listing may not reuse the name — names are unique across the
       // catalog so listings/groups can be referenced by name for import/export.
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "50",
-        max_quantity: "1",
+        ...baseListingForm,
         name: "Duplicate Listing",
-        thank_you_url: "https://example.com",
-        unit_price: "0",
       });
       expect(response.status).toBe(400);
       assertStringIncludes(

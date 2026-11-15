@@ -13,6 +13,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -28,12 +29,10 @@ describeWithEnv(
         groupId: number,
       ) =>
         adminFormPost(`/admin/listing/${listing.id}/edit`, {
+          ...baseListingForm,
           group_ids: String(groupId),
-          max_attendees: "50",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
-          unit_price: "0",
         });
 
       test("updates listing group_id", async () => {
@@ -53,12 +52,10 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
+            ...baseListingForm,
             group_ids: String(group2.id),
-            max_attendees: "50",
-            max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
-            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -79,12 +76,10 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
+            ...baseListingForm,
             group_ids: "999",
-            max_attendees: "50",
-            max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
-            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -185,12 +180,9 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
-            max_attendees: "100",
-            max_quantity: "1",
+            ...baseListingForm,
             name: "Slug Update Test",
             slug: "new-custom-slug",
-            thank_you_url: "https://example.com",
-            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -211,11 +203,9 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
-            max_attendees: "50",
-            max_quantity: "1",
+            ...baseListingForm,
             name: "Normalize Test",
             slug: "  My Custom Slug  ",
-            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -234,11 +224,9 @@ describeWithEnv(
         });
 
         const { response } = await adminFormPost("/admin/listing/1/edit", {
-          max_attendees: "50",
-          max_quantity: "1",
+          ...baseListingForm,
           name: "Invalid Slug Test",
           slug: "invalid_slug!@#",
-          unit_price: "0",
         });
         await expectHtmlResponse(
           response,
@@ -261,11 +249,9 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing2.id}/edit`,
           {
-            max_attendees: "50",
-            max_quantity: "1",
+            ...baseListingForm,
             name: "Listing Two",
             slug: listing1.slug,
-            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -288,11 +274,9 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
-            max_attendees: "50",
-            max_quantity: "1",
+            ...baseListingForm,
             name: listing.name,
             slug: group.slug,
-            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -311,11 +295,9 @@ describeWithEnv(
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/edit`,
           {
-            max_attendees: "100",
-            max_quantity: "1",
+            ...baseListingForm,
             name: "Same Slug Test",
             slug: listing.slug,
-            unit_price: "0",
           },
         );
         await expectFlashRedirect(

@@ -14,6 +14,7 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import {
   adminFormPost,
   adminGet,
@@ -173,13 +174,11 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
+          ...baseListingForm,
           closes_at_date: "not-a-date",
           closes_at_time: "99:99",
-          max_attendees: "100",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
-          unit_price: "0",
         },
       );
       await expectHtmlResponse(

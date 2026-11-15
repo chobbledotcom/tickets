@@ -13,6 +13,7 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > date and location", { db: true }, () => {
@@ -119,10 +120,9 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
+          ...baseListingForm,
           date_date: "not-a-date",
           date_time: "99:99",
-          max_attendees: "100",
-          max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
         },

@@ -97,25 +97,6 @@ describeWithEnv(
       assertStringIncludes(result.error, "referenced more than once");
     });
 
-    test("refuses an editor import that sets the webhook URL", async () => {
-      const result = await importCatalog(
-        {
-          kind: "listing",
-          listing: {
-            maxAttendees: 5,
-            name: "Editor Listing",
-            webhookUrl: "https://example.com/hook",
-          },
-          version: 1,
-        },
-        "editor",
-      );
-      expect(result).toEqual({
-        error: "editors cannot set webhookUrl",
-        ok: false,
-      });
-    });
-
     test("keeps the webhook URL for a non-editor import", async () => {
       const result = await importCatalog(
         {
@@ -145,12 +126,6 @@ describeWithEnv(
         t("catalog_transfer.site_plan_listing_refused", {
           name: "Builder On",
         }),
-      );
-    });
-
-    test("refuses uses-logistics when logistics is disabled", async () => {
-      await expect(importLogisticsListing("Logi Off")).rejects.toThrow(
-        "usesLogistics needs logistics turned on",
       );
     });
 

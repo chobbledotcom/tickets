@@ -64,6 +64,22 @@ const holdsSitePlan = (
   (input.monthsPerUnit ?? 0) > 0 ||
   (input.initialSiteMonths ?? 0) > 0;
 
+/** Post one create form as the owner, and read back the listing it made. */
+const postCreateForm = (
+  form: TestFormValues,
+  errorContext: string,
+): Promise<ListingWithCount> =>
+  doAuthenticatedMultipartFormRequest(
+    "/admin/listing",
+    form,
+    async () => {
+      const { getAllListings } = await import("#db/listings/records.ts");
+      const listings = await getAllListings();
+      return listings[0] as ListingWithCount;
+    },
+    errorContext,
+  );
+
 export const createTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
@@ -81,18 +97,12 @@ export const createTestListing = async (
   // flag directly, the same way.
   const writesDefaultsFlag =
     input.useDefaults === true && !defaultsSwitchShown("owner");
-  const listing = await doAuthenticatedMultipartFormRequest(
-    "/admin/listing",
+  const listing = await postCreateForm(
     buildCreateListingForm({
       ...input,
       maxAttendees: formCapacity,
       useDefaults: input.useDefaults && !writesDefaultsFlag,
     }),
-    async () => {
-      const { getAllListings } = await import("#db/listings/records.ts");
-      const listings = await getAllListings();
-      return listings[0] as ListingWithCount;
-    },
     "create listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
@@ -126,14 +136,8 @@ export const duplicateTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
-  const listing = await doAuthenticatedMultipartFormRequest(
-    "/admin/listing",
+  const listing = await postCreateForm(
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
-    async () => {
-      const { getAllListings } = await import("#db/listings/records.ts");
-      const listings = await getAllListings();
-      return listings[0] as ListingWithCount;
-    },
     "duplicate listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));

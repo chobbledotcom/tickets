@@ -205,11 +205,17 @@ const readListingForm = <Values extends ListingFormValues>(
   });
 };
 
-/** Read a create form into the listing input, with a fresh slug. */
-const extractListingInput = async (
+/** Read one submitted listing form as the page view showed it. */
+type ListingFormRead<Input> = (
   view: ListingFormView,
   submitted: FormParams,
-): Promise<Result<ListingInput>> => {
+) => Promise<Result<Input>>;
+
+/** Read a create form into the listing input, with a fresh slug. */
+const extractListingInput: ListingFormRead<ListingInput> = async (
+  view,
+  submitted,
+) => {
   const read = readListingForm(getListingForm(view), view, submitted, "create");
   if (!read.ok) return read;
   const { slug, slugIndex } = await generateUniqueListingSlug();
@@ -217,10 +223,9 @@ const extractListingInput = async (
 };
 
 /** Read an edit form into the listing input, with its submitted slug. */
-const extractListingUpdateInput = async (
-  view: ListingFormView,
-  submitted: FormParams,
-): Promise<Result<ListingInput & { date: string }>> => {
+const extractListingUpdateInput: ListingFormRead<
+  ListingInput & { date: string }
+> = async (view, submitted) => {
   const read = readListingForm(
     getListingEditForm(view),
     view,
@@ -336,12 +341,16 @@ export const buildUpdateListingResource = (
     submitted: FormParams,
   ): Promise<Result<ListingInput>> => {
     const parsed = await extractListingUpdateInput(view, submitted);
-    if (!parsed.ok) return parsed;
-    const input = parsed.value;
-    return okResult({
-      ...input,
-      date: keepDailyListingDate(input.date, stored, input.listingType),
-    });
+    return parsed.ok
+      ? okResult({
+          ...parsed.value,
+          date: keepDailyListingDate(
+            parsed.value.date,
+            stored,
+            parsed.value.listingType,
+          ),
+        })
+      : parsed;
   };
 
   return {

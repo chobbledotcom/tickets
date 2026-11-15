@@ -16,6 +16,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
 import { postListingEdit } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { adminFormPost } from "#test-utils/session.ts";
@@ -28,13 +29,11 @@ describeWithEnv(
       const group = await createTestGroup({ name: "Create Form Group" });
 
       const { response } = await adminFormPost("/admin/listing", {
+        ...baseListingForm,
         assign_built_site: "1",
         group_ids: String(group.id),
         initial_site_months: "1",
-        max_attendees: "50",
-        max_quantity: "1",
         name: "Create Form Plan",
-        unit_price: "0",
       });
 
       await expectHtmlResponse(
