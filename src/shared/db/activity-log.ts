@@ -19,7 +19,7 @@ import {
 
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
-import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
+import { insert, queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { listingReader } from "#db/listings/select.ts";
@@ -229,10 +229,13 @@ export const bookingActivityStatements = (
   activities: readonly BookedActivity[],
   tokenIndex: string,
 ): SqlStatement[] =>
-  activities.map(
-    (activity) =>
-      sql`INSERT INTO activity_log (attendee_id, listing_id, message, created)
-          SELECT ${attendeeByToken(tokenIndex)}, ${activity.listingId}, ${activity.message}, ${nowIso()}`,
+  activities.map((activity) =>
+    insert("activity_log", {
+      attendee_id: attendeeByToken(tokenIndex),
+      created: nowIso(),
+      listing_id: activity.listingId,
+      message: activity.message,
+    }),
   );
 
 /**
