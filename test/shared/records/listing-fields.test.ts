@@ -10,11 +10,17 @@ import {
   type WriteAccess,
 } from "#shared/rest/field-specs.ts";
 
-/** A staff writer on a site with every feature on and no demo. */
-const OPEN: WriteAccess = {
-  features: { builder: true, logistics: true },
-  locks: { demo: false, editor: false },
-};
+/** A writer on a site with the given features off and the given locks on. */
+const accessOf = (
+  off: readonly ("builder" | "logistics")[],
+  on: readonly ("demo" | "editor")[],
+): WriteAccess => ({
+  features: {
+    builder: !off.includes("builder"),
+    logistics: !off.includes("logistics"),
+  },
+  locks: { demo: on.includes("demo"), editor: on.includes("editor") },
+});
 
 /** The closed fields of one writer, in declaration order. */
 const closedOf = (
@@ -22,75 +28,63 @@ const closedOf = (
   access: WriteAccess,
 ): [string, ClosedReason][] => [...closedFields(fields, access)];
 
-describe("listing and group fields", () => {
-  test("a staff writer on a site with every feature on can set every field", () => {
-    expect([
-      closedOf(LISTING_FIELDS, OPEN),
-      closedOf(GROUP_FIELDS, OPEN),
-    ]).toEqual([[], []]);
-  });
+const EDITOR_CLOSED: [string, ClosedReason][] = [
+  ["active", "editor"],
+  ["use_defaults", "editor"],
+  ["webhook_url", "editor"],
+];
 
-  test("site building off closes its three listing fields", () => {
-    expect(
-      closedOf(LISTING_FIELDS, {
-        ...OPEN,
-        features: { builder: false, logistics: true },
-      }),
-    ).toEqual([
+const LISTING_CASES: [string, WriteAccess, [string, ClosedReason][]][] = [
+  [
+    "a staff writer on a site with every feature on can set every field",
+    accessOf([], []),
+    [],
+  ],
+  [
+    "site building off closes its three listing fields",
+    accessOf(["builder"], []),
+    [
       ["assign_built_site", "builder"],
       ["initial_site_months", "builder"],
       ["months_per_unit", "builder"],
-    ]);
-  });
+    ],
+  ],
+  [
+    "logistics off closes the logistics switch",
+    accessOf(["logistics"], []),
+    [["uses_logistics", "logistics"]],
+  ],
+  [
+    "an editor cannot set the bookable state, the defaults switch, or the webhook",
+    accessOf([], ["editor"]),
+    EDITOR_CLOSED,
+  ],
+  [
+    "demo mode closes the webhook",
+    accessOf([], ["demo"]),
+    [["webhook_url", "demo"]],
+  ],
+  [
+    "the demo lock names the reason first for an editor in the demo",
+    accessOf([], ["demo", "editor"]),
+    [...EDITOR_CLOSED.slice(0, 2), ["webhook_url", "demo"]],
+  ],
+];
 
-  test("logistics off closes the logistics switch", () => {
-    expect(
-      closedOf(LISTING_FIELDS, {
-        ...OPEN,
-        features: { builder: true, logistics: false },
-      }),
-    ).toEqual([["uses_logistics", "logistics"]]);
-  });
-
-  test("an editor cannot set the bookable state, the defaults switch, or the webhook", () => {
-    expect(
-      closedOf(LISTING_FIELDS, {
-        ...OPEN,
-        locks: { demo: false, editor: true },
-      }),
-    ).toEqual([
-      ["active", "editor"],
-      ["use_defaults", "editor"],
-      ["webhook_url", "editor"],
-    ]);
-  });
-
-  test("demo mode closes the webhook, and the demo lock names the reason first", () => {
-    expect([
-      closedOf(LISTING_FIELDS, {
-        ...OPEN,
-        locks: { demo: true, editor: false },
-      }),
-      closedOf(LISTING_FIELDS, {
-        ...OPEN,
-        locks: { demo: true, editor: true },
-      }),
-    ]).toEqual([
-      [["webhook_url", "demo"]],
-      [
-        ["active", "editor"],
-        ["use_defaults", "editor"],
-        ["webhook_url", "demo"],
-      ],
-    ]);
-  });
+describe("listing and group fields", () => {
+  for (const [name, access, closed] of LISTING_CASES) {
+    test(name, () => {
+      expect(closedOf(LISTING_FIELDS, access)).toEqual(closed);
+    });
+  }
 
   test("no writer is ever closed out of a group field", () => {
-    expect(
-      closedOf(GROUP_FIELDS, {
-        features: { builder: false, logistics: false },
-        locks: { demo: true, editor: true },
-      }),
-    ).toEqual([]);
+    expect([
+      closedOf(GROUP_FIELDS, accessOf([], [])),
+      closedOf(
+        GROUP_FIELDS,
+        accessOf(["builder", "logistics"], ["demo", "editor"]),
+      ),
+    ]).toEqual([[], []]);
   });
 });

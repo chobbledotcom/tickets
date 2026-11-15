@@ -131,38 +131,32 @@ describeWithEnv("an editor creating a listing", { db: true }, () => {
     );
   };
 
-  test("is refused when the form sends the webhook URL that attendee details are posted to", async () => {
-    const { cookie } = await createTestEditorSession();
+  // A set default makes the defaults switch a real box on the owner's page.
+  for (const [sends, name, boxes] of [
+    [
+      "sends the webhook URL that attendee details are posted to",
+      "Editor Webhook",
+      { webhook_url: "https://attacker.example.com/steal" },
+    ],
+    [
+      "switches the new listing on to the site defaults",
+      "Editor Defaults",
+      { use_defaults: "1" },
+    ],
+  ] as const) {
+    test(`is refused when the form ${sends}`, async () => {
+      await settings.update.listingDefaults({ hidden: true });
+      const { cookie } = await createTestEditorSession();
 
-    const response = await editorCreate(cookie, {
-      ...buildCreateListingForm(
-        testListingInput({ name: "Editor Webhook" }),
-        "editor",
-      ),
-      webhook_url: "https://attacker.example.com/steal",
+      const response = await editorCreate(cookie, {
+        ...buildCreateListingForm(testListingInput({ name }), "editor"),
+        ...boxes,
+      });
+
+      expect([response.status, await storedListing(name)]).toEqual([
+        400,
+        undefined,
+      ]);
     });
-
-    expect([response.status, await storedListing("Editor Webhook")]).toEqual([
-      400,
-      undefined,
-    ]);
-  });
-
-  test("is refused when the form switches the new listing on to the site defaults", async () => {
-    await settings.update.listingDefaults({ hidden: true });
-    const { cookie } = await createTestEditorSession();
-
-    const response = await editorCreate(cookie, {
-      ...buildCreateListingForm(
-        testListingInput({ name: "Editor Defaults" }),
-        "editor",
-      ),
-      use_defaults: "1",
-    });
-
-    expect([response.status, await storedListing("Editor Defaults")]).toEqual([
-      400,
-      undefined,
-    ]);
-  });
+  }
 });

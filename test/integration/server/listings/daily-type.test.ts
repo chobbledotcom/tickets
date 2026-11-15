@@ -12,8 +12,11 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { baseListingForm } from "#test-utils/factories.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import {
+  submitListingCreate,
+  submitListingEdit,
+} from "#test-utils/listing-submits.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > daily listing type", { db: true }, () => {
   describe("daily listing type", () => {
@@ -149,8 +152,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
     });
 
     test("rejects invalid listing_type value", async () => {
-      const { response } = await adminFormPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         listing_type: "invalid",
         name: "Bad Type Listing",
       });
@@ -217,8 +219,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
 
       const listing = (await getListingWithCount(1))!;
 
-      const { response } = await adminFormPost("/admin/listing/1/edit", {
-        ...baseListingForm,
+      const { response } = await submitListingEdit(1, {
         bookable_days: "Funday,Bunday",
         listing_type: "daily",
         maximum_days_after: "90",

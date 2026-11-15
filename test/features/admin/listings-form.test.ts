@@ -12,10 +12,7 @@ import {
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import {
-  buildCreateListingResource,
-  buildUpdateListingResource,
-} from "#routes/admin/listings-form.ts";
+import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { listingRecord } from "#shared/records/listings.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
@@ -32,6 +29,7 @@ import {
   createListing,
   listingForm,
   saveListingEdit,
+  tryCreateListing,
   updateListing,
 } from "./listings-form/helpers.ts";
 
@@ -54,11 +52,7 @@ describeWithEnv("listings form", { db: true }, () => {
         ["max_attendees", "0"],
         ["min_quantity", "0"],
       ] as const) {
-        const form = listingForm({ [field]: value });
-        const result = await buildCreateListingResource(
-          form,
-          listingFormView("owner"),
-        ).create(form);
+        const result = await tryCreateListing({ [field]: value });
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBe(
@@ -110,28 +104,13 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(blank.date).toBe("");
     });
 
-    test("chosen bookable days are kept as chosen", async () => {
-      const row = await createListing({
-        bookable_days: ["Monday", "Thursday"],
-      });
-      expect(row.bookable_days).toEqual(["Monday", "Thursday"]);
-    });
-
-    test("a single chosen day stays that one day", async () => {
-      const row = await createListing({ bookable_days: ["Friday"] });
-      expect(row.bookable_days).toEqual(["Friday"]);
-    });
-
-    test("an impossible date is refused before anything is saved", async () => {
-      const form = listingForm({ date_date: "2026-02-30", date_time: "10:00" });
-      const result = await buildCreateListingResource(
-        form,
-        listingFormView("owner"),
-      ).create(form);
-      expect(result).toEqual({
-        error: "Please enter a valid date and time",
-        ok: false,
-      });
+    test("chosen bookable days are kept as chosen, even a single one", async () => {
+      for (const days of [["Monday", "Thursday"], ["Friday"]]) {
+        expect(
+          (await createListing({ bookable_days: days, name: days.join(" ") }))
+            .bookable_days,
+        ).toEqual(days);
+      }
     });
 
     test("a listing with no closing date stores nothing in that column", async () => {
@@ -186,16 +165,12 @@ describeWithEnv("listings form", { db: true }, () => {
       });
       expect(priced.status).toBe(200);
 
-      const form = listingForm({
+      const result = await tryCreateListing({
         duplicated_from: String(source.id),
         group_ids: String(group.id),
         max_quantity: "2",
         name: "Undercapped copy",
       });
-      const result = await buildCreateListingResource(
-        form,
-        listingFormView("owner"),
-      ).create(form);
       expect(result).toEqual({
         error: t("error.package_member_cap", {
           max_quantity: 2,
@@ -231,17 +206,22 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(await getListingDayPrices(row.id)).toEqual({ 1: 1500 });
     });
 
-    test("an unreadable day price rejects the save with a plain message", async () => {
-      const form = listingForm({ day_price_1: "abc", duration_days: "2" });
-      const result = await buildCreateListingResource(
-        form,
-        listingFormView("owner"),
-      ).create(form);
-      expect(result).toEqual({
-        error: "Enter a valid day price for each duration, or leave it blank.",
-        ok: false,
+    for (const [name, boxes, error] of [
+      [
+        "an impossible date is refused before anything is saved",
+        { date_date: "2026-02-30", date_time: "10:00" },
+        "Please enter a valid date and time",
+      ],
+      [
+        "an unreadable day price rejects the save with a plain message",
+        { day_price_1: "abc", duration_days: "2" },
+        "Enter a valid day price for each duration, or leave it blank.",
+      ],
+    ] as const) {
+      test(name, async () => {
+        expect(await tryCreateListing(boxes)).toEqual({ error, ok: false });
       });
-    });
+    }
 
     test("ticked groups are saved; unticked junk ids are not", async () => {
       const group = await createTestGroup({ name: "Form group" });
@@ -260,17 +240,19 @@ describeWithEnv("listings form", { db: true }, () => {
 
   describe("update", () => {
     test("answers not found when the row vanished before the update", async () => {
-      const created = await createListing();
-      const stored = (await getStoredListingWithCount(created.id))!;
-      const form = listingForm({ slug: "kept-slug" });
-      await deleteListing(created.id);
+      const { id } = await createListing();
+      const update = buildUpdateListingResource(
+        (await getStoredListingWithCount(id))!,
+        listingFormView("owner"),
+      );
+      await deleteListing(id);
 
       expect(
-        await buildUpdateListingResource(
-          stored,
-          listingFormView("owner"),
-        ).update(created.id, form),
-      ).toEqual({ notFound: true, ok: false });
+        await update.update(id, listingForm({ slug: "kept-slug" })),
+      ).toEqual({
+        notFound: true,
+        ok: false,
+      });
     });
 
     test("answers not found when the write loses the row", async () => {

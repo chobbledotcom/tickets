@@ -16,6 +16,23 @@ import {
   requestAsSession,
 } from "#test-utils/session.ts";
 
+type ApiSession = { cookie: string; csrfToken: string };
+
+/** One JSON write through the listings API as the session. */
+const jsonWrite = (
+  session: ApiSession,
+  method: "DELETE" | "POST" | "PUT",
+  path: string,
+  body: Record<string, unknown>,
+): Promise<Response> =>
+  handleRequest(
+    requestAsSession(path, session, {
+      body: JSON.stringify(body),
+      headers: { "content-type": "application/json" },
+      method,
+    }),
+  );
+
 describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
   const editorSession = async (): Promise<{
     cookie: string;
@@ -25,35 +42,30 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     csrfToken: await signCsrfToken(),
   });
 
+  /** The write answers with the named listing and no money totals. */
+  const expectMoneyFreeAnswer = (
+    written: Promise<Response>,
+    status: number,
+    name: string,
+  ) =>
+    assertJson(written, status, (body) => {
+      expect(body.listing.name).toBe(name);
+      for (const field of ["cost", "income", "profit"]) {
+        expect(field in body.listing).toBe(false);
+      }
+    });
+
   test("admits an editor creating a listing", async () => {
-    await assertJson(
-      handleRequest(
-        requestAsSession("/api/admin/listings", await editorSession(), {
-          body: JSON.stringify({
-            listing_type: "standard",
-            max_attendees: 10,
-            name: "Editor Made Listing",
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        }),
-      ),
+    // The create route answers through the post-write response path, so the
+    // editor's money-free read applies here too.
+    await expectMoneyFreeAnswer(
+      jsonWrite(await editorSession(), "POST", "/api/admin/listings", {
+        listing_type: "standard",
+        max_attendees: 10,
+        name: "Editor Made Listing",
+      }),
       201,
-      (body) => {
-        expect(body.listing.name).toBe("Editor Made Listing");
-        // The create route answers through the post-write response path, so
-        // the editor's money-free read applies here too. The fields an editor
-        // cannot set are not readable for the role either.
-        for (const field of [
-          "cost",
-          "income",
-          "profit",
-          "use_defaults",
-          "webhook_url",
-        ]) {
-          expect(field in body.listing).toBe(false);
-        }
-      },
+      "Editor Made Listing",
     );
   });
 
@@ -61,39 +73,22 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     const listing = await createTestListing({ name: "Editor Edit" });
     const editor = await editorSession();
 
-    await assertJson(
-      handleRequest(
-        requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-          body: JSON.stringify({ name: "Editor Renamed" }),
-          headers: { "content-type": "application/json" },
-          method: "PUT",
-        }),
-      ),
+    await expectMoneyFreeAnswer(
+      jsonWrite(editor, "PUT", `/api/admin/listings/${listing.id}`, {
+        name: "Editor Renamed",
+      }),
       200,
-      (body) => {
-        expect(body.listing.name).toBe("Editor Renamed");
-        for (const field of ["cost", "income", "profit"]) {
-          expect(field in body.listing).toBe(false);
-        }
-      },
+      "Editor Renamed",
     );
   });
 
   test("refuses an agent with 403 and creates nothing", async () => {
     const agent = await createTestAgentSession();
-    const response = await handleRequest(
-      requestAsSession(
-        "/api/admin/listings",
-        {
-          cookie: agent.cookie,
-          csrfToken: await signCsrfToken(),
-        },
-        {
-          body: JSON.stringify({ name: "Agent Made Listing" }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        },
-      ),
+    const response = await jsonWrite(
+      { cookie: agent.cookie, csrfToken: await signCsrfToken() },
+      "POST",
+      "/api/admin/listings",
+      { name: "Agent Made Listing" },
     );
     expect(response.status).toBe(403);
     expect(await getListingWithCount(0)).toBeNull();
@@ -103,12 +98,11 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     const listing = await createTestListing({ name: "Editor Delete" });
     const editor = await editorSession();
 
-    const response = await handleRequest(
-      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-        body: JSON.stringify({ confirm_identifier: "Editor Delete" }),
-        headers: { "content-type": "application/json" },
-        method: "DELETE",
-      }),
+    const response = await jsonWrite(
+      editor,
+      "DELETE",
+      `/api/admin/listings/${listing.id}`,
+      { confirm_identifier: "Editor Delete" },
     );
     expect(response.status).toBe(403);
     expect(await getListingWithCount(listing.id)).not.toBeNull();
@@ -140,15 +134,14 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     });
     const editor = await editorSession();
 
-    const response = await handleRequest(
-      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-        body: JSON.stringify({
-          name: "Editor Lock Renamed",
-          webhook_url: "https://editor.example/exfil",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "PUT",
-      }),
+    const response = await jsonWrite(
+      editor,
+      "PUT",
+      `/api/admin/listings/${listing.id}`,
+      {
+        name: "Editor Lock Renamed",
+        webhook_url: "https://editor.example/exfil",
+      },
     );
 
     const row = await getListingWithCount(listing.id);
@@ -166,17 +159,16 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
   });
 
   test("refuses an editor create that names a locked field", async () => {
-    const response = await handleRequest(
-      requestAsSession("/api/admin/listings", await editorSession(), {
-        body: JSON.stringify({
-          active: true,
-          listing_type: "standard",
-          max_attendees: 10,
-          name: "Editor Locked Create",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
+    const response = await jsonWrite(
+      await editorSession(),
+      "POST",
+      "/api/admin/listings",
+      {
+        active: true,
+        listing_type: "standard",
+        max_attendees: 10,
+        name: "Editor Locked Create",
+      },
     );
 
     expect([response.status, await response.json()]).toEqual([
@@ -296,27 +288,20 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       expectFieldsAbsent(row, lockedFields);
     }
 
-    const created = await handleRequest(
-      requestAsSession("/api/admin/listings", editor, {
-        body: JSON.stringify({
-          listing_type: "standard",
-          max_attendees: 10,
-          name: "Editor Webhook Made",
-        }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
+    const created = await jsonWrite(editor, "POST", "/api/admin/listings", {
+      listing_type: "standard",
+      max_attendees: 10,
+      name: "Editor Webhook Made",
+    });
     const createdBody = await created.json();
     expect(created.status).toBe(201);
     expectFieldsAbsent(createdBody.listing, lockedFields);
 
-    const updated = await handleRequest(
-      requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
-        body: JSON.stringify({ name: "Editor Webhook Read Renamed" }),
-        headers: { "content-type": "application/json" },
-        method: "PUT",
-      }),
+    const updated = await jsonWrite(
+      editor,
+      "PUT",
+      `/api/admin/listings/${listing.id}`,
+      { name: "Editor Webhook Read Renamed" },
     );
     const updatedBody = await updated.json();
     expect(updated.status).toBe(200);

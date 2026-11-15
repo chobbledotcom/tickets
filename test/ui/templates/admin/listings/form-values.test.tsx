@@ -71,18 +71,13 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a free listing fills its price box with 0.00, since a blank box is refused", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 0 }),
-    );
-    expect(values.unit_price).toBe("0.00");
-  });
-
-  test("a one-penny price still fills the box", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 1 }),
-    );
-    expect(values.unit_price).toBe("0.01");
+  test("a free or one-penny price still fills the box, since a blank box is refused", () => {
+    expect(
+      [0, 1].map(
+        (unit_price) =>
+          listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
+      ),
+    ).toEqual(["0.00", "0.01"]);
   });
 
   test("carries a dated listing's own day in the datetime box's shape", () => {

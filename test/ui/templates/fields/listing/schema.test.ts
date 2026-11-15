@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
+import type { ClosedReason } from "#shared/rest/field-specs.ts";
 import {
   getListingEditForm,
   getListingForm,
+  type ListingFormView,
   logisticsAgentForm,
 } from "#templates/fields/listing.ts";
 import {
@@ -28,62 +30,77 @@ const withVisibility =
 const revealing = withVisibility(true);
 const hiding = withVisibility(false);
 
+const BUILT_SITE_BOXES = [
+  "months_per_unit",
+  "initial_site_months",
+  "assign_built_site",
+];
+
+/** The boxes a site closes for each feature it turns off. */
+const FEATURE_BOXES: [string, ClosedReason][] = [
+  ...BUILT_SITE_BOXES.map((name): [string, ClosedReason] => [name, "builder"]),
+  ["uses_logistics", "logistics"],
+];
+
+/** The served fields of a form with the given features off and the given
+ * extra boxes closed. */
+const servedWith = (
+  off: ClosedReason[],
+  view: Omit<Partial<ListingFormView>, "closed"> = {},
+  ...extra: [string, ClosedReason][]
+) =>
+  getListingForm({
+    closed: new Map([
+      ...FEATURE_BOXES.filter(([, reason]) => off.includes(reason)),
+      ...extra,
+    ]),
+    ...view,
+  }).fields.map(shape);
+
+const FEATURES_OFF: ClosedReason[] = ["builder", "logistics"];
+
 describe("listing field schemas", () => {
-  test("the listing form serves exactly its declared fields", () => {
-    expect(getListingForm().fields.map(shape)).toEqual(LISTING_FIELDS);
+  test("with site building and logistics off, the listing form serves exactly its declared fields", () => {
+    expect(servedWith(FEATURES_OFF)).toEqual(LISTING_FIELDS);
   });
 
-  test("closing the logistics switch hides only the agent assignment box", () => {
-    expect(
-      getListingForm({
-        closed: new Map([["uses_logistics", "logistics"]]),
-      }).fields.map(shape),
-    ).toEqual(hiding(["uses_logistics"]));
+  test("each feature turned on reveals only its own boxes", () => {
+    expect([
+      servedWith([]),
+      servedWith(["builder"]),
+      servedWith(["logistics"]),
+    ]).toEqual([
+      revealing([...BUILT_SITE_BOXES, "uses_logistics"]),
+      revealing(["uses_logistics"]),
+      revealing(BUILT_SITE_BOXES),
+    ]);
   });
 
   test("the storage view only reveals the image box", () => {
-    expect(
-      getListingForm({ closed: new Map(), storage: true }).fields.map(shape),
-    ).toEqual(revealing(["attachment"]));
-  });
-
-  test("closing the site building fields hides only the built-site boxes", () => {
-    expect(
-      getListingForm({
-        closed: new Map([
-          ["assign_built_site", "builder"],
-          ["initial_site_months", "builder"],
-          ["months_per_unit", "builder"],
-        ]),
-      }).fields.map(shape),
-    ).toEqual(
-      hiding(["months_per_unit", "initial_site_months", "assign_built_site"]),
+    expect(servedWith(FEATURES_OFF, { storage: true })).toEqual(
+      revealing(["attachment"]),
     );
   });
 
   test("closing the webhook hides only the webhook box", () => {
-    expect(
-      getListingForm({
-        closed: new Map([["webhook_url", "editor"]]),
-      }).fields.map(shape),
-    ).toEqual(hiding(["webhook_url"]));
+    expect(servedWith(FEATURES_OFF, {}, ["webhook_url", "editor"])).toEqual(
+      hiding(["webhook_url"]),
+    );
   });
 
   test("the autofocus view puts the cursor in the name box and changes nothing else", () => {
     const focused = LISTING_FIELDS.map((field) =>
       field.name === "name" ? { autofocus: true, ...field } : field,
     );
-    expect(
-      getListingForm({ closed: new Map(), nameAutofocus: true }).fields.map(
-        shape,
-      ),
-    ).toEqual(focused);
+    expect(servedWith(FEATURES_OFF, { nameAutofocus: true })).toEqual(focused);
   });
+
   test("the edit form is the listing form plus the slug box", () => {
-    expect(getListingEditForm().fields.map(shape)).toEqual([
-      ...LISTING_FIELDS,
-      SLUG_FIELD,
-    ]);
+    expect(
+      getListingEditForm({
+        closed: new Map(FEATURE_BOXES),
+      }).fields.map(shape),
+    ).toEqual([...LISTING_FIELDS, SLUG_FIELD]);
   });
 
   test("the logistics agent form serves exactly its declared field", () => {

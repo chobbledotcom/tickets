@@ -24,14 +24,18 @@ export const listingForm = (extra: TestFormValues = {}) =>
     ...extra,
   });
 
+/** Run one create save as the production create handler does. */
+export const tryCreateListing = (extra: TestFormValues = {}) => {
+  const form = listingForm(extra);
+  return buildCreateListingResource(form, listingFormView("owner")).create(
+    form,
+  );
+};
+
 export const createListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
-  const form = listingForm(extra);
-  const result = await buildCreateListingResource(
-    form,
-    listingFormView("owner"),
-  ).create(form);
+  const result = await tryCreateListing(extra);
   if (!result.ok) throw new Error(`create failed: ${result.error}`);
   return result.row;
 };

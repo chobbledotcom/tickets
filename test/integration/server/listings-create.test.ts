@@ -22,6 +22,7 @@ import { withDbFault } from "#test-utils/db-fault.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
+import { submitListingCreate } from "#test-utils/listing-submits.ts";
 import { mockMultipartRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminMultipartPost,
@@ -47,8 +48,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("redirects to picker when posting a logistics template with logistics disabled", async () => {
       settings.setForTest(featureSetting());
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         name: "Hireable",
         template_id: "hireable-item",
       });
@@ -60,34 +60,32 @@ describeWithEnv("server listings > create", { db: true }, () => {
       );
     });
 
-    test("returns date required error for one-off-event template with no date", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
-        listing_type: "standard",
-        name: "My Event",
-        purchase_only: "",
-        template_id: "one-off-event",
-        uses_logistics: "",
+    for (const [name, boxes, shown] of [
+      [
+        "returns date required error for one-off-event template with no date",
+        {
+          listing_type: "standard",
+          purchase_only: "",
+          template_id: "one-off-event",
+          uses_logistics: "",
+        },
+        "date is required",
+      ],
+      [
+        "re-renders with carried template_id when create validation fails",
+        { name: "", template_id: "online-digital" },
+        'value="online-digital"',
+      ],
+    ] as const) {
+      test(name, async () => {
+        const { response } = await submitListingCreate(boxes);
+        expect(response.status).toBe(400);
+        assertStringIncludes(await response.text(), shown);
       });
-      expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), "date is required");
-    });
-
-    test("re-renders with carried template_id when create validation fails", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "100",
-        max_quantity: "1",
-        template_id: "online-digital",
-        thank_you_url: "https://example.com",
-        // name omitted → validation error
-      });
-      expect(response.status).toBe(400);
-      assertStringIncludes(await response.text(), 'value="online-digital"');
-    });
+    }
 
     test("creates listing when authenticated", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         name: "New Listing",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
@@ -109,8 +107,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         "fail_listing_activity",
         () =>
           withExpectedError(() =>
-            adminMultipartPost("/admin/listing", {
-              ...baseListingForm,
+            submitListingCreate({
               max_attendees: "50",
               name: "Saved before error",
             }),
@@ -132,8 +129,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         Promise.resolve(null),
       );
       try {
-        const { response } = await adminMultipartPost("/admin/listing", {
-          ...baseListingForm,
+        const { response } = await submitListingCreate({
           name: "Lagged Listing",
         });
         await expectFlashRedirect("/admin", "Listing created")(response);
@@ -149,8 +145,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
     test("refuses a webhook URL when creating listing in demo mode", async () => {
       setDemoModeForTest(true);
 
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         name: "Demo Listing",
         webhook_url: "https://example.com/webhook",
       });
@@ -166,8 +161,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         name: "Listing Group",
         slug: "listing-group",
       });
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         group_ids: String(group.id),
         name: "Grouped Listing",
       });
@@ -178,8 +172,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
     });
 
     test("rejects non-existent group_id on create", async () => {
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         group_ids: "999",
         name: "Bad Group Listing",
       });
@@ -201,8 +194,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         name: "Standard Listing",
       });
 
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         group_ids: String(group.id),
         listing_type: "daily",
         name: "Daily Mismatch",
@@ -212,34 +204,21 @@ describeWithEnv("server listings > create", { db: true }, () => {
       assertStringIncludes(body, "already contains standard listings");
     });
 
-    test("rejects invalid CSRF token", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            ...baseListingForm,
-            csrf_token: "invalid-csrf-token",
-            name: "New Listing",
-          },
-          await testCookie(),
-        ),
-      );
-      await expectHtmlResponse(response, 403, "Invalid CSRF token");
-    });
-
-    test("rejects missing CSRF token", async () => {
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/listing",
-          {
-            ...baseListingForm,
-            name: "New Listing",
-          },
-          await testCookie(),
-        ),
-      );
-      await expectHtmlResponse(response, 403, "Invalid CSRF token");
-    });
+    for (const [name, token] of [
+      ["rejects invalid CSRF token", { csrf_token: "invalid-csrf-token" }],
+      ["rejects missing CSRF token", {}],
+    ] as const) {
+      test(name, async () => {
+        const response = await handleRequest(
+          mockMultipartRequest(
+            "/admin/listing",
+            { ...baseListingForm, ...token, name: "New Listing" },
+            await testCookie(),
+          ),
+        );
+        await expectHtmlResponse(response, 403, "Invalid CSRF token");
+      });
+    }
 
     test("stays on form with error on validation failure", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
@@ -280,8 +259,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
       // A second listing may not reuse the name — names are unique across the
       // catalog so listings/groups can be referenced by name for import/export.
-      const { response } = await adminMultipartPost("/admin/listing", {
-        ...baseListingForm,
+      const { response } = await submitListingCreate({
         name: "Duplicate Listing",
       });
       expect(response.status).toBe(400);

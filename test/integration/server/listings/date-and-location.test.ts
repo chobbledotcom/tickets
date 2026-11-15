@@ -13,8 +13,8 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import { baseListingForm } from "#test-utils/factories.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import { submitListingEdit } from "#test-utils/listing-submits.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > date and location", { db: true }, () => {
   describe("listing date and location", () => {
@@ -117,16 +117,12 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
 
     test("rejects invalid listing date on edit", async () => {
       const { listing } = await setupListingAndLogin();
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          ...baseListingForm,
-          date_date: "not-a-date",
-          date_time: "99:99",
-          name: listing.name,
-          slug: listing.slug,
-        },
-      );
+      const { response } = await submitListingEdit(listing.id, {
+        date_date: "not-a-date",
+        date_time: "99:99",
+        name: listing.name,
+        slug: listing.slug,
+      });
       await expectHtmlResponse(
         response,
         400,
