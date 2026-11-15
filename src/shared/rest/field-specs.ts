@@ -7,6 +7,7 @@
  * layer forgets is a compile error.
  */
 
+import { requiredMapValue } from "#fp";
 import type { DateString } from "#shared/validation/date-string.ts";
 import type { DayPrices, ListingFields, ListingType } from "#types";
 
@@ -27,25 +28,38 @@ export type FieldKind =
   | "text"
   | "weekdays";
 
-/** The places that read a field with the shared reads: the JSON API, the
- *  dashboard form, and catalogue transfer. */
-export type Door = "api" | "form" | "transfer";
+/** The site features that a field can need. With the feature off, every
+ *  write refuses the field. */
+export type Feature = "builder" | "logistics";
+
+/** The writers that a field can be locked against. */
+export type Lock = "demo" | "editor";
+
+/** Why one write cannot set a field. */
+export type ClosedReason = Feature | Lock;
+
+/** The facts about one write that decide which fields it can set. */
+export type WriteAccess = {
+  readonly features: Readonly<Record<Feature, boolean>>;
+  readonly locks: Readonly<Record<Lock, boolean>>;
+};
 
 /** One declared field. `key` is its column and its API key. `header`,
  *  `label`, `hint`, and `placeholder` name catalog entries: the list column
  *  header and the form box texts. A record with its own form leaves them
  *  out. `default` is the stored value a create gets when it gives none.
- *  `doors` names the shared reads that take the field: all of them when it is
- *  absent. `min` is the smallest whole number a count accepts. A `required`
- *  field must be in each transfer. */
+ *  `feature` names the site feature the field needs. `lockedFor` names the
+ *  writers that cannot set it. `min` is the smallest whole number a count
+ *  accepts. Each create must supply a `required` field. */
 export type FieldSpec = {
   readonly default?: boolean | number | string | readonly string[];
-  readonly doors?: readonly Door[];
+  readonly feature?: Feature;
   readonly header?: string;
   readonly hint?: string;
   readonly key: string;
   readonly kind: FieldKind;
   readonly label?: string;
+  readonly lockedFor?: readonly Lock[];
   readonly min?: 0 | 1;
   readonly placeholder?: string;
   readonly required?: true;
@@ -126,38 +140,57 @@ export type OptionalFieldsInput<Fields extends FieldSpecs> = {
   [Key in keyof FieldsInput<Fields>]?: FieldsInput<Fields>[Key] | undefined;
 };
 
-/** The fields that one door reads. */
-export type OnDoor<Fields extends FieldSpecs, Through extends Door> = Exclude<
-  Fields[number],
-  { readonly doors: readonly Exclude<Door, Through>[] }
->;
-
-/** The write input of the fields one door reads, keyed in camelCase. */
-export type DoorInput<
-  Fields extends FieldSpecs,
-  Through extends Door,
-> = ByInputKey<OnDoor<Fields, Through>, InputValue>;
-
-/** The JSON body keys one door's fields accept, each one optional. */
+/** The JSON body keys the fields accept, each one optional. */
 export type FieldsBody<Fields extends FieldSpecs> = {
-  [Field in OnDoor<Fields, "api"> as Field["key"]]?: StoredValue[Field["kind"]];
+  [Field in Fields[number] as Field["key"]]?: StoredValue[Field["kind"]];
 };
 
-/** True when one door reads the field. */
-const readsThrough = (door: Door, field: FieldSpec): boolean =>
-  field.doors === undefined || field.doors.includes(door);
+/** Why one write cannot set the field. Null means the write can set it. */
+const closedReasonOrNull =
+  (access: WriteAccess) =>
+  (field: FieldSpec): ClosedReason | null => {
+    if (field.feature !== undefined && !access.features[field.feature]) {
+      return field.feature;
+    }
+    return field.lockedFor?.find((lock) => access.locks[lock]) ?? null;
+  };
 
-/** The fields that one door reads, in declaration order. */
-export const fieldsOnDoor = <
-  const Fields extends FieldSpecs,
-  Through extends Door,
->(
-  fields: Fields,
-  door: Through,
-): readonly OnDoor<Fields, Through>[] =>
-  fields.filter((field): field is OnDoor<Fields, Through> =>
-    readsThrough(door, field),
+/** The fields that one write cannot set, keyed by column, with the reason. */
+export type ClosedFields = ReadonlyMap<string, ClosedReason>;
+
+/** The fields that one write cannot set. */
+export const closedFields = (
+  fields: FieldSpecs,
+  access: WriteAccess,
+): ClosedFields =>
+  new Map(
+    fields.flatMap((field) => {
+      const reason = closedReasonOrNull(access)(field);
+      return reason === null ? [] : [[field.key, reason] as const];
+    }),
   );
+
+/** The refusal for a closed field that a JSON body or a transfer supplies. */
+const CLOSED_REFUSALS: Record<ClosedReason, (key: string) => string> = {
+  builder: (key) => `${key} needs site building turned on`,
+  demo: (key) => `${key} cannot be set in the demo`,
+  editor: (key) => `editors cannot set ${key}`,
+  logistics: (key) => `${key} needs logistics turned on`,
+};
+
+/** The refusal for the first closed field that the values supply. Null
+ *  means the values supply no closed field. */
+export const closedFieldErrorOrNull = (
+  closed: ClosedFields,
+  suppliedKeys: readonly string[],
+): string | null => {
+  const key = suppliedKeys.find((each) => closed.has(each));
+  return key === undefined
+    ? null
+    : CLOSED_REFUSALS[requiredMapValue(closed, key, "Missing closed field")](
+        key,
+      );
+};
 
 /** The declared field of one key. A caller names a key of its own list. */
 export const fieldOfKey = <

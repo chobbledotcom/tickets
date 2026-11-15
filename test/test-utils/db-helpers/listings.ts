@@ -1,5 +1,6 @@
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   resolveTestGroupIds,
   type TestListingOverrides,
@@ -11,6 +12,7 @@ import type { Listing, ListingWithCount } from "#types";
 import {
   buildCreateListingForm,
   buildUpdateListingForm,
+  defaultsSwitchShown,
 } from "./listing-forms.ts";
 import {
   doAuthenticatedFormRequest,
@@ -50,35 +52,77 @@ const applyTestListingGroups = async (
   await setListingGroups(listingId, groupIds);
 };
 
-export const createTestListing = async (
-  overrides: TestListingOverrides = {},
-): Promise<ListingWithCount> => {
-  const input = testListingInput(overrides);
-  // The create form refuses a capacity below the field's declared minimum of
-  // 1. A fixture that needs a stored zero-capacity listing — the capacity
-  // suites do — submits the form with a bookable capacity and then writes the
-  // requested column value directly.
-  const formCapacity = Math.max(input.maxAttendees, 1);
-  const listing = await doAuthenticatedMultipartFormRequest(
+/** True when the listing holds a site plan: only a site that builds sites
+ *  can hold one, so its fixture is created with site building on. */
+const holdsSitePlan = (
+  input: Pick<
+    ListingInput,
+    "assignBuiltSite" | "initialSiteMonths" | "monthsPerUnit"
+  >,
+): boolean =>
+  input.assignBuiltSite === true ||
+  (input.monthsPerUnit ?? 0) > 0 ||
+  (input.initialSiteMonths ?? 0) > 0;
+
+/** Post one create form as the owner, and read back the listing it made. */
+const postCreateForm = (
+  form: TestFormValues,
+  errorContext: string,
+): Promise<ListingWithCount> =>
+  doAuthenticatedMultipartFormRequest(
     "/admin/listing",
-    buildCreateListingForm({ ...input, maxAttendees: formCapacity }),
+    form,
     async () => {
       const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as ListingWithCount;
     },
+    errorContext,
+  );
+
+export const createTestListing = async (
+  overrides: TestListingOverrides = {},
+): Promise<ListingWithCount> => {
+  const input = testListingInput(overrides);
+  using _builder = holdsSitePlan(input)
+    ? withEnv({ CAN_BUILD_SITES: "true" })
+    : undefined;
+  // The create form refuses a capacity below the field's declared minimum of
+  // 1. A fixture that needs a stored zero-capacity listing — the capacity
+  // suites do — submits the form with a bookable capacity and then writes the
+  // requested column value directly.
+  const formCapacity = Math.max(input.maxAttendees, 1);
+  // The page shows the "use defaults" switch only while the site holds a
+  // default. A fixture that inherits before any default exists writes the
+  // flag directly, the same way.
+  const writesDefaultsFlag =
+    input.useDefaults === true && !defaultsSwitchShown("owner");
+  const listing = await postCreateForm(
+    buildCreateListingForm({
+      ...input,
+      maxAttendees: formCapacity,
+      useDefaults: input.useDefaults && !writesDefaultsFlag,
+    }),
     "create listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  const { execute } = await import("#db/client.ts");
+  if (writesDefaultsFlag) {
+    await execute("UPDATE listings SET use_defaults = 1 WHERE id = ?", [
+      listing.id,
+    ]);
+  }
   if (formCapacity !== input.maxAttendees) {
-    const { execute } = await import("#db/client.ts");
     await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
       input.maxAttendees,
       listing.id,
     ]);
-    return { ...listing, max_attendees: input.maxAttendees };
   }
-  return listing;
+  return {
+    ...listing,
+    max_attendees: input.maxAttendees,
+    use_defaults: listing.use_defaults || writesDefaultsFlag,
+  };
 };
 
 /**
@@ -92,14 +136,8 @@ export const duplicateTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
-  const listing = await doAuthenticatedMultipartFormRequest(
-    "/admin/listing",
+  const listing = await postCreateForm(
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
-    async () => {
-      const { getAllListings } = await import("#db/listings/records.ts");
-      const listings = await getAllListings();
-      return listings[0] as ListingWithCount;
-    },
     "duplicate listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
@@ -224,6 +262,7 @@ export const dailySwitchForm = (
   name: listing.name,
   slug: listing.slug,
   thank_you_url: "https://example.com",
+  unit_price: "0",
   ...extra,
 });
 

@@ -45,6 +45,7 @@ import {
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   type AdminSession,
   isListingType,
@@ -204,10 +205,7 @@ const renderCreateListingError = async (
 
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
-    const form = parseListingForm(session, formData, {
-      useDefaults: false,
-      webhookUrl: "",
-    });
+    const form = parseListingForm(formData);
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
     const chosenTemplateId = form.getString("template_id") || null;
@@ -229,7 +227,10 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       );
     }
 
-    const result = await buildCreateListingResource(form).create(form);
+    const result = await buildCreateListingResource(
+      form,
+      listingFormView(session.adminLevel),
+    ).create(form);
     if (!result.ok) {
       return renderCreateListingError(
         session,
@@ -295,13 +296,9 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
-      // `existing` holds the listing's *stored* values (defaults not overlaid).
-      // A save preserves the listing's own columns, and the editor field locks
-      // re-apply the real stored webhook URL and use_defaults flag.
-      const form = parseListingForm(session, formData, {
-        useDefaults: existing.use_defaults,
-        webhookUrl: existing.webhook_url,
-      });
+      // `existing` holds the listing's *stored* values (defaults not
+      // overlaid), so a save preserves the listing's own columns.
+      const form = parseListingForm(formData);
       // The group checkboxes the operator submitted, so a rejected edit
       // re-renders their selection rather than the saved membership.
       const aggregates = parseAggregatesForRole(session, form);
@@ -325,7 +322,8 @@ const saveListingEdit = async (
   // A switch to booked-by-the-day that leaves bookings without a day
   // cannot save. The POST serves the assign page (nothing written), or
   // carries the organiser's confirmed move into the save below.
-  const step = await planListingTypeSwitch(existing, form);
+  const view = listingFormView(session.adminLevel);
+  const step = await planListingTypeSwitch(existing, form, view);
   if (step.kind === "invalid") {
     return renderListingEditError(id, session, form, step.error);
   }
@@ -345,6 +343,7 @@ const saveListingEdit = async (
   // by the record's rule when the row exists.
   const result = await buildUpdateListingResource(
     existing,
+    view,
     confirmed?.plan,
   ).update(id, form);
   return operationResponse(

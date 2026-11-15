@@ -24,7 +24,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { groupRecord, soldHiddenPackageError } from "#shared/records/groups.ts";
-import { formFieldsInput } from "#shared/rest/field-reads.ts";
+import { formFieldsInput, shownFieldKeys } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
@@ -46,8 +46,13 @@ import {
 } from "./package-member-rules.ts";
 import { bindNoteRoutes } from "./record-notes.ts";
 
+/** The group fields the group pages show. The create and edit pages show the
+ *  same field boxes. */
+const shownGroupFields = (): ReadonlySet<string> =>
+  shownFieldKeys(GROUP_FIELDS, getGroupCreateForm().fields, []);
+
 const sharedGroupFields = (values: GroupCreateFormValues) =>
-  formFieldsInput(GROUP_FIELDS, values);
+  formFieldsInput(GROUP_FIELDS, values, shownGroupFields());
 
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,

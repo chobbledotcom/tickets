@@ -17,7 +17,10 @@ import {
   packageChildEdgeError,
   sitePlanMemberError,
 } from "#shared/package-membership.ts";
-import type { ListingWithCount } from "#types";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { transferClosedErrorOrNull } from "#shared/rest/field-reads.ts";
+import type { AdminLevel, ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";
 import {
   type BundleRef,
@@ -36,7 +39,7 @@ import {
   siteListingOf,
   type ValidationContext,
 } from "./bundle-site.ts";
-import { applyImportPolicy, listingDataToInput } from "./import-listing.ts";
+import { listingDataToInput } from "./import-listing.ts";
 import type { ListingBody } from "./schema.ts";
 
 /** The plan for every listing item, with the listing validator the form and
@@ -45,19 +48,23 @@ import type { ListingBody } from "./schema.ts";
 export const validateListings = async (
   context: ValidationContext,
   pairs: MembershipPairs,
-  adminLevel: Parameters<typeof applyImportPolicy>[1],
+  adminLevel: AdminLevel | undefined,
   fail: FailureCollector,
 ): Promise<ListingPlan[]> => {
   const siblingsByGroup = await getListingsByGroupIds(context.siteGroupIds);
+  const closed = closedFieldsFor(LISTING_FIELDS, adminLevel);
   const plans: ListingPlan[] = [];
   for (const [body, refs] of context.listingRefs) {
     const item = body.listing.name;
-    const input = applyImportPolicy(
-      listingDataToInput(body.listing, "", "", siteIdsOf(refs.groups)),
-      adminLevel,
+    const input = listingDataToInput(
+      body.listing,
+      "",
+      "",
+      siteIdsOf(refs.groups),
     );
     plans.push({ input, parentKeys: body.parents.map(nameKey) });
     if (fail.hasFailed(item)) continue;
+    fail.failIf(item, transferClosedErrorOrNull(closed, body.listing));
     fail.failIf(
       item,
       await validateListingInput(input, undefined, { siblingsByGroup }),
