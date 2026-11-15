@@ -22,6 +22,9 @@ import type { NamedSortOrderInput } from "#db/common-schema.ts";
 import { deleteById } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { from } from "#db/select/query.ts";
+import type { CountRow } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
 import { requiredMapValue } from "#fp";
@@ -327,13 +330,13 @@ const reassignNameRows = async (
  *  delete command's probe) and through the plain client (the delete page's
  *  displayed count). One query, so the two can never disagree on what holds. */
 const heldCountThrough = async (
-  readRows: (statement: SqlStatement) => Promise<{ held: number }[]>,
+  readRows: (statement: SqlStatement) => Promise<CountRow[]>,
   statusId: number,
 ): Promise<number> => {
   const rows = await readRows(
-    sql`SELECT COUNT(*) AS held FROM attendees AS attendee WHERE attendee.status_id = ${statusId}`,
+    from(tables.attendees).where({ status_id: statusId }).count(),
   );
-  return rows[0]!.held;
+  return Number(rows[0]!.count);
 };
 
 /** How many attendees sit on a status, read inside a transaction. */

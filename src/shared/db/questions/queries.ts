@@ -23,6 +23,7 @@ import {
   valued,
 } from "#db/select/expression.ts";
 import { from, via } from "#db/select/query.ts";
+import type { NodeOf } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { filter, map, mapParallel, reduce } from "#fp";
@@ -63,7 +64,7 @@ const questionsWithAnswers = () =>
 type QuestionRead = ReturnType<typeof questionsWithAnswers>;
 
 /** A question and one of its answers, as a read holds them. */
-type QuestionNode = Parameters<Parameters<QuestionRead["where"]>[0]>[0];
+type QuestionNode = NodeOf<QuestionRead>;
 
 /** The order every question list comes back in: the operator's arrangement,
  *  then each question's answers in theirs. */

@@ -15,7 +15,8 @@ import {
   lessThan,
   literal,
 } from "#db/select/expression.ts";
-import { from, type Node } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { mapById, requiredMapValue, unique } from "#fp";

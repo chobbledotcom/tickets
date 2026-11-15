@@ -283,5 +283,5 @@ src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:1rsuobq 
 src/shared/db/payment-finalize.ts::buildFinalizeStatements~10demh7  ?? → || audited:0qcpm4f # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/payment-finalize.ts::buildFinalizeStatements~0clq12z  ?? → || audited:0qcpm4f # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
 src/shared/db/attendees/queries.ts::getAttendeeRawByToken~0rxiz9n  ?? → || audited:02y92q2 # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/select/expression.ts::and.needed~0czjub7  ?? → || audited:10gxvxs # joinedByAnd holds an array or nothing for a condition, and every array is truthy
-src/shared/db/select/expression.ts::and~0es27cz  1 → 0 audited:10gxvxs # With one needed condition, joinedBy returns that condition itself. The mutant records it as a list of itself, and the flatMap gives the same list for an unrecorded condition.
+src/shared/db/select/expression.ts::and.needed~0czjub7  ?? → || audited:18f8anp # joinedByAnd holds an array or nothing for a condition, and every array is truthy
+src/shared/db/select/expression.ts::and~0es27cz  1 → 0 audited:18f8anp # With one needed condition, joinedBy returns that condition itself. The mutant records it as a list of itself, and the flatMap gives the same list for an unrecorded condition.

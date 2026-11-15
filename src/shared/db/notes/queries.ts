@@ -15,7 +15,8 @@ import {
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import type { Condition } from "#db/select/expression.ts";
-import { from } from "#db/select/query.ts";
+import { from, pick } from "#db/select/query.ts";
+import type { NodeOf } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { deleteWhere } from "#db/where-clauses.ts";
@@ -28,8 +29,6 @@ import type {
   SystemNoteRow,
   SystemNoteType,
 } from "./types.ts";
-
-const NOTE_COLUMNS = sql`id, entity_type, entity_id, type, note, system_name, created`;
 
 const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
   `system-note:1:${JSON.stringify([purpose, key])}`;
@@ -82,8 +81,21 @@ export const createOwnerNote = (
 ): Promise<void> => writeNote("owner", target, note, null, transaction);
 
 /** The notes, under the name of their table. The conditions of a note target
- *  and the column list name their columns bare. */
+ *  name their columns bare. */
 const notes = () => from(tables.system_notes).as("system_notes");
+
+/** The columns of a note that is still sealed. */
+const sealedNote = (note: NodeOf<ReturnType<typeof notes>>) =>
+  pick(
+    note,
+    "id",
+    "entity_type",
+    "entity_id",
+    "type",
+    "note",
+    "system_name",
+    "created",
+  );
 
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
@@ -92,7 +104,7 @@ const noteRowsWhere = (where: readonly Condition[]): Promise<SystemNoteRow[]> =>
     notes()
       .where(() => where)
       .orderBy((note) => [note.entity_id, note.id])
-      .columns(() => NOTE_COLUMNS),
+      .select(sealedNote),
   );
 
 /**
@@ -187,7 +199,7 @@ export const getNote = async (
     notes()
       .where(() => noteOfTarget(target, noteId))
       .limit(1)
-      .columns(() => NOTE_COLUMNS),
+      .select(sealedNote),
   );
   return row ? openNote(row, privateKey) : null;
 };

@@ -22,7 +22,8 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { among, and, equal } from "#db/select/expression.ts";
-import { from, type Node } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {

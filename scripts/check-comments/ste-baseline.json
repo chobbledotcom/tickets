@@ -582,7 +582,7 @@
     "present-perfect": 1,
     "wordy": 2,
     "semicolon": 12,
-    "contraction": 8
+    "contraction": 7
   },
   "src/shared/db/groups/candidates.ts": {
     "long-sentence": 2,

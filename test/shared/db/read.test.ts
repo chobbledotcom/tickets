@@ -4,7 +4,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { readOneRow, readRows } from "#db/read.ts";
+import { readExists, readOneRow, readRows } from "#db/read.ts";
 import { among } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -63,5 +63,32 @@ describeWithEnv("readOneRow", { db: true }, () => {
 
   test("returns null when the read keeps no row", async () => {
     expect(await readOneRow(listingIds([-1]))).toBe(null);
+  });
+});
+
+describeWithEnv("readExists", { db: true }, () => {
+  test("is true when the read has a row", async () => {
+    const [first] = await twoListingIds();
+
+    expect(await readExists(from(tables.listings).where({ id: first }))).toBe(
+      true,
+    );
+  });
+
+  test("is false when the read has no row", async () => {
+    await createTestListing({ name: "Other" });
+
+    expect(await readExists(from(tables.listings).where({ id: -1 }))).toBe(
+      false,
+    );
+  });
+});
+
+describe("readExists of a read that no row can pass", () => {
+  // No database exists here, so a round trip would throw.
+  test("is false with no round trip", async () => {
+    expect(await readExists(from(tables.listings).where({ id: [] }))).toBe(
+      false,
+    );
   });
 });

@@ -14,6 +14,7 @@ import {
   literal,
   matchesGlob,
   matchesNothing,
+  matching,
   minus,
   named,
   not,
@@ -304,5 +305,32 @@ describe("whereTail", () => {
 
   test("says in SQL that no row can pass", () => {
     expect(whereTail([false]).sql).toBe(" WHERE 0");
+  });
+});
+
+describe("matching", () => {
+  test("asks each named column for its value, in the order of the match", () => {
+    expect(matching(named, { id: 4, name: "x" })).toEqual([
+      equal(named("id"), 4),
+      equal(named("name"), "x"),
+    ]);
+  });
+
+  test("reads a list as one of these values", () => {
+    expect(matching(named, { id: [1, 2] })).toEqual([
+      among(named("id"), [1, 2]),
+    ]);
+  });
+
+  test("reads a null as a column that holds nothing", () => {
+    expect(matching(named, { note: null })[0]?.sql).toBe("note IS NULL");
+  });
+
+  test("gives a condition that no row can pass for an empty list", () => {
+    expect(matching(named, { id: [] }).map(matchesNothing)).toEqual([true]);
+  });
+
+  test("gives no condition for an empty match", () => {
+    expect(matching(named, {})).toEqual([]);
   });
 });
