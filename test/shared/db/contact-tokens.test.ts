@@ -13,16 +13,48 @@ import {
   storedBookingSource,
   syncAttendeeContactTokens,
 } from "#db/contact-tokens.ts";
+import { sql } from "#db/sql.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
+import {
+  type Contact,
+  type ContactCounts,
+  emailOnly,
+  type OrderActivityCase,
+  orderActivityCases,
+  type Source,
+  type SyncCase,
+  syncCases,
+  type Token,
+} from "#test-utils/db/contact-token-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
+/** The hash of the channel a contact names: the email when it has one. */
+const contactHash = async ({ email, phone }: Contact): Promise<string> =>
+  email === "" ? await hashPhone(phone) : await hashEmail(email);
+
+/** Record one order-activity line on a contact row. */
+const recordLine = (
+  contact: Contact,
+  source: Source,
+  token: string,
+): Promise<void> =>
+  seedOrderActivity(contact.email, contact.phone, source, token);
+
+/** Store one token line nothing can decrypt, so a test can tell which lines a
+ *  call actually reads. */
+const storeUnreadableLine = async (hash: string): Promise<void> => {
+  await execute(
+    sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (${hash}, ${1}, ${"not-an-owner-key-token\n"})`,
+  );
+};
+
 const syncToken = (
   ticketToken: string,
-  before: { email: string; phone: string },
-  after: { email: string; phone: string },
+  before: Contact,
+  after: Contact,
   privateKey: CryptoKey,
   hasBooking = true,
   firstRealBooking = false,
@@ -40,22 +72,31 @@ const syncToken = (
 const readAllTokens = (hash: string, privateKey: CryptoKey) =>
   getRecentBookingTokens(hash, privateKey, Number.MAX_SAFE_INTEGER);
 
-const recordEmailBooking = (
-  email: string,
-  source: "admin" | "public",
-  ticketToken: string,
-): Promise<void> => seedOrderActivity(email, "", source, ticketToken);
+/** The tokens a contact row holds, as the stored order. */
+const readContact = async (
+  contact: Contact,
+  privateKey: CryptoKey,
+): Promise<Token[]> => readAllTokens(await contactHash(contact), privateKey);
 
 const tokenBlobFor = async (hash: string): Promise<string> =>
   (
     await queryOne<{ attendee_tokens_blob: string }>(
-      "SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ?",
-      [hash],
+      sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
     )
   )?.attendee_tokens_blob ?? "";
 
 const firstMarkerFrom = (blob: string): string =>
   blob.split("\n")[0]!.split("\t")[0]!;
+
+/** Assert the booking counts one contact row holds. */
+const expectCounts = async (
+  { admin, contact, public: publicCount }: ContactCounts,
+  privateKey: CryptoKey,
+): Promise<void> => {
+  const record = await getContactRecord(await contactHash(contact), privateKey);
+  expect(record.publicBookingCount).toBe(publicCount);
+  expect(record.adminBookingCount).toBe(admin);
+};
 
 describeWithEnv("storedBookingSource", { db: true }, () => {
   test("reads the source the booking stored", async () => {
@@ -121,13 +162,17 @@ describeWithEnv("storedBookingSource", { db: true }, () => {
 
 describeWithEnv("contact-tokens", { db: true }, () => {
   test("order activity splits the count by source, leaving outreach stats intact", async () => {
+    const contact = emailOnly("bookings@example.com");
     const pk = await getTestPrivateKey();
-    const email = "bookings@example.com";
-    const hash = await hashEmail(email);
+    const hash = await contactHash(contact);
     await recordContacts([hash], "Newsletter", pk);
-    await recordEmailBooking(email, "public", "tok-pub-1");
-    await recordEmailBooking(email, "public", "tok-pub-2");
-    await recordEmailBooking(email, "admin", "tok-adm-1");
+    for (const [source, token] of [
+      ["public", "tok-pub-1"],
+      ["public", "tok-pub-2"],
+      ["admin", "tok-adm-1"],
+    ] as const) {
+      await recordLine(contact, source, token);
+    }
 
     const record = await getContactRecord(hash, pk);
     expect(record.publicBookingCount).toBe(2);
@@ -136,44 +181,29 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(record.lastSubject).toBe("Newsletter");
   });
 
-  test("order activity needs no owner key", async () => {
+  /** Seed one order-activity case, then assert what each contact reads. */
+  const expectOrderActivity = async (
+    activity: OrderActivityCase,
+  ): Promise<void> => {
     const pk = await getTestPrivateKey();
-    const email = "keyless@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-keyless");
-    expect((await getContactRecord(hash, pk)).publicBookingCount).toBe(1);
-  });
+    for (const [contact, { source, token }] of activity.bookings) {
+      await recordLine(contact, source, token);
+    }
+    for (const [contact, tokens] of activity.reads ?? []) {
+      expect(await readContact(contact, pk)).toEqual(tokens);
+    }
+    if (activity.counts) await expectCounts(activity.counts, pk);
+    const [left, right] = activity.markers ?? [];
+    if (left && right) {
+      expect(
+        firstMarkerFrom(await tokenBlobFor(await contactHash(left))),
+      ).not.toBe(firstMarkerFrom(await tokenBlobFor(await contactHash(right))));
+    }
+  };
 
-  test("order activity appends the booked token, tagged by source", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "tokens@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-online");
-    await recordEmailBooking(email, "admin", "tok-manual");
-    expect(await readAllTokens(hash, pk)).toEqual([
-      { source: "public", token: "tok-online" },
-      { source: "admin", token: "tok-manual" },
-    ]);
-  });
-
-  test("order activity does not reuse one marker across contact rows", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "linked-token@example.com";
-    const phone = "07700 900111";
-    const emailHash = await hashEmail(email);
-    const phoneHash = await hashPhone(phone);
-    await seedOrderActivity(email, phone, "public", "tok-linked-contact");
-
-    expect(firstMarkerFrom(await tokenBlobFor(emailHash))).not.toBe(
-      firstMarkerFrom(await tokenBlobFor(phoneHash)),
-    );
-    expect(await readAllTokens(emailHash, pk)).toEqual([
-      { source: "public", token: "tok-linked-contact" },
-    ]);
-    expect(await readAllTokens(phoneHash, pk)).toEqual([
-      { source: "public", token: "tok-linked-contact" },
-    ]);
-  });
+  for (const activity of orderActivityCases) {
+    test(activity.name, () => expectOrderActivity(activity));
+  }
 
   test("getRecentBookingTokens is empty for a contact with no bookings", async () => {
     const pk = await getTestPrivateKey();
@@ -182,260 +212,101 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ).toEqual([]);
   });
 
-  test("getRecentBookingTokens decrypts only the newest token lines", async () => {
+  // A limit only governs how many stored lines a read touches, so each case
+  // reads the contact whose blob starts with one line nothing can decrypt.
+  type LimitedRead = {
+    email: string;
+    expected: readonly Token[];
+    limit: number;
+    record: readonly Token[];
+    what: string;
+  };
+
+  const limitedReads: readonly LimitedRead[] = [
+    {
+      email: "recent-window@example.com",
+      expected: [{ source: "admin", token: "tok-newest" }],
+      limit: 1,
+      record: [
+        { source: "public", token: "tok-newer" },
+        { source: "admin", token: "tok-newest" },
+      ],
+      what: "decrypts only the newest token lines",
+    },
+    {
+      email: "zero-window@example.com",
+      expected: [],
+      limit: 0,
+      record: [],
+      what: "decrypts nothing for a zero limit",
+    },
+  ];
+
+  /** Stage an unreadable first line, then assert what the limit reads. */
+  const expectLimitedRead = async (window: LimitedRead): Promise<void> => {
     const pk = await getTestPrivateKey();
-    const email = "recent-window@example.com";
-    const hash = await hashEmail(email);
-    await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [hash, 1, "not-an-owner-key-token\n"],
+    const contact = emailOnly(window.email);
+    const hash = await contactHash(contact);
+    await storeUnreadableLine(hash);
+    for (const { source, token } of window.record) {
+      await recordLine(contact, source, token);
+    }
+    expect(await getRecentBookingTokens(hash, pk, window.limit)).toEqual(
+      window.expected,
     );
-    await recordEmailBooking(email, "public", "tok-newer");
-    await recordEmailBooking(email, "admin", "tok-newest");
+  };
 
-    expect(await getRecentBookingTokens(hash, pk, 1)).toEqual([
-      { source: "admin", token: "tok-newest" },
-    ]);
-  });
+  for (const window of limitedReads) {
+    test(`getRecentBookingTokens ${window.what}`, () =>
+      expectLimitedRead(window));
+  }
 
-  test("getRecentBookingTokens decrypts nothing for a zero limit", async () => {
+  /** Seed one sync case, run its move, then assert each read and the blob. */
+  const expectSync = async (syncCase: SyncCase): Promise<void> => {
     const pk = await getTestPrivateKey();
-    const hash = await hashEmail("zero-window@example.com");
-    await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [hash, 1, "not-an-owner-key-token\n"],
-    );
-
-    expect(await getRecentBookingTokens(hash, pk, 0)).toEqual([]);
-  });
-
-  test("syncAttendeeContactTokens appends without bumping counts", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "readd@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-first");
+    if (syncCase.seedUnreadable) {
+      await storeUnreadableLine(await contactHash(syncCase.from));
+    }
+    for (const { source, token } of syncCase.seed ?? []) {
+      await recordLine(syncCase.from, source, token);
+    }
     await syncToken(
-      "tok-moved",
-      { email: "readd@example.com", phone: "" },
-      { email: "readd@example.com", phone: "" },
+      syncCase.token,
+      syncCase.from,
+      syncCase.to,
       pk,
+      syncCase.hasBooking,
     );
-    expect(await readAllTokens(hash, pk)).toEqual([
-      { source: "public", token: "tok-first" },
-      { source: "admin", token: "tok-moved" },
-    ]);
-    const record = await getContactRecord(hash, pk);
-    expect(record.publicBookingCount).toBe(1);
-    expect(record.adminBookingCount).toBe(0);
-  });
+    for (const [contact, tokens] of syncCase.reads) {
+      expect(await readContact(contact, pk)).toEqual(tokens);
+    }
+    const { blob, counts } = syncCase;
+    if (blob) {
+      expect(await tokenBlobFor(await contactHash(blob.contact))).toBe(
+        blob.blob,
+      );
+    }
+    if (counts) await expectCounts(counts, pk);
+  };
 
-  test("syncAttendeeContactTokens re-homes a changed email, keeping source", async () => {
-    const pk = await getTestPrivateKey();
-    const oldHash = await hashEmail("old@example.com");
-    const newHash = await hashEmail("new@example.com");
-    await recordEmailBooking("old@example.com", "admin", "tok-move");
-    await syncToken(
-      "tok-move",
-      { email: "old@example.com", phone: "" },
-      { email: "new@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(oldHash, pk)).toEqual([]);
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "admin", token: "tok-move" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens removes a moved token without decrypting unrelated lines", async () => {
-    const pk = await getTestPrivateKey();
-    const oldEmail = "marker-old@example.com";
-    const newEmail = "marker-new@example.com";
-    const oldHash = await hashEmail(oldEmail);
-    const newHash = await hashEmail(newEmail);
-    await execute(
-      "INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob) VALUES (?, ?, ?)",
-      [oldHash, 1, "not-an-owner-key-token\n"],
-    );
-    await recordEmailBooking(oldEmail, "public", "tok-marker-move");
-
-    await syncToken(
-      "tok-marker-move",
-      { email: oldEmail, phone: "" },
-      { email: newEmail, phone: "" },
-      pk,
-    );
-
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "public", token: "tok-marker-move" },
-    ]);
-    expect(await tokenBlobFor(oldHash)).toBe("not-an-owner-key-token\n");
-  });
-
-  test("syncAttendeeContactTokens moves a changed phone too", async () => {
-    const pk = await getTestPrivateKey();
-    const oldHash = await hashPhone("07700 900001");
-    const newHash = await hashPhone("07700 900002");
-    await seedOrderActivity("", "07700 900001", "public", "tok-phone");
-    await syncToken(
-      "tok-phone",
-      { email: "", phone: "07700 900001" },
-      { email: "", phone: "07700 900002" },
-      pk,
-    );
-    expect(await readAllTokens(oldHash, pk)).toEqual([]);
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "public", token: "tok-phone" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens does not duplicate an unchanged token", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "same@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-same");
-    await syncToken(
-      "tok-same",
-      { email: "same@example.com", phone: "" },
-      { email: "same@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(hash, pk)).toEqual([
-      { source: "public", token: "tok-same" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens does not reorder history on an unchanged edit", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "order@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-first");
-    await recordEmailBooking(email, "admin", "tok-second");
-    // Re-sync tok-first with the contact unchanged (before === after): the
-    // token must stay in place, not be removed-and-re-appended to the end.
-    await syncToken(
-      "tok-first",
-      { email: "order@example.com", phone: "" },
-      { email: "order@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(hash, pk)).toEqual([
-      { source: "public", token: "tok-first" },
-      { source: "admin", token: "tok-second" },
-    ]);
-  });
+  for (const syncCase of syncCases) {
+    test(syncCase.name, () => expectSync(syncCase));
+  }
 
   test("syncAttendeeContactTokens does not recreate an erased unchanged contact", async () => {
+    const contact = emailOnly("erased-token@example.com");
     const pk = await getTestPrivateKey();
-    const email = "erased-token@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-erased");
+    const hash = await contactHash(contact);
+    await recordLine(contact, "public", "tok-erased");
     expect(await forgetContact(hash)).toBe(1);
 
-    await syncToken(
-      "tok-erased",
-      { email, phone: "" },
-      { email, phone: "" },
-      pk,
-    );
+    await syncToken("tok-erased", contact, contact, pk);
 
     expect(
       await queryOne<{ contact_hash: string }>(
-        "SELECT contact_hash FROM contact_preferences WHERE contact_hash = ?",
-        [hash],
+        sql`SELECT contact_hash FROM contact_preferences WHERE contact_hash = ${hash}`,
       ),
     ).toBeNull();
-  });
-
-  test("syncAttendeeContactTokens drops the link when a field is cleared", async () => {
-    const pk = await getTestPrivateKey();
-    const oldEmail = "cleared@example.com";
-    const oldHash = await hashEmail(oldEmail);
-    await recordEmailBooking(oldEmail, "admin", "tok-clear");
-    await syncToken(
-      "tok-clear",
-      { email: "cleared@example.com", phone: "" },
-      { email: "", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(oldHash, pk)).toEqual([]);
-    expect(await tokenBlobFor(oldHash)).toBe("");
-  });
-
-  test("syncAttendeeContactTokens links a newly added contact field", async () => {
-    const pk = await getTestPrivateKey();
-    const newHash = await hashEmail("fresh@example.com");
-    await syncToken(
-      "tok-fresh",
-      { email: "", phone: "" },
-      { email: "fresh@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "admin", token: "tok-fresh" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens gives an added field the booking's stored source", async () => {
-    const pk = await getTestPrivateKey();
-    const phone = "07700 900123";
-    const newHash = await hashEmail("added@example.com");
-    await seedOrderActivity("", phone, "public", "tok-added");
-    await syncToken(
-      "tok-added",
-      { email: "", phone },
-      { email: "added@example.com", phone },
-      pk,
-    );
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "public", token: "tok-added" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens links a legacy moved contact with no old token", async () => {
-    const pk = await getTestPrivateKey();
-    const newHash = await hashEmail("legacy-fresh@example.com");
-    await syncToken(
-      "tok-legacy",
-      { email: "legacy-old@example.com", phone: "" },
-      { email: "legacy-fresh@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "admin", token: "tok-legacy" },
-    ]);
-  });
-
-  test("syncAttendeeContactTokens does not link a no-real-line attendee", async () => {
-    const pk = await getTestPrivateKey();
-    const newHash = await hashEmail("empty@example.com");
-    await syncToken(
-      "tok-empty",
-      { email: "", phone: "" },
-      { email: "empty@example.com", phone: "" },
-      pk,
-      false,
-    );
-    expect(await readAllTokens(newHash, pk)).toEqual([]);
-  });
-
-  test("syncAttendeeContactTokens keeps a concurrent append while moving a token", async () => {
-    const pk = await getTestPrivateKey();
-    const oldHash = await hashEmail("race-old@example.com");
-    const newHash = await hashEmail("race-new@example.com");
-    await recordEmailBooking("race-old@example.com", "public", "tok-move");
-    await recordEmailBooking("race-old@example.com", "admin", "tok-stay");
-    await syncToken(
-      "tok-move",
-      { email: "race-old@example.com", phone: "" },
-      { email: "race-new@example.com", phone: "" },
-      pk,
-    );
-    expect(await readAllTokens(oldHash, pk)).toEqual([
-      { source: "admin", token: "tok-stay" },
-    ]);
-    expect(await readAllTokens(newHash, pk)).toEqual([
-      { source: "public", token: "tok-move" },
-    ]);
   });
 
   test("a real create appends the new attendee's ticket token", async () => {
@@ -466,19 +337,5 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(
       await readAllTokens(await hashEmail("noqty-token@example.com"), pk),
     ).toEqual([]);
-  });
-
-  test("removing the last moved token leaves an empty blob, not a stale newline", async () => {
-    const pk = await getTestPrivateKey();
-    const email = "blank-line@example.com";
-    const hash = await hashEmail(email);
-    await recordEmailBooking(email, "public", "tok-only");
-    await syncToken(
-      "tok-only",
-      { email: "blank-line@example.com", phone: "" },
-      { email: "", phone: "" },
-      pk,
-    );
-    expect(await tokenBlobFor(hash)).toBe("");
   });
 });

@@ -25,6 +25,7 @@ import type {
   ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -41,16 +42,14 @@ const storedSource = async (
   id: number,
 ): Promise<{ name: string; url_pattern: string }> =>
   (await queryOne<{ name: string; url_pattern: string }>(
-    "SELECT name, url_pattern FROM external_sources WHERE id = ?",
-    [id],
+    sql`SELECT name, url_pattern FROM external_sources WHERE id = ${id}`,
   ))!;
 
 const storedLink = async (
   id: number,
 ): Promise<{ external_id: string; external_id_index: string }> =>
   (await queryOne<{ external_id: string; external_id_index: string }>(
-    "SELECT external_id, external_id_index FROM external_source_links WHERE id = ?",
-    [id],
+    sql`SELECT external_id, external_id_index FROM external_source_links WHERE id = ${id}`,
   ))!;
 
 const addListingLink = async (
@@ -134,8 +133,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
       external_id: string | null;
       external_id_index: string | null;
     }>(
-      "SELECT external_id, external_id_index FROM external_source_links WHERE id = ?",
-      [created.value.id],
+      sql`SELECT external_id, external_id_index FROM external_source_links WHERE id = ${created.value.id}`,
     );
     expect(stored).toEqual({ external_id: null, external_id_index: null });
 

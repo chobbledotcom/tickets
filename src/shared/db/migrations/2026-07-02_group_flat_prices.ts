@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { backfillDropColumnMigration } from "./define.ts";
 
 /**
@@ -21,9 +22,7 @@ export default backfillDropColumnMigration(
   "Migrate group_listings.package_price into the listing_prices 'group' dimension and drop the column.",
   async (getDb) => {
     await getDb().execute(
-      "INSERT OR IGNORE INTO listing_prices (listing_id, price_type, price_id, unit_price) " +
-        "SELECT listing_id, 'group', CAST(group_id AS TEXT), package_price " +
-        "FROM group_listings WHERE package_price IS NOT NULL",
+      sql`INSERT OR IGNORE INTO listing_prices (listing_id, price_type, price_id, unit_price) SELECT listing_id, 'group', CAST(group_id AS TEXT), package_price FROM group_listings WHERE package_price IS NOT NULL`,
     );
   },
 );

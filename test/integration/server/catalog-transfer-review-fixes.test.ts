@@ -9,6 +9,7 @@ import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -17,15 +18,17 @@ import {
   requireEntityImport,
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
-/** Import a listing that asks for a built site, answering the refusal
- * message the import raises. */
-const refusedPlanImportError = async (name: string): Promise<string> => {
+/** Import a listing that asks for a built site and assert the import refuses
+ * it with the translated refusal that names the listing. */
+const expectPlanImportRefused = async (name: string): Promise<void> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -36,10 +39,9 @@ const refusedPlanImportError = async (name: string): Promise<string> => {
     },
     version: 1,
   });
-  if (result.ok) {
-    throw new Error(`the built-site plan import was accepted: ${name}`);
-  }
-  return result.error;
+  expect(importRefusal(result)).toBe(
+    t("catalog_transfer.site_plan_listing_refused", { name }),
+  );
 };
 
 /** A listing with a webhook and the defaults switch, exported by an editor and
@@ -100,9 +102,9 @@ const hiddenPackageParent = async (): Promise<void> => {
   const pkg = await createTestGroup({ isPackage: true, name: "Hidden Pkg" });
   // createTestGroup can't set hide_package_listings, so set it directly and
   // refresh the cached group set the import reads.
-  await execute("UPDATE groups SET hide_package_listings = 1 WHERE id = ?", [
-    pkg.id,
-  ]);
+  await execute(
+    sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
+  );
   const { groups } = await import("#db/groups.ts");
   groups.cache.invalidate();
   const parent = await createTestListing({ name: "Pkg Parent" });
@@ -277,15 +279,9 @@ describeWithEnv(
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
-      expect(await refusedPlanImportError("No Builder")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", { name: "No Builder" }),
-      );
+      await expectPlanImportRefused("No Builder");
       using _builderOn = withEnv({ CAN_BUILD_SITES: "true" });
-      expect(await refusedPlanImportError("Builder On")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", {
-          name: "Builder On",
-        }),
-      );
+      await expectPlanImportRefused("Builder On");
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
@@ -439,7 +435,7 @@ describeWithEnv(
       // Every member appears in the single group_listings insert (3 args each:
       // group_id, listing_id, quantity — the flat price override, when present,
       // lives in the separate listing_prices insert).
-      expect(statements[0]!.args.length).toBe(40 * 3);
+      expect(placed(statements[0]!).args.length).toBe(40 * 3);
     });
   },
 );

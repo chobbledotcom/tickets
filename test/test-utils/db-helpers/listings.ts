@@ -1,4 +1,5 @@
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { withEnv } from "#test-utils/env.ts";
 import {
@@ -108,15 +109,14 @@ export const createTestListing = async (
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
   const { execute } = await import("#db/client.ts");
   if (writesDefaultsFlag) {
-    await execute("UPDATE listings SET use_defaults = 1 WHERE id = ?", [
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET use_defaults = 1 WHERE id = ${listing.id}`,
+    );
   }
   if (formCapacity !== input.maxAttendees) {
-    await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
-      input.maxAttendees,
-      listing.id,
-    ]);
+    await execute(
+      sql`UPDATE listings SET max_attendees = ${input.maxAttendees} WHERE id = ${listing.id}`,
+    );
   }
   return {
     ...listing,

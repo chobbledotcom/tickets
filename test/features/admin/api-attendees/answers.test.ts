@@ -8,6 +8,7 @@ import {
   loadAttendeeQuestionData,
 } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   assignQuestion,
@@ -18,6 +19,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 
 /** A listing that asks a choice question and a free-text question, both
  * answered in the body — the shared fixture behind the answers tests. */
@@ -102,8 +104,7 @@ describeWithEnv(
         free_text_index: string | null;
         question_id: number;
       }>(
-        "SELECT question_id, answer_id, free_text, free_text_index FROM answers_at_booking WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT question_id, answer_id, free_text, free_text_index FROM answers_at_booking WHERE attendee_id = ${attendeeId}`,
       );
       expect(rows).toHaveLength(2);
       const choice = rows.find((row) => row.question_id === meal.id)!;
@@ -140,8 +141,7 @@ describeWithEnv(
         answer_id: number | null;
         question_id: number;
       }>(
-        "SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ?",
-        [attendeeId],
+        sql`SELECT question_id, answer_id FROM answers_at_booking WHERE attendee_id = ${attendeeId}`,
       );
       expect(rows).toHaveLength(2);
       expect(new Set(rows.map((row) => row.question_id))).toEqual(
@@ -170,11 +170,7 @@ describeWithEnv(
         );
       }
 
-      const rows = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
-      );
-      expect(rows).toHaveLength(1);
-      expect(rows[0]!.used_count).toBe(2);
+      expect(await stringUsedCounts()).toEqual([2]);
     });
 
     test("an assign_all question is answerable without a per-listing link", async () => {

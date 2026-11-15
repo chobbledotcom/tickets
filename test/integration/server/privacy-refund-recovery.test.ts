@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   armRefundSend,
   markRefundCompleted,
@@ -45,6 +46,15 @@ import {
 } from "./privacy-refund-recovery-helpers.ts";
 
 const MISSING_CASE_PATH = refundCasePath(987_654_321);
+
+/** The stored authority state of one charge, named for the check that reads
+ * it. */
+const refundStateOf = async (id: number, label: string) => {
+  const row = await queryOne<{ refund_state: string }>(
+    sql`SELECT refund_state FROM payment_charges WHERE id = ${id}`,
+  );
+  return readRefundAuthorityState(row!.refund_state, label);
+};
 
 describeWithEnv("server (provider refund recovery)", { db: true }, () => {
   testRequiresAuth(MISSING_CASE_PATH);
@@ -124,13 +134,10 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     expect(provider.read.calls).toHaveLength(1);
     expect(provider.read.calls[0]!.args).toEqual([reference]);
     expect(provider.send.calls).toHaveLength(0);
-    const row = await queryOne<{ refund_state: string }>(
-      "SELECT refund_state FROM payment_charges WHERE id = ?",
-      [id],
-    );
-    expect(
-      readRefundAuthorityState(row!.refund_state, "checked case"),
-    ).toMatchObject({ kind: "completed", local: { kind: "due" } });
+    expect(await refundStateOf(id, "checked case")).toMatchObject({
+      kind: "completed",
+      local: { kind: "due" },
+    });
     const messages = (await getAllActivityLog()).map(({ message }) => message);
     assertArrayIncludes(messages, [
       `Refund recovery ${id}: owner asked the site to check the provider again`,
@@ -170,13 +177,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
       `Refund recovery ${id}: provider evidence opened a required owner choice; no refund was sent`,
     );
-    const row = await queryOne<{ refund_state: string }>(
-      "SELECT refund_state FROM payment_charges WHERE id = ?",
-      [id],
-    );
-    expect(
-      readRefundAuthorityState(row!.refund_state, "unreadable ready case"),
-    ).toMatchObject({
+    expect(await refundStateOf(id, "unreadable ready case")).toMatchObject({
       kind: "needs_owner_choice",
       reason: "provider_unreadable",
     });
@@ -213,13 +214,10 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
 
     expect(read.calls).toHaveLength(1);
     expect(send.calls).toHaveLength(1);
-    const row = await queryOne<{ refund_state: string }>(
-      "SELECT refund_state FROM payment_charges WHERE id = ?",
-      [id],
-    );
-    expect(
-      readRefundAuthorityState(row!.refund_state, "ready owner case"),
-    ).toMatchObject({ kind: "completed", local: { kind: "due" } });
+    expect(await refundStateOf(id, "ready owner case")).toMatchObject({
+      kind: "completed",
+      local: { kind: "due" },
+    });
     assertArrayIncludes(
       (await getAllActivityLog()).map(({ message }) => message),
       [`Refund recovery ${id}: owner authorized the ready refund to continue`],
@@ -249,13 +247,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       provider,
       "The provider could not settle what happened. No refund was sent; check the payment there and make the required choice.",
     );
-    const row = await queryOne<{ refund_state: string }>(
-      "SELECT refund_state FROM payment_charges WHERE id = ?",
-      [id],
-    );
-    expect(
-      readRefundAuthorityState(row!.refund_state, "rechecked conflict"),
-    ).toMatchObject({
+    expect(await refundStateOf(id, "rechecked conflict")).toMatchObject({
       decision: { kind: "returned" },
       kind: "needs_owner_choice",
       reason: "provider_conflict",
@@ -327,8 +319,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
     );
     expect(
       await queryOne<{ refund_state_name: string; refunded_amount: number }>(
-        "SELECT refund_state_name, refunded_amount FROM payment_charges WHERE id = ?",
-        [id],
+        sql`SELECT refund_state_name, refunded_amount FROM payment_charges WHERE id = ${id}`,
       ),
     ).toMatchObject({ refund_state_name: "completed", refunded_amount: 400 });
   });
@@ -362,8 +353,7 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       false,
     )(await submitCase(await testCookie(), { revision: "99" }, id));
     const row = await queryOne<{ refund_revision: number }>(
-      "SELECT refund_revision FROM payment_charges WHERE id = ?",
-      [id],
+      sql`SELECT refund_revision FROM payment_charges WHERE id = ${id}`,
     );
     expect(row?.refund_revision).toBe(1);
   });
@@ -395,10 +385,9 @@ describeWithEnv("server (provider refund recovery)", { db: true }, () => {
       refund_revision: number;
       refund_state: string;
     }>(
-      `SELECT refund_revision, refund_state
+      sql`SELECT refund_revision, refund_state
          FROM payment_charges
-        WHERE id = ?`,
-      [id],
+        WHERE id = ${id}`,
     );
     expect(due?.refund_revision).toBe(2);
     expect(

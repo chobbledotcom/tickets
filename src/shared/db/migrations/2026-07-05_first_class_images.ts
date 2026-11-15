@@ -1,4 +1,5 @@
 import { executeBatch } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 import { getExistingColumns } from "./schema-sync.ts";
 
@@ -33,23 +34,17 @@ export default schemaMigration(
     const columns = await getExistingColumns("listings");
     if (columns.has("image_url")) {
       const thumbnail = columns.has("image_thumb_url")
-        ? "CASE WHEN listing.image_thumb_url = '' THEN listing.image_url ELSE listing.image_thumb_url END"
-        : "listing.image_url";
+        ? sql`CASE WHEN listing.image_thumb_url = '' THEN listing.image_url ELSE listing.image_thumb_url END`
+        : sql`listing.image_url`;
       await executeBatch([
-        {
-          args: [],
-          sql: `INSERT OR IGNORE INTO images (id, name, filename, filename_thumb, alt_text)
+        sql`INSERT OR IGNORE INTO images (id, name, filename, filename_thumb, alt_text)
                 SELECT listing.id, listing.name, listing.image_url, ${thumbnail}, ''
                   FROM listings AS listing
                  WHERE listing.image_url <> ''`,
-        },
-        {
-          args: [],
-          sql: `INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
+        sql`INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
                 SELECT listing.id, 'listing', listing.id, 0
                   FROM listings AS listing
                  WHERE listing.image_url <> ''`,
-        },
       ]);
     }
     await recreateTable("listings");

@@ -10,7 +10,6 @@ import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   deleteWithChildren,
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryAllPrimary,
   queryIdColumn,
@@ -18,6 +17,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import {
@@ -25,6 +25,7 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import {
@@ -105,7 +106,7 @@ export const listingAttributeOptions = linkTableSide(
   "option_id",
 );
 
-const ATTRIBUTE_COLS = `attribute.id AS attribute_id,
+const ATTRIBUTE_COLS = sql`attribute.id AS attribute_id,
        attribute.name AS attribute_name,
        attribute.sort_order AS attribute_sort_order,
        attributeOption.id AS option_id,
@@ -233,7 +234,7 @@ export const getAllAttributesWithOptions = async (): Promise<
 > =>
   groupAttributeRows(
     await queryAll<JoinedAttributeRow>(
-      `SELECT ${ATTRIBUTE_COLS}
+      sql`SELECT ${ATTRIBUTE_COLS}
          FROM attributes AS attribute
          LEFT JOIN attribute_options AS attributeOption
            ON attributeOption.attribute_id = attribute.id
@@ -242,11 +243,13 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-const ATTRIBUTE_JOINED_SQL = `SELECT ${ATTRIBUTE_COLS}
+const attributeJoinedSql = (
+  id: number,
+): SqlStatement => sql`SELECT ${ATTRIBUTE_COLS}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id
-      WHERE attribute.id = ?
+      WHERE attribute.id = ${id}
       ORDER BY attributeOption.sort_order, attributeOption.id`;
 
 const attributeFromRows = async (
@@ -257,12 +260,9 @@ const attributeFromRows = async (
 /** The joined attribute rows for one id, on the replica (normal reads) or the
  * primary (read-your-writes after a write). */
 const attributeRows = (id: number, primary: boolean) =>
-  primary
-    ? queryAllPrimary<JoinedAttributeRow>({
-        args: [id],
-        sql: ATTRIBUTE_JOINED_SQL,
-      })
-    : queryAll<JoinedAttributeRow>(ATTRIBUTE_JOINED_SQL, [id]);
+  (primary ? queryAllPrimary : queryAll)<JoinedAttributeRow>(
+    attributeJoinedSql(id),
+  );
 
 const attributeWithOptions =
   (primary: boolean) =>
@@ -280,13 +280,12 @@ export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (
     await queryOne<{ id: number }>(
-      "SELECT id FROM attributes WHERE id = ? LIMIT 1",
-      [id],
+      sql`SELECT id FROM attributes WHERE id = ${id} LIMIT 1`,
     )
   )?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
-  queryIdColumn("SELECT id FROM attributes ORDER BY sort_order, id");
+  queryIdColumn(sql`SELECT id FROM attributes ORDER BY sort_order, id`);
 
 /** The submitted option ids the site has. Unknown ids drop out. The order
  * and any duplicates of the submitted list are kept. */
@@ -298,8 +297,7 @@ export const attributeOptionIdsIn = async (
     unique.length === 0
       ? []
       : await queryIdColumn(
-          `SELECT id FROM attribute_options WHERE id IN (${inPlaceholders(unique)})`,
-          unique,
+          sql`SELECT id FROM attribute_options WHERE id IN (${sqlList(unique)})`,
         ),
   );
   return filter((id: number) => found.has(id))(submitted);
@@ -340,16 +338,15 @@ export const getAttributeListingUse = async (
   attributeId: number,
 ): Promise<AttributeListingUse> => {
   const rows = await queryAll<OptionListingRow>(
-    `SELECT listingAttribute.option_id,
+    sql`SELECT listingAttribute.option_id,
             ${listingOptionColumns.columnsSql("listing")}
        FROM listing_attribute_options AS listingAttribute
        JOIN attribute_options AS attributeOption
          ON attributeOption.id = listingAttribute.option_id
        JOIN listings AS listing
          ON listing.id = listingAttribute.listing_id
-      WHERE attributeOption.attribute_id = ?
+      WHERE attributeOption.attribute_id = ${attributeId}
       ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
-    [attributeId],
   );
   const usedListings = sort(
     (a: OptionListingRow, b: OptionListingRow) => a.id - b.id,
@@ -369,17 +366,9 @@ export const deleteAttributeOption = deleteWithChildren("attribute_options", [
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
-    {
-      args: [attributeId],
-      sql:
-        "DELETE FROM listing_attribute_options WHERE option_id IN " +
-        "(SELECT id FROM attribute_options WHERE attribute_id = ?)",
-    },
-    {
-      args: [attributeId],
-      sql: "DELETE FROM attribute_options WHERE attribute_id = ?",
-    },
-    { args: [attributeId], sql: "DELETE FROM attributes WHERE id = ?" },
+    sql`DELETE FROM listing_attribute_options WHERE option_id IN (SELECT id FROM attribute_options WHERE attribute_id = ${attributeId})`,
+    deleteFrom("attribute_options", { attribute_id: attributeId }),
+    deleteById("attributes", attributeId),
   ]);
 };
 
@@ -389,17 +378,16 @@ const selectedOptionRows = (
   listingIds.length === 0
     ? Promise.resolve([])
     : queryAll<SelectedAttributeRow>(
-        `SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLS}
+        sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLS}
            FROM listing_attribute_options AS listingAttribute
            JOIN attribute_options AS attributeOption
              ON attributeOption.id = listingAttribute.option_id
            JOIN attributes AS attribute
              ON attribute.id = attributeOption.attribute_id
-          WHERE listingAttribute.listing_id IN (${inPlaceholders(listingIds)})
+          WHERE listingAttribute.listing_id IN (${sqlList(listingIds)})
           ORDER BY listingAttribute.listing_id,
                    attribute.sort_order, attribute.id,
                    attributeOption.sort_order, attributeOption.id`,
-        listingIds,
       );
 
 const selectedRowsForListing = groupToMap<

@@ -1,9 +1,5 @@
-import {
-  inPlaceholders,
-  resultRows,
-  type SqlStatement,
-  type TxScope,
-} from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { namedError } from "#shared/named-error.ts";
 
 /** Runs a transaction-local ID lookup for one deduplicated input set. */
@@ -23,12 +19,14 @@ export const txIdSet = async (
 /** A txIdSet lookup of one table's id column, bounded to the submitted ids.
  * `tail` carries any extra WHERE conditions after the id match. */
 export const txIdSetInTable =
-  (table: string, tail = "") =>
+  (table: string, tail: SqlStatement = sql``) =>
   async (tx: TxScope, ids: readonly number[]): Promise<Set<number>> =>
-    txIdSet(tx, ids, (uniqueIds) => ({
-      args: uniqueIds,
-      sql: `SELECT id FROM ${table} WHERE id IN (${inPlaceholders(uniqueIds)})${tail}`,
-    }));
+    txIdSet(
+      tx,
+      ids,
+      (uniqueIds) =>
+        sql`SELECT id FROM ${sqlName(table)} WHERE id IN (${sqlList(uniqueIds)})${tail}`,
+    );
 
 /** An expected validation failure found after a write transaction starts. */
 export class TransactionValidationError extends namedError(

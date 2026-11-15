@@ -5,15 +5,12 @@
  * primary, then run the post-commit hook.
  */
 
-import type {
-  SqlStatement,
-  TransactionStateReader,
-  TxScope,
-} from "#db/client.ts";
+import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import {
   UpdatedRowMissingError,
   writeRowInTransaction,
 } from "#db/row-write.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import type { CheckTxHook } from "#shared/rest/crud-api-types.ts";
 

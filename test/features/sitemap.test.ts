@@ -14,6 +14,7 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { handleSitemapXml } from "#routes/sitemap.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -34,7 +35,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
     // A site before setup has no settings table, so the feature cannot be
     // on. The document answers 404 instead of an error, like robots.txt.
     await enablePublicSite();
-    await executeWithoutCacheInvalidation("DROP TABLE settings", []);
+    await executeWithoutCacheInvalidation(sql`DROP TABLE settings`);
     const response = await handleRequest(mockRequest("/sitemap.xml"));
     expect(response.status).toBe(404);
   });

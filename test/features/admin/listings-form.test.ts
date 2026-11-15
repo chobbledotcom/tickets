@@ -11,6 +11,7 @@ import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -116,12 +117,9 @@ describeWithEnv("listings form", { db: true }, () => {
 
     test("a listing with no closing date stores nothing in that column", async () => {
       const row = await createListing();
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.closes_at FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.closes_at FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.closes_at).toBeNull();
     });
 
@@ -225,12 +223,9 @@ describeWithEnv("listings form", { db: true }, () => {
       const row = await createListing({
         group_ids: [String(group.id), "0", "-4"],
       });
-      const links = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT groupListing.group_id FROM group_listings AS groupListing " +
-          "WHERE groupListing.listing_id = ?",
-      });
+      const links = await getDb().execute(
+        sql`SELECT groupListing.group_id FROM group_listings AS groupListing WHERE groupListing.listing_id = ${row.id}`,
+      );
       expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
     });
   });
@@ -310,12 +305,9 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.unit_price).toBe(0);
       // A real stored zero, not an absent value: the column is what the base
       // price row is mirrored from.
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.unit_price FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.unit_price FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.unit_price).toBe(0);
     });
 

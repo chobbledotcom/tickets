@@ -8,7 +8,6 @@ import {
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  expectErrorFlash,
   expectFlash,
   expectIncludesAll,
   testRequiresAuth,
@@ -23,6 +22,7 @@ import {
   setupListingAndLogin,
 } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
+import { expectFormValueRefused } from "#test-utils/settings-refusal.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 const findByName = async (name: string) =>
@@ -147,11 +147,15 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("rejects an invalid webhook url without saving", async () => {
-      const { response } = await adminFormPost("/admin/listing-defaults", {
-        default_webhook_url: "not-a-url",
-      });
-      expectErrorFlash(response, "https");
-      expect(settings.listingDefaults).toEqual({});
+      await expectFormValueRefused(
+        {
+          fields: { default_webhook_url: "not-a-url" },
+          flash: "https",
+          path: "/admin/listing-defaults",
+          stored: () => settings.listingDefaults,
+        },
+        {},
+      );
     });
 
     test("ignores the logistics default while logistics is disabled", async () => {

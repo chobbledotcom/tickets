@@ -1,7 +1,7 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, getDb, inPlaceholders } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { MigrationInProgressError } from "#db/migrations/errors.ts";
 import {
@@ -16,7 +16,7 @@ import {
   LATEST_UPDATE,
   type Migration,
 } from "#db/migrations.ts";
-
+import { sql, sqlList, sqlLiteral, sqlName } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -49,14 +49,8 @@ const makeSoleMigrationPending = async (id: string): Promise<Migration> => {
   if (!migration) throw new Error(`Missing migration ${id}`);
   await restoreSchemaBeforeMigrations([migration]);
   await executeBatch([
-    {
-      args: [migration.id],
-      sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    },
-    {
-      args: [LATEST_DB_UPDATE_KEY, DB_SCHEMA_HASH_KEY],
-      sql: "UPDATE settings SET value = 'stale' WHERE key IN (?, ?)",
-    },
+    sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`,
+    sql`UPDATE settings SET value = 'stale' WHERE key IN (${LATEST_DB_UPDATE_KEY}, ${DB_SCHEMA_HASH_KEY})`,
   ]);
   invalidateInitDbCache();
   return migration;
@@ -66,10 +60,9 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
   test("records the free-text migration within one guarded request", async () => {
     const migration = await makeSoleMigrationPending(FREE_TEXT_MIGRATION_ID);
 
-    const staleMarkers = await getDb().execute({
-      args: [LATEST_DB_UPDATE_KEY, DB_SCHEMA_HASH_KEY],
-      sql: "SELECT key, value FROM settings WHERE key IN (?, ?) ORDER BY key",
-    });
+    const staleMarkers = await getDb().execute(
+      sql`SELECT key, value FROM settings WHERE key IN (${LATEST_DB_UPDATE_KEY}, ${DB_SCHEMA_HASH_KEY}) ORDER BY key`,
+    );
     expect(
       staleMarkers.rows.map(({ key, value }) => ({
         key: String(key),
@@ -82,10 +75,9 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
 
     await withRequestContext(() => initDb());
 
-    const marker = await getDb().execute({
-      args: [migration.id],
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    });
+    const marker = await getDb().execute(
+      sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`,
+    );
     expect(marker.rows.map((row) => String(row.id))).toEqual([migration.id]);
   });
 
@@ -107,13 +99,12 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     );
 
     const lock = await getDb().execute(
-      `SELECT 1 FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+      sql`SELECT 1 FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
     );
     expect(lock.rows).toHaveLength(0);
-    const stillPending = await getDb().execute({
-      args: [migration.id],
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id = ?`,
-    });
+    const stillPending = await getDb().execute(
+      sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id = ${migration.id}`,
+    );
     expect(stillPending.rows).toHaveLength(0);
   });
 
@@ -122,41 +113,34 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     const pendingIds = pending.map((migration) => migration.id);
     await restoreSchemaBeforeMigrations(pending);
     await executeBatch([
-      {
-        args: [LISTINGS_TAG_REVISION],
-        sql: `UPDATE settings SET value = ? WHERE key = '${LATEST_DB_UPDATE_KEY}'`,
-      },
-      {
-        args: pendingIds,
-        sql: `DELETE FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(pendingIds)})`,
-      },
+      sql`UPDATE settings SET value = ${LISTINGS_TAG_REVISION} WHERE key = ${LATEST_DB_UPDATE_KEY}`,
+      sql`DELETE FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id IN (${sqlList(pendingIds)})`,
     ]);
     invalidateInitDbCache();
 
     const oldListingColumns = await getDb().execute(
-      "SELECT name FROM pragma_table_info('listings')",
+      sql`SELECT name FROM pragma_table_info('listings')`,
     );
     assertArrayIncludes(
       oldListingColumns.rows.map((row) => String(row.name)),
       ["image_url"],
     );
     const oldImagesTable = await getDb().execute(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'",
+      sql`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'images'`,
     );
     expect(oldImagesTable.rows).toHaveLength(0);
 
     // How many of the pending migrations are recorded so far — the request's
     // forward progress.
     const recordedCount = async (): Promise<number> => {
-      const rows = await getDb().execute({
-        args: pendingIds,
-        sql: `SELECT COUNT(*) AS n FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(pendingIds)})`,
-      });
+      const rows = await getDb().execute(
+        sql`SELECT COUNT(*) AS n FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id IN (${sqlList(pendingIds)})`,
+      );
       return Number(rows.rows[0]?.n);
     };
     const lockHeld = async (): Promise<boolean> => {
       const rows = await getDb().execute(
-        `SELECT 1 FROM settings WHERE key = '${MIGRATION_LOCK_KEY}'`,
+        sql`SELECT 1 FROM settings WHERE key = ${sqlLiteral(MIGRATION_LOCK_KEY)}`,
       );
       return rows.rows.length > 0;
     };
@@ -190,15 +174,14 @@ describeWithEnv("migration request round-trip budget", { db: true }, () => {
     expect(continuations).toBeLessThan(pendingIds.length);
     expect(await lockHeld()).toBe(false);
 
-    const result = await getDb().execute({
-      args: pendingIds,
-      sql: `SELECT id FROM ${SCHEMA_MIGRATIONS_TABLE} WHERE id IN (${inPlaceholders(pendingIds)}) ORDER BY id`,
-    });
+    const result = await getDb().execute(
+      sql`SELECT id FROM ${sqlName(SCHEMA_MIGRATIONS_TABLE)} WHERE id IN (${sqlList(pendingIds)}) ORDER BY id`,
+    );
     expect(result.rows.map((row) => String(row.id))).toEqual(
       [...pendingIds].sort(),
     );
     const marker = await getDb().execute(
-      `SELECT value FROM settings WHERE key = '${LATEST_DB_UPDATE_KEY}'`,
+      sql`SELECT value FROM settings WHERE key = ${sqlLiteral(LATEST_DB_UPDATE_KEY)}`,
     );
     // The row list itself: a missing marker row fails by name, not as an
     // undefined value.

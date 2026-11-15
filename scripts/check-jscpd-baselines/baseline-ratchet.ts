@@ -8,10 +8,11 @@
  *
  * The fingerprint covers the snippet's content with every run of whitespace
  * removed (see ../jscpd/baseline.ts), so a shifted line and a re-paired clone
- * keep their count. A baseline the merge base holds in an older fingerprint
- * version cannot be compared, so this check passes it and the next scan in
- * `deno task cpd` holds the working tree to it. See "Code Duplication" in
- * AGENTS.md.
+ * keep their count. A rewrite still re-keys the place it changes, so the
+ * ratchet accepts those places while the baseline's total falls. A baseline
+ * the merge base holds in an older fingerprint version cannot be compared, so
+ * this check passes it and the next scan in `deno task cpd` holds the working
+ * tree to it. See "Code Duplication" in AGENTS.md.
  */
 
 import { basename } from "node:path";
@@ -20,6 +21,7 @@ import { formatFinding } from "#scripts/check-report.ts";
 import {
   type FingerprintCounts,
   readBaseline,
+  rekeyedPlacesAllowed,
   rises,
   versionMismatch,
 } from "#scripts/jscpd/baseline.ts";
@@ -115,26 +117,32 @@ export const unreadBaselineFindings = (
 /** The finding lines for one baseline file's clones above the base's counts,
  * in fingerprint order. A fingerprint the base does not hold is absent from
  * the scan's record, so it counts as zero accepted clones there, and any
- * count above zero is a rise. */
+ * count above zero is a rise. A rewrite re-keys recorded places while the
+ * baseline's total falls, so the added fingerprints pass then; a count above
+ * the base's for a fingerprint the base holds still fails. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
-): string[] =>
-  rises(head, base).map(([fingerprint, count]) => {
-    const recorded = base[fingerprint];
-    return recorded === undefined
-      ? formatFinding(`${path}:${fingerprint}`, {
-          fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} place(s) that the merge base does not hold`,
-          rule: "added-clone",
-        })
-      : formatFinding(`${path}:${fingerprint}`, {
-          fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} place(s), up from ${recorded}`,
-          rule: "raised-clone",
-        });
-  });
+): string[] => {
+  const addedPass = rekeyedPlacesAllowed(head, base);
+  return rises(head, base)
+    .filter(([fingerprint]) => !(addedPass && base[fingerprint] === undefined))
+    .map(([fingerprint, count]) => {
+      const recorded = base[fingerprint];
+      return recorded === undefined
+        ? formatFinding(`${path}:${fingerprint}`, {
+            fix: "merge the duplicated code, then lower the baseline with --update",
+            problem: `holds ${count} place(s) that the merge base does not hold`,
+            rule: "added-clone",
+          })
+        : formatFinding(`${path}:${fingerprint}`, {
+            fix: "merge the duplicated code, then lower the baseline with --update",
+            problem: `holds ${count} place(s), up from ${recorded}`,
+            rule: "raised-clone",
+          });
+    });
+};
 
 /**
  * One baseline file's rises against the merge base, in fingerprint order.

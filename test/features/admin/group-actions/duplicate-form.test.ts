@@ -11,7 +11,10 @@ import {
   followRedirectWithFlash,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createGroupWithListings,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
@@ -40,8 +43,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       // that stopped rendering the preview section (while the form fields still
       // sent) would pass the story. This GET test pins the route's duty to load
       // the group's members and pass them to the template.
-      const group = await createTestGroup({ name: "Original" });
-      await createTestListing({ groupId: group.id, name: "Spring Workshop" });
+      const { group } = await createGroupWithListings("Original", [
+        "Spring Workshop",
+      ]);
 
       const html = await getDuplicateForm(group.id);
 

@@ -557,6 +557,10 @@ A flagged pair is one merge:
   of two versions, so it passes a merge base copy that holds an older version.
   A baseline whose own version is old fails, and the fix is
   `deno task cpd:update`.
+- A rewrite re-keys the recorded places it changes. The ratchet accepts those
+  places while the baseline's total falls. A baseline whose total rises, or one
+  that adds more places than it gives up, still fails. A count above the
+  base's for a snippet that the base holds still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The
@@ -581,6 +585,25 @@ to do.
   single-record reads (`getAllListings`), full-table backup and restore, and
   `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
+
+### The `sql` Tag
+
+Write all SQL in a `sql` template from `#db/sql.ts`. The runners refuse a
+plain string.
+
+- A value in a slot is a bound argument. It never enters the SQL text.
+- A statement in a slot brings its own values with it.
+- Use `sqlName` and `sqlNames` for a table name or a column name.
+- Use `sqlLiteral` for a constant that the SQL text must hold: schema text,
+  trigger text, and a constant that a partial index names.
+- Use `sqlList` for the values of an `IN (...)`, and `sqlRows` for VALUES rows.
+- Bind an id as text when the SQL compares it with a TEXT column. libsql binds
+  a JavaScript number as a float, and `CAST(5.0 AS TEXT)` gives `'5.0'`.
+- Do not write a slot inside a quoted SQL literal. The tag refuses it.
+- `sqlFromDump` is for backup restore only.
+
+The SQL tag check in `test/integration/code-quality.test.ts` fails on SQL text
+or a placeholder outside a `sql` template in `src/`.
 
 ### Transactions and Batches
 

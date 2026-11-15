@@ -4,13 +4,16 @@ import {
   BASELINE_VERSION,
   baselineText,
   countDifference,
+  givenUpPlaceCount,
   placeLines,
   readBaseline,
+  rekeyedPlacesAllowed,
   rises,
   scanFingerprints,
   snippetContent,
   snippetFingerprint,
   totalCount,
+  unrecordedPlaceCount,
   updateSummary,
   versionMismatch,
 } from "#scripts/jscpd/baseline.ts";
@@ -190,6 +193,33 @@ describe("totalCount", () => {
   test("adds every count", () => {
     expect(totalCount({ aaa: 2, bbb: 3 })).toBe(5);
     expect(totalCount({})).toBe(0);
+  });
+});
+
+describe("unrecordedPlaceCount", () => {
+  test("counts only the places under fingerprints the base lacks", () => {
+    expect(unrecordedPlaceCount({ aaa: 2, bbb: 1 }, { aaa: 1 })).toBe(1);
+    expect(unrecordedPlaceCount({ aaa: 2 }, { aaa: 1 })).toBe(0);
+    expect(unrecordedPlaceCount({}, { aaa: 1 })).toBe(0);
+  });
+});
+
+describe("givenUpPlaceCount", () => {
+  test("counts the total the head loses, never below zero", () => {
+    expect(givenUpPlaceCount({ aaa: 1 }, { aaa: 2, bbb: 1 })).toBe(2);
+    expect(givenUpPlaceCount({ aaa: 1 }, { aaa: 1 })).toBe(0);
+    expect(givenUpPlaceCount({ aaa: 2 }, { aaa: 1 })).toBe(0);
+  });
+});
+
+describe("rekeyedPlacesAllowed", () => {
+  test("passes re-keyed places while the total falls", () => {
+    expect(rekeyedPlacesAllowed({ aaa: 1 }, { bbb: 2 })).toBe(true);
+  });
+
+  test("refuses re-keyed places beyond the places given up", () => {
+    expect(rekeyedPlacesAllowed({ aaa: 2 }, { bbb: 1 })).toBe(false);
+    expect(rekeyedPlacesAllowed({ aaa: 1 }, {})).toBe(false);
   });
 });
 

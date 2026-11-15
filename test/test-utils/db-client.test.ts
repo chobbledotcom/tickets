@@ -1,6 +1,7 @@
 import { createClient } from "@libsql/client";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
 import { tempDir } from "#test-utils/files.ts";
 
@@ -27,9 +28,9 @@ const countGcCalls = (): Disposable & { calls: () => number } => {
 const speedSettings = async (
   client: Awaited<ReturnType<typeof createTestDbClient>>,
 ): Promise<{ journalMode: unknown; synchronous: unknown }> => ({
-  journalMode: (await client.execute("PRAGMA journal_mode")).rows[0]
+  journalMode: (await client.execute(sql`PRAGMA journal_mode`)).rows[0]
     ?.journal_mode,
-  synchronous: (await client.execute("PRAGMA synchronous")).rows[0]
+  synchronous: (await client.execute(sql`PRAGMA synchronous`)).rows[0]
     ?.synchronous,
 });
 
@@ -48,43 +49,53 @@ describe("test database client", () => {
     };
   };
 
-  test("opens with journalling and disk flushing switched off", async () => {
-    using opened = await openClient();
-    expect(await speedSettings(opened.client)).toEqual({
-      journalMode: "memory",
-      synchronous: 0,
-    });
-  });
-
-  test("keeps those settings after an interactive transaction", async () => {
-    using opened = await openClient();
+  /** Open a client with a `counters` table and commit one value through a write
+   *  transaction. Everything after the commit runs on the fresh connection
+   *  libsql opens when the transaction takes the first one. */
+  const openClientAfterCommittedWrite = async (value: number) => {
+    const opened = await openClient();
     const { client } = opened;
-    await client.execute("CREATE TABLE counters (value INTEGER)");
+    await client.execute(sql`CREATE TABLE counters (value INTEGER)`);
 
     const transaction = await client.transaction("write");
-    await transaction.execute("INSERT INTO counters (value) VALUES (1)");
+    await transaction.execute(
+      sql`INSERT INTO counters (value) VALUES (${value})`,
+    );
     await transaction.commit();
+    return { client, [Symbol.dispose]: () => opened[Symbol.dispose]() };
+  };
 
-    // libsql hands its connection to the transaction and opens a fresh one for
-    // everything after it; a fresh plain connection would report "delete" / 2.
-    expect(await speedSettings(client)).toEqual({
-      journalMode: "memory",
-      synchronous: 0,
+  /** The connection states that must keep the speed settings: a plain open,
+   *  and the fresh connection libsql opens after a committed transaction. */
+  const speedSettingCases = [
+    {
+      name: "opens with journalling and disk flushing switched off",
+      open: openClient,
+    },
+    {
+      name: "keeps those settings after an interactive transaction",
+      // libsql hands its connection to the transaction; a plain fresh
+      // connection would report "delete" / 2 instead.
+      open: () => openClientAfterCommittedWrite(1),
+    },
+  ];
+
+  for (const settingsCase of speedSettingCases) {
+    test(settingsCase.name, async () => {
+      using opened = await settingsCase.open();
+      expect(await speedSettings(opened.client)).toEqual({
+        journalMode: "memory",
+        synchronous: 0,
+      });
     });
-  });
+  }
 
   test("still reads and writes normally after a transaction", async () => {
-    using opened = await openClient();
-    const { client } = opened;
-    await client.execute("CREATE TABLE counters (value INTEGER)");
+    using opened = await openClientAfterCommittedWrite(7);
+    await opened.client.execute(sql`INSERT INTO counters (value) VALUES (11)`);
 
-    const transaction = await client.transaction("write");
-    await transaction.execute("INSERT INTO counters (value) VALUES (7)");
-    await transaction.commit();
-    await client.execute("INSERT INTO counters (value) VALUES (11)");
-
-    const result = await client.execute(
-      "SELECT value FROM counters ORDER BY value ASC",
+    const result = await opened.client.execute(
+      sql`SELECT value FROM counters ORDER BY value ASC`,
     );
     expect(result.rows.map((row) => row.value)).toEqual([7, 11]);
   });
@@ -92,7 +103,7 @@ describe("test database client", () => {
   test("frees abandoned connections when a write loses the lock", async () => {
     using opened = await openClient();
     const { client } = opened;
-    await client.execute("CREATE TABLE counters (value INTEGER)");
+    await client.execute(sql`CREATE TABLE counters (value INTEGER)`);
     // A second raw connection holding the write lock, the way an abandoned
     // transaction connection does until garbage collection finalises it.
     const competitor = createClient({ url: `file:${opened.path}` });
@@ -100,7 +111,7 @@ describe("test database client", () => {
     try {
       using gc = countGcCalls();
       await expect(
-        client.execute("INSERT INTO counters (value) VALUES (1)"),
+        client.execute(sql`INSERT INTO counters (value) VALUES (1)`),
       ).rejects.toThrow(/locked|BUSY/i);
       // The collector ran before the failure reached the caller, so the
       // production ladder's next attempt finds the phantom holder gone.
@@ -115,7 +126,7 @@ describe("test database client", () => {
     using opened = await openClient();
     using gc = countGcCalls();
     await expect(
-      opened.client.execute("SELECT * FROM no_such_table"),
+      opened.client.execute(sql`SELECT * FROM no_such_table`),
     ).rejects.toThrow(/no such table/i);
     expect(gc.calls()).toBe(0);
   });

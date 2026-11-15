@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -196,6 +197,9 @@ describeWithEnv("db > table utilities", { db: true }, () => {
 
     const rows = await testTable.read.many();
     expect(rows.length).toBe(2);
+    expect((await testTable.read.every()()).map((row) => row.id)).toEqual(
+      rows.map((row) => row.id),
+    );
   });
 
   test("defineTable reads one id and a list of them the same way", async () => {
@@ -302,7 +306,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
     const { col, defineTable } = await import("#db/table.ts");
     const { getDb } = await import("#db/client.ts");
 
-    await getDb().execute(`
+    await getDb().execute(sql`
       CREATE TABLE IF NOT EXISTS kv_store (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL

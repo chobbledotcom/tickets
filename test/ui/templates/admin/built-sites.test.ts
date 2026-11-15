@@ -17,6 +17,7 @@ import {
   OWNER_SESSION,
   setupAdminPageTest,
 } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite, testListingWithCount } from "#test-utils/factories.ts";
@@ -305,9 +306,11 @@ describe("built-site templates", () => {
         "bump-deadline",
         "override-deadline",
       ]);
-      assert(!html.includes("rotate-renewal-token"));
-      assert(!html.includes("re-sync-deadline"));
-      assert(!html.includes("tier_listing_id"));
+      expectExcludesAll(html, [
+        "rotate-renewal-token",
+        "re-sync-deadline",
+        "tier_listing_id",
+      ]);
     });
 
     test("labels the shared bump/override forms with headings (no inline labels)", () => {

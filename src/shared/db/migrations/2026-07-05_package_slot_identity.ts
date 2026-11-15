@@ -28,6 +28,6 @@ export default function packageSlotIdentityMigration(
     up: () => recreateSlotIndex(ctx),
     // The index is recreated under its old name, so existence can't prove the
     // widening landed — the verify demands the live definition's columns.
-    verify: verifySlotIndex(ctx),
+    verify: verifySlotIndex,
   };
 }

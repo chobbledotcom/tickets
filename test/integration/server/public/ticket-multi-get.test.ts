@@ -6,11 +6,11 @@ import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import {
-  createTestListing,
-  deactivateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
+import { createNamedListingPair } from "#test-utils/db-helpers/listing-pair-named.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import type { ListingWithCount } from "#types";
 
 describeWithEnv(
   "server public > ticket multi-slug GET",
@@ -25,14 +25,11 @@ describeWithEnv(
       });
 
       test("shows ticket page for multiple existing listings", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Listing 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 100,
-          name: "Multi Listing 2",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Listing 1", "Multi Listing 2"],
+          { maxAttendees: 50 },
+          { maxAttendees: 100 },
+        );
         await assertPublicHtml(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Continue",
@@ -43,16 +40,11 @@ describeWithEnv(
       });
 
       test("shows description beneath each listing in ticket page", async () => {
-        const listing1 = await createTestListing({
-          description: "First listing info",
-          maxAttendees: 50,
-          name: "Multi Desc 1",
-        });
-        const listing2 = await createTestListing({
-          description: "Second listing info",
-          maxAttendees: 100,
-          name: "Multi Desc 2",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Desc 1", "Multi Desc 2"],
+          { description: "First listing info", maxAttendees: 50 },
+          { description: "Second listing info", maxAttendees: 100 },
+        );
         await assertPublicHtml(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "First listing info",
@@ -61,14 +53,11 @@ describeWithEnv(
       });
 
       test("omits description div in ticket when description is empty", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi No Desc",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 100,
-          name: "Multi No Desc 2",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi No Desc", "Multi No Desc 2"],
+          { maxAttendees: 50 },
+          { maxAttendees: 100 },
+        );
         const html = await assertPublicHtml(
           `/ticket/${listing1.slug}+${listing2.slug}`,
           "Multi No Desc",
@@ -77,14 +66,11 @@ describeWithEnv(
       });
 
       test("shows sold-out label for full listings", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Available",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 1,
-          name: "Multi Full",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Available", "Multi Full"],
+          { maxAttendees: 50 },
+          { maxAttendees: 1 },
+        );
         // Fill up listing2
         await bookAttendee(listing2, {
           email: "john@example.com",
@@ -99,16 +85,11 @@ describeWithEnv(
       });
 
       test("shows description for sold-out listing in ticket page", async () => {
-        const listing1 = await createTestListing({
-          description: "Available desc",
-          maxAttendees: 50,
-          name: "Multi Avail Desc",
-        });
-        const listing2 = await createTestListing({
-          description: "Sold out desc",
-          maxAttendees: 1,
-          name: "Multi Full Desc",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Avail Desc", "Multi Full Desc"],
+          { description: "Available desc", maxAttendees: 50 },
+          { description: "Sold out desc", maxAttendees: 1 },
+        );
         await bookAttendee(listing2, {
           email: "jane@example.com",
           name: "Jane",
@@ -124,14 +105,10 @@ describeWithEnv(
       });
 
       test("filters out inactive listings", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Active",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Inactive",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Active", "Multi Inactive"],
+          { maxAttendees: 50 },
+        );
         await deactivateTestListing(listing2.id);
 
         // The active listing should have a quantity selector
@@ -144,14 +121,10 @@ describeWithEnv(
       });
 
       test("returns 404 when all listings are inactive", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "All Inactive 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "All Inactive 2",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["All Inactive 1", "All Inactive 2"],
+          { maxAttendees: 50 },
+        );
         await deactivateTestListing(listing1.id);
         await deactivateTestListing(listing2.id);
 
@@ -162,16 +135,11 @@ describeWithEnv(
       });
 
       test("preserves slug order instead of sorting listings", async () => {
-        const listing1 = await createTestListing({
-          date: "2026-12-01",
-          maxAttendees: 50,
-          name: "Zebra Listing",
-        });
-        const listing2 = await createTestListing({
-          date: "2026-01-01",
-          maxAttendees: 50,
-          name: "Alpha Listing",
-        });
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Zebra Listing", "Alpha Listing"],
+          { date: "2026-12-01", maxAttendees: 50 },
+          { date: "2026-01-01", maxAttendees: 50 },
+        );
         // Request with Zebra first, Alpha second — opposite of sort order
         const response = await handleRequest(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
@@ -184,21 +152,10 @@ describeWithEnv(
         expect(zebraPos).toBeLessThan(alphaPos);
       });
 
-      /** Two plain listings, each purchasable — the shared fixture behind
-       * every "does not set CSRF cookies" / iframe check below. */
-      const createTwoListings = async (): Promise<
-        [
-          Awaited<ReturnType<typeof createTestListing>>,
-          Awaited<ReturnType<typeof createTestListing>>,
-        ]
-      > => {
-        const listing1 = await createTestListing({ maxAttendees: 50 });
-        const listing2 = await createTestListing({ maxAttendees: 50 });
-        return [listing1, listing2];
-      };
-
       test("does not set CSRF cookies for ticket (uses signed tokens)", async () => {
-        const [listing1, listing2] = await createTwoListings();
+        const [listing1, listing2] = await createListingPair({
+          maxAttendees: 50,
+        });
         const response = await handleRequest(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}`),
         );
@@ -210,11 +167,13 @@ describeWithEnv(
        * `?iframe=true` — the shared setup behind the iframe form-action and
        * signed-CSRF-token checks below. */
       const getMultiTicketIframePage = async (): Promise<{
-        listing1: Awaited<ReturnType<typeof createTestListing>>;
-        listing2: Awaited<ReturnType<typeof createTestListing>>;
+        listing1: ListingWithCount;
+        listing2: ListingWithCount;
         html: string;
       }> => {
-        const [listing1, listing2] = await createTwoListings();
+        const [listing1, listing2] = await createListingPair({
+          maxAttendees: 50,
+        });
         const response = await handleRequest(
           mockRequest(`/ticket/${listing1.slug}+${listing2.slug}?iframe=true`),
         );
@@ -236,8 +195,9 @@ describeWithEnv(
       });
 
       test("ticket POST succeeds with signed token and no cookie", async () => {
-        const listing1 = await createTestListing({ maxAttendees: 50 });
-        const listing2 = await createTestListing({ maxAttendees: 50 });
+        const [listing1, listing2] = await createListingPair({
+          maxAttendees: 50,
+        });
         const path = `/ticket/${listing1.slug}+${listing2.slug}`;
 
         const getResponse = await handleRequest(

@@ -3,6 +3,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   contradictFirstPayment,
   correctFirstPayment,
@@ -87,10 +88,9 @@ Given(
     const [first] = requiredWorldValue(this.attendeeIds, "the people who paid");
     if (first === undefined) throw new Error("Nobody paid first");
     await execute(
-      `UPDATE processed_payments
+      sql`UPDATE processed_payments
           SET payment_reference_index = ''
-        WHERE attendee_id = ?`,
-      [first],
+        WHERE attendee_id = ${first}`,
     );
   },
 );

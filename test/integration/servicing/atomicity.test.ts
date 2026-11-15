@@ -11,6 +11,7 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -158,7 +159,7 @@ describeWithEnv(
       expect((await servicingRowsForListing(listing.id)).length).toBe(0);
       const { queryOne } = await import("#db/client.ts");
       const row = await queryOne<{ c: number }>(
-        "SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'",
+        sql`SELECT COUNT(*) AS c FROM attendees WHERE kind = 'servicing'`,
       );
       expect(Number(row!.c)).toBe(0);
     });

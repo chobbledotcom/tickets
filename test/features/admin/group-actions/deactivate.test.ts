@@ -1,34 +1,48 @@
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingChildren } from "#db/listing-parents.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
-import { expectFlash } from "#test-utils/assertions.ts";
+import { expectFlash, expectStatus } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createGroupWithListings } from "#test-utils/db-helpers/groups.ts";
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import {
   adminFormPost,
   adminGet,
   getGroupActionForm,
 } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 const getDeactivateForm = getGroupActionForm("deactivate");
 
+/** POST the confirmation form for `group`, whose identifier names it, and
+ *  return the response once the redirect status holds. Both the success and the
+ *  refusal redirect, so callers assert the destination. */
+const postDeactivate = async (group: {
+  id: number;
+  name: string;
+}): Promise<Response> => {
+  const { response } = await adminFormPost(
+    `/admin/groups/${group.id}/deactivate`,
+    { confirm_identifier: group.name },
+  );
+  expectStatus(302)(response);
+  return response;
+};
+
 describeWithEnv("Group actions — deactivate", { db: true }, () => {
   describe("GET /admin/groups/:id/deactivate", () => {
-    test("returns 404 when the group does not exist", async () => {
-      // Not-found boundary — a story cannot reach this path (it sets up a
-      // real group first), so it stays as a direct technical contract.
-      const response = await adminGet("/admin/groups/999999/deactivate");
-      expect(response.status).toBe(404);
+    // Not-found boundary — a story cannot reach this path (it sets up a real
+    // group first), so it stays as a direct technical contract.
+    testStatus(404, {
+      "returns 404 when the group does not exist": () =>
+        adminGet("/admin/groups/999999/deactivate"),
     });
 
     test("renders the confirmation form with singular listing count", async () => {
-      const group = await createTestGroup({ name: "Solo Deact" });
-      await createTestListing({ groupId: group.id, name: "Only" });
+      const { group } = await createGroupWithListings("Solo Deact", ["Only"]);
 
       const html = await getDeactivateForm(group.id);
 
@@ -37,9 +51,10 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
     });
 
     test("renders the confirmation form with plural listing count", async () => {
-      const group = await createTestGroup({ name: "Multi Deact" });
-      await createTestListing({ groupId: group.id, name: "A" });
-      await createTestListing({ groupId: group.id, name: "B" });
+      const { group } = await createGroupWithListings("Multi Deact", [
+        "A",
+        "B",
+      ]);
 
       const html = await getDeactivateForm(group.id);
 
@@ -52,16 +67,13 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
       // Pins the success branch for the coverage gate: `setGroupListingsActive`
       // runs, the 302 redirect to the group page is returned, and every member
       // is inactive.
-      const group = await createTestGroup({ name: "Shutdown" });
-      const a = await createTestListing({ groupId: group.id, name: "A" });
-      const b = await createTestListing({ groupId: group.id, name: "B" });
+      const { group, listings } = await createGroupWithListings("Shutdown", [
+        "A",
+        "B",
+      ]);
 
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/deactivate`,
-        { confirm_identifier: "Shutdown" },
-      );
+      const response = await postDeactivate(group);
 
-      expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
         `/admin/groups/${group.id}`,
@@ -72,44 +84,38 @@ describeWithEnv("Group actions — deactivate", { db: true }, () => {
       assertArrayIncludes(await activityMessages(), [
         "Group 'Shutdown' deactivated (x2 listings)",
       ]);
-      expect((await getListingWithCount(a.id))?.active).toBe(false);
-      expect((await getListingWithCount(b.id))?.active).toBe(false);
+      for (const listing of listings) {
+        expect((await getListingWithCount(listing.id))?.active).toBe(false);
+      }
     });
 
     test("rejects deactivating a group that holds the only rescuing page of a child add-on, leaving every listing active", async () => {
       // Pins the orphan-prevention guard: a child-scoped opt-in add-on is
       // reachable only via a rescuing page in the group, so a bulk deactivate
       // would orphan it. The guard must block the whole batch before any UPDATE.
-      const group = await createTestGroup({ name: "Rescue Group" });
-      const rescuingPage = await createTestListing({
-        groupId: group.id,
-        name: "Rescuing page",
+      const { group, listings } = await createGroupWithListings(
+        "Rescue Group",
+        ["Rescuing page", "Sibling"],
+      );
+      const { child } = await makeParent({
+        children: [{ name: "Add-on" }],
+        parent: { name: "Base unit" },
       });
-      const sibling = await createTestListing({
-        groupId: group.id,
-        name: "Sibling",
-      });
-      const parent = await createTestListing({ name: "Base unit" });
-      const child = await createTestListing({ name: "Add-on" });
-      await listingChildren.setIds(parent.id, [child.id]);
       await optInAddOnForListings("Child-scoped extra", [
         child.id,
-        rescuingPage.id,
+        listings[0]!.id,
       ]);
 
-      const { response } = await adminFormPost(
-        `/admin/groups/${group.id}/deactivate`,
-        { confirm_identifier: "Rescue Group" },
-      );
+      const response = await postDeactivate(group);
 
-      expect(response.status).toBe(302);
       assertStringIncludes(
         response.headers.get("location") ?? "",
         `/admin/groups/${group.id}/deactivate`,
       );
       // No listing was deactivated — the batch was blocked entirely.
-      expect((await getListingWithCount(rescuingPage.id))?.active).toBe(true);
-      expect((await getListingWithCount(sibling.id))?.active).toBe(true);
+      for (const listing of listings) {
+        expect((await getListingWithCount(listing.id))?.active).toBe(true);
+      }
     });
   });
 });

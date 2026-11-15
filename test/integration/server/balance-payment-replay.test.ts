@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
@@ -63,8 +64,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
     );
 
     await execute(
-      "DELETE FROM processed_payments WHERE payment_session_id = ?",
-      [sessionId],
+      sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId}`,
     );
     expect(await getProcessedPayment(sessionId)).toBe(null);
 

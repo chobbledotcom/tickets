@@ -6,6 +6,7 @@ import {
   applySchemaChanges,
   recreateTable,
 } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
 import { resetDb } from "#test-utils/db.ts";
 import {
   cleanupTestDbPath,
@@ -39,14 +40,14 @@ describe("db > free-text migration constraint relaxation", () => {
     const db = createClient({ url: `file:${dbPath}` });
     setDb(db);
     await db.execute(
-      `CREATE TABLE attendee_answers (
+      sql`CREATE TABLE attendee_answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         attendee_id INTEGER NOT NULL,
         answer_id INTEGER NOT NULL
       )`,
     );
     await db.execute(
-      `CREATE TABLE questions (
+      sql`CREATE TABLE questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         text TEXT NOT NULL DEFAULT '',
         display_type TEXT NOT NULL DEFAULT 'radio'
@@ -64,12 +65,12 @@ describe("db > free-text migration constraint relaxation", () => {
 
     await expect(
       db.execute(
-        "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
+        sql`INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')`,
       ),
     ).rejects.toThrow();
     await expect(
       db.execute(
-        "INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES (1, 1, 1)",
+        sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES (1, 1, 1)`,
       ),
     ).rejects.toThrow();
   });
@@ -82,17 +83,17 @@ describe("db > free-text migration constraint relaxation", () => {
     await recreateTable("questions");
 
     await db.execute(
-      "INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')",
+      sql`INSERT INTO questions (text, display_type) VALUES ('Notes?', 'free_text')`,
     );
     await db.execute(
-      "INSERT INTO strings (text_index, encrypted_text, created) VALUES ('idx', 'enc', '2024-01-01T00:00:00Z')",
+      sql`INSERT INTO strings (text_index, encrypted_text, created) VALUES ('idx', 'enc', '2024-01-01T00:00:00Z')`,
     );
     await db.execute(
-      "INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES (1, 1, 1)",
+      sql`INSERT INTO attendee_answers (attendee_id, question_id, string_id) VALUES (1, 1, 1)`,
     );
 
     const rows = await db.execute(
-      "SELECT answer_id, question_id, string_id FROM attendee_answers",
+      sql`SELECT answer_id, question_id, string_id FROM attendee_answers`,
     );
     expect(rows.rows.length).toBe(1);
     expect(rows.rows[0]!.answer_id).toBe(null);

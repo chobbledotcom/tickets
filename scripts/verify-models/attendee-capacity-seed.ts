@@ -10,6 +10,7 @@ import type {
 } from "#db/attendee-types.ts";
 import { lineKeyFromBooking } from "#db/attendees/atomic-update.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
+import { sql } from "#db/sql.ts";
 import { schemaClientWith } from "#scripts/verify-models/schema-client.ts";
 
 /** The two representative slots and their fixed listing ids. */
@@ -75,29 +76,13 @@ export const existingKeyMap = (
 export const seededClient = async (scenario: Scenario): Promise<Client> => {
   const client = await schemaClientWith(TRIGGERS.map((trigger) => trigger.sql));
   for (const slot of ["one", "two"] as const) {
-    await client.execute({
-      args: [
-        SLOT_IDS[slot],
-        scenario.caps[slot],
-        scenario.booked[slot] - quantityOn(scenario.existing, slot),
-        scenario.active[slot] ? 1 : 0,
-      ],
-      sql: `INSERT INTO listings (id, max_attendees, booked_quantity, active, created)
-            VALUES (?, ?, ?, ?, '2026-01-01T00:00:00.000Z')`,
-    });
+    await client.execute(sql`INSERT INTO listings (id, max_attendees, booked_quantity, active, created)
+            VALUES (${SLOT_IDS[slot]}, ${scenario.caps[slot]}, ${scenario.booked[slot] - quantityOn(scenario.existing, slot)}, ${scenario.active[slot] ? 1 : 0}, '2026-01-01T00:00:00.000Z')`);
     for (const row of scenario.existing) {
       if (row.listingId !== SLOT_IDS[slot]) continue;
-      await client.execute({
-        args: [
-          SLOT_IDS[slot],
-          ATTENDEE_ID,
-          row.quantity,
-          row.packageGroupId ?? 0,
-        ],
-        sql: `INSERT INTO listing_attendees
+      await client.execute(sql`INSERT INTO listing_attendees
               (listing_id, attendee_id, quantity, package_group_id)
-              VALUES (?, ?, ?, ?)`,
-      });
+              VALUES (${SLOT_IDS[slot]}, ${ATTENDEE_ID}, ${row.quantity}, ${row.packageGroupId ?? 0})`);
     }
   }
   return client;
@@ -109,13 +94,11 @@ export const seededClient = async (scenario: Scenario): Promise<Client> => {
 export const storedAfter = async (
   client: Client,
 ): Promise<{ lineCount: number; slot1Total: number; slot2Total: number }> => {
-  const { rows } = await client.execute({
-    args: [ATTENDEE_ID, SLOT_IDS.one, SLOT_IDS.two],
-    sql: `SELECT (SELECT COUNT(*) FROM listing_attendees
-                  WHERE attendee_id = ?) AS lineCount,
-                 (SELECT booked_quantity FROM listings WHERE id = ?) AS slot1Total,
-                 (SELECT booked_quantity FROM listings WHERE id = ?) AS slot2Total`,
-  });
+  const { rows } =
+    await client.execute(sql`SELECT (SELECT COUNT(*) FROM listing_attendees
+                  WHERE attendee_id = ${ATTENDEE_ID}) AS lineCount,
+                 (SELECT booked_quantity FROM listings WHERE id = ${SLOT_IDS.one}) AS slot1Total,
+                 (SELECT booked_quantity FROM listings WHERE id = ${SLOT_IDS.two}) AS slot2Total`);
   const row = rows[0]!;
   return {
     lineCount: Number(row.lineCount),

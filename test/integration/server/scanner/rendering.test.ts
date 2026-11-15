@@ -17,6 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { expectLoginRedirectWithReturn } from "#test-utils/login-redirect.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 /** Get scanner page body text for a given listing */
 const getScannerBody = async (listingId: number) => {
@@ -60,14 +61,13 @@ describeWithEnv("QR scanner page, links and guide", { db: true }, () => {
       );
     });
 
-    test("returns 404 for non-existent listing", async () => {
-      const response = await adminGet("/admin/listing/99999/scanner");
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "returns 404 for non-existent listing": () =>
+        adminGet("/admin/listing/99999/scanner"),
     });
 
     test("includes manual check-in form with combobox", async () => {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      const body = await getScannerBody(listing.id);
+      const { body } = await createListingAndGetScannerBody();
       expectIncludesAll(body, [
         "Manual Check-in",
         "data-manual-checkin",

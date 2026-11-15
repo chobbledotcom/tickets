@@ -10,6 +10,7 @@ import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { handleRequest } from "#routes";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
@@ -128,15 +129,10 @@ describeWithEnv(
       await setupStripe();
 
       // Listing with questions (paid) and listing without questions (free)
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi Q Paid",
-        unitPrice: 1000,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi No Q Free",
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 50, name: "Multi Q Paid", unitPrice: 1000 },
+        { maxAttendees: 50, name: "Multi No Q Free" },
+      );
 
       // Add a custom question only to listing1
       const q = await questionsTable.insert({
@@ -210,15 +206,10 @@ describeWithEnv(
       await setupStripe();
 
       // One attendee books two listings, each asking its own free-text question.
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Free Text Paid",
-        unitPrice: 1000,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Free Text Free",
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 50, name: "Free Text Paid", unitPrice: 1000 },
+        { maxAttendees: 50, name: "Free Text Free" },
+      );
 
       const q1 = await questionsTable.insert({
         displayType: "free_text",

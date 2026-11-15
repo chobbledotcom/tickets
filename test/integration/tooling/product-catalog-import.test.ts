@@ -172,74 +172,67 @@ Body text that the importer never reads.
     );
   });
 
+  const planListings = [
+    { id: 42, name: "Tumble Tower Hire" },
+    { id: 7, name: "Old Tumble Tower" },
+    { id: 9, name: "Reaction Wall Mini" },
+  ];
+  const stampedProduct = {
+    filename: "a.md",
+    id: 42,
+    title: "Tumble Tower Hire",
+  };
+  // The site folds case and trims names, so a differently spelled listing
+  // name still proves the stamp.
+  const trimmedListings = [{ id: 42, name: "  tumble tower hire " }];
+  const planCases = [
+    [stampedProduct, [], false, planListings, { action: "skip-imported" }],
+    [stampedProduct, [], false, trimmedListings, { action: "skip-imported" }],
+    [null, [], false, planListings, { action: "create" }],
+    [null, [7], false, planListings, { action: "skip-conflict", listingId: 7 }],
+    [null, [7], true, planListings, { action: "update", listingId: 7 }],
+    [
+      null,
+      [7, 9],
+      false,
+      planListings,
+      { action: "skip-ambiguous", listingIds: [7, 9] },
+    ],
+  ] as const;
+
   test("decides one action per product file", () => {
-    const listings = [
-      { id: 42, name: "Tumble Tower Hire" },
-      { id: 7, name: "Old Tumble Tower" },
-      { id: 9, name: "Reaction Wall Mini" },
-    ];
-    expect(
-      resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
-        [],
-        false,
-        listings,
-      ),
-    ).toEqual({ action: "skip-imported" });
-    // The site folds case and trims names, so a differently spelled listing
-    // name still proves the stamp.
-    expect(
-      resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
-        [],
-        false,
-        [{ id: 42, name: "  tumble tower hire " }],
-      ),
-    ).toEqual({ action: "skip-imported" });
-    expect(resolveImportPlan(null, [], false, listings)).toEqual({
-      action: "create",
-    });
-    expect(resolveImportPlan(null, [7], false, listings)).toEqual({
-      action: "skip-conflict",
-      listingId: 7,
-    });
-    expect(resolveImportPlan(null, [7], true, listings)).toEqual({
-      action: "update",
-      listingId: 7,
-    });
-    expect(resolveImportPlan(null, [7, 9], false, listings)).toEqual({
-      action: "skip-ambiguous",
-      listingIds: [7, 9],
-    });
+    for (const [stamp, matchedIds, update, listings, expected] of planCases) {
+      expect(resolveImportPlan(stamp, matchedIds, update, listings)).toEqual(
+        expected,
+      );
+    }
   });
 
-  test("refuses a stamp that names no live listing", () => {
-    // The site may have deleted the listing, or the import may point at
-    // another site: a skipped file would keep the invalid reference forever.
-    expect(() =>
-      resolveImportPlan(
-        { filename: "a.md", id: 43, title: "Tumble Tower Hire" },
-        [],
-        false,
-        [{ id: 42, name: "Tumble Tower Hire" }],
-      ),
-    ).toThrow(
+  /** Stamped files the importer refuses, with the error that names the cause.
+   *  The site may have deleted the listing, or the import may point at another
+   *  site: a skipped file would keep the invalid reference forever. */
+  const refusedStampCases = [
+    [
+      "refuses a stamp that names no live listing",
+      { filename: "a.md", id: 43, title: "Tumble Tower Hire" },
+      [{ id: 42, name: "Tumble Tower Hire" }],
       "a.md: tickets_id 43 names no listing on the site; restore the listing or delete the stamp from the file",
-    );
-  });
-
-  test("refuses a stamp that names another product's listing", () => {
-    expect(() =>
-      resolveImportPlan(
-        { filename: "a.md", id: 42, title: "Tumble Tower Hire" },
-        [],
-        false,
-        [{ id: 42, name: "Reaction Wall Mini" }],
-      ),
-    ).toThrow(
+    ],
+    [
+      "refuses a stamp that names another product's listing",
+      stampedProduct,
+      [{ id: 42, name: "Reaction Wall Mini" }],
       "a.md: tickets_id 42 names listing 'Reaction Wall Mini', not 'Tumble Tower Hire'; delete the stamp from the file or rename one and rerun",
-    );
-  });
+    ],
+  ] as const;
+
+  for (const [name, stamp, listings, message] of refusedStampCases) {
+    test(name, () => {
+      expect(() => resolveImportPlan(stamp, [], false, listings)).toThrow(
+        message,
+      );
+    });
+  }
 
   test("refuses to stamp a file that changed since the read", () => {
     // The stamp is written from the snapshot every decision read: the write

@@ -12,6 +12,7 @@
  */
 
 import { SCHEMA } from "#db/migrations/schema/index.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { mapNotNullish } from "#fp";
 
 /** The `INSERT INTO "table" ("col", …) VALUES` prefix exportTable emits. */
@@ -129,9 +130,9 @@ export const dumpMigrationState = (
  * the dump's literals encode them, and the pending migration that dropped the
  * column decides its fate on the next boot.
  */
-export const legacyColumnRestores = (statements: string[]): string[] => {
+export const legacyColumnRestores = (statements: string[]): SqlStatement[] => {
   const declaredColumns = currentSchemaColumns();
-  const restores: string[] = [];
+  const restores: SqlStatement[] = [];
   const restored = new Set<string>();
   for (const insert of dumpInserts(statements)) {
     const declared = declaredColumns.get(insert.table);
@@ -141,7 +142,9 @@ export const legacyColumnRestores = (statements: string[]): string[] => {
       const key = `${insert.table}.${column}`;
       if (declared.has(column) || restored.has(key)) continue;
       restored.add(key);
-      restores.push(`ALTER TABLE "${insert.table}" ADD COLUMN "${column}"`);
+      restores.push(
+        sql`ALTER TABLE "${sqlName(insert.table)}" ADD COLUMN "${sqlName(column)}"`,
+      );
     }
   }
   return restores;

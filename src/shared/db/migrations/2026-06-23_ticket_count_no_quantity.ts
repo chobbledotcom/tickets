@@ -1,3 +1,4 @@
+import { sql, sqlName } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 /** The three listing-aggregate triggers whose tickets_count bodies change. */
@@ -18,7 +19,7 @@ export default schemaMigration(
     // bodies and goes on counting quantity = 0 writes. (Mirrors the answer-/
     // modifier-aggregate migrations.)
     for (const name of LISTING_AGGREGATE_TRIGGER_NAMES) {
-      await getDb().execute(`DROP TRIGGER IF EXISTS ${name}`);
+      await getDb().execute(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
     }
     await syncTriggers();
     // Recompute tickets_count for existing data. A no-op today (no quantity = 0

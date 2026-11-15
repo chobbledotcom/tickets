@@ -1,7 +1,9 @@
-import { createClient, type ResultSet } from "@libsql/client";
+import { createClient, type InStatement, type ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { insert, setDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
+import { sqlOf } from "#db/sql-text.ts";
 import { resetDb } from "#test-utils/db.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
@@ -202,14 +204,12 @@ export const LEGACY_SCHEMA_SQL = [
 export const seedLegacySchemaMarkers = async (
   client: Client,
 ): Promise<void> => {
-  await client.execute({
-    args: ["latest_db_update", LEGACY_DB_UPDATE],
-    sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-  });
-  await client.execute({
-    args: ["db_schema_hash", LEGACY_DB_SCHEMA_HASH],
-    sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-  });
+  await client.execute(
+    sql`INSERT INTO settings (key, value) VALUES (${"latest_db_update"}, ${LEGACY_DB_UPDATE})`,
+  );
+  await client.execute(
+    sql`INSERT INTO settings (key, value) VALUES (${"db_schema_hash"}, ${LEGACY_DB_SCHEMA_HASH})`,
+  );
 };
 
 /**
@@ -218,8 +218,8 @@ export const seedLegacySchemaMarkers = async (
  */
 export const stubPragmaForeignKeysOff = (client: Client) => {
   const origExecute = client.execute.bind(client);
-  return stub(client, "execute", (stmt: unknown) => {
-    const sql = typeof stmt === "string" ? stmt : (stmt as { sql: string }).sql;
+  return stub(client, "execute", (stmt: InStatement) => {
+    const sql = sqlOf(stmt);
     if (/PRAGMA\s+foreign_keys\s*=\s*OFF/i.test(sql)) {
       return Promise.resolve({
         columns: [],
@@ -236,7 +236,7 @@ export const stubPragmaForeignKeysOff = (client: Client) => {
         }),
       } as ResultSet);
     }
-    return origExecute(stmt as Parameters<typeof origExecute>[0]);
+    return origExecute(stmt);
   });
 };
 
@@ -246,7 +246,7 @@ export const expectAttendeeCols = async (
   absent: readonly string[],
   present: readonly string[],
 ): Promise<void> => {
-  const cols = await client.execute("PRAGMA table_info(attendees)");
+  const cols = await client.execute(sql`PRAGMA table_info(attendees)`);
   const colNames = cols.rows.map((r) => r.name);
   for (const col of absent) {
     assert(!colNames.includes(col));
@@ -297,7 +297,7 @@ export const createLegacyMigrationHarness = (): LegacyMigrationHarness => {
    */
   const createLegacyDbWithListing = async (): Promise<Client> => {
     const client = await createLegacyDb();
-    await client.execute("PRAGMA foreign_keys = ON");
+    await client.execute(sql`PRAGMA foreign_keys = ON`);
     await client.execute(
       insert("listings", {
         created: "2024-01-01T00:00:00Z",

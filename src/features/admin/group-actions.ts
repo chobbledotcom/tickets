@@ -38,6 +38,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
 import { groupFormPost } from "#routes/admin/group-form-post.ts";
@@ -386,18 +387,16 @@ const handleDuplicateGroupPost = groupFormPost(
       ),
     ]);
     await executeBatch(
-      cloneInputs.map(({ sourceId }) => ({
-        args: [
-          requiredMapValue(
-            idMap,
-            sourceId,
-            `Cloned listing ${sourceId} missing`,
-          ),
+      cloneInputs.map(
+        ({
           sourceId,
-        ],
-        sql: `INSERT INTO listing_attribute_options (listing_id, option_id)
-            SELECT ?, option_id FROM listing_attribute_options WHERE listing_id = ?`,
-      })),
+        }) => sql`INSERT INTO listing_attribute_options (listing_id, option_id)
+            SELECT ${requiredMapValue(
+              idMap,
+              sourceId,
+              `Cloned listing ${sourceId} missing`,
+            )}, option_id FROM listing_attribute_options WHERE listing_id = ${sourceId}`,
+      ),
     );
 
     // A cloned parent whose remapped edge set fails re-validation is left gateless

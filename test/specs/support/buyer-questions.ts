@@ -21,10 +21,9 @@ import {
   listingNamed,
   tickOnListingTab,
 } from "#test/specs/support/listings.ts";
-import { movingRowsOn } from "#test/specs/support/reordering.ts";
+import { upArrowOn } from "#test/specs/support/reordering.ts";
 import {
   type ActOnOneThing,
-  type AsksAboutOneThing,
   type ReadAboutOneThing,
   requiredWorldValue,
   type TicketsWorld,
@@ -264,8 +263,8 @@ const openAtAnswer: OpensAtOneRow = async (world, name) => {
   };
 };
 
-/** The arrows the question's page offers for moving one answer. */
-const answerArrows = movingRowsOn(
+/** The up arrow on each answer of the question's page. */
+const answerUpArrow = upArrowOn(
   (world) => `/admin/questions/${askedQuestion(world).id}/answers`,
   openAtAnswer,
 );
@@ -283,13 +282,11 @@ export const ownerAddsAnswer = async (
 };
 
 /** The owner moves one answer a step up the question's page. */
-export const ownerMovesAnswerUp: ActOnOneThing = (world, name) =>
-  answerArrows.move(world, name, "up");
+export const ownerMovesAnswerUp = answerUpArrow.movesUp;
 
 /** Whether the question's page still offers to move an answer up. A top
  * answer is one nobody could move further, so the page offers no arrow. */
-export const answerOffersMoveUp: AsksAboutOneThing = (world, name) =>
-  answerArrows.canMove(world, name, "up");
+export const answerOffersMoveUp = answerUpArrow.offersMoveUp;
 
 /** The answers one served booking page offers for a named question, in the
  * order the page renders them. */

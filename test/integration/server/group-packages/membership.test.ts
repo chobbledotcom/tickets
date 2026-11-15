@@ -8,7 +8,7 @@
  * own the branch cover, and the invariants that have no journey behind them.
  */
 
-import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
@@ -18,6 +18,7 @@ import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
   editFields,
@@ -27,6 +28,41 @@ import {
   expectPackageRejected,
   member,
 } from "./helpers.ts";
+
+/** A visible package group — the starting shape of most of these tests. */
+const packageGroup = (name: string, slug: string) =>
+  createTestGroup({ isPackage: true, name, slug });
+
+/** POST the children sub-form for `parentId` and return the raw response. */
+const postChildrenForm = async (
+  parentId: number,
+  childId: number,
+): Promise<Response> =>
+  (
+    await adminFormPost(`/admin/listing/${parentId}/children`, {
+      child_listing_ids: String(childId),
+    })
+  ).response;
+
+/** Hide the members' names inside `groupId`, so a member that gates children
+ *  would leak them. */
+const hidePackageNames = async (groupId: number): Promise<void> => {
+  await groups.table.update(groupId, { hidePackageListings: true });
+};
+
+/** Write a listing through the JSON API and assert the 400 error it names.
+ *  The package rules carry the offending listing's name, so the caller states
+ *  the exact message. */
+const expectApiRefused = async (
+  path: string,
+  body: Record<string, unknown>,
+  message: string,
+  method: "POST" | "PUT" = "POST",
+): Promise<void> => {
+  await assertJson(apiRequest(path, { body, method }), 400, (json) => {
+    expect(json.error).toBe(message);
+  });
+};
 
 describeWithEnv(
   "server (admin group packages) — what may join a package",
@@ -79,54 +115,39 @@ describeWithEnv(
     });
 
     test("add-listings rejects a child listing into a package group", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "PkgChild",
-        slug: "pkg-child",
+      const group = await packageGroup("PkgChild", "pkg-child");
+      const { child } = await makeParent({
+        children: [{ name: "Child Add" }],
+        parent: { name: "Outside Parent" },
       });
-      const parent = await createTestListing({ name: "Outside Parent" });
-      const child = await createTestListing({ name: "Child Add" });
-      await listingChildren.setIds(parent.id, [child.id]);
 
       await expectAddListingRejected(group, child.id);
     });
 
     test("the listings API rejects a pay-what-you-want listing joining a package group", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "ApiPkg",
-        slug: "api-pkg",
-      });
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            can_pay_more: true,
-            group_ids: [group.id],
-            max_attendees: 10,
-            max_price: 10000,
-            name: "Pay In Package",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          assertStringIncludes(body.error, "Packages cannot contain");
+      const group = await packageGroup("ApiPkg", "api-pkg");
+      await expectApiRefused(
+        "/api/admin/listings",
+        {
+          can_pay_more: true,
+          group_ids: [group.id],
+          max_attendees: 10,
+          max_price: 10000,
+          name: "Pay In Package",
         },
+        t("error.package_member_pay_more", { name: "Pay In Package" }),
       );
     });
 
     test("the listings API lets a parent join a visible package but not a hidden one", async () => {
-      const parent = await createTestListing({ name: "Parent List" });
-      const child = await createTestListing({ name: "Child List" });
-      await listingChildren.setIds(parent.id, [child.id]);
+      const { child, parent } = await makeParent({
+        children: [{ name: "Child List" }],
+        parent: { name: "Parent List" },
+      });
 
       // A visible package renders the member's child selector, so the parent
       // joins with its gate intact.
-      const visible = await createTestGroup({
-        isPackage: true,
-        name: "ParentApiPkg",
-        slug: "parent-api-pkg",
-      });
+      const visible = await packageGroup("ParentApiPkg", "parent-api-pkg");
       await assertJson(
         apiRequest(`/api/admin/listings/${parent.id}`, {
           body: { group_ids: [visible.id] },
@@ -138,30 +159,20 @@ describeWithEnv(
 
       // A hidden package collapses members to the package name, so a member's
       // child selector would leak them — the join is rejected.
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "HiddenApiPkg",
-        slug: "hidden-api-pkg",
-      });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
-      await assertJson(
-        apiRequest(`/api/admin/listings/${parent.id}`, {
-          body: { group_ids: [hidden.id] },
-          method: "PUT",
+      const hidden = await packageGroup("HiddenApiPkg", "hidden-api-pkg");
+      await hidePackageNames(hidden.id);
+      await expectApiRefused(
+        `/api/admin/listings/${parent.id}`,
+        { group_ids: [hidden.id] },
+        t("error.package_member_gates_children_hidden", {
+          name: "Parent List",
         }),
-        400,
-        (body) => {
-          assertStringIncludes(body.error, "Packages cannot contain");
-        },
+        "PUT",
       );
     });
 
     test("the listings API accepts a plain standard listing joining a package group", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "OkApiPkg",
-        slug: "ok-api-pkg",
-      });
+      const group = await packageGroup("OkApiPkg", "ok-api-pkg");
       const listing = await createTestListing({ name: "Plain List" });
 
       await assertJson(
@@ -176,11 +187,7 @@ describeWithEnv(
     test("the listings API accepts new child edges into a visible package but not a hidden one", async () => {
       const child = await createTestListing({ name: "Edge Child" });
 
-      const visible = await createTestGroup({
-        isPackage: true,
-        name: "ChildEdgePkg",
-        slug: "child-edge-pkg",
-      });
+      const visible = await packageGroup("ChildEdgePkg", "child-edge-pkg");
       await assertJson(
         apiRequest("/api/admin/listings", {
           body: {
@@ -194,66 +201,41 @@ describeWithEnv(
         201,
       );
 
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "HiddenEdgePkg",
-        slug: "hidden-edge-pkg",
-      });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            child_listing_ids: [child.id],
-            group_ids: [hidden.id],
-            max_attendees: 10,
-            name: "New Parent In Hidden Package",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("error.package_gate_in_hidden"));
+      const hidden = await packageGroup("HiddenEdgePkg", "hidden-edge-pkg");
+      await hidePackageNames(hidden.id);
+      await expectApiRefused(
+        "/api/admin/listings",
+        {
+          child_listing_ids: [child.id],
+          group_ids: [hidden.id],
+          max_attendees: 10,
+          name: "New Parent In Hidden Package",
         },
+        t("error.package_gate_in_hidden"),
       );
     });
 
     test("the listings API rejects choosing a package member as a child", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "MemberChildPkg",
-        slug: "member-child-pkg",
-      });
+      const group = await packageGroup("MemberChildPkg", "member-child-pkg");
       const memberListing = await member(group, "Pkg Member");
 
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            child_listing_ids: [memberListing.id],
-            max_attendees: 10,
-            name: "Parent Of Member",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("error.package_child_is_member"));
+      await expectApiRefused(
+        "/api/admin/listings",
+        {
+          child_listing_ids: [memberListing.id],
+          max_attendees: 10,
+          name: "Parent Of Member",
         },
+        t("error.package_child_is_member"),
       );
     });
 
     test("the children sub-form rejects choosing a package member as a child", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "MemberChildForm",
-        slug: "member-child-form",
-      });
+      const group = await packageGroup("MemberChildForm", "member-child-form");
       const memberListing = await member(group, "Form Member");
       const parent = await createTestListing({ name: "Form Parent" });
 
-      const { response } = await adminFormPost(
-        `/admin/listing/${parent.id}/children`,
-        { child_listing_ids: String(memberListing.id) },
-      );
+      const response = await postChildrenForm(parent.id, memberListing.id);
       await expectFlashRedirect(
         `/admin/listing/${parent.id}/edit`,
         t("error.package_child_is_member"),
@@ -263,20 +245,13 @@ describeWithEnv(
     });
 
     test("the children sub-form lets a visible package's member gain children, but not a hidden one's", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "ChildFormPkg",
-        slug: "child-form-pkg",
-      });
+      const group = await packageGroup("ChildFormPkg", "child-form-pkg");
       const memberListing = await member(group, "Pkg Member");
       const child = await createTestListing({ name: "Would-be Child" });
 
       // Visible package: the member's child gate saves and the package page can
       // render its selector.
-      const { response: accepted } = await adminFormPost(
-        `/admin/listing/${memberListing.id}/children`,
-        { child_listing_ids: String(child.id) },
-      );
+      const accepted = await postChildrenForm(memberListing.id, child.id);
       expect(accepted.status).toBe(302);
       expect(await listingChildren.getIds(memberListing.id)).toEqual([
         child.id,
@@ -284,11 +259,8 @@ describeWithEnv(
       await listingChildren.setIds(memberListing.id, []);
 
       // Hidden package: the same edge would leak the collapsed member.
-      await groups.table.update(group.id, { hidePackageListings: true });
-      const { response } = await adminFormPost(
-        `/admin/listing/${memberListing.id}/children`,
-        { child_listing_ids: String(child.id) },
-      );
+      await hidePackageNames(group.id);
+      const response = await postChildrenForm(memberListing.id, child.id);
       await expectFlashRedirect(
         `/admin/listing/${memberListing.id}/edit`,
         t("error.package_gate_in_hidden"),
@@ -316,11 +288,7 @@ describeWithEnv(
     test("add-listings rejects a pay-what-you-want listing", async () => {
       // The one remaining type restriction: a package needs an operator-set
       // price per member, so buyer-priced listings can't join.
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "PkgAdd",
-        slug: "pkg-add",
-      });
+      const group = await packageGroup("PkgAdd", "pkg-add");
       const donate = await createTestListing({
         canPayMore: true,
         name: "Donate Add",
@@ -330,11 +298,7 @@ describeWithEnv(
     });
 
     test("add-listings accepts a customisable-days listing into a package group", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "PkgFlex",
-        slug: "pkg-flex",
-      });
+      const group = await packageGroup("PkgFlex", "pkg-flex");
       const flexible = await createTestListing({
         customisableDays: true,
         dayPrices: { 1: 1000 },
@@ -354,11 +318,7 @@ describeWithEnv(
     });
 
     test("add-listings accepts a fixed-price listing into a package group", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "PkgOk",
-        slug: "pkg-ok",
-      });
+      const group = await packageGroup("PkgOk", "pkg-ok");
       const fixed = await createTestListing({ name: "Fixed Add" });
 
       const { response } = await adminFormPost(

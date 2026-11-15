@@ -7,7 +7,8 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import type { SqlStatement, TxScope } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { byPrimaryKey } from "#db/table-reader.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";

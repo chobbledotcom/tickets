@@ -23,6 +23,7 @@ import {
   reserveSession,
 } from "#db/processed-payments.ts";
 import { loadRefundAuthorityById } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import { completedAtOf } from "#payment/refund-authority-state.ts";
 import type { SessionRejection } from "#payment/validated-session.ts";
 import {
@@ -132,17 +133,15 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     listingId: number,
   ): Promise<{ id: number; quantity: number }[]> =>
     queryAll<{ id: number; quantity: number }>(
-      `SELECT attendee.id, booking.quantity
+      sql`SELECT attendee.id, booking.quantity
          FROM listing_attendees AS booking
          JOIN attendees AS attendee ON attendee.id = booking.attendee_id
-        WHERE booking.listing_id = ?`,
-      [listingId],
+        WHERE booking.listing_id = ${listingId}`,
     );
 
   const attendeeCount = async (): Promise<number> => {
     const row = await queryOne<{ total: number }>(
-      "SELECT COUNT(*) AS total FROM attendees",
-      [],
+      sql`SELECT COUNT(*) AS total FROM attendees`,
     );
     return Number(row!.total);
   };
@@ -189,8 +188,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
 
     // The ghost's born claim was settled, so nothing holds the row.
     const mirror = await queryOne<{ protected_state: string }>(
-      "SELECT protected_state FROM processed_payments WHERE attendee_id = ?",
-      [ghosts[0]!.id],
+      sql`SELECT protected_state FROM processed_payments WHERE attendee_id = ${ghosts[0]!.id}`,
     );
     expect(mirror?.protected_state).toBe("");
   });
@@ -270,7 +268,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     const charge = await queryOne<{
       refund_state_name: string;
       refund_local_state: string;
-    }>("SELECT refund_state_name, refund_local_state FROM payment_charges", []);
+    }>(sql`SELECT refund_state_name, refund_local_state FROM payment_charges`);
     expect(charge).toEqual({
       refund_local_state: "due",
       refund_state_name: "completed",
@@ -301,14 +299,13 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     const charge = await queryOne<{
       refund_state_name: string;
       refund_local_state: string;
-    }>("SELECT refund_state_name, refund_local_state FROM payment_charges", []);
+    }>(sql`SELECT refund_state_name, refund_local_state FROM payment_charges`);
     expect(charge).toEqual({
       refund_local_state: "recorded",
       refund_state_name: "completed",
     });
     const anchor = await queryOne<{ protected_state: string }>(
-      "SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''",
-      [],
+      sql`SELECT protected_state FROM processed_payments WHERE payment_reference_index != ''`,
     );
     expect(anchor?.protected_state).toBe("");
 
@@ -343,8 +340,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     expect(result.refunded).toBe(true);
     expect(
       await queryOne<{ total: number }>(
-        "SELECT COUNT(*) AS total FROM processed_payments WHERE payment_session_id LIKE 'legacy:%'",
-        [],
+        sql`SELECT COUNT(*) AS total FROM processed_payments WHERE payment_session_id LIKE 'legacy:%'`,
       ),
     ).toEqual({ total: 0 });
   });

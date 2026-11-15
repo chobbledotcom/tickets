@@ -22,6 +22,7 @@ import {
   markSessionFailed,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
 import { assessTax } from "#shared/tax/assessment.ts";
@@ -105,8 +106,7 @@ const expectNoContactActivity = async (): Promise<void> => {
 const attendeeCount = async (): Promise<number> =>
   Number(
     (await queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM attendees",
-      [],
+      sql`SELECT COUNT(*) AS count FROM attendees`,
     ))!.count,
   );
 
@@ -115,8 +115,7 @@ const expectParentRolledBack = async (
   countBefore: number,
 ): Promise<void> => {
   const tokenRow = await queryOne<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM attendees WHERE ticket_token_index = ?",
-    [await hmacHash(ticketToken)],
+    sql`SELECT COUNT(*) AS count FROM attendees WHERE ticket_token_index = ${await hmacHash(ticketToken)}`,
   );
   expect(Number(tokenRow!.count)).toBe(0);
   expect(await attendeeCount()).toBe(countBefore);

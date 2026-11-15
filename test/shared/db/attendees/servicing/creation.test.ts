@@ -16,13 +16,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getDb, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import {
-  createAnnualInspectionEvent,
+  createAnnualInspectionPair,
   createDailyListingPair,
   createServicingHold,
   createTestServicingEvent,
@@ -37,15 +38,13 @@ import {
 } from "#test-utils/servicing.ts";
 
 const bookingRows = (listingId: number) =>
-  getDb().execute({
-    args: [listingId],
-    sql: "SELECT quantity, SUBSTR(start_at, 1, 10) AS date FROM listing_attendees WHERE listing_id = ? ORDER BY start_at",
-  });
+  getDb().execute(
+    sql`SELECT quantity, SUBSTR(start_at, 1, 10) AS date FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY start_at`,
+  );
 
 describeWithEnv("servicing §3 — creation", { db: true }, () => {
   test("creating a servicing event persists name, bookings and kind", async () => {
-    const [a, b] = await createDailyListingPair("Room A", "Room B");
-    const event = await createAnnualInspectionEvent(a, b);
+    const { a, b, event } = await createAnnualInspectionPair();
     expect(await kindOf(event.id)).toBe(SERVICING_KIND);
 
     const decrypted = await decryptFirstServicingAttendee(a.id);
@@ -92,7 +91,7 @@ describeWithEnv("servicing §3 — creation", { db: true }, () => {
     } as never);
     expect(await getVisits(await hashEmail("smuggler@example.com"))).toBe(0);
     const prefs = await queryOne<{ one: number }>(
-      "SELECT 1 AS one FROM contact_preferences LIMIT 1",
+      sql`SELECT 1 AS one FROM contact_preferences LIMIT 1`,
     );
     expect(prefs).toBeNull();
   });

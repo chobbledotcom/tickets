@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, queryOne } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import {
   type ProviderRefundOwnerChoice,
   resolveProviderRefundCase,
@@ -12,6 +12,7 @@ import {
   type ProviderRefundCase,
   type ProviderRefundCasePage,
 } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
@@ -34,6 +35,7 @@ import {
   addProviderRefundTestCase,
   readyRefundTestState,
 } from "#test-utils/provider-refund-cases.ts";
+import { rawDbClient } from "#test-utils/raw-db.ts";
 import { recordQueries } from "#test-utils/record-queries.ts";
 import type { PaymentProviderType } from "#types";
 
@@ -76,10 +78,9 @@ type StoredState = {
 
 const storedState = (id: number): Promise<StoredState | null> =>
   queryOne<StoredState>(
-    `SELECT refund_revision, refund_state, refund_state_name, refunded_amount
+    sql`SELECT refund_revision, refund_state, refund_state_name, refunded_amount
        FROM payment_charges
-      WHERE id = ?`,
-    [id],
+      WHERE id = ${id}`,
   );
 
 const resolveCase = async (
@@ -161,7 +162,7 @@ describeWithEnv("provider refund recovery cases", { db: true }, () => {
     assertStringIncludes(queueQuery ?? "", "LIMIT ?");
     assert(!(queueQuery ?? "").includes("provider_reference"));
     assert(!(queueQuery ?? "").includes("refund_state,"));
-    const plan = await getDb().execute({
+    const plan = await rawDbClient().execute({
       args: [21],
       sql: `EXPLAIN QUERY PLAN ${queueQuery}`,
     });

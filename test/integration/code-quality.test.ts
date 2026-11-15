@@ -20,7 +20,6 @@ import {
   type NamedTypeShape,
   type Site,
 } from "#test/scripts/code-quality/detectors.ts";
-import { findNumberedBindViolations } from "#test/scripts/code-quality/numbered-binds.ts";
 import { detectRelativeImport } from "#test/scripts/code-quality/relative-import.ts";
 import {
   ensureLoaded,
@@ -29,6 +28,7 @@ import {
   scanSourceFiles,
   scanSourceLines,
 } from "#test/scripts/code-quality/scan-context.ts";
+import { findSqlTagViolationsIn } from "#test/scripts/code-quality/sql-tag.ts";
 
 /**
  * Integration guard for the code-quality rules: it scans the real `src/`+`test/`
@@ -77,52 +77,57 @@ const ALLOWED_RAW_DB = [
   "shared/db/migrations/",
 ];
 
+// Files that write SQL text for a reader other than the database.
+const PLAIN_SQL_TEXT_FILES = [
+  // The backup writer exports each table as INSERT text into the dump file.
+  "shared/db/backup-snapshot.ts",
+  // These migration descriptions quote the query that the index serves.
+  "shared/db/migrations/2026-06-25_listing_attendee_ledger_event_group_index.ts",
+  "shared/db/migrations/2026-07-06_listing_attendees_end_start_index.ts",
+];
+
+/** Runs one per-file detector over every src file and fails on any finding, so
+ *  a rule only has to name its detector and allow-list. */
+const expectNoSrcViolations = async (
+  detect: (relativePath: string, content: string) => readonly string[],
+): Promise<void> => {
+  const { srcFiles, srcContents } = await ensureLoaded();
+  const violations = srcFiles.flatMap((file) =>
+    detect(getRelativePath(file), srcContents.get(file)!),
+  );
+  expect(violations).toEqual([]);
+};
+
 describe("code quality", () => {
   describe("no in-memory state", () => {
     test("source files should not use module-level Map or Set for state", async () => {
-      const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
-        const relativePath = getRelativePath(file);
-        violations.push(
-          ...findInMemoryStateViolations(
-            relativePath,
-            srcContents.get(file)!,
-            ALLOWED_FILES_STATE,
-          ),
-        );
-      }
-
-      expect(violations).toEqual([]);
+      await expectNoSrcViolations((relativePath, content) =>
+        findInMemoryStateViolations(relativePath, content, ALLOWED_FILES_STATE),
+      );
     });
   });
 
   describe("db writes go through the client", () => {
     test("no source file calls getDb().execute/.batch directly", async () => {
-      const { srcFiles, srcContents } = await ensureLoaded();
-      const violations: string[] = [];
-
-      for (const file of srcFiles) {
+      await expectNoSrcViolations((relativePath, content) => {
         const violation = findRawDbViolation(
-          getRelativePath(file),
-          srcContents.get(file)!,
+          relativePath,
+          content,
           ALLOWED_RAW_DB,
         );
-        if (violation) violations.push(violation);
-      }
-
-      expect(violations).toEqual([]);
+        return violation ? [violation] : [];
+      });
     });
   });
 
-  describe("numbered parameters", () => {
-    test("the site's own source passes the job", async () => {
+  describe("SQL is written with the sql tag", () => {
+    test("no source file writes SQL text or a placeholder in a plain string", async () => {
       const { srcFiles, srcContents } = await ensureLoaded();
-      const violations = findNumberedBindViolations(
+      const violations = findSqlTagViolationsIn(
         srcFiles,
         srcContents,
         getRelativePath,
+        PLAIN_SQL_TEXT_FILES,
       );
 
       expect(violations).toEqual([]);

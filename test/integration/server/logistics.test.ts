@@ -4,10 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
 import {
-  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectIncludesAll,
@@ -16,8 +16,10 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createAgentAssignedToFirstUser } from "#test-utils/db-helpers/logistics-agent-users.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { testRejectsEmptyField } from "#test-utils/form-refusals.ts";
 import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -106,12 +108,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
-    test("rejects an empty agent name", async () => {
-      const { response } = await adminFormPost("/admin/logistics", {
-        name: "",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("required"), false);
+    testRejectsEmptyField("rejects an empty agent name", "/admin/logistics", {
+      name: "",
     });
 
     test("GET /admin/logistics/new renders the standalone form", async () => {
@@ -152,18 +150,17 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     });
 
     test("assigns users to an agent, drops unknown ids, and pre-checks them", async () => {
-      const id = await createLogisticsAgent("Crewed Van");
-      const userId = (await getAllUsers())[0]!.id;
+      const {
+        id,
+        response: assigned,
+        userId,
+      } = await createAgentAssignedToFirstUser("Crewed Van");
 
       // Assigning a real user persists the link.
-      const assigned = await adminFormPost(`/admin/logistics/${id}/edit`, {
-        name: "Crewed Van",
-        user_ids: String(userId),
-      });
       await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent updated",
-      )(assigned.response);
+      )(assigned);
       expect(await agentUsers.getIds(id)).toEqual([userId]);
 
       // The edit form pre-checks the assigned user.
@@ -181,7 +178,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
     test("rolls back the name when assigned-user writes fail", async () => {
       const id = await createLogisticsAgent("Atomic van");
       const userId = (await getAllUsers())[0]!.id;
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_agent_user_link
         BEFORE INSERT ON user_logistics_agents
         BEGIN

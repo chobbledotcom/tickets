@@ -17,6 +17,7 @@ import {
   transitionRefundAuthority,
 } from "#db/provider-refund-authority-change.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   armRefundSend,
@@ -59,6 +60,13 @@ const createInput = (
   reference: paymentReference,
   state,
 });
+
+/** The table holds exactly one charge row: the one with `id`. */
+const expectOnlyCharge = async (id: number): Promise<void> => {
+  expect(
+    await getDb().execute(sql`SELECT id FROM payment_charges`),
+  ).toMatchObject({ rows: [{ id }] });
+};
 
 describeWithEnv("provider refund authority persistence", { db: true }, () => {
   test("creates ready authority in one exact upsert", async () => {
@@ -115,9 +123,8 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         observed_at: number;
         updated_at: number;
       }>(
-        `SELECT created_at, updated_at, observed_at
-           FROM payment_charges WHERE id = ?`,
-        [authority.id],
+        sql`SELECT created_at, updated_at, observed_at
+           FROM payment_charges WHERE id = ${authority.id}`,
       ),
     ).toEqual({
       created_at: input.now,
@@ -143,9 +150,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
     const second = await createOrLoadRefundAuthority(input);
 
     expect(second).toEqual(first);
-    expect(
-      await getDb().execute("SELECT id FROM payment_charges"),
-    ).toMatchObject({ rows: [{ id: first.id }] });
+    await expectOnlyCharge(first.id);
   });
 
   test("an empty upsert result recovers only an exact existing authority", async () => {
@@ -260,9 +265,7 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
         callbackReplayIndex: "callback-one",
       }),
     ).rejects.toThrow("Refund callback identity belongs to another charge");
-    expect(
-      await getDb().execute("SELECT id FROM payment_charges"),
-    ).toMatchObject({ rows: [{ id: first.id }] });
+    await expectOnlyCharge(first.id);
   });
 
   test("transitions exactly the expected revision", async () => {

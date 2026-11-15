@@ -12,6 +12,7 @@ import {
   readTicketPage,
   setupCheckinTest,
 } from "#test/features/checkin/helpers.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
@@ -77,12 +78,10 @@ describeWithEnv(
 
       const afterBody = await readTicketPage(token, cookie);
       assertStringIncludes(afterBody, "Checked in");
-      assert(!afterBody.includes("Not checked in"));
-      assert(
-        !afterBody.includes(
-          `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-        ),
-      );
+      expectExcludesAll(afterBody, [
+        "Not checked in",
+        `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
+      ]);
     });
 
     test("hides the bulk action when no row can change", async () => {
@@ -103,8 +102,7 @@ describeWithEnv(
       // The page keeps the row's refunded badge but advertises no action
       // that the POST could never honour.
       assertStringIncludes(body, "Refunded");
-      assert(!body.includes("Check In All"));
-      assert(!body.includes('name="check_in"'));
+      expectExcludesAll(body, ["Check In All", 'name="check_in"']);
     });
 
     test("keeps both bulk actions on a partly checked ticket", async () => {
@@ -162,10 +160,12 @@ describeWithEnv(
 
       const body = await readTicketPage(token, scanner.cookie);
       assertStringIncludes(body, "Rae");
-      assert(!body.includes("rae@test.com"));
-      assert(!body.includes("555-1234"));
-      assert(!body.includes("<th>Email</th>"));
-      assert(!body.includes("<th>Phone</th>"));
+      expectExcludesAll(body, [
+        "rae@test.com",
+        "555-1234",
+        "<th>Email</th>",
+        "<th>Phone</th>",
+      ]);
     });
 
     test("keeps its table intact under a contact-only staff column order", async () => {

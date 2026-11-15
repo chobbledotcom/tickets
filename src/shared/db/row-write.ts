@@ -2,13 +2,13 @@
  * One row write and its coupled side writes, committed in one transaction.
  */
 
-import type { InStatement } from "@libsql/client";
 import {
   insertedRowId,
   type TransactionStateReader,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { namedError } from "#shared/named-error.ts";
 
 /** An update found no row to change: something deleted the row after the
@@ -27,7 +27,7 @@ export class UpdatedRowMissingError extends namedError(
  * gets no side writes. Returns the row id.
  */
 export const writeRowInTransaction = <State = never>(
-  statement: InStatement,
+  statement: SqlStatement,
   existingId: number | null,
   persist: (tx: TxScope, id: number, state: State | null) => Promise<void>,
   readState?: TransactionStateReader<State>,

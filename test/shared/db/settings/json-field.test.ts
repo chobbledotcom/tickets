@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, queryOnePrimary } from "#db/client.ts";
 import { booleanJsonField } from "#db/settings/json-field.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import {
   parseEnabledFeatures,
   serializeEnabledFeatures,
@@ -19,19 +20,18 @@ const writeFeatureBoolean = (
   initialValue: string,
   path: string,
   value: boolean,
-  whenSql: string,
+  whenSql: SqlStatement,
 ): Promise<string | null> =>
   booleanJsonField(
     CONFIG_KEYS.ENABLED_FEATURES,
     initialValue,
     path,
     value,
-  ).write(() => whenSql, parseEnabledFeatures);
+  ).write(whenSql, parseEnabledFeatures);
 
 const settingsVersion = async (): Promise<number> => {
   const row = await queryOnePrimary<{ value: string }>(
-    "SELECT value FROM settings WHERE key = ?",
-    [CONFIG_KEYS.SETTINGS_VERSION],
+    sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}`,
   );
   if (!row) throw new Error("Settings version was not stored");
   return Number(row.value);
@@ -44,7 +44,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
       enabledMoneyFeatures,
       "$.money",
       true,
-      "TRUE",
+      sql`TRUE`,
     );
     if (enabled === null) throw new Error("Feature enable was blocked");
     expect(parseEnabledFeatures(enabled).money).toBe(true);
@@ -56,7 +56,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
       emptyFeatures,
       "$.money",
       false,
-      "TRUE",
+      sql`TRUE`,
     );
     if (disabled === null) throw new Error("Feature disable was blocked");
     expect(parseEnabledFeatures(disabled).money).toBe(false);
@@ -67,7 +67,7 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
       enabledMoneyFeatures,
       "$.money",
       true,
-      "TRUE",
+      sql`TRUE`,
     );
     if (reenabled === null) throw new Error("Feature re-enable was blocked");
     expect(parseEnabledFeatures(reenabled).money).toBe(true);
@@ -75,46 +75,44 @@ describeWithEnv("db > settings JSON fields", { db: true }, () => {
 
   test("does not store a boolean when its condition is false", async () => {
     expect(
-      await writeFeatureBoolean(emptyFeatures, "$.site", true, "FALSE"),
+      await writeFeatureBoolean(emptyFeatures, "$.site", true, sql`FALSE`),
     ).toBeNull();
     expect(
-      await queryOnePrimary("SELECT value FROM settings WHERE key = ?", [
-        CONFIG_KEYS.ENABLED_FEATURES,
-      ]),
+      await queryOnePrimary(
+        sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
+      ),
     ).toBeNull();
   });
 
   test("validates an unchanged stored object", async () => {
     await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":true,"site":"false"}'],
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${'{"money":true,"site":"false"}'})`,
     );
 
     await expect(
-      writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
+      writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, sql`TRUE`),
     ).rejects.toThrow("Stored value does not match its schema");
   });
 
   test("rolls back the JSON change when its settings version write fails", async () => {
-    await writeFeatureBoolean(emptyFeatures, "$.money", false, "TRUE");
-    await execute(`
+    await writeFeatureBoolean(emptyFeatures, "$.money", false, sql`TRUE`);
+    await execute(sql`
       CREATE TRIGGER fail_settings_version
       BEFORE INSERT ON settings
-      WHEN NEW.key = '${CONFIG_KEYS.SETTINGS_VERSION}'
+      WHEN NEW.key = ${sqlLiteral(CONFIG_KEYS.SETTINGS_VERSION)}
       BEGIN
         SELECT RAISE(ABORT, 'version write failed');
       END
     `);
     try {
       await expect(
-        writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, "TRUE"),
+        writeFeatureBoolean(enabledMoneyFeatures, "$.money", true, sql`TRUE`),
       ).rejects.toThrow("version write failed");
     } finally {
-      await execute("DROP TRIGGER IF EXISTS fail_settings_version");
+      await execute(sql`DROP TRIGGER IF EXISTS fail_settings_version`);
     }
     const stored = await queryOnePrimary<{ value: string }>(
-      "SELECT value FROM settings WHERE key = ?",
-      [CONFIG_KEYS.ENABLED_FEATURES],
+      sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
     );
     expect(parseEnabledFeatures(stored!.value).money).toBe(false);
   });

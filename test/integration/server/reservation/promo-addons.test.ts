@@ -6,10 +6,6 @@ import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
-  modifierUsageAmount,
-  modifierUsageCount,
-} from "#test-utils/modifiers.ts";
-import {
   createOptionalAddOn,
   createProgrammeCharge,
   createSave10Promo,
@@ -18,6 +14,7 @@ import {
   setupReservationListing,
   stubPaidSession,
 } from "#test-utils/reservation/helpers.ts";
+import { expectSaleProjection } from "#test-utils/sale-projection.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
 describeWithEnv(
@@ -41,10 +38,12 @@ describeWithEnv(
       // price_paid projects the gross sale leg (£10 list), not the £9
       // discounted total — the £1 discount is a separate ledger leg. Paid in
       // full, so nothing owed. (Modifiers are unused in production.)
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(0);
-      expect(await modifierUsageCount(promo.id)).toBe(1);
-      expect(await modifierUsageAmount(promo.id)).toBe(100);
+      await expectSaleProjection(attendee, promo.id, {
+        pricePaid: 1000,
+        remainingBalance: 0,
+        usageAmount: 100,
+        usageCount: 1,
+      });
     });
 
     test("carries resolved modifiers into a reservation checkout", async () => {
@@ -94,10 +93,12 @@ describeWithEnv(
       );
       // Gross sale leg (£10 list); the add-on uplift and the £2 deposit are
       // separate legs. The £18 owed stays accurate.
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(1800);
-      expect(await modifierUsageCount(addOn.id)).toBe(2);
-      expect(await modifierUsageAmount(addOn.id)).toBe(1000);
+      await expectSaleProjection(attendee, addOn.id, {
+        pricePaid: 1000,
+        remainingBalance: 1800,
+        usageAmount: 1000,
+        usageCount: 2,
+      });
     });
 
     test("keeps and refunds a zero-price reservation add-on when the total mismatches", async () => {

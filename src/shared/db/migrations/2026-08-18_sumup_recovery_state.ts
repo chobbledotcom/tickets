@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { schemaMigration } from "./define.ts";
 
@@ -15,11 +16,8 @@ export default schemaMigration(
     // backlog the whole feature exists to work through. The reader refuses a
     // staged row that carries an id outright, so this cannot be deferred to a
     // later pass.
-    await getDb().execute({
-      args: [nowIso()],
-      sql: `UPDATE sumup_checkouts
-               SET recovery_state = 'waiting', next_check_at = ?
-             WHERE sumup_id != '' AND recovery_state = 'staged'`,
-    });
+    await getDb().execute(sql`UPDATE sumup_checkouts
+               SET recovery_state = 'waiting', next_check_at = ${nowIso()}
+             WHERE sumup_id != '' AND recovery_state = 'staged'`);
   },
 );

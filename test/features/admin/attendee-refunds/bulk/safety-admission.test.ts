@@ -1,9 +1,9 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, it as test } from "@std/testing/bdd";
-import { execute, getDb, type SqlStatement, setDb } from "#db/client.ts";
-import { wrapExecute } from "#db/libsql-call.ts";
+import { execute, getDb, setDb } from "#db/client.ts";
 import { setN1GuardNotifyOnly } from "#db/query-log.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { claimLeaseMs } from "#payment/claim.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { STALE_RESERVATION_MS } from "#shared/limits.ts";
@@ -158,8 +158,8 @@ const withPaymentChangeBeforeReferenceLoad = async (
   let changed = false;
   setDb(
     proxyMembers(real, {
-      execute: wrapExecute(real, async (statement, execute) => {
-        const sql = typeof statement === "string" ? statement : statement.sql;
+      execute: async (statement: SqlStatement) => {
+        const sql = statement.sql;
         if (
           !changed &&
           sql.includes("FROM processed_payments") &&
@@ -168,8 +168,8 @@ const withPaymentChangeBeforeReferenceLoad = async (
           changed = true;
           await real.execute(change);
         }
-        return await execute();
-      }),
+        return await real.execute(statement);
+      },
     }),
   );
 
@@ -308,10 +308,7 @@ describeWithEnv(
         taggedPaymentReference("pi_changed_current_payment"),
       );
       await withPaymentChangeBeforeReferenceLoad(
-        {
-          args: [attendee.id],
-          sql: "DELETE FROM processed_payments WHERE attendee_id = ?",
-        },
+        sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`,
         async () => {
           await withRefundMock(refundIsRejected, async (mockRefund) => {
             await expect(postRefundAll(listing)).rejects.toThrow(
@@ -338,12 +335,9 @@ describeWithEnv(
       );
 
       await withPaymentChangeBeforeReferenceLoad(
-        {
-          args: [attendee.id],
-          sql: `UPDATE processed_payments
+        sql`UPDATE processed_payments
                    SET payment_reference_index = ''
-                 WHERE attendee_id = ?`,
-        },
+                 WHERE attendee_id = ${attendee.id}`,
         async () => {
           await withRefundMock(refundIsRejected, async (mockRefund) => {
             await expectFlashRedirect(
@@ -365,9 +359,9 @@ describeWithEnv(
         "old-deposit@example.com",
         "pi_old_deposit",
       );
-      await execute("DELETE FROM processed_payments WHERE attendee_id = ?", [
-        attendee.id,
-      ]);
+      await execute(
+        sql`DELETE FROM processed_payments WHERE attendee_id = ${attendee.id}`,
+      );
       await finalizeProcessedPayment(
         "new_balance_payment",
         attendee.id,

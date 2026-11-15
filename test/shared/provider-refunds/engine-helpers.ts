@@ -1,4 +1,5 @@
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { AuthorizedRefundRequest } from "#payment/refund-provider-authorization.ts";
 import type { ChargeMoney } from "#payment/resources.ts";
@@ -114,10 +115,9 @@ export const storedRefundAuthority = (index: string) =>
     refund_revision: number;
     refund_state_name: string;
   }>(
-    `SELECT callback_replay_index, captured_amount, provider_reference,
+    sql`SELECT callback_replay_index, captured_amount, provider_reference,
             refunded_amount, refund_local_state, refund_revision,
             refund_state_name
        FROM payment_charges
-      WHERE reference_index = ?`,
-    [index],
+      WHERE reference_index = ${index}`,
   );

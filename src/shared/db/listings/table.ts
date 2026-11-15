@@ -6,6 +6,7 @@ import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import { fieldColumns } from "#db/field-columns.ts";
+import { sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import { nowIso } from "#shared/now.ts";
@@ -51,6 +52,12 @@ export const rawListingsTable = defineIdTable<Listing, ListingInput>(
 export type ListingOption = Pick<Listing, "active" | "id" | "name">;
 
 /** The shared narrow listing shape used by listing and attribute pickers. */
+/** A whole-table listing read under the `listing` alias, in id order. */
+export const LISTINGS_IN_ID_ORDER = {
+  alias: "listing",
+  order: sql`listing.id ASC`,
+} as const;
+
 export const listingOptionColumns = rawListingsTable.read.pick([
   "id",
   "name",

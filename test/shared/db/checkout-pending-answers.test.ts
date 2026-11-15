@@ -14,6 +14,7 @@ import {
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import {
   PRUNE_PAYMENTS_RETENTION_MS,
@@ -31,6 +32,32 @@ const sessionIndexOf = (sessionId: string): Promise<string> =>
 const requiredSquareRetentionMs =
   SQUARE_NATIVE_LIFETIME_MS + WEBHOOK_RETRY_WINDOW_DAYS * DAY_MS;
 
+/** Stage answers for a Square checkout plus its handle row, then age the
+ *  answers past the payments clock — and, with `beyondSquareLifetime`, past
+ *  Square's own page lifetime too. */
+const stageAgedSquareAnswers = async (
+  sessionId: string,
+  beyondSquareLifetime: boolean,
+) => {
+  await stageCheckoutAnswers(
+    sessionId,
+    { "7": "held" },
+    "2020-01-01T00:00:00Z",
+  );
+  await stageSquareLinkEnd(
+    sessionId,
+    `link_${sessionId}`,
+    "2020-01-01T01:00:00Z",
+  );
+  const ageMs =
+    PRUNE_PAYMENTS_RETENTION_MS +
+    60_000 +
+    (beyondSquareLifetime ? requiredSquareRetentionMs : 0);
+  await execute(
+    sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - ageMs).toISOString()} WHERE session_index = ${await sessionIndexOf(sessionId)}`,
+  );
+};
+
 describeWithEnv("checkout pending answers", { db: true }, () => {
   test("stages sealed rows and reads them back by session id", async () => {
     await stageCheckoutAnswers("cs_staged", { "7": "Coming by bus" }, null);
@@ -44,8 +71,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_sealed", { "7": "Coming by bus" }, null);
 
     const row = await queryOne<{ sealed: string }>(
-      "SELECT sealed FROM checkout_pending_answers WHERE session_index = ?",
-      [await sessionIndexOf("cs_sealed")],
+      sql`SELECT sealed FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_sealed")}`,
     );
     expect(row).not.toBeNull();
     assert(!row!.sealed.includes("Coming by bus"));
@@ -57,8 +83,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     // For SumUp the session id is the checkout reference, which must never
     // rest in this database: the sumup_checkouts rows stay sealed without it.
     const row = await queryOne<{ session_index: string }>(
-      "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
-      [await sessionIndexOf("cs_reference")],
+      sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_reference")}`,
     );
     expect(row).toEqual({
       session_index: await sessionIndexOf("cs_reference"),
@@ -71,7 +96,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       new Map([[7, "Once only"]]),
     );
     const drop = await dropCheckoutAnswersStatement("cs_taken");
-    await execute(drop.sql, drop.args);
+    await execute(drop);
     expect(await readCheckoutAnswers("cs_taken")).toEqual(new Map());
   });
 
@@ -100,11 +125,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await stageCheckoutAnswers("cs_abandoned", { "7": "never paid" }, null);
     await stageCheckoutAnswers("cs_open", { "7": "still open" }, null);
     await execute(
-      "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-      [
-        new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString(),
-        await sessionIndexOf("cs_abandoned"),
-      ],
+      sql`UPDATE checkout_pending_answers SET created_at = ${new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_abandoned")}`,
     );
 
     await runDatabasePruning();
@@ -116,23 +137,7 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
   });
 
   test("keeps Square answers whose handle row still stands, and prunes them once it is gone", async () => {
-    await stageCheckoutAnswers(
-      "cs_square",
-      { "7": "held" },
-      "2020-01-01T00:00:00Z",
-    );
-    await stageSquareLinkEnd(
-      "cs_square",
-      "link_cs_square",
-      "2020-01-01T01:00:00Z",
-    );
-    await execute(
-      "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-      [
-        new Date(nowMs() - PRUNE_PAYMENTS_RETENTION_MS - 60_000).toISOString(),
-        await sessionIndexOf("cs_square"),
-      ],
-    );
+    await stageAgedSquareAnswers("cs_square", false);
 
     // The window is long past and the payments clock has run, but the handle
     // row still stands: the link's end was never observed. The read is
@@ -140,40 +145,20 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
     await runDatabasePruning();
     expect(
       await queryOne(
-        "SELECT session_index FROM checkout_pending_answers WHERE session_index = ?",
-        [await sessionIndexOf("cs_square")],
+        sql`SELECT session_index FROM checkout_pending_answers WHERE session_index = ${await sessionIndexOf("cs_square")}`,
       ),
     ).not.toBeNull();
 
     // The expiry task observed the link's end, so the answers go too.
-    await execute("DELETE FROM square_link_ends WHERE session_index = ?", [
-      await sessionIndexOf("cs_square"),
-    ]);
+    await execute(
+      sql`DELETE FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_square")}`,
+    );
     await runDatabasePruning();
     expect(await readCheckoutAnswers("cs_square")).toEqual(new Map());
   });
 
   test("the Square fallback prunes answers past Square's own page lifetime", async () => {
-    await stageCheckoutAnswers(
-      "cs_fallback",
-      { "7": "old" },
-      "2020-01-01T00:00:00Z",
-    );
-    await stageSquareLinkEnd(
-      "cs_fallback",
-      "link_cs_fallback",
-      "2020-01-01T01:00:00Z",
-    );
-    const pastSquareLifetime = new Date(
-      nowMs() -
-        PRUNE_PAYMENTS_RETENTION_MS -
-        requiredSquareRetentionMs -
-        60_000,
-    ).toISOString();
-    await execute(
-      "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-      [pastSquareLifetime, await sessionIndexOf("cs_fallback")],
-    );
+    await stageAgedSquareAnswers("cs_fallback", true);
 
     // No monitor ever ran and the handle row still stands, but past
     // Square's own 180-day clock the link cannot take payment.
@@ -193,25 +178,19 @@ describeWithEnv("checkout pending answers", { db: true }, () => {
       "2026-01-01T00:00:00Z",
     );
     await execute(
-      "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
-      [
-        new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString(),
-        await sessionIndexOf("cs_handle_old"),
-      ],
+      sql`UPDATE square_link_ends SET created_at = ${new Date(nowMs() - requiredSquareRetentionMs - 60_000).toISOString()} WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`,
     );
 
     await runDatabasePruning();
 
     expect(
       await queryOne(
-        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
-        [await sessionIndexOf("cs_handle_old")],
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_old")}`,
       ),
     ).toBeNull();
     expect(
       await queryOne(
-        "SELECT session_index FROM square_link_ends WHERE session_index = ?",
-        [await sessionIndexOf("cs_handle_young")],
+        sql`SELECT session_index FROM square_link_ends WHERE session_index = ${await sessionIndexOf("cs_handle_young")}`,
       ),
     ).not.toBeNull();
   });

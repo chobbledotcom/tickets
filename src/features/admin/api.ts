@@ -26,6 +26,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { withoutKey } from "#shared/fp-records.ts";
 import {
   performListingDelete,
   toggleListingActive,
@@ -99,10 +100,8 @@ const handleToggleActive = (
   });
 
 /** Strip slug_index from listing row, producing the admin API shape */
-export const toAdminListing = ({
-  slug_index: _,
-  ...rest
-}: ListingWithCount): AdminListing => rest;
+export const toAdminListing: (row: ListingWithCount) => AdminListing =
+  withoutKey("slug_index");
 
 /** Batched join-table hydration for a set of listing rows, keyed by listing
  * id. One query per link table covers the whole list rather than one per row.

@@ -1,4 +1,5 @@
 import { execute } from "#db/client.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
  * Run `body` with one database fault installed — a trigger that makes a
@@ -7,7 +8,7 @@ import { execute } from "#db/client.ts";
  * exactly as a production write would.
  */
 export const withDbFault = async <T>(
-  createTrigger: string,
+  createTrigger: SqlStatement,
   name: string,
   body: () => Promise<T>,
 ): Promise<T> => {
@@ -15,62 +16,56 @@ export const withDbFault = async <T>(
   try {
     return await body();
   } finally {
-    await execute(`DROP TRIGGER IF EXISTS ${name}`);
+    await execute(sql`DROP TRIGGER IF EXISTS ${sqlName(name)}`);
   }
 };
 
-const RETIREMENT_FAULT = "test_authority_retirement_fault";
+/** A fault that makes one chosen write refuse: the trigger `name`, placed on
+ * `event`, raises `message`. The `when` clause narrows the write. */
+const refusedWriteFault =
+  (
+    name: string,
+    event: SqlStatement,
+    message: string,
+    when: SqlStatement = sql``,
+  ) =>
+  <T>(body: () => Promise<T>): Promise<T> =>
+    withDbFault(
+      sql`CREATE TRIGGER ${sqlName(name)}
+      BEFORE ${event}
+      ${when}
+      BEGIN
+        SELECT RAISE(ABORT, ${sqlLiteral(message)});
+      END`,
+      name,
+      body,
+    );
 
 /** The authority retirement — the update that marks a completed refund's
  * local recording done — refuses, and every other write stays available. */
-export const withAuthorityRetirementFault = <T>(
-  body: () => Promise<T>,
-): Promise<T> =>
-  withDbFault(
-    `CREATE TRIGGER ${RETIREMENT_FAULT}
-      BEFORE UPDATE ON payment_charges
-      WHEN NEW.refund_local_state = 'recorded'
-      BEGIN
-        SELECT RAISE(ABORT, 'authority retirement unavailable');
-      END`,
-    RETIREMENT_FAULT,
-    body,
-  );
-
-const SESSION_FAILURE_FAULT = "test_session_failure_fault";
+export const withAuthorityRetirementFault = refusedWriteFault(
+  "test_authority_retirement_fault",
+  sql`UPDATE ON payment_charges`,
+  "authority retirement unavailable",
+  sql`WHEN NEW.refund_local_state = 'recorded'`,
+);
 
 /** The write that records a session's terminal failure refuses, so a test
  * can die exactly between a refund going out and the answer landing. */
-export const withSessionFailureFault = <T>(
-  body: () => Promise<T>,
-): Promise<T> =>
-  withDbFault(
-    `CREATE TRIGGER ${SESSION_FAILURE_FAULT}
-      BEFORE UPDATE OF failure_data ON processed_payments
-      WHEN NEW.failure_data != ''
-      BEGIN
-        SELECT RAISE(ABORT, 'session failure write refused');
-      END`,
-    SESSION_FAILURE_FAULT,
-    body,
-  );
-
-const CONFIRMATION_FAULT = "test_refund_confirmation_fault";
+export const withSessionFailureFault = refusedWriteFault(
+  "test_session_failure_fault",
+  sql`UPDATE OF failure_data ON processed_payments`,
+  "session failure write refused",
+  sql`WHEN NEW.failure_data != ''`,
+);
 
 /** The once-only confirmation latch refuses, so the note and activity line
  * that ride its transaction never land on this run. */
-export const withRefundConfirmationFault = <T>(
-  body: () => Promise<T>,
-): Promise<T> =>
-  withDbFault(
-    `CREATE TRIGGER ${CONFIRMATION_FAULT}
-      BEFORE INSERT ON refund_confirmations
-      BEGIN
-        SELECT RAISE(ABORT, 'refund confirmation unavailable');
-      END`,
-    CONFIRMATION_FAULT,
-    body,
-  );
+export const withRefundConfirmationFault = refusedWriteFault(
+  "test_refund_confirmation_fault",
+  sql`INSERT ON refund_confirmations`,
+  "refund confirmation unavailable",
+);
 
 const CONCURRENT_DOOR_DRAIN = "test_concurrent_door_drain";
 
@@ -84,13 +79,13 @@ export const withConcurrentDoorDrain = <T>(
   body: () => Promise<T>,
 ): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${CONCURRENT_DOOR_DRAIN}
+    sql`CREATE TRIGGER ${sqlName(CONCURRENT_DOOR_DRAIN)}
       AFTER INSERT ON processed_scan_operations
       BEGIN
         UPDATE listing_attendees
         SET checked_in = checked_in + 1
-        WHERE attendee_id = ${attendeeId}
-          AND listing_id = ${listingId}
+        WHERE attendee_id = ${sqlLiteral(attendeeId)}
+          AND listing_id = ${sqlLiteral(listingId)}
           AND checked_in < quantity;
       END`,
     CONCURRENT_DOOR_DRAIN,
@@ -107,17 +102,14 @@ export const orphanAttendeeBooking = async (token: string): Promise<void> => {
   // does to a connection later suites share.
   const tokenIndex = await hmacHash(token);
   const db = getDb();
-  await db.execute({ args: [], sql: "PRAGMA foreign_keys = OFF" });
+  await db.execute(sql`PRAGMA foreign_keys = OFF`);
   try {
-    await db.execute({
-      args: [tokenIndex],
-      sql: `UPDATE listing_attendees
+    await db.execute(sql`UPDATE listing_attendees
             SET listing_id = 99999
             WHERE attendee_id = (
-              SELECT id FROM attendees WHERE ticket_token_index = ?
-            )`,
-    });
+              SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}
+            )`);
   } finally {
-    await db.execute({ args: [], sql: "PRAGMA foreign_keys = ON" });
+    await db.execute(sql`PRAGMA foreign_keys = ON`);
   }
 };

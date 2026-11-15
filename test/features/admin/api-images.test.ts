@@ -7,13 +7,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { toBase64 } from "#crypto/utils.ts";
 import { getImageById, setItemsForImage } from "#db/images.ts";
 import { t } from "#i18n";
-import { handleRequest } from "#routes";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { loggedMessages } from "#test-utils/activity-log.ts";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
   type ApiImageRow,
   expectImageNotFound,
-  expectUnauthorized,
   IMAGE_API_ROOT,
   imageApiPath,
   imageOnListingAndGroup,
@@ -23,11 +22,7 @@ import {
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  mockRequest,
-  withStorageDisabled,
-  withStorageMock,
-} from "#test-utils/mocks.ts";
+import { withStorageDisabled, withStorageMock } from "#test-utils/mocks.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
@@ -70,7 +65,7 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
     });
 
     test("answers 401 without auth", async () => {
-      await expectUnauthorized(handleRequest(mockRequest(IMAGE_API_ROOT)));
+      await expectUnauthorized(IMAGE_API_ROOT);
     });
   });
 

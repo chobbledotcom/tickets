@@ -174,6 +174,35 @@ export const countDifference = (
 export const totalCount = (counts: FingerprintCounts): number =>
   Object.values(counts).reduce((total, count) => total + count, 0);
 
+/** How many places `head` holds under fingerprints that `base` does not hold.
+ * A rewrite re-keys a recorded place, so it counts here without adding a
+ * duplicated copy. */
+export const unrecordedPlaceCount = (
+  head: FingerprintCounts,
+  base: FingerprintCounts,
+): number =>
+  Object.entries(head).reduce(
+    (total, [fingerprint, count]) =>
+      base[fingerprint] === undefined ? total + count : total,
+    0,
+  );
+
+/** How many places `head` gives up against `base`: the base's total less the
+ * head's, never below zero. */
+export const givenUpPlaceCount = (
+  head: FingerprintCounts,
+  base: FingerprintCounts,
+): number => Math.max(totalCount(base) - totalCount(head), 0);
+
+/** Whether the places `head` records beyond `base` stay within the places it
+ * gives up. A rewrite re-keys recorded places without adding duplication, and
+ * its total falls. A baseline whose total rises, or one that adds more places
+ * than it gives up, still fails. */
+export const rekeyedPlacesAllowed = (
+  head: FingerprintCounts,
+  base: FingerprintCounts,
+): boolean => unrecordedPlaceCount(head, base) <= givenUpPlaceCount(head, base);
+
 /** The summary that `--update` prints. A baseline of another fingerprint
  * version holds counts this tree cannot compare, so a rewrite reports what it
  * now records instead of a difference. */
