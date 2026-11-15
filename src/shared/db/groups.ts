@@ -21,7 +21,7 @@ import {
 import { defineIdTable } from "#db/define-id-table.ts";
 import { fieldColumns } from "#db/field-columns.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
-import { groupListings, listingGroups } from "#db/groups/table.ts";
+import { GROUP_ROW, groupListings, listingGroups } from "#db/groups/table.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import {
   getGroupDayPricesByGroupIds,
@@ -33,6 +33,7 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
+import { among, equal } from "#db/select/expression.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import {
   type SqlStatement,
@@ -43,7 +44,6 @@ import {
   sqlRows,
 } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import { equals, inList } from "#db/where-clauses.ts";
 import {
   flatMap,
   identity,
@@ -114,10 +114,7 @@ export const getGroupsByIds = async (
   ids.length === 0
     ? new Map()
     : mapById(identity<Group>)(
-        await rawGroupsTable.read.many(
-          {},
-          { where: inList("id", [...new Set(ids)]) },
-        ),
+        await rawGroupsTable.read.many({ id: [...new Set(ids)] }),
       );
 
 /** One stored group, through the shared many-group read. Null when no group has
@@ -324,11 +321,11 @@ export const getPackageDisplaysByIds = async (
     {
       alias: "groupRecord",
       where: [
-        ...inList(
-          "groupRecord.id",
+        among(
+          GROUP_ROW.id,
           [...new Set(groupIds)].filter((groupId) => groupId > 0),
         ),
-        ...equals("groupRecord.is_package", 1),
+        equal(GROUP_ROW.is_package, 1),
       ],
     },
   );

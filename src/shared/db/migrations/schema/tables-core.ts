@@ -19,10 +19,10 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
-export const coreTables: [name: string, table: Table][] = [
+export const coreTables = declaredTables([
   [
     "settings",
     {
@@ -337,4 +337,4 @@ export const coreTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

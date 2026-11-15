@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
+  byColumnIn,
   insertStatement,
   selectByEventGroup,
   selectById,
@@ -18,7 +19,6 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
@@ -163,8 +163,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     await storeTwoLegs();
 
     const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
-      { where: inList("event_group", ["evt-b"]) },
-      { where: inList("reference", ["ref-a"]) },
+      byColumnIn("event_group", ["evt-b"]),
+      byColumnIn("reference", ["ref-a"]),
     ]);
 
     // Swapped answers would read as a stored collision that is not there.
@@ -176,8 +176,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const [none, some] = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", ["ref-a"]) },
+      byColumnIn("id", []),
+      byColumnIn("reference", ["ref-a"]),
     ]);
 
     expect(none).toEqual([]);
@@ -190,8 +190,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const rows = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", []) },
+      byColumnIn("id", []),
+      byColumnIn("reference", []),
     ]);
 
     expect(rows).toEqual([[], []]);
@@ -215,8 +215,8 @@ describe("accounting > rows > selectTransfersMany", () => {
         },
       };
       return selectTransfersMany(counted.batch, [
-        { where: inList("event_group", ["evt-a"]) },
-        { where: inList("reference", ["ref-b"]) },
+        byColumnIn("event_group", ["evt-a"]),
+        byColumnIn("reference", ["ref-b"]),
       ]);
     });
 
@@ -275,6 +275,16 @@ describe("accounting > rows > stored-row round-trip", () => {
     return stored;
   };
 
+  /** Store the legs, then read the ledger back in the order of storage. */
+  const storedInOrder = async (
+    legs: readonly TransferInput[],
+  ): Promise<Transfer[]> => {
+    await executeBatch(legs.map((leg) => insertStatement(leg, recordedAt)));
+    return selectTransfers(queryBatch, (ledger) =>
+      ledger.orderBy((leg) => [leg.id]),
+    );
+  };
+
   test("selectTransfers reads every column back, reversesId present and absent", async () => {
     const plain = namedLeg("plain", { kind: "sale", memo: "first" });
     // A void leg carrying a (non-FK) reverses_id, so the NULL vs real-id branch of
@@ -286,12 +296,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       reference: "ref-void",
       reversesId: 999,
     };
-    await executeBatch([
-      insertStatement(plain, recordedAt),
-      insertStatement(voiding, recordedAt),
-    ]);
-
-    const all = await selectTransfers(queryBatch, { order: sql`id` });
+    const all = await storedInOrder([plain, voiding]);
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -337,13 +342,7 @@ describe("accounting > rows > stored-row round-trip", () => {
       source: account("revenue", 7),
     });
     const plain = namedLeg("sale", { eventGroup: "evt-order", kind: "sale" });
-    await executeBatch([
-      insertStatement(plain, recordedAt),
-      insertStatement(refund, recordedAt),
-    ]);
-
-    const all = await selectTransfers(queryBatch, { order: sql`id` });
-    const [sale, reversal] = all;
+    const [sale, reversal] = await storedInOrder([plain, refund]);
     expect("reversesGroup" in sale!).toBe(false);
     expect(reversal!.reversesGroup).toBe("evt-order");
   });

@@ -10,7 +10,7 @@ import { queryBatch, resultRows } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
-import type { ListingRecordRow } from "#db/listings/select.ts";
+import { LISTING_ROW, type ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlNames } from "#db/sql.ts";
 import { unique } from "#fp";
@@ -40,8 +40,8 @@ const listingStatement = (listingIds: number[]): SqlStatement => {
   const requested = selectIn("listing.id", listingIds);
   const linked = selectIn("listingParent.parent_listing_id", listingIds);
   return sql`SELECT ${columns},
-       ${creditsLessWriteoffDebits("revenue", sql`listing.id`)} AS income,
-       -${accountBalanceSubquery("cost", sql`listing.id`)} AS cost,
+       ${creditsLessWriteoffDebits("revenue", LISTING_ROW.id)} AS income,
+       -${accountBalanceSubquery("cost", LISTING_ROW.id)} AS cost,
        COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
          FROM listing_prices AS listingPrice
          WHERE listingPrice.listing_id = listing.id

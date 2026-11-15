@@ -6,6 +6,8 @@ import {
   capacityConditionFor,
   dateToRange,
 } from "#db/capacity.ts";
+import { valued } from "#db/select/expression.ts";
+import { sqlName } from "#db/sql.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { flatSql, occurrences } from "#test-utils/sql-text.ts";
@@ -49,7 +51,7 @@ describe("buildCapacityCondition", () => {
     const cond = capacityStatement(LISTING, QTY, null);
     expect(cond.args).toEqual([LISTING, QTY]);
     expect(flatSql(cond.sql)).toBe(
-      "( (SELECT booked_quantity FROM listings WHERE id = ?1) ) + ?2 <= (SELECT max_attendees FROM listings WHERE id = ?1 AND active = 1) AND NOT EXISTS ( SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND ((COALESCE(( SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS groupListing ON groupListing.listing_id = memberListing.id WHERE groupListing.group_id = groupRow.id ), 0) )) + ?2 > groupRow.max_attendees )",
+      "((SELECT listing.booked_quantity FROM listings AS listing WHERE listing.id = ?1) + ?2) <= (SELECT listing.max_attendees FROM listings AS listing WHERE listing.id = ?1 AND listing.active = 1) AND NOT EXISTS (SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND (COALESCE((SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS memberLink ON memberLink.listing_id = memberListing.id WHERE memberLink.group_id = groupRow.id), 0) + ?2) > groupRow.max_attendees)",
     );
   });
 
@@ -58,7 +60,7 @@ describe("buildCapacityCondition", () => {
     expect(occurrences(cond.sql, "- COALESCE((")).toBe(2);
     assertStringIncludes(
       flatSql(cond.sql),
-      "FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND attendee.attendee_id = ?2",
+      "FROM listing_attendees AS attendee JOIN group_listings AS memberLink ON memberLink.listing_id = attendee.listing_id WHERE memberLink.group_id = groupRow.id AND attendee.attendee_id = ?2",
     );
     assert(!cond.sql.includes("undefined"));
   });
@@ -71,9 +73,18 @@ describe("buildCapacityCondition", () => {
   test("dated: every listing-type predicate comes from the rule table", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expectIncludesAll(cond.sql, [
-      capacityRuleTypeSql("perDateCap", "listing.listing_type").sql,
-      capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
-      capacityRuleTypeSql("perDateCap", "memberListing.listing_type").sql,
+      capacityRuleTypeSql(
+        "perDateCap",
+        valued<string>(sqlName("listing.listing_type")),
+      ).sql,
+      capacityRuleTypeSql(
+        "dateLessCap",
+        valued<string>(sqlName("memberListing.listing_type")),
+      ).sql,
+      capacityRuleTypeSql(
+        "perDateCap",
+        valued<string>(sqlName("memberListing.listing_type")),
+      ).sql,
     ]);
     // No hand-written type comparison survives anywhere in the guard.
     assert(!cond.sql.includes("!= 'daily'"));
@@ -84,7 +95,7 @@ describe("buildCapacityCondition", () => {
   test("dated: exactly the per-date listing cap plus the split group pool guard", () => {
     const cond = capacityStatement(LISTING, QTY, DAY);
     expect(flatSql(cond.sql)).toBe(
-      "(( (SELECT CASE WHEN listing.listing_type IN ('daily') THEN ( SELECT COALESCE(SUM(attendee.quantity), 0) FROM listing_attendees AS attendee WHERE attendee.listing_id = ?1 AND attendee.start_at < ?2 AND attendee.end_at > ?3 ) ELSE listing.booked_quantity END FROM listings AS listing WHERE listing.id = ?1) ) + ?4 <= (SELECT max_attendees FROM listings WHERE id = ?1 AND active = 1) AND NOT EXISTS ( SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND ((COALESCE(( SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS groupListing ON groupListing.listing_id = memberListing.id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('standard') ), 0) + COALESCE(( SELECT SUM(attendee.quantity) FROM listing_attendees AS attendee JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id JOIN listings AS memberListing ON memberListing.id = attendee.listing_id WHERE groupListing.group_id = groupRow.id AND memberListing.listing_type IN ('daily') AND attendee.start_at < ?2 AND attendee.end_at > ?3 ), 0))) + ?4 > groupRow.max_attendees ))",
+      "((SELECT CASE WHEN listing.listing_type IN ('daily') THEN COALESCE((SELECT SUM(attendee.quantity) FROM listing_attendees AS attendee WHERE attendee.listing_id = ?1 AND attendee.start_at < ?2 AND attendee.end_at > ?3), 0) ELSE listing.booked_quantity END FROM listings AS listing WHERE listing.id = ?1) + ?4) <= (SELECT listing.max_attendees FROM listings AS listing WHERE listing.id = ?1 AND listing.active = 1) AND NOT EXISTS (SELECT 1 FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id WHERE groupListing.listing_id = ?1 AND groupRow.max_attendees > 0 AND ((COALESCE((SELECT SUM(memberListing.booked_quantity) FROM listings AS memberListing JOIN group_listings AS memberLink ON memberLink.listing_id = memberListing.id WHERE memberLink.group_id = groupRow.id AND memberListing.listing_type IN ('standard')), 0) + COALESCE((SELECT SUM(attendee.quantity) FROM listing_attendees AS attendee JOIN group_listings AS memberLink ON memberLink.listing_id = attendee.listing_id JOIN listings AS memberListing ON memberListing.id = attendee.listing_id WHERE memberLink.group_id = groupRow.id AND memberListing.listing_type IN ('daily') AND attendee.start_at < ?2 AND attendee.end_at > ?3), 0)) + ?4) > groupRow.max_attendees)",
     );
   });
 
@@ -97,7 +108,10 @@ describe("buildCapacityCondition", () => {
     expect(
       occurrences(
         cond.sql,
-        capacityRuleTypeSql("dateLessCap", "memberListing.listing_type").sql,
+        capacityRuleTypeSql(
+          "dateLessCap",
+          valued<string>(sqlName("memberListing.listing_type")),
+        ).sql,
       ),
     ).toBe(2);
     assert(!cond.sql.includes("undefined"));
