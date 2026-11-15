@@ -4,8 +4,10 @@
  * one count per accepted clone fingerprint, so the ratchet compares those
  * counts with the base. A fingerprint the base does not hold, and a count
  * above the base's, both fail. A fingerprint that is gone, and a count below
- * the base's, pass: a baseline only shrinks. The one accepted rise is a
- * re-paired clone (see ./re-pairs.ts). See "Code Duplication" in AGENTS.md.
+ * the base's, pass: a baseline only shrinks. A branch may trade fingerprints
+ * while the baseline's total count falls, by as many clones as it gives up,
+ * and it may accept a re-paired clone (see ./re-pairs.ts). See "Code
+ * Duplication" in AGENTS.md.
  */
 
 import { basename } from "node:path";
@@ -134,6 +136,10 @@ export const fingerprintCounts = (
   return parsed.output.fingerprints;
 };
 
+/** How many clones one baseline accepts in total, over every fingerprint. */
+const cloneCount = (counts: FingerprintCounts): number =>
+  Object.values(counts).reduce((total, count) => total + count, 0);
+
 /** How many clones `head` holds under fingerprints the base does not hold. */
 const addedClones = (
   head: FingerprintCounts,
@@ -161,14 +167,16 @@ export const addedCloneCount = (
  * in fingerprint order. A fingerprint the base does not hold is absent from
  * the scan's record, so it counts as zero accepted clones there, and any
  * count above zero is a rise. The added clones pass together when the scan
- * finds at least that many re-pairs. */
+ * finds at least that many re-pairs, or when the baseline gives up as many
+ * clones as it adds: a rewrite re-pairs copies without growing the total. */
 const risenFindings = (
   path: string,
   head: FingerprintCounts,
   base: FingerprintCounts,
   rePairs: number,
 ): string[] => {
-  const addedPass = addedClones(head, base) <= rePairs;
+  const givenUp = Math.max(0, cloneCount(base) - cloneCount(head));
+  const addedPass = addedClones(head, base) <= rePairs + givenUp;
   const rises = Object.entries(head).filter(
     ([fingerprint, count]) =>
       count > (base[fingerprint] ?? 0) &&

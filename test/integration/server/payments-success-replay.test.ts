@@ -228,58 +228,71 @@ const cases: readonly SuccessCase[] = [
 ];
 /* jscpd:ignore-end */
 
+/** The hidden package a case names, then every listing it sells in it. */
+const createCaseListings = async (
+  c: SuccessCase,
+): Promise<{ listings: ListingWithCount[]; pkg: Group | undefined }> => {
+  const pkg =
+    c.packageName === undefined
+      ? undefined
+      : await createHiddenPackageGroup(c.packageName);
+  const listings: ListingWithCount[] = [];
+  for (const overrides of c.listings) {
+    listings.push(
+      await createStripeListing({
+        ...overrides,
+        ...(pkg === undefined ? {} : { groupId: pkg.id }),
+      }),
+    );
+  }
+  return { listings, pkg };
+};
+
+/** The redirect the first request answers, then the replay it allows. */
+const expectCasePages = async (c: SuccessCase, path: string): Promise<void> => {
+  // The first request processes the session and answers with the redirect
+  // that carries the render tokens.
+  const first = await handleRequest(mockRequest(path));
+  expect(first.status).toBe(302);
+  if (c.redirect !== undefined) {
+    await expectHtml(await followRedirect(first, handleRequest), {
+      ...c.redirect,
+      status: 200,
+    });
+  }
+  // A replay finds the session processed and renders it again without a
+  // redirect, so the page must say the same thing.
+  if (c.replay !== undefined) {
+    await expectHtml(await handleRequest(mockRequest(path)), {
+      ...c.replay,
+      status: 200,
+    });
+  }
+};
+
+/** Play one case from a stubbed checkout session through to its replay. */
+const expectSuccessCase = async (c: SuccessCase): Promise<void> => {
+  const { listings, pkg } = await createCaseListings(c);
+  using _retrieve = stubRetrieveCheckoutSession({
+    amountTotal: c.session.amountTotal,
+    metadata: sessionMetadata(c, listings, pkg),
+    paymentIntent: c.session.paymentIntent,
+    sessionId: c.session.sessionId,
+  });
+  const path = `/payment/success?session_id=${c.session.sessionId}`;
+  await expectCasePages(c, path);
+  if (c.oneAttendee === true) {
+    // Both requests booked the same payment, so the order stays the one
+    // attendee it bought.
+    const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+    expect(await getAttendeesRaw(listings[0]!.id)).toHaveLength(1);
+  }
+};
+
 describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
   describe("GET /payment/success (ticket)", () => {
     for (const c of cases) {
-      test(c.name, async () => {
-        const pkg =
-          c.packageName === undefined
-            ? undefined
-            : await createHiddenPackageGroup(c.packageName);
-        const listings: ListingWithCount[] = [];
-        for (const overrides of c.listings) {
-          listings.push(
-            await createStripeListing({
-              ...overrides,
-              ...(pkg === undefined ? {} : { groupId: pkg.id }),
-            }),
-          );
-        }
-
-        using _retrieve = stubRetrieveCheckoutSession({
-          amountTotal: c.session.amountTotal,
-          metadata: sessionMetadata(c, listings, pkg),
-          paymentIntent: c.session.paymentIntent,
-          sessionId: c.session.sessionId,
-        });
-
-        const path = `/payment/success?session_id=${c.session.sessionId}`;
-
-        // The first request processes the session and answers with the
-        // redirect that carries the render tokens.
-        const first = await handleRequest(mockRequest(path));
-        expect(first.status).toBe(302);
-        if (c.redirect !== undefined) {
-          await expectHtml(await followRedirect(first, handleRequest), {
-            ...c.redirect,
-            status: 200,
-          });
-        }
-        // A replay finds the session processed and renders it again without a
-        // redirect, so the page must say the same thing.
-        if (c.replay !== undefined) {
-          await expectHtml(await handleRequest(mockRequest(path)), {
-            ...c.replay,
-            status: 200,
-          });
-        }
-        if (c.oneAttendee === true) {
-          // Both requests booked the same payment, so the order stays the one
-          // attendee it bought.
-          const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-          expect(await getAttendeesRaw(listings[0]!.id)).toHaveLength(1);
-        }
-      });
+      test(c.name, () => expectSuccessCase(c));
     }
   });
 });

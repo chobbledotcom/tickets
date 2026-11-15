@@ -20,8 +20,10 @@ import {
   type Contact,
   type ContactCounts,
   emailOnly,
+  type OrderActivityCase,
   orderActivityCases,
   type Source,
+  type SyncCase,
   syncCases,
   type Token,
 } from "#test-utils/db/contact-token-cases.ts";
@@ -179,27 +181,28 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     expect(record.lastSubject).toBe("Newsletter");
   });
 
-  for (const activity of orderActivityCases) {
-    test(activity.name, async () => {
-      const pk = await getTestPrivateKey();
-      for (const [contact, { source, token }] of activity.bookings) {
-        await recordLine(contact, source, token);
-      }
-      for (const [contact, tokens] of activity.reads ?? []) {
-        expect(await readContact(contact, pk)).toEqual(tokens);
-      }
-      const { counts, markers } = activity;
-      if (counts) await expectCounts(counts, pk);
+  /** Seed one order-activity case, then assert what each contact reads. */
+  const expectOrderActivity = async (
+    activity: OrderActivityCase,
+  ): Promise<void> => {
+    const pk = await getTestPrivateKey();
+    for (const [contact, { source, token }] of activity.bookings) {
+      await recordLine(contact, source, token);
+    }
+    for (const [contact, tokens] of activity.reads ?? []) {
+      expect(await readContact(contact, pk)).toEqual(tokens);
+    }
+    if (activity.counts) await expectCounts(activity.counts, pk);
+    const [left, right] = activity.markers ?? [];
+    if (left && right) {
+      expect(
+        firstMarkerFrom(await tokenBlobFor(await contactHash(left))),
+      ).not.toBe(firstMarkerFrom(await tokenBlobFor(await contactHash(right))));
+    }
+  };
 
-      const [left, right] = markers ?? [];
-      if (left && right) {
-        expect(
-          firstMarkerFrom(await tokenBlobFor(await contactHash(left))),
-        ).not.toBe(
-          firstMarkerFrom(await tokenBlobFor(await contactHash(right))),
-        );
-      }
-    });
+  for (const activity of orderActivityCases) {
+    test(activity.name, () => expectOrderActivity(activity));
   }
 
   test("getRecentBookingTokens is empty for a contact with no bookings", async () => {
@@ -211,13 +214,15 @@ describeWithEnv("contact-tokens", { db: true }, () => {
 
   // A limit only governs how many stored lines a read touches, so each case
   // reads the contact whose blob starts with one line nothing can decrypt.
-  const limitedReads: {
+  type LimitedRead = {
     email: string;
     expected: readonly Token[];
     limit: number;
     record: readonly Token[];
     what: string;
-  }[] = [
+  };
+
+  const limitedReads: readonly LimitedRead[] = [
     {
       email: "recent-window@example.com",
       expected: [{ source: "admin", token: "tok-newest" }],
@@ -237,49 +242,55 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     },
   ];
 
-  for (const window of limitedReads) {
-    test(`getRecentBookingTokens ${window.what}`, async () => {
-      const pk = await getTestPrivateKey();
-      const contact = emailOnly(window.email);
-      const hash = await contactHash(contact);
-      await storeUnreadableLine(hash);
-      for (const { source, token } of window.record) {
-        await recordLine(contact, source, token);
-      }
+  /** Stage an unreadable first line, then assert what the limit reads. */
+  const expectLimitedRead = async (window: LimitedRead): Promise<void> => {
+    const pk = await getTestPrivateKey();
+    const contact = emailOnly(window.email);
+    const hash = await contactHash(contact);
+    await storeUnreadableLine(hash);
+    for (const { source, token } of window.record) {
+      await recordLine(contact, source, token);
+    }
+    expect(await getRecentBookingTokens(hash, pk, window.limit)).toEqual(
+      window.expected,
+    );
+  };
 
-      expect(await getRecentBookingTokens(hash, pk, window.limit)).toEqual(
-        window.expected,
-      );
-    });
+  for (const window of limitedReads) {
+    test(`getRecentBookingTokens ${window.what}`, () =>
+      expectLimitedRead(window));
   }
 
-  for (const syncCase of syncCases) {
-    test(syncCase.name, async () => {
-      const pk = await getTestPrivateKey();
-      if (syncCase.seedUnreadable) {
-        await storeUnreadableLine(await contactHash(syncCase.from));
-      }
-      for (const { source, token } of syncCase.seed ?? []) {
-        await recordLine(syncCase.from, source, token);
-      }
-      await syncToken(
-        syncCase.token,
-        syncCase.from,
-        syncCase.to,
-        pk,
-        syncCase.hasBooking,
+  /** Seed one sync case, run its move, then assert each read and the blob. */
+  const expectSync = async (syncCase: SyncCase): Promise<void> => {
+    const pk = await getTestPrivateKey();
+    if (syncCase.seedUnreadable) {
+      await storeUnreadableLine(await contactHash(syncCase.from));
+    }
+    for (const { source, token } of syncCase.seed ?? []) {
+      await recordLine(syncCase.from, source, token);
+    }
+    await syncToken(
+      syncCase.token,
+      syncCase.from,
+      syncCase.to,
+      pk,
+      syncCase.hasBooking,
+    );
+    for (const [contact, tokens] of syncCase.reads) {
+      expect(await readContact(contact, pk)).toEqual(tokens);
+    }
+    const { blob, counts } = syncCase;
+    if (blob) {
+      expect(await tokenBlobFor(await contactHash(blob.contact))).toBe(
+        blob.blob,
       );
-      for (const [contact, tokens] of syncCase.reads) {
-        expect(await readContact(contact, pk)).toEqual(tokens);
-      }
-      const { blob, counts } = syncCase;
-      if (blob) {
-        expect(await tokenBlobFor(await contactHash(blob.contact))).toBe(
-          blob.blob,
-        );
-      }
-      if (counts) await expectCounts(counts, pk);
-    });
+    }
+    if (counts) await expectCounts(counts, pk);
+  };
+
+  for (const syncCase of syncCases) {
+    test(syncCase.name, () => expectSync(syncCase));
   }
 
   test("syncAttendeeContactTokens does not recreate an erased unchanged contact", async () => {

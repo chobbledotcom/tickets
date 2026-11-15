@@ -172,21 +172,37 @@ describe("fingerprintCounts", () => {
 });
 
 describe("riseFindings", () => {
-  test("passes when every clone count matches the base", () => {
-    expect(
-      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ aaa: 1 }), 0),
-    ).toEqual([]);
-  });
+  // A rewrite re-pairs copies: one new fingerprint can replace two old ones,
+  // so the total falls and nothing grew.
+  for (const [name, head, base] of [
+    ["passes when every clone count matches the base", { aaa: 1 }, { aaa: 1 }],
+    [
+      "passes a clone the branch removed and one it lowered",
+      { aaa: 1 },
+      { aaa: 2, bbb: 1 },
+    ],
+    [
+      "passes an added clone when the baseline gives up as many clones",
+      { aaa: 1 },
+      { bbb: 1, ccc: 1 },
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(riseFindings(BASELINE, baseline(head), baseline(base), 0)).toEqual(
+        [],
+      );
+    });
+  }
 
-  test("passes a clone the branch removed and one it lowered", () => {
+  test("fails added clones beyond the clones the baseline gives up", () => {
     expect(
       riseFindings(
         BASELINE,
-        baseline({ aaa: 1 }),
-        baseline({ aaa: 2, bbb: 1 }),
+        baseline({ aaa: 1, bbb: 1 }),
+        baseline({ ccc: 1, ddd: 1, eee: 1 }),
         0,
       ),
-    ).toEqual([]);
+    ).toHaveLength(2);
   });
 
   test("names a clone the base does not hold", () => {

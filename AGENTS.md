@@ -556,6 +556,11 @@ A flagged pair is one merge:
   the scan with the merge base's baseline. An added clone passes when the
   branch changed neither of its files. The count of added clones must not
   exceed the count of such re-pairs.
+- The ratchet accepts fingerprints that a branch trades for a smaller total.
+  A rewrite re-pairs copies, so it can add fingerprints while the baseline
+  gives up at least as many clones as it adds. The count of added clones must
+  not exceed the clones the baseline gives up, over every fingerprint. A
+  baseline whose total rises still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The
