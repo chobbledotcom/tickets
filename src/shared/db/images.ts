@@ -12,6 +12,7 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
 import {
@@ -390,8 +391,8 @@ export const updateImageRecord = async (
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
-    sql`DELETE FROM image_uses WHERE image_id = ${imageId}`,
-    sql`DELETE FROM images WHERE id = ${imageId}`,
+    deleteFrom("image_uses", { image_id: imageId }),
+    deleteById("images", imageId),
     // The shared version is the signal every isolate reads, so a deletion
     // here drops the cached URLs the other isolates still hold.
     settingsVersionIncrement(),

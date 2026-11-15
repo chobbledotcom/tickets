@@ -16,6 +16,7 @@ import {
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
 } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import {
   bumpSettingsVersion,
   getRawCached,
@@ -114,9 +115,7 @@ export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
 /** Delete a setting from the DB, drop it from the raw cache, and bump the
  *  shared version so other isolates reload on their next request. */
 export const deleteRaw = async (key: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(
-    sql`DELETE FROM settings WHERE key = ${key}`,
-  );
+  await executeWithoutCacheInvalidation(deleteFrom("settings", { key }));
   await afterSettingChange(() =>
     syncStoredSetting(key, (values) => values.delete(key)),
   );

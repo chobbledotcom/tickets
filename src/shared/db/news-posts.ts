@@ -24,6 +24,7 @@ import {
 import { encryptedSlugSchema, idAndCreatedSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { deleteById } from "#db/delete-row.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import {
@@ -246,5 +247,5 @@ export const updateNewsPost = async (
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
     clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
-    sql`DELETE FROM news_posts WHERE id = ${id}`,
+    deleteById("news_posts", id),
   ]);

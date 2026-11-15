@@ -13,6 +13,7 @@
 
 import { refundEventGroup } from "#accounting/mappers.ts";
 import { executeBatch, queryAllPrimary, queryOnePrimary } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
 
 /** One (refund group → booking group) attribution. */
@@ -116,7 +117,7 @@ const saveCursor = (after: GroupCursor): Promise<unknown> =>
 /** Drop the checkpoint so the next run walks from the start. Only the orphan
  *  refusal runs it. A clean finish writes {@link CURSOR_COMPLETE} instead. */
 const clearCursor = (): Promise<unknown> =>
-  executeBatch([sql`DELETE FROM settings WHERE key = ${CURSOR_KEY}`]);
+  executeBatch([deleteFrom("settings", { key: CURSOR_KEY })]);
 
 /**
  * Attribute every stored refund leg to the booking order it reversed.

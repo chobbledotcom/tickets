@@ -17,6 +17,7 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
@@ -221,8 +222,8 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    sql`DELETE FROM site_page_items WHERE page_id = ${pageId}`,
+    deleteFrom("site_page_items", { page_id: pageId }),
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
-    sql`DELETE FROM site_pages WHERE id = ${pageId}`,
+    deleteById("site_pages", pageId),
   ]);

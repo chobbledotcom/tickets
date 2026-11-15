@@ -5,6 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { executeBatch, rowExists } from "#db/client.ts";
+import { deleteById } from "#db/delete-row.ts";
 import {
   clearExternalLinksStatement,
   externalLinkTargets,
@@ -121,7 +122,7 @@ export const deleteGroup = async (id: InValue) => {
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
     noteDeleteStatement("group", sql`${groupId}`),
-    sql`DELETE FROM groups WHERE id = ${groupId}`,
+    deleteById("groups", groupId),
   ]);
 };
 

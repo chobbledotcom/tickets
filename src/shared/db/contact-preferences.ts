@@ -14,6 +14,7 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute, executeBatch, queryAll, queryOne } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -107,7 +108,7 @@ export const getVisits = async (hash: string): Promise<number> => {
  * callers report "erased" versus "nothing on file" without a prior lookup. */
 export const forgetContact = async (hash: string): Promise<number> => {
   const result = await execute(
-    sql`DELETE FROM contact_preferences WHERE contact_hash = ${hash}`,
+    deleteFrom("contact_preferences", { contact_hash: hash }),
   );
   return result.rowsAffected;
 };

@@ -1,6 +1,7 @@
 /** Listing deletion and owned-row cleanup. */
 
 import { executeBatch, type TxScope } from "#db/client.ts";
+import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { clearItemReferencesStatements } from "#db/item-references.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
@@ -15,16 +16,16 @@ export const deleteListing = async (
   tx?: TxScope,
 ): Promise<void> => {
   const statements: SqlStatement[] = [
-    sql`DELETE FROM listing_attendees WHERE listing_id = ${listingId}`,
-    sql`DELETE FROM listing_questions WHERE listing_id = ${listingId}`,
-    sql`DELETE FROM listing_attribute_options WHERE listing_id = ${listingId}`,
+    deleteFrom("listing_attendees", { listing_id: listingId }),
+    deleteFrom("listing_questions", { listing_id: listingId }),
+    deleteFrom("listing_attribute_options", { listing_id: listingId }),
     sql`DELETE FROM listing_parents WHERE parent_listing_id = ${listingId} OR child_listing_id = ${listingId}`,
-    sql`DELETE FROM group_listings WHERE listing_id = ${listingId}`,
+    deleteFrom("group_listings", { listing_id: listingId }),
     ...clearItemReferencesStatements("listing", listingId),
-    sql`DELETE FROM activity_log WHERE listing_id = ${listingId}`,
-    sql`DELETE FROM listing_prices WHERE listing_id = ${listingId}`,
+    deleteFrom("activity_log", { listing_id: listingId }),
+    deleteFrom("listing_prices", { listing_id: listingId }),
     noteDeleteStatement("listing", sql`${listingId}`),
-    sql`DELETE FROM listings WHERE id = ${listingId}`,
+    deleteById("listings", listingId),
   ];
   await (tx === undefined ? executeBatch(statements) : tx.batch(statements));
 };

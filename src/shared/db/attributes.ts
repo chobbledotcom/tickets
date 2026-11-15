@@ -17,6 +17,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import {
@@ -366,8 +367,8 @@ export const deleteAttributeOption = deleteWithChildren("attribute_options", [
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
     sql`DELETE FROM listing_attribute_options WHERE option_id IN (SELECT id FROM attribute_options WHERE attribute_id = ${attributeId})`,
-    sql`DELETE FROM attribute_options WHERE attribute_id = ${attributeId}`,
-    sql`DELETE FROM attributes WHERE id = ${attributeId}`,
+    deleteFrom("attribute_options", { attribute_id: attributeId }),
+    deleteById("attributes", attributeId),
   ]);
 };
 

@@ -13,7 +13,7 @@ import { eventGroup, legReference } from "#accounting/refs.ts";
 import { selectById } from "#accounting/rows.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { execute, executeUpdate, queryBatch } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { deleteById } from "#db/delete-row.ts";
 import type {
   AccountRef,
   Transfer,
@@ -268,5 +268,5 @@ export const deleteManualLedgerEntry = async (
   transfer: Transfer,
 ): Promise<void> => {
   assertManualLedgerTransfer(transfer);
-  await execute(sql`DELETE FROM transfers WHERE id = ${transfer.id}`);
+  await execute(deleteById("transfers", transfer.id));
 };

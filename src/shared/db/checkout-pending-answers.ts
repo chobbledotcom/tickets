@@ -15,6 +15,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
@@ -78,4 +79,6 @@ export const readCheckoutAnswers = async (
 export const dropCheckoutAnswersStatement = async (
   sessionId: string,
 ): Promise<SqlStatement> =>
-  sql`DELETE FROM checkout_pending_answers WHERE session_index = ${await hmacHash(sessionId)}`;
+  deleteFrom("checkout_pending_answers", {
+    session_index: await hmacHash(sessionId),
+  });

@@ -8,6 +8,7 @@
 
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
 import {
   internWriteStatements,
@@ -84,8 +85,7 @@ const idsRef: AttendeeRef = {
 const bookedRef = (tokenIndex: string): AttendeeRef => {
   const attendee = attendeeByToken(tokenIndex);
   return {
-    delete: () =>
-      sql`DELETE FROM attendee_answers WHERE attendee_id = ${attendee}`,
+    delete: () => deleteFrom("attendee_answers", { attendee_id: attendee }),
     idOf: () => attendee,
   };
 };

@@ -6,7 +6,7 @@
   "src/shared/db/groups.ts": 754,
   "src/shared/db/migrations/schema-sync.ts": 622,
   "src/shared/db/modifier-resolve.ts": 616,
-  "src/shared/db/table.ts": 710,
+  "src/shared/db/table.ts": 709,
   "src/shared/limits.ts": 674,
   "src/shared/merge/attendee-merge.ts": 876,
   "src/shared/payment-helpers.ts": 619,

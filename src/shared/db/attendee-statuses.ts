@@ -19,6 +19,7 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { deleteById } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
@@ -397,9 +398,7 @@ const deleteStatus = (
       return errorResult("status_in_use");
     }
 
-    await tx.execute(
-      sql`DELETE FROM attendee_statuses AS status WHERE status.id = ${id}`,
-    );
+    await tx.execute(deleteById("attendee_statuses", id));
     return okResult(undefined);
   });
 

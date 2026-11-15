@@ -15,6 +15,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
@@ -177,7 +178,7 @@ export const linkTableSide = (
   ): SqlStatement[] => {
     const deduped = dedupe(ids);
     return [
-      sql`DELETE FROM ${linkTable} WHERE ${key} = ${keyId}`,
+      deleteFrom(table, { [keyColumn]: keyId }),
       ...(deduped.length > 0 ? [insertStatement(keyId, deduped)] : []),
     ];
   };

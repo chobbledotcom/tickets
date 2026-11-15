@@ -18,6 +18,7 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { queryAndMap } from "#db/query.ts";
 import {
   type SqlStatement,
@@ -441,9 +442,7 @@ export const defineTable = <Row, Input = Row>(
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
-    await execute(
-      sql`DELETE FROM ${sqlName(name)} WHERE ${sqlName(primaryKey)} = ${id}`,
-    );
+    await execute(deleteFrom(name, { [primaryKey]: id }));
   };
 
   // Row → Input: copy input-eligible columns from a row, translating

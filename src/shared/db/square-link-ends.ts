@@ -13,6 +13,7 @@
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryAll } from "#db/client.ts";
+import { deleteFrom } from "#db/delete-row.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import {
@@ -150,9 +151,11 @@ const deleteSquareLinkEnd = async (
   claimedAt?: string,
 ): Promise<boolean> =>
   executeChangedRow(
-    sql`DELETE FROM square_link_ends
-      WHERE session_index = ${sessionIndex} AND state = ${state}
-        ${claimedAt === undefined ? sql`` : sql`AND next_attempt_at = ${claimedAt}`}`,
+    deleteFrom("square_link_ends", {
+      session_index: sessionIndex,
+      state,
+      ...(claimedAt === undefined ? {} : { next_attempt_at: claimedAt }),
+    }),
   );
 
 /**
