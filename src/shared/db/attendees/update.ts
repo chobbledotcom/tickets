@@ -21,6 +21,8 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   filter,
@@ -224,7 +226,7 @@ export const checkGroupCapAfterDurationChange = async (
   groupId: number,
 ): Promise<string | null> => {
   const cap = await queryAll<{ max_attendees: number }>(
-    sql`SELECT max_attendees FROM groups WHERE id = ${groupId}`,
+    from(tables.groups).where({ id: groupId }).pick("max_attendees"),
   );
   const groupLimit = cap[0]!.max_attendees;
   if (groupLimit <= 0) return null;

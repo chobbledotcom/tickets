@@ -12,6 +12,8 @@ import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { LISTING_ROW, type ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlNames } from "#db/sql.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
@@ -125,7 +127,10 @@ const snapshotStatements = (
         WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
     sql`SELECT visits FROM contact_preferences
        WHERE ${selectIn("contact_hash", contactHashes)}`,
-    sql`SELECT id FROM attendee_statuses WHERE is_public_default = 1 ORDER BY sort_order, id`,
+    from(tables.attendee_statuses)
+      .where({ is_public_default: 1 })
+      .sortedBy("sort_order", "id")
+      .pick("id"),
   ];
 };
 

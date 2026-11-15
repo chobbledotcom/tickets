@@ -13,6 +13,8 @@ import {
   aggregateRepairs,
 } from "#db/common-schema.ts";
 import { rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { map } from "#fp";
 
@@ -89,7 +91,7 @@ export const getAnswerModifierId = async (
   answerId: number,
 ): Promise<number | null> => {
   const row = await queryOne<{ modifier_id: number | null }>(
-    sql`SELECT modifier_id FROM answers WHERE id = ${answerId}`,
+    from(tables.answers).where({ id: answerId }).pick("modifier_id"),
   );
   return row?.modifier_id ?? null;
 };

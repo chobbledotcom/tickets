@@ -431,7 +431,7 @@ export const attendeeStatusWrites: AttendeeStatusWrites = {
  */
 export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   const existing = await queryAll<{ id: number }>(
-    sql`SELECT status.id FROM attendee_statuses AS status LIMIT 1`,
+    from(tables.attendee_statuses).limit(1).pick("id"),
   );
   if (existing.length > 0) return;
   const status = await attendeeStatuses.table.insert({

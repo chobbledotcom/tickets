@@ -7,6 +7,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeKindFilter,
@@ -338,7 +339,7 @@ export const getAttendeeRawByToken = async (
       await loadAttendeeRows({
         join: "left",
         where: {
-          attendeeIdsSubquery: sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`,
+          attendeeIdsSubquery: attendeeIdOfToken(tokenIndex),
         },
       })
     )[0] ?? null

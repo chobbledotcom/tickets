@@ -6,7 +6,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { matchesNothing } from "#db/select/expression.ts";
-import { from, pick, tableNode } from "#db/select/query.ts";
+import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { placed } from "#test-utils/sql-text.ts";
 
@@ -67,13 +67,26 @@ describe("a match", () => {
   });
 });
 
-describe("pick", () => {
-  test("selects the named columns under their own names", () => {
+describe("sortedBy", () => {
+  test("orders the rows by the named columns of the first table", () => {
     expect(
-      from(tables.listings).select((listing) =>
-        pick(listing, "id", "max_attendees"),
-      ).sql,
+      from(tables.listings).sortedBy("max_attendees", "id").pick("id").sql,
     ).toBe(
+      "SELECT listing.id AS id FROM listings AS listing ORDER BY listing.max_attendees, listing.id",
+    );
+  });
+});
+
+describe("pick", () => {
+  test("refuses a name that is not a column of the table", () => {
+    const name = "nothing" as "id";
+    expect(() => from(tables.listings).pick(name)).toThrow(
+      "A match names nothing, which is not a column of its table.",
+    );
+  });
+
+  test("selects the named columns under their own names", () => {
+    expect(from(tables.listings).pick("id", "max_attendees").sql).toBe(
       "SELECT listing.id AS id, listing.max_attendees AS max_attendees FROM listings AS listing",
     );
   });

@@ -8,6 +8,8 @@
 
 import { executeBatch, queryAll, update } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { mapBy } from "#fp";
 
@@ -116,8 +118,15 @@ export const getLogisticsAssignments = async (
     rowToAssignment,
   )(
     await queryAll<AssignmentRow>(
-      sql`SELECT listing_id, start_agent_id, end_agent_id, start_time, end_time
-     FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
+      from(tables.listing_attendees)
+        .where({ attendee_id: attendeeId })
+        .pick(
+          "listing_id",
+          "start_agent_id",
+          "end_agent_id",
+          "start_time",
+          "end_time",
+        ),
     ),
   );
 

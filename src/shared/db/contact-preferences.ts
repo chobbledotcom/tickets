@@ -10,14 +10,15 @@
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute, executeBatch, queryAll, queryOne } from "#db/client.ts";
 import { deleteFrom } from "#db/delete-row.ts";
 import { queryColumnSet } from "#db/query.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -73,9 +74,13 @@ const run = async (statement: SqlStatement): Promise<void> => {
   await execute(statement);
 };
 
+/** The stored row of one contact. */
+export const preferenceOf = (hash: string) =>
+  from(tables.contact_preferences).where({ contact_hash: hash });
+
 export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
   const row = await queryOne<{ unsubscribed: number }>(
-    sql`SELECT unsubscribed FROM contact_preferences WHERE contact_hash = ${hash}`,
+    preferenceOf(hash).pick("unsubscribed"),
   );
   return row?.unsubscribed === 1;
 };
@@ -92,13 +97,15 @@ export const resubscribeHash = (hash: string): Promise<void> =>
 
 export const getUnsubscribedHashSet = (): Promise<Set<string>> =>
   queryColumnSet(
-    sql`SELECT contact_hash FROM contact_preferences WHERE unsubscribed = 1`,
+    from(tables.contact_preferences)
+      .where({ unsubscribed: 1 })
+      .pick("contact_hash"),
     "contact_hash",
   );
 
 export const getVisits = async (hash: string): Promise<number> => {
   const row = await queryOne<{ visits: number }>(
-    sql`SELECT visits FROM contact_preferences WHERE contact_hash = ${hash}`,
+    preferenceOf(hash).pick("visits"),
   );
   return row?.visits ?? 0;
 };
@@ -190,8 +197,9 @@ const loadStatsBlobs = async (
     contact_hash: string;
     stats_blob: OwnerKeyEncrypted | "";
   }>(
-    sql`SELECT contact_hash, stats_blob FROM contact_preferences
-     WHERE contact_hash IN (${sqlList(hashes)})`,
+    from(tables.contact_preferences)
+      .where({ contact_hash: hashes })
+      .pick("contact_hash", "stats_blob"),
   );
   return new Map(rows.map((r) => [r.contact_hash, r.stats_blob]));
 };
@@ -226,7 +234,12 @@ export const getContactRecord: ContactRecordLoader = async (
   privateKey,
 ) => {
   const row = await queryOne<ContactRow>(
-    sql`SELECT visits, public_booking_count, admin_booking_count, stats_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
+    preferenceOf(hash).pick(
+      "visits",
+      "public_booking_count",
+      "admin_booking_count",
+      "stats_blob",
+    ),
   );
   return {
     ...(await parseStats(row?.stats_blob ?? "", privateKey)),
@@ -242,7 +255,11 @@ export const getContactCountFields = async (
   hash: string,
 ): Promise<ContactCountFields> => {
   const row = await queryOne<CountColumnsRow>(
-    sql`SELECT visits, public_booking_count, admin_booking_count FROM contact_preferences WHERE contact_hash = ${hash}`,
+    preferenceOf(hash).pick(
+      "visits",
+      "public_booking_count",
+      "admin_booking_count",
+    ),
   );
   return countFieldsFromRow(row);
 };

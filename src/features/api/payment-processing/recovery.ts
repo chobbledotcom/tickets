@@ -1,5 +1,6 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
 import {
   releaseReservation,
@@ -42,7 +43,7 @@ const loadRecoveryFacts = async (
                 AND attendee.ticket_token_index = ${ticketTokenIndex}`,
       sql`SELECT 1 AS present FROM processed_payments
               WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
-      sql`SELECT id FROM attendees WHERE ticket_token_index = ${ticketTokenIndex}`,
+      attendeeIdOfToken(ticketTokenIndex),
     ]);
   const payment = resultRows<{ attendee_id: number }>(paymentResult!)[0];
   const attendee = resultRows<{ id: number }>(attendeeResult!)[0];

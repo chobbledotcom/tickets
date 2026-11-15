@@ -118,6 +118,13 @@ export type Out<Picked extends Selection> = {
     : never;
 };
 
+/** The row of the named columns of a node. */
+export type Picked<First, Column extends keyof First> = {
+  -readonly [Each in Column]: First[Each] extends Expr<infer Value>
+    ? Value
+    : never;
+};
+
 /** What the columns of a node must hold. A value or an expression means
  *  "equals this", a list means "is one of these", and a null asks for a column
  *  that holds nothing. A column that the match does not name is free. */
@@ -128,6 +135,12 @@ export type Matching<Root> = {
     ? Operand<Value> | readonly NonNullable<Value>[]
     : never;
 };
+
+/** The name of a column of a node. A read that hides its first table names
+ *  no column. */
+type ColumnOf<First> = [First] extends [never]
+  ? never
+  : keyof Matching<First> & string;
 
 /** Conditions on the rows of a read: a match of its first table, or
  *  conditions built from its node. */
@@ -169,6 +182,10 @@ export type Query<Root, First = Root> = Readonly<{
   /** The read with its first table under another word. A table that a
    *  statement reads twice needs a word for each place. */
   as: (alias: string) => Query<Root, First>;
+  /** The statement that reads the named columns of the first table. */
+  pick: <Column extends ColumnOf<First>>(
+    ...columns: readonly Column[]
+  ) => RowsStatement<Picked<First, Column>>;
   /** The statement that reads a column list written by hand. The caller names
    *  the type of the rows. */
   columns: (pick: (node: Root) => SqlStatement) => SqlStatement;
@@ -183,6 +200,9 @@ export type Query<Root, First = Root> = Readonly<{
   /** The same join, where a row with no match stays and the joined columns
    *  are null. */
   leftJoin: JoinStep<Root, First, true>;
+  /** The read with its rows in the order of these columns of the first
+   *  table. */
+  sortedBy: (...columns: readonly ColumnOf<First>[]) => Query<Root, First>;
   /** The read with at most `count` rows. */
   limit: (count: number) => Query<Root, First>;
   /** Whether no row can pass the conditions, so a runner can skip the read. */

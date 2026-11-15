@@ -13,6 +13,7 @@
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { provenancePointerStatement } from "#db/attendees/payment-provenance.ts";
 import { decryptPiiBlob } from "#db/attendees/pii.ts";
+import { sealedContactsOf } from "#db/attendees/reads.ts";
 import {
   executeBatchWithResults,
   queryAllPrimary,
@@ -126,11 +127,7 @@ const attendeePiiPaymentIds = async (
   const blobs = await queryAllPrimary<{
     id: number;
     pii_blob: OwnerKeyEncrypted | "";
-  }>(
-    sql`SELECT id, pii_blob
-            FROM attendees
-           WHERE id IN (${sqlList(attendeeIds)})`,
-  );
+  }>(sealedContactsOf(attendeeIds));
   return new Map(
     await Promise.all(
       blobs.map(

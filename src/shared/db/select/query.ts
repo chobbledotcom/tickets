@@ -199,15 +199,6 @@ const columnOf = (node: unknown, name: string): Expr<InValue> => {
 const held = (node: unknown, match: object): Expr<boolean>[] =>
   matching(bindFirst(columnOf)(node), { ...match });
 
-/** The named columns of a node, as a selection. */
-export const pick = <Root, Column extends keyof Root>(
-  node: Root,
-  ...columns: readonly Column[]
-): { [Each in Column]: Root[Each] } =>
-  Object.fromEntries(columns.map((column) => [column, node[column]])) as {
-    [Each in Column]: Root[Each];
-  };
-
 const asNodeTest = <Root, First>(
   conditions: Where<Root, First>,
 ): NodeFn<Root, Condition | readonly Condition[]> =>
@@ -266,6 +257,16 @@ const query = <Root, First>(
     return conditions.some(matchesNothing) ? matchingNothing(built) : built;
   };
 
+  /** The statement that reads each picked value under its name. */
+  const named = (pick: (node: Root) => Selection): SqlStatement =>
+    statement((node) =>
+      sqlCommas(
+        Object.entries(pick(node)).map(
+          ([name, value]) => sql`${value} AS ${sqlName(name)}`,
+        ),
+      ),
+    );
+
   return {
     aggregate: (pick) => {
       if (listing.group !== undefined) {
@@ -288,16 +289,18 @@ const query = <Root, First>(
     limit: (limit) => next({ limit }),
     matchesNothing: () => planned().conditions.some(matchesNothing),
     orderBy: (order) => next({ order }),
+    pick: ((...columns: readonly string[]) =>
+      named((node) =>
+        Object.fromEntries(
+          columns.map((column) => [column, columnOf(node, column)]),
+        ),
+      )) as Query<Root, First>["pick"],
     probe: () => next({ limit: 1 }).columns(() => sql`1`),
     scalar: (pick) => valued(sql`(${statement(pick)})`),
     select: <Picked extends Selection>(pick: (node: Root) => Picked) =>
-      statement((node) =>
-        sqlCommas(
-          Object.entries(pick(node)).map(
-            ([name, value]) => sql`${value} AS ${sqlName(name)}`,
-          ),
-        ),
-      ) as RowsStatement<Out<Picked>>,
+      named(pick) as RowsStatement<Out<Picked>>,
+    sortedBy: (...columns) =>
+      next({ order: (node) => columns.map(bindFirst(columnOf)(node)) }),
     values: <Value>(pick: Valued<Root, Value>) =>
       statement(pick) as ValuesStatement<Value>,
     where: (conditions) =>

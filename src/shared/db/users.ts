@@ -28,6 +28,8 @@ import {
   registerTableInvalidation,
 } from "#db/common-schema.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
@@ -50,7 +52,9 @@ export type UserDisplayFields = Pick<
   "admin_level" | "id" | "username_hash"
 >;
 
-const USER_DISPLAY_SELECT = sql`SELECT id, username_hash, admin_level FROM users ORDER BY id ASC`;
+const USER_DISPLAY_SELECT = from(tables.users)
+  .sortedBy("id")
+  .pick("id", "username_hash", "admin_level");
 
 export type UserAuthFields = Pick<User, "admin_level" | "id">;
 
@@ -255,7 +259,7 @@ export const getUserAuthFieldsById = async (
 ): Promise<UserAuthFields | null> =>
   (
     await queryAll<UserAuthFields>(
-      sql`SELECT id, admin_level FROM users WHERE id = ${id} LIMIT 1`,
+      from(tables.users).where({ id: id }).limit(1).pick("id", "admin_level"),
     )
   )[0] ?? null;
 
