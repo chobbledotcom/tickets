@@ -9,6 +9,7 @@ import {
 import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
@@ -361,13 +362,8 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(result.ok && Object.hasOwn(result.value, "closesAt")).toBe(false);
     });
   });
-});
 
-// Both are site building fields, which a site without site building refuses.
-describeWithEnv(
-  "Admin API - listing site building fields",
-  { db: true, env: { CAN_BUILD_SITES: "true" } },
-  () => {
+  describe("months_per_unit and initial_site_months", () => {
     test("months_per_unit round-trips on save", async () => {
       const listing = await createTestListing({
         hidden: true,
@@ -398,6 +394,7 @@ describeWithEnv(
     });
 
     test("the body sets the site building fields while site building is on", async () => {
+      using _builder = withEnv({ CAN_BUILD_SITES: "true" });
       const plan = { assign_built_site: true, initial_site_months: 6 };
       const created = requireSuccess(
         await bodyToCreateInput({
@@ -415,5 +412,5 @@ describeWithEnv(
         created.purchaseOnly,
       ]).toEqual([true, 6, 3, true]);
     });
-  },
-);
+  });
+});

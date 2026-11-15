@@ -20,6 +20,7 @@ import {
   adminFormPost,
   adminGet,
   adminMultipartPost,
+  setupListingAndLogin,
 } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
@@ -379,26 +380,27 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(offBody).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
-    test("no toggle when the operator has set no defaults", async () => {
-      const response = await adminGet("/admin/listing/new?template=custom");
-      const body = await response.text();
-      assert(!body.includes('id="use-defaults"'));
-    });
-
-    test("preserves an inheriting listing's flag while no defaults exist", async () => {
-      // Listing flagged to inherit, but the operator has since cleared every
-      // default. The edit form shows no toggle and sends no flag, so the save
-      // keeps the stored one.
-      const listing = await createTestListing({
+    test("with no defaults set, no form shows the toggle and a save keeps an inheriting listing's flag", async () => {
+      // The listing was flagged to inherit, but the operator has since cleared
+      // every default. The edit form shows no toggle and sends no flag, so the
+      // save keeps the stored one.
+      const { listing } = await setupListingAndLogin({
         name: "Still inheriting",
         useDefaults: true,
       });
-      const response = await adminGet(`/admin/listing/${listing.id}/edit`);
-      const body = await response.text();
-      assert(!body.includes('name="use_defaults"'));
+      const pages = await Promise.all(
+        [
+          "/admin/listing/new?template=custom",
+          `/admin/listing/${listing.id}/edit`,
+        ].map(async (path) => (await adminGet(path)).text()),
+      );
+      expect(pages.filter((page) => /use[-_]defaults/.test(page))).toEqual([]);
       const { response: saved } = await adminMultipartPost(
         `/admin/listing/${listing.id}/edit`,
-        buildUpdateListingForm({ name: "Renamed" }, listing),
+        buildUpdateListingForm(
+          { name: "Renamed" },
+          (await getStoredListingWithCount(listing.id))!,
+        ),
       );
       expect([
         saved.status,

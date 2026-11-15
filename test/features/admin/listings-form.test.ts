@@ -23,6 +23,7 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 
 import {
@@ -206,7 +207,7 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(await getListingDayPrices(row.id)).toEqual({ 1: 1500 });
     });
 
-    for (const [name, boxes, error] of [
+    testEachRefusal(tryCreateListing, [
       [
         "an impossible date is refused before anything is saved",
         { date_date: "2026-02-30", date_time: "10:00" },
@@ -217,11 +218,7 @@ describeWithEnv("listings form", { db: true }, () => {
         { day_price_1: "abc", duration_days: "2" },
         "Enter a valid day price for each duration, or leave it blank.",
       ],
-    ] as const) {
-      test(name, async () => {
-        expect(await tryCreateListing(boxes)).toEqual({ error, ok: false });
-      });
-    }
+    ]);
 
     test("ticked groups are saved; unticked junk ids are not", async () => {
       const group = await createTestGroup({ name: "Form group" });

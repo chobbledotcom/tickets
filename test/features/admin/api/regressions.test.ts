@@ -18,6 +18,7 @@ import {
   rescuingPageSetup,
 } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
+import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 const expectListingApiError = (
@@ -35,53 +36,37 @@ const expectListingApiError = (
   );
 
 describeWithEnv("Admin API listing regressions", { db: true }, () => {
-  test("refuses a day count outside the bookable range in create input", async () => {
-    expect(
-      await bodyToCreateInput({
+  testEachRefusal(bodyToCreateInput, [
+    [
+      "refuses a day count outside the bookable range in create input",
+      {
         day_prices: { 0: 700, 1: 500 },
         max_attendees: 10,
         name: "Positive Days Only",
-      }),
-    ).toEqual({ error: "day_prices has an invalid value", ok: false });
-  });
-
-  test("names invalid group IDs in create input", async () => {
-    await expect(
-      bodyToCreateInput({
-        group_ids: ["1"],
-        max_attendees: 10,
-        name: "Numeric Groups",
-      }),
-    ).resolves.toEqual({
-      error: "group_ids must contain only positive integer ids",
-      ok: false,
-    });
-  });
-
-  test("requires group IDs to be an array", async () => {
-    await expect(
-      bodyToCreateInput({
-        group_ids: "1",
-        max_attendees: 10,
-        name: "Group Array Required",
-      }),
-    ).resolves.toEqual({ error: "group_ids must be an array", ok: false });
-  });
-
-  test("requires a create name", async () => {
-    await expect(
-      bodyToCreateInput({ max_attendees: 10, name: " " }),
-    ).resolves.toEqual({ error: "name cannot be empty", ok: false });
-  });
-
-  test("requires at least one attendee on create", async () => {
-    await expect(
-      bodyToCreateInput({ max_attendees: 0, name: "No Capacity" }),
-    ).resolves.toEqual({
-      error: "max_attendees has an invalid value",
-      ok: false,
-    });
-  });
+      },
+      "day_prices has an invalid value",
+    ],
+    [
+      "names invalid group IDs in create input",
+      { group_ids: ["1"], max_attendees: 10, name: "Numeric Groups" },
+      "group_ids must contain only positive integer ids",
+    ],
+    [
+      "requires group IDs to be an array",
+      { group_ids: "1", max_attendees: 10, name: "Group Array Required" },
+      "group_ids must be an array",
+    ],
+    [
+      "requires a create name",
+      { max_attendees: 10, name: " " },
+      "name cannot be empty",
+    ],
+    [
+      "requires at least one attendee on create",
+      { max_attendees: 0, name: "No Capacity" },
+      "max_attendees has an invalid value",
+    ],
+  ]);
 
   test("defaults max_price to zero", async () => {
     await expectListingCreated(
