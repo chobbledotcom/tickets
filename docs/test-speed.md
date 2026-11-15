@@ -37,40 +37,32 @@ stripe-mock start costs 0.85 s per run, so it stays out of the plan below.
      `test/integration/db/migration-restore/helpers.ts` drives
      `chain-a.test.ts` to `chain-h.test.ts`, and the eight shard rows each take
      170.1–184.6 s.
-   - Payoff: 5,460 migration applications become 104. Chain CPU falls from
-     about 1,415 s to about 25 s, and the critical path from 184.6 s to about
-     25 s. A full run falls to about 175 s (estimate: the chain no longer sets
-     the wall, and the next longest block is 86.4 s).
+   - Payoff: 5,460 migration applications become 471. The local
+     `migration-restore` directory takes 13.6 s to 20.5 s, against 89.6 s
+     before the change. The hosted coverage step falls from 387 s on the docs
+     head to 338 s on the chain head. That is a fall of 51 s, or 10.4 %. The
+     chain head ran on a slightly slower machine (prefix 166 s against 155 s),
+     so the saving is real.
    - Blast radius: one new test file, nine removed files, and `helpers.ts`.
    - Risk: medium. The walk shares one database, so an assertion must only
      read. The pristine fixture claim narrows at early boundaries, so keep the
      five cheap pristine boundaries. The walk must count the applied migrations
      at each step, so a skipped migration fails the test.
 
-2. **Raise the worker cap on the coverage gate, after one measurement.**
-   - Change: measure the peak RSS of one isolate group under `--coverage`.
-     Then raise `COVERAGE_WORKER_CAP` in `scripts/workers.ts` from 4 to 8. If
-     memory is short, halve the group size first.
-   - Evidence: `COVERAGE_WORKER_CAP` in `scripts/workers.ts` sets the worker
-     count under `--coverage`. `scripts/test-harness.ts` and
-     `scripts/precommit/runner.ts` call it. CI uses an 8-core runner.
-   - Payoff: gate wall falls from about 1,120 s to about 560 s at 8 workers
-     (estimate: leaf CPU ÷ worker count). The doubling holds, because it is the
-     same work on twice the workers, but the coverage gate keeps its
-     instrumentation overhead, so 8 workers gives about half the gate time, not
-     parity with a plain `deno task test` run. The `test` job comment in
-     `.github/workflows/test.yml` says the full suite with coverage finishes in
-     about seven minutes on the 8-core runner at 4 workers, so the JUnit CPU
-     sum implies a much longer gate and the difference points at machine load
-     during the audit run, which means the RSS measurement must also record the
-     gate wall time at 4 and at 8 workers.
-   - Blast radius: `scripts/workers.ts`, `scripts/test-groups.ts` and their
-     tests.
-   - Risk: out of memory. Each worker keeps a coverage buffer for the code that
-     its group loads. The cap must not move before the RSS measurement, and the
-     measurement must name one group and one worker count.
+> **Rejected: raise the worker cap on the coverage gate.**
+>
+> `COVERAGE_WORKER_CAP` in `scripts/workers.ts` sets the worker count under
+> `--coverage`. Keep the value at 4. Do not merge the cap change.
+>
+> The first 8-worker run took 472 s for the `test` job, against 405 s for the
+> docs baseline. Its coverage step took 376 s, against 286 s. In that run the
+> eight chain files each took 54.7 s to 66.8 s. Four-worker runs of the same
+> code minutes later took 24.1 s to 32.1 s. Fixed-step machine spread on
+> identical code was 1.45 to 1.52 times, so the 2.2 times chain-file inflation
+> is oversubscription, not machine speed. No memory pressure appeared, and line
+> coverage stayed at 100 %.
 
-3. **Add direct fixtures for listings and attendees.**
+2. **Add direct fixtures for listings and attendees.**
    - Change: add a direct-insert listing fixture beside `createTestListing`,
      and use it in suites whose subject is not the create form. In
      `createTestAttendee`, call `signCsrfToken()` before the ticket render.
@@ -87,7 +79,7 @@ stripe-mock start costs 0.85 s per run, so it stays out of the plan below.
      must not switch, so each converted file needs its own review. Low for the
      attendee helper, because 263 sites already take the direct path.
 
-4. **Parse model data once, and share one legacy migration run.**
+3. **Parse model data once, and share one legacy migration run.**
    - Change: parse the committed model data at module level in the two
      `verify-models` suites. Build the legacy database once, then assert the
      question and backfill outcomes in separate tests.
@@ -104,7 +96,7 @@ stripe-mock start costs 0.85 s per run, so it stays out of the plan below.
      the same state. `partial-state` starts half migrated, so it must stay in
      its own file.
 
-5. **Remove redundant tests, as maintenance work.**
+4. **Remove redundant tests, as maintenance work.**
    - Change:
      - Delete the per-route `testRequiresAuth` copies. The central role matrix
        already proves the auth gate for every declared route.
@@ -131,10 +123,11 @@ stripe-mock start costs 0.85 s per run, so it stays out of the plan below.
      only reader of a line, so run `deno task cov:files` on the file before a
      delete and `deno task test:coverage` after.
 
-These five changes leave the fixture database and the isolate groups alone.
-The first change owns the large win on wall clock. The second owns the large
-win on the coverage gate. The fourth owns the next win on the ordinary run.
-Treat the fifth as hygiene, not as a speed item.
+These four changes leave the fixture database and the isolate groups alone.
+The first change owns the large win on wall clock. The second owns a CPU win
+in fixture setup. The third owns the next win on the ordinary run. Treat the
+fourth as hygiene, not as a speed item. The rejected cap test above shows that
+the coverage gate keeps its measured time at 4 workers.
 
 ## What to keep
 
