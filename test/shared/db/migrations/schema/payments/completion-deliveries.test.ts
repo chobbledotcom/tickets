@@ -20,6 +20,10 @@ describe("the messages sent after a payment", () => {
     );
   });
 
+  test("answers nothing for a column the table does not declare", () => {
+    expect(columnSql(table, "no_such_column")).toBe("");
+  });
+
   test("demands the message be hidden, because it holds the buyer's details", () => {
     // Name, email, phone and address travel in here, so the table refuses a
     // plain one rather than trusting every writer to hide it.

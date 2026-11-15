@@ -4,6 +4,7 @@
  * the test here, so every call site keeps the refusal check.
  */
 
+import { assert } from "@std/assert";
 import type { ImportedBundle } from "#routes/admin/catalog-transfer/bundle-plan.ts";
 import type { ImportedEntity } from "#routes/admin/catalog-transfer/import-listing.ts";
 import type { Result } from "#shared/result.ts";
@@ -12,6 +13,6 @@ import type { Result } from "#shared/result.ts";
 export const importRefusal = (
   result: Result<ImportedEntity | ImportedBundle>,
 ): string => {
-  if (result.ok) throw new Error("the catalog import was accepted");
+  assert(!result.ok, "The catalog import was accepted.");
   return result.error;
 };
