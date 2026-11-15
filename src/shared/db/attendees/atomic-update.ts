@@ -289,15 +289,19 @@ export const buildAttendeeEditBatch = (
   allowOverbook: boolean,
 ): SqlStatement[] => {
   const statements = removedLines(desired, existingByKey).flatMap(
-    (booking): SqlStatement[] => [
+    (booking): SqlStatement[] => {
+      // The booking-slot identity both statements pin.
+      const slot = sql`attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`;
       // Test the current plan, not changes(): an absent ordinary row stays a no-op.
-      sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+      return [
+        sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
                 SELECT NULL, NULL, 1 FROM listing_attendees
-                WHERE attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}
+                WHERE ${slot}
                   AND subscription_status IN (${sqlList(CANCELLABLE_STATUSES)})`,
-      sql`DELETE FROM listing_attendees
-            WHERE attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`,
-    ],
+        sql`DELETE FROM listing_attendees
+            WHERE ${slot}`,
+      ];
+    },
   );
   for (const line of [
     ...desired.filter((line) => line.exists),
