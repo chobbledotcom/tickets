@@ -3,17 +3,14 @@
 # Table inputs make these operators equivalent: nullable query results exclude
 # undefined, paired null checks already reject both nullish values, and optional
 # conditions/dependencies are objects or arrays.
-src/shared/db/table.ts::defineTable.updateStatement.args~1p65ca8  ?? → || audited:1sirk34 # condition?.args is an array or undefined, and every array is truthy
 src/shared/db/table.ts::cachedTable~1o37jut  ?? → || audited:1sirk34 # dependsOn is a readonly array or undefined, and every array is truthy
 src/shared/db/table.ts::defineCachedListTable.dependsOn~1o37jut  ?? → || audited:1sirk34 # the cached table's dependsOn is the same array-or-undefined as above
 
 # Login attempt rows store an integer count. For undefined, null, zero, or any
 # non-zero integer, `(attempts ?? 0) + 1` and `(attempts || 0) + 1` agree.
-src/shared/db/users.ts::getUserAuthFieldsById~0q9twz3  ?? → || audited:006e9mk # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/db/query-log.ts::getState~0gxq35p  ?? → || audited:01yuo8o # the live store is a truthy object or undefined, so only undefined reaches the fallback state
 src/shared/db/query-log.ts::enforceN1Guard.count~1xuztjh  ?? → || audited:01yuo8o # stored read counts start at 1 and remain positive, so only undefined reaches the zero fallback
 src/shared/update.ts::recordScriptVersion.changes~148v29c  ?? → || audited:132xt8b # the stored commit is a string or undefined and the fallback is empty, so both operators return the same string
-src/shared/update.ts::readRecordedScriptCommit~0csc5ea  ?? → || audited:132xt8b # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 
 # Attendee phone blind-index (attendee-phone-index.ts).
 src/shared/db/attendee-phone-index.ts::findAttendeeIdByPhoneIndex~0yjm3h8  ?? → || audited:0j3knz5 # row?.id is undefined or an AUTOINCREMENT id (≥1, never 0), so ?? and || agree
@@ -50,9 +47,6 @@ src/shared/db/capacity.ts::buildCapacityCondition.durationDays~18guaiu  1 → 0 
 
 # buildCapacityCondition's shared values are SqlParameterToken|undefined. The
 # binder only creates non-empty `?N` tokens, so `??` and `||` select the same arm.
-src/shared/db/capacity.ts::buildCapacityCondition.listingIdSql~0urfiu2  ?? → || audited:0pf7hkj # shared.listingId is a non-empty SqlParameterToken or undefined
-src/shared/db/capacity.ts::buildCapacityCondition.quantitySql~1gh7q31  ?? → || audited:0pf7hkj # shared.quantity has the same token domain
-src/shared/db/capacity.ts::buildCapacityCondition.excludeAttendeeIdSql~06ef8hm  ?? → || audited:0pf7hkj # shared.excludeAttendeeId has the same token domain
 
 # Capacity checks clamp a zero-day duration to one day. Demand maps contain
 # finite totals, and a missing total has the same zero value as a stored zero.
@@ -66,7 +60,6 @@ src/shared/db/capacity-batch.ts::addDemandToBucket~1bo0bmf  ?? → || audited:1a
 # delete pin reads the same stored timestamp domain as the line key.
 src/shared/db/attendees/atomic-update.ts::lineBooking.packageGroupId~0djpbjh  ?? → || audited:049scuh # packageGroupId is undefined or a number; zero and the zero fallback produce the same value
 src/shared/db/attendees/atomic-update.ts::lineKeyFromBooking~08fp1gg  ?? → || audited:049scuh # start_at is null or a non-empty stored timestamp, so both operators produce the timestamp or an empty key part
-src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch.args~16je2gx  ?? → || audited:049scuh # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 
 # Attendee creation receives validated non-empty discriminators, dates, tokens,
 # and finite money values. Empty optional contact fields use empty fallbacks.
@@ -110,13 +103,11 @@ src/shared/db/groups.ts::packageMembersError~17n4dy8  ?? → || audited:0n5yfdo 
 src/shared/db/groups.ts::getGroupPackagePrices~1w9nudp  ?? → || audited:0n5yfdo # Map.groupBy returns a GroupListing array or undefined, and every array is truthy
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.rows~19vergh  ?? → || audited:0n5yfdo # rowsByGroup has the same array-or-undefined domain
 src/shared/db/groups.ts::loadPackageMemberPricingByGroupIds.dayPrices~1funuvq  Missing package day prices → "" audited:0n5yfdo # getGroupDayPricesByGroupIds creates an entry for every requested group before it reads rows
-src/shared/db/groups.ts::memberQuantityStatement~0ajbifl  ?? → || audited:0n5yfdo # validated package quantities are positive integers, so zero never reaches this default
 src/shared/db/groups/membership/package-writes.ts::packageGroupMembersErrorTx~1ngldaa  ?? → || audited:02pv2yh # both guards return a non-empty translated error string or null, so either operator returns the first error or null
 
 # Accounting batch reads return arrays. An empty listing filter skips its SQL
 # clause because matchesNothing answers the read before the query runs.
 src/shared/accounting/queries.ts::transfersByAccounts~1uo1zuf  ?? → || audited:1o7wako # Map.groupBy returns a transfer wrapper array or undefined, and every array is truthy
-src/shared/accounting/queries.ts::listingLegScope.clause~0hguk0m  0 → "" audited:1o7wako # matchesNothing is true for this clause, so rowsUnlessNoneMatch returns an empty result without reading clause
 
 # Attendee statuses (db/attendee-statuses.ts) — the public-default fallback in
 # the shared create resolver. The seed inserts a public default and the status
@@ -157,17 +148,17 @@ src/shared/sumup/transaction.ts::eventsOf~0aphohd  ?? → || audited:1odotwz # v
 # ([...rows.keys()]), so every row the settle callback sees carries a
 # sessionId that is a key of that same map. requiredMapValue can never miss
 # there, and no input can observe the message on that unreachable throw.
-src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o Refund settlement lost a payment row→"" audited:087nen1 # unreachable: the IN-clause is built from the same map's keys
-src/shared/db/payment-claim.ts::assertRefundRowsHeld.phase~19s22mv Refund confirmation lost a payment-row phase→"" audited:087nen1 # unreachable: the rows are read by this same map's keys, so every row has a phase
-src/shared/db/payment-claim.ts::paymentClaimRowsSql~1oy3usg charge.→"" audited:087nen1 # the work test reads refund_state_name and refund_local_state, which only payment_charges carries in this join, so the bare names resolve to the same columns
+src/shared/db/payment-claim.ts::settleAttendeeRows~1iaqh2o  Refund settlement lost a payment row→ "" audited:087nen1 # unreachable: the IN-clause is built from the same map's keys
+src/shared/db/payment-claim.ts::assertRefundRowsHeld.phase~19s22mv  Refund confirmation lost a payment-row phase→ "" audited:087nen1 # unreachable: the rows are read by this same map's keys, so every row has a phase
+src/shared/db/payment-claim.ts::paymentClaimRowsSql~1oy3usg  charge.→ "" audited:087nen1 # the work test reads refund_state_name and refund_local_state, which only payment_charges carries in this join, so the bare names resolve to the same columns
 
 # refund-all-candidates.ts — table aliases the reader needs and SQLite does
 # not: each column below is on exactly one table in its query, so dropping the
 # alias resolves to the same column.
-src/shared/db/refund-all-candidates.ts::providerRefundWork~1oy3usg charge.→"" audited:0488fap # only payment_charges carries refund_state_name and refund_local_state in that query
-src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi payment.→"" audited:0488fap # only processed_payments carries protected_state in that query
-src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g payment.→"" audited:0488fap # only processed_payments carries protected_state in that query
-src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv payment.→"" audited:0488fap # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::providerRefundWork~1oy3usg  charge.→ "" audited:0488fap # only payment_charges carries refund_state_name and refund_local_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~195soyi  payment.→ "" audited:0488fap # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~0uj3b4g  payment.→ "" audited:0488fap # only processed_payments carries protected_state in that query
+src/shared/db/refund-all-candidates.ts::refundCandidateCtes~1unwmuv  payment.→ "" audited:0488fap # only processed_payments carries protected_state in that query
 
 src/shared/db/payment-admit-move.ts::moveSnapshot.refusalFor~1l6lh30  ?? → || audited:09i9h9a # every refusal is a declared sentence, never the empty string, so only null reaches the second reader
 
@@ -209,37 +200,33 @@ src/shared/db/listing-parents.ts::edgeIncompatibilityAfterChange.parents~1cm1r1e
 # only `refund_state_name` and `refund_local_state`, which are payment_charges
 # columns. SQLite resolves an unqualified name against the subquery's own FROM
 # first, so the empty prefix produces the same statement.
-src/shared/db/prune.ts::paymentStatement.sql~1oy3usg  charge. → "" audited:17fm35a # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
-src/shared/db/prune.ts::paymentStatement.sql~0tukn2g  charge. → "" audited:17fm35a # The second fragment has the same inner charge table and column scope.
 
 # payment-finalize.ts — the stored reference fields fall back to "". Each left
 # side is a string or undefined, and the fallback is the empty string, so ??
 # and || agree on every value: a truthy string passes through both, undefined
 # takes the fallback in both, and an empty string yields "" either way.
-src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~10demh7  ?? → || audited:1wss6oi # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
-src/shared/db/payment-finalize.ts::buildFinalizeStatements.args~0clq12z  ?? → || audited:1wss6oi # stored?.index is string | undefined with an empty-string fallback, so both operators agree on every value
 
 # attendees/capacity — the refusal diagnosis. The fits SELECT holds only
 # expressions, so it always returns exactly one row; and every probe prefix
 # length is a positive whole number.
-src/shared/db/attendees/capacity/refusal-diagnosis.ts::batchProbePrefixes~05jxu72 0→1 audited:1hcomq8 # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
-src/shared/db/attendees/capacity/refusal-diagnosis.ts::firstUnfitLineIndex.fittingBefore~1qn35dn ??→|| audited:1hcomq8 # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
+src/shared/db/attendees/capacity/refusal-diagnosis.ts::batchProbePrefixes~05jxu72  0→1 audited:1hcomq8 # when the carried bound is 1, skipping its probe only widens the next bracket back to (0, 1 + step], which re-metres from below — same names, one different batch mix
+src/shared/db/attendees/capacity/refusal-diagnosis.ts::firstUnfitLineIndex.fittingBefore~1qn35dn  ?? → || audited:1hcomq8 # a probe prefix length is a positive whole number, never 0, so ?? and || agree on undefined and on every probed value
 
 # attendees/create.ts — the refusal's booking-to-line mapping. A booking's
 # date is a validated YYYY-MM-DD string, null, or undefined — never "" — and
 # a duration only reaches expandDailyRange, whose clampDurationDays turns
 # both 0 and 1 into one day.
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.date~1ifkn3h ??→|| audited:17a3m7b # date is a validated string, null, or undefined; never ""
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 ??→|| audited:17a3m7b # a 0 duration clamps to 1 day, the same as the default
-src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82 1→0 audited:17a3m7b # a 0 default clamps to 1 day inside expandDailyRange
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.date~1ifkn3h  ?? → || audited:17a3m7b # date is a validated string, null, or undefined; never ""
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82  ?? → || audited:17a3m7b # a 0 duration clamps to 1 day, the same as the default
+src/shared/db/attendees/create.ts::capacityFailure.listingIds.durationDays~04izj82  1→0 audited:17a3m7b # a 0 default clamps to 1 day inside expandDailyRange
 
 # sumup-recovery.ts: libsql's batch returns exactly one ResultSet per
 # statement, and COUNT(*) always returns one row, so these requireValue
 # messages name states only the index types demand handling. The text is
 # diagnostic and the paths are unreachable.
-src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3 The unanswered SumUp count returned no result→"" audited:0i8easa # unreachable: one ResultSet per batch statement
-src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w The unanswered SumUp count returned no row→"" audited:0i8easa # unreachable: COUNT(*) always returns one row
-src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn The unanswered SumUp listing returned no result→"" audited:0i8easa # unreachable: one ResultSet per batch statement
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.counted~06tpdj3  The unanswered SumUp count returned no result→ "" audited:0i8easa # unreachable: one ResultSet per batch statement
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.total~06i495w  The unanswered SumUp count returned no row→ "" audited:0i8easa # unreachable: COUNT(*) always returns one row
+src/shared/db/sumup-recovery.ts::listUnansweredSumupMoney.listed~1ympdrn  The unanswered SumUp listing returned no result→ "" audited:0i8easa # unreachable: one ResultSet per batch statement
 src/shared/db/listings/records.ts::withDayPrices~12esd4i  ?? → || audited:0yh75dm # a provided DayPrices is a Record object (always truthy), and undefined takes the fetch under either operator
 src/shared/db/listings/records.ts::withDayPrices~0jasiuh  ?? → || audited:0yh75dm # a projected image column set is an object (always truthy), so the fetch fallback runs only when it is undefined
 src/shared/db/listings/records.ts::getStoredListingWithCount~0s7oh7g  ?? → || audited:0yh75dm # the array element is a listing object or undefined; a present listing is truthy
@@ -248,13 +235,12 @@ src/shared/db/listing-relationship-validation.ts::listingById.listingPrices~0p5a
 # The one-direction link reader's fold throws when a row's key falls outside
 # the requested key set, but the reader's WHERE clause already restricts every
 # returned row to a requested key, so the throw is unreachable.
-src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4 Unexpected link key→"" audited:0tfjsk3 # unreachable: WHERE key_id IN (...) lets only requested keys through
+src/shared/db/link-table.ts::rowsToIdsByKeys~0a4lik4  Unexpected link key→ "" audited:0tfjsk3 # unreachable: WHERE key_id IN (...) lets only requested keys through
 
 src/shared/db/listings/catalog.ts::getListingOfferFlags.row.alias~1hl3tuf  listing → "" audited:143g2p7 # the reader consumes the alias only through truthiness, so the empty string behaves exactly like an absent alias
 src/shared/db/listings/catalog.ts::getListingOfferFlags~1u79xgr  ?? → || audited:143g2p7 # read.one answers the row object or null, and every row object is truthy
 
 src/shared/db/attendees/queries.ts::getAttendeeRaw~10a7m9s  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
-src/shared/db/attendees/queries.ts::getAttendeeRawByToken~06djxiz  ?? → || audited:1xidqhx # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
 src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → true audited:1xidqhx # the paid flag gates payment_id inside decryptPiiBlob, and this reader returns only the name field
 
 # A booking event posts its legs once, together: the store rejects adding a
@@ -262,7 +248,6 @@ src/shared/db/attendees/queries.ts::getAttendeeNamesByIds~0i1nd31  false → tru
 # pairs a sale with a payment INTO the same attendee. So a payment-kind leg
 # sharing an unpaid sale's event group but landing in another account is not
 # a state any ledger write can produce.
-src/shared/db/listing-overview-stats.ts::incompleteSales.noPayment~1t2xb3x  %20AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id→"" audited:0z0srnp # shop appends whole events atomically; a payment leg in a sale's group always destinations that booking's attendee
 
 # The settings_version row only ever holds whole-number text:
 # settingsVersionIncrement inserts '1' or updates to CAST(value AS INTEGER)+1,
@@ -277,15 +262,24 @@ src/shared/db/settings/cache.ts::getCurrentSettingsVersion~18tvevh  10 → 0 aud
 # Contact token split (contact-tokens.ts) — the legacy (markerless) branch.
 src/shared/db/contact-tokens.ts::splitTokenBlob~05rrw2z  -→+ audited:0sppv7e # separatorAt === -1 distinguishes a legacy line with no tab; the mutant only relabels such lines to carry `raw.slice(0, -1)` as their marker while keeping the encrypted value identical (slice(0)). Every marker consumer (removeBookingToken, ensureBookingToken) compares that label against an HMAC blind marker computed from the token, which a ciphertext-derived prefix string can never equal through a production write — legacy rows store an AEAD ciphertext and marked rows name their marker behind a tab, and no writer emits the hybrid a distinguishing input would need
 src/shared/db/built-sites/claims.ts::takePooledSiteForBuyer.claim~0itqfwl  won→"" audited:14sfg38 # the "won" tag only names the transaction result inside the function; every caller observes the final "claimed" take, so no test can see the intermediate string
-src/shared/db/built-sites/claims.ts::assignedBuiltSiteExistsStatement.tail~0nk255t %20LIMIT 1→"" audited:14sfg38 # the statement feeds hasAssignedBuiltSite's rows.length > 0 check; the row count is zero or positive either way, so LIMIT 1 only bounds the fetch and no input distinguishes the two
 
 # Daily switch (daily-switch.ts): the move builds one DesiredListingLine per
 # undated row and hands it to updateStatementFor, which targets the row by its
 # slot pin (attendee, listing, old start, parent, package group) and never
 # reads the line's exists flag.
-src/shared/db/listings/daily-switch.ts::moveStatement.line.exists~1w8epkj true→false audited:0c2maua # updateStatementFor builds its UPDATE from the line's range and the caller's slot pin; nothing in the move path reads exists, so no input distinguishes the flag
+src/shared/db/listings/daily-switch.ts::moveStatement.line.exists~1w8epkj  true→false audited:0c2maua # updateStatementFor builds its UPDATE from the line's range and the caller's slot pin; nothing in the move path reads exists, so no input distinguishes the flag
 
 # Ordered collection (ordered-collection.ts): a collection without a scope
 # opens each where clause with "1 = 1 AND ". The text after it is always one
 # complete predicate, so the clause selects the same rows without the opener.
-src/shared/db/ordered-collection.ts::defineOrderedCollection.scopeWhere~1z0ithz 1 = 1 AND%20→"" audited:0ucohlv # "1 = 1 AND X" and "X" are the same SQL predicate, and every caller appends one complete predicate X
+src/shared/db/users.ts::getUserAuthFieldsById~11gjlts  ?? → || audited:06a8dbx # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/update.ts::readRecordedScriptCommit~0a5wpjt  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
+src/shared/update.ts::fetchLatestRelease.assetUrl~16g02qy  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
+src/shared/db/capacity.ts::buildCapacityCondition.sqlFor.excludeAttendeeId~1jgxbsh  ?? → || audited:09muj2r # shared.listingId is a non-empty SqlParameterToken or undefined
+src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch~16je2gx  ?? → || audited:03oo8us # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
+src/shared/db/groups.ts::memberQuantityStatement.quantityCases~0ajbifl  ?? → || audited:0d7f61b # validated package quantities are positive integers, so zero never reaches this default
+src/shared/db/prune.ts::paymentStatement~1oy3usg  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
+src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
+src/shared/db/payment-finalize.ts::buildFinalizeStatements~10demh7  ?? → || audited:0qcpm4f # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
+src/shared/db/payment-finalize.ts::buildFinalizeStatements~0clq12z  ?? → || audited:0qcpm4f # stored?.encrypted is string | undefined with an empty-string fallback, so both operators agree on every value
+src/shared/db/attendees/queries.ts::getAttendeeRawByToken~0rxiz9n  ?? → || audited:02y92q2 # loadAttendeeRows answers an Attendee row object or undefined, and a row object is always truthy
