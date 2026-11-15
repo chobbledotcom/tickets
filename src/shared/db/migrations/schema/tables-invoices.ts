@@ -4,9 +4,9 @@ import { sql } from "#db/sql.ts";
 import { INVOICE_STATUSES } from "#shared/invoices/status.ts";
 import { attendeeIdColumn } from "./columns.ts";
 import { checked, defaulted, oneOf, rowId, text } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 
-export const invoiceTables: [name: string, table: Table][] = [
+export const invoiceTables = [
   [
     // An invoice belongs to one attendee. The body is the rendered Liquid
     // output, frozen when an operator creates the invoice. It is sealed under
@@ -51,4 +51,4 @@ export const invoiceTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+] as const satisfies readonly NamedTable[];

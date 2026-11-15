@@ -13,9 +13,9 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 
-export const catalogTables: [name: string, table: Table][] = [
+export const catalogTables = [
   [
     "groups",
     {
@@ -211,4 +211,4 @@ export const catalogTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+] as const satisfies readonly NamedTable[];

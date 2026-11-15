@@ -23,5 +23,5 @@ test("versions built-site data without the retired prune marker", () => {
     "site_data_revision",
     "INTEGER NOT NULL DEFAULT 0",
   ]);
-  assert(!columns.map(([name]) => name).includes("last_pruned"));
+  assert(!columns.some(([name]: readonly [string, unknown]) => name === "last_pruned"));
 });

@@ -11,13 +11,13 @@ import { invoiceTables } from "./tables-invoices.ts";
 import { questionTables } from "./tables-questions.ts";
 import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
 // Schema (ordered: tables with no FK deps first). Concatenating the groups in
 // this order reproduces the original FK-dependency sequence exactly, so the
 // schema hash is unchanged from the single-file declaration.
-export const SCHEMA: [name: string, table: Table][] = [
+export const TYPED_SCHEMA = [
   ...coreTables,
   ...attendeeTables,
   ...catalogTables,
@@ -27,10 +27,13 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...invoiceTables,
   ...taxTables,
   ...externalSourceTables,
-];
+] as const satisfies readonly NamedTable[];
+
+/** Every declared table, as the migrations read it. */
+export const SCHEMA: readonly NamedTable[] = TYPED_SCHEMA;
 
 /** Ordered table names — matches FK dependency order (parents before children) */
-export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
+export const SCHEMA_TABLE_NAMES: readonly string[] = SCHEMA.map(([name]) => name);
 
 // ─── Schema hash (auto-detects changes even when LATEST_UPDATE is not bumped) ──
 

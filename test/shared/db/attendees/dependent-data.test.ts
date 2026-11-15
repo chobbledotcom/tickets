@@ -39,7 +39,9 @@ describe("attendee dependent data", () => {
   });
 
   test("classifies every durable payment table, including indirect children", () => {
-    const paymentTableNames = paymentTables.map(([name]) => name).sort();
+    const paymentTableNames: string[] = paymentTables
+      .map(([name]) => name)
+      .sort();
     const paymentNames = new Set(paymentTableNames);
     const classified = ATTENDEE_DATA_RULES.filter((rule) =>
       paymentNames.has(rule.table),

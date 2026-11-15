@@ -24,9 +24,9 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 
-export const attendeeTables: [name: string, table: Table][] = [
+export const attendeeTables = [
   [
     "attendee_statuses",
     {
@@ -425,4 +425,4 @@ export const attendeeTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+] as const satisfies readonly NamedTable[];

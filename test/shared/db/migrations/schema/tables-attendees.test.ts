@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeTables } from "#db/migrations/schema/tables-attendees.ts";
 import { RECOVERY_NODES } from "#payment/sumup-recovery-machine-spec.ts";
+import { schemaTableNamed } from "#test-utils/db/schema-declaration.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
@@ -12,11 +13,7 @@ test("keeps the complete attendee schema declaration exact", async () => {
   );
 });
 
-const tableNamed = (name: string) => {
-  const found = attendeeTables.find(([tableName]) => tableName === name);
-  if (!found) throw new Error(`No ${name} table is declared`);
-  return found[1];
-};
+const tableNamed = (name: string) => schemaTableNamed(attendeeTables, name);
 
 const columnNamed = (table: string, column: string): string => {
   const found = tableNamed(table).columns.find(([name]) => name === column);
@@ -26,7 +23,10 @@ const columnNamed = (table: string, column: string): string => {
 
 /** The columns one declared index covers, in order, failing when the table
  *  declares no index under that name. */
-const indexColumns = (table: string, indexName: string): string[] => {
+const indexColumns = (
+  table: string,
+  indexName: string,
+): readonly string[] => {
   const found = tableNamed(table).indexes?.find(
     (one) => one.name === indexName,
   );

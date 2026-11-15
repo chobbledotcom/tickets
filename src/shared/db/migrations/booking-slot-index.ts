@@ -28,7 +28,7 @@ export const recreateSlotIndex = async ({
  * This is the postcondition every widening migration must land. It reads from
  * the one declaration so this list can never drift from what `syncIndexes`
  * creates. */
-export const slotIndexColumns = (): string[] =>
+export const slotIndexColumns = (): readonly string[] =>
   SCHEMA.flatMap(([, table]) => table.indexes ?? []).find(
     (index) => index.name === SLOT_INDEX,
   )!.columns;

@@ -8,7 +8,7 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "#db/migrations/schema/scalar-columns.ts";
-import type { Table } from "#db/migrations/schema/types.ts";
+import type { NamedTable } from "#db/migrations/schema/types.ts";
 import { sql } from "#db/sql.ts";
 import { refundAuthorityWorkCondition } from "#payment/refund-authority-lifecycle.ts";
 import { madeAndTouched, ownerEncryptedColumn } from "./columns.ts";
@@ -36,7 +36,7 @@ const ABOUT_THE_CHARGE = [
   sql`refund_revision >= 1`,
 ];
 
-export const paymentChargeTable: [name: string, table: Table] = [
+export const paymentChargeTable = [
   "payment_charges",
   {
     columns: [
@@ -80,4 +80,4 @@ export const paymentChargeTable: [name: string, table: Table] = [
       },
     ],
   },
-];
+] as const satisfies NamedTable;

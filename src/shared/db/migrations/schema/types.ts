@@ -2,20 +2,36 @@
 
 import type { SqlStatement } from "#db/sql.ts";
 
-export type Column = [name: string, type: SqlStatement];
+declare const STORED: unique symbol;
+declare const REFERS_TO: unique symbol;
+
+/** A column's type in SQL, and the value a stored row holds in that column. */
+export type ColumnKind<Stored> = SqlStatement & {
+  readonly [STORED]: Stored;
+};
+
+/** A column kind whose value is the `id` of a row in the table `Target`. */
+export type RefersTo<Target extends string> = {
+  readonly [REFERS_TO]: Target;
+};
+
+export type Column = readonly [name: string, type: SqlStatement];
 
 export type Index = {
-  name: string;
-  columns: string[];
-  unique?: boolean;
+  readonly name: string;
+  readonly columns: readonly string[];
+  readonly unique?: boolean;
   /** A fixed schema predicate for a partial index. */
-  where?: SqlStatement;
+  readonly where?: SqlStatement;
 };
 
 export type Table = {
-  columns: Column[];
-  indexes?: Index[];
+  readonly columns: readonly Column[];
+  readonly indexes?: readonly Index[];
 };
+
+/** One declared table: its name, then its columns and indexes. */
+export type NamedTable = readonly [name: string, table: Table];
 
 /**
  * A SQLite trigger that maintains or validates stored data. Unlike indexes,

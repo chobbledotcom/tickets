@@ -15,7 +15,11 @@ import {
   text,
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
-import type { Column, Table } from "#db/migrations/schema/types.ts";
+import type {
+  Column,
+  NamedTable,
+  Table,
+} from "#db/migrations/schema/types.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
@@ -44,32 +48,38 @@ export const ownerEncryptedRuleOrNull = (name: string): SqlStatement =>
   sql`${sqlName(name)} IS NULL OR ${sealed(name, "hyb:1", 3)}`;
 
 /** A column that must hold a value hidden for the owner with their key. */
-export const ownerEncryptedColumn = (name: string): Column => [
+export const ownerEncryptedColumn = <Name extends string>(
+  name: Name,
+): readonly [Name, typeof text] => [
   name,
   checked(sealed(name, "hyb:1", 3))(text),
 ];
 
 /** When a row was made and last touched. Every payment record carries both. */
-export const madeAndTouched: Column[] = [
+export const madeAndTouched = [
   ["created_at", wholeNumber],
   ["updated_at", wholeNumber],
-];
+] as const satisfies readonly Column[];
 
 /**
  * Every record hanging off a payment opens the same way: its own row id, then
  * the payment it belongs to. Written once here so a new one cannot start any
  * other way.
  */
-export const paymentRecord = (
-  name: string,
+export const paymentRecord = <
+  Name extends string,
+  const Columns extends readonly Column[],
+>(
+  name: Name,
   parts: {
-    columns: Column[];
+    columns: Columns;
     indexes: NonNullable<Table["indexes"]>;
   },
-): [name: string, table: Table] => [
-  name,
-  {
-    columns: [["id", rowId], ["payment_id", text], ...parts.columns],
-    indexes: parts.indexes,
-  },
-];
+) =>
+  [
+    name,
+    {
+      columns: [["id", rowId], ["payment_id", text], ...parts.columns],
+      indexes: parts.indexes,
+    },
+  ] as const satisfies NamedTable;

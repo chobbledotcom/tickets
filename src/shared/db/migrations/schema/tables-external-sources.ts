@@ -12,14 +12,14 @@ import {
   textOrNull,
   wholeNumber,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 
 /* jscpd:ignore-end */
 
 /** The record kinds a link can point at, as a CHECK the database enforces. */
 const linkKind = oneOf("link_type", EXTERNAL_LINK_KINDS)(text);
 
-export const externalSourceTables: [name: string, table: Table][] = [
+export const externalSourceTables = [
   [
     // A place this site's records also appear elsewhere, such as an invoice
     // system or a carrier. `name` and `url_pattern` hold owner-key ciphertext,
@@ -71,4 +71,4 @@ export const externalSourceTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+] as const satisfies readonly NamedTable[];

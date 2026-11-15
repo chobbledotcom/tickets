@@ -1,6 +1,6 @@
 /** Durable payment aggregate: sessions, refundable charge legs, and cases. */
 
-import type { Table } from "#db/migrations/schema/types.ts";
+import type { NamedTable } from "#db/migrations/schema/types.ts";
 import { paymentCaseTable } from "./cases.ts";
 import { paymentChargeTable } from "./charges.ts";
 import { paymentCompletionDeliveriesTable } from "./completion-deliveries.ts";
@@ -12,7 +12,7 @@ import {
 } from "./refund-confirmations.ts";
 import { paymentSessionTable } from "./sessions.ts";
 
-export const paymentTables: [name: string, table: Table][] = [
+export const paymentTables = [
   paymentSessionTable,
   paymentCompletionEffectsTable,
   paymentCompletionDeliveriesTable,
@@ -21,4 +21,4 @@ export const paymentTables: [name: string, table: Table][] = [
   paymentCaseDecisionTable,
   refundConfirmationTable,
   refundConfirmationReferenceTable,
-];
+] as const satisfies readonly NamedTable[];

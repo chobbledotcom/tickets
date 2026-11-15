@@ -25,7 +25,13 @@ import {
   ticketCountPredicateFor,
 } from "./schema/listing-aggregates.ts";
 import { TRIGGERS } from "./schema/triggers.ts";
-import type { Column, Index, Table, Trigger } from "./schema/types.ts";
+import type {
+  Column,
+  Index,
+  NamedTable,
+  Table,
+  Trigger,
+} from "./schema/types.ts";
 import {
   assertColumnsPresent,
   assertLiveTableColumns,
@@ -390,7 +396,7 @@ const dropDeprecatedAttendeeColumns = fromAttendeeColumns(async (cols) => {
 });
 
 /** Create missing tables and add missing columns in a single pass */
-export const createTableSql = ([name, table]: [string, Table]): SqlStatement =>
+export const createTableSql = ([name, table]: NamedTable): SqlStatement =>
   sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (${columnDefinitions(
     table.columns,
   )})`;
@@ -411,7 +417,7 @@ export const fullSchemaCreateStatements = (): SqlStatement[] =>
 
 /** The SCHEMA subset a scoped step can touch. A name outside SCHEMA is
  * refused. */
-const scopedSchema = (tables: readonly string[]): [string, Table][] => {
+const scopedSchema = (tables: readonly string[]): NamedTable[] => {
   const wanted = new Set(tables);
   return SCHEMA.filter(([name]) => {
     if (!wanted.has(name)) return false;

@@ -19,9 +19,9 @@ import {
   wholeNumberStartingAtNull,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import type { NamedTable } from "./types.ts";
 
-export const contentTables: [name: string, table: Table][] = [
+export const contentTables = [
   [
     // Per-contact marketing preferences, contact history, and visit counts,
     // keyed by an opaque HMAC blind index. Public checkout/unsubscribe paths can
@@ -304,4 +304,4 @@ export const contentTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+] as const satisfies readonly NamedTable[];
