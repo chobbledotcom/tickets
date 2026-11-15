@@ -533,14 +533,18 @@ A flagged pair is one merge:
 - The renamed scan holds accepted matches in
   `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
   with `deno task cpd:renamed --update`.
-- The strict scans hold the clones that existed when they started to count
+- The strict scans hold the cloned code that existed when they started to count
   renamed copies, in `cfg/.jscpd.baseline.json`,
   `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
   `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
-  with
-  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines. The one exception is a re-paired
-  clone, which the next item defines.
+  with `deno task cpd:update`. Never add a clone to these baselines.
+- A baseline holds one count for each duplicated snippet. The fingerprint of a
+  snippet covers its text with every run of whitespace removed. A line that
+  moves, a blank line, a file rename, and a new partner for a recorded place
+  therefore keep the count. jscpd's own `--baseline` file hashes the raw text
+  of a clone pair, so this repository writes its own baseline over the scan
+  report, in `scripts/jscpd/baseline.ts`. `deno task cpd:update` rewrites every
+  baseline, and `deno task cpd` checks each scan against it.
 - A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
   a clone that the merge base on `origin/main` does not hold, and on a count
   above the base's, so precommit and CI catch both. It reads every
@@ -549,18 +553,10 @@ A flagged pair is one merge:
   new. It fails on a scan task that names another path, so a new scan's
   baseline is compared too. Run it on its own with
   `deno task check:jscpd-baselines`.
-- The ratchet accepts a re-paired clone. A clone pair has one fingerprint.
-  When a branch deletes one side of a pair, the scan pairs the other side
-  with a new partner, and that pair has a new fingerprint. When a baseline
-  holds a fingerprint that the merge base does not hold, the ratchet repeats
-  the scan with the merge base's baseline. An added clone passes when the
-  branch changed neither of its files. The count of added clones must not
-  exceed the count of such re-pairs.
-- The ratchet accepts fingerprints that a branch trades for a smaller total.
-  A rewrite re-pairs copies, so it can add fingerprints while the baseline
-  gives up at least as many clones as it adds. The count of added clones must
-  not exceed the clones the baseline gives up, over every fingerprint. A
-  baseline whose total rises still fails.
+- A baseline names its fingerprint version. The ratchet cannot compare counts
+  of two versions, so it passes a merge base copy that holds an older version.
+  A baseline whose own version is old fails, and the fix is
+  `deno task cpd:update`.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The
