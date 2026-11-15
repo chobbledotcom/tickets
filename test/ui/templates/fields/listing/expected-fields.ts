@@ -6,6 +6,7 @@
 
 // The expected fields are written out literally so a changed name, label,
 // hint, bound, flag, or choice fails here instead of moving along with it.
+/* jscpd:ignore-start -- a list of field records, not code */
 export const LISTING_FIELDS = [
   {
     hint: "Displayed to attendees on the ticket page",
@@ -357,6 +358,7 @@ export const LISTING_FIELDS = [
     visible: false,
   },
 ];
+/* jscpd:ignore-end */
 
 export const SLUG_FIELD = {
   hint: "URL-friendly identifier (lowercase letters, numbers, hyphens, and underscores). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",
