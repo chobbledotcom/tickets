@@ -11,6 +11,8 @@ import {
   snippetContent,
   snippetFingerprint,
   totalCount,
+  updateSummary,
+  versionMismatch,
 } from "#scripts/jscpd/baseline.ts";
 import type { ClonePair, Place } from "#scripts/jscpd/worst.ts";
 
@@ -188,5 +190,89 @@ describe("totalCount", () => {
   test("adds every count", () => {
     expect(totalCount({ aaa: 2, bbb: 3 })).toBe(5);
     expect(totalCount({})).toBe(0);
+  });
+});
+
+describe("a written baseline", () => {
+  test("reads back as the counts it wrote", () => {
+    const counts = { "0123456789abcdef": 3, fedcba9876543210: 1 };
+    expect(readBaseline("base.json", baselineText(counts))).toEqual({
+      counts,
+      version: BASELINE_VERSION,
+    });
+  });
+
+  test("holds nothing new for the scan that wrote it", async () => {
+    const scan = await scanFingerprints(
+      [pair(place("a.ts", 1, 2), place("b.ts", 1, 2))],
+      snippetOf,
+    );
+    const written = readBaseline("base.json", baselineText(scan.counts));
+    expect(rises(scan.counts, written.counts)).toEqual([]);
+  });
+
+  test("counts a snippet the same after a shift moves it down the file", async () => {
+    const snippet = ["const a = 1;", "return a;"];
+    const shiftedLines = ["// one", "// two", ...snippet];
+    const first = await scanFingerprints(
+      [pair(place("a.ts", 1, 2), place("b.ts", 1, 2))],
+      (target: Place) => placeLines(snippet, target),
+    );
+    const shifted = await scanFingerprints(
+      [pair(place("a.ts", 3, 4), place("b.ts", 3, 4))],
+      (target: Place) => placeLines(shiftedLines, target),
+    );
+    expect(shifted.counts).toEqual(first.counts);
+    expect(Object.values(shifted.places)).toEqual([
+      [place("a.ts", 3, 4), place("b.ts", 3, 4)],
+    ]);
+  });
+});
+
+describe("versionMismatch", () => {
+  test("says nothing about a baseline this tree writes", () => {
+    expect(versionMismatch({ counts: {}, version: BASELINE_VERSION })).toBe(
+      undefined,
+    );
+  });
+
+  test("names both versions when the baseline holds another one", () => {
+    expect(versionMismatch({ counts: {}, version: BASELINE_VERSION - 1 })).toBe(
+      "holds fingerprint version 1, but this tree writes version 2",
+    );
+  });
+});
+
+describe("updateSummary", () => {
+  test("reports the place counts one baseline adds and removes", () => {
+    expect(
+      updateSummary(
+        "cfg/base.json",
+        { aaa: 2 },
+        {
+          counts: { aaa: 1, ccc: 3 },
+          version: BASELINE_VERSION,
+        },
+      ),
+    ).toBe("cfg/base.json updated: 1 place(s) added, 3 removed (2 total)");
+  });
+
+  test("reports what a first baseline records", () => {
+    expect(updateSummary("cfg/base.json", { aaa: 2 }, undefined)).toBe(
+      "cfg/base.json updated: fingerprint version 2 records 2 place(s)",
+    );
+  });
+
+  test("reports what a rewrite of another version records", () => {
+    expect(
+      updateSummary(
+        "cfg/base.json",
+        { aaa: 2 },
+        {
+          counts: { ddd: 9 },
+          version: BASELINE_VERSION - 1,
+        },
+      ),
+    ).toBe("cfg/base.json updated: fingerprint version 2 records 2 place(s)");
   });
 });

@@ -165,7 +165,7 @@ describe("riseFindings", () => {
 
   test("names a clone the base does not hold", () => {
     expect(riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({}))).toEqual([
-      `${BASELINE}:aaa [added-clone]: holds 1 clone(s) that the merge base ` +
+      `${BASELINE}:aaa [added-clone]: holds 1 place(s) that the merge base ` +
         "does not hold — merge the duplicated code, then lower the baseline " +
         "with --update",
     ]);
@@ -175,7 +175,7 @@ describe("riseFindings", () => {
     expect(
       riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 })),
     ).toEqual([
-      `${BASELINE}:aaa [raised-clone]: holds 3 clone(s), up from 2 — merge the ` +
+      `${BASELINE}:aaa [raised-clone]: holds 3 place(s), up from 2 — merge the ` +
         "duplicated code, then lower the baseline with --update",
     ]);
   });
@@ -193,7 +193,7 @@ describe("riseFindings", () => {
       riseFindings(BASELINE, baseline({ aaa: 1, bbb: 1 }), undefined),
     ).toEqual([
       `${BASELINE} [added-baseline]: is a new baseline that accepts 2 ` +
-        "clone(s) — merge the duplicated code before you add the scan",
+        "place(s) — merge the duplicated code before you add the scan",
     ]);
   });
 
@@ -296,7 +296,7 @@ describe("ratchetExit", () => {
       ),
     ).toBe(1);
     expect(output.lines).toEqual([
-      "cfg/.jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 clone(s) " +
+      "cfg/.jscpd.renamed-baseline.json:bbb [added-clone]: holds 1 place(s) " +
         "that the merge base does not hold — merge the duplicated code, then " +
         "lower the baseline with --update",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
@@ -308,7 +308,7 @@ describe("ratchetExit", () => {
       await exitFor([{ path: BASELINE, text: baseline({ aaa: 1 }) }], {}),
     ).toBe(1);
     expect(output.lines).toEqual([
-      `${BASELINE} [added-baseline]: is a new baseline that accepts 1 clone(s) ` +
+      `${BASELINE} [added-baseline]: is a new baseline that accepts 1 place(s) ` +
         "— merge the duplicated code before you add the scan",
       `\n1 jscpd-baseline issue(s) found. See ${RATCHET_GUIDE}.`,
     ]);

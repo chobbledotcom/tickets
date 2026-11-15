@@ -18,10 +18,10 @@ import { basename } from "node:path";
 import { flatMap, sort, sortStrings, unique } from "#fp";
 import { formatFinding } from "#scripts/check-report.ts";
 import {
-  BASELINE_VERSION,
   type FingerprintCounts,
   readBaseline,
   rises,
+  versionMismatch,
 } from "#scripts/jscpd/baseline.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -126,12 +126,12 @@ const risenFindings = (
     return recorded === undefined
       ? formatFinding(`${path}:${fingerprint}`, {
           fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s) that the merge base does not hold`,
+          problem: `holds ${count} place(s) that the merge base does not hold`,
           rule: "added-clone",
         })
       : formatFinding(`${path}:${fingerprint}`, {
           fix: "merge the duplicated code, then lower the baseline with --update",
-          problem: `holds ${count} clone(s), up from ${recorded}`,
+          problem: `holds ${count} place(s), up from ${recorded}`,
           rule: "raised-clone",
         });
   });
@@ -149,13 +149,12 @@ export const riseFindings = (
   baseText: string | undefined,
 ): string[] => {
   const head = readBaseline(path, headText);
-  if (head.version !== BASELINE_VERSION) {
+  const mismatch = versionMismatch(head);
+  if (mismatch !== undefined) {
     return [
       formatFinding(path, {
         fix: "refresh the baseline with --update",
-        problem:
-          `holds fingerprint version ${head.version}, but this tree ` +
-          `writes version ${BASELINE_VERSION}`,
+        problem: mismatch,
         rule: "baseline-version",
       }),
     ];
@@ -167,7 +166,7 @@ export const riseFindings = (
       : [
           formatFinding(path, {
             fix: "merge the duplicated code before you add the scan",
-            problem: `is a new baseline that accepts ${accepted} clone(s)`,
+            problem: `is a new baseline that accepts ${accepted} place(s)`,
             rule: "added-baseline",
           }),
         ];
@@ -176,6 +175,6 @@ export const riseFindings = (
   // A merge base that holds another fingerprint version has counts this tree
   // cannot compare. The migration passes here, and the scan that follows the
   // ratchet holds the working tree to the refreshed baseline.
-  if (base.version !== head.version) return [];
+  if (versionMismatch(base) !== undefined) return [];
   return risenFindings(path, head.counts, base.counts);
 };

@@ -130,6 +130,15 @@ export const readBaseline = (path: string, text: string): Baseline => {
   return { counts: parsed.output.fingerprints, version: parsed.output.version };
 };
 
+/** What to say about a baseline that holds another fingerprint version, or
+ * undefined when it holds this tree's. Two readers compare counts, the scan and
+ * the ratchet, and counts of two versions name different things. */
+export const versionMismatch = ({ version }: Baseline): string | undefined =>
+  version === BASELINE_VERSION
+    ? undefined
+    : `holds fingerprint version ${version}, but this tree writes version ` +
+      `${BASELINE_VERSION}`;
+
 /** The fingerprints whose count `head` holds above `base`, in fingerprint
  * order. A fingerprint that `base` does not hold counts as zero there. */
 export const rises = (
@@ -164,3 +173,25 @@ export const countDifference = (
 /** The sum of every count in one baseline. */
 export const totalCount = (counts: FingerprintCounts): number =>
   Object.values(counts).reduce((total, count) => total + count, 0);
+
+/** The summary that `--update` prints. A baseline of another fingerprint
+ * version holds counts this tree cannot compare, so a rewrite reports what it
+ * now records instead of a difference. */
+export const updateSummary = (
+  path: string,
+  counts: FingerprintCounts,
+  before: Baseline | undefined,
+): string => {
+  const total = totalCount(counts);
+  if (before === undefined || versionMismatch(before) !== undefined) {
+    return (
+      `${path} updated: fingerprint version ${BASELINE_VERSION} records ` +
+      `${total} place(s)`
+    );
+  }
+  const { added, removed } = countDifference(counts, before.counts);
+  return (
+    `${path} updated: ${added} place(s) added, ${removed} removed ` +
+    `(${total} total)`
+  );
+};

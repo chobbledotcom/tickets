@@ -43,6 +43,3 @@ const pathLister =
 /** Every path `revision` holds, in git's order. A caller that matches a file
  * by name reads a file the revision holds at a path it does not know. */
 export const pathsAtRevision = pathLister("ls-tree", "-r", "--name-only");
-
-/** Every tracked path that differs between `revision` and the working tree. */
-export const pathsChangedSince = pathLister("diff", "--name-only");

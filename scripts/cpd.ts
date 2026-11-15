@@ -29,13 +29,13 @@ import { requireValue } from "#shared/required-value.ts";
 import {
   type Baseline,
   baselineText,
-  countDifference,
   placeLines,
   readBaseline,
   rises,
   type ScanFingerprints,
   scanFingerprints,
-  totalCount,
+  updateSummary,
+  versionMismatch,
 } from "./jscpd/baseline.ts";
 import { ensureJscpd } from "./jscpd/install.ts";
 import { scanOptions } from "./jscpd/options.ts";
@@ -120,7 +120,7 @@ const newCloneLines = (
       `The scan reported no place for the fingerprint ${fingerprint}.`,
     );
     lines.push(
-      `  ${count} copy(ies), up from ${base[fingerprint] ?? 0}:`,
+      `  ${count} place(s), up from ${base[fingerprint] ?? 0}:`,
       ...places
         .slice(0, PLACES_SHOWN)
         .map((place) => `    ${place.file}:${place.start}-${place.end}`),
@@ -137,26 +137,28 @@ const newClones = await (async (): Promise<string[]> => {
   if (!options.update && !options.check) return [];
   const before = await rememberedBaseline();
   if (options.update) {
-    const { added, removed } = countDifference(
-      scan.counts,
-      before?.counts ?? {},
+    const named = requireValue(
+      options.baseline,
+      "A rewrite needs --baseline <file>.",
     );
     await Deno.writeTextFile(
-      requireValue(baselinePath, "A rewrite needs --baseline <file>."),
+      resolve(projectRoot, named),
       baselineText(scan.counts),
     );
-    console.error(
-      yellow(
-        `${options.baseline} updated: ${added} fingerprint(s) added, ` +
-          `${removed} removed (${totalCount(scan.counts)} total)`,
-      ),
-    );
+    console.error(yellow(updateSummary(named, scan.counts, before)));
     return [];
   }
   if (before === undefined) {
     throw new Error(
       `The jscpd baseline ${options.baseline} does not exist. ` +
         "Run the cpd task with --update to write it.",
+    );
+  }
+  const mismatch = versionMismatch(before);
+  if (mismatch !== undefined) {
+    throw new Error(
+      `The jscpd baseline ${options.baseline} ${mismatch}. ` +
+        "Run the cpd task with --update to refresh it.",
     );
   }
   return newCloneLines(scan, before.counts);

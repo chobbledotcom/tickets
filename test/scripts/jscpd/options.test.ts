@@ -90,11 +90,20 @@ describe("scanOptions", () => {
     );
   });
 
-  test("refuses a baseline flag with no path", () => {
-    expect(() =>
-      scanOptions(["--config", "cfg/jscpd.json", "--baseline"]),
-    ).toThrow("--baseline needs a path.");
-    expect(() => scanOptions(["--config"])).toThrow("--config needs a path.");
+  test("refuses every flag that names no path", () => {
+    const refusals: [args: string[], message: string][] = [
+      [["--config"], "--config needs a path."],
+      [["--config", "--update"], "--config needs a path."],
+      [["--config", "jscpd.json", "--baseline"], "--baseline needs a path."],
+      [["--config", "jscpd.json", "--baseline="], "--baseline needs a path."],
+      [
+        ["--config", "jscpd.json", "--baseline", "--update"],
+        "--baseline needs a path.",
+      ],
+    ];
+    for (const [args, message] of refusals) {
+      expect(() => scanOptions(args)).toThrow(message);
+    }
   });
 
   test("refuses a check with no baseline", () => {

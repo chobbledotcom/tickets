@@ -27,6 +27,15 @@ interface PathFlag {
   value: string;
 }
 
+/** The path a flag names. A value that is empty, or that starts with `-`, is
+ * another flag in the path's place, so it fails loudly. */
+const pathValue = (name: string, value: string): string => {
+  if (value === "" || value.startsWith("-")) {
+    throw new Error(`${name} needs a path.`);
+  }
+  return value;
+};
+
 /** The path one `--flag <path>` or `--flag=<path>` argument names, or
  * undefined when `arg` is another flag. A flag that names no path fails
  * loudly. */
@@ -36,10 +45,11 @@ const pathFlag = (
   next: string | undefined,
 ): PathFlag | undefined => {
   if (arg === name) {
-    return { consumed: 2, value: requireValue(next, `${name} needs a path.`) };
+    const value = requireValue(next, `${name} needs a path.`);
+    return { consumed: 2, value: pathValue(name, value) };
   }
   if (!arg.startsWith(`${name}=`)) return;
-  return { consumed: 1, value: arg.slice(name.length + 1) };
+  return { consumed: 1, value: pathValue(name, arg.slice(name.length + 1)) };
 };
 
 /** The flags the wrapper owns, and the arguments that remain for jscpd. */
