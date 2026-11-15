@@ -11,67 +11,71 @@ import type {
 
 /* jscpd:ignore-start -- a list of field records, not code */
 export const LISTING_FIELDS = [
-  { default: true, doors: ["api", "transfer"], key: "active", kind: "switch" },
-  { doors: ["transfer"], key: "assign_built_site", kind: "switch" },
+  // Only staff change the bookable state.
+  { default: true, key: "active", kind: "switch", lockedFor: ["editor"] },
+  { feature: "builder", key: "assign_built_site", kind: "switch" },
   // A child listing with this switch on keeps its own booking page, catalog
   // entry, and API eligibility. Off, it exists only as a foldable add-on.
   { key: "bookable_alone", kind: "switch" },
   {
     default: VALID_DAY_NAMES,
-    doors: ["api", "transfer"],
     key: "bookable_days",
     kind: "weekdays",
   },
   { key: "can_pay_more", kind: "switch" },
-  { doors: ["api", "transfer"], key: "closes_at", kind: "optionalDatetime" },
+  { key: "closes_at", kind: "optionalDatetime" },
   { key: "customisable_days", kind: "switch" },
-  { doors: ["api", "transfer"], key: "date", kind: "datetime" },
-  // The API reads the day prices by hand. Its door here checks them.
-  { doors: ["api", "transfer"], key: "day_prices", kind: "dayPrices" },
+  { key: "date", kind: "datetime" },
+  { key: "day_prices", kind: "dayPrices" },
   { key: "description", kind: "privateText" },
   { default: 1, key: "duration_days", kind: "durationDays" },
   { default: "email", key: "fields", kind: "contactFields" },
   { key: "hidden", kind: "switch" },
   {
     default: 0,
-    doors: ["form", "transfer"],
+    feature: "builder",
     key: "initial_site_months",
     kind: "count",
     min: 0,
   },
   {
     default: "standard",
-    doors: ["api", "transfer"],
     key: "listing_type",
     kind: "listingType",
   },
   { key: "location", kind: "privateText" },
   { key: "max_attendees", kind: "count", min: 1, required: true },
   { default: 90, key: "maximum_days_after", kind: "count", min: 0 },
-  { default: 0, doors: ["api", "transfer"], key: "max_price", kind: "price" },
+  { default: 0, key: "max_price", kind: "price" },
   { default: 1, key: "max_quantity", kind: "count", min: 1 },
   { default: 1, key: "minimum_days_before", kind: "count", min: 0 },
   // The smallest quantity above none that one purchase can book.
   { default: 1, key: "min_quantity", kind: "count", min: 1 },
   {
     default: 0,
-    doors: ["form", "transfer"],
+    feature: "builder",
     key: "months_per_unit",
     kind: "count",
     min: 0,
   },
-  { doors: ["form", "transfer"], key: "name", kind: "name", required: true },
+  { key: "name", kind: "name", required: true },
   { key: "non_transferable", kind: "switch" },
-  { doors: ["form", "transfer"], key: "purchase_only", kind: "switch" },
+  { key: "purchase_only", kind: "switch" },
   { key: "thank_you_url", kind: "privateText" },
-  { default: 0, doors: ["api", "transfer"], key: "unit_price", kind: "price" },
+  { default: 0, key: "unit_price", kind: "price" },
   // On, the fields the operator's listing defaults cover follow the settings
   // live instead of this row's own values.
-  { doors: ["api", "transfer"], key: "use_defaults", kind: "switch" },
+  // This switch also changes the webhook that a listing uses.
+  { key: "use_defaults", kind: "switch", lockedFor: ["editor"] },
   // On (with logistics enabled), the listing is dropped off and collected, so
   // its attendees carry logistics agents.
-  { doors: ["transfer"], key: "uses_logistics", kind: "switch" },
-  { doors: ["api", "transfer"], key: "webhook_url", kind: "privateText" },
+  { feature: "logistics", key: "uses_logistics", kind: "switch" },
+  // The registration webhook posts full attendee personal data to this URL.
+  {
+    key: "webhook_url",
+    kind: "privateText",
+    lockedFor: ["demo", "editor"],
+  },
 ] as const satisfies FieldSpecs;
 /* jscpd:ignore-end */
 

@@ -194,18 +194,17 @@ describe("field values", () => {
     ]);
   });
 
-  test("the transfer schema reads the transfer fields by input name, exactly", () => {
+  test("the transfer schema reads every field by input name, exactly", () => {
     const schema = transferSchema([
       { key: "name", kind: "name", required: true },
       { key: "max_quantity", kind: "count", min: 1 },
-      { doors: ["api"], key: "webhook_url", kind: "privateText" },
     ] as const);
 
     expect([
       viewAnswer(schema, { maxQuantity: 2, name: " Hall " }),
       viewAnswer(schema, { name: "Hall" }),
       v.is(schema, { maxQuantity: 2 }),
-      v.is(schema, { name: "Hall", webhookUrl: "https://example.com" }),
+      v.is(schema, { name: "Hall", webhook: "https://example.com" }),
       v.is(schema, { maxQuantity: 0, name: "Hall" }),
     ]).toEqual([
       accepted({ maxQuantity: 2, name: "Hall" }),

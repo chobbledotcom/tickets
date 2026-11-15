@@ -327,7 +327,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       await expectApiError(
         postListing({ max_attendees: 10, name: "   " }),
         400,
-        "name is required",
+        "name cannot be empty",
       );
     });
   });

@@ -5,11 +5,14 @@
  * union's shape by hand.
  */
 
+import { requireListingWithCount } from "#db/listings/records.ts";
 import { loadCatalogNameIndex } from "#db/name-registry.ts";
 import type { ImportedBundle } from "#routes/admin/catalog-transfer/bundle-plan.ts";
 import { CatalogExportError } from "#routes/admin/catalog-transfer/export.ts";
+import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import type { ImportedEntity } from "#routes/admin/catalog-transfer/import-listing.ts";
 import { type Result, requireSuccess } from "#shared/result.ts";
+import type { AdminLevel, ListingWithCount } from "#types";
 
 /** Unwrap a successful export, failing if it returned null or an
  * (unexpected-in-these-tests) {@link CatalogExportError}. */
@@ -57,3 +60,12 @@ export const storedGroupIdOf = async (name: string): Promise<number> => {
   if (match === undefined) throw new Error(`no group named ${name}`);
   return match;
 };
+
+/** The stored row of the one listing an import created. */
+export const importedListing = async (
+  blob: unknown,
+  adminLevel?: AdminLevel,
+): Promise<ListingWithCount> =>
+  requireListingWithCount(
+    requireEntityImport(await importCatalog(blob, adminLevel)).id,
+  );

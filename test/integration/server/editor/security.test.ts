@@ -43,19 +43,24 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
         "https://default.example/hook",
       );
 
-      // …but an editor saving an edit must neither set their crafted URL nor
-      // freeze the inherited default into the row.
+      // …but an editor's crafted URL is refused, and an editor's own save must
+      // not freeze the inherited default into the row.
       const { cookie } = await createTestEditorSession();
-      const editorResp = await postMultipartAs(
+      const editorForm = {
+        ...buildCreateListingForm(testListingInput(), "editor"),
+        slug: listing.slug,
+      };
+      const crafted = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
-        {
-          ...buildCreateListingForm(testListingInput()),
-          slug: listing.slug,
-          webhook_url: "https://attacker.example/steal",
-        },
+        { ...editorForm, webhook_url: "https://attacker.example/steal" },
       );
-      expect(editorResp.status).toBe(302);
+      const saved = await postMultipartAs(
+        `/admin/listing/${listing.id}/edit`,
+        cookie,
+        editorForm,
+      );
+      expect([crafted.status, saved.status]).toEqual([400, 302]);
 
       // Clearing the default reveals the listing's preserved own webhook —
       // proving the editor's save materialised neither the default nor the
@@ -83,7 +88,10 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       const resp = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
-        { ...buildCreateListingForm(testListingInput()), slug: listing.slug },
+        {
+          ...buildCreateListingForm(testListingInput(), "editor"),
+          slug: listing.slug,
+        },
       );
       expect(resp.status).toBe(302);
       // The flag is preserved, so the listing keeps inheriting.
@@ -104,7 +112,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       const resp = await postMultipartAs(
         "/admin/listing",
         cookie,
-        buildCreateListingForm(testListingInput()),
+        buildCreateListingForm(testListingInput(), "editor"),
       );
       expect(resp.status).toBe(302);
       // Not the dashboard (/admin) or bare /admin/listings, which render no
