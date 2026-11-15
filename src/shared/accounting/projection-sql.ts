@@ -25,6 +25,7 @@ import {
   type Counted,
   type Expr,
   equal,
+  inQuery,
   literal,
   not,
   type Operand,
@@ -34,7 +35,7 @@ import {
   valued,
   when,
 } from "#db/select/expression.ts";
-import { from, inQuery, type Node } from "#db/select/query.ts";
+import { from, type Node, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
@@ -47,6 +48,10 @@ export type LegTest = (leg: Leg) => Expr<boolean>;
 
 /** The ledger rows, under the word every ledger read uses. */
 export const ledgerLegs = () => from(tables.transfers).as("leg");
+
+/** The ledger row of a statement written by hand. The statement must name
+ *  the table `transfers AS transfer`, the word a read from the builder uses. */
+export const LEDGER_ROW: Leg = tableNode(tables.transfers, "transfer");
 
 /** An account id in SQL: a column or a value of the surrounding statement, or
  *  text to bind. A bound number is refused. libsql binds a number as a float,

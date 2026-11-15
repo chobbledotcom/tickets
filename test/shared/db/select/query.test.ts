@@ -9,11 +9,25 @@ import {
   desc,
   equal,
   greaterThan,
+  inQuery,
   literal,
+  named,
   sum,
+  valuesOf,
 } from "#db/select/expression.ts";
-import { from, inQuery, via } from "#db/select/query.ts";
-import { referenceOf, type TableHandle, tables } from "#db/select/tables.ts";
+import {
+  from,
+  fromNamed,
+  readsNothing,
+  tableNode,
+  via,
+} from "#db/select/query.ts";
+import {
+  referenceOf,
+  type TableHandle,
+  tableNamed,
+  tables,
+} from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { placed } from "#test-utils/sql-text.ts";
@@ -264,6 +278,128 @@ describe("matchesNothing", () => {
       some.where((listing) => among(listing.id, [])).matchesNothing(),
     ).toBe(true);
     expect(from(tables.listings).matchesNothing()).toBe(false);
+  });
+});
+
+describe("readsNothing", () => {
+  const ids = (wanted: readonly number[]) =>
+    from(tables.listings)
+      .where((listing) => among(listing.id, wanted))
+      .values((listing) => listing.id);
+
+  test("marks the statement of a read that no row can pass", () => {
+    expect(readsNothing(ids([]))).toBe(true);
+    expect(readsNothing(ids([1]))).toBe(false);
+  });
+
+  test("leaves the statement as valid SQL for a batch", () => {
+    expect(ids([]).sql).toBe(
+      "SELECT listing.id FROM listings AS listing WHERE listing.id IN (NULL)",
+    );
+  });
+
+  test("is false for a statement written by hand", () => {
+    expect(readsNothing(sql`SELECT 1 WHERE 0`)).toBe(false);
+  });
+});
+
+describe("a column list written by hand", () => {
+  test("goes into the read as it is, with every clause in SQL order", () => {
+    expect(
+      from(tables.listings)
+        .where((listing) => equal(listing.active, 1))
+        .groupBy((listing) => [listing.id])
+        .orderBy((listing) => [desc(listing.created)])
+        .limit(5)
+        .columns((listing) => sql`${listing.id}, COUNT(*) AS lines`),
+    ).toEqual(
+      sql`SELECT listing.id, COUNT(*) AS lines FROM listings AS listing WHERE listing.active = ${1} GROUP BY listing.id ORDER BY listing.created DESC LIMIT ${5}`,
+    );
+  });
+
+  test("binds the values of a join before the conditions, then the limit", () => {
+    expect(
+      from(tables.questions)
+        .leftJoin("listingQuestion", tables.listing_questions, (question) =>
+          equal(question.listingQuestion.listing_id, 7),
+        )
+        .where((question) => equal(question.sort_order, 8))
+        .limit(2)
+        .columns((question) => question.id).args,
+    ).toEqual([7, 8, 2]);
+  });
+
+  test("adds no WHERE for an empty list of conditions", () => {
+    expect(
+      from(tables.listings)
+        .where(() => [])
+        .columns((listing) => listing.id).sql,
+    ).toBe("SELECT listing.id FROM listings AS listing");
+  });
+});
+
+describe("aggregate", () => {
+  test("reads the one value of a read that folds every row", () => {
+    expect(
+      from(tables.listing_attendees).aggregate((line) => sum(line.quantity))
+        .sql,
+    ).toBe(
+      "(SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee)",
+    );
+  });
+
+  test("refuses a grouped read, which has many rows", () => {
+    expect(() =>
+      from(tables.listing_attendees)
+        .groupBy((line) => [line.listing_id])
+        .aggregate((line) => sum(line.quantity)),
+    ).toThrow("A grouped read has many rows, so it has no one value.");
+  });
+});
+
+describe("statements written by hand", () => {
+  test("take the columns of a table under the word they name it by", () => {
+    const line = tableNode(tables.listing_attendees, "la");
+    expect(sql`SELECT ${line.quantity} FROM listing_attendees AS la`.sql).toBe(
+      "SELECT la.quantity FROM listing_attendees AS la",
+    );
+  });
+
+  test("give their one column to an IN test", () => {
+    expect(
+      placed(
+        from(tables.listings)
+          .where((listing) =>
+            inQuery(
+              listing.id,
+              valuesOf<number>(sql`SELECT thing FROM things WHERE x = ${3}`),
+            ),
+          )
+          .values((listing) => listing.id),
+      ),
+    ).toEqual({
+      args: [3],
+      sql: "SELECT listing.id FROM listings AS listing WHERE listing.id IN (SELECT thing FROM things WHERE x = ?)",
+    });
+  });
+});
+
+describe("a table named by text", () => {
+  test("is read with columns named by text", () => {
+    expect(
+      fromNamed("holidays")
+        .as("holidays")
+        .where(() => equal(named("id"), 4))
+        .columns(() => sql`id, name`),
+    ).toEqual(sql`SELECT id, name FROM holidays AS holidays WHERE id = ${4}`);
+  });
+
+  test("is one of the declared tables", () => {
+    expect(tableNamed("holidays")).toBe(tables.holidays);
+  });
+
+  test("refuses a name that no table has", () => {
+    expect(() => fromNamed("things")).toThrow("things is not a declared table");
   });
 });
 

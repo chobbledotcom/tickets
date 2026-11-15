@@ -25,6 +25,7 @@ import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
+  LEDGER_ROW,
   type Leg,
   type LegTest,
   ledgerLegs,
@@ -47,25 +48,26 @@ import {
 import {
   among,
   and,
+  type Condition,
+  desc,
   type Expr,
   equal,
   literal,
   or,
   valued,
+  whereTail,
+  wholeCondition,
 } from "#db/select/expression.ts";
-import { tableNode } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
-import { type WhereClause, whereSql } from "#db/where-clauses.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { groupToMap, requiredMapValue, unique, uniqueBy } from "#fp";
 import { accountKey } from "#shared/ledger/account.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 /** Newest first by business time, ties broken by id so the order is stable. */
-const NEWEST_FIRST = sql`occurred_at DESC, id DESC`;
-
-/** The ledger row of a statement that names the table `transfers` bare. */
-const LEDGER: Leg = tableNode(tables.transfers, "transfers");
+const newestFirst = (leg: Leg): SqlStatement[] => [
+  desc(leg.occurred_at),
+  desc(leg.id),
+];
 
 type Side = "source" | "dest";
 
@@ -93,8 +95,8 @@ const accountsScope = (accounts: readonly AccountRef[]): SqlStatement =>
       ([type, sameType]) => {
         const ids = sameType.map(({ id }) => id);
         return [
-          sideAmong("source", type, ids)(LEDGER),
-          sideAmong("dest", type, ids)(LEDGER),
+          sideAmong("source", type, ids)(LEDGER_ROW),
+          sideAmong("dest", type, ids)(LEDGER_ROW),
         ];
       },
     ),
@@ -190,35 +192,42 @@ export const allTransfers = (): Promise<Transfer[]> =>
  *  loaded into memory. `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  selectTransfers(queryBatch, { limit, order: NEWEST_FIRST });
+  selectTransfers(queryBatch, (ledger) =>
+    ledger.orderBy(newestFirst).limit(limit),
+  );
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden.
  * Owner-entered manual rows and service cost legs remain visible even when they
  * record an external cost. */
-const VISIBLE_TRANSFER_SCOPE = sql`(source_type != ${sqlLiteral(EXTERNAL)} AND dest_type != ${sqlLiteral(EXTERNAL)} OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = ${sqlLiteral(KIND.serviceCost)})`;
+const VISIBLE_TRANSFER_SCOPE = wholeCondition(
+  sql`(source_type != ${sqlLiteral(EXTERNAL)} AND dest_type != ${sqlLiteral(EXTERNAL)} OR kind LIKE 'manual\\_%' ESCAPE '\\' OR kind = ${sqlLiteral(KIND.serviceCost)})`,
+);
 
-/** A listing-account scope (revenue OR cost legs touching this listing's
- *  accounts) for the by-listing filter. Empty for "all
- *  listings". Cost legs use source_type/dest_type='cost' rather than 'revenue',
- *  so both types are included so service-cost legs appear in the listing view. */
-const listingLegScope = (
-  listingIds: readonly number[] | null,
-): WhereClause[] => {
-  if (listingIds === null) return [];
-  // Asking for no listings can match no leg, so the read is skipped entirely.
-  if (listingIds.length === 0) {
-    return [{ clause: sql`0`, matchesNothing: true }];
-  }
-  const ids = sqlList(listingIds.map((id) => String(id)));
-  const revenue = sqlLiteral(REVENUE);
-  const cost = sqlLiteral(COST);
-  return [
-    {
-      clause: sql`(dest_type = ${revenue} AND dest_id IN (${ids}) OR source_type = ${revenue} AND source_id IN (${ids}) OR source_type = ${cost} AND source_id IN (${ids}) OR dest_type = ${cost} AND dest_id IN (${ids}))`,
-    },
-  ];
-};
+/** The row has an account of `type` with one of `ids` on some side. The type
+ *  is a constant of the code. */
+const touchesAccounts =
+  (type: string, ids: readonly string[]): LegTest =>
+  (leg) =>
+    or(
+      and(equal(leg.dest_type, literal(type)), among(leg.dest_id, ids)),
+      and(equal(leg.source_type, literal(type)), among(leg.source_id, ids)),
+    );
+
+/** The legs that touch the revenue account or the cost account of one of
+ *  these listings, for the by-listing filter. A null keeps every leg. A
+ *  service cost leg sits on the cost account, so both types are read. An
+ *  empty list matches no leg, so the read is skipped. */
+const listingLegScope =
+  (listingIds: readonly number[] | null) =>
+  (leg: Leg): Condition => {
+    if (listingIds === null) return true;
+    const ids = listingIds.map((id) => String(id));
+    return or(
+      touchesAccounts(REVENUE, ids)(leg),
+      touchesAccounts(COST, ids)(leg),
+    );
+  };
 
 /**
  * The visible transfer list for the operator ledger: newest first, capped at
@@ -231,18 +240,17 @@ export const visibleTransfers = (
   range: LedgerRange,
   listingIds: readonly number[] | null,
   limit: number,
-): Promise<Transfer[]> => {
-  const parts: WhereClause[] = [
-    { clause: VISIBLE_TRANSFER_SCOPE },
-    ...occurredAtRange(range),
-    ...listingLegScope(listingIds),
-  ];
-  return selectTransfers(queryBatch, {
-    limit,
-    order: NEWEST_FIRST,
-    where: parts,
-  });
-};
+): Promise<Transfer[]> =>
+  selectTransfers(queryBatch, (ledger) =>
+    ledger
+      .where((leg) => [
+        VISIBLE_TRANSFER_SCOPE,
+        ...occurredAtRange(range),
+        listingLegScope(listingIds)(leg),
+      ])
+      .orderBy(newestFirst)
+      .limit(limit),
+  );
 
 /** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or
  *  null when it is empty — the span the date-range pickers offer as selectable. */
@@ -315,12 +323,12 @@ export const ledgerTotals = async (
          WHEN kind = ${sqlLiteral(KIND.adjustment)} AND dest_type = ${sqlLiteral(REVENUE)} AND source_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN amount
          WHEN kind = ${sqlLiteral(KIND.adjustment)} AND source_type = ${sqlLiteral(REVENUE)} AND dest_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN -amount
          ELSE 0 END), 0) AS income,
-       ${signedSum(sideOfType("source", ATTENDEE), sideOfType("dest", ATTENDEE))(LEDGER)} AS due,
+       ${signedSum(sideOfType("source", ATTENDEE), sideOfType("dest", ATTENDEE))(LEDGER_ROW)} AS due,
        COALESCE(SUM(CASE WHEN kind = ${sqlLiteral(KIND.refundCash)} THEN amount ELSE 0 END), 0) AS refunded,
-       ${signedSum(sideOfType("dest", FEE_INCOME), sideOfType("source", FEE_INCOME))(LEDGER)} AS fees,
+       ${signedSum(sideOfType("dest", FEE_INCOME), sideOfType("source", FEE_INCOME))(LEDGER_ROW)} AS fees,
        COALESCE(SUM(CASE WHEN kind = ${sqlLiteral(KIND.serviceCost)} AND source_type = ${sqlLiteral(COST)} THEN amount ELSE 0 END
                   - CASE WHEN kind = ${sqlLiteral(KIND.serviceCost)} AND dest_type = ${sqlLiteral(COST)} THEN amount ELSE 0 END), 0) AS servicing_costs
-     FROM transfers${whereSql(parts)}`,
+     FROM transfers AS transfer${whereTail(parts)}`,
   );
   return {
     due: Number(row.due),
@@ -342,9 +350,9 @@ const groupedBalances = (
 ): Promise<BalanceRow[]> =>
   queryAll<BalanceRow>(
     sql`SELECT id, COALESCE(SUM(delta), 0) AS balance FROM (
-       SELECT ${LEDGER.dest_id} AS id, amount AS delta FROM transfers WHERE ${whereDest(LEDGER)}
+       SELECT ${LEDGER_ROW.dest_id} AS id, amount AS delta FROM transfers AS transfer WHERE ${whereDest(LEDGER_ROW)}
        UNION ALL
-       SELECT ${LEDGER.source_id} AS id, -amount AS delta FROM transfers WHERE ${whereSource(LEDGER)}
+       SELECT ${LEDGER_ROW.source_id} AS id, -amount AS delta FROM transfers AS transfer WHERE ${whereSource(LEDGER_ROW)}
      ) GROUP BY id`,
   );
 

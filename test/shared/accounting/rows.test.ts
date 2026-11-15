@@ -17,8 +17,8 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import { among } from "#db/select/expression.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
@@ -163,8 +163,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     await storeTwoLegs();
 
     const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
-      { where: inList("event_group", ["evt-b"]) },
-      { where: inList("reference", ["ref-a"]) },
+      (ledger) => ledger.where((leg) => among(leg.event_group, ["evt-b"])),
+      (ledger) => ledger.where((leg) => among(leg.reference, ["ref-a"])),
     ]);
 
     // Swapped answers would read as a stored collision that is not there.
@@ -176,8 +176,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const [none, some] = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", ["ref-a"]) },
+      (ledger) => ledger.where((leg) => among(leg.id, [])),
+      (ledger) => ledger.where((leg) => among(leg.reference, ["ref-a"])),
     ]);
 
     expect(none).toEqual([]);
@@ -190,8 +190,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const rows = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", []) },
+      (ledger) => ledger.where((leg) => among(leg.id, [])),
+      (ledger) => ledger.where((leg) => among(leg.reference, [])),
     ]);
 
     expect(rows).toEqual([[], []]);
@@ -215,8 +215,8 @@ describe("accounting > rows > selectTransfersMany", () => {
         },
       };
       return selectTransfersMany(counted.batch, [
-        { where: inList("event_group", ["evt-a"]) },
-        { where: inList("reference", ["ref-b"]) },
+        (ledger) => ledger.where((leg) => among(leg.event_group, ["evt-a"])),
+        (ledger) => ledger.where((leg) => among(leg.reference, ["ref-b"])),
       ]);
     });
 
@@ -291,7 +291,9 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(voiding, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: sql`id` });
+    const all = await selectTransfers(queryBatch, (ledger) =>
+      ledger.orderBy((leg) => [leg.id]),
+    );
     expect(all.length).toBe(2);
     const [first, second] = all;
 
@@ -342,7 +344,9 @@ describe("accounting > rows > stored-row round-trip", () => {
       insertStatement(refund, recordedAt),
     ]);
 
-    const all = await selectTransfers(queryBatch, { order: sql`id` });
+    const all = await selectTransfers(queryBatch, (ledger) =>
+      ledger.orderBy((leg) => [leg.id]),
+    );
     const [sale, reversal] = all;
     expect("reversesGroup" in sale!).toBe(false);
     expect(reversal!.reversesGroup).toBe("evt-order");

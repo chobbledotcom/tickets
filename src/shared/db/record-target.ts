@@ -10,14 +10,16 @@
  * This module is pure and never touches the database itself.
  */
 
-import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import {
-  deleteWhere,
-  equals,
-  inList,
-  inSubquery,
-  type WhereClause,
-} from "#db/where-clauses.ts";
+  among,
+  type Condition,
+  equal,
+  inQuery,
+  named,
+  valuesOf,
+} from "#db/select/expression.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { deleteWhere } from "#db/where-clauses.ts";
 
 /** One record: what kind of thing it is, and which one of that kind. */
 export interface RecordTarget<Kind extends string> {
@@ -67,19 +69,19 @@ export interface RecordTargets<Kind extends string> {
   /** The same records with repeats dropped. Keeps the first of each. */
   unique: (targets: readonly RecordTarget<Kind>[]) => RecordTarget<Kind>[];
   /** Ask for one record's rows. Pass a table alias when the read joins. */
-  where: (target: RecordTarget<Kind>, alias?: string) => WhereClause[];
+  where: (target: RecordTarget<Kind>, alias?: string) => Condition[];
   /** One record's rows, narrowed by one more column: the note with this id,
    *  the item on this page. A stray id then cannot reach another record's row. */
   whereAlso: (
     target: RecordTarget<Kind>,
     column: string,
     value: number,
-  ) => WhereClause[];
+  ) => Condition[];
   /** Ask for the records of one kind that another query chooses. */
-  whereChosenBy: (kind: Kind, idsQuery: SqlStatement) => WhereClause[];
+  whereChosenBy: (kind: Kind, idsQuery: SqlStatement) => Condition[];
   /** Ask for several records of one kind. Asking for none of them is a
    *  question no row can answer, which the reader sees and skips. */
-  whereMany: (kind: Kind, ids: number[], alias?: string) => WhereClause[];
+  whereMany: (kind: Kind, ids: number[], alias?: string) => Condition[];
 }
 
 /** The columns a table uses when its rows hang off any record — the spelling
@@ -99,20 +101,21 @@ export const defineRecordTarget = <Kind extends string>({
   kinds,
   tables,
 }: RecordTargetConfig<Kind>): RecordTargets<Kind> => {
-  const ofKind = (alias: string | undefined, kind: Kind): WhereClause[] =>
-    equals(column(alias, columns.kind), kind);
+  const ofKind = (alias: string | undefined, kind: Kind): Condition[] => [
+    equal(named<string>(column(alias, columns.kind)), kind),
+  ];
 
   const key = (target: RecordTarget<Kind>): RecordTargetKey<Kind> =>
     `${target.kind}:${target.id}`;
 
-  const whereChosenBy = (kind: Kind, idsQuery: SqlStatement): WhereClause[] => [
+  const whereChosenBy = (kind: Kind, idsQuery: SqlStatement): Condition[] => [
     ...ofKind(undefined, kind),
-    ...inSubquery(columns.id, idsQuery),
+    inQuery(named<number>(columns.id), valuesOf<number>(idsQuery)),
   ];
 
-  const where = (target: RecordTarget<Kind>, alias?: string): WhereClause[] => [
+  const where = (target: RecordTarget<Kind>, alias?: string): Condition[] => [
     ...ofKind(alias, target.kind),
-    ...equals(column(alias, columns.id), target.id),
+    equal(named<number>(column(alias, columns.id)), target.id),
   ];
 
   return {
@@ -145,13 +148,13 @@ export const defineRecordTarget = <Kind extends string>({
     ],
     where,
     whereAlso: (target, narrowing, value) => [
-      ...equals(narrowing, value),
+      equal(named<number>(narrowing), value),
       ...where(target),
     ],
     whereChosenBy,
     whereMany: (kind, ids, alias) => [
       ...ofKind(alias, kind),
-      ...inList(column(alias, columns.id), ids),
+      among(named<number>(column(alias, columns.id)), ids),
     ],
   };
 };

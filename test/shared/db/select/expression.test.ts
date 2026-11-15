@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   among,
+  amongConstants,
   and,
   atLeast,
   atMost,
@@ -9,11 +10,14 @@ import {
   count,
   desc,
   equal,
+  given,
   greaterThan,
   lessThan,
   literal,
+  matchesGlob,
   matchesNothing,
   minus,
+  named,
   not,
   notEqual,
   or,
@@ -22,6 +26,7 @@ import {
   sum,
   valued,
   when,
+  whereTail,
   wholeCondition,
 } from "#db/select/expression.ts";
 import { sql, sqlName } from "#db/sql.ts";
@@ -193,5 +198,102 @@ describe("worked-out values", () => {
 
   test("order largest first", () => {
     expect(desc(quantity).sql).toBe("line.quantity DESC");
+  });
+});
+
+describe("a list of a column that can hold nothing", () => {
+  test("takes the values without the null", () => {
+    expect(text(among(note, ["a", "b"]))).toEqual({
+      args: ["a", "b"],
+      sql: "line.note IN (?, ?)",
+    });
+  });
+});
+
+describe("amongConstants", () => {
+  test("writes each constant into the text", () => {
+    expect(text(amongConstants(note, ["a", "it's"]))).toEqual({
+      args: [],
+      sql: "line.note IN ('a', 'it''s')",
+    });
+  });
+});
+
+describe("matchesGlob", () => {
+  test("writes the pattern into the text", () => {
+    expect(text(matchesGlob(note, "refund_*"))).toEqual({
+      args: [],
+      sql: "line.note GLOB 'refund_*'",
+    });
+  });
+
+  test("is one condition that NOT takes without brackets", () => {
+    expect(not(matchesGlob(note, "a*")).sql).toBe("NOT line.note GLOB 'a*'");
+  });
+});
+
+describe("an AND inside an AND", () => {
+  const some = equal(quantity, 1);
+  const more = greaterThan(quantity, 2);
+  const most = lessThan(quantity, 3);
+
+  test("reads as one list with no brackets", () => {
+    expect(and(and(some, more), most).sql).toBe(
+      "line.quantity = ?1 AND line.quantity > ?2 AND line.quantity < ?3",
+    );
+  });
+
+  test("keeps the brackets of an AND inside an OR", () => {
+    expect(or(and(some, more), most).sql).toBe(
+      "((line.quantity = ?1 AND line.quantity > ?2) OR line.quantity < ?3)",
+    );
+  });
+
+  test("still knows when no row can pass", () => {
+    expect(matchesNothing(and(and(some, among(quantity, [])), most))).toBe(
+      true,
+    );
+  });
+});
+
+describe("named", () => {
+  test("names a column by text", () => {
+    expect(text(equal(named("thing.id"), 7))).toEqual({
+      args: [7],
+      sql: "thing.id = ?",
+    });
+  });
+
+  test("refuses text that is not a name", () => {
+    expect(() => named("id; --")).toThrow('Not a valid SQL name: "id; --"');
+  });
+});
+
+describe("given", () => {
+  test("keeps every row where the caller gave no value", () => {
+    expect(given(undefined, () => false)).toBe(true);
+  });
+
+  test("tests a value that the caller gave, a falsy value too", () => {
+    expect(given(0, (value) => equal(quantity, value))).toEqual(
+      equal(quantity, 0),
+    );
+  });
+});
+
+describe("whereTail", () => {
+  test("is empty when no condition narrows the rows", () => {
+    expect(whereTail([])).toEqual(sql``);
+    expect(whereTail([true, true])).toEqual(sql``);
+  });
+
+  test("joins the conditions with AND, in order, with their values", () => {
+    expect(whereTail([equal(quantity, 1), true, among(note, ["x"])])).toEqual(
+      sql` WHERE line.quantity = ${1} AND line.note IN (${"x"})`,
+    );
+  });
+
+  test("says in SQL that no row can pass", () => {
+    expect(whereTail([false]).sql).toBe(" WHERE 0");
   });
 });

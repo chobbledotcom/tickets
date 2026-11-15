@@ -33,6 +33,9 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
+import { among, equal, named } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import {
   type SqlStatement,
@@ -43,7 +46,6 @@ import {
   sqlRows,
 } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
-import { equals, inList } from "#db/where-clauses.ts";
 import {
   flatMap,
   identity,
@@ -116,7 +118,7 @@ export const getGroupsByIds = async (
     : mapById(identity<Group>)(
         await rawGroupsTable.read.many(
           {},
-          { where: inList("id", [...new Set(ids)]) },
+          { where: [among(named<number>("id"), [...new Set(ids)])] },
         ),
       );
 
@@ -310,6 +312,9 @@ export const hasPackageBookingsTx = async (
   return rows.length > 0;
 };
 
+/** The group row of a read that names the table `groups AS groupRecord`. */
+const GROUP_RECORD = tableNode(tables.groups, "groupRecord");
+
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets
  * the ticket view collapse each token's package rows into one card per package,
@@ -324,11 +329,11 @@ export const getPackageDisplaysByIds = async (
     {
       alias: "groupRecord",
       where: [
-        ...inList(
-          "groupRecord.id",
+        among(
+          GROUP_RECORD.id,
           [...new Set(groupIds)].filter((groupId) => groupId > 0),
         ),
-        ...equals("groupRecord.is_package", 1),
+        equal(GROUP_RECORD.is_package, 1),
       ],
     },
   );

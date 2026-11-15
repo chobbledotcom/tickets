@@ -10,6 +10,9 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import { listingOptionColumns, rawListingsTable } from "#db/listings/table.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { equal } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -22,6 +25,8 @@ async function writeTwoListings(firstName: string, secondName: string) {
   const second = await createTestListing({ name: secondName });
   return { first, second };
 }
+
+const LISTING = tableNode(tables.listings, "listing");
 
 describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
@@ -145,16 +150,16 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
       { id: [wanted.id, other.id] },
       {
         alias: "listing",
-        where: [{ clause: sql`listing.id = ${wanted.id}` }],
+        where: [equal(LISTING.id, wanted.id)],
       },
     );
     const clauseRulesOutEveryRow = await listingOptionColumns.many(
       { id: [wanted.id, other.id] },
-      { alias: "listing", where: [{ clause: sql`listing.active = 0` }] },
+      { alias: "listing", where: [equal(LISTING.active, 0)] },
     );
     const filterRulesOutTheRest = await listingOptionColumns.many(
       { id: [wanted.id] },
-      { alias: "listing", where: [{ clause: sql`listing.active = 1` }] },
+      { alias: "listing", where: [equal(LISTING.active, 1)] },
     );
 
     expect(bothHold.map(({ id }) => id)).toEqual([wanted.id]);

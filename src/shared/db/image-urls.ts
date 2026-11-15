@@ -3,8 +3,8 @@
  */
 
 import { imagesTable } from "#db/images.ts";
+import { among, named } from "#db/select/expression.ts";
 import { getCurrentSettingsVersion } from "#db/settings.ts";
-import { inList } from "#db/where-clauses.ts";
 import { lazyRef, mapById } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
@@ -79,7 +79,12 @@ export const imageUrlsFor = async (
   if (missing.length === 0) return table;
   const fetched = mapById((row: { id: number; filename: string }) =>
     getImageProxyUrl(row.filename),
-  )(await imageUrlColumns.many({}, { where: inList("id", missing) }));
+  )(
+    await imageUrlColumns.many(
+      {},
+      { where: [among(named<number>("id"), missing)] },
+    ),
+  );
   for (const [id, url] of fetched) table.set(id, url);
   const warm = cached ?? new Map<number, string>();
   for (const [id, url] of fetched) warm.set(id, url);

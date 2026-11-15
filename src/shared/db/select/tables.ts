@@ -183,3 +183,8 @@ export const referenceOf = (table: TableHandle, key: string): Reference => {
     ),
   };
 };
+
+/** The declared table of this name. Code over any table holds the name as
+ *  text. */
+export const tableNamed = (name: string): TableHandle =>
+  requiredMapValue(handles, name, `${name} is not a declared table`);

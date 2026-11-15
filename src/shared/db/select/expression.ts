@@ -15,6 +15,7 @@ import {
   sqlJoin,
   sqlList,
   sqlLiteral,
+  sqlName,
 } from "#db/sql.ts";
 
 declare const VALUE: unique symbol;
@@ -36,6 +37,12 @@ export type Condition = Expr<boolean> | boolean;
 /** Name the type of the value that hand-written SQL gives. */
 export const valued = <Value>(statement: SqlStatement): Expr<Value> =>
   statement as Expr<Value>;
+
+/** A column that code over any table names by text. A read of one known
+ *  table takes its columns from the node of the table instead. */
+export const named = <Value extends InValue = InValue>(
+  column: string,
+): Expr<Value> => valued(sqlName(column));
 
 /** Conditions that one operator cannot split: a comparison, a test, a call.
  *  They join with AND or OR without brackets. */
@@ -94,6 +101,20 @@ export const and = (...conditions: readonly Condition[]): Expr<boolean> => {
   const all = joinedBy(needed, sql` AND `);
   if (needed.length > 1) joinedByAnd.set(all, needed);
   return needed.some(matchesNothing) ? matchingNothing(all) : all;
+};
+
+/** The test of a value that the caller gave. Where the caller gave no value,
+ *  the read keeps every row. */
+export const given = <Value>(
+  value: Value | undefined,
+  test: (value: Value) => Condition,
+): Condition => (value === undefined ? true : test(value));
+
+/** The ` WHERE …` tail of a statement written by hand. It is empty where no
+ *  condition narrows the rows. */
+export const whereTail = (conditions: readonly Condition[]): SqlStatement => {
+  const needed = conditions.filter((condition) => condition !== true);
+  return needed.length === 0 ? sql`` : sql` WHERE ${and(...needed)}`;
 };
 
 /** Some condition holds. With no condition, no row passes. */
@@ -155,7 +176,7 @@ export const atLeast = comparison(sql`>=`);
  *  valid SQL, so the empty list is written `IN (NULL)`. */
 export const among = <Value extends Comparable | null>(
   value: Expr<Value>,
-  values: readonly Extract<NoInfer<Value>, Comparable>[],
+  values: readonly NonNullable<NoInfer<Value>>[],
 ): Expr<boolean> =>
   values.length === 0
     ? matchingNothing(wholeCondition(sql`${value} IN (NULL)`))
@@ -165,7 +186,7 @@ export const among = <Value extends Comparable | null>(
  *  list comes from the code, never from a request. */
 export const amongConstants = <Value extends string | number | null>(
   value: Expr<Value>,
-  constants: readonly Extract<NoInfer<Value>, string | number>[],
+  constants: readonly NonNullable<NoInfer<Value>>[],
 ): Expr<boolean> =>
   wholeCondition(sql`${value} IN (${sqlCommas(constants.map(sqlLiteral))})`);
 
@@ -175,6 +196,24 @@ export const matchesGlob = (
   value: Expr<string | null>,
   pattern: string,
 ): Expr<boolean> => wholeCondition(sql`${value} GLOB ${sqlLiteral(pattern)}`);
+
+declare const ONE_COLUMN: unique symbol;
+
+/** A read of one unnamed column: the body of an `IN (…)`. */
+export type ValuesStatement<Value> = SqlStatement & {
+  readonly [ONE_COLUMN]: Value;
+};
+
+/** Name the type of the one column that a read written by hand gives. */
+export const valuesOf = <Value>(
+  statement: SqlStatement,
+): ValuesStatement<Value> => statement as ValuesStatement<Value>;
+
+/** The value is one that the read gives. */
+export const inQuery = <Value>(
+  value: Expr<Value>,
+  rows: ValuesStatement<NoInfer<Value>>,
+): Expr<boolean> => wholeCondition(sql`${value} IN (${rows})`);
 
 /** A constant written into the SQL text. A partial index matches a query only
  *  when the query names the constant of the index as text. */

@@ -10,7 +10,9 @@
 import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
-import { type Read, readStatement } from "#db/read.ts";
+import { equal } from "#db/select/expression.ts";
+import { from, type Node, type Query } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type SqlSlot,
   type SqlStatement,
@@ -18,7 +20,6 @@ import {
   sqlCommas,
   sqlNames,
 } from "#db/sql.ts";
-import { equals, matchesNoRows } from "#db/where-clauses.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
@@ -197,12 +198,18 @@ export const bookingLegBatchInsert = (
 const transfersIn = (result: ResultSet): Transfer[] =>
   resultRows<TransferRow>(result).map(rowToTransfer);
 
-/** Which transfers to read, in what order, how many — everything but the
- * columns and the table, which a transfer read always knows. */
-export type TransferRead = Omit<Read, "columns" | "from">;
+/** A read of the ledger, before it names its columns. */
+type LedgerRead = Query<Node<"transfers">>;
 
-const transferStatement = (query: TransferRead): SqlStatement =>
-  readStatement({ ...query, columns: COLUMNS, from: sql`transfers` });
+/** Which transfers to read, in what order, how many: the ledger read with its
+ * conditions, its order and its limit. A transfer read always knows the
+ * columns and the table. */
+export type TransferRead = (ledger: LedgerRead) => LedgerRead;
+
+const everyTransfer: TransferRead = (ledger) => ledger;
+
+const transferStatement = (read: LedgerRead): SqlStatement =>
+  read.columns(() => COLUMNS);
 
 /** One set of rows for each query, in the order the queries were given. A
  *  caller can then name them by destructuring rather than counting positions. */
@@ -223,8 +230,8 @@ export const selectTransfersMany = async <
   queries: Queries,
 ): Promise<TransfersPerQuery<Queries>> => {
   const asked = queries
-    .map((query, index) => ({ index, query }))
-    .filter(({ query }) => !matchesNoRows(query.where ?? []));
+    .map((query, index) => ({ index, query: query(from(tables.transfers)) }))
+    .filter(({ query }) => !query.matchesNothing());
   const answers =
     asked.length === 0
       ? []
@@ -248,19 +255,20 @@ export const selectTransfersMany = async <
  * the query. Pass nothing to read the whole table. */
 export const selectTransfers = async (
   read: BatchExecutor,
-  query: TransferRead = {},
+  query: TransferRead = everyTransfer,
 ): Promise<Transfer[]> => {
   const [rows] = await selectTransfersMany(read, [query]);
   return rows;
 };
 
-/** Read transfers whose rows a WHERE condition selects. */
+/** Read transfers whose rows a WHERE condition selects. The condition reads
+ *  the ledger row as `transfer`. */
 export const selectTransfersScope = async (
   read: BatchExecutor,
   where: SqlStatement,
 ): Promise<Transfer[]> => {
   const [result] = await read([
-    sql`SELECT ${COLUMNS} FROM transfers WHERE ${where}`,
+    sql`SELECT ${COLUMNS} FROM transfers AS transfer WHERE ${where}`,
   ]);
   return transfersIn(requireValue(result, "Ledger read went unanswered"));
 };
@@ -270,11 +278,17 @@ export const selectByEventGroup = (
   read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, { where: equals("event_group", eventGroup) });
+  selectTransfers(read, (ledger) =>
+    ledger.where((leg) => equal(leg.event_group, eventGroup)),
+  );
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
   read: BatchExecutor,
   id: number,
 ): Promise<Transfer | null> =>
-  (await selectTransfers(read, { where: equals("id", id) }))[0] ?? null;
+  (
+    await selectTransfers(read, (ledger) =>
+      ledger.where((leg) => equal(leg.id, id)),
+    )
+  )[0] ?? null;

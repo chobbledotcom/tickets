@@ -10,7 +10,6 @@
  * The clock lives here (`recorded_at`). The business time comes from the caller.
  */
 
-import type { InValue } from "@libsql/client";
 import {
   eventMatchConflict,
   LedgerConflictError,
@@ -20,7 +19,6 @@ import {
   insertIfNewStatement,
   insertStatement,
   selectTransfersMany,
-  type TransferRead,
 } from "#accounting/rows.ts";
 import {
   type BatchExecutor,
@@ -28,8 +26,8 @@ import {
   queryBatch,
   type TxScope,
 } from "#db/client.ts";
+import { among } from "#db/select/expression.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import { inList } from "#db/where-clauses.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { allUnique } from "#shared/all-unique.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
@@ -146,15 +144,6 @@ type BatchSnapshot = {
   readonly originalsById: ReadonlyMap<number, Transfer>;
 };
 
-/** Wants every transfer whose `column` is one of `values`. An empty set asks for
- *  nothing, and is answered without touching the database. */
-const byColumnIn = (
-  column: string,
-  values: readonly InValue[],
-): TransferRead => ({
-  where: inList(column, values),
-});
-
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects that travel as one round trip — independent of the number of groups.
  *  `read` picks where the snapshot comes from: the global client for the batch
@@ -170,9 +159,9 @@ const loadBatchSnapshot = async (
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
   const [existing, stored, originals] = await selectTransfersMany(read, [
-    byColumnIn("event_group", eventGroups),
-    byColumnIn("reference", references),
-    byColumnIn("id", reversesIds),
+    (ledger) => ledger.where((leg) => among(leg.event_group, eventGroups)),
+    (ledger) => ledger.where((leg) => among(leg.reference, references)),
+    (ledger) => ledger.where((leg) => among(leg.id, reversesIds)),
   ]);
   return {
     existingByGroup: Map.groupBy(existing, (leg) => leg.eventGroup),

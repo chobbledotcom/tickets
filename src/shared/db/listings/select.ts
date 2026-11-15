@@ -16,11 +16,17 @@ import {
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
-import { defineReader } from "#db/read.ts";
-import { tableNode } from "#db/select/query.ts";
+import { readRows } from "#db/read.ts";
+import {
+  among,
+  type Condition,
+  equal,
+  given,
+  literal,
+} from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { inList, type WhereClause } from "#db/where-clauses.ts";
 import type { ListingWithCount } from "#types";
 
 /** The listing row of a statement that names the table
@@ -83,11 +89,15 @@ export const LISTING_ORDER_SQL: Record<ListingOrder, SqlStatement> = {
   created_desc: sql`listing.created DESC, listing.id DESC`,
 };
 
-const whereClauses = (where: ListingWhere): WhereClause[] => [
-  ...inList("listing.id", where.ids),
-  ...inList("listing.slug_index", where.slugIndexes),
-  ...inList("groupListing.group_id", where.inGroups),
-  ...(where.activeOnly ? [{ clause: sql`listing.active = 1` }] : []),
+/** The membership row of a read by group, which names the table
+ *  `group_listings AS groupListing`. */
+const MEMBERSHIP_ROW = tableNode(tables.group_listings, "groupListing");
+
+const whereConditions = (where: ListingWhere): Condition[] => [
+  given(where.ids, (ids) => among(LISTING_ROW.id, ids)),
+  given(where.slugIndexes, (indexes) => among(LISTING_ROW.slug_index, indexes)),
+  given(where.inGroups, (groups) => among(MEMBERSHIP_ROW.group_id, groups)),
+  where.activeOnly ? equal(LISTING_ROW.active, literal(1)) : true,
 ];
 
 /** Everything a caller declares to read listing records: which rows to keep and
@@ -104,22 +114,32 @@ export type GetListingsQuery = {
  * folds a listing's several memberships back into one row, naming which groups
  * it matched; every other read starts from the listings themselves.
  */
-export const listingReader = defineReader<ListingOrder, GetListingsQuery>(
-  LISTING_ORDER_SQL,
-  (query) => {
-    const byGroup = query.where.inGroups !== undefined;
-    return {
-      columns: byGroup
-        ? sql`json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
-        : listingColumns(),
-      from: byGroup
-        ? sql`group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id`
-        : sql`listings AS listing`,
-      groupBy: byGroup ? sql`listing.id` : undefined,
-      where: whereClauses(query.where),
-    };
-  },
-);
+const listingStatement = (query: GetListingsQuery): SqlStatement => {
+  const conditions = whereConditions(query.where);
+  const order =
+    query.order === undefined ? [] : [LISTING_ORDER_SQL[query.order]];
+  return query.where.inGroups === undefined
+    ? from(tables.listings)
+        .where(() => conditions)
+        .orderBy(() => order)
+        .columns(listingColumns)
+    : from(tables.group_listings, { listing: {} })
+        .where(() => conditions)
+        .groupBy((member) => [member.listing.id])
+        .orderBy(() => order)
+        .columns(
+          (member) =>
+            sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
+        );
+};
+
+/** The statement, for a caller that must embed the read in a batch, and the
+ *  rows, for everyone else. The row shape is the caller's to name. */
+export const listingReader = {
+  rows: <Row>(query: GetListingsQuery): Promise<Row[]> =>
+    readRows<Row>(listingStatement(query)),
+  statement: listingStatement,
+};
 
 /** The raw shape a listing read returns: the stored columns plus the worked-out
  * values, before decryption and before any inherited defaults are overlaid. */

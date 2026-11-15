@@ -18,32 +18,31 @@ import {
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
 import { emailOwedColumn } from "#db/attendees/notification-flags.ts";
-import { defineReader } from "#db/read.ts";
+import { readRows } from "#db/read.ts";
 import {
+  among,
+  amongConstants,
   and,
   atMost,
   type Condition,
   type Expr,
   equal,
+  given,
+  greaterThan,
+  inQuery,
   lessThan,
   literal,
   matchesGlob,
   not,
   orZero,
   sum,
+  valuesOf,
   when,
   wholeCondition,
 } from "#db/select/expression.ts";
-import { from, type Node, tableNode } from "#db/select/query.ts";
+import { from, type Node, type Query, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
-import { inList, inSubquery, type WhereClause } from "#db/where-clauses.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import type { Attendee } from "#types";
 
 /**
@@ -328,12 +327,13 @@ export type AttendeeKindFilter =
   | "servicing"
   | "attendee-or-servicing";
 
-const KIND_CLAUSE: Record<AttendeeKindFilter, SqlStatement> = {
-  attendee: sql`attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
-  "attendee-or-servicing": sql`attendee.kind IN (${sqlLiteral(
+const KIND_CONDITION: Record<AttendeeKindFilter, Expr<boolean>> = {
+  attendee: equal(ATTENDEE_ROW.kind, literal(ATTENDEE_KIND)),
+  "attendee-or-servicing": amongConstants(ATTENDEE_ROW.kind, [
     ATTENDEE_KIND,
-  )}, ${sqlLiteral(SERVICING_KIND)})`,
-  servicing: sql`attendee.kind = ${sqlLiteral(SERVICING_KIND)}`,
+    SERVICING_KIND,
+  ]),
+  servicing: equal(ATTENDEE_ROW.kind, literal(SERVICING_KIND)),
 };
 
 /**
@@ -374,44 +374,59 @@ const ORDER_SQL: Record<AttendeeOrder, SqlStatement> = {
   upcoming: sql`COALESCE(listingAttendee.start_at, attendee.created), attendee.id`,
 };
 
-const whereClauses = (where: AttendeeWhere): WhereClause[] => {
-  const parts: WhereClause[] = [
-    { clause: KIND_CLAUSE[where.kind ?? "attendee"] },
-    ...inList("attendee.id", where.attendeeIds),
-  ];
-  if (where.attendeeIdsSubquery !== undefined) {
-    parts.push(...inSubquery("attendee.id", where.attendeeIdsSubquery));
-  }
-  parts.push(...inList("listingAttendee.listing_id", where.listingIds));
-  if (where.realLinesOnly) {
-    parts.push({ clause: sql`listingAttendee.quantity > 0` });
-  }
-  if (where.upcomingFrom !== undefined) {
-    parts.push({
-      clause: sql`(listingAttendee.start_at IS NULL OR DATE(listingAttendee.start_at) >= ${where.upcomingFrom})`,
-    });
-  }
-  if (where.dailyRange !== undefined) {
-    parts.push({
-      clause: sql`listing.listing_type = 'daily' AND listingAttendee.start_at < ${where.dailyRange.before} AND listingAttendee.end_at > ${where.dailyRange.after}`,
-    });
-  }
-  return parts;
-};
+/** The listing row of a daily range read. */
+const LISTING_ROW = tableNode(tables.listings, "listing");
 
-const BOOKING_JOIN: Record<AttendeeJoin, SqlStatement> = {
-  inner: sql`JOIN`,
-  left: sql`LEFT JOIN`,
-};
+const whereConditions = (where: AttendeeWhere): Condition[] => [
+  KIND_CONDITION[where.kind ?? "attendee"],
+  given(where.attendeeIds, (ids) => among(ATTENDEE_ROW.id, ids)),
+  given(where.attendeeIdsSubquery, (chosen) =>
+    inQuery(ATTENDEE_ROW.id, valuesOf<number>(chosen)),
+  ),
+  given(where.listingIds, (ids) => among(BOOKING_ROW.listing_id, ids)),
+  where.realLinesOnly ? greaterThan(BOOKING_ROW.quantity, literal(0)) : true,
+  given(where.upcomingFrom, (day) =>
+    wholeCondition(
+      sql`(${BOOKING_ROW.start_at} IS NULL OR DATE(${BOOKING_ROW.start_at}) >= ${day})`,
+    ),
+  ),
+  given(where.dailyRange, ({ after, before }) =>
+    and(
+      equal(LISTING_ROW.listing_type, literal("daily")),
+      lessThan(BOOKING_ROW.start_at, before),
+      greaterThan(BOOKING_ROW.end_at, after),
+    ),
+  ),
+];
 
-/** A daily range is the one filter that also needs the listings table, because
- *  it asks about the listing rather than the booking. */
-const attendeeFrom = (join: AttendeeJoin, where: AttendeeWhere): SqlStatement =>
-  sql`attendees AS attendee ${BOOKING_JOIN[join]} listing_attendees AS listingAttendee ON listingAttendee.attendee_id = attendee.id${
-    where.dailyRange === undefined
-      ? sql``
-      : sql` JOIN listings AS listing ON listingAttendee.listing_id = listing.id`
-  }`;
+/** The attendees with their booking rows. A daily range is the one filter
+ *  that also needs the listings table, because it asks about the listing
+ *  and not about the booking. */
+const attendeesWithBookings = (
+  join: AttendeeJoin,
+  where: AttendeeWhere,
+): Query<unknown> => {
+  const everyAttendee = from(tables.attendees);
+  const booked: Query<unknown> =
+    join === "left"
+      ? everyAttendee.leftJoin(
+          "listingAttendee",
+          tables.listing_attendees,
+          (attendee) =>
+            equal(attendee.listingAttendee.attendee_id, attendee.id),
+        )
+      : everyAttendee.join(
+          "listingAttendee",
+          tables.listing_attendees,
+          (attendee) =>
+            equal(attendee.listingAttendee.attendee_id, attendee.id),
+        );
+  return where.dailyRange === undefined
+    ? booked
+    : booked.join("listing", tables.listings, (row) =>
+        equal(BOOKING_ROW.listing_id, row.listing.id),
+      );
+};
 
 export type GetAttendeesQuery<F extends AttendeeField> = {
   fields: readonly F[];
@@ -429,21 +444,17 @@ export type GetAttendeesQuery<F extends AttendeeField> = {
    *  missing, which reads as a single `listing_id = 0` row. */
   join?: AttendeeJoin;
 };
-const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
-  ORDER_SQL,
-  (query) => {
-    const join = query.join ?? "inner";
-    return {
-      columns: attendeeColumns(
-        join,
-        query.fields,
-        query.owedScope ?? "attendee",
-      ),
-      from: attendeeFrom(join, query.where),
-      where: whereClauses(query.where),
-    };
-  },
-);
+const attendeeStatement = (
+  query: GetAttendeesQuery<AttendeeField>,
+): SqlStatement => {
+  const join = query.join ?? "inner";
+  return attendeesWithBookings(join, query.where)
+    .where(() => whereConditions(query.where))
+    .orderBy(() => (query.order === undefined ? [] : [ORDER_SQL[query.order]]))
+    .columns(() =>
+      attendeeColumns(join, query.fields, query.owedScope ?? "attendee"),
+    );
+};
 
 /**
  * SQL and bound args for a read, for callers that want it inside a batch — such
@@ -451,9 +462,10 @@ const attendees = defineReader<AttendeeOrder, GetAttendeesQuery<AttendeeField>>(
  */
 export const attendeeBatchStatement = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): SqlStatement => attendees.statement(query);
+): SqlStatement => attendeeStatement(query);
 
 /** Runs the read and returns raw rows typed to exactly the fields asked for. */
 export const getAttendees = <F extends AttendeeField>(
   query: GetAttendeesQuery<F>,
-): Promise<AttendeeRowFor<F>[]> => attendees.rows<AttendeeRowFor<F>>(query);
+): Promise<AttendeeRowFor<F>[]> =>
+  readRows<AttendeeRowFor<F>>(attendeeStatement(query));

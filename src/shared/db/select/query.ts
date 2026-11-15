@@ -34,7 +34,9 @@ import {
   type Condition,
   type Expr,
   matchesNothing,
+  type ValuesStatement,
   valued,
+  whereTail,
   wholeCondition,
 } from "#db/select/expression.ts";
 import {
@@ -46,6 +48,7 @@ import {
   type TableHandle,
   type TableName,
   type TargetOf,
+  tableNamed,
 } from "#db/select/tables.ts";
 import {
   type RowsStatement,
@@ -152,13 +155,6 @@ export type Out<Picked extends Selection> = {
     : never;
 };
 
-declare const ONE_COLUMN: unique symbol;
-
-/** A read of one unnamed column: the body of an `IN (…)`. */
-export type ValuesStatement<Value> = SqlStatement & {
-  readonly [ONE_COLUMN]: Value;
-};
-
 /** A node with one more joined table under `Key`. */
 type Joining<
   Root,
@@ -200,6 +196,9 @@ export type Query<Root> = Readonly<{
   select: <Picked extends Selection>(
     pick: (node: Root) => Picked,
   ) => RowsStatement<Out<Picked>>;
+  /** The statement that reads a column list written by hand. The caller names
+   *  the type of the rows. */
+  columns: (pick: (node: Root) => SqlStatement) => SqlStatement;
   /** The statement that reads one unnamed value for each row. */
   values: <Value>(pick: (node: Root) => Expr<Value>) => ValuesStatement<Value>;
   /** The value of the first row, as an expression. Null with no row. */
@@ -322,6 +321,14 @@ const refuseHiddenTable = (
   }
 };
 
+/** Statements whose conditions no row can pass. */
+const emptyReads = new WeakSet<SqlStatement>();
+
+/** Whether no row can pass the conditions of a read from the builder, so a
+ *  runner can answer it with no rows and skip the database. */
+export const readsNothing = (statement: SqlStatement): boolean =>
+  emptyReads.has(statement);
+
 const tail = (
   keyword: SqlStatement,
   body: SqlStatement | null,
@@ -369,14 +376,18 @@ const query = <Root>(
   /** `SELECT columns FROM …` with every clause the read says. */
   const statement = (columns: (node: Root) => SqlStatement): SqlStatement => {
     const { aliases, conditions, node, parts } = planned();
-    const built = sql`SELECT ${columns(node)} FROM ${sqlJoin(parts, sql` `)}${tail(
-      sql`WHERE`,
-      conditions.length === 0 ? null : and(...conditions),
-    )}${tail(sql`GROUP BY`, listOrNull(listing.group?.(node)))}${tail(
+    const built = sql`SELECT ${columns(node)} FROM ${sqlJoin(
+      parts,
+      sql` `,
+    )}${whereTail(conditions)}${tail(
+      sql`GROUP BY`,
+      listOrNull(listing.group?.(node)),
+    )}${tail(
       sql`ORDER BY`,
       listOrNull(listing.order?.(node)),
     )}${listing.limit === undefined ? sql`` : sql` LIMIT ${listing.limit}`}`;
     refuseHiddenTable(built, aliases);
+    if (conditions.some(matchesNothing)) emptyReads.add(built);
     return built;
   };
 
@@ -390,6 +401,7 @@ const query = <Root>(
       return valued(sql`(${statement(pick)})`);
     },
     as: (alias) => next({ alias }),
+    columns: statement,
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),
     groupBy: (group) => next({ group }),
     join: (key, joinedTable, on) =>
@@ -428,6 +440,11 @@ export const from = <Name extends TableName, const Joined extends Spec = None>(
   spec: Joins<Name, Joined> = {} as Joins<Name, Joined>,
 ): Query<Node<Name, Joined>> => query(table, spec, { joins: [], wheres: [] });
 
+/** Rows of the table of this name, for code over any table. The read has no
+ *  typed node, so its conditions name their columns by text. */
+export const fromNamed = (name: string): Query<unknown> =>
+  query(tableNamed(name), {}, { joins: [], wheres: [] });
+
 /** A join of the rows of `table` whose reference `edge` points at the parent. */
 export const via = <
   Name extends TableName,
@@ -439,9 +456,3 @@ export const via = <
   spec: Joins<Name, Joined> = {} as Joins<Name, Joined>,
 ): Via<Name, NoInfer<Edge>, NoInfer<Joined>, false> =>
   new Via(table, edge, spec, false);
-
-/** The value is one that the read gives. */
-export const inQuery = <Value>(
-  value: Expr<Value>,
-  rows: ValuesStatement<NoInfer<Value>>,
-): Expr<boolean> => wholeCondition(sql`${value} IN (${rows})`);
