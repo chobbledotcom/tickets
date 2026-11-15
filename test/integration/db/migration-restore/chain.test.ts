@@ -18,7 +18,17 @@ import {
   markMigrationsApplied,
 } from "#db/migrations/markers.ts";
 import { applyMigrationWithRetry } from "#db/migrations/runner.ts";
-import { initDb, rebuildWipedSchema, resetDatabase } from "#db/migrations.ts";
+import {
+  DB_SCHEMA_HASH_KEY,
+  LATEST_DB_UPDATE_KEY,
+} from "#db/migrations/schema/version.ts";
+import {
+  initDb,
+  LATEST_UPDATE,
+  rebuildWipedSchema,
+  resetDatabase,
+  SCHEMA_HASH,
+} from "#db/migrations.ts";
 import {
   assertPopulatedFixtureSurvived,
   MIGRATIONS,
@@ -32,13 +42,18 @@ import {
 } from "#test/integration/db/migration-restore/helpers.ts";
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { setupTestDbEnvironment } from "#test-utils/db.ts";
+import { settingsValueOrNull } from "#test-utils/migrations.ts";
 
 /**
- * The late boundaries whose migrations rewrite the fixture data. A pristine
- * start keeps their claim honest: it applies the migration to the seeded
- * fixture values instead of to the values an earlier rewrite left behind.
+ * The boundaries whose migrations write a value that only their own column or
+ * table holds, plus the late ones whose migrations rewrite the fixture data. A
+ * pristine start keeps those claims honest: it applies the chain to the seeded
+ * fixture values, where the column or table still holds the fixture row.
  */
 const PRISTINE_BOUNDARY_IDS = [
+  "2026-06-14_attendee_statuses",
+  "2026-06-16_modifiers",
+  "2026-06-17_modifier_aggregates",
   "2026-07-18_drop_built_sites_last_pruned",
   "2026-08-18_sumup_recovery_state",
   "2026-09-30_checked_in_count",
@@ -52,10 +67,14 @@ const seedBoundaryId = migrationBoundaries[0]!.id;
 const seededThrough = MIGRATIONS.indexOf(migrationBoundaries[0]!);
 /** The index in `migrationBoundaries` of the last start point. */
 const lastBoundaryIndex = migrationBoundaries.length - 1;
-/** The index in `MIGRATIONS` of the last migration the walk applied. */
-let appliedThrough = seededThrough;
-/** How many migrations the walk applied since it seeded the first boundary. */
-let appliedCount = 0;
+/** The id of that last start point. */
+const lastBoundaryId = migrationBoundaries[lastBoundaryIndex]!.id;
+/**
+ * The walk's progress: the index in `MIGRATIONS` of the last applied
+ * migration, and the count the walk applied since it seeded the first
+ * boundary.
+ */
+const walk = { applied: 0, appliedThrough: seededThrough };
 /**
  * The boundary ids the walk reached, in order, each one time. It starts at the
  * seeded boundary, which the setup applied.
@@ -64,14 +83,16 @@ const walkedBoundaries: string[] = [seedBoundaryId];
 
 /** Prove that the recorded markers name exactly the migrations that ran. */
 const assertMarkersRecorded = async (): Promise<void> => {
-  const expected = MIGRATIONS.slice(0, appliedThrough + 1).map(({ id }) => id);
+  const expected = MIGRATIONS.slice(0, walk.appliedThrough + 1).map(
+    ({ id }) => id,
+  );
   const recorded = await getAppliedMigrationIds();
   expect(recorded.size, "recorded migration count").toBe(expected.length);
   for (const id of expected) {
     expect(recorded.has(id), `recorded marker for ${id}`).toBe(true);
   }
-  expect(appliedCount, "migrations applied by the walk").toBe(
-    appliedThrough - seededThrough,
+  expect(walk.applied, "migrations applied by the walk").toBe(
+    walk.appliedThrough - seededThrough,
   );
 };
 
@@ -112,34 +133,35 @@ const migrateFromBoundary = async (boundaryId: string): Promise<void> => {
 const walkTo = async (boundaryIndex: number): Promise<void> => {
   const boundary = migrationBoundaries[boundaryIndex]!;
   const pending = MIGRATIONS.slice(
-    appliedThrough + 1,
+    walk.appliedThrough + 1,
     MIGRATIONS.indexOf(boundary) + 1,
   );
   for (const migration of pending) {
     await applyMigrationWithRetry(migration);
     await markMigrationsApplied([migration]);
-    appliedThrough = MIGRATIONS.indexOf(migration);
-    appliedCount += 1;
+    walk.appliedThrough = MIGRATIONS.indexOf(migration);
+    walk.applied += 1;
     walkedBoundaries.push(migration.id);
   }
   await assertMarkersRecorded();
 };
 
-let cleanup: (() => void) | undefined;
+/** The database cleanup this file runs in `afterAll`, and on a setup throw. */
+const lifecycle: { cleanup: (() => void) | undefined } = { cleanup: undefined };
 
 describe("db > migration chain", () => {
   beforeAll(async () => {
-    cleanup = await setupTestDbEnvironment(true);
+    lifecycle.cleanup = await setupTestDbEnvironment(true);
     try {
       await prepareBoundary(seedBoundaryId);
     } catch (error) {
-      cleanup();
-      cleanup = undefined;
+      lifecycle.cleanup();
+      lifecycle.cleanup = undefined;
       throw error;
     }
   });
 
-  afterAll(() => cleanup?.());
+  afterAll(() => lifecycle.cleanup?.());
 
   for (const [index, boundary] of migrationBoundaries.entries()) {
     test(`migrates a populated database from ${boundary.id} to the current schema`, async () => {
@@ -155,10 +177,10 @@ describe("db > migration chain", () => {
 
   test("finishes the chain with the last migration and seals the markers", async () => {
     await walkTo(lastBoundaryIndex);
-    await finishChain(
-      seedBoundaryId,
-      migrationBoundaries[lastBoundaryIndex]!.id,
-    );
+    await finishChain(seedBoundaryId, lastBoundaryId);
+    // The production `finished` batch writes both schema markers.
+    expect(await settingsValueOrNull(LATEST_DB_UPDATE_KEY)).toBe(LATEST_UPDATE);
+    expect(await settingsValueOrNull(DB_SCHEMA_HASH_KEY)).toBe(SCHEMA_HASH);
   });
 
   // A pristine start begins from the full current schema, so it rebuilds that
@@ -169,6 +191,7 @@ describe("db > migration chain", () => {
         await resetDatabase();
         await rebuildWipedSchema();
         await migrateFromBoundary(boundaryId);
+        expect((await getAppliedMigrationIds()).size).toBe(MIGRATIONS.length);
       });
     }
   });
