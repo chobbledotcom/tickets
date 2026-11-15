@@ -3,6 +3,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { once } from "#fp";
 import {
   invoiceFlowFacts,
   isOpenInvoiceRefusal,
@@ -27,8 +28,8 @@ const attempts = (
   extra: (fact: Fact) => boolean = () => true,
 ): readonly Fact[] => facts.filter((fact) => fact.kind === kind && extra(fact));
 
-const cleanFacts = (): Promise<readonly Fact[]> =>
-  factsOf(invoiceFlowModelData);
+/** The clean facts, built once: the source runs the production statements. */
+const cleanFacts = once(() => factsOf(invoiceFlowModelData));
 
 describe("invoice flow checker data", () => {
   test("every clean fact agrees with the action that made it", async () => {

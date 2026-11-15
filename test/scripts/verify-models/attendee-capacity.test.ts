@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { once } from "#fp";
 import { tlaSchemaOf } from "#scripts/verify-models/data.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
@@ -40,24 +41,29 @@ const batch = (
   slot2AfterTotal,
 });
 
-/** The clean proof facts, split into the two checker sets. */
-const cleanFacts = async (): Promise<{ batches: Fact[]; lines: Fact[] }> => {
-  const data = await attendeeCapacityModelData();
-  return {
-    batches: records(data, "BatchFacts") as Fact[],
-    lines: records(data, "LineFacts") as Fact[],
-  };
-};
+/** The clean proof data, built once: the build runs the production batch. */
+const cleanData = once(attendeeCapacityModelData);
+
+/** The clean proof facts, split into the two checker sets and parsed once. */
+const cleanFacts = once(
+  async (): Promise<{ batches: Fact[]; lines: Fact[] }> => {
+    const data = await cleanData();
+    return {
+      batches: records(data, "BatchFacts") as Fact[],
+      lines: records(data, "LineFacts") as Fact[],
+    };
+  },
+);
 
 describe("attendee capacity checker data", () => {
   test("carries the production slot quantities as the checker constants", async () => {
-    const data = await attendeeCapacityModelData();
+    const data = await cleanData();
     expect(data).toContain("QuantityOne == 3");
     expect(data).toContain("QuantityTwo == 2");
   });
 
   test("names the data module the runner writes it to", async () => {
-    const data = await attendeeCapacityModelData();
+    const data = await cleanData();
     // The runner writes the data to AttendeeCapacityData.tla, and the
     // checker requires the module inside to carry the file's name.
     expect(data).toContain("---- MODULE AttendeeCapacityData ----");
