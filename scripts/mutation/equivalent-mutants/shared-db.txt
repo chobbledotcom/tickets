@@ -278,7 +278,6 @@ src/shared/db/users.ts::getUserAuthFieldsById~11gjlts  ?? → || audited:06a8dbx
 src/shared/update.ts::readRecordedScriptCommit~0a5wpjt  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/update.ts::fetchLatestRelease.assetUrl~16g02qy  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/db/capacity.ts::buildCapacityCondition.sqlFor.excludeAttendeeId~1jgxbsh  ?? → || audited:09muj2r # shared.listingId is a non-empty SqlParameterToken or undefined
-src/shared/db/attendees/atomic-update.ts::buildAttendeeEditBatch~16je2gx  ?? → || audited:03oo8us # booking.start_at has the same null-or-non-empty timestamp domain when it becomes the delete pin
 src/shared/db/groups.ts::memberQuantityStatement.quantityCases~0ajbifl  ?? → || audited:0d7f61b # validated package quantities are positive integers, so zero never reaches this default
 src/shared/db/prune.ts::paymentStatement~1oy3usg  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
 src/shared/db/prune.ts::paymentStatement~0tukn2g  charge.→ "" audited:1rsuobq # Both fragment columns belong to the inner charge table. SQLite resolves the unqualified names in that table.
