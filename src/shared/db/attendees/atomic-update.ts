@@ -28,12 +28,16 @@ import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import {
   executeBatchWithResults,
+  inPlaceholders,
   queryAll,
   type SqlStatement,
 } from "#db/client.ts";
 import { numberedStatement } from "#db/numbered-statement.ts";
 import { requiredMapValue, unique } from "#fp";
-import { isCancellable } from "#payment/subscription-machine-spec.ts";
+import {
+  CANCELLABLE_STATUSES,
+  isCancellable,
+} from "#payment/subscription-machine-spec.ts";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -297,28 +301,41 @@ const removedLines = (
   );
 };
 
-/** The write statements for one attendee edit: a delete per removed line, then
- * the update and insert statements in line order, each capacity-checked write
- * followed by CAPACITY_GUARD. The caller runs them as one batch, so a refused
- * write rolls the whole edit back. */
+/** Each removed line has a live-plan guard before its delete. Capacity-checked
+ * writes have CAPACITY_GUARD after them. The caller runs all statements as one
+ * batch, so a refused write rolls the whole edit back. */
 export const buildAttendeeEditBatch = (
   attendeeId: number,
   desired: readonly DesiredListingLine[],
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
   allowOverbook = false,
 ): SqlStatement[] => {
-  const statements = removedLines(desired, existingByKey).map(
-    (booking): SqlStatement => ({
-      args: [
+  const statements = removedLines(desired, existingByKey).flatMap(
+    (booking): SqlStatement[] => {
+      const args = [
         attendeeId,
         booking.listing_id,
         booking.start_at ?? null,
         booking.parent_listing_id,
         booking.package_group_id,
-      ],
-      sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
-    }),
+      ];
+      const pin =
+        "attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?";
+      // Test the current plan, not changes(): an absent ordinary row stays a no-op.
+      return [
+        {
+          args: [...args, ...CANCELLABLE_STATUSES],
+          sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+                SELECT NULL, NULL, 1 FROM listing_attendees
+                WHERE ${pin}
+                  AND subscription_status IN (${inPlaceholders(CANCELLABLE_STATUSES)})`,
+        },
+        {
+          args,
+          sql: `DELETE FROM listing_attendees WHERE ${pin}`,
+        },
+      ];
+    },
   );
   for (const line of [
     ...desired.filter((line) => line.exists),
@@ -404,10 +421,9 @@ export const applyAttendeeAtomicEdit = async (
     ...work.after,
   ];
 
-  // The batch runs as one ACID transaction. After the preflight above this
-  // only fails if a concurrent booking consumed the capacity in the meantime —
-  // a CAPACITY_GUARD then aborts and rolls the whole batch back, surfacing as a
-  // thrown error (the caller retries), never a partial write.
+  // A concurrent capacity change or live plan can refuse the batch after
+  // preflight. Its guard throws a database error and rolls back every write.
+  // A retry reads the current bookings and repeats the preflight.
   await executeBatchWithResults(statements);
 
   return { success: true };

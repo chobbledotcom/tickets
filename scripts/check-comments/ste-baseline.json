@@ -449,7 +449,7 @@
     "long-sentence": 3
   },
   "src/shared/db/attendees/atomic-update.ts": {
-    "long-sentence": 11,
+    "long-sentence": 9,
     "semicolon": 4,
     "banned-modal": 3,
     "participle": 1,
