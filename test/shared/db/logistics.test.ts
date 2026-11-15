@@ -71,12 +71,13 @@ describeWithEnv("db logistics agents", { db: true }, () => {
   });
 
   test("invalidateLogisticsAgentsCache forces a re-read", async () => {
+    const before = (await logisticsAgents.getAll()).map((a) => a.name);
     const agent = await logisticsAgents.table.insert({ name: "Cached Van" });
     await logisticsAgents.getAll();
     await logisticsAgents.table.deleteById(agent.id);
     logisticsAgents.invalidate();
     const agents = await logisticsAgents.getAll();
-    expect(agents.find((a) => a.id === agent.id)).toBeUndefined();
+    expect(agents.map((a) => a.name)).toEqual(before);
   });
 });
 

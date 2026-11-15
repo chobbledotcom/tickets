@@ -41,7 +41,8 @@ import {
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
-import { apiFieldsOf, type FieldSpecs } from "#shared/rest/field-specs.ts";
+import type { FieldSpecs } from "#shared/rest/field-specs.ts";
+import { apiFieldsOf } from "#shared/rest/field-values.ts";
 
 /* ===========================================================================
  * Row schemas — the shapes the JSON API answers with. The client validates

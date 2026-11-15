@@ -6,7 +6,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";

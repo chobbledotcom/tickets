@@ -45,7 +45,7 @@ const editFormData = async (
     name: listing.name,
     slug: listing.slug,
     thank_you_url: listing.thank_you_url ?? "",
-    unit_price: listing.unit_price > 0 ? toMajorUnits(listing.unit_price) : "",
+    unit_price: toMajorUnits(listing.unit_price),
     webhook_url: listing.webhook_url ?? "",
   };
 };

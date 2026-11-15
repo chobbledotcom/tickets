@@ -1,11 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decryptWithKey } from "#crypto/encryption.ts";
+import { decrypt, decryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { importPrivateKey } from "#crypto/hybrid.ts";
 import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
 
-import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
+import type {
+  EnvKeyEncrypted,
+  KeyEncrypted,
+  PasswordHash,
+} from "#crypto/sealed.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb, insert } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
@@ -25,6 +29,17 @@ import {
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
 
+/** The encrypted password hash a stored user row always holds. */
+const encryptedHashOf = (user: {
+  password_hash: EnvKeyEncrypted<PasswordHash> | "";
+}): EnvKeyEncrypted<PasswordHash> => {
+  const stored = user.password_hash;
+  if (stored === "") {
+    throw new Error("The stored user holds no password hash");
+  }
+  return stored;
+};
+
 describeWithEnv("db > auth", { db: true }, () => {
   describe("admin password", () => {
     test("verifyUserPassword returns hash for correct password", () =>
@@ -39,7 +54,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const oldWrappedKey = user!.wrapped_data_key;
 
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
+      expect(oldHash).toBe(await decrypt(encryptedHashOf(user!)));
 
       const success = await settings.updateUserPassword(user!.id, {
         newPassword: "newpassword456",
@@ -59,9 +74,9 @@ describeWithEnv("db > auth", { db: true }, () => {
         await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
       ).toBeNull();
 
-      expect(
-        await verifyUserPassword(updatedUser!, "newpassword456"),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(updatedUser!, "newpassword456")).toBe(
+        await decrypt(encryptedHashOf(updatedUser!)),
+      );
     });
 
     test("updateUserPassword fails with wrong old password", async () => {
@@ -82,9 +97,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(success).toBe(false);
 
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(
-        await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD)).toBe(
+        await decrypt(encryptedHashOf(unchanged!)),
+      );
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
@@ -109,7 +124,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
       const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
+      expect(oldHash).toBe(await decrypt(encryptedHashOf(user!)));
 
       const changeSuccess = await settings.updateUserPassword(user!.id, {
         newPassword,
@@ -136,13 +151,15 @@ describeWithEnv("db > auth", { db: true }, () => {
         updatedUser!,
         newPassword,
       );
-      expect(newPasswordHash).toBeTruthy();
+      expect(newPasswordHash).toBe(
+        await decrypt(encryptedHashOf(updatedUser!)),
+      );
 
       const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
       const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
-      expect(wrappedPrivateKey).toBeTruthy();
+      expect(wrappedPrivateKey).toMatch(/^enc:1:/);
 
       // Asserted non-empty above, so the "" branch of the union is excluded.
       const privateKeyJwk = await decryptWithKey(
@@ -182,15 +199,16 @@ describeWithEnv("db > auth", { db: true }, () => {
       await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
 
       const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(initialHash).toBeTruthy();
+      expect(await decrypt(encryptedHashOf(user!))).toBe(initialHash);
 
-      const success = await settings.updateUserPassword(user!.id, {
+      const change = {
         newPassword: "new-password-123",
         oldKekVersion: user!.kek_version,
         oldPassword: TEST_ADMIN_PASSWORD,
         oldPasswordHash: initialHash!,
         oldWrappedDataKey: user!.wrapped_data_key!,
-      });
+      };
+      const success = await settings.updateUserPassword(user!.id, change);
       expect(success).toBe(true);
 
       const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
@@ -198,7 +216,7 @@ describeWithEnv("db > auth", { db: true }, () => {
         updatedUser!,
         "new-password-123",
       );
-      expect(newValid).toBeTruthy();
+      expect(newValid).toBe(await decrypt(encryptedHashOf(updatedUser!)));
 
       const oldValid = await verifyUserPassword(
         updatedUser!,

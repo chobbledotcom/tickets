@@ -52,12 +52,12 @@ import {
   computeDayOffset,
   shiftUtcIsoByDays,
 } from "#shared/bulk-replace.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { xCount } from "#shared/count-text.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { matchKey } from "#shared/keys.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { sortListings } from "#shared/sort-listings.ts";
 import {

@@ -4,28 +4,25 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { requireListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  expectListingCreated,
+  postListing,
+  putListing,
+} from "#test-utils/listing-api.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import { MAX_DURATION_DAYS } from "#types";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("POST /api/admin/listings", () => {
     test("creates listing with required fields", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            max_attendees: 50,
-            name: "New API Listing",
-          },
-          method: "POST",
-        }),
-        201,
-        (body) => {
-          expect(body.listing.name).toBe("New API Listing");
-          expect(body.listing.max_attendees).toBe(50);
-          expect(body.listing.id).toBeGreaterThan(0);
-          expect(body.listing.slug_index).toBeUndefined();
+      await expectListingCreated(
+        { max_attendees: 50, name: "New API Listing" },
+        (listing) => {
+          expect(listing.name).toBe("New API Listing");
+          expect(listing.max_attendees).toBe(50);
+          expect(listing.id).toBeGreaterThan(0);
         },
       );
     });
@@ -57,22 +54,15 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         [5000, "API Refused High"],
         [-2, "API Refused Low"],
       ] as const) {
-        await assertJson(
-          apiRequest("/api/admin/listings", {
-            body: {
-              duration_days: durationDays,
-              listing_type: "daily",
-              max_attendees: 50,
-              name,
-            },
-            method: "POST",
+        await expectApiError(
+          postListing({
+            duration_days: durationDays,
+            listing_type: "daily",
+            max_attendees: 50,
+            name,
           }),
           400,
-          (body: { error: string }) => {
-            expect(body.error).toBe(
-              `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
-            );
-          },
+          `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
         );
       }
     });
@@ -135,13 +125,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("rejects an unsafe (internal) webhook_url (SSRF guard)", async () => {
       await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            max_attendees: 10,
-            name: "SSRF Attempt",
-            webhook_url: "http://169.254.169.254/latest/meta-data",
-          },
-          method: "POST",
+        postListing({
+          max_attendees: 10,
+          name: "SSRF Attempt",
+          webhook_url: "http://169.254.169.254/latest/meta-data",
         }),
         400,
         (body) => {
@@ -151,19 +138,14 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("rejects a fields list with an unknown contact field on create", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            fields: "phone, e mail",
-            max_attendees: 10,
-            name: "Unknown Field",
-          },
-          method: "POST",
+      await expectApiError(
+        postListing({
+          fields: "phone, e mail",
+          max_attendees: 10,
+          name: "Unknown Field",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe(t("error.listing_fields_unknown"));
-        },
+        "fields has an invalid value",
       );
       expect(
         await queryAll("SELECT id FROM listings WHERE name = ?", [
@@ -197,25 +179,35 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("creates a customisable-days listing with day_prices", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            customisable_days: true,
-            // Mixed entries: day<1, non-integer key, and a non-numeric value
-            // are all dropped by the parser.
-            day_prices: { 0: 50, 1: 1000, 2: 1800, 3: "nope", x: 70 },
-            duration_days: 3,
-            max_attendees: 20,
-            name: "Flexible Pass",
-          },
-          method: "POST",
-        }),
-        201,
-        (body) => {
-          expect(body.listing.customisable_days).toBe(true);
-          expect(body.listing.day_prices).toEqual({ 1: 1000, 2: 1800 });
+      await expectListingCreated(
+        {
+          customisable_days: true,
+          day_prices: { 1: 1000, 2: 1800 },
+          duration_days: 3,
+          max_attendees: 20,
+          name: "Flexible Pass",
+        },
+        (listing) => {
+          expect(listing.customisable_days).toBe(true);
+          expect(listing.day_prices).toEqual({ 1: 1000, 2: 1800 });
         },
       );
+    });
+
+    test("refuses day prices with a bad day count or price", async () => {
+      for (const dayPrices of [{ 0: 50 }, { x: 70 }, { 1: "nope" }]) {
+        await expectApiError(
+          postListing({
+            customisable_days: true,
+            day_prices: dayPrices,
+            duration_days: 3,
+            max_attendees: 20,
+            name: "Bad Prices",
+          }),
+          400,
+          "day_prices has an invalid value",
+        );
+      }
     });
 
     test("syncs listing_prices on the transactional API create path", async () => {
@@ -246,59 +238,45 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       ]);
     });
 
-    test("returns 400 when name is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 50 },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name is required");
-        },
-      );
-    });
+    const refusedCreates: [string, Record<string, unknown>, string][] = [
+      [
+        "returns 400 when name is missing",
+        { max_attendees: 50 },
+        "name is required",
+      ],
+      [
+        "returns 400 when max_attendees is missing",
+        { name: "No Max" },
+        "max_attendees is required",
+      ],
+      [
+        "validates group exists",
+        { group_ids: [99999], max_attendees: 10, name: "Group Listing" },
+        t("error.selected_group_deleted"),
+      ],
+    ];
+    for (const [title, body, message] of refusedCreates) {
+      test(title, async () => {
+        await expectApiError(postListing(body), 400, message);
+      });
+    }
 
     test("returns 400 when name is longer than 250 characters", async () => {
       // The name travels to payment providers on the order ("Ticket: <name>"
       // at Square caps at 512), so a name beyond 250 must be refused rather
       // than stored and later fatal at checkout.
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 50, name: "N".repeat(251) },
-          method: "POST",
-        }),
+      await expectApiError(
+        postListing({ max_attendees: 50, name: "N".repeat(251) }),
         400,
-        (body) => {
-          expect(body.error).toBe("Name must be 250 characters or fewer");
-        },
+        "Name must be 250 characters or fewer",
       );
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 50, name: "N".repeat(250) },
-          method: "POST",
-        }),
-        201,
-      );
-    });
-
-    test("returns 400 when max_attendees is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: { name: "No Max" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("max_attendees is required");
-        },
-      );
+      await expectListingCreated({ max_attendees: 50, name: "N".repeat(250) });
     });
 
     test("returns 400 when max_attendees is zero", async () => {
-      const response = await apiRequest("/api/admin/listings", {
-        body: { max_attendees: 0, name: "Zero Max" },
-        method: "POST",
+      const response = await postListing({
+        max_attendees: 0,
+        name: "Zero Max",
       });
 
       expect(response.status).toBe(400);
@@ -306,36 +284,16 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("validates can_pay_more requires sufficient max_price", async () => {
       await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            can_pay_more: true,
-            max_attendees: 10,
-            max_price: 500,
-            name: "Pay More Listing",
-            unit_price: 500,
-          },
-          method: "POST",
+        postListing({
+          can_pay_more: true,
+          max_attendees: 10,
+          max_price: 500,
+          name: "Pay More Listing",
+          unit_price: 500,
         }),
         400,
         (body) => {
           assertStringIncludes(body.error, "Maximum price");
-        },
-      );
-    });
-
-    test("validates group exists", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: {
-            group_ids: [99999],
-            max_attendees: 10,
-            name: "Group Listing",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(t("error.selected_group_deleted"));
         },
       );
     });
@@ -356,61 +314,44 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
         201,
         (body) => {
-          expect(body.listing.date).toBe("2026-06-15T10:00:00.000Z");
-          expect(body.listing.closes_at).toBe("2026-06-14T23:59:00.000Z");
-          expect(body.listing.active).toBe(true);
+          expect(body.listing).toMatchObject({
+            active: true,
+            closes_at: "2026-06-14T23:59:00.000Z",
+            date: "2026-06-15T10:00:00.000Z",
+          });
         },
       );
     });
 
     test("creates listing with empty name string returns error", async () => {
-      await assertJson(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 10, name: "   " },
-          method: "POST",
-        }),
+      await expectApiError(
+        postListing({ max_attendees: 10, name: "   " }),
         400,
-        (body) => {
-          expect(body.error).toBe("name is required");
-        },
+        "name cannot be empty",
       );
     });
   });
 
   describe("PUT /api/admin/listings/:listingId", () => {
     test("rejects a fields list with an unknown contact field on update", async () => {
-      const created = await assertJson<{ listing: { id: number } }>(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 10, name: "Field Update" },
-          method: "POST",
-        }),
-        201,
-      );
-      await assertJson(
-        apiRequest(`/api/admin/listings/${created.listing.id}`, {
-          body: { fields: "emailx" },
-          method: "PUT",
-        }),
+      const created = await expectListingCreated({
+        max_attendees: 10,
+        name: "Field Update",
+      });
+      await expectApiError(
+        putListing(created.listing.id, { fields: "emailx" }),
         400,
-        (body) => {
-          expect(body.error).toBe(t("error.listing_fields_unknown"));
-        },
+        "fields has an invalid value",
       );
     });
 
     test("stores an update's padded contact fields the way the parser reads them", async () => {
-      const created = await assertJson<{ listing: { id: number } }>(
-        apiRequest("/api/admin/listings", {
-          body: { max_attendees: 10, name: "Padded Update" },
-          method: "POST",
-        }),
-        201,
-      );
+      const created = await expectListingCreated({
+        max_attendees: 10,
+        name: "Padded Update",
+      });
       await assertJson(
-        apiRequest(`/api/admin/listings/${created.listing.id}`, {
-          body: { fields: " email " },
-          method: "PUT",
-        }),
+        putListing(created.listing.id, { fields: " email " }),
         200,
       );
       expect((await requireListingWithCount(created.listing.id)).fields).toBe(

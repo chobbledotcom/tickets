@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import type { TicketDirection } from "#booking/ticket-moves.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -36,50 +35,59 @@ describeWithEnv(
       return row!.checked_in;
     };
 
-    /** Move `count` tickets one way on the person's line, then name the
-     * count the line holds afterwards. */
-    const movesTo =
-      (direction: TicketDirection, attendeeId: number, listingId: number) =>
-      async (count: number, stored: number): Promise<void> => {
-        await moveTickets(direction, [{ attendeeId, count, listingId }]);
-        expect(await storedCheckedIn(attendeeId, listingId)).toBe(stored);
-      };
+    /** A two-place line on a fresh listing, named the way the moves name it. */
+    const twoPlaceLine = async (): Promise<{
+      attendeeId: number;
+      listingId: number;
+    }> => {
+      const { listing, attendee } = await attendeeOnListing(2);
+      return { attendeeId: attendee.id, listingId: listing.id };
+    };
 
     test("admit adds tickets up to the line's quantity", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      const admit = movesTo("admit", attendee.id, listing.id);
-
-      await admit(1, 1);
-      await admit(1, 2);
+      const { attendeeId, listingId } = await twoPlaceLine();
+      const first = await moveTickets("admit", [
+        { attendeeId, count: 1, listingId },
+      ]);
+      expect(first[0]!.count).toBe(1);
+      expect(first[0]!.owedAfter).toBe(1);
+      const second = await moveTickets("admit", [
+        { attendeeId, count: 1, listingId },
+      ]);
+      expect(second[0]!.owedAfter).toBe(0);
     });
 
     test("admit caps at the line's quantity, so a full line stays full", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      const admit = movesTo("admit", attendee.id, listing.id);
-
-      await admit(2, 2);
-      await admit(5, 2);
+      const line = await twoPlaceLine();
+      await moveTickets("admit", [{ ...line, count: 2 }]);
+      const capped = await moveTickets("admit", [{ ...line, count: 5 }]);
+      expect(capped[0]!.count).toBe(0);
+      expect(await storedCheckedIn(line.attendeeId, line.listingId)).toBe(2);
     });
 
     test("release removes tickets and floors at zero", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
-      await movesTo("admit", attendee.id, listing.id)(2, 2);
-      const release = movesTo("release", attendee.id, listing.id);
-
-      await release(1, 1);
-      await release(2, 0);
+      const line = await twoPlaceLine();
+      await moveTickets("admit", [{ ...line, count: 2 }]);
+      await moveTickets("release", [{ ...line, count: 1 }]);
+      expect(await storedCheckedIn(line.attendeeId, line.listingId)).toBe(1);
+      await moveTickets("release", [{ ...line, count: 2 }]);
+      expect(await storedCheckedIn(line.attendeeId, line.listingId)).toBe(0);
     });
 
     test("a quantity 0 line never admits and never releases", async () => {
-      const { listing, attendee } = await attendeeOnListing(2);
+      const line = await twoPlaceLine();
       await executeUpdate(
         "listing_attendees",
         { quantity: 0 },
-        { attendee_id: attendee.id, listing_id: listing.id },
+        { attendee_id: line.attendeeId, listing_id: line.listingId },
       );
-
-      await movesTo("admit", attendee.id, listing.id)(2, 0);
-      await movesTo("release", attendee.id, listing.id)(2, 0);
+      const noMove = [{ ...line, count: 0, owedAfter: 0 }];
+      expect(await moveTickets("admit", [{ ...line, count: 2 }])).toEqual(
+        noMove,
+      );
+      expect(await moveTickets("release", [{ ...line, count: 2 }])).toEqual(
+        noMove,
+      );
     });
 
     test("answers the tickets each move really moved", async () => {

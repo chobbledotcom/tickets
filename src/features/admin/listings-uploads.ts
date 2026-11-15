@@ -14,8 +14,8 @@ import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
 import { redirect } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { entityReturnPath } from "#shared/admin-pages.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import {
   ATTACHMENT_ERROR_MESSAGES,
   deleteFile,

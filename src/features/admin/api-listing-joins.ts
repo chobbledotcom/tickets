@@ -21,13 +21,13 @@ import {
 } from "#db/listing-parents.ts";
 import { writeListingDayCounts } from "#db/listing-prices.ts";
 import { refuseTheWriteOn } from "#db/transaction.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import {
   hasChildEdges,
   packageChildEdgeConflict,
   packageChildEdgeError,
 } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { DayPrices, ListingWithCount } from "#types";
 import { validateChildEdges } from "./listings-parents.ts";
 

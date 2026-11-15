@@ -14,11 +14,8 @@ import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
-import {
-  adminFormPost,
-  adminGet,
-  setupListingAndLogin,
-} from "#test-utils/session.ts";
+import { expectOwnEditRefused } from "#test-utils/listing-submits.ts";
+import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > closes_at field", { db: true }, () => {
   describe("closes_at field", () => {
@@ -168,22 +165,11 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
     });
 
     test("rejects invalid closes_at format", async () => {
-      const { listing } = await setupListingAndLogin();
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
+      await expectOwnEditRefused(
         {
           closes_at_date: "not-a-date",
           closes_at_time: "99:99",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
         },
-      );
-      await expectHtmlResponse(
-        response,
-        400,
         "Please enter a valid date and time",
       );
     });

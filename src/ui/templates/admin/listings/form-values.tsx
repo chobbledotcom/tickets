@@ -8,7 +8,6 @@ import {
   type FieldValues,
 } from "#shared/forms/values.ts";
 import {
-  hasAnyListingDefault,
   type ListingDefaultField,
   type ListingDefaultKind,
   type ListingDefaults,
@@ -19,11 +18,7 @@ import type { ListingTemplate } from "#shared/listing-templates.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
-import {
-  type AdminSession,
-  clampDurationDays,
-  type ListingWithCount,
-} from "#types";
+import { clampDurationDays, type ListingWithCount } from "#types";
 import { formatBookableDays } from "./helpers.ts";
 
 const formatDatetimeLocal = (iso: string | null): string | null =>
@@ -66,7 +61,7 @@ const listingFieldFormatters: Partial<
     e.initial_site_months ? String(e.initial_site_months) : "",
   max_price: (e) => toMajorUnits(e.max_price),
   months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
-  unit_price: (e) => (e.unit_price > 0 ? toMajorUnits(e.unit_price) : ""),
+  unit_price: (e) => toMajorUnits(e.unit_price),
 };
 
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
@@ -132,8 +127,3 @@ export const listingFormClassAttr = (
   const classes = listingFormClassFor(template, defaults);
   return classes ? { class: classes } : {};
 };
-
-export const showUseDefaultsToggle = (
-  session: AdminSession,
-  defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && session.adminLevel !== "editor";

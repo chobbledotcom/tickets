@@ -32,6 +32,12 @@ describeWithEnv("listing action lifecycle", { db: true }, () => {
     expect(duplicate.attachmentUrl).toBe("");
     expect(duplicate.slug).not.toBe(source.slug);
     expect("created" in duplicate).toBe(false);
+    // The fixture wrote the attachments through the record, so the source row
+    // holds them. The copy clears them.
+    expect(await getListingWithCount(source.id)).toMatchObject({
+      attachment_name: "guide.pdf",
+      attachment_url: "guide.pdf",
+    });
   });
 
   test("labels an attachment failure while still deleting the listing", async () => {
