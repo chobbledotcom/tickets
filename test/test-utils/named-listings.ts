@@ -14,5 +14,5 @@ export const createNamedListings = async <
     listings.push(await createTestListing({ name }));
   }
   // One listing was pushed per name, so the tuple shape holds.
-  return listings as unknown as { [Index in keyof Names]: ListingWithCount };
+  return listings as { [Index in keyof Names]: ListingWithCount };
 };

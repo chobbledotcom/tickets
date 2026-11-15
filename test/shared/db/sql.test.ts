@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  type SqlSlot,
   sql,
   sqlCommas,
   sqlExists,
@@ -195,7 +194,7 @@ ${2}`.args,
     ["an absent value", undefined, "undefined"],
   ] as const) {
     test(`refuses ${name} in a slot`, () => {
-      expect(() => sql`SELECT ${slot as unknown as SqlSlot}`).toThrow(
+      expect(() => sql`SELECT ${slot as never}`).toThrow(
         `A value in SQL must be a statement or a value libsql can bind. Got ${named}.`,
       );
     });
