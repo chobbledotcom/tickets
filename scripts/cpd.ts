@@ -12,64 +12,165 @@
  * After every scan it also names the worst duplication in the report: the
  * code that appears in the most places, then the one with the most tokens.
  *
+ * The wrapper owns the committed baseline. jscpd's own baseline hashes the raw
+ * source text of a clone pair, so a blank line inside a duplicated block
+ * changes the fingerprint. This baseline holds one whitespace-free content
+ * fingerprint per duplicated snippet, with a count per place (see
+ * ./jscpd/baseline.ts). `--update` rewrites it and `--fail-on-new-clones`
+ * checks the scan against it.
+ *
  * Usage: deno run -A scripts/cpd.ts <jscpd args...>
  */
 
-import { join } from "node:path";
+import { resolve } from "node:path";
 import * as v from "valibot";
 import { projectRoot } from "#scripts/project-root.ts";
+import { requireValue } from "#shared/required-value.ts";
+import {
+  type Baseline,
+  baselineText,
+  countDifference,
+  placeLines,
+  readBaseline,
+  rises,
+  type ScanFingerprints,
+  scanFingerprints,
+  totalCount,
+} from "./jscpd/baseline.ts";
 import { ensureJscpd } from "./jscpd/install.ts";
+import { scanOptions } from "./jscpd/options.ts";
 import {
   describeWorstFamily,
+  type Place,
   rankCloneFamilies,
   readClonePairs,
 } from "./jscpd/worst.ts";
 import { bold, red, yellow } from "./precommit/colors.ts";
 
-// `--update` records the current clones into the committed baseline instead
-// of checking for new ones, so translate it for jscpd and drop the check.
-const args = Deno.args.includes("--update")
-  ? [
-      ...Deno.args.filter(
-        (arg) => arg !== "--update" && arg !== "--fail-on-new-clones",
-      ),
-      "--update-baseline",
-    ]
-  : Deno.args;
+/** How many places one finding shows before it counts the rest. */
+const PLACES_SHOWN = 5;
+
+const options = scanOptions(Deno.args);
+const baselinePath =
+  options.baseline === undefined
+    ? undefined
+    : resolve(projectRoot, options.baseline);
 
 /** The report that this scan writes, read from the config that `--config`
- * names. Every cpd task passes `--config`. jscpd writes `output` from the
- * working directory, so the report sits under the project root. */
-const reportPath = async (): Promise<{ config: string; report: string }> => {
-  const config = args[args.indexOf("--config") + 1];
-  if (!args.includes("--config") || config === undefined) {
-    throw new Error("scripts/cpd.ts needs --config <file>");
-  }
+ * names. jscpd writes `output` from the working directory, so the report sits
+ * under the project root. */
+const reportPath = async (): Promise<string> => {
   const { output } = v.parse(
     v.object({ output: v.string() }),
-    JSON.parse(await Deno.readTextFile(config)),
+    JSON.parse(await Deno.readTextFile(options.config)),
   );
-  return { config, report: join(projectRoot, output, "jscpd-report.json") };
+  return resolve(projectRoot, output, "jscpd-report.json");
 };
 
-const { config, report } = await reportPath();
+const report = await reportPath();
 // A crash before jscpd writes its report must not show the last run's report.
 await Deno.remove(report).catch((error) => {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 });
 
 const { code } = await new Deno.Command(await ensureJscpd(), {
-  args,
+  args: options.args,
 }).spawn().status;
 
-const families = rankCloneFamilies(
-  readClonePairs(JSON.parse(await Deno.readTextFile(report))),
-);
+const pairs = readClonePairs(JSON.parse(await Deno.readTextFile(report)));
+const families = rankCloneFamilies(pairs);
 console.error(
-  yellow(describeWorstFamily(config, families, projectRoot).join("\n")),
+  yellow(describeWorstFamily(options.config, families, projectRoot).join("\n")),
 );
 
-if (code !== 0) {
+/** The source text of every place, with each file read once. */
+const readSnippet = (() => {
+  const files = new Map<string, string[]>();
+  return (place: Place): string => {
+    const cached = files.get(place.file);
+    if (cached !== undefined) return placeLines(cached, place);
+    const lines = Deno.readTextFileSync(place.file).split(/\r?\n/);
+    files.set(place.file, lines);
+    return placeLines(lines, place);
+  };
+})();
+
+/** The baseline file this scan remembers, or undefined when it holds none. */
+const rememberedBaseline = async (): Promise<Baseline | undefined> => {
+  const path = requireValue(
+    baselinePath,
+    "A cpd scan with a baseline needs --baseline <file>.",
+  );
+  const text = await Deno.readTextFile(path).catch((error) => {
+    if (error instanceof Deno.errors.NotFound) return;
+    throw error;
+  });
+  return text === undefined ? undefined : readBaseline(path, text);
+};
+
+/** The lines that name each new clone and the count it rose above. */
+const newCloneLines = (
+  scan: ScanFingerprints,
+  base: Baseline["counts"],
+): string[] => {
+  const lines: string[] = [];
+  for (const [fingerprint, count] of rises(scan.counts, base)) {
+    const places = requireValue(
+      scan.places[fingerprint],
+      `The scan reported no place for the fingerprint ${fingerprint}.`,
+    );
+    lines.push(
+      `  ${count} copy(ies), up from ${base[fingerprint] ?? 0}:`,
+      ...places
+        .slice(0, PLACES_SHOWN)
+        .map((place) => `    ${place.file}:${place.start}-${place.end}`),
+      ...(places.length > PLACES_SHOWN
+        ? [`    and ${places.length - PLACES_SHOWN} more places.`]
+        : []),
+    );
+  }
+  return lines;
+};
+
+const scan = await scanFingerprints(pairs, readSnippet);
+const newClones = await (async (): Promise<string[]> => {
+  if (!options.update && !options.check) return [];
+  const before = await rememberedBaseline();
+  if (options.update) {
+    const { added, removed } = countDifference(
+      scan.counts,
+      before?.counts ?? {},
+    );
+    await Deno.writeTextFile(
+      requireValue(baselinePath, "A rewrite needs --baseline <file>."),
+      baselineText(scan.counts),
+    );
+    console.error(
+      yellow(
+        `${options.baseline} updated: ${added} fingerprint(s) added, ` +
+          `${removed} removed (${totalCount(scan.counts)} total)`,
+      ),
+    );
+    return [];
+  }
+  if (before === undefined) {
+    throw new Error(
+      `The jscpd baseline ${options.baseline} does not exist. ` +
+        "Run the cpd task with --update to write it.",
+    );
+  }
+  return newCloneLines(scan, before.counts);
+})();
+
+if (newClones.length > 0) {
+  console.error(`
+${bold(red("━━━ jscpd: new duplicated code not in the baseline ━━━"))}
+
+${options.baseline} does not hold:
+${newClones.join("\n")}`);
+}
+
+if (code !== 0 || newClones.length > 0) {
   console.error(`
 ${bold(red("━━━ jscpd: duplicated code found — no new duplication is allowed ━━━"))}
 
@@ -98,4 +199,4 @@ Do NOT reach for ${bold("/* jscpd:ignore */")} to silence this. Fix the duplicat
 `);
 }
 
-Deno.exit(code);
+Deno.exit(code !== 0 ? code : newClones.length > 0 ? 1 : 0);
