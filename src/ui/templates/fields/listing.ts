@@ -20,8 +20,10 @@ import {
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
-import { fieldOfKey } from "#shared/rest/field-specs.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { type ClosedFields, fieldOfKey } from "#shared/rest/field-specs.ts";
 import { isWholeNumberField } from "#shared/rest/field-values.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
@@ -40,18 +42,31 @@ import {
   wholeNumberCheck,
 } from "#templates/fields/validators.ts";
 import {
+  type AdminLevel,
   ContactFieldSchema,
   ListingTypeSchema,
   MAX_DURATION_DAYS,
 } from "#types";
 
 export interface ListingFormView {
-  builder?: boolean;
-  logistics?: boolean;
+  /** The fields this writer cannot set. The page hides their boxes. */
+  closed: ClosedFields;
   nameAutofocus?: boolean;
   storage?: boolean;
-  webhook?: boolean;
 }
+
+/** A view that hides no field box, for a read of the box names. */
+const OPEN_VIEW: ListingFormView = { closed: new Map() };
+
+/** True when the page shows the box of this field. */
+const shows = (view: ListingFormView, key: string): boolean =>
+  !view.closed.has(key);
+
+/** What the listing page shows to a writer of this level. */
+export const listingFormView = (adminLevel: AdminLevel): ListingFormView => ({
+  closed: closedFieldsFor(LISTING_FIELDS, adminLevel),
+  storage: isStorageEnabled(),
+});
 
 type ListingNumberFieldOptions = Partial<
   Pick<
@@ -113,7 +128,7 @@ const listingNumberField = <
 };
 
 /** Listing fields and their sections, rebuilt per request for translated copy. */
-const listingFields = (view: ListingFormView = {}) =>
+const listingFields = (view: ListingFormView = OPEN_VIEW) =>
   [
     {
       ...(view.nameAutofocus ? { autofocus: true } : {}),
@@ -218,6 +233,8 @@ const listingFields = (view: ListingFormView = {}) =>
       name: "unit_price",
       pattern: moneyPattern(),
       placeholder: t("fields.listing.price_placeholder"),
+      required: true,
+      requiredMessage: t("fields.validation.unit_price_required"),
       section: "tickets",
       title: t("fields.listing.price_title"),
       type: "text",
@@ -277,7 +294,7 @@ const listingFields = (view: ListingFormView = {}) =>
       section: "advanced",
       type: "url",
       validate: validateHttpsDomainUrl,
-      visible: view.webhook !== false,
+      visible: shows(view, "webhook_url"),
     },
     {
       hint: t("fields.listing.non_transferable_hint"),
@@ -316,28 +333,26 @@ const listingFields = (view: ListingFormView = {}) =>
       ],
       section: "options",
       type: "checkbox-group",
-      visible: view.logistics === true,
+      visible: shows(view, "uses_logistics"),
     },
     listingNumberField("months_per_unit", "advanced", {
       max: 24,
       min: 0,
-      visible: view.builder === true,
+      visible: shows(view, "months_per_unit"),
     }),
     listingNumberField("initial_site_months", "advanced", {
       max: 120,
       min: 0,
-      visible: view.builder === true,
+      visible: shows(view, "initial_site_months"),
     }),
     {
-      hint: t("fields.listing.assign_built_site_hint"),
-      label: t("fields.listing.assign_built_site"),
-      name: "assign_built_site",
-      options: [
-        { label: t("fields.listing.assign_built_site_label"), value: "1" },
-      ],
+      ...checkboxField("assign_built_site", {
+        hint: t("fields.listing.assign_built_site_hint"),
+        label: t("fields.listing.assign_built_site"),
+        optionLabel: t("fields.listing.assign_built_site_label"),
+      }),
       section: "advanced",
-      type: "checkbox-group",
-      visible: view.builder === true,
+      visible: shows(view, "assign_built_site"),
     },
     {
       label: t("fields.listing.attachment", {
@@ -352,7 +367,7 @@ const listingFields = (view: ListingFormView = {}) =>
 
 export const getListingForm = defineFieldsForm(listingFields);
 
-const listingEditFields = (view: ListingFormView = {}) =>
+const listingEditFields = (view: ListingFormView = OPEN_VIEW) =>
   [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
 
 export const getListingEditForm = defineFieldsForm(listingEditFields);

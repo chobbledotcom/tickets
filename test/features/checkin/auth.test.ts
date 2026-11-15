@@ -1,6 +1,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { describe, it as test } from "@std/testing/bdd";
+import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
@@ -22,7 +22,7 @@ import {
   createTestAgentSession,
   createTestEditorSession,
 } from "#test-utils/session.ts";
-import { withSetting } from "#test-utils/settings.ts";
+import { enableFeature, withSetting } from "#test-utils/settings.ts";
 import type { Attendee, Listing } from "#types";
 import { readTicketPage, setupCheckinTest } from "./helpers.ts";
 
@@ -218,6 +218,9 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       const body = await readTicketPage(token, cookie);
       assertStringIncludes(body, "Tomorrow Person");
     });
+
+    // Delivery agents and their run sheets belong to logistics.
+    beforeEach(() => enableFeature("logistics"));
   });
 
   describe("GET /checkin/:tokens (editor session)", () => {

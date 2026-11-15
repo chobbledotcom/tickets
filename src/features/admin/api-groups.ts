@@ -25,11 +25,9 @@ import { groupRecord } from "#shared/records/groups.ts";
 import {
   parseOptionalArray,
   parseUpdateSlug,
-  requireEntityField,
-  requireStrings,
 } from "#shared/rest/crud-parsers.ts";
-import { readBody } from "#shared/rest/field-reads.ts";
-import { type FieldsBody, fieldsOnDoor } from "#shared/rest/field-specs.ts";
+import { readOpenBody } from "#shared/rest/field-reads.ts";
+import type { FieldsBody } from "#shared/rest/field-specs.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { recordApi } from "#shared/rest/record-api.ts";
 import {
@@ -179,11 +177,7 @@ const toGroupInput = async (
   body: Record<string, unknown>,
   existing: Group | null,
 ): Promise<Result<GroupInput>> => {
-  const name = existing
-    ? requireEntityField(body, "name", existing.name)
-    : requireStrings(body, ["name"]);
-  if (!name.ok) return name;
-  const fields = readBody(fieldsOnDoor(GROUP_FIELDS, "api"), body, existing);
+  const fields = readOpenBody(GROUP_FIELDS, body, existing);
   if (!fields.ok) return fields;
 
   const members = parsePackageMembers(body);
@@ -200,7 +194,6 @@ const toGroupInput = async (
   return okResult({
     ...fields.value,
     ...slug,
-    name: typeof name.value === "string" ? name.value : name.value.name,
     packageMembers: members.value,
   });
 };

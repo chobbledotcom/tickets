@@ -13,9 +13,7 @@ import {
   listingFormClassAttr,
   listingToFieldValues,
   renderDayPricesFieldset,
-  showUseDefaultsToggle,
 } from "#templates/admin/listings/form-values.tsx";
-import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -73,18 +71,13 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a free listing leaves its price box empty rather than typing 0.00", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 0 }),
-    );
-    expect(values.unit_price).toBe("");
-  });
-
-  test("a one-penny price still fills the box", () => {
-    const values = listingToFieldValues(
-      testListingWithCount({ unit_price: 1 }),
-    );
-    expect(values.unit_price).toBe("0.01");
+  test("a free or one-penny price still fills the box, since a blank box is refused", () => {
+    expect(
+      [0, 1].map(
+        (unit_price) =>
+          listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
+      ),
+    ).toEqual(["0.00", "0.01"]);
   });
 
   test("carries a dated listing's own day in the datetime box's shape", () => {
@@ -173,15 +166,5 @@ describe("listingFormClassAttr", () => {
       class: "listing-form--default-hidden",
     });
     expect(listingFormClassAttr(null, {})).toEqual({});
-  });
-});
-
-describe("showUseDefaultsToggle", () => {
-  test("only an owner sees the toggle, and only once a default exists", () => {
-    const defaults: ListingDefaults = { hidden: true };
-    expect(showUseDefaultsToggle(OWNER_SESSION, defaults)).toBe(true);
-    expect(showUseDefaultsToggle(OWNER_SESSION, {})).toBe(false);
-    const editor = { ...OWNER_SESSION, adminLevel: "editor" } as const;
-    expect(showUseDefaultsToggle(editor, defaults)).toBe(false);
   });
 });

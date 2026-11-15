@@ -10,8 +10,31 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { baseListingForm } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import {
+  submitListingEdit,
+  submitOwnListingEdit,
+} from "#test-utils/listing-submits.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
+
+/** The boxes of an edit that renames nothing and moves to a new slug. */
+const UPDATED_BOXES = {
+  name: "Updated Listing",
+  slug: "updated-listing",
+  thank_you_url: "https://example.com/updated",
+};
+
+const LISTING_SETUP = { maxAttendees: 100, thankYouUrl: "https://example.com" };
+
+/** Save the signed-in owner's first listing under its own name and slug, plus
+ *  the given boxes. */
+const saveFirstListing = async (boxes: TestFormValues) => {
+  const { listing } = await setupListingAndLogin(LISTING_SETUP);
+  const { response } = await submitOwnListingEdit(listing, boxes);
+  return { response, updated: await getListingWithCount(listing.id) };
+};
 
 describeWithEnv("server listings > edit post basics", { db: true }, () => {
   afterEach(() => {
@@ -20,50 +43,25 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
 
   describe("POST /admin/listing/:id/edit", () => {
     testRequiresAuth("/admin/listing/1/edit", {
-      body: {
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "Updated Listing",
-        slug: "updated-listing",
-        thank_you_url: "https://example.com/updated",
-      },
+      body: { ...baseListingForm, ...UPDATED_BOXES },
       multipart: true,
       setup: async () => {
-        await createTestListing({
-          maxAttendees: 100,
-          thankYouUrl: "https://example.com",
-        });
+        await createTestListing(LISTING_SETUP);
       },
     });
 
     test("returns 404 for non-existent listing", async () => {
-      const { response } = await adminFormPost("/admin/listing/999/edit", {
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "Updated Listing",
-        slug: "updated-listing",
-        thank_you_url: "https://example.com/updated",
-      });
+      const { response } = await submitListingEdit(999, UPDATED_BOXES);
       expect(response.status).toBe(404);
     });
 
     test("rejects request with invalid CSRF token", async () => {
-      const { cookie } = await setupListingAndLogin({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
+      const { cookie } = await setupListingAndLogin(LISTING_SETUP);
 
       const response = await handleRequest(
         mockFormRequest(
           "/admin/listing/1/edit",
-          {
-            csrf_token: "invalid-token",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Updated Listing",
-            slug: "updated-listing",
-            thank_you_url: "https://example.com/updated",
-          },
+          { ...baseListingForm, ...UPDATED_BOXES, csrf_token: "invalid-token" },
           cookie,
         ),
       );
@@ -71,32 +69,14 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
     });
 
     test("validates required fields", async () => {
-      await setupListingAndLogin({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      const { response } = await adminFormPost("/admin/listing/1/edit", {
-        max_attendees: "50",
-        max_quantity: "1",
-        name: "",
-        slug: "test-slug",
-        thank_you_url: "https://example.com",
-      });
+      const { response } = await saveFirstListing({ name: "" });
       await expectHtmlResponse(response, 400, "Listing name is required");
     });
 
     test("updates listing when authenticated", async () => {
-      const { listing } = await setupListingAndLogin({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
-      });
-
-      const { response } = await adminFormPost("/admin/listing/1/edit", {
+      const { response, updated } = await saveFirstListing({
         max_attendees: "200",
         max_quantity: "5",
-        name: listing.name,
-        slug: listing.slug,
         thank_you_url: "https://example.com/updated",
         unit_price: "20.00",
       });
@@ -104,63 +84,31 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         "/admin/listing/1",
         "Listing updated",
       )(response);
-
-      // Verify the listing was updated
-      const updated = await getListingWithCount(1);
-      expect(updated?.max_attendees).toBe(200);
-      expect(updated?.thank_you_url).toBe("https://example.com/updated");
-      expect(updated?.unit_price).toBe(2000);
+      expect([
+        updated?.max_attendees,
+        updated?.thank_you_url,
+        updated?.unit_price,
+      ]).toEqual([200, "https://example.com/updated", 2000]);
     });
 
     test("updates listing running totals from the edit form", async () => {
-      const { listing } = await setupListingAndLogin({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
+      const { response, updated } = await saveFirstListing({
+        booked_quantity: "12",
+        tickets_count: "4",
       });
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          booked_quantity: "12",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
-          thank_you_url: "https://example.com",
-          tickets_count: "4",
-        },
-      );
-      await expectFlashRedirect(
-        `/admin/listing/${listing.id}`,
-        "Listing updated",
-      )(response);
-
+      expect(response.status).toBe(302);
       // income is no longer a column override — it's projected from the ledger,
       // so the form only edits the count aggregates now.
-      const updated = await getListingWithCount(listing.id);
-      expect(updated?.attendee_count).toBe(12);
-      expect(updated?.tickets_count).toBe(4);
+      expect([updated?.attendee_count, updated?.tickets_count]).toEqual([
+        12, 4,
+      ]);
     });
 
     test("rejects invalid listing running totals", async () => {
-      const { listing } = await setupListingAndLogin({
-        maxAttendees: 100,
-        thankYouUrl: "https://example.com",
+      const { response } = await saveFirstListing({
+        booked_quantity: "-1",
+        tickets_count: "4",
       });
-
-      const { response } = await adminFormPost(
-        `/admin/listing/${listing.id}/edit`,
-        {
-          booked_quantity: "-1",
-          max_attendees: "100",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
-          thank_you_url: "https://example.com",
-          tickets_count: "4",
-        },
-      );
-
       await expectHtmlResponse(
         response,
         400,
@@ -168,29 +116,13 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       );
     });
 
-    test("clears webhook URL when updating listing in demo mode", async () => {
+    test("refuses a webhook URL when updating listing in demo mode", async () => {
       setDemoModeForTest(true);
-
-      const { listing } = await setupListingAndLogin({
-        maxAttendees: 100,
-        webhookUrl: "https://example.com/original-webhook",
-      });
-
-      const { response } = await adminFormPost("/admin/listing/1/edit", {
+      const { response, updated } = await saveFirstListing({
         max_attendees: "200",
-        max_quantity: "5",
-        name: listing.name,
-        slug: listing.slug,
         webhook_url: "https://example.com/new-webhook",
       });
-      await expectFlashRedirect(
-        "/admin/listing/1",
-        "Listing updated",
-      )(response);
-
-      // Verify webhook_url was cleared
-      const updated = await getListingWithCount(1);
-      expect(updated?.webhook_url).toBe("");
+      expect([response.status, updated?.max_attendees]).toEqual([400, 100]);
     });
   });
 });

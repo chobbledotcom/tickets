@@ -1,34 +1,32 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { submitListingCreate } from "#test-utils/listing-submits.ts";
 
 describeWithEnv("server listings > assign_built_site", { db: true }, () => {
   describe("assign_built_site", () => {
-    test("saves assign_built_site when CAN_BUILD_SITES is true", async () => {
+    test("saves assign_built_site as asked, false by default, when CAN_BUILD_SITES is true", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: "true" });
-      const listing = await createTestListing({ assignBuiltSite: true });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.assign_built_site).toBe(true);
+      const plan = await createTestListing({ assignBuiltSite: true });
+      const plain = await createTestListing({ name: "Plain listing" });
+      expect([
+        (await getListingWithCount(plan.id))?.assign_built_site,
+        (await getListingWithCount(plain.id))?.assign_built_site,
+      ]).toEqual([true, false]);
     });
 
-    test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
+    test("refuses assign_built_site when CAN_BUILD_SITES is not set", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
-      const listing = await createTestListing({ assignBuiltSite: true });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.assign_built_site).toBe(false);
-    });
-
-    test("defaults to false even when CAN_BUILD_SITES is true", async () => {
-      using _env = withEnv({ CAN_BUILD_SITES: "true" });
-      const listing = await createTestListing();
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.assign_built_site).toBe(false);
+      const { response } = await submitListingCreate({
+        assign_built_site: "1",
+      });
+      expect([response.status, await getAllListings()]).toEqual([400, []]);
     });
 
     test("updates listing to enable assign_built_site", async () => {

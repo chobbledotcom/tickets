@@ -13,6 +13,7 @@
 
 import * as v from "valibot";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { Listing } from "#types";
@@ -203,3 +204,10 @@ export const parseListingDefaults = (
  * (`undefined`) key, so only configured defaults are persisted. */
 export const serializeListingDefaults = (defaults: ListingDefaults): string =>
   listingDefaultsJson.write(defaults, "settings.listing_defaults");
+
+/** True when the listing page shows the "use listing defaults" switch: some
+ *  default is set, and the writer can set the switch. */
+export const showUseDefaultsToggle = (
+  closed: ClosedFields,
+  defaults: ListingDefaults,
+): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");

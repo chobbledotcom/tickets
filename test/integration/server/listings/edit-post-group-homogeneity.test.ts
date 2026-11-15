@@ -6,7 +6,43 @@ import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import { submitOwnListingEdit } from "#test-utils/listing-submits.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
+
+/** A signed-in owner's listing that shares a group with one sibling of the
+ *  same type. */
+const listingWithSibling = async (listingType: "daily" | "standard") => {
+  const group = await createTestGroup({ name: `${listingType} only group` });
+  await createTestListing({
+    groupId: group.id,
+    listingType,
+    name: `${listingType} sibling`,
+  });
+  const { listing } = await setupListingAndLogin({
+    groupId: group.id,
+    listingType,
+    name: `${listingType} candidate`,
+  });
+  return { groupId: group.id, listing };
+};
+
+/** Post the edit with the listing's current group, as the real edit form
+ *  does, expect the refusal, and return the listing as it is stored after. */
+const refusedRegroup = async (
+  { groupId, listing }: Awaited<ReturnType<typeof listingWithSibling>>,
+  boxes: TestFormValues,
+  message: string,
+) => {
+  const { response } = await submitOwnListingEdit(listing, {
+    group_ids: String(groupId),
+    ...boxes,
+  });
+  await expectHtmlResponse(response, 400, message);
+  // Nothing moved: the listing keeps its membership.
+  expect(await listingGroups.getIds(listing.id)).toEqual([groupId]);
+  return requireListingWithCount(listing.id);
+};
 
 describeWithEnv(
   "server listings > edit post group homogeneity",
@@ -14,87 +50,22 @@ describeWithEnv(
   () => {
     describe("POST /admin/listing/:id/edit", () => {
       test("rejects changing a grouped listing's own type on edit", async () => {
-        const group = await createTestGroup({
-          name: "Daily Only Group",
-          slug: "daily-only-group",
-        });
-        await createTestListing({
-          groupId: group.id,
-          listingType: "daily",
-          maxAttendees: 50,
-          name: "Daily Sibling",
-        });
-        const { listing } = await setupListingAndLogin({
-          groupId: group.id,
-          listingType: "daily",
-          maxAttendees: 50,
-          name: "Flip Candidate",
-        });
-
-        // The real edit form re-sends the listing's current group_ids, so the
-        // flip alone would leave the listing in a group of the other type.
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            group_ids: String(group.id),
-            listing_type: "standard",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-        );
-        await expectHtmlResponse(
-          response,
-          400,
+        // The flip alone would leave the listing in a group of the other type.
+        const stored = await refusedRegroup(
+          await listingWithSibling("daily"),
+          { listing_type: "standard" },
           "already contains daily listings",
         );
-
-        // Nothing moved: the listing keeps its type and its membership.
-        expect((await requireListingWithCount(listing.id)).listing_type).toBe(
-          "daily",
-        );
-        expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+        expect(stored.listing_type).toBe("daily");
       });
 
       test("rejects enabling customisable days on a listing whose group mates are fixed-length", async () => {
-        const group = await createTestGroup({
-          name: "Fixed Days Group",
-          slug: "fixed-days-group",
-        });
-        await createTestListing({
-          groupId: group.id,
-          maxAttendees: 50,
-          name: "Fixed Length Sibling",
-        });
-        const { listing } = await setupListingAndLogin({
-          groupId: group.id,
-          maxAttendees: 50,
-          name: "Customisable Candidate",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            customisable_days: "1",
-            day_price_1: "1.00",
-            group_ids: String(group.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-        );
-        await expectHtmlResponse(
-          response,
-          400,
+        const stored = await refusedRegroup(
+          await listingWithSibling("standard"),
+          { customisable_days: "1", day_price_1: "1.00" },
           "already contains listings with a fixed number of days",
         );
-
-        expect(
-          (await requireListingWithCount(listing.id)).customisable_days,
-        ).toBe(false);
-        expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
+        expect(stored.customisable_days).toBe(false);
       });
     });
   },

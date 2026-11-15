@@ -14,6 +14,7 @@ import {
   resolveListingDefaults,
   serializeListingDefaults,
   setListingDefaultFields,
+  showUseDefaultsToggle,
 } from "#shared/listing-defaults.ts";
 import { testListing } from "#test-utils/factories.ts";
 import { allEnglishMessages } from "#test-utils/i18n.ts";
@@ -342,5 +343,17 @@ describe("shared > listing-defaults > resolveListingDate", () => {
     expect(() =>
       resolveListingDate({ date: "2020-06-15T18:00:00.000Z", id: 1 }),
     ).toThrow("listing_type");
+  });
+});
+
+describe("showUseDefaultsToggle", () => {
+  test("the toggle shows once a default exists, unless the writer cannot set it", () => {
+    const defaults: ListingDefaults = { hidden: true };
+    const locked = new Map([["use_defaults", "editor"]] as const);
+    expect([
+      showUseDefaultsToggle(new Map(), defaults),
+      showUseDefaultsToggle(new Map(), {}),
+      showUseDefaultsToggle(locked, defaults),
+    ]).toEqual([true, false, false]);
   });
 });

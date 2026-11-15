@@ -1,7 +1,7 @@
 /**
  * The one value rule of each field kind. The JSON API check, the API body
  * views, and the catalogue transfer schema all derive from this table. So the
- * doors cannot accept different values for one field.
+ * API, the form, and the import cannot accept different values for one field.
  */
 
 import * as v from "valibot";
@@ -20,8 +20,6 @@ import {
   type FieldKind,
   type FieldSpec,
   type FieldSpecs,
-  fieldsOnDoor,
-  type OnDoor,
   type StoredValue,
 } from "#shared/rest/field-specs.ts";
 import { commaParts } from "#shared/split.ts";
@@ -192,18 +190,13 @@ type TransferValue = Omit<StoredValue, "dayPrices"> & {
   dayPrices: Record<string, number>;
 };
 
-type TransferFields<Fields extends FieldSpecs> = OnDoor<Fields, "transfer">;
-
 /** One transfer of the fields: a required field is always present. */
 export type TransferData<Fields extends FieldSpecs> = ByInputKey<
-  Extract<TransferFields<Fields>, { required: true }>,
+  Extract<Fields[number], { required: true }>,
   TransferValue
 > &
   Partial<
-    ByInputKey<
-      Exclude<TransferFields<Fields>, { required: true }>,
-      TransferValue
-    >
+    ByInputKey<Exclude<Fields[number], { required: true }>, TransferValue>
   >;
 
 /** The exact transfer object of the fields, keyed by input name. An optional
@@ -215,7 +208,7 @@ export const transferSchema = <const Fields extends FieldSpecs>(
   v.pipe(
     v.strictObject(
       Object.fromEntries(
-        fieldsOnDoor(fields, "transfer").map((field) => [
+        fields.map((field) => [
           toCamelCase(field.key),
           field.required
             ? fieldValueSchema(field)

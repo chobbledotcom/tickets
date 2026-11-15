@@ -27,6 +27,7 @@ import { getBookableStartDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.tsx";
+import type { ListingFormView } from "#templates/fields/listing.ts";
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -149,6 +150,7 @@ export const probeAssignDates = async (
 export const planListingTypeSwitch = async (
   stored: ListingWithCount,
   form: FormParams,
+  view: ListingFormView,
 ): Promise<SwitchStep> => {
   if (form.getString("listing_type") !== "daily") return { kind: "none" };
   if (stored.listing_type === "daily") return { kind: "none" };
@@ -161,7 +163,9 @@ export const planListingTypeSwitch = async (
   const places = rows.reduce((total, row) => total + row.quantity, 0);
   const chosen = form.getString(ASSIGN_UNDATED_FIELD);
 
-  const parsed = await buildUpdateListingResource(stored).parseInput(form);
+  const parsed = await buildUpdateListingResource(stored, view).parseInput(
+    form,
+  );
   if (!parsed.ok) return { error: parsed.error, kind: "invalid" };
   const wouldBe = parsed.value;
 

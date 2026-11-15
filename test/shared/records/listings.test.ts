@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { SqlStatement } from "#db/sql.ts";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
 import { listingRecord } from "#shared/records/listings.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   activityMessages,
   getListingActivityLog,
@@ -22,8 +23,11 @@ const createListing = (name: string) => {
     max_attendees: "50",
     max_quantity: "5",
     name,
+    unit_price: "0",
   });
-  return buildCreateListingResource(form).create(form);
+  return buildCreateListingResource(form, listingFormView("owner")).create(
+    form,
+  );
 };
 
 describeRecord(listingRecord, "Listing", null, () => {

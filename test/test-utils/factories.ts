@@ -305,6 +305,7 @@ export const baseListingForm: Record<string, string> = {
   max_quantity: "1",
   name: "My Listing",
   thank_you_url: "https://example.com",
+  unit_price: "0",
 };
 
 export const webhookMeta = (

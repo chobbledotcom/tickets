@@ -13,13 +13,29 @@ import {
   formFieldsInput,
   formInput,
   readBody,
+  readOpenBody,
+  shownFieldKeys,
+  transferClosedErrorOrNull,
   transferValues,
+  unshownFieldOrNull,
 } from "#shared/rest/field-reads.ts";
-import { fieldsOnDoor } from "#shared/rest/field-specs.ts";
+import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 
-const GROUP_API_FIELDS = fieldsOnDoor(GROUP_FIELDS, "api");
-const LISTING_API_FIELDS = fieldsOnDoor(LISTING_FIELDS, "api");
+/** No field is closed to this writer. */
+const NONE: ClosedFields = new Map();
+
+/** A listing create body read with its required fields filled in. */
+const listingCreate = (body: Record<string, unknown>) =>
+  readBody(
+    LISTING_FIELDS,
+    { max_attendees: 5, name: "Listing", ...body },
+    null,
+    NONE,
+  );
+
+/** A stored listing row, for the update reads. */
+const storedListing = { closes_at: null, max_attendees: 5, name: "Listing" };
 
 const storedGroup = {
   description: "About",
@@ -205,38 +221,80 @@ describe("field reads", () => {
   });
 
   test("an API create gives each switch it leaves out its default, and leaves the rest to the column", () => {
-    const read = readBody(GROUP_API_FIELDS, { hidden: true }, null);
+    const read = readOpenBody(
+      GROUP_FIELDS,
+      { hidden: true, name: "Package" },
+      null,
+    );
     expect(read).toEqual({
       ok: true,
       value: {
         hidden: true,
         hidePackageListings: false,
         isPackage: false,
+        name: "Package",
         scanChecksInAllListings: false,
         showHiddenListings: true,
       },
     });
-    expect(read.ok && Object.keys(read.value).length).toBe(5);
+  });
+
+  test("an API create refuses a required field it leaves out or sends as null", () => {
+    expect([
+      readBody(LISTING_FIELDS, { name: "Listing" }, null, NONE),
+      readBody(LISTING_FIELDS, { max_attendees: 5, name: null }, null, NONE),
+      readOpenBody(GROUP_FIELDS, {}, null),
+    ]).toEqual([
+      { error: "max_attendees is required", ok: false },
+      { error: "name is required", ok: false },
+      { error: "name is required", ok: false },
+    ]);
+  });
+
+  test("an API read refuses a name that is not text, and an update without one keeps it", () => {
+    const storedNamed = { ...storedGroup, name: "Stored" };
+    const kept = readOpenBody(GROUP_FIELDS, {}, storedNamed);
+    expect([
+      readOpenBody(GROUP_FIELDS, { name: 5 }, storedNamed),
+      kept.ok && kept.value.name,
+    ]).toEqual([{ error: "name must be a string", ok: false }, "Stored"]);
+  });
+
+  test("an API read refuses a field the writer cannot set, before any value check", () => {
+    const closed: ClosedFields = new Map([["webhook_url", "editor"]]);
+    expect([
+      readBody(
+        LISTING_FIELDS,
+        { max_attendees: -1, webhook_url: "https://example.com" },
+        storedListing,
+        closed,
+      ),
+      readBody(LISTING_FIELDS, { max_attendees: 9 }, storedListing, closed).ok,
+    ]).toEqual([{ error: "editors cannot set webhook_url", ok: false }, true]);
   });
 
   test("an API null clears a text field and keeps any other field", () => {
-    const read = readBody(
-      GROUP_API_FIELDS,
+    const read = readOpenBody(
+      GROUP_FIELDS,
       { description: null, is_package: null, max_attendees: null },
-      storedGroup,
+      { ...storedGroup, name: "Stored" },
     );
     expect(read).toEqual({
       ok: true,
-      value: { ...storedGroupInput, description: "" },
+      value: { ...storedGroupInput, description: "", name: "Stored" },
     });
   });
 
   test("an API read refuses the first value its kind does not take", () => {
     expect([
-      readBody(GROUP_API_FIELDS, { hidden: "yes", max_attendees: -1 }, null),
-      readBody(GROUP_API_FIELDS, { max_attendees: 1.5 }, storedGroup),
-      readBody(LISTING_API_FIELDS, { date: "2026-06-01T10:00" }, null),
-      readBody(LISTING_API_FIELDS, { closes_at: "" }, null),
+      readOpenBody(
+        GROUP_FIELDS,
+        { hidden: "yes", max_attendees: -1, name: "Group" },
+        null,
+      ),
+      readOpenBody(GROUP_FIELDS, { max_attendees: 1.5 }, storedGroup),
+      listingCreate({ date: "2026-06-01T10:00" }),
+      listingCreate({ closes_at: "" }),
     ]).toEqual([
       { error: "hidden has an invalid value", ok: false },
       { error: "max_attendees has an invalid value", ok: false },
@@ -252,11 +310,12 @@ describe("field reads", () => {
   });
 
   test("an API null empties a listing's times and day prices", () => {
-    const read = readBody(
-      LISTING_API_FIELDS,
-      { closes_at: null, date: null, day_prices: null, listing_type: "daily" },
-      null,
-    );
+    const read = listingCreate({
+      closes_at: null,
+      date: null,
+      day_prices: null,
+      listing_type: "daily",
+    });
     expect(read.ok && read.value).toMatchObject({
       closesAt: "",
       date: "",
@@ -266,11 +325,7 @@ describe("field reads", () => {
   });
 
   test("an API null empties a contact list, a listing type, and a plain text", () => {
-    const listing = readBody(
-      LISTING_API_FIELDS,
-      { fields: null, listing_type: null },
-      null,
-    );
+    const listing = listingCreate({ fields: null, listing_type: null });
     const status = bodyMappers(STATUS_FIELDS).toCreateInput({
       name: "New",
       reservation_amount: null,
@@ -283,35 +338,39 @@ describe("field reads", () => {
 
   test("an API update keeps a stored switch that is off when its default is on", () => {
     expect(
-      readBody(
-        GROUP_API_FIELDS,
+      readOpenBody(
+        GROUP_FIELDS,
         {},
-        { ...storedGroup, show_hidden_listings: false },
+        { ...storedGroup, name: "Stored", show_hidden_listings: false },
       ),
     ).toEqual({
       ok: true,
-      value: { ...storedGroupInput, showHiddenListings: false },
+      value: { ...storedGroupInput, name: "Stored", showHiddenListings: false },
     });
   });
 
   test("an API update leaves an unset closing time out of the write", () => {
-    const read = readBody(LISTING_API_FIELDS, {}, { closes_at: null });
+    const read = readBody(LISTING_FIELDS, {}, storedListing, NONE);
     expect(read.ok && Object.hasOwn(read.value, "closesAt")).toBe(false);
   });
 
-  test("the form door reads switch boxes and gives each empty box its default", () => {
+  test("a form reads each shown switch box and gives each empty box its default", () => {
     expect(
-      formFieldsInput(GROUP_FIELDS, {
-        description: "Description",
-        hidden: "1",
-        hide_package_listings: "0",
-        is_package: "",
-        max_attendees: null,
-        name: "Package",
-        scan_checks_in_all_listings: "1",
-        show_hidden_listings: "1",
-        terms_and_conditions: "Terms",
-      }),
+      formFieldsInput(
+        GROUP_FIELDS,
+        {
+          description: "Description",
+          hidden: "1",
+          hide_package_listings: "0",
+          is_package: "",
+          max_attendees: null,
+          name: "Package",
+          scan_checks_in_all_listings: "1",
+          show_hidden_listings: "1",
+          terms_and_conditions: "Terms",
+        },
+        new Set(GROUP_FIELDS.map((field) => field.key)),
+      ),
     ).toEqual({
       description: "Description",
       hidden: true,
@@ -325,18 +384,68 @@ describe("field reads", () => {
     });
   });
 
-  test("the form door keeps a zero and reads only the fields on the form", () => {
-    const input = formFieldsInput(LISTING_FIELDS, {
-      active: false,
-      maximum_days_after: 0,
+  test("a form keeps a zero and reads only the fields its page shows", () => {
+    const input = formFieldsInput(
+      LISTING_FIELDS,
+      { active: "1", maximum_days_after: 0, name: "Listing" },
+      new Set(["maximum_days_after", "minimum_days_before", "name"]),
+    );
+    expect(input).toEqual({
+      maximumDaysAfter: 0,
+      minimumDaysBefore: 1,
       name: "Listing",
     });
+  });
+
+  test("a form reads a price in major units, a local time as UTC, and a weekday list", () => {
+    const input = formFieldsInput(
+      LISTING_FIELDS,
+      {
+        bookable_days: "Monday,Friday",
+        closes_at: "",
+        date: "2026-01-10T10:00",
+        unit_price: "12.50",
+      },
+      new Set(["bookable_days", "closes_at", "date", "unit_price"]),
+    );
+    expect(input).toEqual({
+      bookableDays: ["Monday", "Friday"],
+      closesAt: null,
+      date: "2026-01-10T10:00:00.000Z",
+      unitPrice: 1250,
+    });
+  });
+
+  test("a form price box that holds no price is an impossible state and throws", () => {
+    expect(() =>
+      formFieldsInput(
+        LISTING_FIELDS,
+        { unit_price: "" },
+        new Set(["unit_price"]),
+      ),
+    ).toThrow("The unit_price form box holds no price");
+  });
+
+  test("the shown fields are the visible declared boxes and the named extras", () => {
+    const shown = shownFieldKeys(
+      LISTING_FIELDS,
+      [
+        { name: "name" },
+        { name: "webhook_url", visible: false },
+        { name: "slug" },
+        { name: "hidden", visible: true },
+      ],
+      ["use_defaults"],
+    );
+    expect([...shown]).toEqual(["hidden", "name", "use_defaults"]);
+  });
+
+  test("a form that sends a declared box its page did not show names that field", () => {
+    const shown = new Set(["name"]);
     expect([
-      input.maximumDaysAfter,
-      input.minimumDaysBefore,
-      input.name,
-      Object.hasOwn(input, "active"),
-    ]).toEqual([0, 1, "Listing", false]);
+      unshownFieldOrNull(LISTING_FIELDS, ["name", "csrf_token"], shown),
+      unshownFieldOrNull(LISTING_FIELDS, ["webhook_url", "name"], shown),
+    ]).toEqual([null, "webhook_url"]);
   });
 
   test("a transfer leaves out withheld columns and empty day prices", () => {
@@ -347,8 +456,19 @@ describe("field reads", () => {
       webhook_url: "secret",
     };
     expect([
-      transferValues(LISTING_FIELDS, row, ["webhook_url"]),
+      transferValues(LISTING_FIELDS, row, new Map([["webhook_url", "editor"]])),
       transferValues(LISTING_FIELDS, { day_prices: { 1: 500 } }),
     ]).toEqual([{ name: "Listing" }, { dayPrices: { 1: 500 } }]);
+  });
+
+  test("a transfer that supplies a closed field is refused by its transfer key", () => {
+    const closed: ClosedFields = new Map([["uses_logistics", "logistics"]]);
+    expect([
+      transferClosedErrorOrNull(closed, {
+        name: "Listing",
+        usesLogistics: false,
+      }),
+      transferClosedErrorOrNull(closed, { name: "Listing" }),
+    ]).toEqual(["usesLogistics needs logistics turned on", null]);
   });
 });
