@@ -130,8 +130,9 @@ const SINGULAR: Record<TableName, string> = {
 };
 /* jscpd:ignore-end */
 
-/** One table, as a read holds it. */
-export type TableHandle<Name extends TableName = TableName> = {
+/** One table, as a read holds it. Code over any table holds a table that the
+ *  schema does not declare, with its name as text. */
+export type TableHandle<Name extends string = TableName> = {
   readonly name: Name;
   /** The word a query calls the table by, unless the read names another. */
   readonly singular: string;
@@ -163,7 +164,10 @@ export type Reference = {
 
 /** The reference `key` of a table. The types refuse a key that is not a
  *  reference, so a miss here is a broken declaration. */
-export const referenceOf = (table: TableHandle, key: string): Reference => {
+export const referenceOf = (
+  table: TableHandle<string>,
+  key: string,
+): Reference => {
   const column = `${key}_id`;
   const declared = table.columns.find(([name]) => name === column);
   if (declared === undefined) {

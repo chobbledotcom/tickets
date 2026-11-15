@@ -399,13 +399,16 @@ describe("a table named by text", () => {
   test("is read with columns named by text", () => {
     expect(
       fromNamed("holidays")
-        .as("holidays")
         .where(() => equal(named("id"), 4))
         .columns(() => sql`id, name`),
-    ).toEqual(sql`SELECT id, name FROM holidays AS holidays WHERE id = ${4}`);
+    ).toEqual(sql`SELECT id, name FROM holidays WHERE id = ${4}`);
   });
 
-  test("refuses a name that no table has", () => {
-    expect(() => fromNamed("things")).toThrow("things is not a declared table");
+  test("goes by another word where the read gives one", () => {
+    expect(
+      fromNamed("things")
+        .as("thing")
+        .columns(() => sql`thing.id`).sql,
+    ).toBe("SELECT thing.id FROM things AS thing");
   });
 });

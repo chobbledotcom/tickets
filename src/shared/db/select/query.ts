@@ -6,27 +6,10 @@
  * a referring column of its parent table without the `_id`. `via(child, key)`
  * joins the rows of `child` whose reference points back at the parent. A join
  * is a left join when its column can hold nothing, when `via(…).optional()`
- * asks for one, or when it hangs below another left join. `.join()` and
- * `.leftJoin()` take a condition for a join that follows no reference.
+ * asks for one, or when it hangs below another left join.
  *
  * Every table in a read is a node: its properties are its columns and its
- * joined nodes. Conditions, orders and selections are built from nodes. A read
- * becomes a statement, so it runs alone, in a batch, or inside a write.
- *
- * ```ts
- * // The quantity a listing has booked, for a guard inside an INSERT.
- * from(tables.listing_attendees)
- *   .where((line) => equal(line.listing_id, listingId))
- *   .scalar((line) => sum(line.quantity));
- *
- * // The groups a listing belongs to that carry a cap.
- * from(tables.group_listings, { group: {} })
- *   .where((member) => [
- *     equal(member.listing_id, listingId),
- *     greaterThan(member.group.max_attendees, 0),
- *   ])
- *   .select((member) => ({ id: member.group.id }));
- * ```
+ * joined nodes. A read becomes a statement that runs alone or in a batch.
  */
 
 import {
@@ -49,7 +32,6 @@ import {
   type TableHandle,
   type TableName,
   type TargetOf,
-  tableNamed,
 } from "#db/select/tables.ts";
 import {
   type RowsStatement,
@@ -95,11 +77,11 @@ export type Spec = {
 };
 
 /** Why a join key is refused, the key, and what the table accepts instead. */
-type Refused<Reason extends string, Key, Accepted> = Readonly<{
-  refused: Reason;
-  key: Key;
-  accepted: Accepted;
-}>;
+type Refused<Reason extends string, Key, Accepted> = readonly [
+  refused: Reason,
+  key: Key,
+  accepted: Accepted,
+];
 
 /** `Joined` where each key names a reference of `Name`, or a `via` join whose
  *  reference points at `Name`. */
@@ -244,11 +226,19 @@ type Plan = { readonly parts: SqlStatement[]; readonly aliases: string[] };
 const column = (alias: string, name: string): SqlStatement =>
   sqlName(`${alias}.${name}`);
 
-const tableAs = (table: TableHandle, alias: string): SqlStatement =>
-  sql`${sqlName(table.name)} AS ${sqlName(alias)}`;
+/** The table under its word. A table that goes by its own name needs no
+ *  `AS`. */
+const tableAs = (table: TableHandle<string>, alias: string): SqlStatement =>
+  alias === table.name
+    ? sqlName(table.name)
+    : sql`${sqlName(table.name)} AS ${sqlName(alias)}`;
 
 /** The node of `table` under `alias`: one expression for each column. */
-const nodeOf = (table: TableHandle, alias: string, plan: Plan): Handle => {
+const nodeOf = (
+  table: TableHandle<string>,
+  alias: string,
+  plan: Plan,
+): Handle => {
   if (plan.aliases.includes(alias)) {
     throw new Error(`A read names two tables ${alias}. Give one another word.`);
   }
@@ -279,7 +269,7 @@ const attach = (parent: Handle, key: string, child: Handle): void => {
 
 /** Join each key of `spec` to the node of `table`, and the joins below it. */
 const joinAlong = (
-  table: TableHandle,
+  table: TableHandle<string>,
   alias: string,
   node: Handle,
   spec: Spec,
@@ -335,7 +325,7 @@ const listOrNull = (
   parts === undefined || parts.length === 0 ? null : sqlCommas(parts);
 
 const query = <Root>(
-  table: TableHandle,
+  table: TableHandle<string>,
   spec: Spec,
   listing: Listing<Root>,
 ): Query<Root> => {
@@ -433,7 +423,7 @@ export const tableNode = <Name extends TableName>(
 const NO_JOINS = {} as never;
 
 /** A read of the table under its own word, with no condition yet. */
-const bareRead = <Root>(table: TableHandle): Listing<Root> => ({
+const bareRead = <Root>(table: TableHandle<string>): Listing<Root> => ({
   alias: table.singular,
   joins: [],
   wheres: [],
@@ -448,7 +438,7 @@ export const from = <Name extends TableName, const Joined extends Spec = None>(
 /** Rows of the table of this name, for code over any table. The read has no
  *  typed node, so its conditions name their columns by text. */
 export const fromNamed = (name: string): Query<unknown> => {
-  const table = tableNamed(name);
+  const table = { columns: [], name, singular: name };
   return query(table, {}, bareRead(table));
 };
 

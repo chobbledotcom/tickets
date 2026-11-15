@@ -71,8 +71,8 @@ describe("comparisons", () => {
   });
 
   test("refuse an undefined value", () => {
-    const missing = undefined as unknown as number;
-    expect(() => equal(quantity, missing)).toThrow(
+    // @ts-expect-error a comparison needs a value
+    expect(() => equal(quantity, undefined)).toThrow(
       "A value in SQL must be a statement or a value libsql can bind.",
     );
   });
