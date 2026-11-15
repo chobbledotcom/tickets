@@ -557,6 +557,10 @@ A flagged pair is one merge:
   of two versions, so it passes a merge base copy that holds an older version.
   A baseline whose own version is old fails, and the fix is
   `deno task cpd:update`.
+- A rewrite re-keys the recorded places it changes. The ratchet accepts those
+  places while the baseline's total falls. A baseline whose total rises, or one
+  that adds more places than it gives up, still fails. A count above the
+  base's for a snippet that the base holds still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The

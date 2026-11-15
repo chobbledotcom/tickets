@@ -171,6 +171,35 @@ describe("riseFindings", () => {
     ]);
   });
 
+  test("passes re-keyed places while the baseline's total falls", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 1 }), baseline({ bbb: 2 })),
+    ).toEqual([]);
+  });
+
+  test("names re-keyed places beyond the places given up", () => {
+    expect(
+      riseFindings(BASELINE, baseline({ aaa: 2 }), baseline({ bbb: 1 })),
+    ).toEqual([
+      `${BASELINE}:aaa [added-clone]: holds 2 place(s) that the merge base ` +
+        "does not hold — merge the duplicated code, then lower the baseline " +
+        "with --update",
+    ]);
+  });
+
+  test("names a raised clone while the total falls", () => {
+    expect(
+      riseFindings(
+        BASELINE,
+        baseline({ aaa: 3 }),
+        baseline({ aaa: 2, bbb: 9 }),
+      ),
+    ).toEqual([
+      `${BASELINE}:aaa [raised-clone]: holds 3 place(s), up from 2 — merge the ` +
+        "duplicated code, then lower the baseline with --update",
+    ]);
+  });
+
   test("names a clone count above the base's", () => {
     expect(
       riseFindings(BASELINE, baseline({ aaa: 3 }), baseline({ aaa: 2 })),

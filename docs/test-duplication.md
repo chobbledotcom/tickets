@@ -236,6 +236,10 @@ therefore writes its own baseline (`scripts/jscpd/baseline.ts`) over the scan
 report. After a merge, run `deno task cpd:update` to remove the fixed clones,
 and the baseline shrinks.
 
+A rewrite changes the text of a recorded place, so the place gets a new
+fingerprint. The ratchet accepts those places while the baseline's total falls.
+A baseline whose total rises still fails.
+
 Each TypeScript scan skips import and re-export statements through its
 `ignorePattern` list. Source files carry no ignore markers around imports.
 
