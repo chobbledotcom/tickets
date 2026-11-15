@@ -19,7 +19,7 @@ import {
 } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -154,7 +154,9 @@ describeWithEnv("db > client batch", { db: true }, () => {
   test("deleteWithChildren removes the children and the parent row itself", async () => {
     // The parent delete must name the parent's own id column — a delete
     // keyed by anything else would silently leave the row standing.
-    const listing = await createTestListing({ name: "Child delete listing" });
+    const listing = await createTestListingDirect({
+      name: "Child delete listing",
+    });
     const attribute = await createTestAttributeWithOptions("Season", [
       "Spring",
     ]);

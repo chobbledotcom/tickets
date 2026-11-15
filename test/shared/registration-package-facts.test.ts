@@ -9,7 +9,7 @@ import {
 } from "#shared/registration-package-facts.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   type DbCallHooks,
   statementSql,
@@ -95,7 +95,7 @@ describeWithEnv("loadRegistrationPackageFacts", { db: true }, () => {
 
   test("loads each package once with its display and complete member pricing", async () => {
     const group = await createHiddenPackageGroup("Weekend bundle");
-    const member = await createTestListing({
+    const member = await createTestListingDirect({
       customisableDays: true,
       dayPrices: { 1: 900, 2: 1600 },
       durationDays: 2,

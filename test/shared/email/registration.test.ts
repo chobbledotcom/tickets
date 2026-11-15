@@ -17,7 +17,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   createFreeTextQuestion,
   createQuestionWithAnswer,
@@ -219,7 +219,7 @@ describeWithEnv(
 
     test("sends the buyer's answers with their confirmation", async () => {
       await configureTestEmail();
-      const listing = await createTestListing({ name: "Fete" });
+      const listing = await createTestListingDirect({ name: "Fete" });
       const attendee = await createTestAttendee(
         listing.id,
         listing.slug,

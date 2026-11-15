@@ -15,7 +15,7 @@ import { listingChildren } from "#db/listing-parents.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > groups > membership child-state override",
@@ -30,8 +30,8 @@ describeWithEnv(
 
     const hiddenPackageParent = async (name: string) => {
       const group = await createHiddenPackageGroup(name);
-      const parent = await createTestListing({ name: `${name} parent` });
-      const child = await createTestListing({ name: `${name} child` });
+      const parent = await createTestListingDirect({ name: `${name} parent` });
+      const child = await createTestListingDirect({ name: `${name} child` });
       await listingChildren.setIds(parent.id, [child.id]);
       return { group, parent };
     };

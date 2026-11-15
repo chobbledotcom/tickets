@@ -6,7 +6,7 @@ import { agentUsers, userAgents } from "#db/user-agents.ts";
 import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { describeRecord } from "#test-utils/record-labels.ts";
 
 type AgentColumns = {
@@ -31,7 +31,7 @@ describeRecord(
 
     test("deletes an agent and clears every booking and user link to it", async () => {
       const agent = await logisticsAgents.table.insert({ name: "Van 2" });
-      const listing = await createTestListing({ name: "Delivery" });
+      const listing = await createTestListingDirect({ name: "Delivery" });
       await createAttendeeOn(listing, "Ann", "ann@example.com");
       await execute(
         "UPDATE listing_attendees SET start_agent_id = ?, end_agent_id = ?",

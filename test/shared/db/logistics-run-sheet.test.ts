@@ -19,7 +19,7 @@ import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
 const D1 = "2026-06-16";
@@ -111,7 +111,7 @@ const makeDualPathBooking = async (
   van: number,
 ): Promise<{ attendeeId: number; listingId: number }> => {
   const group = await createTestGroup({ isPackage: true, name: "Run Kit" });
-  const listing = await createTestListing({
+  const listing = await createTestListingDirect({
     groupId: group.id,
     maxAttendees: 100,
     name: "Run Kit Tent",

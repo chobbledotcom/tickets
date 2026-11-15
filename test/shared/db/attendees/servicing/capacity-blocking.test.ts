@@ -24,7 +24,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
-  createTestListing,
+  createTestListingDirect,
 } from "#test-utils/db-helpers/listings.ts";
 import {
   createServicingHold,
@@ -123,7 +123,7 @@ describeWithEnv("servicing §2 — capacity blocking", { db: true }, () => {
   });
 
   test("servicing on a standard listing consumes cumulative capacity", async () => {
-    const listing = await createTestListing({ maxAttendees: 5 });
+    const listing = await createTestListingDirect({ maxAttendees: 5 });
     await createServicingHold({
       listing: { maxAttendees: 5 },
       name: "Standard Hold",

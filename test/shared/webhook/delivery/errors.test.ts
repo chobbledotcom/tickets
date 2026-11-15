@@ -33,7 +33,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendeeWithFlags } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -436,7 +436,7 @@ describeWithEnv("registration delivery errors", { db: true }, () => {
     // send, so the payload's ticket price is the package's flat override
     // (2500), not the member listing's own price.
     const group = await createTestGroup({ isPackage: true });
-    const listing = await createTestListing();
+    const listing = await createTestListingDirect();
     await assignListingsToGroup([listing.id], group.id);
     await execute(
       "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (?, ?, ?, ?)",

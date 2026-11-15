@@ -8,7 +8,7 @@ import {
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 type DesiredLine = Parameters<typeof applyAttendeeAtomicEdit>[2][number];
 type LineOpts = {
@@ -22,7 +22,7 @@ type SuccessfulBooking = Extract<
   { success: true }
 >;
 type TestAttendee = SuccessfulBooking["attendees"][number];
-type TestListing = Awaited<ReturnType<typeof createTestListing>>;
+type TestListing = Awaited<ReturnType<typeof createTestListingDirect>>;
 
 interface EditFixture {
   attendee: TestAttendee;
@@ -122,12 +122,12 @@ export const bookForEdit = async (
 };
 
 export const bookOnNewListing = async (
-  listingOpts: Parameters<typeof createTestListing>[0],
+  listingOpts: Parameters<typeof createTestListingDirect>[0],
   opts: Parameters<typeof bookAttendee>[1],
   blobName = "X",
   blobEmail = "",
 ): Promise<EditFixture & { listing: TestListing }> => {
-  const listing = await createTestListing(listingOpts);
+  const listing = await createTestListingDirect(listingOpts);
   return {
     listing,
     ...(await bookForEdit(listing, opts, blobName, blobEmail)),
@@ -137,8 +137,14 @@ export const bookOnNewListing = async (
 export const twoListings = async (
   caps: [number, number] = [10, 10],
 ): Promise<{ listing1: TestListing; listing2: TestListing }> => ({
-  listing1: await createTestListing({ maxAttendees: caps[0], name: "E1" }),
-  listing2: await createTestListing({ maxAttendees: caps[1], name: "E2" }),
+  listing1: await createTestListingDirect({
+    maxAttendees: caps[0],
+    name: "E1",
+  }),
+  listing2: await createTestListingDirect({
+    maxAttendees: caps[1],
+    name: "E2",
+  }),
 });
 
 export const setupMulti = async (

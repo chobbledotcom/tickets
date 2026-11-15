@@ -19,7 +19,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   createRealAttendee,
   createServicingHold,
@@ -76,7 +76,10 @@ describeWithEnv(
       // The operator deactivates the listing between form render and submit.
       // A servicing create must not land on an inactive listing — it would
       // book a hold the public can't see and the operator can't sell against.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+      const listing = await createTestListingDirect({
+        maxAttendees: 10,
+        name: "L",
+      });
       const { deactivateTestListing } = await import(
         "#test-utils/db-helpers/listings.ts"
       );
@@ -89,7 +92,7 @@ describeWithEnv(
       // This one exercises the real listing-deletion path: the listing row
       // goes away, the servicing attendee loses its booking link, and the
       // orphan purge later sweeps it.
-      const listing = await createTestListing({
+      const listing = await createTestListingDirect({
         maxAttendees: 10,
         name: "Doomed",
       });
@@ -139,7 +142,10 @@ describeWithEnv(
     test("a real attendee booked on a listing alongside a servicing hold is unaffected by the hold's edit", async () => {
       // Cross-kind isolation: editing the servicing hold must not touch the
       // real attendee's booking on the same listing.
-      const listing = await createTestListing({ maxAttendees: 10, name: "L" });
+      const listing = await createTestListingDirect({
+        maxAttendees: 10,
+        name: "L",
+      });
       const { attendee: real } = await createRealAttendee(
         "Real",
         "real@example.com",
@@ -164,7 +170,7 @@ describeWithEnv(
 // Local helper to avoid importing createDailyTestListing separately — mirrors
 // the existing test-utils export so the test body reads cleanly.
 const createDailyTestListing = async (
-  overrides: Parameters<typeof createTestListing>[0] = {},
+  overrides: Parameters<typeof createTestListingDirect>[0] = {},
 ) => {
   const { createDailyTestListing: daily } = await import(
     "#test-utils/db-helpers/listings.ts"

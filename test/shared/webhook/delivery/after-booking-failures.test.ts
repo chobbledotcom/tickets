@@ -16,7 +16,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { ErrorCode } from "#shared/logger.ts";
 import { logAndNotifyRegistration } from "#shared/webhook/delivery.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -35,7 +35,7 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
   test("reports an assignment arm that throws after a booking", async () => {
     using _env = withEnv({ CAN_BUILD_SITES: "true" });
     // The hidden monthly tier the assignment's validation gate requires.
-    await createTestListing({
+    await createTestListingDirect({
       hidden: true,
       monthsPerUnit: 1,
       purchaseOnly: true,

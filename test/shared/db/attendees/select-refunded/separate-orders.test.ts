@@ -13,7 +13,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { createPaidListing } from "#test/features/admin/refunds-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import {
   bookTwoListings,
@@ -46,7 +46,7 @@ describeWithEnv(
       // A free booking has no sale leg, like a placeholder — but no money
       // either, so it must never read another listing's returned cash.
       test("a free booking beside a refunded one is not refunded", async () => {
-        const free = await createTestListing({
+        const free = await createTestListingDirect({
           maxAttendees: 10,
           unitPrice: 0,
         });

@@ -24,7 +24,7 @@ import {
   createTestGroup,
   getTestPackagePrices,
 } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import {
   expectRefused,
@@ -112,7 +112,7 @@ describeRecord(groupRecord, "Group", "Group name", () => {
 
   test("deletes a group with every link, edge, note, and image use", async () => {
     const group = await createTestGroup({ name: "Doomed" });
-    const listing = await createTestListing({ groupId: group.id });
+    const listing = await createTestListingDirect({ groupId: group.id });
     const page = await createTestSitePage("edges");
     await addPageItem(page.id, "group", group.id);
     const image = await makeImage("Banner");

@@ -11,7 +11,7 @@ import {
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 /** Judge one listing against one group through the listing-save membership
  *  fence, inside one transaction. Shared by the suites that read the outcome. */
@@ -31,7 +31,7 @@ export const arrangeOrdinaryGroupPackaging = async (
   minQuantity: number,
 ) => {
   const group = await createTestGroup({ name: `${name} group` });
-  const member = await createTestListing({
+  const member = await createTestListingDirect({
     groupId: group.id,
     maxQuantity: 10,
     minQuantity,
@@ -64,7 +64,7 @@ export const arrangeGroupWrite = async (
   minQuantity?: number,
 ) => {
   const group = await createHiddenPackageGroup(`${name} group`);
-  const member = await createTestListing({
+  const member = await createTestListingDirect({
     groupId: group.id,
     maxQuantity,
     ...(minQuantity === undefined ? {} : { minQuantity }),
@@ -95,7 +95,7 @@ export const arrangeStoredMember = async (
   maxQuantity: number,
 ) => {
   const group = await createHiddenPackageGroup(`${name} group`);
-  const member = await createTestListing({
+  const member = await createTestListingDirect({
     groupId: group.id,
     maxQuantity: 2,
     name,

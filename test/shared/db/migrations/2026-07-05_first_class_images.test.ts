@@ -17,7 +17,7 @@ import {
   tableRowCount,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 // The real additive() (not the no-op stub) so runMigration's verify() genuinely
@@ -87,8 +87,10 @@ describeWithEnv(
   () => {
     test("moves each listing image into a linked first-class record", async () => {
       await addListingImageColumns();
-      const pictured = await createTestListing({ name: "Poster listing" });
-      const bare = await createTestListing({ name: "Bare listing" });
+      const pictured = await createTestListingDirect({
+        name: "Poster listing",
+      });
+      const bare = await createTestListingDirect({ name: "Bare listing" });
       await setListingImageColumns(
         pictured.id,
         "products/full.webp",
@@ -124,7 +126,9 @@ describeWithEnv(
 
     test("reuses the full image as thumbnail for listings that predate thumbnails", async () => {
       await addListingImageColumns();
-      const listing = await createTestListing({ name: "Pre-thumb listing" });
+      const listing = await createTestListingDirect({
+        name: "Pre-thumb listing",
+      });
       await setListingImageColumns(listing.id, "products/full.webp", "");
 
       await runMigration();
@@ -136,7 +140,9 @@ describeWithEnv(
 
     test("backfills a database whose listings never had the thumbnail column", async () => {
       await addListingImageUrlColumn();
-      const listing = await createTestListing({ name: "Ancient listing" });
+      const listing = await createTestListingDirect({
+        name: "Ancient listing",
+      });
       await getDb().execute({
         args: [await encrypt("products/old.webp"), listing.id],
         sql: "UPDATE listings SET image_url = ? WHERE id = ?",
@@ -169,7 +175,7 @@ describeWithEnv(
       const retriedMigration = () =>
         firstClassImagesMigration(failOnceContext).up();
       await addListingImageColumns();
-      const listing = await createTestListing({ name: "Poster listing" });
+      const listing = await createTestListingDirect({ name: "Poster listing" });
       await setListingImageColumns(
         listing.id,
         "products/full.webp",

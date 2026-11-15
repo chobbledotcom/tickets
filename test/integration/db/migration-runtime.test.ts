@@ -29,7 +29,7 @@ import { createSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import { markCurrentSchemaMigrationPending } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { tempDir } from "#test-utils/files.ts";
 import {
@@ -337,7 +337,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
 
   describe("resetDatabase", () => {
     test("drops all tables", async () => {
-      await createTestListing({
+      await createTestListingDirect({
         maxAttendees: 50,
         name: "Test Listing",
         thankYouUrl: "https://example.com",
@@ -380,7 +380,7 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         TEST_ADMIN_PASSWORD,
         "USD",
       );
-      const listing = await createTestListing({
+      const listing = await createTestListingDirect({
         maxAttendees: 25,
         name: "New Listing",
         thankYouUrl: "https://example.com",
@@ -411,7 +411,9 @@ describeWithEnv("db > migration runtime", { db: true }, () => {
         TEST_ADMIN_PASSWORD,
         "USD",
       );
-      const listing = await createTestListing({ name: "Fresh Schema Listing" });
+      const listing = await createTestListingDirect({
+        name: "Fresh Schema Listing",
+      });
       expect(listing.name).toBe("Fresh Schema Listing");
     });
 

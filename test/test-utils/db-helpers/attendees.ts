@@ -11,12 +11,7 @@ import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
-import { extractCsrfToken } from "#test-utils/csrf.ts";
-import {
-  awaitTestRequest,
-  mockTicketFormRequest,
-  testPageHtml,
-} from "#test-utils/mocks.ts";
+import { awaitTestRequest, mockTicketFormRequest } from "#test-utils/mocks.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import type { Attendee, Listing } from "#types";
 import { createDailyTestListing, createTestListing } from "./listings.ts";
@@ -107,8 +102,7 @@ export const createTestAttendee = async (
   phone = "",
   extraFields: Record<string, string> = {},
 ): Promise<Attendee> => {
-  const pageHtml = await testPageHtml(`/ticket/${listingSlug}`);
-  const csrfToken = extractCsrfToken(pageHtml) ?? (await signCsrfToken());
+  const csrfToken = await signCsrfToken();
 
   const response = await handleRequest(
     mockTicketFormRequest(

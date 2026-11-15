@@ -10,7 +10,7 @@ import {
 import removeBrokenImageRecords from "#db/migrations/2026-07-12_remove_broken_image_records.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 // Data-only migration: it scans and deletes image rows via getDb.
@@ -22,7 +22,9 @@ describeWithEnv(
   { db: true },
   () => {
     test("deletes broken image records and their item links, keeping real ones", async () => {
-      const listing = await createTestListing({ name: "Repaired listing" });
+      const listing = await createTestListingDirect({
+        name: "Repaired listing",
+      });
       const real = await makeImage("Real");
       const brokenId = await insertBrokenImage();
       await insertBrokenImage({ name: "Also broken" });
@@ -52,7 +54,7 @@ describeWithEnv(
     });
 
     test("fails loudly on a filename that will not decrypt, deleting nothing", async () => {
-      const listing = await createTestListing({ name: "Aborted repair" });
+      const listing = await createTestListingDirect({ name: "Aborted repair" });
       const kept = await makeImage("Kept");
       // Seeded BEFORE the malformed row, so the scan (which walks ids in
       // order) has already identified this broken record when the malformed

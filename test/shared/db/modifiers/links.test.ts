@@ -16,7 +16,7 @@ import {
   createQuestion,
 } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db modifier links", { db: true }, () => {
   describe("setModifierListings / getModifierListingIds", () => {
@@ -157,8 +157,8 @@ describeWithEnv("db modifier links", { db: true }, () => {
       // Modifier 5 is scoped to groups 11 and 12; its resolved listing ids are
       // every member of those groups.
       await modifierGroups.setIds(5, [11, 12]);
-      const one = await createTestListing({ name: "Member one" });
-      const two = await createTestListing({ name: "Member two" });
+      const one = await createTestListingDirect({ name: "Member one" });
+      const two = await createTestListingDirect({ name: "Member two" });
       await setListingGroups(one.id, [11]);
       await setListingGroups(two.id, [11, 12]);
 

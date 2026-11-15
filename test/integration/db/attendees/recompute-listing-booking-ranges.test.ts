@@ -6,7 +6,7 @@ import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
-  createTestListing,
+  createTestListingDirect,
 } from "#test-utils/db-helpers/listings.ts";
 
 const getRow = async (listingId: number) => {
@@ -99,7 +99,7 @@ describeWithEnv(
         maxAttendees: 5,
         maximumDaysAfter: 30,
       });
-      const standard = await createTestListing({
+      const standard = await createTestListingDirect({
         listingType: "standard",
         maxAttendees: 5,
       });

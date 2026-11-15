@@ -17,7 +17,7 @@ import { getDb } from "#db/client.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { statusInput } from "#test-utils/db-helpers/attendee-statuses.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > attendee statuses", { db: true }, () => {
@@ -349,7 +349,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("createAttendeeAtomic persists status_id and remaining_balance", async () => {
-    const listing = await createTestListing({
+    const listing = await createTestListingDirect({
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });

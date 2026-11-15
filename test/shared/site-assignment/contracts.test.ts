@@ -11,7 +11,7 @@ import {
   validateSiteAssignmentConfig,
 } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { makeTestAttendee, makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -105,7 +105,7 @@ describeWithEnv(
     });
 
     test("accepts an initial term of one month", async () => {
-      await createTestListing({
+      await createTestListingDirect({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,
@@ -129,14 +129,14 @@ describeWithEnv(
     });
 
     test("picks the cheapest qualifying tier regardless of insert order", async () => {
-      const cheap = await createTestListing({
+      const cheap = await createTestListingDirect({
         hidden: true,
         monthsPerUnit: 1,
         name: "Cheap Tier",
         purchaseOnly: true,
         unitPrice: 300,
       });
-      await createTestListing({
+      await createTestListingDirect({
         hidden: true,
         monthsPerUnit: 1,
         name: "Expensive Tier",

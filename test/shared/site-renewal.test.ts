@@ -21,7 +21,7 @@ import {
 } from "#shared/site-renewal.ts";
 import { recordingRenewalUrlPush } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -301,7 +301,7 @@ describeWithEnv(
       using _secret = stub(bunnyCdnApi, "setEdgeScriptSecret", () =>
         Promise.resolve({ ok: true as const }),
       );
-      await createTestListing({
+      await createTestListingDirect({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,

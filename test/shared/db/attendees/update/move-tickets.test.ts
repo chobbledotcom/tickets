@@ -5,14 +5,14 @@ import { moveTickets } from "#db/attendees/update.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > attendees > admit and release tickets",
   { db: true },
   () => {
     const attendeeOnListing = async (quantity = 2) => {
-      const listing = await createTestListing({
+      const listing = await createTestListingDirect({
         maxAttendees: 100,
         maxQuantity: 10,
       });

@@ -13,7 +13,7 @@ import { getListingsByGroupId } from "#db/groups.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 /** One group to build: the members it keeps on sale, the members it takes off
  *  sale, and the counts both reads must report for them. */
@@ -43,10 +43,13 @@ describeWithEnv("db > group sale state", { db: true }, () => {
     test(`the sale state of "${testCase.name}" matches its members`, async () => {
       const group = await createTestGroup({ name: testCase.name });
       for (const name of testCase.onSale) {
-        await createTestListing({ groupId: group.id, name });
+        await createTestListingDirect({ groupId: group.id, name });
       }
       for (const name of testCase.offSale) {
-        const listing = await createTestListing({ groupId: group.id, name });
+        const listing = await createTestListingDirect({
+          groupId: group.id,
+          name,
+        });
         await listingsTable.update(listing.id, { active: false });
       }
       const members = await getListingsByGroupId(group.id);

@@ -15,7 +15,7 @@ import {
 } from "#db/logistics-run-sheet.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   assignBookingLogistics,
   insertSecondBookingRow,
@@ -30,7 +30,7 @@ const newAttendee = async (): Promise<{
   attendeeId: number;
   listingId: number;
 }> => {
-  const listing = await createTestListing({ maxAttendees: 100 });
+  const listing = await createTestListingDirect({ maxAttendees: 100 });
   const attendee = await createTestAttendee(
     listing.id,
     listing.slug,

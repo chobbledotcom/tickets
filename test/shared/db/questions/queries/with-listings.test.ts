@@ -20,7 +20,7 @@ import {
   seedQuestionWithAndWithoutAnswers,
 } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("getQuestionsWithListingIds", () => {
@@ -30,8 +30,8 @@ describeWithEnv("custom questions", { db: true }, () => {
     const seedTwoQuestionsAcrossListings = async () => {
       const q1 = await createQuestionWithAnswers("Q1", ["A1"]);
       const q2 = await createQuestionWithAnswers("Q2", ["A2"]);
-      const listing1 = await createTestListing();
-      const listing2 = await createTestListing({ name: "Listing 2" });
+      const listing1 = await createTestListingDirect();
+      const listing2 = await createTestListingDirect({ name: "Listing 2" });
       await listingQuestions.setIds(listing1.id, [q1.id, q2.id]);
       await listingQuestions.setIds(listing2.id, [q2.id]);
       return { listing1, listing2, q1, q2 };
@@ -64,7 +64,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       const q = await createQuestionWithAnswers("Universal Q", ["Yes"], {
         assignAll: true,
       });
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
 
       const { questionListingMap, questions } =
         await getQuestionsWithListingIds([listing.id]);
@@ -116,7 +116,7 @@ describeWithEnv("custom questions", { db: true }, () => {
      *  the shared starting point for every aggregate-drift test below. */
     const seedSelectedAnswer = async () => {
       const { a, q } = await seedAnswer();
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
       const attendee = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[attendee.id, [a.id]]]));
       return { a, attendee, q };

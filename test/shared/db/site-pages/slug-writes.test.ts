@@ -7,7 +7,7 @@ import {
 } from "#db/site-pages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { expectOneSlugConflict } from "#test-utils/slug-conflicts.ts";
 
@@ -44,7 +44,7 @@ describeWithEnv("db > site page slug writes", { db: true }, () => {
   });
 
   test("create returns a conflict for a listing-owned slug", async () => {
-    const listing = await createTestListing({ name: "Listing owner" });
+    const listing = await createTestListingDirect({ name: "Listing owner" });
 
     expect(await createSitePage(pageInput(listing.slug))).toEqual({
       error: "slugTaken",

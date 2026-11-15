@@ -9,7 +9,7 @@ import {
 } from "#shared/listings-actions.ts";
 import { setDeleteOverride } from "#shared/test-overrides.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { rescuingPageSetup } from "#test-utils/listing-parents/helpers.ts";
 
@@ -17,7 +17,7 @@ describeWithEnv("listing action lifecycle", { db: true }, () => {
   const errors = setupErrorSpy();
 
   test("duplicates listing fields but clears source-owned attachment data", async () => {
-    const source = await createTestListing({
+    const source = await createTestListingDirect({
       attachmentName: "guide.pdf",
       attachmentUrl: "guide.pdf",
       name: "Original Listing",
@@ -35,7 +35,7 @@ describeWithEnv("listing action lifecycle", { db: true }, () => {
   });
 
   test("labels an attachment failure while still deleting the listing", async () => {
-    const listing = await createTestListing({ name: "Delete Failure" });
+    const listing = await createTestListingDirect({ name: "Delete Failure" });
     await listingsTable.update(listing.id, {
       attachmentName: "guide.pdf",
       attachmentUrl: "guide.pdf",

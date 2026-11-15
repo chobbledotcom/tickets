@@ -11,7 +11,7 @@ import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
 import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   buildMergeDiff,
   createMergePair,
@@ -153,7 +153,7 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       const { source, target } = await createMergePair({ sameListing: true });
       // A second listing exists but the source isn't on it, so the diff still
       // sees exactly one (duplicate) booking to classify.
-      const listing2 = await createTestListing({
+      const listing2 = await createTestListingDirect({
         maxAttendees: 10,
         name: "E2",
       });

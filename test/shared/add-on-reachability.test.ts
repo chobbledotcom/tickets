@@ -11,7 +11,7 @@ import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { storedInputFor } from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   groupRescuedChildAddOn,
   groupScopedAddOn,
@@ -41,8 +41,10 @@ const saveGuard = async (
  * either page alone leaves the other as the add-on's reachable page. */
 const twoRescuingPages = async () => {
   const { child, parent } = await linkedParentChild();
-  const first = await createTestListing({ name: "First rescuing page" });
-  const second = await createTestListing({ name: "Second rescuing page" });
+  const first = await createTestListingDirect({ name: "First rescuing page" });
+  const second = await createTestListingDirect({
+    name: "Second rescuing page",
+  });
   await optInAddOnForListings("Child-scoped extra", [
     child.id,
     first.id,
@@ -129,7 +131,7 @@ describeWithEnv("add-on reachability guards", { db: true }, () => {
 
   test("allows leaving a group when another page still offers its child add-on", async () => {
     const { group, rescuer } = await groupRescuedChildAddOn();
-    await createTestListing({ groupId: group.id, name: "Second page" });
+    await createTestListingDirect({ groupId: group.id, name: "Second page" });
 
     await expect(saveGuard(rescuer.id, { groupIds: [] })).resolves.toBeNull();
   });
@@ -141,7 +143,7 @@ describeWithEnv("add-on reachability guards", { db: true }, () => {
   });
 
   test("allows clearing the standalone flag on a listing that is not a child", async () => {
-    const listing = await createTestListing({
+    const listing = await createTestListingDirect({
       bookableAlone: true,
       name: "Ordinary Page",
     });

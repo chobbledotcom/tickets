@@ -16,7 +16,7 @@ import {
   bookAttendee,
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
@@ -25,7 +25,7 @@ import {
 
 /** One reserved payment belonging to a fresh attendee. */
 const reserveAttendeePayment = async (sessionId: string): Promise<number> => {
-  const listing = await createTestListing({ maxAttendees: 5 });
+  const listing = await createTestListingDirect({ maxAttendees: 5 });
   const attendeeId = bookedAttendee(await bookAttendee(listing)).id;
   await reserveSession(sessionId);
   return attendeeId;

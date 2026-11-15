@@ -15,7 +15,7 @@ import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   assertAdminPasswordRejects,
   assertAdminPasswordVerifies,
@@ -90,7 +90,7 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("password change allows decryption of both old and new attendee records", async () => {
       const newPassword = "newpassword456";
 
-      const listing = await createTestListing({
+      const listing = await createTestListingDirect({
         maxAttendees: 100,
         name: "Password Test Listing",
         thankYouUrl: "https://example.com/thanks",

@@ -5,7 +5,7 @@ import { createSitePage, sitePages, updateSitePage } from "#db/site-pages.ts";
 import { isSlugTakenAnywhere, takenSlugIndexes } from "#db/slug-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 const pageInput = (name: string, slug: string) => ({
   content: `The ${name} body.`,
@@ -30,7 +30,7 @@ describeWithEnv("db > slug-registry", { db: true }, () => {
   });
 
   test("detects a slug owned by a listing, a group, or a page", async () => {
-    const listing = await createTestListing({ name: "L" });
+    const listing = await createTestListingDirect({ name: "L" });
     await createTestGroup({ name: "G", slug: "group-slug" });
     await makePage("page-slug");
     expect(await isSlugTakenAnywhere(listing.slug)).toBe(true);
@@ -74,7 +74,7 @@ describeWithEnv("db > slug-registry", { db: true }, () => {
 
   test("the batched taken check answers empty input and held slugs", async () => {
     expect(await takenSlugIndexes([])).toEqual(new Set());
-    const listing = await createTestListing({ name: "Batched" });
+    const listing = await createTestListingDirect({ name: "Batched" });
     const free = await hmacHash("never-registered");
     const held = await takenSlugIndexes([listing.slug_index, free]);
     expect(held.has(listing.slug_index)).toBe(true);

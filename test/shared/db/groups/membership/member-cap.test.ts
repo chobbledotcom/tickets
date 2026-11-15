@@ -8,7 +8,7 @@ import { it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   arrangeGroupWrite,
   judgeListingMembership,
@@ -52,7 +52,7 @@ describeWithEnv("db > groups > submitted member minimums", { db: true }, () => {
     // The minimum judges package pick counts only; an ordinary group has no
     // pick count to judge.
     const group = await createTestGroup({ name: "Plain group" });
-    const member = await createTestListing({
+    const member = await createTestListingDirect({
       groupId: group.id,
       maxQuantity: 10,
       minQuantity: 2,

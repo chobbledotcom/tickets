@@ -8,7 +8,7 @@ import {
   bookAttendee,
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   CLAIM_MIRROR,
   claimCurrentAttendeeRows,
@@ -122,7 +122,7 @@ describeWithEnv(
     });
 
     test("an attendee with no refundable rows claims an empty set", async () => {
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
       const booked = await bookAttendee(listing, {
         email: "no-payment@example.com",
         name: "No Payment",

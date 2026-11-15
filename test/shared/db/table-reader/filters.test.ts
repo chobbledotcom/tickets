@@ -10,7 +10,7 @@ import { attributesTable } from "#db/attributes.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { col, defineTable } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > table reader > filters", { db: true }, () => {
   const attributes = attributesTable.read;
@@ -154,7 +154,7 @@ describeWithEnv(
     });
 
     test("still answers whether a row is there", async () => {
-      const listing = await createTestListing({ name: "Findable" });
+      const listing = await createTestListingDirect({ name: "Findable" });
 
       expect(await rawListingsTable.read.exists({ id: listing.id })).toBe(true);
       expect(await rawListingsTable.read.exists({ id: 999_999 })).toBe(false);

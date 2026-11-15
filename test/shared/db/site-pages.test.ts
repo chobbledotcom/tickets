@@ -17,7 +17,7 @@ import { getAllCacheStats } from "#shared/cache-registry.ts";
 
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import type { SitePage } from "#types";
@@ -161,7 +161,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     });
 
     test("loads listing names without loading full listing rows", async () => {
-      const listing = await createTestListing({ name: "L" });
+      const listing = await createTestListingDirect({ name: "L" });
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
       expect((await listingNames.byIds([])).size).toBe(0);

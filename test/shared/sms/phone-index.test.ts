@@ -14,7 +14,7 @@ import {
   createTestAttendeeDirect,
   createTestAttendeeWithPhone,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
 
 describeWithEnv("sms phone index", { encryptionKey: true }, () => {
@@ -45,7 +45,7 @@ describeWithEnv("db > attendee phone index", { db: true }, () => {
   test("setAttendeePhoneIndexIfEmpty fills an empty column, for that attendee only", async () => {
     const attendee = await createTestAttendeeWithPhone();
     const { attendee: other } = await createTestAttendeeDirect(
-      (await createTestListing({ maxAttendees: 100 })).id,
+      (await createTestListingDirect({ maxAttendees: 100 })).id,
       "Other",
       "other@example.com",
     );

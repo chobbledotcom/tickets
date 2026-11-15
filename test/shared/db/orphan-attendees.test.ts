@@ -23,7 +23,7 @@ import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   CLAIM_MIRROR,
   REVIEW_MIRROR,
@@ -102,7 +102,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     });
 
     test("ignores an attendee that still has a booking", async () => {
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
       await createTestAttendeeDirect(
         listing.id,
         "Booked",
@@ -135,7 +135,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     });
 
     test("keeps attendees that still have a booking", async () => {
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
       const { attendee } = await createTestAttendeeDirect(
         listing.id,
         "Booked",
@@ -262,7 +262,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
 
     test("does not call a booked attendee or finished payment an orphan", async () => {
       await insertOrphan(daysAgoIso(365));
-      const listing = await createTestListing();
+      const listing = await createTestListingDirect();
       const { attendee } = await createTestAttendeeDirect(
         listing.id,
         "Booked",

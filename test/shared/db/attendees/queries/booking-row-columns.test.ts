@@ -8,17 +8,17 @@ import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { queryAll } from "#db/client.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale, tx } from "#test-utils/ledger.ts";
 
 describeWithEnv("db > attendees > booking row columns", { db: true }, () => {
   test("the booking row projection reads every stored column", async () => {
-    const listing = await createTestListing({
+    const listing = await createTestListingDirect({
       listingType: "daily",
       maxAttendees: 10,
       unitPrice: 500,
     });
-    const ghostListing = await createTestListing({ maxAttendees: 10 });
+    const ghostListing = await createTestListingDirect({ maxAttendees: 10 });
     const made = await attendeesApi.createAttendeeAtomic({
       bookings: [
         {

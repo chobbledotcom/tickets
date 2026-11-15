@@ -3,11 +3,11 @@ import { it as test } from "@std/testing/bdd";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > attendees > creation work", { db: true }, () => {
   test("passes the stored attendee id to creation work", async () => {
-    const listing = await createTestListing({ maxAttendees: 1 });
+    const listing = await createTestListingDirect({ maxAttendees: 1 });
     let workAttendeeId = 0;
 
     const result = await createAttendeeAtomic(
@@ -29,7 +29,7 @@ describeWithEnv("db > attendees > creation work", { db: true }, () => {
   });
 
   test("skips creation work when a booking does not insert", async () => {
-    const listing = await createTestListing({ maxAttendees: 0 });
+    const listing = await createTestListingDirect({ maxAttendees: 0 });
     let workRan = false;
 
     const result = await createAttendeeAtomic(

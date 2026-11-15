@@ -14,7 +14,7 @@ import {
   tableNames,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
 describe("db > migrations > context", () => {
@@ -47,7 +47,7 @@ describeWithEnv(
   () => {
     describe("renameEventsToListings", () => {
       test("renames legacy tables and columns while preserving rows", async () => {
-        await createTestListing();
+        await createTestListingDirect();
         await downgradeListingDomainToLegacyNames();
 
         await renameEventsToListings();

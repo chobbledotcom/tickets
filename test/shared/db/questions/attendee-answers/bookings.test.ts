@@ -12,7 +12,7 @@ import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 /** A booking on the given listings, recorded at the given time so the read's
  *  order is the one the test asked for and not the clock's. */
@@ -101,7 +101,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
 
   test("names every listing in ascending order whatever order the lines came in", async () => {
     const { listing, size, small } = await seedChoiceAndTextQuestions();
-    const other = await createTestListing();
+    const other = await createTestListingDirect();
     const attendeeId = await seedBookingAt(
       [Math.max(listing.id, other.id), Math.min(listing.id, other.id)],
       "2026-06-04T09:00:00.000Z",

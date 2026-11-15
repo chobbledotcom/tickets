@@ -18,7 +18,7 @@ import {
 } from "#shared/email/answers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   makeTestEntry as makeEntry,
   testAnswer,
@@ -50,7 +50,7 @@ const seedChoiceQuestion = async (
 
 describeWithEnv("order answer lines", { db: true }, () => {
   const bookedBuyer = async (listingName: string) => {
-    const listing = await createTestListing({ name: listingName });
+    const listing = await createTestListingDirect({ name: listingName });
     const attendee = await createTestAttendee(
       listing.id,
       listing.slug,
@@ -82,7 +82,7 @@ describeWithEnv("order answer lines", { db: true }, () => {
 
   test("keeps a question off a listing it was not assigned to", async () => {
     const { attendee, listing: asking } = await bookedBuyer("Asking");
-    const other = await createTestListing({ name: "Other" });
+    const other = await createTestListingDirect({ name: "Other" });
     const { answerId } = await seedChoiceQuestion([asking.id]);
     await saveAttendeeAnswers(new Map([[attendee.id, [answerId]]]));
 
@@ -106,7 +106,7 @@ describeWithEnv("order answer lines", { db: true }, () => {
 
   test("places each entry's answers under its own listing", async () => {
     const { attendee, listing: first } = await bookedBuyer("One");
-    const second = await createTestListing({ name: "Two" });
+    const second = await createTestListingDirect({ name: "Two" });
     const onFirst = await seedChoiceQuestion([first.id], "Diet?");
     await seedChoiceQuestion([second.id], "Shirt size?");
     await saveAttendeeAnswers(new Map([[attendee.id, [onFirst.answerId]]]));

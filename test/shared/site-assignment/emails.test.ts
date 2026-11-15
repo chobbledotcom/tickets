@@ -7,7 +7,7 @@ import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
 import { hostEmail } from "#shared/email.ts";
 import { assignAndNotifyBuiltSites } from "#shared/site-assignment.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { makeTestEntry } from "#test-utils/factories.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
@@ -23,7 +23,7 @@ describeWithEnv(
         fromAddress: validEmail("host@example.com"),
         provider: "resend",
       });
-      await createTestListing({
+      await createTestListingDirect({
         hidden: true,
         monthsPerUnit: 1,
         purchaseOnly: true,

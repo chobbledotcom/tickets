@@ -14,7 +14,7 @@ import {
   tableRowCount,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv(
   "db > migrations > 2026-06-14_rename_events_to_listings",
@@ -72,7 +72,7 @@ describeWithEnv(
       });
 
       test("a database with duplicate legacy and target column values self-heals by dropping the legacy column", async () => {
-        const listing = await createTestListing();
+        const listing = await createTestListingDirect();
         await getDb().execute(
           "INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, 'duplicate listing activity')",
           [listing.id],
@@ -97,7 +97,7 @@ describeWithEnv(
       });
 
       test("a duplicate column state with a stale legacy foreign key self-heals by rebuilding the table", async () => {
-        const listing = await createTestListing();
+        const listing = await createTestListingDirect();
         await getDb().execute("DROP TABLE activity_log");
         await getDb().execute(
           `CREATE TABLE activity_log (
@@ -166,7 +166,7 @@ describeWithEnv(
       });
 
       test("a database with both legacy and target columns containing data fails with a clear manual-repair error", async () => {
-        const listing = await createTestListing();
+        const listing = await createTestListingDirect();
         const listingId = listing.id;
         await getDb().execute(
           "INSERT INTO activity_log (created, listing_id, message) VALUES ('2024-01-01T00:00:00Z', ?, 'target listing activity')",

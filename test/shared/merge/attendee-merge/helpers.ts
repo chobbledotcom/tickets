@@ -20,7 +20,7 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import type { ContactInfo } from "#types";
 
 /** Create a test attendee on a single listing. */
@@ -105,10 +105,10 @@ export const createFreeTextQuestion = (text = "Dietary needs?") =>
  *  and the source on a second ("E2"); pass `sameListing` to put both on one so
  *  the source booking is a duplicate of the target's. */
 export const createMergePair = async (opts: { sameListing?: boolean } = {}) => {
-  const listing = await createTestListing({ maxAttendees: 10 });
+  const listing = await createTestListingDirect({ maxAttendees: 10 });
   const listing2 = opts.sameListing
     ? listing
-    : await createTestListing({ maxAttendees: 10, name: "E2" });
+    : await createTestListingDirect({ maxAttendees: 10, name: "E2" });
   const target = await createAttendee(listing.id, "Alice");
   const source = await createAttendee(listing2.id, "Bob");
   return { listing, listing2, source, target };

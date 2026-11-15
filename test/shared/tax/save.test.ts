@@ -44,7 +44,7 @@ import {
   attendeePiiOf,
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import { insertModifier } from "#test-utils/modifiers.ts";
 
 const added: TaxPolicy = { mode: "add_to_total", rateBasisPoints: 2000 };
@@ -79,7 +79,7 @@ const postLegacyLegs = async (
 
 const booking = async (legacy = false) => {
   await settings.update.tax(NO_TAX);
-  const listing = await createTestListing({
+  const listing = await createTestListingDirect({
     maxAttendees: 10,
     name: "Tax place",
     unitPrice: 10000,
@@ -370,7 +370,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
     direction: "charge" | "discount",
   ) => {
     await settings.update.tax(NO_TAX);
-    const listing = await createTestListing({
+    const listing = await createTestListingDirect({
       maxAttendees: 10,
       name: "Tax place",
       unitPrice: 10000,

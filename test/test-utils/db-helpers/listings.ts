@@ -1,5 +1,11 @@
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import {
+  persistListingJoins,
+  prepareListingJoins,
+} from "#routes/admin/api-listing-joins.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { generateUniqueListingSlug } from "#shared/listings-actions.ts";
+import { listingRecord } from "#shared/records/listings.ts";
 import {
   resolveTestGroupIds,
   type TestListingOverrides,
@@ -50,18 +56,39 @@ const applyTestListingGroups = async (
   await setListingGroups(listingId, groupIds);
 };
 
+/** Write the listing's group membership, then its requested capacity. The
+ *  create form refuses a capacity below the field's declared minimum of 1, so
+ *  a fixture that needs a stored zero-capacity listing — the capacity suites
+ *  do — creates it bookable and then writes the column value directly. */
+const finishTestListing = async (
+  listing: ListingWithCount,
+  input: Pick<ListingInput, "maxAttendees">,
+  overrides: TestListingOverrides,
+): Promise<ListingWithCount> => {
+  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
+  if (listing.max_attendees === input.maxAttendees) return listing;
+  const { execute } = await import("#db/client.ts");
+  await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
+    input.maxAttendees,
+    listing.id,
+  ]);
+  return { ...listing, max_attendees: input.maxAttendees };
+};
+
+/** The input both create fixtures write, and a capacity the create form
+ *  accepts. The form refuses a capacity below the field's minimum of 1. */
+const testListingCreateInput = (overrides: TestListingOverrides) => {
+  const input = testListingInput(overrides);
+  return { capacity: Math.max(input.maxAttendees, 1), input };
+};
+
 export const createTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
-  const input = testListingInput(overrides);
-  // The create form refuses a capacity below the field's declared minimum of
-  // 1. A fixture that needs a stored zero-capacity listing — the capacity
-  // suites do — submits the form with a bookable capacity and then writes the
-  // requested column value directly.
-  const formCapacity = Math.max(input.maxAttendees, 1);
+  const { capacity, input } = testListingCreateInput(overrides);
   const listing = await doAuthenticatedMultipartFormRequest(
     "/admin/listing",
-    buildCreateListingForm({ ...input, maxAttendees: formCapacity }),
+    buildCreateListingForm({ ...input, maxAttendees: capacity }),
     async () => {
       const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
@@ -69,16 +96,32 @@ export const createTestListing = async (
     },
     "create listing",
   );
-  await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
-  if (formCapacity !== input.maxAttendees) {
-    const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
-      input.maxAttendees,
-      listing.id,
-    ]);
-    return { ...listing, max_attendees: input.maxAttendees };
+  return finishTestListing(listing, input, overrides);
+};
+
+/** Create a listing through the record write that the admin create form and
+ *  the JSON API both run, but without the routed multipart form POST. Use it
+ *  when the test's subject is not the create form. */
+export const createTestListingDirect = async (
+  overrides: TestListingOverrides = {},
+): Promise<ListingWithCount> => {
+  const { capacity, input } = testListingCreateInput(overrides);
+  const created = {
+    ...input,
+    ...(await generateUniqueListingSlug()),
+    maxAttendees: capacity,
+  };
+  const verdict = await listingRecord.create(created, {
+    persist: (tx, id) =>
+      persistListingJoins(tx, id, prepareListingJoins(created)),
+  });
+  if (verdict.kind === "refused") {
+    throw new Error(`Failed to create listing: ${verdict.message}`);
   }
-  return listing;
+  if (verdict.kind === "not-found") {
+    throw new Error("Failed to create listing: the new row is missing");
+  }
+  return finishTestListing(verdict.row, input, overrides);
 };
 
 /**

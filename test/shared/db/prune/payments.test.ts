@@ -13,7 +13,7 @@ import {
   bookAttendee,
   bookedAttendee,
 } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createTestListingDirect } from "#test-utils/db-helpers/listings.ts";
 import {
   claimCurrentAttendeeRows,
   staleClaimSlot,
@@ -46,7 +46,7 @@ const insertOldReferencedPayment = async (
   const attendeeId =
     existingAttendeeId ??
     bookedAttendee(
-      await bookAttendee(await createTestListing(), {
+      await bookAttendee(await createTestListingDirect(), {
         email: `${sessionId}@example.com`,
         name: sessionId,
       }),
