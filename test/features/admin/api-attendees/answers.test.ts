@@ -19,6 +19,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 
 /** A listing that asks a choice question and a free-text question, both
  * answered in the body — the shared fixture behind the answers tests. */
@@ -169,11 +170,7 @@ describeWithEnv(
         );
       }
 
-      const rows = await queryAll<{ used_count: number }>(
-        sql`SELECT used_count FROM strings`,
-      );
-      expect(rows).toHaveLength(1);
-      expect(rows[0]!.used_count).toBe(2);
+      expect(await stringUsedCounts()).toEqual([2]);
     });
 
     test("an assign_all question is answerable without a per-listing link", async () => {

@@ -21,6 +21,7 @@ import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
+import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 
@@ -51,11 +52,9 @@ const seedAttendeeHoldingRed = async (): Promise<{
   return { a1, a2, att };
 };
 
-/** The used_count of every interned string, in id order. */
-const stringUsedCounts = async (): Promise<number[]> =>
-  (
-    await queryAll<{ used_count: number }>(sql`SELECT used_count FROM strings`)
-  ).map((row) => row.used_count);
+/** One attendee's stored text answers, decrypted for the edit form. */
+const textAnswersOf = async (attendeeId: number) =>
+  await getAttendeeTextAnswers(attendeeId, await getTestPrivateKey());
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("createAttendee helper", () => {
@@ -233,10 +232,7 @@ describeWithEnv("custom questions", { db: true }, () => {
         { questionId: q.id, text: "Front row please" },
       ]);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        attendee.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(attendee.id);
       expect(textAnswers.get(q.id)).toBe("Front row please");
 
       const strings = await queryAll<{ created: string; used_count: number }>(
@@ -254,16 +250,10 @@ describeWithEnv("custom questions", { db: true }, () => {
         { questionId: q.id, text: "Final answer" },
       ]);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        attendee.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(attendee.id);
       expect(textAnswers.get(q.id)).toBe("Final answer");
 
-      const strings = await queryAll<{ used_count: number }>(
-        sql`SELECT used_count FROM strings`,
-      );
-      expect(strings.map((row) => row.used_count)).toEqual([1]);
+      expect(await stringUsedCounts()).toEqual([1]);
     });
 
     test("re-saving an unchanged sole-user text answer keeps it readable", async () => {
@@ -276,10 +266,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveTextAnswers(att.id, keepMe);
       await saveTextAnswers(att.id, keepMe);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        att.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(att.id);
       expect(textAnswers.get(q.id)).toBe("Keep me");
     });
 
