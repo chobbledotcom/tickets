@@ -233,6 +233,14 @@ describe("matchesGlob", () => {
   });
 });
 
+describe("one condition alone", () => {
+  test("joins as itself, so NOT takes it without brackets", () => {
+    expect(text(not(and(equal(quantity, 1)))).sql).toBe(
+      "NOT line.quantity = ?",
+    );
+  });
+});
+
 describe("an AND inside an AND", () => {
   const some = equal(quantity, 1);
   const more = greaterThan(quantity, 2);

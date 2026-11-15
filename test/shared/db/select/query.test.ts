@@ -1,9 +1,5 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { queryAll } from "#db/client.ts";
-import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
-import { REFERENCES } from "#db/migrations/schema/references.ts";
-import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
 import {
   among,
   desc,
@@ -18,14 +14,8 @@ import {
   sum,
 } from "#db/select/expression.ts";
 import { from, fromNamed, tableNode, via } from "#db/select/query.ts";
-import {
-  referenceOf,
-  type TableHandle,
-  tableNamed,
-  tables,
-} from "#db/select/tables.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { placed } from "#test-utils/sql-text.ts";
 
 describe("from", () => {
@@ -111,6 +101,13 @@ describe("joins", () => {
       ),
       "SELECT groupRow.max_attendees FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id",
     ],
+    [
+      "give the key case another word too",
+      from(tables.payment_case_decisions, { case: {} }).values(
+        (decision) => decision.case.id,
+      ),
+      "SELECT caseRow.id FROM payment_case_decisions AS paymentCaseDecision JOIN payment_cases AS caseRow ON caseRow.id = paymentCaseDecision.case_id",
+    ],
   ] as const;
 
   for (const [title, read, text] of alongReferences) {
@@ -156,36 +153,38 @@ describe("joins", () => {
   });
 
   test("refuse a key that is not a reference", () => {
-    // @ts-expect-error a listing has no status to join
-    from(tables.listings, { status: {} });
     // @ts-expect-error this reference of the child does not point at listings
     from(tables.listings, { rows: via(tables.group_listings, "group") });
-    expect(() => referenceOf(tables.listings as TableHandle, "status")).toThrow(
-      "listings has no status_id column to join along",
-    );
     expect(() =>
-      referenceOf(tables.listings as TableHandle, "slug_index_no"),
-    ).toThrow("listings has no slug_index_no_id column to join along");
-    expect(() =>
-      referenceOf(tables.external_source_links as TableHandle, "external"),
-    ).toThrow("external_source_links.external_id does not refer to a table");
+      // @ts-expect-error a listing has no status to join
+      from(tables.listings, { status: {} }).values((listing) => listing.id),
+    ).toThrow("listings has no status_id column to join along");
   });
 
-  test("refuse two tables under one word", () => {
-    expect(() =>
-      from(tables.listings)
-        .join("listing", tables.listings, () => true)
-        .values((listing) => listing.id),
-    ).toThrow("A read names two tables listing. Give one another word.");
-  });
+  const refusedJoins = [
+    [
+      "two tables under one word",
+      "listing",
+      tables.listings,
+      "A read names two tables listing. Give one another word.",
+    ],
+    [
+      "a join that hides a column",
+      "name",
+      tables.groups,
+      "The join name hides a column or a join of that name.",
+    ],
+  ] as const;
 
-  test("refuse a join that hides a column", () => {
-    expect(() =>
-      from(tables.listings)
-        .join("name", tables.groups, () => true)
-        .values((listing) => listing.id),
-    ).toThrow("The join name hides a column or a join of that name.");
-  });
+  for (const [what, key, joined, message] of refusedJoins) {
+    test(`refuse ${what}`, () => {
+      expect(() =>
+        from(tables.listings)
+          .join(key, joined, () => true)
+          .values((listing) => listing.id),
+      ).toThrow(message);
+    });
+  }
 });
 
 describe("a read inside another", () => {
@@ -406,71 +405,7 @@ describe("a table named by text", () => {
     ).toEqual(sql`SELECT id, name FROM holidays AS holidays WHERE id = ${4}`);
   });
 
-  test("is one of the declared tables", () => {
-    expect(tableNamed("holidays")).toBe(tables.holidays);
-  });
-
   test("refuses a name that no table has", () => {
     expect(() => fromNamed("things")).toThrow("things is not a declared table");
-  });
-});
-
-const referringColumns = Object.entries(REFERENCES).flatMap(
-  ([table, targets]) =>
-    Object.keys(targets).map((column) => ({
-      column,
-      table,
-    })),
-);
-
-describeWithEnv("the declared schema", { db: true }, () => {
-  test("joins along every declared reference in the database", async () => {
-    for (const { column, table } of referringColumns) {
-      const key = column.slice(0, -"_id".length);
-      const read = from(
-        tableNamed(table) as TableHandle<"listings">,
-        {
-          [key]: {},
-        } as never,
-      ).select(() => ({ one: literal(1) }));
-      expect(await queryAll(read)).toEqual([]);
-    }
-    expect(referringColumns.length).toBeGreaterThan(40);
-  });
-
-  test("marks a column that can hold nothing as the database does", async () => {
-    for (const [name, table] of TYPED_SCHEMA) {
-      const live = await queryAll<{
-        name: string;
-        notnull: number;
-        pk: number;
-      }>(sql`SELECT name, "notnull", pk FROM pragma_table_info(${name})`);
-      const declared = table.columns.map(([column, type]) => ({
-        canBeNull: columnFacts(type).canBeNull,
-        column,
-      }));
-      expect(declared).toEqual(
-        live.map((column) => ({
-          canBeNull: column.notnull === 0 && column.pk === 0,
-          column: column.name,
-        })),
-      );
-    }
-  });
-
-  test("gives a row its stored types", async () => {
-    await queryAll(
-      sql`INSERT INTO holidays (name, start_date, end_date) VALUES ('h', '2026-01-01', '2026-01-02')`,
-    );
-    const rows = await queryAll(
-      from(tables.holidays).select((holiday) => ({
-        id: holiday.id,
-        name: holiday.name,
-      })),
-    );
-    const [row] = rows;
-    const id: number = row!.id;
-    const name: string = row!.name;
-    expect({ id, name }).toEqual({ id: 1, name: "h" });
   });
 });

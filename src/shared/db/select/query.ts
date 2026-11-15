@@ -230,7 +230,7 @@ type ConditionJoin = Readonly<{
 
 /** What a read says beyond its first table and its reference joins. */
 type Listing<Root> = Readonly<{
-  alias?: string;
+  alias: string;
   joins: readonly ConditionJoin[];
   wheres: readonly NodeFn<Root, Condition | readonly Condition[]>[];
   group?: NodeFn<Root, readonly Expr<unknown>[]>;
@@ -349,7 +349,7 @@ const query = <Root>(
 
   /** The node, and everything after the selected columns. */
   const planned = () => {
-    const alias = listing.alias ?? table.singular;
+    const { alias } = listing;
     const plan: Plan = { aliases: [], parts: [] };
     const handle = nodeOf(table, alias, plan);
     plan.parts.push(tableAs(table, alias));
@@ -432,16 +432,25 @@ export const tableNode = <Name extends TableName>(
  *  table. */
 const NO_JOINS = {} as never;
 
+/** A read of the table under its own word, with no condition yet. */
+const bareRead = <Root>(table: TableHandle): Listing<Root> => ({
+  alias: table.singular,
+  joins: [],
+  wheres: [],
+});
+
 /** Rows of `table`, joined as `spec` says. */
 export const from = <Name extends TableName, const Joined extends Spec = None>(
   table: TableHandle<Name>,
   spec: Joins<Name, Joined> = NO_JOINS,
-): Query<Node<Name, Joined>> => query(table, spec, { joins: [], wheres: [] });
+): Query<Node<Name, Joined>> => query(table, spec, bareRead(table));
 
 /** Rows of the table of this name, for code over any table. The read has no
  *  typed node, so its conditions name their columns by text. */
-export const fromNamed = (name: string): Query<unknown> =>
-  query(tableNamed(name), {}, { joins: [], wheres: [] });
+export const fromNamed = (name: string): Query<unknown> => {
+  const table = tableNamed(name);
+  return query(table, {}, bareRead(table));
+};
 
 /** A join of the rows of `table` whose reference `edge` points at the parent. */
 export const via = <
