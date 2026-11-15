@@ -9,6 +9,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import {
   deleteByField,
+  deleteFrom,
   execute,
   executeReturningRow,
   queryOne,
@@ -65,8 +66,6 @@ export const lockoutActive = async (
   if (lockedUntil > nowMs()) return true;
   // Delete only the exact lockout we read: a fresh one written by a
   // concurrent request has a different timestamp and must survive.
-  await execute(
-    sql`DELETE FROM ${sqlName(table)} WHERE ip = ${hashedIp} AND locked_until = ${lockedUntil}`,
-  );
+  await execute(deleteFrom(table, { ip: hashedIp, locked_until: lockedUntil }));
   return false;
 };

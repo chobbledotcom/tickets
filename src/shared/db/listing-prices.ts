@@ -10,7 +10,7 @@
  */
 
 import * as v from "valibot";
-import { execute, queryAll, type TxScope } from "#db/client.ts";
+import { deleteFrom, execute, queryAll, type TxScope } from "#db/client.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import {
   PRICE_TYPE_DAY_COUNT,
@@ -55,7 +55,10 @@ type PriceRow = [number, string, string, number];
 const priceDimensionDelete =
   (priceType: string) =>
   (listingId: number): SqlStatement =>
-    sql`DELETE FROM listing_prices WHERE listing_id = ${listingId} AND price_type = ${priceType}`;
+    deleteFrom("listing_prices", {
+      listing_id: listingId,
+      price_type: priceType,
+    });
 
 /** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
  * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)

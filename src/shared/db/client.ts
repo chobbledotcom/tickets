@@ -431,8 +431,7 @@ export const deleteByFieldStatement = ({
   table,
   field,
   value,
-}: DeleteByFieldTarget): SqlStatement =>
-  sql`DELETE FROM ${sqlName(table)} WHERE ${sqlName(field)} = ${value}`;
+}: DeleteByFieldTarget): SqlStatement => deleteFrom(table, { [field]: value });
 
 /** Delete rows matching a field value */
 export const deleteByField = async (
@@ -850,3 +849,17 @@ export const update = (
 export const executeUpdate = (
   ...parts: Parameters<typeof update>
 ): Promise<ResultSet> => execute(update(...parts));
+
+/**
+ * Build a DELETE statement, the WHERE record ANDed as equality checks. A
+ * delete needing a richer guard — `IS NULL`, an inequality, a subquery — keeps
+ * its own SQL rather than bending this one.
+ */
+export const deleteFrom = (
+  table: string,
+  where: Record<string, InValue>,
+): SqlStatement =>
+  sql`DELETE FROM ${sqlName(table)} WHERE ${sqlJoin(
+    equalityClauses(where),
+    sql` AND `,
+  )}`;

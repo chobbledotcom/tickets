@@ -13,7 +13,7 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { wrapKeyWithToken } from "#crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
-import { executeUpdate } from "#db/client.ts";
+import { deleteFrom, executeUpdate } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
@@ -147,9 +147,7 @@ export const deleteApiKey = async (
   id: number,
   userId: number,
 ): Promise<boolean> =>
-  executeChangedRow(
-    sql`DELETE FROM api_keys WHERE id = ${id} AND user_id = ${userId}`,
-  );
+  executeChangedRow(deleteFrom("api_keys", { id, user_id: userId }));
 
 /**
  * Update last_used timestamp for an API key.
