@@ -10,9 +10,10 @@ import type { OpensAtOneRow } from "#test/specs/support/browser.ts";
 import {
   type Direction,
   movingRowsOn,
+  upArrowOn,
 } from "#test/specs/support/reordering.ts";
 import type { TicketsWorld } from "#test/specs/support/world.ts";
-import { recordingBrowser } from "#test-utils/test-browser/helpers.ts";
+import { recordingPage } from "#test-utils/test-browser/helpers.ts";
 import { TestBrowser } from "#test-utils/test-browser.ts";
 
 describe("finding a row's own arrow", () => {
@@ -40,6 +41,10 @@ describe("finding a row's own arrow", () => {
 
   const arrowAt = (id: number, direction: Direction = "up"): string =>
     `<td><form action="${LIST}/${id}/move-${direction}" method="POST"><button>➤</button></form></td>`;
+
+  /** The Confirmed row with a move-up arrow that posts under `list`. */
+  const confirmedRowPostingUp = (list: string): string =>
+    `<td>Confirmed</td><td><form action="${list}/7/move-up" method="POST"><button>➤</button></form></td>`;
 
   /** A list whose Confirmed row holds these cells beside its name, with any
    * other rows given alongside it. */
@@ -88,9 +93,8 @@ describe("finding a row's own arrow", () => {
     listPath: string | ((world: TicketsWorld) => string),
     mover: TicketsWorld,
   ): Promise<void> => {
-    const { browser, sent } = recordingBrowser();
     const row = `<td>Confirmed</td><td><form action="${postsTo}" method="POST"><button>➤</button></form></td>`;
-    browser.currentHtml = `<table><tr>${row}</table>`;
+    const { browser, sent } = recordingPage(`<table><tr>${row}</table>`);
     const arrows = movingRowsOn(
       listPath,
       confirmedOpenAt(browser, row, `${LIST}/7`),
@@ -121,11 +125,35 @@ describe("finding a row's own arrow", () => {
     expect(await offersConfirmed(rows, "down")).toBe(true);
   });
 
+  test("the up arrow moves the named row up", async () => {
+    const row = confirmedRowPostingUp(LIST);
+    const { browser, sent } = recordingPage(`<table><tr>${row}</table>`);
+    const arrow = upArrowOn(LIST, confirmedOpenAt(browser, row, `${LIST}/7`));
+
+    await arrow.movesUp(world, "Confirmed");
+
+    expect(sent().path).toBe(`${LIST}/7/move-up`);
+  });
+
+  test("the up arrow asks about the move up, not the move down", async () => {
+    expect(
+      await upArrowOn(LIST, listOpenAt(confirmedWith(arrowAt(7)))).offersMoveUp(
+        world,
+        "Confirmed",
+      ),
+    ).toBe(true);
+    expect(
+      await upArrowOn(
+        LIST,
+        listOpenAt(confirmedWith(arrowAt(7, "down"))),
+      ).offersMoveUp(world, "Confirmed"),
+    ).toBe(false);
+  });
+
   test("names the list from the world when the caller hands a function", async () => {
-    const { browser, sent } = recordingBrowser();
     const list = "/admin/questions/3/answers";
-    const row = `<td>Confirmed</td><td><form action="${list}/7/move-up" method="POST"><button>➤</button></form></td>`;
-    browser.currentHtml = `<table><tr>${row}</table>`;
+    const row = confirmedRowPostingUp(list);
+    const { browser, sent } = recordingPage(`<table><tr>${row}</table>`);
     const asked = {
       buyerQuestion: { id: 3, text: "Collection day?" },
     } as TicketsWorld;

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { execute, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { statusRecord, statusRule } from "#shared/records/statuses.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
@@ -24,7 +25,7 @@ const createStatus = async (name: string) =>
 
 const heldStatusIds = async (): Promise<number[]> =>
   (
-    await queryAll<{ status_id: number }>("SELECT status_id FROM attendees")
+    await queryAll<{ status_id: number }>(sql`SELECT status_id FROM attendees`)
   ).map((row) => row.status_id);
 
 describeRuleCases("the status rule", statusRule, [
@@ -114,10 +115,9 @@ describeRecord(statusRecord, "Attendee status", "Name", () => {
     const [confirmed] = await attendeeStatuses.getAll();
     if (confirmed === undefined) throw new Error("no default status");
     const id = await createStatus("Retiring");
-    await execute("UPDATE attendees SET status_id = ? WHERE id = ?", [
-      id,
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET status_id = ${id} WHERE id = ${attendee.id}`,
+    );
 
     await expectRefused(
       statusRecord.remove(id, "not a status id"),

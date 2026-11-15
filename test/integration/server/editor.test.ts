@@ -320,7 +320,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const { cookie } = await createTestEditorSession();
       const listing = await createTestListing();
       const editBody = {
-        ...buildCreateListingForm(testListingInput()),
+        ...buildCreateListingForm(testListingInput(), "editor"),
         booked_quantity: "999",
         slug: listing.slug,
         tickets_count: "999",

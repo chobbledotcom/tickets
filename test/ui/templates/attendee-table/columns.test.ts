@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testAttendee } from "#test-utils/factories.ts";
 import {
@@ -49,8 +50,7 @@ attendeeTableSuite(() => {
           rows: [makeRow({ attendee: flagged })],
         }),
       );
-      assert(!scanner.includes("Email not sent"));
-      assert(!scanner.includes("Webhooks not sent"));
+      expectExcludesAll(scanner, ["Email not sent", "Webhooks not sent"]);
     });
 
     test("renders Qty column", () => {
@@ -74,11 +74,13 @@ attendeeTableSuite(() => {
 
     test("does not render the moved Actions column", () => {
       const html = render(makeOpts());
-      assert(!html.includes("<th>Actions</th>"));
-      assert(!html.includes(">Edit<"));
-      assert(!html.includes(">Delete<"));
-      assert(!html.includes("Re-send Notification"));
-      assert(!html.includes("/refund"));
+      expectExcludesAll(html, [
+        "<th>Actions</th>",
+        ">Edit<",
+        ">Delete<",
+        "Re-send Notification",
+        "/refund",
+      ]);
     });
   });
 
@@ -116,8 +118,7 @@ attendeeTableSuite(() => {
   describe("Listings column", () => {
     test("is hidden when showListing is false", () => {
       const html = render(makeOpts({ showListing: false }));
-      assert(!html.includes("<th>Listings</th>"));
-      assert(!html.includes("listings-cell"));
+      expectExcludesAll(html, ["<th>Listings</th>", "listings-cell"]);
     });
 
     test("links the listing when showListing is true", () => {

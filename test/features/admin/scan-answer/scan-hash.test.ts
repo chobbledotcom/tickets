@@ -8,8 +8,8 @@ import { it as test } from "@std/testing/bdd";
 import { scopeAttendees } from "#routes/admin/scan-answer.ts";
 import {
   deliverDigest,
-  deliverTwoTier,
   doorDigest,
+  expectDeliveredTwoTier,
   partyOfThree,
   queuedBody,
   sendTwice,
@@ -19,7 +19,17 @@ import {
 import { groupDoor, scanAtDoor } from "#test/features/admin/scanner/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
+import {
+  bookedScanAnswer,
+  type DoorAnswer,
+  doorWithAttendee,
+  expectAdmitted,
+  expectCheckinRow,
+  expectNamedAnswer,
+  expectPlacesTaken,
+  expectScanAnswer,
+  strangerAtAnotherDoor,
+} from "#test-utils/door-scan.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv(
@@ -27,21 +37,16 @@ describeWithEnv(
   { db: true },
   () => {
     test("admits the ticket the digest belongs to", async () => {
-      const door = await groupDoor(1);
-      const attendee = await bookTestAttendee(
-        [door.members[0]!.id],
+      const { answer } = await bookedScanAnswer(
         "Pia",
         "pia@example.com",
+        async ({ attendee, door }) => ({
+          operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b10",
+          token_hash: await doorDigest(door.group.id, attendee.ticket_token),
+        }),
       );
 
-      const answer = await scanAtDoor(door.group.id, {
-        operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b10",
-        token_hash: await doorDigest(door.group.id, attendee.ticket_token),
-      });
-
-      expect(answer.response.status).toBe(200);
-      expect(answer.json.status).toBe("checked_in");
-      expect(answer.json.name).toBe("Pia");
+      expectAdmitted(answer, "Pia");
     });
 
     test("answers not_found for a digest nothing on the door holds", async () => {
@@ -52,38 +57,28 @@ describeWithEnv(
         token_hash: await doorDigest(group.id, "no-token-any-attendee-holds"),
       });
 
-      expect(answer.response.status).toBe(404);
-      expect(answer.json.status).toBe("not_found");
+      expectScanAnswer(answer, 404, "not_found");
     });
 
     test("never resolves a digest against another door's tickets", async () => {
       // Two doors, named apart: the digest the other door's device stored
       // must not open this door. The digest is keyed to its own door, so a
       // stolen list digests nothing at the door it was not saved for.
-      const other = await groupDoor(1, {}, ["Other standard"], "Other door");
-      const otherAttendee = await bookTestAttendee(
-        [other.members[0]!.id],
+      const { door, otherDoor, stranger } = await strangerAtAnotherDoor(
         "Ada",
         "ada@example.com",
       );
-      const door = await groupDoor(1, {}, ["Door standard"]);
 
       const answer = await scanAtDoor(door.group.id, {
         operation_id: "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b12",
-        token_hash: await doorDigest(
-          other.group.id,
-          otherAttendee.ticket_token,
-        ),
+        token_hash: await doorDigest(otherDoor.group.id, stranger.ticket_token),
       });
 
-      expect(answer.response.status).toBe(404);
-      expect(answer.json.status).toBe("not_found");
+      expectScanAnswer(answer, 404, "not_found");
     });
 
     test("a replayed digest the door already took answers already_checked_in, naming the person", async () => {
-      const door = await groupDoor(1);
-      const attendee = await bookTestAttendee(
-        [door.members[0]!.id],
+      const { attendee, door } = await doorWithAttendee(
         "Bruno",
         "bruno@example.com",
       );
@@ -98,8 +93,7 @@ describeWithEnv(
 
       // A second device replayed the same queued check-in: the answer this
       // device reads out to its door says the person is already in.
-      expect(retry.json.status).toBe("already_checked_in");
-      expect(retry.json.name).toBe("Bruno");
+      expectNamedAnswer(retry, "already_checked_in", "Bruno");
     });
 
     test("a digest delivery that names no operation is refused", async () => {
@@ -114,10 +108,9 @@ describeWithEnv(
         quantity: 1,
         token_hash: await doorDigest(door.group.id, attendee.ticket_token),
       });
-      expect(answer.response.status).toBe(400);
-      expect(answer.json.error).toBe("Invalid operation");
+      expectScanAnswer(answer, 400, { error: "Invalid operation" });
       // Nothing was admitted, so a resent delivery cannot double-admit.
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+      await expectCheckinRow(attendee.id, 0);
     });
   },
 );
@@ -140,14 +133,13 @@ describeWithEnv(
       );
 
       const { first, retry } = await sendTwiceLanding(door.group.id, body);
-      expect(first.json.quantity).toBe(1);
-      expect(first.json.remaining).toBe(2);
+      expectPlacesTaken(first, 1, 2);
 
       // The retry reads the recorded admission: the one place the first
       // send took, never the party's whole size.
       expect(retry.json.quantity).toBe(1);
       expect(retry.json.total).toBe(3);
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 1 }]);
+      await expectCheckinRow(attendee.id, 1);
     });
 
     test("a lost answer's retry of a two-tier ticket admits no second tier", async () => {
@@ -156,7 +148,7 @@ describeWithEnv(
         "nia@example.com",
         "Doors",
       );
-      await deliverTwoTier(
+      await expectDeliveredTwoTier(
         door,
         attendee,
         "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b02",
@@ -174,7 +166,7 @@ describeWithEnv(
         "Prompt",
         3,
       );
-      await deliverTwoTier(
+      await expectDeliveredTwoTier(
         door,
         attendee,
         "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b03",
@@ -186,9 +178,7 @@ describeWithEnv(
       // device that reuses an id for a different ticket's delivery must
       // not read a false "already in" for that ticket: the pair differs,
       // so the delivery claims its own row and admits.
-      const door = await groupDoor(1);
-      const first = await bookTestAttendee(
-        [door.members[0]!.id],
+      const { attendee: first, door } = await doorWithAttendee(
         "Pia",
         "pia@example.com",
       );
@@ -203,46 +193,43 @@ describeWithEnv(
         operation_id: operationId,
         token_hash: await doorDigest(door.group.id, first.ticket_token),
       });
-      expect(firstDelivery.json.status).toBe("checked_in");
+      expectAdmitted(firstDelivery, "Pia");
 
       const reused = await scanAtDoor(door.group.id, {
         operation_id: operationId,
         token_hash: await doorDigest(door.group.id, second.ticket_token),
       });
-      expect(reused.json.status).toBe("checked_in");
-      expect(reused.json.name).toBe("Quinn");
-      expect(await storedCheckinRows(first.id)).toEqual([{ checked_in: 1 }]);
-      expect(await storedCheckinRows(second.id)).toEqual([{ checked_in: 1 }]);
+      expectAdmitted(reused, "Quinn");
+      await expectCheckinRow(first.id, 1);
+      await expectCheckinRow(second.id, 1);
     });
 
     test("a fresh delivery of the same ticket still admits the next place", async () => {
       // The guard guards one delivery, not the ticket: the party's next
       // arrival is a new delivery with an id of its own, and it gets in.
       const { door, attendee } = await partyOfThree();
-
-      const first = await deliverDigest(
-        door.group.id,
-        attendee.ticket_token,
+      const answers: DoorAnswer[] = [];
+      for (const operationId of [
         "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b05",
-        1,
-      );
-      expect(first.json.status).toBe("checked_in");
-
-      const second = await deliverDigest(
-        door.group.id,
-        attendee.ticket_token,
         "018f3c2e-1b7d-7f31-9d4a-2f5c8e6a9b06",
-        1,
-      );
-      expect(second.json.status).toBe("checked_in");
-      expect(second.json.quantity).toBe(1);
-      expect(second.json.remaining).toBe(1);
+      ]) {
+        answers.push(
+          await deliverDigest(
+            door.group.id,
+            attendee.ticket_token,
+            operationId,
+            1,
+          ),
+        );
+      }
+
+      expectAdmitted(answers[0]!, "Cara");
+      expectScanAnswer(answers[1]!, 200, "checked_in");
+      expectPlacesTaken(answers[1]!, 1, 1);
     });
 
     test("a delivery that names no real operation is refused", async () => {
-      const door = await groupDoor(1);
-      const attendee = await bookTestAttendee(
-        [door.members[0]!.id],
+      const { attendee, door } = await doorWithAttendee(
         "Pia",
         "pia@example.com",
       );
@@ -258,10 +245,9 @@ describeWithEnv(
         },
       ]) {
         const answer = await scanAtDoor(door.group.id, body);
-        expect(answer.response.status).toBe(400);
-        expect(answer.json.error).toBe("Invalid operation");
+        expectScanAnswer(answer, 400, { error: "Invalid operation" });
       }
-      expect(await storedCheckinRows(attendee.id)).toEqual([{ checked_in: 0 }]);
+      await expectCheckinRow(attendee.id, 0);
     });
   },
 );

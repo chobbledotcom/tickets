@@ -17,6 +17,11 @@ import {
 import { hasActiveBookingLine } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
 import { getAgentRunSheet, setLegDone } from "#db/logistics-run-sheet.ts";
+import { sql } from "#db/sql.ts";
+import {
+  type AggregateRows,
+  seedAggregateRows,
+} from "#test-utils/db/aggregate-trigger-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -24,10 +29,9 @@ import { awaitTestRequest } from "#test-utils/mocks.ts";
 
 /** Make the attendee's single line a quantity-0 sentinel (price 0, invariant). */
 const ghostLine = (attendeeId: number): Promise<unknown> =>
-  getDb().execute({
-    args: [attendeeId],
-    sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`,
+  );
 
 describeWithEnv("no-quantity audit > token flows", { db: true }, () => {
   test("a quantity-0-only token returns not-found on /t and /t/svg", async () => {
@@ -169,24 +173,25 @@ describeWithEnv(
 describeWithEnv("no-quantity audit > logistics", { db: true }, () => {
   const AGENT = 7;
 
-  /** Insert a booking row with logistics agents on both legs. */
-  const insertLogisticsLine = (
-    listingId: number,
-    attendeeId: number,
-    quantity: number,
-  ): Promise<unknown> =>
-    getDb().execute({
-      args: [listingId, attendeeId, quantity],
-      sql: `INSERT INTO listing_attendees
-              (listing_id, attendee_id, quantity, start_at, end_at,
-               start_agent_id, end_agent_id)
-            VALUES (?, ?, ?, '2026-07-01T00:00:00Z', '2026-07-02T00:00:00Z', ${AGENT}, ${AGENT})`,
-    });
+  /** Booking rows carry the same agent on both logistics legs. */
+  const logisticsRows: AggregateRows = {
+    parent: "listing_id",
+    table: "listing_attendees",
+    values: {
+      end_agent_id: AGENT,
+      end_at: "2026-07-02T00:00:00Z",
+      start_agent_id: AGENT,
+      start_at: "2026-07-01T00:00:00Z",
+    },
+  };
 
   test("the run sheet and setLegDone exclude a quantity-0 line", async () => {
     const listing = await createTestListing({ maxAttendees: 50 });
-    await insertLogisticsLine(listing.id, 1, 2); // real
-    await insertLogisticsLine(listing.id, 2, 0); // ghost
+    // Attendee 1 holds the real line; attendee 2 holds the quantity-0 ghost.
+    await seedAggregateRows(logisticsRows, listing.id, [
+      [1, 2],
+      [2, 0],
+    ]);
 
     const legs = await getAgentRunSheet([AGENT], ["2026-07-01"]);
     // Only the real line's drop-off leg appears (the ghost is excluded).

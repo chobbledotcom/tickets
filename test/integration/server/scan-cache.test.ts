@@ -14,6 +14,7 @@ import { deriveDoorCacheKey } from "#crypto/hashing.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { doorCacheName, pageDoorCacheKey } from "#routes/admin/scan-cache.ts";
 import { addDays } from "#shared/dates.ts";
@@ -35,6 +36,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 const authedGet = async (path: string): Promise<Response> =>
   awaitTestRequest(path, { cookie: await testCookie() });
@@ -258,8 +260,7 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     // The early line on the first listing holds no places the door can
     // still admit: both of its places are checked in.
     await execute(
-      "UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ? AND quantity = 2",
-      [attendee.id],
+      sql`UPDATE listing_attendees SET checked_in = quantity WHERE attendee_id = ${attendee.id} AND quantity = 2`,
     );
     const body = await assertJson(
       authedGet(`/admin/groups/${group.id}/scan-cache`),
@@ -367,15 +368,13 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     );
   });
 
-  test("answers 404 for a No check-in listing's cache", async () => {
-    const listing = await createTestListing({ purchaseOnly: true });
-    const response = await authedGet(`/admin/listing/${listing.id}/scan-cache`);
-    expect(response.status).toBe(404);
-  });
-
-  test("answers 404 for an unknown group's cache", async () => {
-    const response = await authedGet("/admin/groups/999999/scan-cache");
-    expect(response.status).toBe(404);
+  testStatus(404, {
+    "answers 404 for a No check-in listing's cache": async () => {
+      const listing = await createTestListing({ purchaseOnly: true });
+      return await authedGet(`/admin/listing/${listing.id}/scan-cache`);
+    },
+    "answers 404 for an unknown group's cache": () =>
+      authedGet("/admin/groups/999999/scan-cache"),
   });
 
   test("answers 401 without a scanner session", async () => {

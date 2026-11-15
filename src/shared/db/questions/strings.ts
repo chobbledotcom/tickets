@@ -11,13 +11,9 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  executeBatchWithResults,
-  inPlaceholders,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { executeBatchWithResults, resultRows } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One free-text answer's encrypted payload plus its blind index and plaintext.
@@ -105,12 +101,9 @@ export const internWriteStatements = (
   const created = nowIso();
   const indexes = textIndexes(rows);
   return [
-    {
-      args: rows.flatMap((row) => [row.textIndex, row.encrypted, created]),
-      sql: `INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${rows
-        .map(() => "(?, ?, ?)")
-        .join(", ")}`,
-    },
+    sql`INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${sqlRows(
+      rows.map((row) => [row.textIndex, row.encrypted, created]),
+    )}`,
     // Refresh `created` on every referenced row. INSERT OR IGNORE leaves an
     // existing row's timestamp untouched, so without this the age-based prune
     // could delete a row a checkout still references in its signed metadata
@@ -118,10 +111,7 @@ export const internWriteStatements = (
     // only thing that removes strings). Refreshing a row that is reused now —
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
-    {
-      args: [created, ...indexes],
-      sql: `UPDATE strings SET created = ? WHERE text_index IN (${inPlaceholders(indexes)})`,
-    },
+    sql`UPDATE strings SET created = ${created} WHERE text_index IN (${sqlList(indexes)})`,
   ];
 };
 
@@ -142,10 +132,7 @@ export const internStringRows = async (
   const indexes = textIndexes(rows);
   const selectResult = await runInternStatements([
     ...internWriteStatements(rows),
-    {
-      args: indexes,
-      sql: `SELECT id, text_index FROM strings WHERE text_index IN (${inPlaceholders(indexes)})`,
-    },
+    sql`SELECT id, text_index FROM strings WHERE text_index IN (${sqlList(indexes)})`,
   ]);
   const found = resultRows<{ id: number; text_index: string }>(selectResult);
   return pairStringIds(rows, found);

@@ -11,6 +11,7 @@ import {
   type CreateListingBody,
 } from "#routes/admin/api-listing-body.ts";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   type TestFormValues,
@@ -59,7 +60,10 @@ describeWithEnv("listing whole-number parity", { db: true }, () => {
       formExtra,
     } of FRACTIONAL_CASES) {
       const form = listingForm(formExtra);
-      const formResult = await buildCreateListingResource(form).create(form);
+      const formResult = await buildCreateListingResource(
+        form,
+        listingFormView("owner"),
+      ).create(form);
       expect(formResult.ok).toBe(false);
       if (!formResult.ok) expect(formResult.error).toBe(formError);
 

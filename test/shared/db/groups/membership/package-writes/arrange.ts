@@ -7,6 +7,7 @@ import { execute, withTransaction } from "#db/client.ts";
 import { writePackageMembersTx } from "#db/groups/membership/package-writes.ts";
 import { validateListingGroupMembershipsTx } from "#db/groups/membership.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
@@ -103,9 +104,8 @@ export const arrangeStoredMember = async (
   await setGroupPackageMembers(group.id, [
     { listingId: member.id, price: 0, quantity },
   ]);
-  await execute("UPDATE listings SET max_quantity = ? WHERE id = ?", [
-    maxQuantity,
-    member.id,
-  ]);
+  await execute(
+    sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${member.id}`,
+  );
   return { group, member };
 };

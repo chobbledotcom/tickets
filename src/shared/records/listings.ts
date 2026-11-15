@@ -12,11 +12,11 @@ import {
   listingsTable,
 } from "#db/listings/records.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import {
   refuseUndatedListingSwitch,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordRule, RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";

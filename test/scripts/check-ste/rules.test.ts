@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { proseBlocks } from "#scripts/check-ste/prose.ts";
 import { findIssues } from "#scripts/check-ste/rules.ts";
+import { testCases } from "#test-utils/test-cases.ts";
 
 const issuesOn = (line: string) => findIssues(`${line}\n`);
 const rulesOn = (line: string) => issuesOn(line).map((issue) => issue.rule);
@@ -45,20 +46,10 @@ describe("check-ste rules", () => {
       expect(rulesOn(content)).toEqual([]);
     });
 
-    test("keeps reading prose after an indented block closes", () => {
-      const content = "    code; here\nProse; after.\n";
-      expect(rulesOn(content)).toEqual(["semicolon"]);
-    });
-
     test("keeps reading an indented line that continues a paragraph", () => {
       const content = "Text\n    Should this continue?\n";
       expect(rulesOn(content)).toEqual(["banned-modal"]);
       assertStringIncludes(proseBlocks(content)[0]!.text, "Should");
-    });
-
-    test("keeps reading an indented line that continues a list item", () => {
-      const content = "- One item\n    Should retry now.\n";
-      expect(rulesOn(content)).toEqual(["banned-modal"]);
     });
 
     test("never reads table rows", () => {
@@ -75,39 +66,10 @@ describe("check-ste rules", () => {
       expect(rulesOn("Use `would` here.")).toEqual([]);
     });
 
-    test("never reads code spans of two or more backticks", () => {
-      expect(rulesOn("Use ``should`` here.")).toEqual([]);
-      expect(rulesOn("Use ```would``` here.")).toEqual([]);
-      // A run closes only on a run of the same length.
-      expect(rulesOn("Use ` ``should` here.")).toEqual([]);
-    });
-
     test("reads a quoted span that wraps across lines, keeping line numbers", () => {
       const content = 'The bad text is "a would\nhere" and more would.\n';
       expect(rulesOn(content)).toEqual(["banned-modal", "banned-modal"]);
       expect(findIssues(content).map((issue) => issue.line)).toEqual([1, 2]);
-    });
-
-    test("leaves a quoted span after a colon alone", () => {
-      expect(rulesOn('The write fails: "wasn\'t finalized".')).toEqual([]);
-    });
-
-    test("leaves a quoted span after error or message alone", () => {
-      expect(rulesOn('The error "row locked" repeats.')).toEqual([]);
-      expect(rulesOn('The message "row locked" repeats.')).toEqual([]);
-    });
-
-    test("leaves a quoted span the noun links through e.g. alone", () => {
-      expect(
-        rulesOn('The error sentence — e.g. "its secrets can\'t be read".'),
-      ).toEqual([]);
-      // The em-dash and the token's case change nothing.
-      expect(
-        rulesOn('The ERROR sentence — E.g. "its secrets can\'t be read".'),
-      ).toEqual([]);
-      expect(
-        rulesOn('The error sentence — E.G. "its secrets can\'t be read".'),
-      ).toEqual([]);
     });
 
     test("blanks the token that fired the link, not an earlier one", () => {
@@ -117,47 +79,6 @@ describe("check-ste rules", () => {
         'See e.g. the error sentence — E.G. "should retry".',
       );
       expect(issues.map(({ problem }) => problem)).toEqual(['"e.g."']);
-    });
-
-    test("judges a quotation that e.g. introduces without the noun", () => {
-      expect(rulesOn('See e.g. "should retry" now.')).toEqual([
-        "wordy",
-        "banned-modal",
-      ]);
-    });
-
-    test("judges a quotation behind any other linking word", () => {
-      expect(rulesOn('The error is "should retry".')).toEqual(["banned-modal"]);
-      expect(rulesOn('The message reads "should retry".')).toEqual([
-        "banned-modal",
-      ]);
-    });
-
-    test("judges a quotation when a quote sits between noun and e.g.", () => {
-      expect(
-        rulesOn('The error note "row locked" and e.g. "should retry".'),
-      ).toEqual(["wordy", "banned-modal"]);
-    });
-
-    test("leaves a quoted span inside a thrown error alone", () => {
-      expect(
-        rulesOn('The call throws new Error("it should not happen").'),
-      ).toEqual([]);
-      expect(
-        rulesOn('The call throws new Error(read(x), "it should not happen").'),
-      ).toEqual([]);
-    });
-
-    test("judges a quote after a completed error constructor", () => {
-      expect(
-        rulesOn('Use new Error(code) before saying "the path should retry".'),
-      ).toEqual(["banned-modal"]);
-    });
-
-    test("keeps an escaped quote inside an exempt message", () => {
-      expect(
-        rulesOn('The error "The \\"should\\" value failed" repeats.'),
-      ).toEqual([]);
     });
 
     test("keeps the line numbers of every prose line", () => {
@@ -201,128 +122,214 @@ describe("check-ste rules", () => {
       const content = "a;\n```ts\ncode\n```\nb;\n";
       expect(findIssues(content).map((issue) => issue.line)).toEqual([1, 5]);
     });
+
+    testCases(
+      [
+        [
+          "keeps reading prose after an indented block closes",
+          ["    code; here\nProse; after.\n"],
+          ["semicolon"],
+        ],
+        [
+          "keeps reading an indented line that continues a list item",
+          ["- One item\n    Should retry now.\n"],
+          ["banned-modal"],
+        ],
+        [
+          "never reads code spans of two or more backticks",
+          [
+            "Use ``should`` here.",
+            "Use ```would``` here.",
+            // A run closes only on a run of the same length.
+            "Use ` ``should` here.",
+          ],
+          [],
+        ],
+        [
+          "leaves a quoted span after a colon alone",
+          ['The write fails: "wasn\'t finalized".'],
+          [],
+        ],
+        [
+          "leaves a quoted span after error or message alone",
+          [
+            'The error "row locked" repeats.',
+            'The message "row locked" repeats.',
+          ],
+          [],
+        ],
+        [
+          "leaves a quoted span the noun links through e.g. alone",
+          [
+            'The error sentence — e.g. "its secrets can\'t be read".',
+            // The em-dash and the token's case change nothing.
+            'The ERROR sentence — E.g. "its secrets can\'t be read".',
+            'The error sentence — E.G. "its secrets can\'t be read".',
+          ],
+          [],
+        ],
+        [
+          "judges a quotation that e.g. introduces without the noun",
+          ['See e.g. "should retry" now.'],
+          ["wordy", "banned-modal"],
+        ],
+        [
+          "judges a quotation behind any other linking word",
+          ['The error is "should retry".', 'The message reads "should retry".'],
+          ["banned-modal"],
+        ],
+        [
+          "judges a quotation when a quote sits between noun and e.g.",
+          ['The error note "row locked" and e.g. "should retry".'],
+          ["wordy", "banned-modal"],
+        ],
+        [
+          "leaves a quoted span inside a thrown error alone",
+          [
+            'The call throws new Error("it should not happen").',
+            'The call throws new Error(read(x), "it should not happen").',
+          ],
+          [],
+        ],
+        [
+          "judges a quote after a completed error constructor",
+          ['Use new Error(code) before saying "the path should retry".'],
+          ["banned-modal"],
+        ],
+        [
+          "keeps an escaped quote inside an exempt message",
+          ['The error "The \\"should\\" value failed" repeats.'],
+          [],
+        ],
+      ],
+      rulesOn,
+    );
   });
 
   describe("each rule", () => {
-    test("judges the words inside a quoted span of prose", () => {
-      expect(rulesOn('The path "should retry" after failure.')).toEqual([
-        "banned-modal",
-      ]);
-      expect(rulesOn('Say "would" here.')).toEqual(["banned-modal"]);
-    });
-
-    test("contraction flags pronoun short forms and every n't", () => {
-      expect(
-        rulesOn("It's fine. It isn't here. You're done. We've got it."),
-      ).toEqual(["contraction", "contraction", "contraction", "contraction"]);
-    });
-
-    test("contraction leaves a possessive noun alone", () => {
-      expect(rulesOn("The site's name stays.")).toEqual([]);
-    });
-
-    test("contraction flags the 'd short form of a modal", () => {
-      expect(rulesOn("They'd retry. We'd stop.")).toEqual([
-        "contraction",
-        "contraction",
-      ]);
-    });
-
-    test("present-perfect flags has, have, and had been", () => {
-      expect(rulesOn("The column has been added.")).toEqual([
-        "present-perfect",
-      ]);
-      expect(rulesOn("The columns have been added.")).toEqual([
-        "present-perfect",
-      ]);
-    });
-
-    test("present-perfect flags an irregular participle after has, have, or had", () => {
-      expect(rulesOn("Load the other bookings this contact has made.")).toEqual(
-        ["present-perfect"],
-      );
-      expect(rulesOn("The gate has seen no traffic.")).toEqual([
-        "present-perfect",
-      ]);
-      expect(rulesOn("We have done this twice.")).toEqual(["present-perfect"]);
-      expect(rulesOn("She had written the plan.")).toEqual(["present-perfect"]);
-      expect(rulesOn("The site has had downtime.")).toEqual([
-        "present-perfect",
-      ]);
-    });
-
-    test("present-perfect flags a regular -ed participle", () => {
-      expect(rulesOn("The form has completed the run.")).toEqual([
-        "present-perfect",
-      ]);
-      expect(rulesOn("We have finished the list.")).toEqual([
-        "present-perfect",
-      ]);
-      expect(rulesOn("The gate had decided the order.")).toEqual([
-        "present-perfect",
-      ]);
-    });
-
-    test("present-perfect leaves a noun after had alone", () => {
-      expect(rulesOn("The operator had breakfast first.")).toEqual([]);
-      expect(rulesOn("The form had a second field.")).toEqual([]);
-      expect(rulesOn("The plan had two options.")).toEqual([]);
-    });
-
-    test("present-perfect leaves an -ed word that is not a participle", () => {
-      expect(rulesOn("The fix has indeed landed.")).toEqual([]);
-      expect(rulesOn("The count has hundred entries.")).toEqual([]);
-      expect(rulesOn("The rites have sacred meaning.")).toEqual([]);
-      expect(rulesOn("The rooms had bed spaces.")).toEqual([]);
-    });
-
-    test("present-perfect leaves a participle that heads a compound", () => {
-      expect(rulesOn("The line has required-child edges.")).toEqual([]);
-      expect(rulesOn("The form has built-in checks.")).toEqual([]);
-    });
+    testCases(
+      [
+        [
+          "judges the words inside a quoted span of prose",
+          ['The path "should retry" after failure.', 'Say "would" here.'],
+          ["banned-modal"],
+        ],
+        [
+          "contraction flags pronoun short forms and every n't",
+          ["It's fine. It isn't here. You're done. We've got it."],
+          ["contraction", "contraction", "contraction", "contraction"],
+        ],
+        [
+          "contraction leaves a possessive noun alone",
+          ["The site's name stays."],
+          [],
+        ],
+        [
+          "contraction flags the 'd short form of a modal",
+          ["They'd retry. We'd stop."],
+          ["contraction", "contraction"],
+        ],
+        [
+          "present-perfect flags has, have, and had been",
+          ["The column has been added.", "The columns have been added."],
+          ["present-perfect"],
+        ],
+        [
+          "present-perfect flags an irregular participle after has, have, or had",
+          [
+            "Load the other bookings this contact has made.",
+            "The gate has seen no traffic.",
+            "We have done this twice.",
+            "She had written the plan.",
+            "The site has had downtime.",
+          ],
+          ["present-perfect"],
+        ],
+        [
+          "present-perfect flags a regular -ed participle",
+          [
+            "The form has completed the run.",
+            "We have finished the list.",
+            "The gate had decided the order.",
+          ],
+          ["present-perfect"],
+        ],
+        [
+          "present-perfect leaves a noun after had alone",
+          [
+            "The operator had breakfast first.",
+            "The form had a second field.",
+            "The plan had two options.",
+          ],
+          [],
+        ],
+        [
+          "present-perfect leaves an -ed word that is not a participle",
+          [
+            "The fix has indeed landed.",
+            "The count has hundred entries.",
+            "The rites have sacred meaning.",
+            "The rooms had bed spaces.",
+          ],
+          [],
+        ],
+        [
+          "present-perfect leaves a participle that heads a compound",
+          [
+            "The line has required-child edges.",
+            "The form has built-in checks.",
+          ],
+          [],
+        ],
+        [
+          "banned-modal flags a sentence-initial Should, Would, or Could",
+          [
+            "Should the test fail, read the log.",
+            "Would this work?",
+            "Could this work?",
+          ],
+          ["banned-modal"],
+        ],
+        [
+          "banned-modal leaves May the month alone",
+          ["The deploy runs in May."],
+          [],
+        ],
+        [
+          "banned-modal leaves the inside of a word alone",
+          ["The mightiest shield."],
+          [],
+        ],
+        [
+          "semicolon flags a semicolon in prose",
+          ["Write two; not one."],
+          ["semicolon"],
+        ],
+        [
+          "participle flags a comma plus one -ing clause word",
+          ["Run it, making it easy.", "Run it, allowing more."],
+          ["participle"],
+        ],
+        [
+          "participle flags every clause on a line, not only the first",
+          ["Run it, making it easy, hiding the cost."],
+          ["participle", "participle"],
+        ],
+        [
+          "participle leaves a sentence without the pattern alone",
+          ["Run it and make it easy."],
+          [],
+        ],
+      ],
+      rulesOn,
+    );
 
     test("banned-modal flags the modals the guide bans", () => {
-      expect(rulesOn("Run it. It should work and it could fail.")).toEqual([
-        "banned-modal",
-        "banned-modal",
-      ]);
-      expect(rulesOn("It may fail.")).toEqual(["banned-modal"]);
-    });
-
-    test("banned-modal flags a sentence-initial Should, Would, or Could", () => {
-      expect(rulesOn("Should the test fail, read the log.")).toEqual([
-        "banned-modal",
-      ]);
-      expect(rulesOn("Would this work?")).toEqual(["banned-modal"]);
-      expect(rulesOn("Could this work?")).toEqual(["banned-modal"]);
-    });
-
-    test("banned-modal leaves May the month alone", () => {
-      expect(rulesOn("The deploy runs in May.")).toEqual([]);
-    });
-
-    test("banned-modal leaves the inside of a word alone", () => {
-      expect(rulesOn("The mightiest shield.")).toEqual([]);
-    });
-
-    test("semicolon flags a semicolon in prose", () => {
-      expect(rulesOn("Write two; not one.")).toEqual(["semicolon"]);
-    });
-
-    test("participle flags a comma plus one -ing clause word", () => {
-      expect(rulesOn("Run it, making it easy.")).toEqual(["participle"]);
-      expect(rulesOn("Run it, allowing more.")).toEqual(["participle"]);
-    });
-
-    test("participle flags every clause on a line, not only the first", () => {
-      expect(rulesOn("Run it, making it easy, hiding the cost.")).toEqual([
-        "participle",
-        "participle",
-      ]);
-    });
-
-    test("participle leaves a sentence without the pattern alone", () => {
-      expect(rulesOn("Run it and make it easy.")).toEqual([]);
+      expect(
+        ["Run it. It should work and it could fail.", "It may fail."].map(
+          rulesOn,
+        ),
+      ).toEqual([["banned-modal", "banned-modal"], ["banned-modal"]]);
     });
 
     test("wordy flags each banned word with its own fix", () => {
@@ -336,8 +343,10 @@ describe("check-ste rules", () => {
     });
 
     test("wordy flags e.g. with periods, but not inside a longer word", () => {
-      expect(rulesOn("Run it, e.g. now.")).toEqual(["wordy"]);
-      expect(rulesOn("Utilized text stays.")).toEqual([]);
+      expect([
+        rulesOn("Run it, e.g. now."),
+        rulesOn("Utilized text stays."),
+      ]).toEqual([["wordy"], []]);
     });
   });
 });

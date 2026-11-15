@@ -26,7 +26,6 @@ import { loadAttendeeRows } from "#db/attendees/queries.ts";
 import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
 import { queryAll, queryOne, requireOne, withTransaction } from "#db/client.ts";
 import { listingNames } from "#db/listings/records.ts";
-import { numberedListStatement } from "#db/numbered-statement.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -35,6 +34,7 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
+import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
@@ -541,14 +541,13 @@ export const servicingHoldsListing = async (
   listingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ one: number }>(
-    `SELECT 1 AS one
+    sql`SELECT 1 AS one
        FROM attendees AS attendee
        JOIN listing_attendees AS booking ON booking.attendee_id = attendee.id
-      WHERE attendee.id = ?
-        AND attendee.kind = ?
-        AND booking.listing_id = ?
+      WHERE attendee.id = ${servicingId}
+        AND attendee.kind = ${SERVICING_KIND}
+        AND booking.listing_id = ${listingId}
       LIMIT 1`,
-    [servicingId, SERVICING_KIND, listingId],
   );
   return row !== null;
 };
@@ -613,12 +612,11 @@ const matchingServiceCostReplayId = async (
     listing_id: number;
     memo: EnvKeyEncrypted;
   }>(
-    `SELECT transfer.id AS transfer_id, transfer.amount,
+    sql`SELECT transfer.id AS transfer_id, transfer.amount,
             cost.servicing_attendee_id, cost.listing_id, cost.memo
        FROM transfers AS transfer
        JOIN service_costs AS cost ON cost.transfer_id = transfer.id
-      WHERE transfer.reference = ?`,
-    [reference],
+      WHERE transfer.reference = ${reference}`,
   );
   if (!stored) return null;
   const matches =
@@ -658,24 +656,12 @@ export const recordServiceCost = async (
   // stale; the SELECT always resolves to the correct row regardless.
   await withTransaction(async (tx) => {
     await postTransfersTx(tx, [transfer]);
-    await tx.execute({
-      args: [
-        input.servicingId,
-        input.listingId,
-        input.occurredAt,
-        encryptedMemo,
-        nowIso(),
-        transfer.reference,
-      ],
-      sql:
-        "INSERT OR IGNORE INTO service_costs " +
-        "(servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) " +
-        "SELECT ?, ?, id, ?, ?, ? FROM transfers WHERE reference = ?",
-    });
+    await tx.execute(
+      sql`INSERT OR IGNORE INTO service_costs (servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) SELECT ${input.servicingId}, ${input.listingId}, id, ${input.occurredAt}, ${encryptedMemo}, ${nowIso()} FROM transfers WHERE reference = ${transfer.reference}`,
+    );
   });
   const row = await requireOne<{ id: number }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [transfer.reference],
+    sql`SELECT id FROM transfers WHERE reference = ${transfer.reference}`,
   );
   return row.id;
 };
@@ -689,15 +675,13 @@ type CostRow = TransferEndpoints & {
   memo?: EnvKeyEncrypted;
 };
 
-const COST_ROW_SELECT =
-  "id, source_type, source_id, dest_type, dest_id, amount";
+const COST_ROW_SELECT = sql`id, source_type, source_id, dest_type, dest_id, amount`;
 
 const getCostRow = async (costId: number): Promise<CostRow | null> =>
   queryOne<CostRow>(
-    `SELECT ${COST_ROW_SELECT}
+    sql`SELECT ${COST_ROW_SELECT}
        FROM transfers
-      WHERE id = ? AND kind = '${KIND.serviceCost}'`,
-    [costId],
+      WHERE id = ${costId} AND kind = ${sqlLiteral(KIND.serviceCost)}`,
   );
 
 const loadCostRow = async (costId: number): Promise<CostRow> => {
@@ -722,8 +706,7 @@ export const costBelongsToServicing = async (
   servicingId: number,
 ): Promise<boolean> => {
   const row = await queryOne<{ n: number }>(
-    "SELECT 1 AS n FROM service_costs WHERE transfer_id = ? AND servicing_attendee_id = ?",
-    [costId, servicingId],
+    sql`SELECT 1 AS n FROM service_costs WHERE transfer_id = ${costId} AND servicing_attendee_id = ${servicingId}`,
   );
   return row !== null;
 };
@@ -819,16 +802,14 @@ const loadServiceCostLegs = async (
   // records.length; editServiceCost passes the cost's single listing), so no
   // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
   const ids = listingIds.map(String);
-  const statement = numberedListStatement(
-    ids,
-    (inIds) =>
-      `SELECT ${COST_ROW_SELECT}, memo FROM transfers
-      WHERE kind = '${KIND.serviceCost}'
+  const inIds = sqlList(ids);
+  const legs = await queryAll<CostRow>(
+    sql`SELECT ${COST_ROW_SELECT}, memo FROM transfers
+      WHERE kind = ${sqlLiteral(KIND.serviceCost)}
         AND ((source_type = 'cost' AND source_id IN (${inIds}))
           OR (dest_type = 'cost' AND dest_id IN (${inIds})))
       ORDER BY id`,
   );
-  const legs = await queryAll<CostRow>(statement.sql, statement.args);
   return Promise.all(
     legs.map(async (leg): Promise<DecodedCostLeg> => {
       const match = (await decrypt(leg.memo!)).match(EDIT_COST_MEMO);
@@ -870,8 +851,7 @@ export const getServicingCosts = async (
     occurred_at: string;
     memo: EnvKeyEncrypted;
   }>(
-    "SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ? ORDER BY occurred_at, transfer_id",
-    [servicingId],
+    sql`SELECT transfer_id, listing_id, occurred_at, memo FROM service_costs WHERE servicing_attendee_id = ${servicingId} ORDER BY occurred_at, transfer_id`,
   );
   if (records.length === 0) return [];
   const legs = await loadServiceCostLegs(

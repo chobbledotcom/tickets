@@ -17,6 +17,7 @@ import {
   loadRefundAuthorityByReference,
   type RefundAuthorityRow,
 } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { REFUND_NOT_SENT } from "#payment/refund-attempt.ts";
 import type { HeldAnchorSearch } from "#routes/api/payment-processing/placeholder-resume.ts";
@@ -56,9 +57,8 @@ const reference = taggedPaymentReference("stripe", "pi_first");
 const checkoutMoney = async () => {
   const group = await bookingEventGroup(SESSION_ID);
   return queryAll(
-    `SELECT kind, amount FROM transfers
-     WHERE ? IN (event_group, reverses_group) ORDER BY kind`,
-    [group],
+    sql`SELECT kind, amount FROM transfers
+     WHERE ${group} IN (event_group, reverses_group) ORDER BY kind`,
   );
 };
 
@@ -146,10 +146,10 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
       started.invoice = stripeFirstInvoice();
       started.invoice.payments.data = [];
       const attendeesBefore = await queryAll(
-        "SELECT id FROM attendees ORDER BY id",
+        sql`SELECT id FROM attendees ORDER BY id`,
       );
       const paymentsBefore = await queryAll(
-        "SELECT payment_session_id FROM processed_payments",
+        sql`SELECT payment_session_id FROM processed_payments`,
       );
       const create = attendeesApi.createAttendeeAtomic;
       let injectFault = true;
@@ -203,17 +203,18 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
       await withSubscriptionStarted(started, async () => {
         await expectTemporaryError(true)(await retryableCheckout());
         expectActions(cancel, refund, 0, 0);
-        expect(await queryAll("SELECT id FROM attendees ORDER BY id")).toEqual(
-          attendeesBefore,
-        );
         expect(
-          await queryAll("SELECT payment_session_id FROM processed_payments"),
+          await queryAll(sql`SELECT id FROM attendees ORDER BY id`),
+        ).toEqual(attendeesBefore);
+        expect(
+          await queryAll(
+            sql`SELECT payment_session_id FROM processed_payments`,
+          ),
         ).toEqual(paymentsBefore);
         expect(await getProcessedPayment(SESSION_ID)).toBeNull();
         expect(
           await queryAll(
-            "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-            [listingId],
+            sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listingId}`,
           ),
         ).toEqual([]);
         expect(await checkoutMoney()).toEqual([]);
@@ -223,14 +224,12 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
         expect(store.calls).toHaveLength(2);
         await expectPlan(listingId, untaxedPlan);
         const owner = await placeholderOwner(listingId);
-        expect(await queryAll("SELECT id FROM attendees ORDER BY id")).toEqual([
-          ...attendeesBefore,
-          { id: owner },
-        ]);
+        expect(
+          await queryAll(sql`SELECT id FROM attendees ORDER BY id`),
+        ).toEqual([...attendeesBefore, { id: owner }]);
         expect(
           await queryAll(
-            "SELECT payment_session_id FROM processed_payments WHERE attendee_id = ?",
-            [owner],
+            sql`SELECT payment_session_id FROM processed_payments WHERE attendee_id = ${owner}`,
           ),
         ).toEqual([]);
         expect((await retainedFailure()).refunded).not.toBe(true);

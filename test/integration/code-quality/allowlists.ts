@@ -87,6 +87,7 @@ export const ALLOWED_DUPLICATE_TYPE_SHAPES: {
   },
 ];
 
+/* jscpd:ignore-start -- a list of strings, not code */
 /**
  * Exports that exist only for tests to reach.
  *
@@ -175,3 +176,4 @@ export const ALLOWED_TEST_HOOKS: string[] = [
   // cannot see.
   "features/public/pages.ts:handlePublicContactSubmit",
 ];
+/* jscpd:ignore-end */

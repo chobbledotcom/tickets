@@ -10,12 +10,14 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import {
   createServicingHold,
   expectLogisticsDisabled,
 } from "#test-utils/servicing.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "servicing edge cases — cross-feature interactions",
@@ -25,6 +27,7 @@ describeWithEnv(
       // The listing has `uses_logistics = true` and logistics agents configured;
       // a customer booking on it would split the attendee row. A servicing
       // hold must not — `split_logistics_agents` stays 0, no agents assigned.
+      await enableFeature("logistics");
       const { id } = await createServicingHold({
         listing: { name: "Logistics L", usesLogistics: true },
       });
@@ -83,8 +86,7 @@ describeWithEnv(
       // No built_sites row should have been created for the servicing event.
       const { queryOne } = await import("#db/client.ts");
       const sites = await queryOne<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM built_sites WHERE assigned_attendee_id = ?",
-        [id],
+        sql`SELECT COUNT(*) AS count FROM built_sites WHERE assigned_attendee_id = ${id}`,
       );
       expect(sites?.count ?? 0).toBe(0);
     });

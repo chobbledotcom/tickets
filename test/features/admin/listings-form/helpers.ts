@@ -1,5 +1,5 @@
-/** The listing form a test submits, and the create and update calls the
- * admin form routes make with it. */
+/** Owner saves of the listing form, run through the create and edit
+ *  resources the way the production handlers run them. */
 
 import { getStoredListingWithCount } from "#db/listings/records.ts";
 import {
@@ -7,25 +7,35 @@ import {
   buildUpdateListingResource,
   type ListingUpdateResult,
 } from "#routes/admin/listings-form.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   type TestFormValues,
   testFormParams,
 } from "#test-utils/form-values.ts";
 import type { Listing } from "#types";
 
+/** The smallest form the create page accepts, plus the given boxes. */
 export const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
     max_attendees: "50",
     max_quantity: "5",
     name: "Parsed listing",
+    unit_price: "0",
     ...extra,
   });
+
+/** Run one create save as the production create handler does. */
+export const tryCreateListing = (extra: TestFormValues = {}) => {
+  const form = listingForm(extra);
+  return buildCreateListingResource(form, listingFormView("owner")).create(
+    form,
+  );
+};
 
 export const createListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
-  const form = listingForm(extra);
-  const result = await buildCreateListingResource(form).create(form);
+  const result = await tryCreateListing(extra);
   if (!result.ok) throw new Error(`create failed: ${result.error}`);
   return result.row;
 };
@@ -39,7 +49,10 @@ export const saveListingEdit = async (
 ): Promise<ListingUpdateResult> => {
   const form = listingForm({ slug: "kept-slug", ...extra });
   const stored = (await getStoredListingWithCount(id))!;
-  return buildUpdateListingResource(stored).update(id, form);
+  return buildUpdateListingResource(stored, listingFormView("owner")).update(
+    id,
+    form,
+  );
 };
 
 export const updateListing = async (
@@ -47,8 +60,6 @@ export const updateListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
   const result = await saveListingEdit(id, extra);
-  if (result.ok) return result.row;
-  // A save that finds no row carries no error text of its own.
-  const { error } = { error: "the listing is absent", ...result };
-  throw new Error(`update failed: ${error}`);
+  if (!result.ok) throw new Error(`update failed: ${JSON.stringify(result)}`);
+  return result.row;
 };

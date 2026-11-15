@@ -1,32 +1,24 @@
 import type {
   Client,
-  InArgs,
-  InStatement,
   ResultSet,
   Transaction,
   TransactionMode,
 } from "@libsql/client";
+import type { SqlStatement } from "#db/sql.ts";
 import { proxyMembers } from "#shared/proxy-members.ts";
 
-export type ExecuteMethod = (
-  statement: InStatement | string,
-  args?: InArgs,
-) => Promise<ResultSet>;
+export type ExecuteMethod = (statement: SqlStatement) => Promise<ResultSet>;
 
 type AroundExecute = (
-  statement: InStatement | string,
+  statement: SqlStatement,
   run: () => Promise<ResultSet>,
 ) => Promise<ResultSet>;
 
 /** Build an execute method whose caller can count, time, or intercept the call. */
 export const wrapExecute =
   (target: Pick<Client, "execute">, around: AroundExecute): ExecuteMethod =>
-  (statement, args) =>
-    around(statement, () =>
-      typeof statement === "string" && args !== undefined
-        ? target.execute(statement, args)
-        : target.execute(statement as InStatement),
-    );
+  (statement) =>
+    around(statement, () => target.execute(statement));
 
 /** Start a transaction without passing an explicit undefined mode. */
 export const beginTransaction = (

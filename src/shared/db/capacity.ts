@@ -8,10 +8,13 @@
  */
 
 import type { LineBooking } from "#db/attendee-types.ts";
-import type {
-  SqlParameter,
-  SqlParameterToken,
-} from "#db/numbered-statement.ts";
+import {
+  type SqlSlot,
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlName,
+} from "#db/sql.ts";
 import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { DAY_MS } from "#shared/now.ts";
@@ -40,44 +43,31 @@ export const dateToRange = (date: string, durationDays = 1): DayRange => {
   return { endAt: endIso, startAt: `${date}T00:00:00Z` };
 };
 
-/** The day-window expressions a counting subquery compares against: bound
- * parameter tokens in the write predicate, dayDemand column references in
- * the batch clauses. Never a raw date — a date reaches the statement only
- * through bind, so this type is deliberately not a DayRange. */
-export type CountingDayRange = { endSql: string; startSql: string };
+/** The day window a counting subquery compares against: bound dates in the
+ * write predicate, dayDemand column references in the batch clauses. */
+export type CountingDayRange = { endSql: SqlSlot; startSql: SqlSlot };
 
 type CountSqlValues = {
   dayRange: CountingDayRange | null;
-  excludeAttendeeId: SqlParameterToken | null;
-  listingId: SqlParameterToken;
+  excludeAttendeeId: SqlSlot | null;
+  listingId: SqlSlot;
 };
 
-export type CapacitySql = (
-  bind: SqlParameter,
-  shared?: Partial<{
-    excludeAttendeeId: SqlParameterToken;
-    listingId: SqlParameterToken;
-    quantity: SqlParameterToken;
-  }>,
-) => string;
-
 const attendeeExclusionSql = (
-  alias: string,
-  excludeAttendeeId: SqlParameterToken | null,
-): string =>
+  excludeAttendeeId: SqlSlot | null,
+): SqlStatement =>
   excludeAttendeeId === null
-    ? ""
-    : `AND ${alias}.attendee_id != ${excludeAttendeeId} `;
+    ? sql``
+    : sql`AND attendee.attendee_id != ${excludeAttendeeId} `;
 
 const dailyListingCountSql = (
   values: CountSqlValues & { dayRange: CountingDayRange },
-): string =>
-  `(SELECT CASE
+): SqlStatement =>
+  sql`(SELECT CASE
           WHEN ${capacityRuleTypeSql("perDateCap", "listing.listing_type")} THEN (
             SELECT COALESCE(SUM(attendee.quantity), 0)
               FROM listing_attendees AS attendee
              WHERE attendee.listing_id = ${values.listingId} ${attendeeExclusionSql(
-               "attendee",
                values.excludeAttendeeId,
              )}
                AND attendee.start_at < ${values.dayRange.endSql}
@@ -87,9 +77,9 @@ const dailyListingCountSql = (
         END
         FROM listings AS listing WHERE listing.id = ${values.listingId})`;
 
-const undatedListingCountSql = (values: CountSqlValues): string => {
+const undatedListingCountSql = (values: CountSqlValues): SqlStatement => {
   if (values.excludeAttendeeId !== null) {
-    return `((SELECT booked_quantity FROM listings WHERE id = ${values.listingId})
+    return sql`((SELECT booked_quantity FROM listings WHERE id = ${values.listingId})
           - COALESCE((
             SELECT SUM(attendee.quantity)
               FROM listing_attendees AS attendee
@@ -98,10 +88,10 @@ const undatedListingCountSql = (values: CountSqlValues): string => {
           ), 0))`;
   }
 
-  return `(SELECT booked_quantity FROM listings WHERE id = ${values.listingId})`;
+  return sql`(SELECT booked_quantity FROM listings WHERE id = ${values.listingId})`;
 };
 
-export const buildListingCountSql = (values: CountSqlValues): string =>
+export const buildListingCountSql = (values: CountSqlValues): SqlStatement =>
   values.dayRange === null
     ? undatedListingCountSql(values)
     : dailyListingCountSql({ ...values, dayRange: values.dayRange });
@@ -112,19 +102,19 @@ export const buildListingCountSql = (values: CountSqlValues): string =>
 // several groups is counted against each group's cap independently.
 
 const DAILY_GROUP_MEMBER_SQL = {
-  join: `JOIN listings AS memberListing
+  join: sql`JOIN listings AS memberListing
               ON memberListing.id = attendee.listing_id`,
-  rule: `AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}`,
+  rule: sql`AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}`,
 };
-const ALL_GROUP_MEMBER_SQL = { join: "", rule: "" };
+const ALL_GROUP_MEMBER_SQL = { join: sql``, rule: sql`` };
 
 const buildGroupExclusionSql = (
-  excludeAttendeeId: SqlParameterToken | null,
+  excludeAttendeeId: SqlSlot | null,
   memberSql: typeof DAILY_GROUP_MEMBER_SQL,
-): string => {
-  if (excludeAttendeeId === null) return "";
+): SqlStatement => {
+  if (excludeAttendeeId === null) return sql``;
 
-  return `- COALESCE((
+  return sql`- COALESCE((
           SELECT SUM(attendee.quantity)
             FROM listing_attendees AS attendee
             JOIN group_listings AS groupListing
@@ -138,16 +128,16 @@ const buildGroupExclusionSql = (
 
 // `groupRef` names the group whose members are summed: "groupRow.id" correlates
 // on the enclosing NOT EXISTS row (the write predicate), while the batch read
-// preflight passes a literal group id. The COUNTING body is otherwise identical,
+// preflight passes its own group id. The COUNTING body is otherwise identical,
 // so the write guard and the read preflight can never count a group differently.
 // (Self-exclusion is write-only — the batch never excludes — so those branches
 // keep the correlated "groupRow.id" they are only ever emitted with.)
 const buildDailyGroupCountSql = (
   dayRange: CountingDayRange,
-  excludeAttendeeId: SqlParameterToken | null,
-  groupRef: string,
-): string =>
-  `(COALESCE((
+  excludeAttendeeId: SqlSlot | null,
+  groupRef: SqlSlot,
+): SqlStatement =>
+  sql`(COALESCE((
           SELECT SUM(memberListing.booked_quantity)
             FROM listings AS memberListing
             JOIN group_listings AS groupListing
@@ -165,7 +155,6 @@ const buildDailyGroupCountSql = (
               ON memberListing.id = attendee.listing_id
            WHERE groupListing.group_id = ${groupRef}
              AND ${capacityRuleTypeSql("perDateCap", "memberListing.listing_type")} ${attendeeExclusionSql(
-               "attendee",
                excludeAttendeeId,
              )}
               AND attendee.start_at < ${dayRange.endSql}
@@ -173,10 +162,10 @@ const buildDailyGroupCountSql = (
          ), 0))`;
 
 const buildUndatedGroupCountSql = (
-  excludeAttendeeId: SqlParameterToken | null,
-  groupRef: string,
-): string =>
-  `(COALESCE((
+  excludeAttendeeId: SqlSlot | null,
+  groupRef: SqlSlot,
+): SqlStatement =>
+  sql`(COALESCE((
           SELECT SUM(memberListing.booked_quantity)
             FROM listings AS memberListing
             JOIN group_listings AS groupListing
@@ -187,9 +176,9 @@ const buildUndatedGroupCountSql = (
 
 export const buildGroupCountSql = (
   dayRange: CountingDayRange | null,
-  excludeAttendeeId: SqlParameterToken | null,
-  groupRef = "groupRow.id",
-): string => {
+  excludeAttendeeId: SqlSlot | null,
+  groupRef: SqlSlot = sqlName("groupRow.id"),
+): SqlStatement => {
   if (dayRange) {
     return buildDailyGroupCountSql(dayRange, excludeAttendeeId, groupRef);
   }
@@ -203,9 +192,9 @@ export const buildGroupCountSql = (
  * fails). */
 const buildListingCapSql = (
   count: CountSqlValues,
-  quantity: SqlParameterToken,
-): string =>
-  `(
+  quantity: SqlSlot,
+): SqlStatement =>
+  sql`(
     ${buildListingCountSql(count)}
   ) + ${quantity} <= (SELECT max_attendees FROM listings WHERE id = ${count.listingId} AND active = 1)`;
 
@@ -216,15 +205,15 @@ const buildListingCapSql = (
  */
 const buildDayCapacitySql = (
   count: CountSqlValues,
-  quantity: SqlParameterToken,
-): string => {
+  quantity: SqlSlot,
+): SqlStatement => {
   const { dayRange, excludeAttendeeId, listingId } = count;
   const groupCount = buildGroupCountSql(dayRange, excludeAttendeeId);
 
   // The group cap passes unless SOME group the listing belongs to is capped
   // and would be pushed over by this booking — so an ungrouped or all-uncapped
   // listing has no offending group and NOT EXISTS is satisfied.
-  return `${buildListingCapSql(count, quantity)}
+  return sql`${buildListingCapSql(count, quantity)}
   AND NOT EXISTS (
     SELECT 1
     FROM group_listings AS groupListing
@@ -235,27 +224,29 @@ const buildDayCapacitySql = (
   )`;
 };
 
-const bindDayRange = (
-  bind: SqlParameter,
+const countingDayRange = (
   dayRange: DayRange | null,
 ): CountingDayRange | null =>
   dayRange === null
     ? null
-    : { endSql: bind(dayRange.endAt), startSql: bind(dayRange.startAt) };
+    : { endSql: dayRange.endAt, startSql: dayRange.startAt };
 
 /** One clause per booked day, AND'd together, so a multi-day booking is
  * judged on every day it occupies. A date-less demand is one clause. */
 const perDayClauses = (
   date: string | null,
   durationDays: number,
-  daySql: (dayRange: DayRange | null) => string,
-): string => {
+  daySql: (dayRange: DayRange | null) => SqlStatement,
+): SqlStatement => {
   if (!date) return daySql(null);
   const booked = parseDateStringOrThrow(date, "a stored booking date");
-  return Array.from(
-    { length: clampDurationDays(durationDays) },
-    (_, index) => `(${daySql(dateToRange(addDays(booked, index)))})`,
-  ).join(" AND ");
+  return sqlJoin(
+    Array.from(
+      { length: clampDurationDays(durationDays) },
+      (_, index) => sql`(${daySql(dateToRange(addDays(booked, index)))})`,
+    ),
+    sql` AND `,
+  );
 };
 
 /**
@@ -266,42 +257,34 @@ const perDayClauses = (
  * @param excludeAttendeeId - If set, excludes this attendee's rows from the count (for updates)
  * @param scope - `{ groupCaps: false }` judges the listing's own cap alone.
  */
-export const buildCapacityCondition =
-  (
-    listingId: number,
-    qty: number,
-    date: string | null,
-    excludeAttendeeId?: number,
-    durationDays = 1,
-    scope: { groupCaps: boolean } = { groupCaps: true },
-  ): CapacitySql =>
-  (bind, shared = {}) => {
-    const listingIdSql = shared.listingId ?? bind(listingId);
-    const quantitySql = shared.quantity ?? bind(qty);
-    const excludeAttendeeIdSql =
-      excludeAttendeeId === undefined
-        ? null
-        : (shared.excludeAttendeeId ?? bind(excludeAttendeeId));
-    const sqlFor = (dayRange: DayRange | null): string =>
-      scope.groupCaps
-        ? buildDayCapacitySql(
-            {
-              dayRange: bindDayRange(bind, dayRange),
-              excludeAttendeeId: excludeAttendeeIdSql,
-              listingId: listingIdSql,
-            },
-            quantitySql,
-          )
-        : buildListingCapSql(
-            {
-              dayRange: bindDayRange(bind, dayRange),
-              excludeAttendeeId: null,
-              listingId: listingIdSql,
-            },
-            quantitySql,
-          );
-    return perDayClauses(date, durationDays, sqlFor);
-  };
+export const buildCapacityCondition = (
+  listingId: number,
+  quantity: number,
+  date: string | null,
+  excludeAttendeeId?: number,
+  durationDays = 1,
+  scope: { groupCaps: boolean } = { groupCaps: true },
+): SqlStatement => {
+  const sqlFor = (dayRange: DayRange | null): SqlStatement =>
+    scope.groupCaps
+      ? buildDayCapacitySql(
+          {
+            dayRange: countingDayRange(dayRange),
+            excludeAttendeeId: excludeAttendeeId ?? null,
+            listingId,
+          },
+          quantity,
+        )
+      : buildListingCapSql(
+          {
+            dayRange: countingDayRange(dayRange),
+            excludeAttendeeId: null,
+            listingId,
+          },
+          quantity,
+        );
+  return perDayClauses(date, durationDays, sqlFor);
+};
 
 /**
  * The per-day shape of {@link buildCapacityCondition}, judged against the
@@ -310,7 +293,7 @@ export const buildCapacityCondition =
  * submission's group memberships before the move reads them, so the probe
  * cannot judge the old memberships against the new ones.
  */
-export const buildListingCapCondition = (booking: LineBooking): CapacitySql =>
+export const buildListingCapCondition = (booking: LineBooking): SqlStatement =>
   buildCapacityCondition(
     booking.listingId,
     booking.quantity,
@@ -321,7 +304,7 @@ export const buildListingCapCondition = (booking: LineBooking): CapacitySql =>
   );
 
 /** A clause that refuses nothing: the zero-quantity line's demand. */
-const alwaysFits: CapacitySql = () => "1";
+const ALWAYS_FITS = sql`1`;
 
 /**
  * The capacity condition for one booked line. An edit passes the attendee whose
@@ -331,9 +314,9 @@ const alwaysFits: CapacitySql = () => "1";
 export const capacityConditionFor = (
   booking: LineBooking,
   excludeAttendeeId?: number,
-): CapacitySql =>
+): SqlStatement =>
   booking.quantity === 0
-    ? alwaysFits
+    ? ALWAYS_FITS
     : buildCapacityCondition(
         booking.listingId,
         booking.quantity,

@@ -13,9 +13,7 @@ import {
   listingFormClassAttr,
   listingToFieldValues,
   renderDayPricesFieldset,
-  showUseDefaultsToggle,
 } from "#templates/admin/listings/form-values.tsx";
-import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -73,18 +71,20 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a money box types its price, and leaves a free price empty rather than typing 0.00", () => {
-    const typedPrices = (field: "recurring_price" | "unit_price") =>
+  test("a money box types its price, and a free recurring price stays empty", () => {
+    expect(
       [0, 1, 500].map(
-        (price) =>
-          listingToFieldValues(testListingWithCount({ [field]: price }))[field],
-      );
-    expect([typedPrices("unit_price"), typedPrices("recurring_price")]).toEqual(
-      [
-        ["", "0.01", "5.00"],
-        ["", "0.01", "5.00"],
-      ],
-    );
+        (unit_price) =>
+          listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
+      ),
+    ).toEqual(["0.00", "0.01", "5.00"]);
+    expect(
+      [0, 1, 500].map(
+        (recurring_price) =>
+          listingToFieldValues(testListingWithCount({ recurring_price }))
+            .recurring_price,
+      ),
+    ).toEqual(["", "0.01", "5.00"]);
   });
 
   test("carries a dated listing's own day in the datetime box's shape", () => {
@@ -173,15 +173,5 @@ describe("listingFormClassAttr", () => {
       class: "listing-form--default-hidden",
     });
     expect(listingFormClassAttr(null, {})).toEqual({});
-  });
-});
-
-describe("showUseDefaultsToggle", () => {
-  test("only an owner sees the toggle, and only once a default exists", () => {
-    const defaults: ListingDefaults = { hidden: true };
-    expect(showUseDefaultsToggle(OWNER_SESSION, defaults)).toBe(true);
-    expect(showUseDefaultsToggle(OWNER_SESSION, {})).toBe(false);
-    const editor = { ...OWNER_SESSION, adminLevel: "editor" } as const;
-    expect(showUseDefaultsToggle(editor, defaults)).toBe(false);
   });
 });

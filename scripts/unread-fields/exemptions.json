@@ -134,6 +134,13 @@
       "evidence": "table.insert and table.update read the input by each column's key at run time"
     }
   ],
+  "src/shared/records/listing-fields.ts": [
+    {
+      "path": [{ "name": "ListingInput" }],
+      "kind": "schema-driven",
+      "evidence": "the listings table builds its columns from LISTING_FIELDS, so table.insert and table.update read each input field by its camelCase key at run time"
+    }
+  ],
   "src/shared/db/settings/snapshot.ts": [
     {
       "path": [{ "name": "SettingsData" }],

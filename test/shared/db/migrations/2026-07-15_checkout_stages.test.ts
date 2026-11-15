@@ -5,7 +5,9 @@ import checkoutStagesMigration from "#db/migrations/2026-07-15_checkout_stages.t
 import dropCheckoutStageRevisionsMigration from "#db/migrations/2026-07-16_drop_checkout_stage_revisions.ts";
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { additive } from "#db/migrations/verify.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
@@ -25,12 +27,7 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("the migration declares only the checkout stage schema objects", () => {
-      const migration = checkoutStagesMigration(context);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
+      expectMigrationIdentity(checkoutStagesMigration(context), {
         description: "Add dormant checkout stage storage.",
         id: "2026-07-15_checkout_stages",
         requires: {
@@ -44,12 +41,12 @@ describeWithEnv(
     });
 
     test("the migration creates only the checkout stage table and indexes", async () => {
-      await getDb().execute("DROP TABLE checkout_stages");
+      await getDb().execute(sql`DROP TABLE checkout_stages`);
 
       await runMigration();
 
       const stageColumns = await getDb().execute(
-        "PRAGMA table_info(checkout_stages)",
+        sql`PRAGMA table_info(checkout_stages)`,
       );
       expect(stageColumns.rows).toEqual([
         {
@@ -102,7 +99,7 @@ describeWithEnv(
         },
       ]);
       const indexes = await getDb().execute(
-        "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'checkout_stages' ORDER BY name",
+        sql`SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = 'checkout_stages' ORDER BY name`,
       );
       expect(indexes.rows).toEqual([
         {
@@ -116,47 +113,45 @@ describeWithEnv(
         { name: "sqlite_autoindex_checkout_stages_1", sql: null },
       ]);
       const triggers = await getDb().execute(
-        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name",
+        sql`SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'checkout_stages' ORDER BY name`,
       );
       expect(triggers.rows.map((row) => row.name)).toEqual([]);
       const revisionColumns = await getDb().execute(
-        "PRAGMA table_info(checkout_stage_revisions)",
+        sql`PRAGMA table_info(checkout_stage_revisions)`,
       );
       expect(revisionColumns.rows).toEqual([]);
     });
 
     test("a stage cannot be stored without a payment session id", async () => {
       await expect(
-        getDb().execute(`INSERT INTO checkout_stages
+        getDb().execute(sql`INSERT INTO checkout_stages
           (payment_session_id, attendee_id, provider, ticket_tokens, state, created_at)
           VALUES (NULL, 42, 'stripe', '["ticket-1"]', 'open', '2026-07-15T12:00:00Z')`),
       ).rejects.toThrow();
       const result = await getDb().execute(
-        "SELECT COUNT(*) AS count FROM checkout_stages",
+        sql`SELECT COUNT(*) AS count FROM checkout_stages`,
       );
       expect(Number(result.rows[0]?.count)).toBe(0);
     });
 
     test("the cleanup migration declares the legacy table absent", () => {
-      const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
-        description: "Remove unused checkout stage revision tracking.",
-        id: "2026-07-16_drop_checkout_stage_revisions",
-        requires: { absentTables: ["checkout_stage_revisions"] },
-      });
+      expectMigrationIdentity(
+        dropCheckoutStageRevisionsMigration(cleanupContext),
+        {
+          description: "Remove unused checkout stage revision tracking.",
+          id: "2026-07-16_drop_checkout_stage_revisions",
+          requires: { absentTables: ["checkout_stage_revisions"] },
+        },
+      );
     });
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {
       await getDb().execute(
-        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)",
+        sql`CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY, revision INTEGER NOT NULL)`,
       );
       for (const [index, name] of LEGACY_TRIGGER_NAMES.entries()) {
-        const action = ["INSERT", "UPDATE", "DELETE"][index]!;
-        await getDb().execute(`CREATE TRIGGER ${name}
+        const action = [sql`INSERT`, sql`UPDATE`, sql`DELETE`][index]!;
+        await getDb().execute(sql`CREATE TRIGGER ${sqlName(name)}
           AFTER ${action} ON checkout_stages BEGIN SELECT 1; END`);
       }
       const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
@@ -166,7 +161,7 @@ describeWithEnv(
       await migration.verify();
 
       const legacyObjects = await getDb().execute(
-        `SELECT name FROM sqlite_master
+        sql`SELECT name FROM sqlite_master
           WHERE name = 'checkout_stage_revisions'
              OR name LIKE 'trg_checkout_stages_revision_%'
           ORDER BY name`,
@@ -176,7 +171,7 @@ describeWithEnv(
 
     test("the cleanup migration verification rejects a surviving legacy table", async () => {
       await getDb().execute(
-        "CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY)",
+        sql`CREATE TABLE checkout_stage_revisions (id INTEGER PRIMARY KEY)`,
       );
 
       await expect(

@@ -1,8 +1,8 @@
-import { inPlaceholders, resultRows, type TxScope } from "#db/client.ts";
+import { resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { modifiersTable } from "#db/modifiers.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import { requiredMapValue, unique } from "#fp";
 import {
@@ -114,28 +114,20 @@ const relationshipErrorTx = async (
   const listingIds = unique(
     edges.flatMap(({ childId, parentId }) => [childId, parentId]),
   );
-  const placeholders = inPlaceholders(listingIds);
+  const ids = sqlList(listingIds);
   const [listingResult, priceResult, scopeResult] = await tx.batch([
-    {
-      args: listingIds,
-      sql: `SELECT listing.id, listing.name, listing.listing_type,
+    sql`SELECT listing.id, listing.name, listing.listing_type,
                    listing.months_per_unit, listing.customisable_days,
                    listing.duration_days, listing.bookable_alone,
                    listing.assign_built_site, listing.min_quantity
               FROM listings AS listing
-             WHERE listing.id IN (${placeholders})`,
-    },
-    {
-      args: listingIds,
-      sql: `SELECT listingPrice.listing_id, listingPrice.price_id,
+             WHERE listing.id IN (${ids})`,
+    sql`SELECT listingPrice.listing_id, listingPrice.price_id,
                    listingPrice.unit_price
               FROM listing_prices AS listingPrice
-             WHERE listingPrice.listing_id IN (${placeholders})
+             WHERE listingPrice.listing_id IN (${ids})
                AND listingPrice.price_type = 'day_count'`,
-    },
-    numberedStatement((bind) => {
-      const scopeIds = listingIds.map((id) => bind(id));
-      return `WITH optionalModifier AS (
+    sql`WITH optionalModifier AS (
               SELECT modifier.id, modifier.name, modifier.scope
                 FROM modifiers AS modifier
                WHERE modifier.active = 1 AND modifier.trigger = 'optional'
@@ -146,7 +138,7 @@ const relationshipErrorTx = async (
               JOIN modifier_listings AS modifierListing
                 ON modifierListing.modifier_id = modifier.id
              WHERE modifier.scope = 'listings'
-               AND modifierListing.listing_id IN (${scopeIds.join(", ")})
+               AND modifierListing.listing_id IN (${ids})
             UNION
             SELECT modifier.id AS modifier_id, modifier.name,
                    groupListing.listing_id
@@ -156,8 +148,7 @@ const relationshipErrorTx = async (
               JOIN group_listings AS groupListing
                 ON groupListing.group_id = modifierGroup.group_id
              WHERE modifier.scope = 'groups'
-               AND groupListing.listing_id IN (${scopeIds.join(", ")})`;
-    }),
+               AND groupListing.listing_id IN (${ids})`,
   ]);
   const listings = await listingById(
     resultRows<EdgeListingRow>(listingResult!),
@@ -181,20 +172,14 @@ export const requireTouchingRelationshipsTx = async (
   listingId: number,
 ): Promise<void> => {
   const [childResult, parentResult] = await tx.batch([
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.child_listing_id AS id
+    sql`SELECT listingParent.child_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.parent_listing_id = ?
+             WHERE listingParent.parent_listing_id = ${listingId}
              ORDER BY listingParent.child_listing_id`,
-    },
-    {
-      args: [listingId],
-      sql: `SELECT listingParent.parent_listing_id AS id
+    sql`SELECT listingParent.parent_listing_id AS id
               FROM listing_parents AS listingParent
-             WHERE listingParent.child_listing_id = ?
+             WHERE listingParent.child_listing_id = ${listingId}
              ORDER BY listingParent.parent_listing_id`,
-    },
   ]);
   await requireCurrentRelationshipRules(tx, [
     ...resultRows<{ id: number }>(childResult!).map(({ id: childId }) => ({

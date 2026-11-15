@@ -6,6 +6,7 @@ import {
 } from "#db/admin-features.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
@@ -29,50 +30,8 @@ const storeDisabledFeatures = async (): Promise<void> => {
 /** One saved invoice, which is what puts the Invoices feature in use. */
 const saveAnInvoice = (): Promise<unknown> =>
   execute(
-    "INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')",
+    sql`INSERT INTO invoices (attendee_id, body, created, share_token, share_token_index) VALUES (1, 'enc:1:a', '2026-11-04T09:00:00.000Z', 'hyb:1:a', 'index-a')`,
   );
-
-/* jscpd:ignore-start -- a list of strings, not code */
-/** One ordinary record of each kind, and an update that changes it. */
-const ORDINARY_UPDATES = [
-  [
-    "attendee",
-    "servicing",
-    "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
-    "UPDATE attendees SET pii_blob = 'after'",
-  ],
-  [
-    "listing",
-    "logistics",
-    "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
-    "UPDATE listings SET uses_logistics = 0",
-  ],
-] as const;
-
-/** One saved record of each kind that puts a feature in use. */
-const USE_RECORDS = [
-  [
-    "a logistics agent",
-    "logistics",
-    "INSERT INTO logistics_agents (name) VALUES ('Van')",
-  ],
-  [
-    "a logistics listing",
-    "logistics",
-    "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
-  ],
-  [
-    "a recurring listing",
-    "subscriptions",
-    "INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)",
-  ],
-  [
-    "a subscribed booking",
-    "subscriptions",
-    "INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')",
-  ],
-] as const;
-/* jscpd:ignore-end */
 
 describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("reports every feature unused in an empty database", async () => {
@@ -100,30 +59,29 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   });
 
   test("record updates enable their matching features", async () => {
-    await execute("INSERT INTO attributes (name) VALUES ('Before')");
+    await execute(sql`INSERT INTO attributes (name) VALUES ('Before')`);
     await execute(
-      "INSERT INTO questions (text, display_type) VALUES ('Before?', 'radio')",
+      sql`INSERT INTO questions (text, display_type) VALUES ('Before?', 'radio')`,
     );
     await saveAModifier("Before");
-    await execute("INSERT INTO logistics_agents (name) VALUES ('Before')");
+    await execute(sql`INSERT INTO logistics_agents (name) VALUES ('Before')`);
     await execute(
-      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')",
+      sql`INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'servicing')`,
     );
     await execute(
-      "INSERT INTO listings (created, max_attendees) VALUES ('2026-07-15', 10)",
+      sql`INSERT INTO listings (created, max_attendees) VALUES ('2026-07-15', 10)`,
     );
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      JSON.stringify(parseEnabledFeatures("")),
-      CONFIG_KEYS.ENABLED_FEATURES,
-    ]);
+    await execute(
+      sql`UPDATE settings SET value = ${JSON.stringify(parseEnabledFeatures(""))} WHERE key = ${CONFIG_KEYS.ENABLED_FEATURES}`,
+    );
 
-    await execute("UPDATE attributes SET name = 'After'");
-    await execute("UPDATE questions SET text = 'After?'");
-    await execute("UPDATE modifiers SET name = 'After'");
-    await execute("UPDATE logistics_agents SET name = 'After'");
-    await execute("UPDATE attendees SET pii_blob = 'after'");
-    await execute("UPDATE listings SET uses_logistics = 1");
-    await execute("UPDATE listings SET recurring_price = 500");
+    await execute(sql`UPDATE attributes SET name = 'After'`);
+    await execute(sql`UPDATE questions SET text = 'After?'`);
+    await execute(sql`UPDATE modifiers SET name = 'After'`);
+    await execute(sql`UPDATE logistics_agents SET name = 'After'`);
+    await execute(sql`UPDATE attendees SET pii_blob = 'after'`);
+    await execute(sql`UPDATE listings SET uses_logistics = 1`);
+    await execute(sql`UPDATE listings SET recurring_price = 500`);
 
     expect(await storedFeatures()).toEqual(
       featuresOn(
@@ -140,33 +98,63 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("ordinary attendees and listings do not enable optional features", async () => {
     await storeDisabledFeatures();
     await execute(
-      "INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')",
+      sql`INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')`,
     );
     await execute(
-      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)",
+      sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)`,
     );
 
     expect((await storedFeatures()).servicing).toBe(false);
     expect((await storedFeatures()).logistics).toBe(false);
   });
 
-  for (const [what, feature, insert, update] of ORDINARY_UPDATES) {
-    test(`updating an ordinary ${what} does not enable ${feature}`, async () => {
-      await storeDisabledFeatures();
-      await execute(insert);
+  test("updating an ordinary attendee does not enable Servicing", async () => {
+    await storeDisabledFeatures();
+    await execute(
+      sql`INSERT INTO attendees (created, kind) VALUES ('2026-07-15', 'attendee')`,
+    );
 
-      await execute(update);
+    await execute(sql`UPDATE attendees SET pii_blob = 'after'`);
 
-      expect((await storedFeatures())[feature]).toBe(false);
-    });
-  }
+    expect((await storedFeatures()).servicing).toBe(false);
+  });
 
-  for (const [what, feature, sql] of USE_RECORDS) {
-    test(`counts ${what} as ${feature} use`, async () => {
-      await execute(sql);
-      expect((await getAdminFeatureUsage())[feature]).toBe(true);
-    });
-  }
+  test("updating an ordinary listing does not enable Logistics", async () => {
+    await storeDisabledFeatures();
+    await execute(
+      sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 0)`,
+    );
+
+    await execute(sql`UPDATE listings SET uses_logistics = 0`);
+
+    expect((await storedFeatures()).logistics).toBe(false);
+  });
+
+  test("counts a logistics agent as logistics use", async () => {
+    await execute(sql`INSERT INTO logistics_agents (name) VALUES ('Van')`);
+    expect((await getAdminFeatureUsage()).logistics).toBe(true);
+  });
+
+  test("counts a logistics listing as logistics use", async () => {
+    await execute(
+      sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)`,
+    );
+    expect((await getAdminFeatureUsage()).logistics).toBe(true);
+  });
+
+  test("counts a recurring listing as subscriptions use", async () => {
+    await execute(
+      sql`INSERT INTO listings (created, max_attendees, recurring_price) VALUES ('2026-07-15', 10, 500)`,
+    );
+    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
+  });
+
+  test("counts a subscribed booking as subscriptions use", async () => {
+    await execute(
+      sql`INSERT INTO listing_attendees (attendee_id, listing_id, subscription_id) VALUES (1, 1, 'sub_1')`,
+    );
+    expect((await getAdminFeatureUsage()).subscriptions).toBe(true);
+  });
 
   test("enables one feature without changing the others", async () => {
     await setAdminFeatureEnabled("modifiers", true);
@@ -262,7 +250,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
   test("refuses to turn Logistics off while a listing still uses it", async () => {
     await setAdminFeatureEnabled("logistics", true);
     await execute(
-      "INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)",
+      sql`INSERT INTO listings (created, max_attendees, uses_logistics) VALUES ('2026-07-15', 10, 1)`,
     );
 
     expect(await setAdminFeatureEnabled("logistics", false)).toBe(false);
@@ -300,10 +288,9 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     const read = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
     await settings.update.listingDefaults({ usesLogistics: true });
     const moved = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      read,
-      CONFIG_KEYS.LISTING_DEFAULTS,
-    ]);
+    await execute(
+      sql`UPDATE settings SET value = ${read} WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`,
+    );
     settings.invalidateCache();
     await setAdminFeatureEnabled("logistics", true);
 
@@ -311,10 +298,9 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     // one lands after the disable's read of the defaults and before its
     // write — the move it has to survive.
     const disabling = setAdminFeatureEnabled("logistics", false);
-    await execute("UPDATE settings SET value = ? WHERE key = ?", [
-      moved,
-      CONFIG_KEYS.LISTING_DEFAULTS,
-    ]);
+    await execute(
+      sql`UPDATE settings SET value = ${moved} WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS}`,
+    );
 
     expect(await disabling).toBe(true);
     expect((await storedFeatures()).logistics).toBe(false);
@@ -333,9 +319,9 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     await setAdminFeatureEnabled("logistics", true);
 
     await withDbFault(
-      `CREATE TRIGGER ${DEFAULTS_FAULT}
+      sql`CREATE TRIGGER ${sqlName(DEFAULTS_FAULT)}
         BEFORE UPDATE ON settings
-        WHEN NEW.key = '${CONFIG_KEYS.LISTING_DEFAULTS}'
+        WHEN NEW.key = ${sqlLiteral(CONFIG_KEYS.LISTING_DEFAULTS)}
         BEGIN
           SELECT RAISE(ABORT, 'listing defaults are not writable');
         END`,
@@ -351,8 +337,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
   test("rejects malformed stored feature JSON after a field write", async () => {
     await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"money":false,"attributes":"false"}'],
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${'{"money":false,"attributes":"false"}'})`,
     );
 
     await expect(setAdminFeatureEnabled("money", true)).rejects.toThrow(
@@ -362,15 +347,14 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
 
   test("rolls back a feature record when the stored feature setting is invalid", async () => {
     await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, '{"attributes":"false"}'],
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${'{"attributes":"false"}'})`,
     );
 
     await expect(
-      execute("INSERT INTO attributes (name) VALUES ('Level')"),
+      execute(sql`INSERT INTO attributes (name) VALUES ('Level')`),
     ).rejects.toThrow("enabled feature setting is invalid");
     expect(
-      await queryOne("SELECT id FROM attributes WHERE name = 'Level'"),
+      await queryOne(sql`SELECT id FROM attributes WHERE name = 'Level'`),
     ).toBeNull();
   });
 
@@ -382,8 +366,7 @@ describeWithEnv("db > admin features", { db: true, triggers: true }, () => {
     const defaultsBefore = await settingValue(CONFIG_KEYS.LISTING_DEFAULTS);
     const featuresBefore = '{"logistics":"true"}';
     await execute(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-      [CONFIG_KEYS.ENABLED_FEATURES, featuresBefore],
+      sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${featuresBefore})`,
     );
 
     await expect(setAdminFeatureEnabled("logistics", false)).rejects.toThrow(

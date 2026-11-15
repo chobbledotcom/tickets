@@ -8,8 +8,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import {
-  clauseArgs,
   equals,
   inList,
   rowsUnlessNoneMatch,
@@ -23,7 +23,7 @@ describe("inList", () => {
 
   test("binds one placeholder per value", () => {
     expect(inList("thing.id", [4, 5, 6])).toEqual([
-      { args: [4, 5, 6], clause: "thing.id IN (?, ?, ?)" },
+      { clause: sql`thing.id IN (${4}, ${5}, ${6})` },
     ]);
   });
 
@@ -31,21 +31,19 @@ describe("inList", () => {
     const ids = [1, 2];
     const [part] = inList("thing.id", ids);
     ids.push(3);
-    expect(part?.args).toEqual([1, 2]);
+    expect(part?.clause.args).toEqual([1, 2]);
   });
 
   test("an empty set becomes a clause no row can pass", () => {
     expect(inList("thing.id", [])).toEqual([
-      { args: [], clause: "thing.id IN (NULL)", matchesNothing: true },
+      { clause: sql`thing.id IN (NULL)`, matchesNothing: true },
     ]);
   });
 });
 
 describe("equals", () => {
   test("matches a column against a value", () => {
-    expect(equals("thing.id", 7)).toEqual([
-      { args: [7], clause: "thing.id = ?" },
-    ]);
+    expect(equals("thing.id", 7)).toEqual([{ clause: sql`thing.id = ${7}` }]);
   });
 
   test("adds no clause when there is nothing to match on", () => {
@@ -61,10 +59,10 @@ describe("equals", () => {
 
   test("matches falsy values rather than treating them as absent", () => {
     expect(equals("thing.active", 0)).toEqual([
-      { args: [0], clause: "thing.active = ?" },
+      { clause: sql`thing.active = ${0}` },
     ]);
     expect(equals("thing.name", "")).toEqual([
-      { args: [""], clause: "thing.name = ?" },
+      { clause: sql`thing.name = ${""}` },
     ]);
   });
 });
@@ -91,32 +89,28 @@ describe("rowsUnlessNoneMatch", () => {
 
 describe("whereSql", () => {
   test("is empty when there are no clauses", () => {
-    expect(whereSql([])).toBe("");
+    expect(whereSql([])).toEqual(sql``);
   });
 
   test("joins every clause with AND, in order", () => {
     expect(
       whereSql([
-        { args: [], clause: "a = 1" },
-        { args: [], clause: "b = 2" },
-        { args: [], clause: "c = 3" },
+        { clause: sql`a = 1` },
+        { clause: sql`b = 2` },
+        { clause: sql`c = 3` },
       ]),
-    ).toBe(" WHERE a = 1 AND b = 2 AND c = 3");
+    ).toEqual(sql` WHERE a = 1 AND b = 2 AND c = 3`);
   });
 });
 
-describe("clauseArgs", () => {
-  test("collects every clause's arguments in clause order", () => {
+describe("whereSql values", () => {
+  test("keeps every clause's values in clause order", () => {
     expect(
-      clauseArgs([
-        { args: [1, 2], clause: "a IN (?, ?)" },
-        { args: [], clause: "b = 1" },
-        { args: ["x"], clause: "c = ?" },
-      ]),
+      whereSql([
+        { clause: sql`a IN (${1}, ${2})` },
+        { clause: sql`b = 1` },
+        { clause: sql`c = ${"x"}` },
+      ]).args,
     ).toEqual([1, 2, "x"]);
-  });
-
-  test("is empty with no clauses", () => {
-    expect(clauseArgs([])).toEqual([]);
   });
 });

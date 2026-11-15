@@ -89,7 +89,7 @@ describeWithEnv("attendee page activity and questions", { db: true }, () => {
       [listing.id],
     );
     for (const statement of tail(attendee.ticket_token_index)) {
-      await execute(statement.sql, statement.args);
+      await execute(statement);
     }
     await deleteQuestion(question.id);
 

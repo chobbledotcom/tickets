@@ -8,11 +8,15 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { getQuestionBookings } from "#db/questions/attendee-answers/bookings.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
+import { sql } from "#db/sql.ts";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { questionBookingRow } from "#test-utils/question-booking-rows.ts";
+import { ascending } from "#types";
 
 /** A booking on the given listings, recorded at the given time so the read's
  *  order is the one the test asked for and not the clock's. */
@@ -21,10 +25,9 @@ const seedBookingAt = async (
   created: string,
 ): Promise<number> => {
   const attendee = await bookTestAttendee(listingIds);
-  await execute("UPDATE attendees SET created = ? WHERE id = ?", [
-    created,
-    attendee.id,
-  ]);
+  await execute(
+    sql`UPDATE attendees SET created = ${created} WHERE id = ${attendee.id}`,
+  );
   return attendee.id;
 };
 
@@ -40,18 +43,15 @@ describeWithEnv("db > question bookings", { db: true }, () => {
     );
     await bookAnswers(attendeeId, [small.id]);
 
-    expect(
-      await getQuestionBookings(size.id, await getTestPrivateKey()),
-    ).toEqual([
-      {
-        answer_id: small.id,
-        answer_text: "Small",
-        attendee_id: attendeeId,
-        created: "2026-06-01T09:00:00.000Z",
-        free_text: null,
-        listing_ids: [listing.id],
-        question_id: size.id,
-      },
+    const rows = await getQuestionBookings(size.id, await getTestPrivateKey());
+    expect(rows).toEqual([
+      questionBookingRow(
+        size.id,
+        attendeeId,
+        "2026-06-01T09:00:00.000Z",
+        [listing.id],
+        { id: small.id, text: "Small" },
+      ),
     ]);
   });
 
@@ -73,18 +73,16 @@ describeWithEnv("db > question bookings", { db: true }, () => {
       ]),
     );
 
-    expect(
-      await getQuestionBookings(notes.id, await getTestPrivateKey()),
-    ).toEqual([
-      {
-        answer_id: null,
-        answer_text: null,
-        attendee_id: attendeeId,
-        created: "2026-06-02T09:00:00.000Z",
-        free_text: "Hay",
-        listing_ids: [listing.id],
-        question_id: notes.id,
-      },
+    const rows = await getQuestionBookings(notes.id, await getTestPrivateKey());
+    expect(rows).toEqual([
+      questionBookingRow(
+        notes.id,
+        attendeeId,
+        "2026-06-02T09:00:00.000Z",
+        [listing.id],
+        null,
+        "Hay",
+      ),
     ]);
   });
 
@@ -109,9 +107,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
     await bookAnswers(attendeeId, [small.id]);
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
-    expect(row!.listing_ids).toEqual(
-      [listing.id, other.id].sort((left, right) => left - right),
-    );
+    expect(row!.listing_ids).toEqual([listing.id, other.id].sort(ascending));
   });
 
   test("answers no listing ids for a booking with no line", async () => {
@@ -121,9 +117,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
       "2026-06-05T09:00:00.000Z",
     );
     await bookAnswers(attendeeId, [small.id]);
-    await execute("DELETE FROM listing_attendees WHERE attendee_id = ?", [
-      attendeeId,
-    ]);
+    await dropAttendeeBookings(attendeeId);
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
     expect(row!.listing_ids).toEqual([]);

@@ -5,6 +5,7 @@ import { expandChildAllocations } from "#db/attendees/order-parents.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { reverseOrderFor } from "#test/shared/db/attendees/select-refunded/support.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -13,9 +14,8 @@ import { postListingSale } from "#test-utils/ledger.ts";
 /** The persisted rows for one listing under one attendee, with their parent. */
 const rowsFor = (attendeeId: number, listingId: number) =>
   queryAll<{ parent_listing_id: number; checked_in: number; quantity: number }>(
-    `SELECT parent_listing_id, checked_in, quantity FROM listing_attendees
-      WHERE attendee_id = ? AND listing_id = ? ORDER BY parent_listing_id`,
-    [attendeeId, listingId],
+    sql`SELECT parent_listing_id, checked_in, quantity FROM listing_attendees
+      WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} ORDER BY parent_listing_id`,
   );
 
 describeWithEnv(
@@ -117,12 +117,9 @@ describeWithEnv(
         gross: 100,
         listingId: child.id,
       });
-      await getDb().execute({
-        args: [secondOrder, attendee.id, child.id, parentB.id],
-        sql:
-          "UPDATE listing_attendees SET ledger_event_group = ?" +
-          " WHERE attendee_id = ? AND listing_id = ? AND parent_listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET ledger_event_group = ${secondOrder} WHERE attendee_id = ${attendee.id} AND listing_id = ${child.id} AND parent_listing_id = ${parentB.id}`,
+      );
       // The first-stored row's order is refunded, so that row reads
       // refunded while the second row still owes its ticket.
       await reverseOrderFor(attendee.id, child.id);

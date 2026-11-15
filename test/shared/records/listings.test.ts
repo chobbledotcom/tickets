@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { SqlStatement } from "#db/sql.ts";
 import { buildCreateListingResource } from "#routes/admin/listings-form.ts";
 import { listingRecord } from "#shared/records/listings.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   activityMessages,
   getListingActivityLog,
@@ -9,11 +11,11 @@ import {
 import { storedListingNames } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import { describeRecord } from "#test-utils/record-labels.ts";
-import { statementSql, wrapDbClient } from "#test-utils/record-queries.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 
 /** Whether one batch statement writes an activity line. */
-const writesActivityLog = (statement: Parameters<typeof statementSql>[0]) =>
-  statementSql(statement).includes("activity_log");
+const writesActivityLog = (statement: SqlStatement) =>
+  statement.sql.includes("activity_log");
 
 /** Create one listing through the record, as the create page submits it. */
 const createListing = (name: string) => {
@@ -21,8 +23,11 @@ const createListing = (name: string) => {
     max_attendees: "50",
     max_quantity: "5",
     name,
+    unit_price: "0",
   });
-  return buildCreateListingResource(form).create(form);
+  return buildCreateListingResource(form, listingFormView("owner")).create(
+    form,
+  );
 };
 
 describeRecord(listingRecord, "Listing", null, () => {

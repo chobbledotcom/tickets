@@ -7,6 +7,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -59,10 +60,9 @@ const twoPathIntent = async (
     unitPrice: 200,
   });
   const { execute } = await import("#db/client.ts");
-  await execute("UPDATE listings SET max_quantity = ? WHERE id = ?", [
-    maxQuantity,
-    listing.id,
-  ]);
+  await execute(
+    sql`UPDATE listings SET max_quantity = ${maxQuantity} WHERE id = ${listing.id}`,
+  );
   return bookingIntent([
     { e: listing.id, p: 200, q: first },
     { e: listing.id, p: 200, q: second },

@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { listingReader } from "#db/listings/select.ts";
+import { sql } from "#db/sql.ts";
 import {
   assertAdminHtml,
   expectIncludesAll,
@@ -97,10 +98,11 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
         name: "Original",
         thankYouUrl: "https://example.com",
       });
-      const readBack = stub(listingReader, "statement", () => ({
-        args: [],
-        sql: "SELECT 1 AS id WHERE 0",
-      }));
+      const readBack = stub(
+        listingReader,
+        "statement",
+        () => sql`SELECT 1 AS id WHERE 0`,
+      );
       const { handleRequest } = await import("#routes");
 
       try {

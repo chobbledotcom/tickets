@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { reloadSettings } from "#test-utils/settings-accessors.ts";
 
 describeWithEnv("db > settings payment provider", { db: true }, () => {
   describe("activation", () => {
@@ -15,13 +17,11 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       );
     });
 
-    const reloadPaymentProviderSettings = async (): Promise<void> => {
-      settings.invalidateCache();
-      await settings.loadKeys([
+    const reloadPaymentProviderSettings = (): Promise<void> =>
+      reloadSettings([
         CONFIG_KEYS.PAYMENT_PROVIDER,
         CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
       ]);
-    };
 
     const expectDisabledWith = (remembered: "stripe" | "square"): void => {
       expect(settings.paymentProvider).toBeNull();
@@ -31,6 +31,14 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       expect(
         settings.getCachedRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER),
       ).toBe(remembered);
+    };
+
+    /** Reload the remembered provider from the database, then pin it. */
+    const expectLastActivePersisted = async (
+      remembered: "stripe" | "square",
+    ): Promise<void> => {
+      await reloadSettings([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      expect(settings.lastActivePaymentProvider).toBe(remembered);
     };
 
     test("replaces the current provider", async () => {
@@ -44,19 +52,14 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
     test("sets the current provider to none", async () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.setPaymentProviderNone();
-
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.paymentProviderSetting).toBe("none");
+      expectDisabledWith("stripe");
     });
 
     test("persists the explicit none setting", async () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.setPaymentProviderNone();
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.PAYMENT_PROVIDER]);
-
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.paymentProviderSetting).toBe("none");
+      await reloadPaymentProviderSettings();
+      expectDisabledWith("stripe");
     });
 
     test("remembers the most recently activated provider", async () => {
@@ -67,20 +70,15 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       await settings.update.paymentProvider("square");
       expect(settings.lastActivePaymentProvider).toBe("square");
 
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
-      expect(settings.lastActivePaymentProvider).toBe("square");
+      await expectLastActivePersisted("square");
     });
 
     test("keeps the last provider after new sales are switched off", async () => {
       await settings.update.paymentProvider("stripe");
       await settings.update.setPaymentProviderNone();
-      expect(settings.paymentProvider).toBeNull();
-      expect(settings.lastActivePaymentProvider).toBe("stripe");
+      expectDisabledWith("stripe");
 
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
-      expect(settings.lastActivePaymentProvider).toBe("stripe");
+      await expectLastActivePersisted("stripe");
     });
 
     test("keeps a newer active provider during a stale credential save", async () => {
@@ -158,8 +156,7 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       await settings.update.clearPaymentProvider();
       const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.PAYMENT_PROVIDER, "stripe"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"stripe"})`,
       );
 
       await expect(
@@ -188,17 +185,11 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       // refundable.
       await settings.setRaw(CONFIG_KEYS.PAYMENT_PROVIDER, "stripe");
       await settings.setRaw(CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "");
-      settings.invalidateCache();
-      await settings.loadKeys([
-        CONFIG_KEYS.PAYMENT_PROVIDER,
-        CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
-      ]);
+      await reloadPaymentProviderSettings();
       expect(settings.lastActivePaymentProvider).toBeNull();
 
       await settings.update.setPaymentProviderNone();
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
-      expect(settings.lastActivePaymentProvider).toBe("stripe");
+      await expectLastActivePersisted("stripe");
     });
 
     test("throws on a corrupt non-empty remembered provider", async () => {
@@ -206,8 +197,7 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
         CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER,
         "garbage",
       );
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
+      await reloadSettings([CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER]);
       expect(() => settings.lastActivePaymentProvider).toThrow(
         "Invalid last_active_payment_provider setting: garbage",
       );
@@ -222,12 +212,10 @@ describeWithEnv("db > settings payment provider", { db: true }, () => {
       // snapshot still holds the stale "stripe" value.
       const { executeWithoutCacheInvalidation } = await import("#db/client.ts");
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.PAYMENT_PROVIDER, "square"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.PAYMENT_PROVIDER}, ${"square"})`,
       );
       await executeWithoutCacheInvalidation(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER, "square"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.LAST_ACTIVE_PAYMENT_PROVIDER}, ${"square"})`,
       );
       // The snapshot still has Stripe from the request-start load.
       expect(settings.paymentProvider).toBe("stripe");

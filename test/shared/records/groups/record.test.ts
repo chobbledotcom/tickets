@@ -14,6 +14,7 @@ import { getImagesForItem, setItemsForImage } from "#db/images.ts";
 import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
 import { noteTargets } from "#db/notes/target.ts";
 import { addPageItem, getItemsForPage } from "#db/site-page-items.ts";
+import { sql } from "#db/sql.ts";
 import { groupRecord } from "#shared/records/groups.ts";
 import { groupInput } from "#test/features/admin/groups/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
@@ -48,8 +49,7 @@ const groupLeftovers = async (
   memberships: await listingGroups.getIds(listingId),
   notes: await getNoteRows("group", [groupId]),
   rows: await queryAll(
-    "SELECT groupRow.id FROM groups AS groupRow WHERE groupRow.id = ?",
-    [groupId],
+    sql`SELECT groupRow.id FROM groups AS groupRow WHERE groupRow.id = ${groupId}`,
   ),
 });
 

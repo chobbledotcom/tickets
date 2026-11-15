@@ -2,6 +2,7 @@
 
 import * as v from "valibot";
 import { queryAll } from "#db/client.ts";
+import { sql, sqlNames } from "#db/sql.ts";
 import {
   RecurringIntervalSchema,
   SubscriptionStatusSchema,
@@ -22,16 +23,17 @@ const SubscribedRowSchema = v.object({
 
 export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
 
-const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries)
-  .map((column) => `booking.${column}`)
-  .join(", ");
+/** The subscribed columns, each named for its booking alias. */
+const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries).map(
+  (column) => `booking.${column}`,
+);
 
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   v.parse(
     v.array(SubscribedRowSchema),
     await queryAll(
-      `SELECT ${SUBSCRIBED_COLUMNS}
+      sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
          FROM listing_attendees AS booking
         WHERE booking.subscription_id != ''
         ORDER BY booking.id DESC`,

@@ -24,6 +24,8 @@ export const bookOwnListing = async (name: string): Promise<TestBooking> => {
   return { attendeeId: attendee.id, listingId: listing.id };
 };
 
+import { sql } from "#db/sql.ts";
+
 /** The plan a subscribed booking row keeps. */
 export type TestPlan = {
   interval: string;
@@ -46,20 +48,10 @@ export const givePlan = async (
   subscriptionId: string,
   plan: TestPlan,
 ): Promise<void> => {
-  await execute(
-    `UPDATE listing_attendees
-        SET recurring_interval = ?, recurring_price = ?, recurring_tax = ?,
-            subscription_id = ?, subscription_status = ?
-      WHERE attendee_id = ?`,
-    [
-      plan.interval,
-      plan.price,
-      plan.tax,
-      subscriptionId,
-      plan.status,
-      attendeeId,
-    ],
-  );
+  await execute(sql`UPDATE listing_attendees
+        SET recurring_interval = ${plan.interval}, recurring_price = ${plan.price}, recurring_tax = ${plan.tax},
+            subscription_id = ${subscriptionId}, subscription_status = ${plan.status}
+      WHERE attendee_id = ${attendeeId}`);
 };
 
 /** A booking for `name` that carries the Stripe subscription `sub_<name>`. */
@@ -80,8 +72,7 @@ export const withMonthlyPlan = async <Listing extends { id: number }>(
   Listing & { recurring_interval: "month"; recurring_price: number }
 > => {
   await execute(
-    "UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ?",
-    [listing.id],
+    sql`UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ${listing.id}`,
   );
   invalidateListingsCache();
   return { ...listing, recurring_interval: "month", recurring_price: 500 };

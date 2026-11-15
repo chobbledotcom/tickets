@@ -5,6 +5,7 @@ import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
 import { getDb, insert } from "#db/client.ts";
 import { createSession } from "#db/sessions.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername, invalidateUsersCache } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -127,10 +128,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("settings updateUserPassword failure", () => {
     test("password change returns 500 when wrapped_data_key is corrupted", async () => {
-      await getDb().execute({
-        args: [],
-        sql: "UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1",
-      });
+      await getDb().execute(
+        sql`UPDATE users SET wrapped_data_key = 'corrupted_key' WHERE id = 1`,
+      );
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
@@ -148,10 +148,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
   describe("settings user not found", () => {
     test("password change redirects to login when user is deleted mid-request", async () => {
-      await getDb().execute({
-        args: [],
-        sql: "DELETE FROM users WHERE id = 1",
-      });
+      await getDb().execute(sql`DELETE FROM users WHERE id = 1`);
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {

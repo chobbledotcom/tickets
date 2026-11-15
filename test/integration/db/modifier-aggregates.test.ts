@@ -13,10 +13,16 @@ import {
   modifierAggregates,
   modifiersTable,
 } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
+import {
+  type AggregateRows,
+  describeAggregateTriggerCases,
+  seedAggregateRows,
+  sharedAggregateTriggerCases,
+} from "#test-utils/db/aggregate-trigger-cases.ts";
 import { readModifierAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { postModifierLeg } from "#test-utils/ledger.ts";
-import { insertModifierUsage } from "#test-utils/modifiers.ts";
 
 const MIGRATIONS = await loadMigrations();
 /**
@@ -39,6 +45,12 @@ describeWithEnv(
     triggers: true,
   },
   () => {
+    /** modifier_usages declares no default for this pair; no count reads it. */
+    const usageRows: AggregateRows = {
+      parent: "modifier_id",
+      table: "modifier_usages",
+      values: { amount_applied: 0, created: "2026-06-17" },
+    };
     const makeModifier = () =>
       modifiersTable.insert({
         calcKind: "fixed",
@@ -46,6 +58,21 @@ describeWithEnv(
         direction: "charge",
         name: "Add-on",
       });
+    const shared = sharedAggregateTriggerCases({
+      counts: (quantity, rows) => ({
+        total_uses: quantity,
+        usage_count: rows,
+      }),
+      insert: "insert increments uses and usage count",
+      parent: "modifier",
+      // amount_applied drives no aggregate, so the UPDATE trigger omits it.
+      unrelatedColumn: "amount_applied",
+    });
+    const triggerFixture = {
+      createParent: makeModifier,
+      readCounts: aggregates,
+      rows: usageRows,
+    };
 
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>
@@ -81,12 +108,31 @@ describeWithEnv(
       expect(await getModifier(m.id + 999)).toBeNull();
     });
 
+    test("modifiersTable read exposes the trigger-maintained counts", async () => {
+      const m = await makeModifier();
+      await seedAggregateRows(usageRows, m.id, [[1, 3]]);
+      const reread = await modifiersTable.read.one({ id: m.id });
+      expect(reread).toMatchObject({
+        total_uses: 3,
+        usage_count: 1,
+      });
+    });
+
+    describeAggregateTriggerCases(triggerFixture, [
+      shared.zeroStart,
+      shared.insert,
+      shared.delete,
+      shared.updateQuantity,
+      shared.moveToOtherParent,
+      shared.unrelatedColumn,
+    ]);
+
     test("resetting every published aggregate field rebuilds both counts", async () => {
       // Drives the reset through MODIFIER_AGGREGATE_FIELDS itself — the list the
       // admin recalculate form submits — so a renamed/dropped field there breaks
       // here, not silently on the form.
       const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
+      await seedAggregateRows(usageRows, m.id, [[1, 3]]);
       await modifierAggregates.update(m.id, {
         total_uses: 9,
         usage_count: 9,
@@ -100,100 +146,10 @@ describeWithEnv(
       });
     });
 
-    test("a new modifier starts with zeroed aggregates", async () => {
-      const m = await makeModifier();
-      expect(await aggregates(m.id)).toEqual({
-        total_uses: 0,
-        usage_count: 0,
-      });
-    });
-
-    test("modifiersTable read exposes the trigger-maintained counts", async () => {
-      const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      const reread = await modifiersTable.read.one({ id: m.id });
-      expect(reread).toMatchObject({
-        total_uses: 3,
-        usage_count: 1,
-      });
-    });
-
-    test("insert increments uses and usage count", async () => {
-      const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      await insertModifierUsage(m.id, 2, 2, 1000);
-      expect(await aggregates(m.id)).toEqual({
-        total_uses: 5,
-        usage_count: 2,
-      });
-    });
-
-    test("delete decrements the row's contribution", async () => {
-      const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      await insertModifierUsage(m.id, 2, 2, 1000);
-      await getDb().execute({
-        args: [m.id, 1],
-        sql: "DELETE FROM modifier_usages WHERE modifier_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(m.id)).toEqual({
-        total_uses: 2,
-        usage_count: 1,
-      });
-    });
-
-    test("updating quantity applies the delta", async () => {
-      const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      await getDb().execute({
-        args: [m.id, 1],
-        sql: "UPDATE modifier_usages SET quantity = 5 WHERE modifier_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(m.id)).toEqual({
-        total_uses: 5,
-        usage_count: 1,
-      });
-    });
-
-    test("moving a row to another modifier shifts its aggregates", async () => {
-      const from = await makeModifier();
-      const to = await makeModifier();
-      await insertModifierUsage(from.id, 1, 4, 2000);
-
-      await getDb().execute({
-        args: [to.id, from.id, 1],
-        sql: "UPDATE modifier_usages SET modifier_id = ? WHERE modifier_id = ? AND attendee_id = ?",
-      });
-
-      expect(await aggregates(from.id)).toEqual({
-        total_uses: 0,
-        usage_count: 0,
-      });
-      expect(await aggregates(to.id)).toEqual({
-        total_uses: 4,
-        usage_count: 1,
-      });
-    });
-
-    test("updating an unrelated column leaves aggregates unchanged", async () => {
-      const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      const before = await aggregates(m.id);
-
-      // amount_applied is no longer in the trigger's UPDATE OF list (it drives
-      // no maintained aggregate now), so changing it must not fire the trigger.
-      await getDb().execute({
-        args: [m.id, 1],
-        sql: "UPDATE modifier_usages SET amount_applied = 9999 WHERE modifier_id = ? AND attendee_id = ?",
-      });
-
-      expect(await aggregates(m.id)).toEqual(before);
-    });
-
     test("total_revenue is projected from the modifier's net ledger balance", async () => {
       const m = await makeModifier();
       // A usage row with no posted modifier legs contributes nothing to revenue.
-      await insertModifierUsage(m.id, 1, 1, 1500);
+      await seedAggregateRows(usageRows, m.id, [[1, 1]]);
       expect(await projectedRevenue(m.id)).toBe(0);
 
       // A surcharge bills the attendee (attendee→modifier), so balanceOf(modifier)
@@ -250,7 +206,7 @@ describeWithEnv(
 
     test("manual aggregate edits override the trigger-maintained counts", async () => {
       const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
+      await seedAggregateRows(usageRows, m.id, [[1, 3]]);
 
       await modifierAggregates.update(m.id, {
         total_uses: 8,
@@ -265,8 +221,10 @@ describeWithEnv(
 
     test("selected aggregate reset fields are rebuilt from usage rows", async () => {
       const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      await insertModifierUsage(m.id, 2, 2, 1000);
+      await seedAggregateRows(usageRows, m.id, [
+        [1, 3],
+        [2, 2],
+      ]);
       await modifierAggregates.update(m.id, {
         total_uses: 8,
         usage_count: 4,
@@ -288,8 +246,10 @@ describeWithEnv(
 
     test("the migration's backfill recomputes stale aggregates from scratch", async () => {
       const m = await makeModifier();
-      await insertModifierUsage(m.id, 1, 3, 1500);
-      await insertModifierUsage(m.id, 2, 2, 1000);
+      await seedAggregateRows(usageRows, m.id, [
+        [1, 3],
+        [2, 2],
+      ]);
 
       // Reproduce a pre-trigger state: drop the triggers, then corrupt the
       // columns directly (no trigger fires to correct them).
@@ -298,14 +258,14 @@ describeWithEnv(
       )!;
       await getDb().batch(
         [
-          "DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_insert",
-          "DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_delete",
-          "DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_update",
+          sql`DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_insert`,
+          sql`DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_delete`,
+          sql`DROP TRIGGER IF EXISTS trg_modifier_usages_aggregates_update`,
         ],
         "write",
       );
       await getDb().execute(
-        "UPDATE modifiers SET total_uses = 999, usage_count = 999",
+        sql`UPDATE modifiers SET total_uses = 999, usage_count = 999`,
       );
 
       // Re-running up() recreates the triggers and recomputes the absolute totals.

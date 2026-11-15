@@ -11,6 +11,7 @@ import { expect } from "@std/expect";
 import * as v from "valibot";
 import { execute } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -248,8 +249,7 @@ export const theWaitPasses = async (): Promise<void> => {
   const past = nowMs() - 1;
   for (const table of ["login_attempts", "token_attempts"]) {
     await execute(
-      `UPDATE ${table} SET locked_until = ? WHERE locked_until IS NOT NULL`,
-      [past],
+      sql`UPDATE ${sqlName(table)} SET locked_until = ${past} WHERE locked_until IS NOT NULL`,
     );
   }
 };

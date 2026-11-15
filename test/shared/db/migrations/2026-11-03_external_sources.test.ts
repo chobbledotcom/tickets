@@ -5,6 +5,7 @@ import externalSourcesMigration from "#db/migrations/2026-11-03_external_sources
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { initDb, LATEST_UPDATE } from "#db/migrations.ts";
 import { CONFIG_KEYS } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -27,10 +28,9 @@ const settingFromPreviousRelease = (): string => {
 };
 
 const storeFeatures = async (value: string): Promise<void> => {
-  await execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", [
-    CONFIG_KEYS.ENABLED_FEATURES,
-    value,
-  ]);
+  await execute(
+    sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${value})`,
+  );
 };
 
 const storedFeatures = async () => {

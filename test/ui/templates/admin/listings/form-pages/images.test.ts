@@ -13,6 +13,7 @@ import {
   withoutBuilder,
 } from "#test/ui/templates/admin/listings/helpers.ts";
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -29,12 +30,12 @@ const builderListing = () =>
 const expectNoImageInDuplicateAndNew = (
   listing: Parameters<typeof adminDuplicateListingPage>[0],
 ): void => {
-  assert(
-    !adminDuplicateListingPage(listing, [], OWNER_SESSION).includes(
-      'name="image"',
-    ),
-  );
-  assert(!adminListingNewPage([], OWNER_SESSION).includes('name="image"'));
+  for (const html of [
+    adminDuplicateListingPage(listing, [], OWNER_SESSION),
+    adminListingNewPage([], OWNER_SESSION),
+  ]) {
+    expectExcludesAll(html, ['name="image"']);
+  }
 };
 
 describeWithEnv(
@@ -46,8 +47,7 @@ describeWithEnv(
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
         const html = detailHtml(testListingWithCount({ image_url: "" }));
-        assert(!html.includes('type="file"'));
-        assert(!html.includes('name="image"'));
+        expectExcludesAll(html, ['type="file"', 'name="image"']);
       });
     });
 
@@ -57,10 +57,12 @@ describeWithEnv(
           const html = editPanelHtml(
             testListingWithCount({ image_url: "current.jpg" }),
           );
-          assert(!html.includes('name="image"'));
-          assert(!html.includes("Remove Image"));
-          assert(!html.includes("/image/delete"));
-          assert(!html.includes("listing-image-full"));
+          expectExcludesAll(html, [
+            'name="image"',
+            "Remove Image",
+            "/image/delete",
+            "listing-image-full",
+          ]);
         });
       });
 
@@ -133,10 +135,12 @@ describeWithEnv(
       test("hides months_per_unit and initial_site_months when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("Months per unit"));
-          assert(!html.includes("initial_site_months"));
-          assert(!html.includes("Initial site months"));
+          expectExcludesAll(html, [
+            "months_per_unit",
+            "Months per unit",
+            "initial_site_months",
+            "Initial site months",
+          ]);
         });
       });
 
@@ -150,8 +154,7 @@ describeWithEnv(
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = editPanelHtml(builderListing());
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("initial_site_months"));
+          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
         });
       });
 
@@ -173,8 +176,7 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          assert(!html.includes("months_per_unit"));
-          assert(!html.includes("initial_site_months"));
+          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
         });
       });
     });

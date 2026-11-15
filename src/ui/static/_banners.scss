@@ -1,0 +1,110 @@
+/** Banners, the provider test output, the attendee table cells and the skip
+ * link. */
+
+@use "mixins" as *;
+@use "print";
+
+/* Demo mode banner */
+.demo-banner {
+  @include banner-bar;
+}
+
+/* Read-only mode banner */
+.read-only-banner {
+  background: #dc2626;
+  color: #fff;
+  text-align: center;
+  padding: 8px;
+  font-weight: bold;
+}
+
+.read-only-banner a {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Pre-expiry warning banner */
+.read-only-banner-warning {
+  @include banner-bar;
+}
+
+.read-only-banner-warning a {
+  color: #000;
+  text-decoration: underline;
+}
+
+/* Stripe/Square/SumUp test result */
+.stripe-test-result,
+.square-test-result,
+.sumup-test-result {
+  white-space: pre-wrap;
+}
+
+/* The print rules join at this point, so they keep the place they held in the
+ * cascade before the split. */
+@include print.print-styles;
+
+/* Hide email API key and from address fields when provider is "None" */
+#email_provider:has(option[value=""]:checked) ~ label[for="email_api_key"],
+#email_provider:has(option[value=""]:checked) ~ #email_api_key,
+#email_provider:has(option[value=""]:checked) ~ label[for="email_from_address"],
+#email_provider:has(option[value=""]:checked) ~ #email_from_address {
+  display: none;
+}
+
+/* Email template save controls — checkbox-driven show/hide without JS */
+#bulk-email .save-update {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-as-new {
+  display: none;
+}
+#bulk-email:has(input[name="update_existing"]:checked) .save-update {
+  display: inline;
+}
+#bulk-email:not(:has(input[name="update_existing"]:checked))
+  .template-update-fields {
+  display: none;
+}
+
+/* Answers cell in attendee table */
+.answers-cell {
+  font-size: smaller;
+}
+
+/* Listings cell in attendee table — cap the width and ellipsize long lists;
+ * the cell's title attribute carries the full list for hover. display:block
+ * and nowrap are what let max-width/overflow take effect inside a table cell. */
+.listings-cell {
+  display: block;
+  max-width: 30rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Skip navigation link (SC 2.4.1 Bypass Blocks) */
+.skip-nav:not(:focus-visible) {
+  clip-path: inset(50%);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.skip-nav:focus-visible {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 0.5rem 1rem;
+  @include link-colors;
+  font-size: 1rem;
+  text-decoration: none;
+  z-index: 9999;
+}
+
+#main-content:focus {
+  outline: none;
+}
+

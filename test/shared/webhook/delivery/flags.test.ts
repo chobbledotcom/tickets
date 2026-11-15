@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { questionsTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
   withSubrequestAllowance,
@@ -35,9 +36,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const row = await queryOne<{
       email_pending: number;
       webhooks_pending: number;
-    }>("SELECT email_pending, webhooks_pending FROM attendees WHERE id = ?", [
-      attendeeId,
-    ]);
+    }>(
+      sql`SELECT email_pending, webhooks_pending FROM attendees WHERE id = ${attendeeId}`,
+    );
     expect(row).toEqual(flags);
     expect(
       (await activityMessages()).filter(
@@ -90,9 +91,9 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const calls = await countDatabaseCalls(50, send);
     // The measuring run cleared the email flag; raise it again so the
     // starved rerun shows a failed clear leaving the flag up.
-    await execute("UPDATE attendees SET email_pending = 1 WHERE id = ?", [
-      attendee.id,
-    ]);
+    await execute(
+      sql`UPDATE attendees SET email_pending = 1 WHERE id = ${attendee.id}`,
+    );
     const logs = await withErrorSpy(async (errorSpy) => {
       await runWithSubrequestBudget(() =>
         withSubrequestAllowance(

@@ -2,8 +2,8 @@
  *  defaulted the way the form layer does. Shared by the listing save's edge
  *  validation and the catalog import so the defaults never drift. */
 
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { clampDurationDays, type DayPricedListing } from "#types";
 
 /** The day-count pricing fields of a listing form input, each optional field

@@ -31,7 +31,7 @@ export type Input = { name: string };
 export type Shape = RecordShapeOf<Row, Input>;
 export type Values = { name: string };
 export type WriteSet = NonNullable<RecordSpec<Shape>["write"]>;
-type PagesConfig = RecordPagesConfig<Shape, Values, Values, string>;
+export type PagesConfig = RecordPagesConfig<Shape, Values, Values, string>;
 
 export const form = (name: string): FormSchema<Values> => ({
   fields: [],

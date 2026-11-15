@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
 import { modifiersTable } from "#db/modifiers.ts";
+import { sql } from "#db/sql.ts";
 import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { matchKey } from "#shared/keys.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
@@ -220,18 +221,15 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
         direction: "discount",
         name: "SAVE10",
       });
-      await getDb().execute({
-        args: ["optional", addOn.id],
-        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
-      });
-      await getDb().execute({
-        args: ["optional", skippedAddOn.id],
-        sql: "UPDATE modifiers SET trigger = ? WHERE id = ?",
-      });
-      await getDb().execute({
-        args: ["code", await hmacHash(matchKey("SAVE10")), promo.id],
-        sql: "UPDATE modifiers SET trigger = ?, code_index = ? WHERE id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${skippedAddOn.id}`,
+      );
+      await getDb().execute(
+        sql`UPDATE modifiers SET trigger = ${"code"}, code_index = ${await hmacHash(matchKey("SAVE10"))} WHERE id = ${promo.id}`,
+      );
 
       const { checkout, getCaptured } = stubCheckout("cs_modifiers_web");
 

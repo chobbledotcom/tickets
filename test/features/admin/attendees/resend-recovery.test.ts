@@ -13,6 +13,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   expectOneError,
@@ -46,133 +47,168 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
       (message) => message === t("admin.log.registration_delivery_failed"),
     );
 
-  test("re-sends the webhook side alone and clears only its flag", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookWebhookBuyer("Webhook Owed", 0, 1);
-    const { response } = await resend(attendee.id, "Webhook Owed", "webhooks");
+  /** One press and what it must move: the buyer the case books, the side it
+   *  chooses, and the requests and flags it leaves. A case that wants a
+   *  webhook books both destinations; the rest book the email alone. */
+  type PressCase = {
+    readonly buyer: string;
+    readonly counts: {
+      readonly buyerEmails: number;
+      readonly webhooks: number;
+    };
+    readonly email: number;
+    readonly flags: { readonly email: number; readonly webhooks: number };
+    readonly hook: boolean;
+    readonly name: string;
+    readonly sides?: string;
+    readonly webhooks: number;
+  };
 
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 0, webhooks: 1 },
-      { email: 0, webhooks: 0 },
-      fetch.calls,
-    );
-  });
-
-  test("re-sends the email side alone and clears only its flag", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("Email Owed", 1, 0);
-    const { response } = await resend(attendee.id, "Email Owed");
-
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 1, webhooks: 0 },
-      { email: 0, webhooks: 0 },
-      fetch.calls,
-    );
-  });
-
-  test("a resend with nothing owed still sends the default email side", async () => {
+  /* jscpd:ignore-start -- a table of cases, not code */
+  const pressCases: readonly PressCase[] = [
+    {
+      buyer: "Webhook Owed",
+      counts: { buyerEmails: 0, webhooks: 1 },
+      email: 0,
+      flags: { email: 0, webhooks: 0 },
+      hook: true,
+      name: "re-sends the webhook side alone and clears only its flag",
+      sides: "webhooks",
+      webhooks: 1,
+    },
+    {
+      buyer: "Email Owed",
+      counts: { buyerEmails: 1, webhooks: 0 },
+      email: 1,
+      flags: { email: 0, webhooks: 0 },
+      hook: false,
+      name: "re-sends the email side alone and clears only its flag",
+      webhooks: 0,
+    },
     // The customer-service case: the buyer says the original email never
     // arrived, and the flags say every side went. The press sends the email
     // the page defaulted to and touches no flag, because nothing is owed.
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("All Set", 0, 0);
-    const { response } = await resend(attendee.id, "All Set");
-
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 1, webhooks: 0 },
-      { email: 0, webhooks: 0 },
-      fetch.calls,
-    );
-  });
-
-  test("a resend with nothing owed can send the webhook side alone", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookWebhookBuyer("Hook Only", 0, 0);
-    const { response } = await resend(attendee.id, "Hook Only", "webhooks");
-
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 0, webhooks: 1 },
-      { email: 0, webhooks: 0 },
-      fetch.calls,
-    );
-  });
-
-  test("a resend with nothing owed can send both sides", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookWebhookBuyer("Both Anyway", 0, 0);
-    const { response } = await resend(attendee.id, "Both Anyway", "both");
-
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 1, webhooks: 1 },
-      { email: 0, webhooks: 0 },
-      fetch.calls,
-    );
-  });
-
-  test("a press that does not select an owed side keeps its badge and still sends the default email", async () => {
+    {
+      buyer: "All Set",
+      counts: { buyerEmails: 1, webhooks: 0 },
+      email: 0,
+      flags: { email: 0, webhooks: 0 },
+      hook: false,
+      name: "a resend with nothing owed still sends the default email side",
+      webhooks: 0,
+    },
+    {
+      buyer: "Hook Only",
+      counts: { buyerEmails: 0, webhooks: 1 },
+      email: 0,
+      flags: { email: 0, webhooks: 0 },
+      hook: true,
+      name: "a resend with nothing owed can send the webhook side alone",
+      sides: "webhooks",
+      webhooks: 0,
+    },
+    {
+      buyer: "Both Anyway",
+      counts: { buyerEmails: 1, webhooks: 1 },
+      email: 0,
+      flags: { email: 0, webhooks: 0 },
+      hook: true,
+      name: "a resend with nothing owed can send both sides",
+      sides: "both",
+      webhooks: 0,
+    },
     // The webhooks side is owed, but the press's default choice is the
     // email. The email goes out even though it was never owed, and the
     // claimed webhooks side keeps its flag: the badge keeps saying what is
     // still owed, and no webhook fires.
-    await configureTestEmail();
-    const { attendee } = await bookWebhookBuyer("Hook Withheld", 0, 1);
-    const { response } = await resend(attendee.id, "Hook Withheld");
+    {
+      buyer: "Hook Withheld",
+      counts: { buyerEmails: 1, webhooks: 0 },
+      email: 0,
+      flags: { email: 0, webhooks: 1 },
+      hook: true,
+      name: "a press that does not select an owed side keeps its badge and still sends the default email",
+      webhooks: 1,
+    },
+  ];
+  /* jscpd:ignore-end */
 
-    await expectResendPress(
-      response,
-      attendee.id,
-      { buyerEmails: 1, webhooks: 0 },
-      { email: 0, webhooks: 1 },
-      fetch.calls,
-    );
-  });
+  for (const c of pressCases) {
+    test(c.name, async () => {
+      await configureTestEmail();
+      const { attendee } = c.hook
+        ? await bookWebhookBuyer(c.buyer, c.email, c.webhooks)
+        : await bookTestAttendeeWithFlags(c.buyer, c.email, c.webhooks);
+      const { response } = await resend(attendee.id, c.buyer, c.sides);
 
-  test("refuses a webhook choice when no webhook exists", async () => {
+      await expectResendPress(
+        response,
+        attendee.id,
+        c.counts,
+        c.flags,
+        fetch.calls,
+      );
+    });
+  }
+
+  /** One refused press and what it leaves behind: the buyer it books, the
+   *  side it asks for, and the flash that turns the form away. */
+  type RefusalCase = {
+    readonly buyer: string;
+    readonly email: number;
+    /** The flash the press answers with, as the message key names it. */
+    readonly flash: string;
+    readonly flags: { readonly email: number; readonly webhooks: number };
+    readonly name: string;
+    readonly sides: string;
+    readonly webhooks: number;
+  };
+
+  /* jscpd:ignore-start -- a table of cases, not code */
+  const refusalCases: readonly RefusalCase[] = [
     // The page offers the webhook choice only when a webhook exists, so a
     // choice without one is a forged or stale form. The press is refused
     // before the claim, so the flags keep the values they carried in.
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("No Hook", 1, 1);
-    const { response } = await resend(attendee.id, "No Hook", "webhooks");
-
-    expectRedirectWithFlash(
-      `/admin/attendees/${attendee.id}/actions`,
-      t("attendees.resend_refused_no_webhook"),
-      false,
-    )(response);
-    expect(fetch.calls).toHaveLength(0);
-    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+    {
+      buyer: "No Hook",
       email: 1,
+      flags: { email: 1, webhooks: 1 },
+      flash: "attendees.resend_refused_no_webhook",
+      name: "refuses a webhook choice when no webhook exists",
+      sides: "webhooks",
       webhooks: 1,
-    });
-  });
-
-  test("refuses a send choice the form does not offer", async () => {
-    await configureTestEmail();
-    const { attendee } = await bookTestAttendeeWithFlags("Odd Choice", 1, 0);
-    const { response } = await resend(attendee.id, "Odd Choice", "pigeon");
-
-    expectRedirectWithFlash(
-      `/admin/attendees/${attendee.id}/actions`,
-      t("attendees.resend_sides_invalid"),
-      false,
-    )(response);
-    expect(fetch.calls).toHaveLength(0);
-    expect(await readPendingNotificationFlags(attendee.id)).toEqual({
+    },
+    {
+      buyer: "Odd Choice",
       email: 1,
+      flags: { email: 1, webhooks: 0 },
+      flash: "attendees.resend_sides_invalid",
+      name: "refuses a send choice the form does not offer",
+      sides: "pigeon",
       webhooks: 0,
+    },
+  ];
+  /* jscpd:ignore-end */
+
+  for (const c of refusalCases) {
+    test(c.name, async () => {
+      await configureTestEmail();
+      const { attendee } = await bookTestAttendeeWithFlags(
+        c.buyer,
+        c.email,
+        c.webhooks,
+      );
+      const { response } = await resend(attendee.id, c.buyer, c.sides);
+
+      expectRedirectWithFlash(
+        `/admin/attendees/${attendee.id}/actions`,
+        t(c.flash),
+        false,
+      )(response);
+      expect(fetch.calls).toHaveLength(0);
+      expect(await readPendingNotificationFlags(attendee.id)).toEqual(c.flags);
     });
-  });
+  }
 
   test("a refused forced webhook records the delivery failure", async () => {
     // Nothing is owed, so no flag represents the refusal: the failure
@@ -311,19 +347,13 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
     // logged with its name, and a later real resend recovers the webhooks
     // side.
     await configureTestEmail();
-    const { attendee, listing } = await bookTestAttendeeWithFlags(
-      "Settle Fault Buyer",
-      2,
-      1,
-    );
-    await addWebhook(listing.id);
+    const { attendee } = await bookWebhookBuyer("Settle Fault Buyer", 2, 1);
     await execute(
-      `CREATE TRIGGER reject_admin_restore BEFORE UPDATE ON attendees
+      sql`CREATE TRIGGER reject_admin_restore BEFORE UPDATE ON attendees
        WHEN NEW.email_pending = 2 AND OLD.email_pending = 0
        BEGIN
          SELECT RAISE(ABORT, 'email restore rejected');
        END`,
-      [],
     );
     fetch.reply(() => new Response("no", { status: 500 }));
     try {
@@ -337,7 +367,7 @@ describeWithEnv("re-sending only what a recovery owes", { db: true }, () => {
         t("success.notification_resent"),
       )(response);
     } finally {
-      await execute("DROP TRIGGER IF EXISTS reject_admin_restore", []);
+      await execute(sql`DROP TRIGGER IF EXISTS reject_admin_restore`);
     }
     expect(await readPendingNotificationFlags(attendee.id)).toEqual({
       email: 0,

@@ -14,6 +14,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
 import type { ListingWithCount } from "#types";
 
 const listing = (overrides: Partial<ListingWithCount> = {}): ListingWithCount =>
@@ -94,9 +95,10 @@ describe("resolvedToPublicListing boundary values", () => {
 
 describeWithEnv("public listing children", { db: true }, () => {
   test("a parent with one child publishes it", async () => {
-    const parent = await createTestListing({ name: "Solo Parent" });
-    const child = await createTestListing({ name: "Only Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child, parent } = await makeParent({
+      children: [{ name: "Only Child" }],
+      parent: { name: "Solo Parent" },
+    });
 
     expect(await mapParentChildren(parent, (c) => c.id)).toEqual([child.id]);
   });
@@ -122,9 +124,10 @@ describeWithEnv("public listing children", { db: true }, () => {
   });
 
   test("an active standard child carries no availableDates", async () => {
-    const parent = await createTestListing({ name: "Plain Parent" });
-    const child = await createTestListing({ name: "Plain Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { child, parent } = await makeParent({
+      children: [{ name: "Plain Child" }],
+      parent: { name: "Plain Parent" },
+    });
 
     const children = await buildChildPublicListings(parent);
 

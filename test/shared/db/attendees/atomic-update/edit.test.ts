@@ -8,7 +8,7 @@ import { getAttendeeOrNull, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { dailyListingBooked } from "#test-utils/db-helpers/capacity-fixtures.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   addLine,
@@ -269,15 +269,11 @@ describeWithEnv(
     });
 
     test("rejects a daily update whose range hits capacity on a middle day", async () => {
-      const listing = await createDailyTestListing({
+      // The middle day of the new range is already full.
+      const listing = await dailyListingBooked({
+        booked: [{ day: "2026-06-02", quantity: 1 }],
         durationDays: 3,
         maxAttendees: 1,
-      });
-      // Fill 2026-06-02 with another booking
-      await bookAttendee(listing, {
-        date: "2026-06-02",
-        durationDays: 1,
-        quantity: 1,
       });
       const { attendee, blob, existing } = await bookForEdit(listing, {
         date: "2026-06-10",

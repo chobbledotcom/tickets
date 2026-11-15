@@ -1,13 +1,15 @@
 /** Types for the declarative database schema. */
 
-export type Column = [name: string, type: string];
+import type { SqlStatement } from "#db/sql.ts";
+
+export type Column = [name: string, type: SqlStatement];
 
 export type Index = {
   name: string;
   columns: string[];
   unique?: boolean;
   /** A fixed schema predicate for a partial index. */
-  where?: string;
+  where?: SqlStatement;
 };
 
 export type Table = {
@@ -26,7 +28,7 @@ export type Table = {
 export type Trigger = {
   name: string;
   table: string;
-  sql: string;
+  sql: SqlStatement;
   /** Tables and columns this trigger reads or writes. */
   uses: Readonly<Record<string, readonly string[]>>;
 };

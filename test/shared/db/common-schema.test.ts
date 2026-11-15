@@ -1,19 +1,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { queryOne } from "#db/client.ts";
-import {
-  aggregateRepairs,
-  cachedEntityTable,
-  fieldColumns,
-} from "#db/common-schema.ts";
+import { aggregateRepairs, cachedEntityTable } from "#db/common-schema.ts";
 import type { Answer } from "#db/question-types.ts";
 import { answersTable } from "#db/questions/tables.ts";
+import { sql } from "#db/sql.ts";
 import {
   getAllCacheStats,
   invalidateCachesForTable,
 } from "#shared/cache-registry.ts";
-import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
   addAnswer,
   createQuestion,
@@ -78,25 +73,17 @@ describe("cachedEntityTable", () => {
   });
 });
 
-describe("fieldColumns", () => {
-  test("gives a switch field a column that defaults to off", () => {
-    const columns = fieldColumns(STATUS_FIELDS)(encrypt, decrypt);
-    expect(columns.is_reservation.default?.()).toBe(false);
-  });
-});
-
 describeWithEnv("aggregateRepairs", { db: true }, () => {
   const answerRepairs = aggregateRepairs<"times_selected">("answers", {
-    // Bind the id, then ignore it: this proves the factory passes the caller's
-    // own SQL through rather than knowing anything about answers.
-    times_selected: "times_selected = COALESCE((SELECT 33 WHERE ? > 0), 0)",
+    // Read the row's id, then ignore it: this proves the factory passes the
+    // caller's own SQL through rather than knowing anything about answers.
+    times_selected: sql`COALESCE((SELECT 33 WHERE answers.id > 0), 0)`,
   });
 
   const storedTotal = async (answerId: number): Promise<number | undefined> =>
     (
       await queryOne<{ times_selected: number }>(
-        "SELECT times_selected FROM answers WHERE id = ?",
-        [answerId],
+        sql`SELECT times_selected FROM answers WHERE id = ${answerId}`,
       )
     )?.times_selected;
 

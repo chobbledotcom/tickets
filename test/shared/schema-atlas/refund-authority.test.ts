@@ -21,6 +21,11 @@ const reachableFromStart = (): Set<string> => {
   return seen;
 };
 
+/** Assert the state offers exactly these exits, and no others. */
+const expectExits = (state: string, expected: readonly string[]): void => {
+  expect(edgeIds(state)).toEqual([...expected]);
+};
+
 describe("the refund authority atlas", () => {
   test("declares its identity, keys, and every node's place on the map", () => {
     expect(machine.id).toBe("refund");
@@ -98,7 +103,7 @@ describe("the refund authority atlas", () => {
   });
 
   test("the send path runs ready → armed → observing and never re-arms keyless", () => {
-    expect(edgeIds("ready")).toEqual([
+    expectExits("ready", [
       "arm=>send_armed",
       "provider_returned=>returned",
       "unreadable=>choice_open",
@@ -116,19 +121,15 @@ describe("the refund authority atlas", () => {
   test("a settled partial return is an owner decision with one exit", () => {
     // The dead-end fix, pinned as a map shape: confirming the money that came
     // back is the ONLY way out — no re-check, no not-sent re-arm.
-    expect(edgeIds("choice_returned")).toEqual([
-      "owner_confirms_returned=>returned",
-    ]);
+    expectExits("choice_returned", ["owner_confirms_returned=>returned"]);
   });
 
   test("a proved-not-sent conflict offers only the re-arm", () => {
-    expect(edgeIds("choice_not_sent")).toEqual([
-      "owner_confirms_not_sent=>ready",
-    ]);
+    expectExits("choice_not_sent", ["owner_confirms_not_sent=>ready"]);
   });
 
   test("an inconclusive check stays a check and never offers an owner exit", () => {
-    expect(edgeIds("check")).toEqual([
+    expectExits("check", [
       "provider_returned=>returned",
       "conflict_returned=>choice_returned",
       "conflict_not_sent=>choice_not_sent",
@@ -148,8 +149,8 @@ describe("the refund authority atlas", () => {
   });
 
   test("money back ends at recorded, which is terminal", () => {
-    expect(edgeIds("returned")).toEqual(["record_in_money=>recorded"]);
-    expect(edgeIds("recorded")).toEqual([]);
+    expectExits("returned", ["record_in_money=>recorded"]);
+    expectExits("recorded", []);
   });
 
   test("each actor kind appears, and owner edges exist only from decisions and recording", () => {

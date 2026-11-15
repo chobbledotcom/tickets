@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { schemaMigration } from "./define.ts";
 
@@ -10,9 +11,8 @@ export default schemaMigration(
     },
   },
   async ({ getDb }) => {
-    await getDb().execute({
-      args: [nowIso()],
-      sql: "UPDATE strings SET created = ? WHERE created = ''",
-    });
+    await getDb().execute(
+      sql`UPDATE strings SET created = ${nowIso()} WHERE created = ''`,
+    );
   },
 );

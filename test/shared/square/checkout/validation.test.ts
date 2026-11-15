@@ -1,10 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
-import {
-  extractSessionMetadata,
-  PaymentUserError,
-} from "#shared/payment-helpers.ts";
+import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { squareApi } from "#shared/square/api.ts";
 import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import {
@@ -12,7 +9,10 @@ import {
   expectSameThrown,
 } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
-import { wireMetadata } from "#test-utils/payment-session.ts";
+import {
+  expectOrderLines,
+  expectOrderMetadata,
+} from "#test-utils/square/checkout-order.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -116,32 +116,29 @@ describeSquare(() => {
             ?.args[0] as CreatePaymentLinkInput;
 
           // Verify multiple line items
-          expect(args.order.lineItems).toHaveLength(2);
-          expect(args.order.lineItems[0]!.name).toBe("Ticket: Workshop A");
-          expect(args.order.lineItems[0]!.quantity).toBe("2");
-          expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(
-            BigInt(1500),
-          );
-          expect(args.order.lineItems[0]!.note).toBe("Tickets (x2)");
-
-          expect(args.order.lineItems[1]!.name).toBe("Ticket: Gala Dinner");
-          expect(args.order.lineItems[1]!.quantity).toBe("1");
-          expect(args.order.lineItems[1]!.basePriceMoney.amount).toBe(
-            BigInt(3000),
-          );
-          expect(args.order.lineItems[1]!.note).toBe("Tickets (x1)");
-
-          // Verify multi-intent metadata (small fields packed into `b`).
-          const metadata = extractSessionMetadata(
-            wireMetadata(args.order.metadata),
-          );
-          expect(metadata.name).toBe("Alice Wonder");
-          expect(metadata.email).toBe("alice@example.com");
-          expect(metadata.phone).toBe("555-1111");
-          const items = JSON.parse(metadata.items);
-          expect(items).toHaveLength(2);
-          expect(items[0]).toEqual({ e: 10, p: 3000, q: 2 });
-          expect(items[1]).toEqual({ e: 20, p: 3000, q: 1 });
+          expectOrderLines(args.order, [
+            {
+              amount: 1500,
+              name: "Ticket: Workshop A",
+              note: "Tickets (x2)",
+              quantity: "2",
+            },
+            {
+              amount: 3000,
+              name: "Ticket: Gala Dinner",
+              note: "Tickets (x1)",
+              quantity: "1",
+            },
+          ]);
+          expectOrderMetadata(args.order, {
+            email: "alice@example.com",
+            items: [
+              { e: 10, p: 3000, q: 2 },
+              { e: 20, p: 3000, q: 1 },
+            ],
+            name: "Alice Wonder",
+            phone: "555-1111",
+          });
 
           // Verify location and checkout options
           expect(args.order.locationId).toBe("L_multi_loc");

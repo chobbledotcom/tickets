@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
@@ -109,14 +110,16 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("stores omitted optional content fields as empty text", async () => {
       await create("No optional fields");
       const post = await findPost("No optional fields");
-      expect(post.content).toBe("");
-      expect(post.meta_title).toBe("");
-      expect(post.meta_description).toBe("");
-      expect(post.snippet).toBe("");
+      expect(post).toMatchObject({
+        content: "",
+        meta_description: "",
+        meta_title: "",
+        snippet: "",
+      });
     });
 
     test("rolls back the post when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_news_activity_log
         BEFORE INSERT ON activity_log
         BEGIN

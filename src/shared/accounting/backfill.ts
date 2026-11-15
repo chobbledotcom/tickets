@@ -10,20 +10,19 @@
  * reference makes a re-run a no-op.
  */
 
-import type { InValue } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { asOrderLegs, mapBooking, mapRefund } from "#accounting/mappers.ts";
 import { accountBalancesForIds } from "#accounting/queries.ts";
-import { insertStatement } from "#accounting/rows.ts";
+import { insertIfNewStatements } from "#accounting/rows.ts";
+import { executeBatch, queryAll, queryIdColumn } from "#db/client.ts";
 import {
-  executeBatch,
-  inPlaceholders,
-  orIgnore,
-  queryAll,
-  queryIdColumn,
+  type SqlSlot,
   type SqlStatement,
-} from "#db/client.ts";
+  sql,
+  sqlList,
+  sqlLiteral,
+} from "#db/sql.ts";
 import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
@@ -57,24 +56,13 @@ const nextPaidAttendeeIds = (
   pageSize: number,
 ): Promise<number[]> =>
   queryIdColumn(
-    "SELECT DISTINCT attendee.attendee_id AS id" +
-      " FROM listing_attendees AS attendee" +
-      " WHERE attendee.price_paid > 0 AND attendee.attendee_id > ?" +
-      " ORDER BY attendee.attendee_id LIMIT ?",
-    [afterId, pageSize],
+    sql`SELECT DISTINCT attendee.attendee_id AS id FROM listing_attendees AS attendee WHERE attendee.price_paid > 0 AND attendee.attendee_id > ${afterId} ORDER BY attendee.attendee_id LIMIT ${pageSize}`,
   );
 
 /** Every paid row for a page of attendees, ordered for stable grouping. */
 const paidRowsForAttendees = (ids: number[]): Promise<PaidRow[]> =>
   queryAll<PaidRow>(
-    "SELECT listingAttendee.attendee_id, listingAttendee.listing_id," +
-      " listingAttendee.price_paid, listingAttendee.refunded, attendee.created" +
-      " FROM listing_attendees AS listingAttendee" +
-      " JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id" +
-      " WHERE listingAttendee.price_paid > 0" +
-      ` AND listingAttendee.attendee_id IN (${inPlaceholders(ids)})` +
-      " ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id",
-    ids,
+    sql`SELECT listingAttendee.attendee_id, listingAttendee.listing_id, listingAttendee.price_paid, listingAttendee.refunded, attendee.created FROM listing_attendees AS listingAttendee JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id WHERE listingAttendee.price_paid > 0 AND listingAttendee.attendee_id IN (${sqlList(ids)}) ORDER BY listingAttendee.attendee_id, listingAttendee.listing_id`,
   );
 
 /** The ids, among `ids`, whose attendee account already holds ledger legs — a
@@ -121,31 +109,25 @@ const attendeeLegs = async (
 };
 
 /** The UPDATE that writes an attendee's rows' `ledger_event_group` link — what
- *  the per-row amount-paid projection keys on. `valueSql` is the SQL expression
- *  producing the event group. Its bound args come before the attendee id. Only
+ *  the per-row amount-paid projection keys on. `eventGroup` is the value or
+ *  the SQL expression producing the event group. Only
  *  rows still missing their link are filled. An attendee who already carries
  *  two orders' stamps (a merge target) then keeps each order's rows on
  *  that order's legs. */
-const stampUpdate = (valueSql: string, args: InValue[]): SqlStatement => ({
-  args,
-  sql: `UPDATE listing_attendees SET ledger_event_group = ${valueSql} WHERE attendee_id = ? AND ledger_event_group = ''`,
-});
+const stampUpdate = (eventGroup: SqlSlot, attendeeId: number): SqlStatement =>
+  sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${attendeeId} AND ledger_event_group = ''`;
 
 /** Stamp the row→event link with a known event group (a just-built booking's). */
 const stampStatement = (attendeeId: number, eventGroup: string): SqlStatement =>
-  stampUpdate("?", [eventGroup, attendeeId]);
+  stampUpdate(eventGroup, attendeeId);
 
 /** Stamp the row→event link for an already-ledgered attendee from their existing
  *  booking's sale leg, in one statement (so no read-then-write and no re-post).
  *  COALESCE to '' when no sale leg exists, which the projection reads as 0. */
 const stampFromExistingStatement = (attendeeId: number): SqlStatement =>
   stampUpdate(
-    "COALESCE(" +
-      "(SELECT transfer.event_group FROM transfers AS transfer" +
-      ` WHERE transfer.source_type = '${ATTENDEE}'` +
-      ` AND transfer.source_id = ? AND transfer.kind = '${KIND.sale}'` +
-      ` LIMIT 1), '')`,
-    [String(attendeeId), attendeeId],
+    sql`COALESCE((SELECT transfer.event_group FROM transfers AS transfer WHERE transfer.source_type = ${sqlLiteral(ATTENDEE)} AND transfer.source_id = ${String(attendeeId)} AND transfer.kind = ${sqlLiteral(KIND.sale)} LIMIT 1), '')`,
+    attendeeId,
   );
 
 /** The leg-INSERT and row-stamp statements for one not-yet-ledgered attendee.
@@ -160,7 +142,7 @@ const attendeeStatements = async (
 ): Promise<SqlStatement[]> => {
   const legs = await attendeeLegs(attendeeId, rows);
   return [
-    ...legs.map((leg) => orIgnore(insertStatement(leg, recordedAt))),
+    ...insertIfNewStatements(legs, recordedAt),
     stampStatement(attendeeId, legs[0]!.eventGroup),
   ];
 };

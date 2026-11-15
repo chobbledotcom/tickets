@@ -11,6 +11,7 @@ import {
   rawFieldReaders,
 } from "#shared/bulk-email-targets/types.ts";
 import { FormParams } from "#shared/form-data.ts";
+import { caseRecords } from "#test-utils/case-table.ts";
 
 describe("the bulk-email target types module", () => {
   test("fixedControl round-trips one pre-chosen field value", () => {
@@ -44,24 +45,27 @@ describe("the bulk-email target types module", () => {
   });
 
   test("each audience names itself and who it covers", () => {
-    expect(AUDIENCES).toEqual([
-      {
-        description: "Everyone booked onto a listing that is currently active.",
-        id: "active",
-        label: "Active listing attendees",
-      },
-      {
-        description:
-          "Everyone booked onto an active listing that has not happened yet.",
-        id: "upcoming",
-        label: "Upcoming listing attendees",
-      },
-      {
-        description: "Everyone who has ever registered, across every listing.",
-        id: "all",
-        label: "All attendees",
-      },
-    ]);
+    const expected = caseRecords(["description", "id", "label"], {
+      active: [
+        "Everyone booked onto a listing that is currently active.",
+        "active",
+        "Active listing attendees",
+      ],
+      all: [
+        "Everyone who has ever registered, across every listing.",
+        "all",
+        "All attendees",
+      ],
+      upcoming: [
+        "Everyone booked onto an active listing that has not happened yet.",
+        "upcoming",
+        "Upcoming listing attendees",
+      ],
+    });
+    // The display order is the source's own; this pins each record's fields.
+    expect(AUDIENCES.toSorted((a, b) => a.id.localeCompare(b.id))).toEqual(
+      expected,
+    );
   });
 
   test("the target guard names each kind a target can have", () => {

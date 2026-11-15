@@ -14,6 +14,7 @@ import {
 } from "#db/activity-log.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -23,8 +24,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 /** Raw (still-encrypted) stored message for an activity-log row. */
 const rawMessage = async (id: number): Promise<string> =>
   (await queryOne<{ message: string }>(
-    "SELECT message FROM activity_log WHERE id = ?",
-    [id],
+    sql`SELECT message FROM activity_log WHERE id = ${id}`,
   ))!.message;
 
 describeWithEnv("db > activity log", { db: true }, () => {
@@ -101,8 +101,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     // A row written before the owner-key switch (env-key format). Such rows
     // decrypt with the env key, so they still render with no session in scope.
     await execute(
-      "INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (?, ?, NULL, NULL)",
-      [await encrypt("legacy entry"), nowIso()],
+      sql`INSERT INTO activity_log (message, created, listing_id, attendee_id) VALUES (${await encrypt("legacy entry")}, ${nowIso()}, NULL, NULL)`,
     );
 
     const entries = await getAllActivityLog();
