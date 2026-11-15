@@ -15,6 +15,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { questionBookingRow } from "#test-utils/question-booking-rows.ts";
+import { ascending } from "#types";
 
 /** A booking on the given listings, recorded at the given time so the read's
  *  order is the one the test asked for and not the clock's. */
@@ -41,18 +43,15 @@ describeWithEnv("db > question bookings", { db: true }, () => {
     );
     await bookAnswers(attendeeId, [small.id]);
 
-    expect(
-      await getQuestionBookings(size.id, await getTestPrivateKey()),
-    ).toEqual([
-      {
-        answer_id: small.id,
-        answer_text: "Small",
-        attendee_id: attendeeId,
-        created: "2026-06-01T09:00:00.000Z",
-        free_text: null,
-        listing_ids: [listing.id],
-        question_id: size.id,
-      },
+    const rows = await getQuestionBookings(size.id, await getTestPrivateKey());
+    expect(rows).toEqual([
+      questionBookingRow(
+        size.id,
+        attendeeId,
+        "2026-06-01T09:00:00.000Z",
+        [listing.id],
+        { id: small.id, text: "Small" },
+      ),
     ]);
   });
 
@@ -74,18 +73,16 @@ describeWithEnv("db > question bookings", { db: true }, () => {
       ]),
     );
 
-    expect(
-      await getQuestionBookings(notes.id, await getTestPrivateKey()),
-    ).toEqual([
-      {
-        answer_id: null,
-        answer_text: null,
-        attendee_id: attendeeId,
-        created: "2026-06-02T09:00:00.000Z",
-        free_text: "Hay",
-        listing_ids: [listing.id],
-        question_id: notes.id,
-      },
+    const rows = await getQuestionBookings(notes.id, await getTestPrivateKey());
+    expect(rows).toEqual([
+      questionBookingRow(
+        notes.id,
+        attendeeId,
+        "2026-06-02T09:00:00.000Z",
+        [listing.id],
+        null,
+        "Hay",
+      ),
     ]);
   });
 
@@ -110,9 +107,7 @@ describeWithEnv("db > question bookings", { db: true }, () => {
     await bookAnswers(attendeeId, [small.id]);
 
     const [row] = await getQuestionBookings(size.id, await getTestPrivateKey());
-    expect(row!.listing_ids).toEqual(
-      [listing.id, other.id].sort((left, right) => left - right),
-    );
+    expect(row!.listing_ids).toEqual([listing.id, other.id].sort(ascending));
   });
 
   test("answers no listing ids for a booking with no line", async () => {

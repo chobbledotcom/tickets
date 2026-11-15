@@ -229,65 +229,85 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
 
   // ─── Fixed pages (home, contact, terms) ─────────────────────
 
+  /** The three fixed pages the site serves from settings. */
+  type FixedPage = "contact" | "home" | "terms";
+
+  /** The setting each fixed page's content lands in. */
+  const fixedPageText: Record<FixedPage, () => string> = {
+    contact: () => settings.contactPageText,
+    home: () => settings.homepageText,
+    terms: () => settings.terms,
+  };
+
   /** Pin one fixed page's content on both surfaces: the page editor (or the
    *  terms setting) and the API by name both write the same setting, and the
    *  stored value reads back the same. */
   const expectPageTextStoredAlike = async (
+    page: FixedPage,
     formPath: string,
     formField: string,
-    apiName: "contact" | "home" | "terms",
-    stored: () => string,
     redirectPath: string,
     flash: string,
   ): Promise<void> => {
-    const content = `${apiName} body text`;
+    const content = `${page} body text`;
     expectRedirectWithFlash(
       redirectPath,
       flash,
     )(await ownerPagePost(formPath, { [formField]: content }));
     await settingsAsStored();
-    expect(stored()).toBe(content);
+    expect(fixedPageText[page]()).toBe(content);
 
     await assertJson(
-      ownerApiPut(`/api/admin/site-pages/${apiName}`, { content }),
+      ownerApiPut(`/api/admin/site-pages/${page}`, { content }),
       200,
     );
     await settingsAsStored();
-    expect(stored()).toBe(content);
+    expect(fixedPageText[page]()).toBe(content);
   };
 
-  test("the home form and the api store the same homepage text", async () => {
-    await expectPageTextStoredAlike(
-      "/admin/site",
-      "homepage_text",
-      "home",
-      () => settings.homepageText,
-      "/admin/site",
-      "Homepage updated",
-    );
-  });
+  /** Register the parity test for one fixed page. The form redirects to its
+   *  own path unless `redirect` names another. */
+  const fixedPageTest = (
+    page: FixedPage,
+    title: string,
+    formField: string,
+    flash: string,
+    formPath: string,
+    redirect: string = formPath,
+  ): void => {
+    test(title, async () => {
+      await expectPageTextStoredAlike(
+        page,
+        formPath,
+        formField,
+        redirect,
+        flash,
+      );
+    });
+  };
 
-  test("the contact form and the api store the same contact text", async () => {
-    await expectPageTextStoredAlike(
-      "/admin/site/contact",
-      "contact_page_text",
-      "contact",
-      () => settings.contactPageText,
-      "/admin/site/contact",
-      "Contact page updated",
-    );
-  });
-
-  test("the terms setting and the api store the same terms", async () => {
-    await expectPageTextStoredAlike(
-      "/admin/settings/terms",
-      "terms_and_conditions",
-      "terms",
-      () => settings.terms,
-      "/admin/settings?form=settings-terms#settings-terms",
-      "Terms and conditions updated",
-    );
-  });
+  fixedPageTest(
+    "home",
+    "the home form and the api store the same homepage text",
+    "homepage_text",
+    "Homepage updated",
+    "/admin/site",
+  );
+  fixedPageTest(
+    "contact",
+    "the contact form and the api store the same contact text",
+    "contact_page_text",
+    "Contact page updated",
+    "/admin/site/contact",
+  );
+  fixedPageTest(
+    "terms",
+    "the terms setting and the api store the same terms",
+    "terms_and_conditions",
+    "Terms and conditions updated",
+    "/admin/settings/terms",
+    "/admin/settings?form=settings-terms#settings-terms",
+  );
 
   test("both surfaces refuse fixed-page content past the textarea cap", async () => {
     const long = "x".repeat(MAX_TEXTAREA_LENGTH + 1);

@@ -8,6 +8,7 @@ import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
+import { expectSoleRow } from "#test-utils/assertions/sole-row.ts";
 
 describe("db > listing_attendees migration from legacy schema (questions)", () => {
   const h = createLegacyMigrationHarness();
@@ -42,10 +43,11 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     const questions = await client.execute(
       sql`SELECT id, text, sort_order, display_type FROM questions`,
     );
-    expect(questions.rows.length).toBe(1);
-    expect(questions.rows[0]!.display_type).toBe("radio");
-    expect(questions.rows[0]!.id).toBe(1);
-    expect(questions.rows[0]!.text).toBe("Encrypted question");
+    const question = expectSoleRow(questions.rows, {
+      display_type: "radio",
+      id: 1,
+    });
+    expect(question.text).toBe("Encrypted question");
 
     const answers = await client.execute(
       sql`SELECT id, question_id, text FROM answers`,

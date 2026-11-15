@@ -6,6 +6,7 @@ import loginAttemptStampMigration from "#db/migrations/2026-08-04_login_attempt_
 import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const context = buildMigrationContext({ applySchemaChanges, syncIndexes });
@@ -26,12 +27,7 @@ const storedStamp = async (ip: string): Promise<number> => {
 
 describeWithEnv("db > migrations > login attempt stamp", { db: true }, () => {
   test("declares its identity, column, and index", () => {
-    const migration = loginAttemptStampMigration(context);
-    expect({
-      description: migration.description,
-      id: migration.id,
-      requires: migration.requires,
-    }).toEqual({
+    expectMigrationIdentity(loginAttemptStampMigration(context), {
       description: "Track when each login-attempt row was last touched.",
       id: "2026-08-04_login_attempt_stamp",
       requires: {

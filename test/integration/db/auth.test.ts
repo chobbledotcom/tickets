@@ -9,13 +9,16 @@ import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb, insert } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
-import { createSession, getSession } from "#db/sessions.ts";
+import { getSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   assertAdminPasswordRejects,
@@ -25,6 +28,7 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { createLiveSessions } from "#test-utils/live-sessions.ts";
 import type { User } from "#types";
 
 describeWithEnv("db > auth", { db: true }, () => {
@@ -55,11 +59,13 @@ describeWithEnv("db > auth", { db: true }, () => {
   };
 
   /** Record the configured maximum of attempts for `ip`, as a client that
-   *  keeps typing the wrong password would. */
-  const recordMaxAttempts = async (ip: string): Promise<void> => {
+   *  keeps typing the wrong password would, and report whether the limiter
+   *  now holds it out. */
+  const lockOut = async (ip: string): Promise<boolean> => {
     for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
       await loginLimiter.record(ip);
     }
+    return loginLimiter.isLimited(ip);
   };
 
   describe("admin password", () => {
@@ -116,25 +122,25 @@ describeWithEnv("db > auth", { db: true }, () => {
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await bookAttendee(listing, {
-        email: "alice@example.com",
-        name: "Alice Before",
-        paymentId: "pi_before_change",
-      });
-      if (!beforeResult.success) throw new Error("Failed to create attendee");
-      const attendeeBefore = beforeResult.attendees[0]!;
+      const attendeeBefore = bookedAttendee(
+        await bookAttendee(listing, {
+          email: "alice@example.com",
+          name: "Alice Before",
+          paymentId: "pi_before_change",
+        }),
+      );
 
       // Change the password
       const { after: updatedUser } = await changeAdminPassword(newPassword);
 
       // Create an attendee AFTER password change
-      const afterResult = await bookAttendee(listing, {
-        email: "bob@example.com",
-        name: "Bob After",
-        paymentId: "pi_after_change",
-      });
-      if (!afterResult.success) throw new Error("Failed to create attendee");
-      const attendeeAfter = afterResult.attendees[0]!;
+      const attendeeAfter = bookedAttendee(
+        await bookAttendee(listing, {
+          email: "bob@example.com",
+          name: "Bob After",
+          paymentId: "pi_after_change",
+        }),
+      );
 
       // Get the private key using the NEW password
       const newPasswordHash = await verifyUserPassword(
@@ -156,32 +162,37 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
       const privateKey = await importPrivateKey(privateKeyJwk);
 
-      // Decrypt the attendee created BEFORE password change
-      const decryptedBefore = await getAttendeeOrNull(
-        attendeeBefore.id,
-        privateKey,
-      );
-      expect(decryptedBefore).not.toBeNull();
-      expect(decryptedBefore?.name).toBe("Alice Before");
-      expect(decryptedBefore?.email).toBe("alice@example.com");
-      expect(decryptedBefore?.payment_id).toBe("pi_before_change");
-
-      // Decrypt the attendee created AFTER password change
-      const decryptedAfter = await getAttendeeOrNull(
-        attendeeAfter.id,
-        privateKey,
-      );
-      expect(decryptedAfter).not.toBeNull();
-      expect(decryptedAfter?.name).toBe("Bob After");
-      expect(decryptedAfter?.email).toBe("bob@example.com");
-      expect(decryptedAfter?.payment_id).toBe("pi_after_change");
+      // The attendee booked BEFORE the change and the one booked AFTER it both
+      // decrypt under the re-wrapped key.
+      for (const expected of [
+        {
+          attendee: attendeeBefore,
+          email: "alice@example.com",
+          name: "Alice Before",
+          paymentId: "pi_before_change",
+        },
+        {
+          attendee: attendeeAfter,
+          email: "bob@example.com",
+          name: "Bob After",
+          paymentId: "pi_after_change",
+        },
+      ]) {
+        const decrypted = await getAttendeeOrNull(
+          expected.attendee.id,
+          privateKey,
+        );
+        expect(decrypted).not.toBeNull();
+        expect(decrypted?.name).toBe(expected.name);
+        expect(decrypted?.email).toBe(expected.email);
+        expect(decrypted?.payment_id).toBe(expected.paymentId);
+      }
     });
   });
 
   describe("updateUserPassword invalidates sessions", () => {
     test("updates password and invalidates all sessions", async () => {
-      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
-      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
+      await createLiveSessions(["session1", "session2"]);
 
       const { after: updatedUser } =
         await changeAdminPassword("new-password-123");
@@ -236,16 +247,12 @@ describeWithEnv("db > auth", { db: true }, () => {
     });
 
     test("login limiter returns true when locked", async () => {
-      await recordMaxAttempts("192.168.1.4");
-
-      const limited = await loginLimiter.isLimited("192.168.1.4");
-      expect(limited).toBe(true);
+      expect(await lockOut("192.168.1.4")).toBe(true);
     });
 
     test("clearLoginAttempts clears attempts", async () => {
       const ip = "192.168.1.5";
-      await recordMaxAttempts(ip);
-      expect(await loginLimiter.isLimited(ip)).toBe(true);
+      expect(await lockOut(ip)).toBe(true);
 
       await clearLoginAttempts(ip);
 
@@ -287,8 +294,7 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("login limiter resets expired lockout and returns false", async () => {
       const ip = "192.168.99.1";
 
-      await recordMaxAttempts(ip);
-      expect(await loginLimiter.isLimited(ip)).toBe(true);
+      expect(await lockOut(ip)).toBe(true);
 
       // Simulate expired lockout
       await getDb().execute(sql`UPDATE login_attempts

@@ -103,21 +103,27 @@ describeWithEnv("QR booking", { db: true }, () => {
       expect(response.status).toBe(400);
     });
 
-    test("daily listing with an un-bookable date is rejected", async () => {
-      const listing = await createDailyTestListing({ unitPrice: 500 });
-      const response = await scanRequest(listing, {
-        date: "1999-01-01",
-        name: "Ada",
-        value: 500,
-      });
-      expect(response.status).toBe(400);
-    });
+    const rejectedDailyScans: readonly [
+      name: string,
+      payload: Parameters<typeof bookToken>[1],
+    ][] = [
+      // An un-bookable date and no date at all both reach the error page.
+      [
+        "daily listing with an un-bookable date is rejected",
+        { date: "1999-01-01", name: "Ada", value: 500 },
+      ],
+      [
+        "daily listing with no date in the token is rejected",
+        { name: "Ada", value: 500 },
+      ],
+    ];
 
-    test("daily listing with no date in the token is rejected", async () => {
-      const listing = await createDailyTestListing({ unitPrice: 500 });
-      const response = await scanRequest(listing, { name: "Ada", value: 500 });
-      expect(response.status).toBe(400);
-    });
+    for (const [name, payload] of rejectedDailyScans) {
+      test(name, async () => {
+        const listing = await createDailyTestListing({ unitPrice: 500 });
+        expect((await scanRequest(listing, payload)).status).toBe(400);
+      });
+    }
   });
 
   describe("pre-fill rendering", () => {
@@ -184,54 +190,82 @@ describeWithEnv("QR booking", { db: true }, () => {
   });
 
   describe("skip-to-Stripe", () => {
-    test("renders the booking form (never direct checkout) for a customisable listing", async () => {
-      const listing = await createTestListing({
+    /** A listing that asks for no extra field at one fixed price. */
+    const fixedListing = () =>
+      createTestListing({
+        fields: "",
+        maxAttendees: 10,
+        unitPrice: 500,
+      });
+
+    /** A two-day customisable listing: the scan renders the day-count form. */
+    const customisableListing = (
+      overrides: Parameters<typeof createTestListing>[0] = {},
+    ) =>
+      createTestListing({
         customisableDays: true,
         dayPrices: { 1: 1000, 2: 1800 },
         durationDays: 2,
         fields: "",
         maxAttendees: 10,
+        ...overrides,
       });
-      await scanWithStripe(listing, async ({ response, stripe }) => {
-        // The visitor must choose a day count, so the form renders instead.
+
+    /** Scan `listing` and assert the form renders instead of starting
+     *  checkout. Returns the form HTML for a caller to assert on. */
+    const expectScanFormOnly = async (
+      listing: { slug: string },
+      payload: Parameters<typeof bookToken>[1] | undefined,
+    ): Promise<string> => {
+      let html = "";
+      await withStripe(async (stripe) => {
+        const response = await scanRequest(listing, payload);
         expect(response.status).toBe(200);
         expect(stripe.calls()).toBe(0);
-        assertStringIncludes(await response.text(), 'name="day_count"');
+        html = await response.text();
       });
-    });
+      return html;
+    };
 
-    test("accepts an individually-bookable date for a customisable daily listing", async () => {
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 2: 1800 },
-        durationDays: 2,
-        fields: "",
-        listingType: "daily",
-        maxAttendees: 10,
-        maximumDaysAfter: 60,
-        minimumDaysBefore: 0,
-      });
-      await scanWithStripe(
-        listing,
-        async ({ response }) => {
-          expect(response.status).toBe(200);
-          assertStringIncludes(await response.text(), 'name="day_count"');
+    const formScans: readonly [
+      name: string,
+      overrides: Parameters<typeof createTestListing>[0],
+      payload?: Parameters<typeof bookToken>[1],
+    ][] = [
+      [
+        "renders the booking form (never direct checkout) for a customisable listing",
+        {},
+      ],
+      [
+        "accepts an individually-bookable date for a customisable daily listing",
+        {
+          listingType: "daily",
+          maximumDaysAfter: 60,
+          minimumDaysBefore: 0,
         },
         {
           date: addDays(testDate(todayInTz("UTC")), 5),
           name: "Ada",
           value: 1000,
         },
-      );
-    });
+      ],
+    ];
+
+    for (const [name, overrides, payload] of formScans) {
+      test(name, async () => {
+        // The visitor must choose a day count, so the form renders instead.
+        assertStringIncludes(
+          await expectScanFormOnly(
+            await customisableListing(overrides),
+            payload,
+          ),
+          'name="day_count"',
+        );
+      });
+    }
 
     test("renders the error page when the provider cannot create a session", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const response = await scanWithCheckoutResult(listing, null);
+      const response = await scanWithCheckoutResult(await fixedListing(), null);
       expect(response.status).toBe(500);
       assertStringIncludes(
         await response.text(),
@@ -240,59 +274,39 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("returns a provider validation refusal with its HTTP 400 status", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
       const refusal =
         "The payment processor rejected the phone number as invalid. Please correct it and try again.";
-      const response = await scanWithCheckoutResult(listing, {
+      const response = await scanWithCheckoutResult(await fixedListing(), {
         error: refusal,
       });
       expect(response.status).toBe(400);
       assertStringIncludes(await response.text(), refusal);
     });
 
-    test("falls through when name is missing even though value is set", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      await scanWithStripe(
-        listing,
-        async ({ response, stripe }) => {
-          expect(response.status).toBe(200);
-          expect(stripe.calls()).toBe(0);
-        },
+    const fallThroughScans: readonly [
+      name: string,
+      payload: Parameters<typeof bookToken>[1],
+    ][] = [
+      // A missing name or value leaves the booking incomplete, so no signed
+      // checkout starts and the form renders.
+      [
+        "falls through when name is missing even though value is set",
         { value: 1000 },
-      );
-    });
-
-    test("falls through when value is missing even though name is set", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-
-      await scanWithStripe(
-        listing,
-        async ({ response, stripe }) => {
-          expect(response.status).toBe(200);
-          expect(stripe.calls()).toBe(0);
-        },
+      ],
+      [
+        "falls through when value is missing even though name is set",
         { name: "Ada" },
-      );
-    });
+      ],
+    ];
+
+    for (const [name, payload] of fallThroughScans) {
+      test(name, async () => {
+        await expectScanFormOnly(await fixedListing(), payload);
+      });
+    }
 
     test("a signed zero value skips to checkout", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
+      const listing = await fixedListing();
 
       await scanWithStripe(
         listing,
@@ -319,11 +333,7 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("skips straight to Stripe even when global terms are configured", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
+      const listing = await fixedListing();
       await settings.update.terms("# Test terms");
       try {
         await scanWithStripe(listing, async ({ response, stripe }) => {

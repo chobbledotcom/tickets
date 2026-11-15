@@ -7,6 +7,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
 import { storedCheckinRows } from "#test-utils/db-helpers/checkin-rows.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectMapValues } from "#test-utils/map-values.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { createTestScannerSession } from "#test-utils/role-sessions.ts";
 import {
@@ -210,8 +211,10 @@ describeWithEnv(
         const byListing = new Map(
           rows.map((r) => [r.listing_id, r.checked_in]),
         );
-        expect(byListing.get(normal.id)).toBe(1);
-        expect(byListing.get(merch.id)).toBe(0);
+        expectMapValues(byListing, [
+          [normal, 1],
+          [merch, 0],
+        ]);
       });
 
       test("redirects to admin for unauthenticated POST", async () => {

@@ -24,6 +24,7 @@ import {
 } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createMultiBookingAttendee,
   createTestAttendee,
   markNotificationSendsOwed,
   submitAttendeeEdit,
@@ -146,17 +147,11 @@ describeWithEnv(
         name: "Site Plan",
         unitPrice: 300,
       });
-      const { attendeesApi } = await import("#shared/db/attendees/api.ts");
-      const made = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: ordinary.id, quantity: 1 },
-          { listingId: plan.id, quantity: 1 },
-        ],
-        email: "plan-beside@example.com",
-        name: "Plan Beside",
-      });
-      if (!made.success) throw new Error("Expected the booking to work");
-      const attendee = made.attendees[0]!;
+      const attendee = await createMultiBookingAttendee(
+        "Plan Beside",
+        "plan-beside@example.com",
+        [{ listingId: ordinary.id }, { listingId: plan.id }],
+      );
       await insertBuiltSite("For The Plan", "plan.test", "", "", true);
       const before = await registeredEntries();
 

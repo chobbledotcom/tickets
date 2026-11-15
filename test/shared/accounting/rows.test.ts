@@ -20,7 +20,7 @@ import {
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { inList } from "#db/where-clauses.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { TransferInput } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
 import { placed } from "#test-utils/sql-text.ts";
@@ -261,6 +261,20 @@ describe("accounting > rows > stored-row round-trip", () => {
   useTransactionalDb();
   const recordedAt = "2026-06-21T12:00:00.000Z";
 
+  /** Store one leg and read it straight back — the round trip each single-field
+   *  reader case checks. */
+  const roundTripLeg = async (
+    name: string,
+    overrides: Partial<TransferInput> = {},
+  ): Promise<Transfer> => {
+    await executeBatch([
+      insertStatement(namedLeg(name, overrides), recordedAt),
+    ]);
+    const [stored] = await selectTransfers(queryBatch);
+    if (stored === undefined) throw new Error(`the ${name} leg did not store`);
+    return stored;
+  };
+
   test("selectTransfers reads every column back, reversesId present and absent", async () => {
     const plain = namedLeg("plain", { kind: "sale", memo: "first" });
     // A void leg carrying a (non-FK) reverses_id, so the NULL vs real-id branch of
@@ -299,23 +313,17 @@ describe("accounting > rows > stored-row round-trip", () => {
   });
 
   test("a kindless leg stores as '' and reads back with kind omitted", async () => {
-    const kindless = namedLeg("kindless", { amount: 100 });
-    await executeBatch([insertStatement(kindless, recordedAt)]);
-    const [stored] = await selectTransfers(queryBatch);
+    const stored = await roundTripLeg("kindless", { amount: 100 });
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
-    expect("kind" in stored!).toBe(false);
+    expect("kind" in stored).toBe(false);
   });
 
   test("a leg with no memo stores an empty one, not a stand-in", async () => {
-    const memoless = namedLeg("memoless", { amount: 100 });
-    await executeBatch([insertStatement(memoless, recordedAt)]);
-
-    const [stored] = await selectTransfers(queryBatch);
-
+    const stored = await roundTripLeg("memoless", { amount: 100 });
     // Unlike kind, memo keeps its "" — so the absence must be stored as empty
     // rather than as any filler a reader would later show to an operator.
-    expect(stored!.memo).toBe("");
+    expect(stored.memo).toBe("");
   });
 
   test("a reversal leg reads back naming its order; a plain leg carries no mark", async () => {

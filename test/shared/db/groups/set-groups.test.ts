@@ -29,6 +29,10 @@ import {
 } from "#shared/listings-actions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createGroupWithMember,
+  createHiddenPackagePair,
+} from "#test-utils/db-helpers/group-members.ts";
+import {
   createHiddenPackageGroup,
   createTestGroup,
   getTestPackagePrices,
@@ -59,9 +63,10 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
   });
 
   test("setting the same group set again leaves the memberships alone", async () => {
-    const listing = await createTestListing({ name: "Unchanged Member" });
-    const group = await createTestGroup({ name: "Unchanged Group" });
-    await setListingGroups(listing.id, [group.id]);
+    const { group, listing } = await createGroupWithMember(
+      "Unchanged Group",
+      "Unchanged Member",
+    );
 
     await setListingGroups(listing.id, [group.id]);
 
@@ -69,9 +74,10 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
   });
 
   test("an empty group set removes every membership", async () => {
-    const listing = await createTestListing({ name: "Cleared Member" });
-    const group = await createTestGroup({ name: "Cleared Group" });
-    await setListingGroups(listing.id, [group.id]);
+    const { listing } = await createGroupWithMember(
+      "Cleared Group",
+      "Cleared Member",
+    );
 
     await setListingGroups(listing.id, []);
 
@@ -134,9 +140,11 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
   });
 
   test("validates a hidden package membership against children being cleared", async () => {
-    const group = await createHiddenPackageGroup("Combined package update");
-    const parent = await createTestListing({ name: "Combined parent" });
-    const child = await createTestListing({ name: "Combined child" });
+    const { child, group, parent } = await createHiddenPackagePair(
+      "Combined package update",
+      "Combined parent",
+      "Combined child",
+    );
     await listingChildren.setIds(parent.id, [child.id]);
 
     await withTransaction(async (tx) => {

@@ -18,6 +18,21 @@ import {
   optInAddOnForGroups,
   patchModifier,
 } from "#test-utils/modifiers.ts";
+import type { Group, ListingWithCount } from "#types";
+
+/** A named group plus one parent listing. A group-scoped opt-in add-on sits on
+ *  that group, so the add-on's reachability turns on whether the parent's own
+ *  page is in the group. `parentInGroup` puts it there. */
+const groupWithAddOn = async (
+  names: { addon: string; group: string; parent: string },
+  parentInGroup = false,
+): Promise<{ group: Group; parent: ListingWithCount }> => {
+  const group = await createTestGroup({ name: names.group });
+  const parent = await createTestListing({ name: names.parent });
+  if (parentInGroup) await assignListingsToGroup([parent.id], group.id);
+  await optInAddOnForGroups(names.addon, [group.id]);
+  return { group, parent };
+};
 
 // Child add-on reachability on import lives in its own file: the setup creates
 // listings, a group, and an opt-in modifier, and folding it into
@@ -33,9 +48,11 @@ describeWithEnv(
       // child. A child has no standalone page, and its parent isn't in the group,
       // so the add-on would be reachable only through the suppressed child — the
       // dead-end the edge editor rejects.
-      const group = await createTestGroup({ name: "Extra Group" });
-      await createTestListing({ name: "Base Parent" });
-      await optInAddOnForGroups("Group Extra", [group.id]);
+      await groupWithAddOn({
+        addon: "Group Extra",
+        group: "Extra Group",
+        parent: "Base Parent",
+      });
 
       const result = await importCatalog({
         groups: [{ group: "Extra Group" }],
@@ -58,9 +75,11 @@ describeWithEnv(
       // Same orphaning shape as above, but the child keeps its own /ticket page
       // (bookable_alone), so the group-scoped add-on is still reachable there —
       // the edge editor exempts a bookable_alone child, and so must the import.
-      const group = await createTestGroup({ name: "Alone Group" });
-      const parent = await createTestListing({ name: "Alone Base Parent" });
-      await optInAddOnForGroups("Alone Extra", [group.id]);
+      const { parent } = await groupWithAddOn({
+        addon: "Alone Extra",
+        group: "Alone Group",
+        parent: "Alone Base Parent",
+      });
 
       const result = await importCatalog({
         groups: [{ group: "Alone Group" }],
@@ -81,10 +100,14 @@ describeWithEnv(
     test("accepts a child import when the parent's page also reaches the add-on", async () => {
       // The parent is in the same group, so the group-scoped add-on reaches the
       // parent's own booking page — not a dead end.
-      const group = await createTestGroup({ name: "Shared Group" });
-      const parent = await createTestListing({ name: "Shared Parent" });
-      await assignListingsToGroup([parent.id], group.id);
-      await optInAddOnForGroups("Shared Extra", [group.id]);
+      const { parent } = await groupWithAddOn(
+        {
+          addon: "Shared Extra",
+          group: "Shared Group",
+          parent: "Shared Parent",
+        },
+        true,
+      );
 
       const result = await importCatalog({
         groups: [{ group: "Shared Group" }],
@@ -112,7 +135,9 @@ describeWithEnv(
         sql`CREATE TRIGGER activate_imported_child_add_on
            AFTER INSERT ON listings
            BEGIN
-             UPDATE modifiers SET active = 1 WHERE id = ${sqlLiteral(modifier.id)};
+             UPDATE modifiers SET active = 1 WHERE id = ${sqlLiteral(
+               modifier.id,
+             )};
              INSERT INTO modifier_listings (modifier_id, listing_id)
              VALUES (${sqlLiteral(modifier.id)}, NEW.id);
            END`,

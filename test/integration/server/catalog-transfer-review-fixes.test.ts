@@ -13,6 +13,7 @@ import {
   requireEntityImport,
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { importChildOfHiddenGroupMember } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -21,9 +22,9 @@ import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 import { placed } from "#test-utils/sql-text.ts";
 
-/** Import a listing that asks for a built site, answering the refusal
- * message the import raises. */
-const refusedPlanImportError = async (name: string): Promise<string> => {
+/** Import a listing that asks for a built site and assert the import refuses
+ * it with the translated refusal that names the listing. */
+const expectPlanImportRefused = async (name: string): Promise<void> => {
   const result = await importCatalog({
     kind: "listing",
     listing: {
@@ -34,10 +35,9 @@ const refusedPlanImportError = async (name: string): Promise<string> => {
     },
     version: 1,
   });
-  if (result.ok) {
-    throw new Error(`the built-site plan import was accepted: ${name}`);
-  }
-  return result.error;
+  expect(importRefusal(result)).toBe(
+    t("catalog_transfer.site_plan_listing_refused", { name }),
+  );
 };
 
 const importLogisticsListing = async (name: string): Promise<boolean> => {
@@ -64,9 +64,7 @@ describeWithEnv(
         listing: { maxAttendees: 0, name: "Zero Cap" },
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "listing.maxAttendees");
+      assertStringIncludes(importRefusal(result), "listing.maxAttendees");
     });
 
     test("rejects a day-price key that is not a day count", async () => {
@@ -79,9 +77,7 @@ describeWithEnv(
         },
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "day count");
+      assertStringIncludes(importRefusal(result), "day count");
     });
 
     test("rejects a duplicate parent reference", async () => {
@@ -92,9 +88,7 @@ describeWithEnv(
         parents: ["Dup Parent", "Dup Parent"],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "referenced more than once");
+      assertStringIncludes(importRefusal(result), "referenced more than once");
     });
 
     test("strips webhook URL and use-defaults for an editor import", async () => {
@@ -140,15 +134,9 @@ describeWithEnv(
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
-      expect(await refusedPlanImportError("No Builder")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", { name: "No Builder" }),
-      );
+      await expectPlanImportRefused("No Builder");
       using _builderOn = withEnv({ CAN_BUILD_SITES: "true" });
-      expect(await refusedPlanImportError("Builder On")).toBe(
-        t("catalog_transfer.site_plan_listing_refused", {
-          name: "Builder On",
-        }),
-      );
+      await expectPlanImportRefused("Builder On");
     });
 
     test("clears uses-logistics when logistics is disabled", async () => {
@@ -199,9 +187,10 @@ describeWithEnv(
         group: { isPackage: true, name: "Hidden Pkg" },
         parentName: "Pkg Parent",
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "package hides listing names");
+      assertStringIncludes(
+        importRefusal(result),
+        "package hides listing names",
+      );
     });
 
     test("imports a listing with many parents in one batched insert", async () => {
@@ -347,9 +336,10 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
       parents: ["Twin Parent"],
       version: 1,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "names must be unique to import");
+    assertStringIncludes(
+      importRefusal(result),
+      "names must be unique to import",
+    );
   });
 
   test("surfaces a listing-validation error (group type mismatch)", async () => {
@@ -365,9 +355,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
       listing: { listingType: "daily", maxAttendees: 5, name: "Daily Joiner" },
       version: 1,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "same type");
+    assertStringIncludes(importRefusal(result), "same type");
   });
 
   test("rejects a group name already in use", async () => {
@@ -378,9 +366,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
       members: [],
       version: 1,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "already exists");
+    assertStringIncludes(importRefusal(result), "already exists");
   });
 
   test("rejects group members that disagree on customisable days", async () => {
@@ -398,9 +384,7 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
       members: [{ listing: "Fixed Days" }, { listing: "Flexible Days" }],
       version: 1,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "customisable days");
+    assertStringIncludes(importRefusal(result), "customisable days");
   });
 
   test("rejects a package group with a non-packageable member", async () => {
@@ -416,8 +400,6 @@ describeWithEnv("catalog-transfer branch coverage", { db: true }, () => {
       members: [{ listing: "Pay What You Want" }],
       version: 1,
     });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    assertStringIncludes(result.error, "Packages cannot contain");
+    assertStringIncludes(importRefusal(result), "Packages cannot contain");
   });
 });

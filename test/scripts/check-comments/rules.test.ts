@@ -10,6 +10,7 @@ import {
   namesMentioned,
   readComments,
 } from "#scripts/check-comments/rules.ts";
+import { testCases } from "#test-utils/test-cases.ts";
 
 const LIMITS: CommentLimits = { maxColumns: 40, maxLines: 3 };
 
@@ -27,36 +28,55 @@ const onlyIssue = (
 };
 
 describe("readComments", () => {
-  test("finds a line comment and a block comment", () => {
-    const found = readComments("// one\nconst a = 1;\n/* two */\n");
-    expect(found).toEqual([
-      { column: 0, end: 6, line: 1, start: 0, text: "// one" },
-      { column: 0, end: 29, line: 3, start: 20, text: "/* two */" },
-    ]);
-  });
-
-  test("reports the line a comment opens on, not the file start", () => {
-    const found = readComments("const a = 1;\n\n\n// here\n");
-    expect(found).toEqual([
-      { column: 0, end: 22, line: 4, start: 15, text: "// here" },
-    ]);
-  });
-
-  test("counts a newline the file opens with", () => {
-    // The scan starts at the very first character, so a file beginning with a
-    // blank line still puts its first comment on line 2.
-    expect(readComments("\n// here\n")).toEqual([
-      { column: 0, end: 8, line: 2, start: 1, text: "// here" },
-    ]);
-  });
-
-  test("ignores a comment marker inside a string", () => {
-    expect(readComments('const url = "https://example.com/a";\n')).toEqual([]);
-  });
-
-  test("ignores a comment marker inside a template literal", () => {
-    expect(readComments("const a = `/* not a comment */`;\n")).toEqual([]);
-  });
+  testCases(
+    [
+      [
+        "finds a line comment and a block comment",
+        ["// one\nconst a = 1;\n/* two */\n"],
+        [
+          { column: 0, end: 6, line: 1, start: 0, text: "// one" },
+          { column: 0, end: 29, line: 3, start: 20, text: "/* two */" },
+        ],
+      ],
+      [
+        "reports the line a comment opens on, not the file start",
+        ["const a = 1;\n\n\n// here\n"],
+        [{ column: 0, end: 22, line: 4, start: 15, text: "// here" }],
+      ],
+      // The scan starts at the very first character, so a file that opens with
+      // a blank line still puts its first comment on line 2.
+      [
+        "counts a newline the file opens with",
+        ["\n// here\n"],
+        [{ column: 0, end: 8, line: 2, start: 1, text: "// here" }],
+      ],
+      [
+        "ignores a comment marker inside a string",
+        ['const url = "https://example.com/a";\n'],
+        [],
+      ],
+      [
+        "ignores a comment marker inside a template literal",
+        ["const a = `/* not a comment */`;\n"],
+        [],
+      ],
+      // The directive family retired with deno lint, so its comments are prose.
+      [
+        "keeps a deno-lint-ignore comment as prose",
+        ["// deno-lint-ignore no-explicit-any\n"],
+        [
+          {
+            column: 0,
+            end: 35,
+            line: 1,
+            start: 0,
+            text: "// deno-lint-ignore no-explicit-any",
+          },
+        ],
+      ],
+    ],
+    readComments,
+  );
 
   test("drops directives, which a tool reads rather than a person", () => {
     const source = [
@@ -75,19 +95,6 @@ describe("readComments", () => {
   test("keeps a comment that merely mentions a directive-like word", () => {
     const found = readComments("// prefer a named type over a cast\n");
     expect(found).toHaveLength(1);
-  });
-
-  // The directive family retired with deno lint, so its comments are prose.
-  test("keeps a deno-lint-ignore comment as prose", () => {
-    expect(readComments("// deno-lint-ignore no-explicit-any\n")).toEqual([
-      {
-        column: 0,
-        end: 35,
-        line: 1,
-        start: 0,
-        text: "// deno-lint-ignore no-explicit-any",
-      },
-    ]);
   });
 });
 
@@ -234,10 +241,6 @@ describe("comment-dead-link rule", () => {
     );
   });
 
-  test("passes a link to a known name", () => {
-    expect(links("/** See {@link helper}. */\n")).toEqual([]);
-  });
-
   test("judges a member link on the name before the dot", () => {
     expect(links("/** {@link helper.total} */\n")).toEqual([]);
     expect(links("/** {@link gone.total} */\n")).toHaveLength(1);
@@ -260,9 +263,13 @@ describe("comment-dead-link rule", () => {
     expect(links("/**\n * {@link\n * gone}\n */\n")).toHaveLength(1);
   });
 
-  test("ignores a comment with no links at all", () => {
-    expect(links("// just prose\n")).toEqual([]);
-  });
+  testCases(
+    [
+      ["passes a link to a known name", ["/** See {@link helper}. */\n"], []],
+      ["ignores a comment with no links at all", ["// just prose\n"], []],
+    ],
+    links,
+  );
 });
 
 describe("comment-gate-citation rule", () => {

@@ -11,9 +11,9 @@ import {
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { attendeeWithoutPayment } from "#test-utils/db-helpers/attendee-without-payment.ts";
 import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
 import { attendeeWithoutBookings } from "#test-utils/db-helpers/booking-shapes.ts";
-import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { refundUrl } from "#test-utils/refund-routes.ts";
 import { setupListingAndLogin, testCookie } from "#test-utils/session.ts";
@@ -44,11 +44,7 @@ describeWithEnv("server (admin refunds)", { db: true }, () => {
     });
 
     test("shows error when attendee has no payment", async () => {
-      const { attendee } = await listingWithAttendee(
-        100,
-        "John Doe",
-        "john@example.com",
-      );
+      const attendee = await attendeeWithoutPayment();
 
       const response = await awaitTestRequest(refundUrl(attendee.id), {
         cookie: await testCookie(),

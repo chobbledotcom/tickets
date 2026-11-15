@@ -18,8 +18,7 @@ import { rowNodeOf } from "#payment/row-machine-spec.ts";
 import { readRowState } from "#payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookedAttendeeId } from "#test-utils/db-helpers/booked-attendee.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 
 type StoredAnchor = {
@@ -30,15 +29,8 @@ type StoredAnchor = {
   protected_state: string;
 };
 
-const makeAttendee = async (): Promise<number> => {
-  const listing = await createTestListing({ maxAttendees: 20 });
-  const made = await bookAttendee(listing, {
-    email: "anchor@example.com",
-    name: "Payment Anchor",
-  });
-  if (!made.success) throw new Error("attendee setup failed");
-  return made.attendees[0]!.id;
-};
+const makeAttendee = (): Promise<number> =>
+  bookedAttendeeId({ email: "anchor@example.com", name: "Payment Anchor" }, 20);
 
 const anchorRows = (attendeeId: number): Promise<StoredAnchor[]> =>
   queryAll<StoredAnchor>(

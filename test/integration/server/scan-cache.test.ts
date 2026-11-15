@@ -36,6 +36,7 @@ import {
   testCookie,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 const authedGet = async (path: string): Promise<Response> =>
   awaitTestRequest(path, { cookie: await testCookie() });
@@ -367,15 +368,13 @@ describeWithEnv("the scanner's ticket-hash cache", { db: true }, () => {
     );
   });
 
-  test("answers 404 for a No check-in listing's cache", async () => {
-    const listing = await createTestListing({ purchaseOnly: true });
-    const response = await authedGet(`/admin/listing/${listing.id}/scan-cache`);
-    expect(response.status).toBe(404);
-  });
-
-  test("answers 404 for an unknown group's cache", async () => {
-    const response = await authedGet("/admin/groups/999999/scan-cache");
-    expect(response.status).toBe(404);
+  testStatus(404, {
+    "answers 404 for a No check-in listing's cache": async () => {
+      const listing = await createTestListing({ purchaseOnly: true });
+      return await authedGet(`/admin/listing/${listing.id}/scan-cache`);
+    },
+    "answers 404 for an unknown group's cache": () =>
+      authedGet("/admin/groups/999999/scan-cache"),
   });
 
   test("answers 401 without a scanner session", async () => {

@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { paymentCaseTable } from "#db/migrations/schema/payments/cases.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { HIDDEN_VALUE_SHAPES } from "#test-utils/payment-hidden-values.ts";
 import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
@@ -18,44 +19,40 @@ const aCase = (
   values = sql`'case-1', 'hyb:1:a:b:c', 'case-1-index', 'network_error', 'needs_action', 1, 1, 1, 'hyb:1:a:b:c', 1`,
 ) => sql`INSERT INTO payment_cases (${columns}) VALUES (${values})`;
 
-/** Each row is one way a writer could hold evidence that the table must
- *  refuse: in the open, under the wrong key, or in a broken envelope. */
-const OPEN_EVIDENCE = [
-  ["in plain words", "Jane Smith"],
-  ["under the database owner's key", "enc:1:a:b"],
-  ["behind an upper-case envelope", "HYB:1:a:b:c"],
-  ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
-] as const;
+/* jscpd:ignore-start -- a list of strings, not code */
+/** Every column the table declares, in order. */
+const CASE_COLUMNS: readonly string[] = [
+  "id",
+  "payment_id",
+  "resource",
+  "resource_index",
+  "reason",
+  "state",
+  "first_observed_at",
+  "last_observed_at",
+  "next_reconcile_at",
+  "consecutive_count",
+  "alerted_at",
+  "alerted_revision",
+  "alert_sent_at",
+  "alert_sent_revision",
+  "alert_lease_token",
+  "alert_lease_expires_at",
+  "evidence",
+  "evidence_redacted_at",
+  "revision",
+  "resolved_at",
+];
+/* jscpd:ignore-end */
 
 test("is what a problem for the owner is made of", () => {
-  expectSchemaColumns(paymentCaseTable, "payment_cases", [
-    "id",
-    "payment_id",
-    "resource",
-    "resource_index",
-    "reason",
-    "state",
-    "first_observed_at",
-    "last_observed_at",
-    "next_reconcile_at",
-    "consecutive_count",
-    "alerted_at",
-    "alerted_revision",
-    "alert_sent_at",
-    "alert_sent_revision",
-    "alert_lease_token",
-    "alert_lease_expires_at",
-    "evidence",
-    "evidence_redacted_at",
-    "revision",
-    "resolved_at",
-  ]);
+  expectSchemaColumns(paymentCaseTable, "payment_cases", CASE_COLUMNS);
 });
 
 describeWithEnv("db > payment case rules", { db: true }, () => {
   // The one rule the table still keeps. A type says "string" while the value
   // is bytes, which is the thing no TypeScript check can see.
-  for (const [name, resource] of OPEN_EVIDENCE) {
+  for (const [name, resource] of HIDDEN_VALUE_SHAPES) {
     test(`refuses a problem whose evidence is held ${name}`, async () => {
       await expectRefused(
         aCase(

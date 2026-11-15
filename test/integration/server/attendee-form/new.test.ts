@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import {
   attendeeLineIndex,
   expectHtmlResponse,
@@ -76,9 +77,11 @@ describeWithEnv(
         await createTestListing({ maxAttendees: 100, name: "Standard Only" });
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
-        assert(!html.includes('name="start_date"'));
-        assert(!html.includes('id="day_count"'));
-        assert(!html.includes("only affects daily listings"));
+        expectExcludesAll(html, [
+          'name="start_date"',
+          'id="day_count"',
+          "only affects daily listings",
+        ]);
       });
 
       test("shows the optional date fields when a daily listing exists", async () => {
@@ -144,8 +147,10 @@ describeWithEnv(
         // Nothing is booked yet, so an un-ticked toggle would hide every row.
         // Instead the form drops the toggle and shows every listing.
         const html = await bareCreateForm();
-        assert(!html.includes("Show all listings"));
-        assert(!html.includes('class="show-all-toggle"'));
+        expectExcludesAll(html, [
+          "Show all listings",
+          'class="show-all-toggle"',
+        ]);
         // The editor carries the show-all modifier so the not-booked rows stay
         // visible despite the CSS that hides them under the toggle.
         assertStringIncludes(html, "listing-editor show-all-listings");

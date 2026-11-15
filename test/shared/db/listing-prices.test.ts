@@ -52,75 +52,107 @@ const expectScopedReplace = (
   expect(stmts.map((stmt) => placed(stmt))).toEqual(expected);
 };
 
+/** The delete every day-count replace scopes on the listing row. */
+const dayCountDelete =
+  "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?";
+
+/** The delete every group day-price replace scopes on the group's LIKE prefix. */
+const groupDayDelete =
+  "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?";
+
+/** Assert the group day-price replace for `groupId` writes exactly `rows`. */
+const expectGroupDayReplace = (
+  groupId: number,
+  members: Parameters<typeof groupDayPriceStatements>[1],
+  rows: readonly PriceRow[],
+): void => {
+  expectScopedReplace(
+    groupDayPriceStatements(groupId, members),
+    groupDayDelete,
+    ["group_day", `${groupId}/%`],
+    rows,
+  );
+};
+
 describe("dayCountPriceStatements", () => {
-  test("emits a day_count-scoped delete then ONE multi-row insert for all day counts", () => {
-    expectScopedReplace(
-      dayCountPriceStatements(5, { 1: 750, 2: 1200 }),
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-      [5, "day_count"],
+  const cases: readonly [
+    name: string,
+    listingId: number,
+    dayPrices: Record<number, number> | undefined,
+    rows: readonly PriceRow[],
+  ][] = [
+    [
+      "emits a day_count-scoped delete then ONE multi-row insert for all day counts",
+      5,
+      { 1: 750, 2: 1200 },
       [
         [5, "day_count", "1", 750],
         [5, "day_count", "2", 1200],
       ],
-    );
-  });
-
-  test("emits only the scoped delete when there are no day prices", () => {
-    expectScopedReplace(
-      dayCountPriceStatements(9, {}),
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-      [9, "day_count"],
-    );
-  });
-
-  test("treats undefined day prices as an empty map (delete only)", () => {
-    expectScopedReplace(
-      dayCountPriceStatements(9, undefined),
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-      [9, "day_count"],
-    );
-  });
-
-  test("normalises entries like every other day-price write", () => {
+    ],
+    ["emits only the scoped delete when there are no day prices", 9, {}, []],
+    [
+      "treats undefined day prices as an empty map (delete only)",
+      9,
+      undefined,
+      [],
+    ],
     // Day 0 and a negative price are dropped by parseDayPrices; the rest kept.
-    expectScopedReplace(
-      dayCountPriceStatements(9, { 0: 100, 2: -5, 4: 800 }),
-      "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?",
-      [9, "day_count"],
+    [
+      "normalises entries like every other day-price write",
+      9,
+      { 0: 100, 2: -5, 4: 800 },
       [[9, "day_count", "4", 800]],
-    );
-  });
+    ],
+  ];
+
+  for (const [name, listingId, dayPrices, rows] of cases) {
+    test(name, () => {
+      expectScopedReplace(
+        dayCountPriceStatements(listingId, dayPrices),
+        dayCountDelete,
+        [listingId, "day_count"],
+        rows,
+      );
+    });
+  }
 });
 
 describe("groupDayPriceStatements", () => {
-  test("emits a group-scoped LIKE delete, then ONE multi-row insert of every day price", () => {
-    expectScopedReplace(
-      groupDayPriceStatements(12, [
+  const cases: readonly [
+    name: string,
+    groupId: number,
+    members: Parameters<typeof groupDayPriceStatements>[1],
+    rows: readonly PriceRow[],
+  ][] = [
+    [
+      "emits a group-scoped LIKE delete, then ONE multi-row insert of every day price",
+      12,
+      [
         { dayPrices: { 2: 1500, 3: 2000 }, listingId: 5 },
         // A member with no per-day overrides contributes no rows.
         { listingId: 6 },
-      ]),
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
-      ["group_day", "12/%"],
+      ],
       [
         [5, "group_day", "12/2", 1500],
         [5, "group_day", "12/3", 2000],
       ],
-    );
-  });
-
-  test("normalises day-price entries like every other day-price write", () => {
-    // Day 0 and a negative price are dropped by parseDayPrices; the valid
-    // entry is kept.
-    expectScopedReplace(
-      groupDayPriceStatements(3, [
-        { dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 },
-      ]),
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?",
-      ["group_day", "3/%"],
+    ],
+    [
+      "normalises day-price entries like every other day-price write",
+      3,
+      // Day 0 and a negative price are dropped by parseDayPrices; the valid
+      // entry is kept.
+      [{ dayPrices: { 0: 100, 2: -5, 4: 800 }, listingId: 9 }],
       [[9, "group_day", "3/4", 800]],
-    );
-  });
+    ],
+  ];
+
+  for (const [name, groupId, members, rows] of cases) {
+    test(name, () => {
+      expectGroupDayReplace(groupId, members, rows);
+    });
+  }
 });
 
 describe("groupFlatPriceStatements", () => {

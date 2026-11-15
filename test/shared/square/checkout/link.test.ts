@@ -7,7 +7,6 @@ import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
-import { extractSessionMetadata } from "#shared/payment-helpers.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { squareLinkEndsAt } from "#shared/square/checkout.ts";
@@ -15,8 +14,12 @@ import type { CreatePaymentLinkInput } from "#shared/square/client.ts";
 import { expectClosedCheckoutFailure } from "#test-utils/checkout-failure.ts";
 import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { expectLastDebugMessage } from "#test-utils/debug-log-expect.ts";
 import { testListing } from "#test-utils/factories.ts";
-import { wireMetadata } from "#test-utils/payment-session.ts";
+import {
+  expectOrderLines,
+  expectOrderMetadata,
+} from "#test-utils/square/checkout-order.ts";
 import {
   configureSquare,
   expectNoLink,
@@ -62,11 +65,8 @@ describeSquare(() => {
 
     test("returns null when location ID not configured", async () => {
       await configureSquare();
-      // No location ID set
       await expectNoLink(checkoutIntent());
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
-        "[Square] No location ID configured",
-      );
+      expectLastDebugMessage(debugLog, "[Square] No location ID configured");
     });
 
     test("reports a configured link that has no available client", async () => {
@@ -98,10 +98,14 @@ describeSquare(() => {
       );
 
       expect(result).not.toBeNull();
-      expect(args.order.lineItems[0]!.name).toBe("Site plan: (3 Months)");
-      expect(args.order.lineItems[0]!.note).toBe("3 months");
-      // The priced units stay the checkout's unit count.
-      expect(args.order.lineItems[0]!.quantity).toBe("2");
+      expectOrderLines(args.order, [
+        {
+          amount: 4500,
+          name: "Site plan: (3 Months)",
+          note: "3 months",
+          quantity: "2",
+        },
+      ]);
     });
 
     test("constructs correct SDK call for single-listing checkout", async () => {
@@ -130,22 +134,20 @@ describeSquare(() => {
 
       // Verify SDK was called with correctly constructed order
       expect(args.order.locationId).toBe("L_loc_456");
-      expect(args.order.lineItems).toHaveLength(1);
-      expect(args.order.lineItems[0]!.name).toBe("Ticket: Concert");
-      expect(args.order.lineItems[0]!.quantity).toBe("3");
-      expect(args.order.lineItems[0]!.basePriceMoney.amount).toBe(BigInt(2500));
-      expect(args.order.lineItems[0]!.note).toBe("Tickets (x3)");
-
-      // Verify metadata includes intent fields. Small fields (phone, …) are
-      // packed into `b` on the wire, so decode the way the webhook does.
-      const metadata = extractSessionMetadata(
-        wireMetadata(args.order.metadata),
-      );
-      expect(metadata.name).toBe("Jane Smith");
-      expect(metadata.email).toBe("jane@example.com");
-      expect(metadata.phone).toBe("555-9876");
-      const items = JSON.parse(metadata.items);
-      expect(items).toEqual([{ e: 7, p: 7500, q: 3 }]);
+      expectOrderLines(args.order, [
+        {
+          amount: 2500,
+          name: "Ticket: Concert",
+          note: "Tickets (x3)",
+          quantity: "3",
+        },
+      ]);
+      expectOrderMetadata(args.order, {
+        email: "jane@example.com",
+        items: [{ e: 7, p: 7500, q: 3 }],
+        name: "Jane Smith",
+        phone: "555-9876",
+      });
 
       // Verify checkout options
       expect(args.checkoutOptions.redirectUrl).toBe(

@@ -1,8 +1,8 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
+import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import { testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectGuidePage } from "#test-utils/guide.ts";
@@ -19,8 +19,11 @@ const guideChecks: readonly GuideCheck[] = [
     "Payments",
     "Check-in",
   ],
-  ["contains booking questions section", "Booking questions"],
-  ["contains booking questions section", "question with set answers"],
+  [
+    "contains booking questions section",
+    "Booking questions",
+    "question with set answers",
+  ],
   [
     "contains public links section",
     "Public links",
@@ -316,7 +319,7 @@ describeWithEnv("server (admin guide)", { db: true }, () => {
         "Check-in &amp; QR scanner",
       );
 
-      assert(!html.includes("Data &amp;amp; privacy"));
+      expectOmitsAll(html, ["Data &amp;amp; privacy"]);
     });
   });
 

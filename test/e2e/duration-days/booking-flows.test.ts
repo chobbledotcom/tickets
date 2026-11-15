@@ -6,66 +6,72 @@ import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { groupWithMembers } from "#test-utils/db-helpers/capacity-fixtures.ts";
 import { twoGroupedListingsBookedOnAdjacentDays } from "#test-utils/db-helpers/grouped-days.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import {
-  createDailyTestListing,
-  updateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { updateTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("e2e: multi-day bookings — booking flows", { db: true }, () => {
   describe("group cap + duration change interaction", () => {
-    test("no-limit group returns null (no cap to violate)", async () => {
-      const group = await createTestGroup({ maxAttendees: 0 });
-      const listing = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
+    /** A group capped at `cap`, holding one daily member. `booked` is the
+     * member's booking when the case has one: a cap of 0 means no limit, so
+     * neither an unsold member nor a heavily sold one can overflow. */
+    const nullCapCases: {
+      booked?: { date: string; quantity: number };
+      cap: number;
+      name: string;
+    }[] = [
+      {
+        booked: { date: "2026-10-01", quantity: 50 },
+        cap: 0,
+        name: "no-limit group returns null (no cap to violate)",
+      },
+      {
+        cap: 10,
+        name: "checkGroupCapAfterDurationChange returns null when the listing has no bookings",
+      },
+    ];
+    for (const { booked, cap, name } of nullCapCases) {
+      test(name, async () => {
+        const { group, members } = await groupWithMembers({
+          cap,
+          count: 1,
+          daily: true,
+        });
+        const [listing] = members;
+        if (booked !== undefined) await bookAttendee(listing!, booked);
+        expect(
+          await checkGroupCapAfterDurationChange(listing!.id, group.id),
+        ).toBeNull();
       });
-      await bookAttendee(listing, { date: "2026-10-01", quantity: 50 });
-      expect(
-        await checkGroupCapAfterDurationChange(listing.id, group.id),
-      ).toBeNull();
-    });
-
-    test("checkGroupCapAfterDurationChange returns null when the listing has no bookings", async () => {
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const listing = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
-      });
-      expect(
-        await checkGroupCapAfterDurationChange(listing.id, group.id),
-      ).toBeNull();
-    });
+    }
 
     test("checkGroupCapAfterDurationChange counts legacy null-start_at attendees via the non-daily clause", async () => {
       // A daily group listing that had attendees added before it was daily
       // (their start_at is NULL). The SQL counts them via `e.listing_type
       // != 'daily'` — but since the listing IS daily, they're excluded from
       // the per-day count and don't spuriously trigger an overflow.
-      const group = await createTestGroup({ maxAttendees: 10 });
-      const listing = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 100,
-        maximumDaysAfter: 60,
+      const { group, members } = await groupWithMembers({
+        cap: 10,
+        count: 1,
+        daily: true,
       });
+      const [listing] = members;
       // Book normally (has start_at).
-      await bookAttendee(listing, { date: "2026-10-01", quantity: 5 });
+      await bookAttendee(listing!, { date: "2026-10-01", quantity: 5 });
       // Simulate a legacy attendee with NULL start_at (pre-daily migration).
       const legacy = await createAttendeeOrThrow({
-        bookings: [{ listingId: listing.id, quantity: 5 }],
+        bookings: [{ listingId: listing!.id, quantity: 5 }],
         email: "legacy@example.com",
         name: "Legacy",
       });
       // Wipe start_at to simulate a pre-migration attendee.
       await getDb().execute(
-        sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ${legacy.id} AND listing_id = ${listing.id}`,
+        sql`UPDATE listing_attendees SET start_at = NULL, end_at = NULL WHERE attendee_id = ${legacy.id} AND listing_id = ${listing!.id}`,
       );
       // The null-start_at row is excluded from per-day counts because the
       // listing IS daily — no overflow on day 1 (5 only, not 10).
       expect(
-        await checkGroupCapAfterDurationChange(listing.id, group.id),
+        await checkGroupCapAfterDurationChange(listing!.id, group.id),
       ).toBeNull();
     });
 

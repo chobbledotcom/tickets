@@ -11,35 +11,40 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
+/** The message a refused create body names. An accepted body fails the test:
+ *  the message of a body that passed would prove nothing. */
+const createRefusal = async (
+  body: Record<string, unknown>,
+): Promise<string> => {
+  const result = await bodyToCreateInput(body);
+  if (result.ok) throw new Error("The body was accepted but must be refused");
+  return result.error;
+};
+
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("bodyToCreateInput", () => {
     test("returns error for non-string name", async () => {
-      const result = await bodyToCreateInput({ max_attendees: 10, name: 123 });
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toBe("name is required");
+      expect(await createRefusal({ max_attendees: 10, name: 123 })).toBe(
+        "name is required",
+      );
     });
 
     test("returns error for a whitespace-only name", async () => {
-      const result = await bodyToCreateInput({ max_attendees: 10, name: "  " });
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toBe("name is required");
+      expect(await createRefusal({ max_attendees: 10, name: "  " })).toBe(
+        "name is required",
+      );
     });
 
     test("returns error for missing max_attendees", async () => {
-      const result = await bodyToCreateInput({ name: "Test" });
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toBe("max_attendees is required");
+      expect(await createRefusal({ name: "Test" })).toBe(
+        "max_attendees is required",
+      );
     });
 
     test("returns error when max_attendees is zero", async () => {
-      const result = await bodyToCreateInput({
-        max_attendees: 0,
-        name: "Test",
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error).toBe("max_attendees has an invalid value");
-      }
+      expect(await createRefusal({ max_attendees: 0, name: "Test" })).toBe(
+        "max_attendees has an invalid value",
+      );
     });
 
     test("rejects non-text bookable days", async () => {
@@ -91,7 +96,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(result.value.dayPrices).toEqual({ 1: 0, 2: 1200 });
         expect(result.value.durationDays).toBe(3);
         expect(result.value.maxPrice).toBe(5000);
-        expect(result.value.slug).toBeTruthy();
+        expect(result.value.slug).toMatch(/^[a-z0-9]+$/u);
       }
     });
 
@@ -125,26 +130,18 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         },
       ];
       for (const body of cases) {
-        const result = await bodyToCreateInput(body);
-        expect(result.ok).toBe(false);
-        if (!result.ok) {
-          expect(result.error).toBe(
-            "date must be a UTC instant of a real calendar day",
-          );
-        }
-      }
-      const surplus = await bodyToCreateInput({
-        closes_at: "2026-06-15T10:00:00ZTextra",
-        date: "2026-06-15T10:00:00Z",
-        max_attendees: 10,
-        name: "Surplus segment",
-      });
-      expect(surplus.ok).toBe(false);
-      if (!surplus.ok) {
-        expect(surplus.error).toBe(
-          "closes_at must be a UTC instant of a real calendar day",
+        expect(await createRefusal(body)).toBe(
+          "date must be a UTC instant of a real calendar day",
         );
       }
+      expect(
+        await createRefusal({
+          closes_at: "2026-06-15T10:00:00ZTextra",
+          date: "2026-06-15T10:00:00Z",
+          max_attendees: 10,
+          name: "Surplus segment",
+        }),
+      ).toBe("closes_at must be a UTC instant of a real calendar day");
     });
 
     test("maps every supported scalar without changing neutral values", async () => {
@@ -226,39 +223,34 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("rejects a non-array group_ids", async () => {
-      const result = await bodyToCreateInput({
-        group_ids: "5",
-        max_attendees: 10,
-        name: "Bad Groups",
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toBe("group_ids must be an array");
+      expect(
+        await createRefusal({
+          group_ids: "5",
+          max_attendees: 10,
+          name: "Bad Groups",
+        }),
+      ).toBe("group_ids must be an array");
     });
 
     test("rejects group_ids with non-positive-integer entries", async () => {
-      const result = await bodyToCreateInput({
-        group_ids: ["5"],
-        max_attendees: 10,
-        name: "Bad Entry",
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        assertStringIncludes(result.error, "positive integer ids");
-      }
+      assertStringIncludes(
+        await createRefusal({
+          group_ids: ["5"],
+          max_attendees: 10,
+          name: "Bad Entry",
+        }),
+        "positive integer ids",
+      );
     });
 
     test("rejects unsafe day prices", async () => {
-      const result = await bodyToCreateInput({
-        day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 },
-        max_attendees: 10,
-        name: "Unsafe Price",
-      });
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error).toBe(
-          "day_prices numeric values must be safe integers",
-        );
-      }
+      expect(
+        await createRefusal({
+          day_prices: { 1: Number.MAX_SAFE_INTEGER + 1 },
+          max_attendees: 10,
+          name: "Unsafe Price",
+        }),
+      ).toBe("day_prices numeric values must be safe integers");
     });
 
     test("maps the use_defaults flag both ways and omits it when absent", async () => {
@@ -337,11 +329,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         name: "Has Groups",
         slug: "has-groups",
       });
-      const result = await bodyToUpdateInput({ group_ids: ["5"] }, existing);
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        assertStringIncludes(result.error, "positive integer ids");
-      }
+      expect(await bodyToUpdateInput({ group_ids: ["5"] }, existing)).toEqual({
+        error: expect.stringContaining("positive integer ids"),
+        ok: false,
+      });
     });
 
     test("preserves existing values when fields not provided", async () => {
@@ -412,10 +403,12 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       });
       // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
       const kept = await bodyToUpdateInput({}, existing);
-      expect(kept.ok && kept.value.useDefaults).toBe(true);
+      if (!kept.ok) throw new Error("the omitted flag was refused");
+      expect(kept.value.useDefaults).toBe(true);
       // Explicit false → turned off.
       const off = await bodyToUpdateInput({ use_defaults: false }, existing);
-      expect(off.ok && off.value.useDefaults).toBe(false);
+      if (!off.ok) throw new Error("the false flag was refused");
+      expect(off.value.useDefaults).toBe(false);
     });
 
     test("preserves existing closes_at null as empty string", async () => {

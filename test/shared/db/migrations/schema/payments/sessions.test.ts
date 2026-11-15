@@ -4,6 +4,7 @@ import { getDb } from "#db/client.ts";
 import { paymentSessionTable } from "#db/migrations/schema/payments/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { HIDDEN_VALUE_SHAPES } from "#test-utils/payment-hidden-values.ts";
 import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import {
   expectAccepted,
@@ -19,45 +20,41 @@ const aPayment = (id: string, index: string, intent = "hyb:1:a:b:c") =>
       ${intent}, 'hyb:1:a:b:c', ${index}, 'pending', 1, 1, 1,
       'none', 'none', 'none')`;
 
-/** Each row is one way a writer could hold the booking that the table must
- *  refuse: in the open or in an envelope the decoder turns away. */
-const OPEN_BOOKINGS = [
-  ["in plain words", "Jane Smith"],
-  ["under the database owner's key", "enc:1:a:b"],
-  ["behind an upper-case envelope", "HYB:1:a:b:c"],
-  ["wearing an envelope with nothing in it", "hyb:1:Jane Smith"],
-] as const;
+/* jscpd:ignore-start -- a list of strings, not code */
+/** Every column the table declares, in order. */
+const SESSION_COLUMNS: readonly string[] = [
+  "id",
+  "origin",
+  "provider",
+  "mode",
+  "account_id",
+  "session_resource",
+  "session_reference_index",
+  "expected_amount",
+  "expected_currency",
+  "booking_intent",
+  "checkout_create",
+  "state",
+  "revision",
+  "created_at",
+  "updated_at",
+  "lease_token",
+  "lease_expires_at",
+  "next_reconcile_at",
+  "attendee_id",
+  "result_state",
+  "result",
+  "ticket_state",
+  "ticket_tokens",
+  "completion_state",
+  "completion",
+  "redacted_at",
+  "legacy_runtime",
+];
+/* jscpd:ignore-end */
 
 test("is what a payment itself is made of", () => {
-  expectSchemaColumns(paymentSessionTable, "payment_sessions", [
-    "id",
-    "origin",
-    "provider",
-    "mode",
-    "account_id",
-    "session_resource",
-    "session_reference_index",
-    "expected_amount",
-    "expected_currency",
-    "booking_intent",
-    "checkout_create",
-    "state",
-    "revision",
-    "created_at",
-    "updated_at",
-    "lease_token",
-    "lease_expires_at",
-    "next_reconcile_at",
-    "attendee_id",
-    "result_state",
-    "result",
-    "ticket_state",
-    "ticket_tokens",
-    "completion_state",
-    "completion",
-    "redacted_at",
-    "legacy_runtime",
-  ]);
+  expectSchemaColumns(paymentSessionTable, "payment_sessions", SESSION_COLUMNS);
 });
 
 describeWithEnv("db > payment session rules", { db: true }, () => {
@@ -75,7 +72,7 @@ describeWithEnv("db > payment session rules", { db: true }, () => {
   // The buyer's details, what the payment turned out to be, and the tickets
   // all live behind an envelope. This is the one rule the table still keeps,
   // because it checks what landed rather than what the code meant to write.
-  for (const [name, intent] of OPEN_BOOKINGS) {
+  for (const [name, intent] of HIDDEN_VALUE_SHAPES) {
     test(`refuses a booking held ${name}`, async () => {
       await expectRefused(aPayment("plain", "plain-index", intent));
     });

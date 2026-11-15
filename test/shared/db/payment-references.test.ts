@@ -17,8 +17,7 @@ import type { RefundState } from "#payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAnchoredAttendee } from "#test-utils/db-helpers/attendee-anchor.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookedAttendeeId } from "#test-utils/db-helpers/booked-attendee.ts";
 import {
   markProviderRefundsReturned,
   requireCompleteRefundReferences,
@@ -48,13 +47,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("canonical refund completion marks processed-payment references", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "returned@example.com",
       name: "Returned",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     await finalizeProcessedPayment(
       "sess_returned",
       attendeeId,
@@ -114,13 +110,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
       new Set(),
     );
 
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "hasref@example.com",
       name: "Has Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     await finalizeProcessedPayment(
       "sess_has_ref",
       attendeeId,
@@ -144,13 +137,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("merges tagged rows in stable processing order", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "shared-ref@example.com",
       name: "Shared Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     const payment = taggedPaymentReference("pi_shared", "square");
     const stored = await storePaymentReference(payment);
     await execute(
@@ -179,13 +169,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("merges tagged rows keeping an earlier row's refund flag", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "shared-refunded@example.com",
       name: "Shared Refunded",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     const payment = taggedPaymentReference("pi_shared_refunded");
     await finalizeProcessedPayment("sess_refunded_a", attendeeId, "", payment);
     await finalizeProcessedPayment("sess_refunded_b", attendeeId, "", payment);
@@ -208,13 +195,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("finds no reference when neither storage path has one", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "norref@example.com",
       name: "No Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
 
     expect(
       await hasAnyPaymentReference({ id: attendeeId, payment_id: "" }),
@@ -233,13 +217,10 @@ describeWithEnv(
   { db: true },
   () => {
     test("passes over a row holding no reference", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const created = await bookAttendee(listing, {
+      const attendeeId = await bookedAttendeeId({
         email: "no-reference@example.com",
         name: "No Reference",
       });
-      if (!created.success) throw new Error("setup failed");
-      const attendeeId = created.attendees[0]!.id;
 
       await reserveSession("sess_no_reference");
       await execute(

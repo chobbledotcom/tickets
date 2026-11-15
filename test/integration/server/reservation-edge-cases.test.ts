@@ -32,6 +32,17 @@ import {
 } from "#test-utils/reservation/helpers.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 
+/** The figures a reservation leaves on its attendee: the whole £10 sale counts
+ *  as paid gross whatever the deposit collected, so the balance is what is
+ *  still owed after the deposit, its fee, and any discount. */
+const expectReservationFigures = (
+  attendee: { pricePaid: number; remainingBalance: number },
+  remainingBalance: number,
+): void => {
+  expect(attendee.pricePaid).toBe(1000);
+  expect(attendee.remainingBalance).toBe(remainingBalance);
+};
+
 describeWithEnv(
   "server (reservation deposit at checkout)",
   { db: true },
@@ -163,8 +174,7 @@ describeWithEnv(
       );
       // Gross sale leg is the full £10 even though £0 was collected up front;
       // the whole £10 is owed. (price_paid no longer tracks cash — concern 5.)
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(1000);
+      expectReservationFigures(attendee, 1000);
       const summary = await getAttendeeOrderSummary(attendee.id);
       expect(summary.fullPrice).toBe(1100);
       expect(summary.reservationSubtotal).toBe(1000);
@@ -177,8 +187,7 @@ describeWithEnv(
       const attendee = await bookFreeOrder(listing);
       // Gross sale leg is the full £10 (provider skipped, £0 collected); the
       // whole £10 is owed. price_paid no longer tracks cash collected.
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(1000);
+      expectReservationFigures(attendee, 1000);
       expect(attendee.statusId).toBe(statusId);
     });
 
@@ -205,8 +214,7 @@ describeWithEnv(
       );
       // Gross sale leg (£10 list); the £5 discount and £0.50 deposit are
       // separate legs. The £4.50 owed stays accurate.
-      expect(attendee.pricePaid).toBe(1000);
-      expect(attendee.remainingBalance).toBe(450);
+      expectReservationFigures(attendee, 450);
       expect(attendee.statusId).toBe(statusId);
     });
   },

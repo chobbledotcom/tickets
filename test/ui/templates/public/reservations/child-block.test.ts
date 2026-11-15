@@ -5,6 +5,7 @@ import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { renderChildBlock } from "#templates/public/reservations/child-block.ts";
 import { ticketListing } from "#test/ui/templates/helpers.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import {
   expectIncludesAll,
   followRedirectWithFlash,
@@ -228,11 +229,13 @@ describeWithEnv(
         `<fieldset class="child-selector" data-parent-id="${parent.id}"><p class="child-option child-sole"`,
         "Add-on",
       ]);
-      assert(!html.includes("Includes"));
-      assert(!html.includes("one per booking"));
-      assert(!html.includes("Choose an option for"));
-      assert(!html.includes("Choose add-ons to match your ticket quantity"));
-      assert(!html.includes("(£0"));
+      expectExcludesAll(html, [
+        "Includes",
+        "one per booking",
+        "Choose an option for",
+        "Choose add-ons to match your ticket quantity",
+        "(£0",
+      ]);
     });
 
     test("a sole paid child shows its name and price", async () => {
@@ -246,9 +249,11 @@ describeWithEnv(
         "Paid add-on",
         "(£10",
       ]);
-      assert(!html.includes("Includes"));
-      assert(!html.includes("one per booking"));
-      assert(!html.includes("Choose an option for"));
+      expectExcludesAll(html, [
+        "Includes",
+        "one per booking",
+        "Choose an option for",
+      ]);
     });
 
     test("a sole hidden child keeps its markers without showing its name", async () => {
@@ -259,8 +264,7 @@ describeWithEnv(
         `<p class="child-option child-sole" data-sole-parent="${parent.id}" data-sole-child="${child.id}"></p><label>Price per ticket`,
         "</label></fieldset>",
       ]);
-      assert(!html.includes("Includes"));
-      assert(!html.includes("Choose an option for"));
+      expectExcludesAll(html, ["Includes", "Choose an option for"]);
     });
 
     test("a visible sole child shows its selected attributes", async () => {
@@ -283,8 +287,7 @@ describeWithEnv(
       await giveAdultsAudience(child.id);
 
       const html = await renderHidingChildName(parent, child);
-      assert(!html.includes("Audience"));
-      assert(!html.includes("Adults"));
+      expectExcludesAll(html, ["Audience", "Adults"]);
     });
 
     test("an all-free multi-child selector hides every price", async () => {

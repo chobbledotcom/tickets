@@ -28,69 +28,56 @@ import { sqlText } from "#test-utils/sql-text.ts";
 /** One column and the exact text it must spell. */
 type ColumnSpelling = readonly [column: unknown, spelled: string];
 
-/** Each row is one test: the columns it pins, in the order given. A wrong
- *  spelling here changes the schema of many tables at once. */
-const spellings: readonly {
-  readonly name: string;
-  readonly columns: readonly ColumnSpelling[];
-}[] = [
-  {
-    columns: [
-      [textOrNull, "TEXT"],
-      [wholeNumberOrNull, "INTEGER"],
-    ],
-    name: "spells a column that may hold nothing",
-  },
-  {
-    columns: [
-      [text, "TEXT NOT NULL"],
-      [wholeNumber, "INTEGER NOT NULL"],
-      [real, "REAL NOT NULL"],
-    ],
-    name: "spells a column that always holds a value",
-  },
-  {
-    columns: [
-      [textStartingBlank, "TEXT NOT NULL DEFAULT ''"],
-      [wholeNumberStartingAtZero, "INTEGER NOT NULL DEFAULT 0"],
-      [wholeNumberStartingAtOne, "INTEGER NOT NULL DEFAULT 1"],
-    ],
-    name: "gives a new column its starting value",
-  },
-  {
-    columns: [
-      [defaulted(text, "none"), "TEXT NOT NULL DEFAULT 'none'"],
-      [defaulted(wholeNumber, 90), "INTEGER NOT NULL DEFAULT 90"],
-    ],
-    name: "starts a column at the value it names",
-  },
-  {
-    columns: [
-      [textStartingAtNull, "TEXT DEFAULT NULL"],
-      [wholeNumberStartingAtNull, "INTEGER DEFAULT NULL"],
-    ],
-    name: "starts a column at nothing, as older columns hold it",
-  },
-  {
-    columns: [[rowId, "INTEGER PRIMARY KEY AUTOINCREMENT"]],
-    name: "grows the row's own id",
-  },
-  {
-    columns: [
-      // SQLite lets a text key hold nothing, so the required mark is added here.
-      [textKey, "TEXT PRIMARY KEY"],
-      [requiredTextKey, "TEXT PRIMARY KEY NOT NULL"],
-    ],
-    name: "marks a text key that must always be found",
-  },
+/** Each row is one test: the case name, then the columns it pins, each with
+ *  the exact text it must spell. A wrong spelling here changes the schema of
+ *  many tables at once. */
+const spellings: readonly (readonly [
+  name: string,
+  ...columns: ColumnSpelling[],
+])[] = [
+  [
+    "spells a column that may hold nothing",
+    [textOrNull, "TEXT"],
+    [wholeNumberOrNull, "INTEGER"],
+  ],
+  [
+    "spells a column that always holds a value",
+    [text, "TEXT NOT NULL"],
+    [wholeNumber, "INTEGER NOT NULL"],
+    [real, "REAL NOT NULL"],
+  ],
+  [
+    "gives a new column its starting value",
+    [textStartingBlank, "TEXT NOT NULL DEFAULT ''"],
+    [wholeNumberStartingAtZero, "INTEGER NOT NULL DEFAULT 0"],
+    [wholeNumberStartingAtOne, "INTEGER NOT NULL DEFAULT 1"],
+  ],
+  [
+    "starts a column at the value it names",
+    [defaulted(text, "none"), "TEXT NOT NULL DEFAULT 'none'"],
+    [defaulted(wholeNumber, 90), "INTEGER NOT NULL DEFAULT 90"],
+  ],
+  [
+    "starts a column at nothing, as older columns hold it",
+    [textStartingAtNull, "TEXT DEFAULT NULL"],
+    [wholeNumberStartingAtNull, "INTEGER DEFAULT NULL"],
+  ],
+  ["grows the row's own id", [rowId, "INTEGER PRIMARY KEY AUTOINCREMENT"]],
+  [
+    "marks a text key that must always be found",
+    // SQLite lets a text key hold nothing, so the required mark is added
+    // here.
+    [textKey, "TEXT PRIMARY KEY"],
+    [requiredTextKey, "TEXT PRIMARY KEY NOT NULL"],
+  ],
 ];
 
 describe("schema column types", () => {
-  for (const { columns, name } of spellings) {
+  for (const [name, ...columns] of spellings) {
     test(name, () => {
-      for (const [column, spelled] of columns) {
-        expect(sqlText(column)).toBe(spelled);
-      }
+      const spelled = columns.map(([column]) => sqlText(column));
+      const expected = columns.map(([, spelling]) => spelling);
+      expect(spelled).toEqual(expected);
     });
   }
 

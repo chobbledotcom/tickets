@@ -20,6 +20,7 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 
@@ -93,9 +94,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("batch retrieval for multiple attendees", async () => {
-      const q = await createQuestion("Size?");
-      const a1 = await addAnswer(q.id, 0, "Small");
-      const a2 = await addAnswer(q.id, 1, "Large");
+      const { a1, a2 } = await createQuestionWithAnswerPair("Size?", [
+        "Small",
+        "Large",
+      ]);
 
       const listing = await createTestListing();
       const att1 = await createAttendee(listing.id, "Alice");

@@ -12,8 +12,9 @@ import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
+import { createPricedListing } from "#test-utils/db-helpers/priced-listing.ts";
 import {
   protectedStateOf,
   putRowState,
@@ -56,7 +57,7 @@ const setupPlaceholderForRefresh = async (
   paymentReference: string,
   beforeRefresh?: (listingId: number) => Promise<void>,
 ): Promise<Attendee> => {
-  const listing = await createTestListing({
+  const listing = await createPricedListing({
     maxAttendees: 50,
     unitPrice: 800,
   });
@@ -147,16 +148,17 @@ describeWithEnv(
       // so the record of the refund — and the correction's target — could be
       // destroyed while the books still said the person had paid.
       test("marks the row when a found refund cannot be recorded", async () => {
-        const listing = await createTestListing({
+        const listing = await createPricedListing({
           maxAttendees: 50,
           unitPrice: 800,
         });
-        const attendee = await createAttendeeOrThrow({
-          bookings: [{ listingId: listing.id, pricePaid: 800, quantity: 1 }],
-          email: "unrecorded@example.com",
-          name: "Unrecorded",
-          paymentId: "pi_unrecorded_refresh",
-        });
+        const attendee = await createPaidAttendeeWithoutLedger(
+          listing.id,
+          "Unrecorded",
+          "unrecorded@example.com",
+          "pi_unrecorded_refresh",
+          800,
+        );
         await reserveSession("unrecorded-refresh-session");
         await finalizeReservedPayment(
           "unrecorded-refresh-session",

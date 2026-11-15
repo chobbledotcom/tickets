@@ -2,7 +2,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
 import { sql } from "#db/sql.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
@@ -21,6 +20,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeVan } from "#test-utils/deliveries.ts";
 import { assignBookingToAgent } from "#test-utils/logistics.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
 import {
@@ -351,7 +351,7 @@ describeWithEnv(
 
       test("lists logistics agents in the calendar filter bar", async () => {
         await withSetting(featureSetting("logistics"), async () => {
-          await logisticsAgents.table.insert({ name: "Van One" });
+          await makeVan("Van One");
           const { date } = await setupDailyBooking();
 
           const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
@@ -361,12 +361,8 @@ describeWithEnv(
 
       test("filters attendees by agent parameter", async () => {
         await withSetting(featureSetting("logistics"), async () => {
-          const vanOne = (
-            await logisticsAgents.table.insert({ name: "Van One" })
-          ).id;
-          const vanTwo = (
-            await logisticsAgents.table.insert({ name: "Van Two" })
-          ).id;
+          const vanOne = await makeVan("Van One");
+          const vanTwo = await makeVan("Van Two");
           const { attendeeOn, date, listing1, listing2 } =
             await setupTwoDailyBookingAttendees();
           await assignBookingToAgent(

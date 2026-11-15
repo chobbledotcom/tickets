@@ -12,6 +12,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("ticket QR code", { db: true }, () => {
   const expectQrCode = async (response: Response) => {
@@ -41,11 +42,9 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       expectIncludesAll(body, ["<svg", "</svg>"]);
     });
 
-    test("returns 404 for non-existent listing", async () => {
-      const response = await handleRequest(
-        mockRequest("/ticket/no-such-listing/qr"),
-      );
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "returns 404 for non-existent listing": () =>
+        handleRequest(mockRequest("/ticket/no-such-listing/qr")),
     });
   });
 
@@ -57,12 +56,11 @@ describeWithEnv("ticket QR code", { db: true }, () => {
       await expectQrCode(response);
     });
 
-    test("returns 404 for missing listing", async () => {
-      const request = mockRequest("/ticket/no-such-listing/qr");
-      const response = await handleTicketQrGet(request, {
-        slug: "no-such-listing",
-      });
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "returns 404 for missing listing": () =>
+        handleTicketQrGet(mockRequest("/ticket/no-such-listing/qr"), {
+          slug: "no-such-listing",
+        }),
     });
   });
 

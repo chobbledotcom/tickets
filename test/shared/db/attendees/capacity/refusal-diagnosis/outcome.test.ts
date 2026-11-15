@@ -15,9 +15,10 @@ import { enableQueryLog } from "#db/query-log.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  createTestGroup,
-  createTwoListingsSharingOnePlace,
-} from "#test-utils/db-helpers/groups.ts";
+  createListings,
+  groupWithMembers,
+} from "#test-utils/db-helpers/capacity-fixtures.ts";
+import { createTwoListingsSharingOnePlace } from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -87,15 +88,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // Twelve lines share four places: prefixes one to four fit, five fails.
     // The halving must keep its fitting bound exact — an inflated bound
     // skips the probe that pins the fifth line and names the sixth.
-    const shared = await createTestGroup({ maxAttendees: 4 });
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 12; index++) {
-      const listing = await createTestListing({
-        groupId: shared.id,
-        maxAttendees: 10,
-      });
-      lines.push(line(listing.id));
-    }
+    const { members } = await groupWithMembers({
+      cap: 4,
+      count: 12,
+      maxAttendees: 10,
+    });
+    const lines = members.map(({ id }) => line(id));
 
     expect(await refusedOrderUnfitListingIds(lines)).toEqual([
       lines[4]!.listingId,
@@ -160,10 +158,13 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   const groupWithThreeDailyMembers = async (
     groupCap: number,
   ): Promise<[{ id: number }, { id: number }, { id: number }]> => {
-    const group = await createTestGroup({ maxAttendees: groupCap });
-    const member = (): Promise<{ id: number }> =>
-      createDailyTestListing({ groupId: group.id, maxAttendees: 10 });
-    return [await member(), await member(), await member()];
+    const { members } = await groupWithMembers({
+      cap: groupCap,
+      count: 3,
+      daily: true,
+      maxAttendees: 10,
+    });
+    return [members[0]!, members[1]!, members[2]!];
   };
 
   test("a multi-day dated line counts once toward the running total the undated guards read", async () => {
@@ -202,27 +203,28 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // Each date-less statement reads the running total the earlier lines
     // left: one unit each against a cap of 2 fits line by line, so the whole
     // order fits. Adding the totals together would refuse it.
-    const group = await createTestGroup({ maxAttendees: 2 });
-    const first = await createDailyTestListing({
-      groupId: group.id,
+    const { members } = await groupWithMembers({
+      cap: 2,
+      count: 2,
+      daily: true,
       maxAttendees: 10,
     });
-    const second = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 10,
-    });
+    const [first, second] = members;
 
     expect(
-      await refusedOrderUnfitListingIds([line(first.id), line(second.id)]),
+      await refusedOrderUnfitListingIds([line(first!.id), line(second!.id)]),
     ).toEqual([]);
   });
 
   test("an order that fits again costs two calls across several dates", async () => {
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 8; index++) {
-      const listing = await createDailyTestListing({ maxAttendees: 10 });
-      lines.push(line(listing.id, index % 2 ? DAY : "2026-10-05"));
-    }
+    const listings = await createListings({
+      count: 8,
+      daily: true,
+      maxAttendees: 10,
+    });
+    const lines = listings.map((listing, index) =>
+      line(listing.id, index % 2 ? DAY : "2026-10-05"),
+    );
 
     expect(
       await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
@@ -234,11 +236,9 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   });
 
   test("an order that fits again costs two calls however long it is", async () => {
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 8; index++) {
-      const listing = await createTestListing({ maxAttendees: 10 });
-      lines.push(line(listing.id));
-    }
+    const lines = (await createListings({ count: 8, maxAttendees: 10 })).map(
+      (listing) => line(listing.id),
+    );
 
     expect(
       await countDatabaseCalls(2, () => refusedOrderUnfitListingIds(lines)),
@@ -248,16 +248,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
   /** Eight roomy lines whose shared group has one place: only the first
    * fits, so the search must walk down to the second line. */
   const eightLinesSharingOnePlace = async (): Promise<LineBooking[]> => {
-    const shared = await createTestGroup({ maxAttendees: 1 });
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 8; index++) {
-      const listing = await createTestListing({
-        groupId: shared.id,
-        maxAttendees: 10,
-      });
-      lines.push(line(listing.id));
-    }
-    return lines;
+    const { members } = await groupWithMembers({
+      cap: 1,
+      count: 8,
+      maxAttendees: 10,
+    });
+    return members.map(({ id }) => line(id));
   };
 
   test("a long refused order still names the line that tips the limit", async () => {
@@ -273,24 +269,20 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // that snapshot cannot change its answer, so the line that did not fit at
     // the snapshot is still named — no re-probe guard can veto it, because no
     // probe contradicts another any more.
-    const group = await createTestGroup({ maxAttendees: 8 });
-    const holder = await createDailyTestListing({
-      groupId: group.id,
+    const { members } = await groupWithMembers({
+      cap: 8,
+      count: 9,
+      daily: true,
       maxAttendees: 10,
     });
+    const [holder] = members;
+    if (holder === undefined) throw new Error("fixture made no member listing");
     await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: holder.id, quantity: 2 }],
+      bookings: [{ listingId: holder!.id, quantity: 2 }],
       email: "holder@example.com",
       name: "Holder",
     });
-    const lines: LineBooking[] = [];
-    for (let index = 0; index < 8; index++) {
-      const listing = await createDailyTestListing({
-        groupId: group.id,
-        maxAttendees: 10,
-      });
-      lines.push(line(listing.id));
-    }
+    const lines = members.slice(1).map(({ id }) => line(id));
 
     await withRequestContext(async () => {
       enableQueryLog();

@@ -17,6 +17,7 @@ import {
 } from "#db/notes/queries.ts";
 import { openNotes } from "#db/notes/sealing.ts";
 import { attendeeNotes, groupNotesByTargetId } from "#db/notes/target.ts";
+import type { SystemNoteRow } from "#db/notes/types.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -55,6 +56,23 @@ const makeNotePair = async (
   await createSystemNote(attendeeNotes(first), firstSpec.text);
   await createSystemNote(attendeeNotes(second), secondSpec.text);
   return { first, second };
+};
+
+/** The same pair with the stored row each note wrote, for a test that picks
+ *  one note by id. */
+const makeNoteRowPair = async (
+  firstSpec: { name: string; text: string },
+  secondSpec: { name: string; text: string },
+): Promise<{
+  first: number;
+  firstRow: SystemNoteRow;
+  second: number;
+  secondRow: SystemNoteRow;
+}> => {
+  const { first, second } = await makeNotePair(firstSpec, secondSpec);
+  const [firstRow] = await getNoteRows("attendee", [first]);
+  const [secondRow] = await getNoteRows("attendee", [second]);
+  return { first, firstRow: firstRow!, second, secondRow: secondRow! };
 };
 
 describeWithEnv("db > notes", { db: true }, () => {
@@ -248,21 +266,24 @@ describeWithEnv("db > notes", { db: true }, () => {
   });
 
   test("deleteAttendeeNote removes only the scoped note", async () => {
-    const { first: owner, second: other } = await makeNotePair(
+    const {
+      first: owner,
+      firstRow,
+      second: other,
+      secondRow,
+    } = await makeNoteRowPair(
       { name: "Delete Owner", text: "delete me" },
       { name: "Keep Owner", text: "keep me" },
     );
-    const [ownerRow] = await getNoteRows("attendee", [owner]);
-    const [otherRow] = await getNoteRows("attendee", [other]);
 
     // A wrong attendee id must not delete another attendee's note.
-    await deleteNotes(attendeeNotes(other), [ownerRow!.id]);
+    await deleteNotes(attendeeNotes(other), [firstRow.id]);
     expect(await getNoteRows("attendee", [owner])).toHaveLength(1);
 
-    await deleteNotes(attendeeNotes(owner), [ownerRow!.id]);
+    await deleteNotes(attendeeNotes(owner), [firstRow.id]);
     expect(await getNoteRows("attendee", [owner])).toEqual([]);
     // The other attendee's note is untouched.
-    expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(otherRow!.id);
+    expect((await getNoteRows("attendee", [other]))[0]?.id).toBe(secondRow.id);
   });
 
   test("noteDeleteStatement clears only the chosen records' notes", async () => {

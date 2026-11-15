@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { paymentCompletionDeliveriesTable } from "#db/migrations/schema/payments/completion-deliveries.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { testColumnSql } from "#test-utils/schema-column-cases.ts";
 import { expectSchemaColumns } from "#test-utils/schema-columns.ts";
 import { columnSql } from "./column-sql.ts";
 import { expectAccepted, expectRefused } from "./refuses.ts";
@@ -26,11 +27,11 @@ describe("the messages sent after a payment", () => {
     assertStringIncludes(columnSql(table, "data"), "TEXT NOT NULL");
   });
 
-  test("lets a message wait until it has been sent", () => {
-    // Empty until it goes out, which is what makes "which messages are still
-    // waiting?" a cheap question.
-    expect(columnSql(table, "completed_at")).toBe("INTEGER");
-  });
+  // Empty until it goes out, which is what makes "which messages are still
+  // waiting?" a cheap question.
+  testColumnSql(table, [
+    ["lets a message wait until it has been sent", "completed_at", "INTEGER"],
+  ]);
 
   test("cannot send the same message for a payment twice", () => {
     // Without this the buyer could be emailed twice by two workers.

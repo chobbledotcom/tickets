@@ -4,6 +4,7 @@ import { settings } from "#db/settings.ts";
 import { squareApi } from "#shared/square/api.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { debugMessages, useDebugLogSpy } from "#test-utils/debug-log.ts";
+import { expectLastDebugMessage } from "#test-utils/debug-log-expect.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { describeSquare } from "#test-utils/square/harness.ts";
 
@@ -41,7 +42,8 @@ describeSquare(() => {
       await settings.update.square.accessToken("EAAAl_test_123");
       const client = await squareApi.getSquareClient();
       expect(client).not.toBeNull();
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
+      expectLastDebugMessage(
+        debugLog,
         "[Square] Creating new Square client (production)",
       );
     });
@@ -64,7 +66,8 @@ describeSquare(() => {
       // Sandbox mode must route requests to the sandbox host.
       using _fetch = trackFetch();
       expect(await hostFor(client!)).toBe("connect.squareupsandbox.com");
-      expect(debugLog().calls.at(-1)?.args[0]).toBe(
+      expectLastDebugMessage(
+        debugLog,
         "[Square] Creating new Square client (sandbox)",
       );
     });

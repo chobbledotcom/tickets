@@ -45,55 +45,49 @@ describeWithEnv(
         expect(await storedCheckedIn(attendeeId, listingId)).toBe(stored);
       };
 
-    /** Each case walks one person's line: every step names the direction, the
-     * count asked for, and the count the line holds afterwards. */
-    const lineCases: readonly {
-      name: string;
-      lineQuantity?: number;
-      moves: readonly (readonly [TicketDirection, number, number])[];
-    }[] = [
-      {
-        moves: [
-          ["admit", 1, 1],
-          ["admit", 1, 2],
-        ],
-        name: "admit adds tickets up to the line's quantity",
-      },
-      {
-        moves: [
-          ["admit", 2, 2],
-          ["admit", 5, 2],
-        ],
-        name: "admit caps at the line's quantity, so a full line stays full",
-      },
-      {
-        moves: [
-          ["admit", 2, 2],
-          ["release", 1, 1],
-          ["release", 2, 0],
-        ],
-        name: "release removes tickets and floors at zero",
-      },
-      {
-        lineQuantity: 0,
-        moves: [
-          ["admit", 2, 0],
-          ["release", 2, 0],
-        ],
-        name: "a quantity 0 line never admits and never releases",
-      },
+    /** Each case walks one person's line: its name, the count the line holds,
+     * and then every step's direction, the count asked for, and the count the
+     * line holds afterwards. */
+    const lineCases: readonly [
+      name: string,
+      lineQuantity: number,
+      ...moves: (readonly [TicketDirection, number, number])[],
+    ][] = [
+      [
+        "admit adds tickets up to the line's quantity",
+        2,
+        ["admit", 1, 1],
+        ["admit", 1, 2],
+      ],
+      [
+        "admit caps at the line's quantity, so a full line stays full",
+        2,
+        ["admit", 2, 2],
+        ["admit", 5, 2],
+      ],
+      [
+        "release removes tickets and floors at zero",
+        2,
+        ["admit", 2, 2],
+        ["release", 1, 1],
+        ["release", 2, 0],
+      ],
+      [
+        "a quantity 0 line never admits and never releases",
+        0,
+        ["admit", 2, 0],
+        ["release", 2, 0],
+      ],
     ];
 
-    for (const { name, lineQuantity, moves } of lineCases) {
+    for (const [name, lineQuantity, ...moves] of lineCases) {
       test(name, async () => {
-        const { listing, attendee } = await attendeeOnListing(2);
-        if (lineQuantity !== undefined) {
-          await executeUpdate(
-            "listing_attendees",
-            { quantity: lineQuantity },
-            { attendee_id: attendee.id, listing_id: listing.id },
-          );
-        }
+        const { listing, attendee } = await attendeeOnListing();
+        await executeUpdate(
+          "listing_attendees",
+          { quantity: lineQuantity },
+          { attendee_id: attendee.id, listing_id: listing.id },
+        );
         for (const [direction, count, stored] of moves) {
           await expectMoveTo(direction, attendee.id, listing.id)(count, stored);
         }

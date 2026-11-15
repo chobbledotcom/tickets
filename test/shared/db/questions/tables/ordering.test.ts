@@ -6,13 +6,13 @@ import {
 } from "#db/questions/queries.ts";
 import { answersOrder, questionsOrder } from "#db/questions/tables.ts";
 import {
-  addAnswer,
   createOrderedQuestionPair,
   createQuestion,
   createQuestionWithAnswers,
   expectQuestionTexts,
 } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
 
 describeWithEnv("custom questions > ordering", { db: true }, () => {
   describe("getNextAnswerSortOrder", () => {
@@ -28,9 +28,10 @@ describeWithEnv("custom questions > ordering", { db: true }, () => {
   });
   describe("swapAnswerOrder", () => {
     test("swaps sort_order of two answers", async () => {
-      const q = await createQuestion("Q");
-      const a1 = await addAnswer(q.id, 0, "First");
-      const a2 = await addAnswer(q.id, 1, "Second");
+      const { a1, a2, q } = await createQuestionWithAnswerPair("Q", [
+        "First",
+        "Second",
+      ]);
       await answersOrder.swap({
         first: a1.id,
         scope: q.id,

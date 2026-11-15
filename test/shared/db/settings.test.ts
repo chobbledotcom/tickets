@@ -10,16 +10,26 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import {
+  expectStoredSetting,
+  expectStoredThenCleared,
+  reloadSettings,
+  type SettingAccess,
+} from "#test-utils/settings-accessors.ts";
 import { loadRawSetting } from "#test-utils/settings-load.ts";
+
+/** The superuser choice setting, as the checks below reach it. */
+const superuserChoice: SettingAccess<"enabled" | "self-managed" | ""> = {
+  read: () => settings.superuserChoice,
+  update: settings.update.superuserChoice,
+};
 
 describeWithEnv("db > settings", { db: true }, () => {
   describe("generated string accessors", () => {
     test("read and write registry-backed plaintext and encrypted settings", async () => {
       await settings.update.customCss("body { color: red; }");
       await settings.update.businessEmail("owner@example.com");
-      settings.invalidateCache();
-
-      await settings.loadKeys([
+      await reloadSettings([
         CONFIG_KEYS.CUSTOM_CSS,
         CONFIG_KEYS.BUSINESS_EMAIL,
       ]);
@@ -71,10 +81,14 @@ describeWithEnv("db > settings", { db: true }, () => {
     }
 
     test("update.bookingFee with empty string resets to 0", async () => {
-      await settings.update.bookingFee("500");
-      expect(settings.bookingFee).toBe("500");
-      await settings.update.bookingFee("");
-      expect(settings.bookingFee).toBe("0");
+      await expectStoredThenCleared(
+        {
+          read: () => settings.bookingFee,
+          update: settings.update.bookingFee,
+        },
+        "500",
+        "0",
+      );
     });
 
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {
@@ -133,15 +147,20 @@ describeWithEnv("db > settings", { db: true }, () => {
       expect(settings.superuserChoice).toBe("");
     });
 
-    test("settings.superuserChoice returns 'self-managed' after writing", async () => {
-      await settings.update.superuserChoice("self-managed");
-      expect(settings.superuserChoice).toBe("self-managed");
-    });
-
-    test("settings.superuserChoice returns 'enabled' after writing", async () => {
-      await settings.update.superuserChoice("enabled");
-      expect(settings.superuserChoice).toBe("enabled");
-    });
+    for (const { name, value } of [
+      {
+        name: "settings.superuserChoice returns 'self-managed' after writing",
+        value: "self-managed",
+      },
+      {
+        name: "settings.superuserChoice returns 'enabled' after writing",
+        value: "enabled",
+      },
+    ] as const) {
+      test(name, async () => {
+        await expectStoredSetting(superuserChoice, value);
+      });
+    }
 
     test("settings.superuserChoice getter is consistent across multiple reads", async () => {
       await settings.update.superuserChoice("self-managed");
@@ -190,19 +209,17 @@ describeWithEnv("db > settings", { db: true }, () => {
   describe("superuserChoice writer behavior", () => {
     test("settings.update.superuserChoice persists across a round-trip", async () => {
       await settings.update.superuserChoice("enabled");
-      settings.invalidateCache();
-      await settings.loadKeys([CONFIG_KEYS.SUPERUSER_CHOICE]);
+      await reloadSettings([CONFIG_KEYS.SUPERUSER_CHOICE]);
       expect(settings.superuserChoice).toBe("enabled");
     });
 
     test("writing the same value twice is idempotent", async () => {
-      await settings.update.superuserChoice("self-managed");
-      await settings.update.superuserChoice("self-managed");
-      expect(settings.superuserChoice).toBe("self-managed");
+      await expectStoredSetting(superuserChoice, "self-managed");
+      await expectStoredSetting(superuserChoice, "self-managed");
     });
 
     test("writing '' (empty string) resets the choice", async () => {
-      await settings.update.superuserChoice("enabled");
+      await expectStoredSetting(superuserChoice, "enabled");
       await settings.update.superuserChoice("");
       expect(settings.superuserChoice).toBe("");
     });
@@ -237,65 +254,56 @@ describeWithEnv("db > settings", { db: true }, () => {
   });
 
   describe("orphan-purge settings", () => {
-    const loadOrphanKeys = () =>
-      settings.loadKeys([
-        CONFIG_KEYS.AUTO_PURGE_ORPHANS,
-        CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
-      ]);
+    const orphanKeys = [
+      CONFIG_KEYS.AUTO_PURGE_ORPHANS,
+      CONFIG_KEYS.ORPHAN_PURGE_RETENTION,
+    ];
 
     test("autoPurgeOrphans defaults to on for a fresh database", async () => {
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.autoPurgeOrphans).toBe(true);
     });
 
     test("autoPurgeOrphans reads an explicit 'false'", async () => {
       await settings.setRaw(CONFIG_KEYS.AUTO_PURGE_ORPHANS, "false");
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.autoPurgeOrphans).toBe(false);
     });
 
     test("autoPurgeOrphans reads an explicit 'true'", async () => {
       await settings.setRaw(CONFIG_KEYS.AUTO_PURGE_ORPHANS, "true");
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.autoPurgeOrphans).toBe(true);
     });
 
     test("update.autoPurgeOrphans persists across a round-trip", async () => {
       await settings.update.autoPurgeOrphans(false);
       expect(settings.autoPurgeOrphans).toBe(false);
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.autoPurgeOrphans).toBe(false);
     });
 
     test("orphanPurgeRetention defaults to 6 months (182 days)", async () => {
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.orphanPurgeRetention).toBe(DEFAULT_ORPHAN_RETENTION);
     });
 
     test("orphanPurgeRetention keeps a valid stored age", async () => {
       await settings.setRaw(CONFIG_KEYS.ORPHAN_PURGE_RETENTION, "365");
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.orphanPurgeRetention).toBe("365");
     });
 
     test("orphanPurgeRetention coerces an invalid stored age to the default", async () => {
       await settings.setRaw(CONFIG_KEYS.ORPHAN_PURGE_RETENTION, "not-an-age");
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.orphanPurgeRetention).toBe(DEFAULT_ORPHAN_RETENTION);
     });
 
     test("update.orphanPurgeRetention persists across a round-trip", async () => {
       await settings.update.orphanPurgeRetention("730");
       expect(settings.orphanPurgeRetention).toBe("730");
-      settings.invalidateCache();
-      await loadOrphanKeys();
+      await reloadSettings(orphanKeys);
       expect(settings.orphanPurgeRetention).toBe("730");
     });
   });

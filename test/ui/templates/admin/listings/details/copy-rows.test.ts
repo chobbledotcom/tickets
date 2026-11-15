@@ -162,9 +162,11 @@ describe("listing details table copy rows", () => {
       publicPage: "inactive",
     });
     assertStringIncludes(inactive, "This listing is inactive");
-    assert(!inactive.includes('id="embed-toggle-12"'));
-    assert(!inactive.includes('id="embed-script-12"'));
-    assert(!inactive.includes('id="embed-iframe-12"'));
+    expectExcludesAll(inactive, [
+      'id="embed-toggle-12"',
+      'id="embed-script-12"',
+      'id="embed-iframe-12"',
+    ]);
   });
 
   test("the public url row toggles the embed inputs beside the link", () => {

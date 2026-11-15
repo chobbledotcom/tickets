@@ -47,6 +47,34 @@ const pageKey = (pageId: number): TargetKey =>
 const rootLabels = (model: NavModel): string[] =>
   model.rootPageNodes.map((node) => node.label);
 
+/** Assert the nav shows `label` as its only current child, live or not. */
+const expectOnlyChild = (
+  model: NavModel,
+  label: string,
+  live: boolean,
+): void => {
+  expect(model.currentChildren.map((node) => node.label)).toEqual([label]);
+  expect(model.currentChildren[0]?.live).toBe(live);
+};
+
+/** A listing the page shows but cannot link to, and what took its link away. */
+const unlinkedChildCases = [
+  {
+    change: (listingId: number) =>
+      execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`),
+    label: "Off sale",
+    name: "keeps an inactive listing in the nav but not as a link",
+  },
+  {
+    change: async (listingId: number) => {
+      const parent = await createTestListing({ name: "Parent" });
+      await listingChildren.setIds(parent.id, [listingId]);
+    },
+    label: "Required child",
+    name: "keeps a required child in the nav but not as a link",
+  },
+];
+
 /** Put one listing on a page and read the nav as that page. `change` runs
  *  after the listing is placed, so a test can alter it first. */
 const navShowingListing = async (
@@ -114,35 +142,20 @@ describeWithEnv("public site nav", { db: true, triggers: true }, () => {
   test("resolves a page's listing item to a live link", async () => {
     const { listing, model } = await navShowingListing("Live listing");
 
-    expect(model.currentChildren.map((node) => node.label)).toEqual([
-      "Live listing",
-    ]);
+    expectOnlyChild(model, "Live listing", true);
     expect(model.currentChildren[0]?.href).toBe(`/ticket/${listing.slug}`);
-    expect(model.currentChildren[0]?.live).toBe(true);
   });
 
-  test("keeps an inactive listing in the nav but not as a link", async () => {
-    const { model } = await navShowingListing("Off sale", (listingId) =>
-      execute(sql`UPDATE listings SET active = 0 WHERE id = ${listingId}`),
-    );
+  for (const unlinked of unlinkedChildCases) {
+    test(unlinked.name, async () => {
+      const { model } = await navShowingListing(
+        unlinked.label,
+        unlinked.change,
+      );
 
-    expect(model.currentChildren.map((node) => node.label)).toEqual([
-      "Off sale",
-    ]);
-    expect(model.currentChildren[0]?.live).toBe(false);
-  });
-
-  test("keeps a required child in the nav but not as a link", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const { model } = await navShowingListing("Required child", (listingId) =>
-      listingChildren.setIds(parent.id, [listingId]),
-    );
-
-    expect(model.currentChildren.map((node) => node.label)).toEqual([
-      "Required child",
-    ]);
-    expect(model.currentChildren[0]?.live).toBe(false);
-  });
+      expectOnlyChild(model, unlinked.label, false);
+    });
+  }
 
   test("leaves a hidden page out of the menus", async () => {
     await createTestSitePage("public-page", { name: "Public Page" });

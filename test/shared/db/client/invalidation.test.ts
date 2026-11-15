@@ -65,12 +65,46 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
   };
 
   /**
-   * One statement per gate rule, each measured on its own row. An INSERT always
-   * fires; an UPDATE fires only when its SET assigns a gated column, so a
-   * misread verb or a dropped SET column list would show up as the wrong count;
-   * a DELETE fires whatever its gate, because a row leaving the table shifts
-   * aggregates; and a CTE-led UPDATE fires by the columns its own SET names,
-   * because the CTE prefix must be stripped before classification.
+   * The UPDATE cases: one statement, so each row names only the gate and the
+   * count it must produce. A gated column assignment fires; an ungated one does
+   * not, so a misread verb or a dropped SET column list shows up as the wrong
+   * count.
+   */
+  const updateCases: readonly {
+    name: string;
+    key: string;
+    gate: readonly string[];
+    fired: number;
+  }[] = [
+    {
+      fired: 1,
+      gate: ["value"],
+      key: "inv_update_hit",
+      name: "UPDATE assigning a gated column fires the gated invalidator",
+    },
+    {
+      fired: 0,
+      gate: ["some_other_column"],
+      key: "inv_update_miss",
+      name: "UPDATE assigning only ungated columns skips the gated invalidator",
+    },
+  ];
+
+  for (const { fired, gate, key, name } of updateCases) {
+    test(name, async () => {
+      await execute(settingsInsert(key, "seed"));
+      expect(await firingsFor(() => execute(updateValue(key)), gate)).toBe(
+        fired,
+      );
+    });
+  }
+
+  /**
+   * One statement per remaining verb rule, each measured on its own row. An
+   * INSERT always fires; a DELETE fires whatever its gate, because a row
+   * leaving the table shifts aggregates; and a CTE-led UPDATE fires by the
+   * columns its own SET names, because the CTE prefix must be stripped before
+   * classification.
    */
   const writeCases: readonly {
     name: string;
@@ -86,22 +120,6 @@ describeWithEnv("db > client write invalidation", { db: true }, () => {
       name: "INSERT fires an unconditional invalidator",
       seed: false,
       write: (key) => settingsInsert(key, "seed"),
-    },
-    {
-      fired: 1,
-      gate: ["value"],
-      key: "inv_update_hit",
-      name: "UPDATE assigning a gated column fires the gated invalidator",
-      seed: true,
-      write: updateValue,
-    },
-    {
-      fired: 0,
-      gate: ["some_other_column"],
-      key: "inv_update_miss",
-      name: "UPDATE assigning only ungated columns skips the gated invalidator",
-      seed: true,
-      write: updateValue,
     },
     {
       fired: 1,

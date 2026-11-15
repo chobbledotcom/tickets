@@ -15,9 +15,9 @@ import {
   expectHtmlResponse,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import {
   postRefundAll,
@@ -44,13 +44,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     });
 
     test("shows error when no attendees have payments", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing } = await setupListingAndAttendee();
 
       const response = await awaitTestRequest(refundAllUrl(listing.id), {
         cookie: await testCookie(),
@@ -148,13 +142,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     });
 
     test("returns error when no attendees have payments", async () => {
-      const listing = await createTestListing({ maxAttendees: 100 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "John Doe",
-        "john@example.com",
-      );
+      const { listing } = await setupListingAndAttendee();
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(listing.id),

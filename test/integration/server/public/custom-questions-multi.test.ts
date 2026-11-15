@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import {
   expectAttendeeCounts,
   expectFlash,
@@ -11,7 +10,9 @@ import {
 } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
+import { createNamedListingPair } from "#test-utils/db-helpers/listing-pair-named.ts";
+import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
+import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
 
 /** The multi-listing attendee `listingId` shares, and the set of answer ids
  * saved on it — the shared "look up what got recorded" step behind every
@@ -31,21 +32,13 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     describe("ticket with custom questions", () => {
+      /** A two-answer question on each listing, so one answer choice can be
+       *  selected per listing. */
       const setupQuestionForListings = async (listingIds: number[]) => {
-        const q = await questionsTable.insert({
-          displayType: "radio",
-          text: "Dietary needs?",
-        });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "None",
-        });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
-          text: "Vegetarian",
-        });
+        const { a1, a2, q } = await createQuestionWithAnswerPair(
+          "Dietary needs?",
+          ["None", "Vegetarian"],
+        );
         for (const eid of listingIds) {
           await listingQuestions.setIds(eid, [q.id]);
         }
@@ -53,9 +46,9 @@ describeWithEnv(
       };
 
       test("saves answers for all attendees in ticket reservation", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Q1" },
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Q2" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Q1", "Multi Q2"],
+          { maxAttendees: 50, maxQuantity: 5 },
         );
         const { question, answer1 } = await setupQuestionForListings([
           listing1.id,
@@ -80,33 +73,14 @@ describeWithEnv(
       });
 
       test("saves listing-specific answers only for each attendee", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Evt A" },
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Evt B" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Evt A", "Multi Evt B"],
+          { maxAttendees: 50, maxQuantity: 5 },
         );
         // Question 1 assigned to listing1 only
-        const q1 = await questionsTable.insert({
-          displayType: "radio",
-          text: "Listing A question?",
-        });
-        const a1 = await answersTable.insert({
-          questionId: q1.id,
-          sortOrder: 0,
-          text: "A answer",
-        });
-        await listingQuestions.setIds(listing1.id, [q1.id]);
-
+        const q1 = await createQuestionWithAnswer([listing1.id]);
         // Question 2 assigned to listing2 only
-        const q2 = await questionsTable.insert({
-          displayType: "radio",
-          text: "Listing B question?",
-        });
-        const a2 = await answersTable.insert({
-          questionId: q2.id,
-          sortOrder: 0,
-          text: "B answer",
-        });
-        await listingQuestions.setIds(listing2.id, [q2.id]);
+        const q2 = await createQuestionWithAnswer([listing2.id]);
 
         const slug = `${listing1.slug}+${listing2.slug}`;
         const response = await submitMultiTicketForm(slug, {
@@ -114,35 +88,25 @@ describeWithEnv(
           name: "Per Listing User",
           [`quantity_${listing1.id}`]: "1",
           [`quantity_${listing2.id}`]: "1",
-          [`question_${q1.id}`]: String(a1.id),
-          [`question_${q2.id}`]: String(a2.id),
+          [`question_${q1.questionId}`]: String(q1.answerId),
+          [`question_${q2.questionId}`]: String(q2.answerId),
         });
         expectReservedRedirectWithTokens(response);
 
         // With multi-listing attendees, one attendee is linked to both listings.
         // Both listings' answers are stored on the same attendee.
         const answers = await getSharedAttendeeAnswers(listing1.id);
-        assertArrayIncludes(answers, [a1.id]);
-        assertArrayIncludes(answers, [a2.id]);
+        assertArrayIncludes(answers, [q1.answerId]);
+        assertArrayIncludes(answers, [q2.answerId]);
       });
 
       test("skips non-selected listings in listing answer map", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Q Shared 1" },
-          { maxAttendees: 50, maxQuantity: 5, name: "Multi Q Shared 2" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Q Shared 1", "Multi Q Shared 2"],
+          { maxAttendees: 50, maxQuantity: 5 },
         );
         // Question assigned to BOTH listings
-        const q1 = await questionsTable.insert({
-          displayType: "radio",
-          text: "Shared question?",
-        });
-        const a1 = await answersTable.insert({
-          questionId: q1.id,
-          sortOrder: 0,
-          text: "Shared answer",
-        });
-        await listingQuestions.setIds(listing1.id, [q1.id]);
-        await listingQuestions.setIds(listing2.id, [q1.id]);
+        const q1 = await createQuestionWithAnswer([listing1.id, listing2.id]);
 
         const slug = `${listing1.slug}+${listing2.slug}`;
         // Only select listing1, skip listing2
@@ -151,7 +115,7 @@ describeWithEnv(
           name: "Shared Q User",
           [`quantity_${listing1.id}`]: "1",
           [`quantity_${listing2.id}`]: "0",
-          [`question_${q1.id}`]: String(a1.id),
+          [`question_${q1.questionId}`]: String(q1.answerId),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -160,25 +124,18 @@ describeWithEnv(
           { count: 1, listingId: listing1.id },
           { count: 0, listingId: listing2.id },
         ]);
-        expect(await getSharedAttendeeAnswers(listing1.id)).toEqual([a1.id]);
+        expect(await getSharedAttendeeAnswers(listing1.id)).toEqual([
+          q1.answerId,
+        ]);
       });
 
       test("validates question answers for selected listings only", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, name: "Multi Q Filter 1" },
-          { maxAttendees: 50, name: "Multi Q Filter 2" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Q Filter 1", "Multi Q Filter 2"],
+          { maxAttendees: 50 },
         );
         // Only assign question to listing1
-        const q = await questionsTable.insert({
-          displayType: "radio",
-          text: "Listing1 question?",
-        });
-        await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Yes",
-        });
-        await listingQuestions.setIds(listing1.id, [q.id]);
+        await createQuestionWithAnswer([listing1.id]);
 
         // Select only listing2 (no question assigned) - should succeed without answer
         const slug = `${listing1.slug}+${listing2.slug}`;
@@ -192,9 +149,9 @@ describeWithEnv(
       });
 
       test("returns error when ticket question is unanswered", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, name: "Multi Q Error 1" },
-          { maxAttendees: 50, name: "Multi Q Error 2" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Multi Q Error 1", "Multi Q Error 2"],
+          { maxAttendees: 50 },
         );
         await setupQuestionForListings([listing1.id]);
 

@@ -10,6 +10,7 @@ import {
 import { executeUpdate, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendeePair } from "#test-utils/db-helpers/attendee-pair.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   createTestAttendeeDirect,
@@ -41,15 +42,12 @@ describeWithEnv(
       const [listingA, listingB] = await createListingPair({
         maxAttendees: 10,
       });
-      const { attendee: onA } = await createTestAttendeeDirect(
-        listingA.id,
-        "Downloader",
-        "down@example.com",
-      );
-      const { attendee: onB } = await createTestAttendeeDirect(
-        listingB.id,
-        "Bystander",
-        "by@example.com",
+      const [{ attendee: onA }, { attendee: onB }] = await bookAttendeePair(
+        [listingA, listingB],
+        [
+          { email: "down@example.com", name: "Downloader" },
+          { email: "by@example.com", name: "Bystander" },
+        ],
       );
 
       await incrementAttachmentDownloads(onA.id, listingA.id);
@@ -81,15 +79,12 @@ describeWithEnv(
 describeWithEnv("db > attendees > updateAttendeePII", { db: true }, () => {
   test("rewrites the stored PII blob for that attendee only", async () => {
     const [listingA, listingB] = await createListingPair({ maxAttendees: 10 });
-    const { attendee: edited } = await createTestAttendeeDirect(
-      listingA.id,
-      "Old Name",
-      "old@example.com",
-    );
-    const { attendee: other } = await createTestAttendeeDirect(
-      listingB.id,
-      "Untouched",
-      "same@example.com",
+    const [{ attendee: edited }, { attendee: other }] = await bookAttendeePair(
+      [listingA, listingB],
+      [
+        { email: "old@example.com", name: "Old Name" },
+        { email: "same@example.com", name: "Untouched" },
+      ],
     );
 
     await updateAttendeePII(edited.id, {

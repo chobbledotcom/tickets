@@ -1,11 +1,10 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
 import dropListingsDayPricesMigration from "#db/migrations/2026-07-02_drop_listings_day_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
-import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
+import { expectColumnDroppedKeeping } from "#test-utils/db/migration-column-drop.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -58,11 +57,12 @@ describeWithEnv(
         { listing_id: 10, price_id: "3", unit_price: 1000 },
       ]);
       // The column is gone; the listing rows survive the rebuild.
-      assert(!(await columnNames("listings")).includes("day_prices"));
-      const ids = await queryAll<{ id: number }>(
+      await expectColumnDroppedKeeping(
+        "listings",
+        "day_prices",
         sql`SELECT id FROM listings ORDER BY id`,
+        [{ id: 10 }, { id: 11 }],
       );
-      expect(ids).toEqual([{ id: 10 }, { id: 11 }]);
     });
 
     test("is a no-op when the legacy column is already gone (idempotent re-run)", async () => {

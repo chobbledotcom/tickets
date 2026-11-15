@@ -31,6 +31,16 @@ const createWriteTable = async () => {
 const storedRows = (): Promise<WriteRow[]> =>
   queryAll<WriteRow>(sql`SELECT id, name FROM table_write_rows`);
 
+/** The row the write reported and the row the table now stores: both are
+ *  pinned, so a reported value that differs from the stored one is visible. */
+const expectStored = async (
+  reported: WriteRow | null,
+  expected: { reported: WriteRow; stored: WriteRow },
+): Promise<void> => {
+  expect(reported).toEqual(expected.reported);
+  expect(await storedRows()).toEqual([expected.stored]);
+};
+
 describeWithEnv("db > writeTableRow", { db: true }, () => {
   test("inserts and reads back every selected table column", async () => {
     const table = await createWriteTable();
@@ -41,8 +51,10 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
       }),
     );
 
-    expect(row).toEqual({ id: 1, name: "first" });
-    expect(await storedRows()).toEqual([{ id: 1, name: "FIRST" }]);
+    await expectStored(row, {
+      reported: { id: 1, name: "first" },
+      stored: { id: 1, name: "FIRST" },
+    });
   });
 
   test("updates and reads back the changed row", async () => {
@@ -89,8 +101,10 @@ describeWithEnv("db > writeTableRow", { db: true }, () => {
 
     // insert() reports the values it was given; the stored value keeps the
     // column's write transform.
-    expect(row).toEqual({ id: 1, name: "Named" });
-    expect(await storedRows()).toEqual([{ id: 1, name: "NAMED" }]);
+    await expectStored(row, {
+      reported: { id: 1, name: "Named" },
+      stored: { id: 1, name: "NAMED" },
+    });
   });
 
   // Nothing downstream can be keyed on a row the INSERT did not report, so the

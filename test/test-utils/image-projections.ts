@@ -24,9 +24,7 @@ export const expectImageFields = (
   actual: ItemImageColumns,
   expected: ItemImageColumns,
 ): void => {
-  expect(actual.image_alt_text).toBe(expected.image_alt_text);
-  expect(actual.image_thumb_url).toBe(expected.image_thumb_url);
-  expect(actual.image_url).toBe(expected.image_url);
+  expect(actual).toMatchObject(expected);
 };
 
 /** One stored listing as its image fields; a missing listing fails the read. */

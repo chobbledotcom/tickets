@@ -5,6 +5,7 @@ import { stub } from "@std/testing/mock";
 import { executeWithoutCacheInvalidation, update } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { toggleListingActive } from "#shared/listings-actions.ts";
+import { expectApiDeactivation } from "#test-utils/admin-listing-status.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -110,6 +111,12 @@ describeWithEnv(
       expect((await getListingWithCount(thatPage.id))?.active).toBe(true);
     });
 
+    /** The page each case setup leaves as its add-on's only reachable seller. */
+    const rescuingPageId = async (): Promise<number> =>
+      (await rescuingPageSetup()).thatPage.id;
+    const soloChildId = async (): Promise<number> =>
+      (await soloChildAddOn()).child.id;
+
     /** Every admin path that can take a page offline must refuse when an opt-in
      *  add-on reaches it only through that page: the edit-save PUT and the
      *  dedicated /deactivate POST, each for a rescuing page and for a
@@ -120,22 +127,22 @@ describeWithEnv(
       {
         name: "an admin API edit-save that deactivates the rescuing page is rejected",
         request: saveDeactivated,
-        setup: async () => (await rescuingPageSetup()).thatPage.id,
+        setup: rescuingPageId,
       },
       {
         name: "API deactivate of the only rescuing page of a child add-on is rejected, leaving it active",
         request: postDeactivate,
-        setup: async () => (await rescuingPageSetup()).thatPage.id,
+        setup: rescuingPageId,
       },
       {
         name: "API deactivate of a bookable_alone child whose add-on only it can reach is rejected",
         request: saveDeactivated,
-        setup: async () => (await soloChildAddOn()).child.id,
+        setup: soloChildId,
       },
       {
         name: "POST deactivate of a bookable_alone child whose add-on only it can reach is rejected",
         request: postDeactivate,
-        setup: async () => (await soloChildAddOn()).child.id,
+        setup: soloChildId,
       },
     ];
 
@@ -149,15 +156,7 @@ describeWithEnv(
       // The guard must not block an ordinary API deactivation: a plain listing
       // rescuing no child-scoped add-on toggles inactive normally.
       const plain = await createTestListing({ name: "Plain" });
-      await assertJson(
-        apiRequest(`/api/admin/listings/${plain.id}/deactivate`, {
-          method: "POST",
-        }),
-        200,
-        (json) => {
-          expect(json.listing.active).toBe(false);
-        },
-      );
+      await expectApiDeactivation(plain.id);
       expect((await getListingWithCount(plain.id))?.active).toBe(false);
     });
 

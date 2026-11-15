@@ -15,6 +15,7 @@ import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts"
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import type { Attendee, Listing } from "#types";
 
 describeWithEnv(
   "server (unified attendee form) — no-quantity",
@@ -56,6 +57,22 @@ describeWithEnv(
         return response;
       };
 
+      /** Book a "ghost" attendee on a 50-place listing and mark its line
+       *  no-quantity: the submit must redirect (302). */
+      const markGhostBooking = async (
+        name: string,
+        email: string,
+      ): Promise<{ attendee: Attendee; listing: Listing }> => {
+        const booking = await listingWithAttendee(50, name, email);
+        const response = await markNoQuantity(
+          booking.attendee.id,
+          booking.listing.id,
+          name,
+        );
+        expect(response.status).toBe(302);
+        return booking;
+      };
+
       /** Book a paid attendee on `listingId` and recognise a £15 sale leg in the
        *  ledger, so hasPaidLine's DB guard sees a gross sale (not a price_paid
        *  column). Returns the new attendee id. */
@@ -80,30 +97,42 @@ describeWithEnv(
         return attendeeId;
       };
 
-      test("marking a line no-quantity keeps it as a quantity-0 row, not deleted", async () => {
-        const { attendee, listing } = await listingWithAttendee(
-          50,
+      const ghostQuantityCases: readonly [
+        name: string,
+        person: string,
+        email: string,
+        expected: { price_paid?: number; quantity: number },
+      ][] = [
+        [
+          "marking a line no-quantity keeps it as a quantity-0 row, not deleted",
           "Ghost",
           "ghost@example.com",
-        );
+          // The line survives (not removed) as a quantity-0, price_paid-0
+          // sentinel.
+          { price_paid: 0, quantity: 0 },
+        ],
+        [
+          "a no-quantity-only attendee saves instead of being rejected as no lines",
+          "OnlyGhost",
+          "onlyghost@example.com",
+          { quantity: 0 },
+        ],
+      ];
 
-        const response = await markNoQuantity(attendee.id, listing.id, "Ghost");
-
-        expect(response.status).toBe(302);
-        // The line survives (not removed) as a quantity-0, price_paid-0 sentinel.
-        expect(await readLine(attendee.id, listing.id)).toMatchObject({
-          price_paid: 0,
-          quantity: 0,
+      for (const [name, person, email, expected] of ghostQuantityCases) {
+        test(name, async () => {
+          const { attendee, listing } = await markGhostBooking(person, email);
+          expect(await readLine(attendee.id, listing.id)).toMatchObject(
+            expected,
+          );
         });
-      });
+      }
 
       test("a stored quantity-0 line renders with the no-quantity box ticked", async () => {
-        const { attendee, listing } = await listingWithAttendee(
-          50,
+        const { attendee, listing } = await markGhostBooking(
           "Ghost",
           "ghost@example.com",
         );
-        await markNoQuantity(attendee.id, listing.id, "Ghost");
 
         const html = await (
           await adminGet(`/admin/attendees/${attendee.id}/edit`)
@@ -189,25 +218,6 @@ describeWithEnv(
         expect(await readLine(attendeeId, listing.id)).toMatchObject({
           price_paid: 1500,
           quantity: 2,
-        });
-      });
-
-      test("a no-quantity-only attendee saves instead of being rejected as no lines", async () => {
-        const { attendee, listing } = await listingWithAttendee(
-          50,
-          "OnlyGhost",
-          "onlyghost@example.com",
-        );
-
-        const response = await markNoQuantity(
-          attendee.id,
-          listing.id,
-          "OnlyGhost",
-        );
-
-        expect(response.status).toBe(302);
-        expect(await readLine(attendee.id, listing.id)).toMatchObject({
-          quantity: 0,
         });
       });
 

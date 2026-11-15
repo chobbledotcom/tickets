@@ -1,11 +1,10 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
 import groupFlatPricesMigration from "#db/migrations/2026-07-02_group_flat_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
 import { sql } from "#db/sql.ts";
-import { columnNames } from "#test-utils/db/migration-test-helpers.ts";
+import { expectColumnDroppedKeeping } from "#test-utils/db/migration-column-drop.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -64,15 +63,16 @@ describeWithEnv(
         { listing_id: 10, price_id: "2", unit_price: 750 },
       ]);
       // The column is gone but membership + quantity survive the rebuild.
-      assert(!(await columnNames("group_listings")).includes("package_price"));
-      const rows = await queryAll<{ listing_id: number; quantity: number }>(
+      await expectColumnDroppedKeeping(
+        "group_listings",
+        "package_price",
         sql`SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id`,
+        [
+          { listing_id: 10, quantity: 2 },
+          { listing_id: 11, quantity: 1 },
+          { listing_id: 12, quantity: 1 },
+        ],
       );
-      expect(rows).toEqual([
-        { listing_id: 10, quantity: 2 },
-        { listing_id: 11, quantity: 1 },
-        { listing_id: 12, quantity: 1 },
-      ]);
     });
 
     test("is a no-op when the legacy column is already gone (idempotent re-run)", async () => {

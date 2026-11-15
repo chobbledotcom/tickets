@@ -6,7 +6,7 @@ import { getDb } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   apiRequest,
@@ -77,12 +77,10 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     });
 
     test("returns 404 for a non-existent status", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/attendee-statuses/99999"),
         404,
-        (body) => {
-          expect(body.error).toBe("Status not found");
-        },
+        "Status not found",
       );
     });
   });

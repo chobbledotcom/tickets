@@ -19,6 +19,7 @@ import {
   adminGet,
   createTestManagerSession,
 } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("server bulk email > compose", { db: true }, () => {
   describe("GET /admin/emails", () => {
@@ -56,14 +57,11 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       assertStringIncludes(html, "Recipients:</strong> Attendees of Gig");
     });
 
-    test("404s for a non-existent listing", async () => {
-      const response = await adminGet("/admin/emails?listing=9999");
-      expect(response.status).toBe(404);
-    });
-
-    test("404s for a non-numeric listing", async () => {
-      const response = await adminGet("/admin/emails?listing=abc");
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "404s for a non-existent listing": () =>
+        adminGet("/admin/emails?listing=9999"),
+      "404s for a non-numeric listing": () =>
+        adminGet("/admin/emails?listing=abc"),
     });
 
     test("falls back to the default audience for an unknown one", async () => {

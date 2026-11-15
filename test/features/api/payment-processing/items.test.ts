@@ -14,10 +14,12 @@ import {
 } from "#test-utils/db-helpers/groups.ts";
 import { createListingWithStoredQuantities } from "#test-utils/db-helpers/listing-quantities.ts";
 import {
+  createDeactivatedTestListing,
   createTestListing,
   deactivateTestListing,
   pastCloseTime,
 } from "#test-utils/db-helpers/listings.ts";
+import { validateListingBooking } from "#test-utils/paid-item-validation.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import {
@@ -147,27 +149,24 @@ describeWithEnv("paid item validation", { db: true }, () => {
 
   test("names an inactive standalone listing", async () => {
     await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createDeactivatedTestListing({
       maxAttendees: 5,
       name: "Private workshop",
       unitPrice: 500,
     });
-    await deactivateTestListing(listing.id);
-    const intent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
-    using refund = stubRefundPayment("re_items_inactive", 500);
 
-    expectRefunded(
-      await validateAllItems(
-        paymentSession("cs_items_inactive", 500, intent),
-        intent,
-      ),
-      refund,
-      {
-        error: "Private workshop is no longer accepting registrations.",
-        paymentIntentId: "pi_cs_items_inactive",
-        total: 500,
-      },
+    const { refund, result } = await validateListingBooking(
+      "cs_items_inactive",
+      listing.id,
+      500,
+      "re_items_inactive",
     );
+
+    expectRefunded(result, refund, {
+      error: "Private workshop is no longer accepting registrations.",
+      paymentIntentId: "pi_cs_items_inactive",
+      total: 500,
+    });
   });
 
   for (const boundCase of movedBoundCases) {

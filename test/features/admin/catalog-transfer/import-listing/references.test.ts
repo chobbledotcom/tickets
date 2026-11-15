@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -12,6 +11,7 @@ import {
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { makeParent } from "#test-utils/parents.ts";
 
 const expectImportError = async (
   blob: unknown,
@@ -78,9 +78,10 @@ describeWithEnv("catalog import references", { db: true }, () => {
   });
 
   test("rejects a parent that is already a child", async () => {
-    const grandparent = await createTestListing({ name: "Top listing" });
-    const parent = await createTestListing({ name: "Nested listing" });
-    await listingChildren.setIds(grandparent.id, [parent.id]);
+    const { child: parent } = await makeParent({
+      children: [{ name: "Nested listing" }],
+      parent: { name: "Top listing" },
+    });
 
     const result = await importCatalog({
       kind: "listing",

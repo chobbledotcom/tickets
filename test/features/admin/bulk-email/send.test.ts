@@ -32,6 +32,7 @@ import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("server bulk email > send", { db: true }, () => {
   describe("POST /admin/emails/send", () => {
@@ -388,31 +389,31 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       ]);
     });
 
-    test("404s for an unknown attendee token", async () => {
-      const response = await adminGet("/admin/emails?attendee=gone");
-      expect(response.status).toBe(404);
-    });
-
-    test("404s for an attendee with no email on file", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        name: "Solo",
-      });
-      const { token } = await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const response = await adminGet(
-        `/admin/emails?attendee=${encodeURIComponent(token)}`,
-      );
-      expect(response.status).toBe(404);
-    });
-
-    test("404s for a listing whose attendees have no email", async () => {
-      const listing = await createTestListing({
-        maxAttendees: 5,
-        name: "Solo",
-      });
-      await createTestAttendeeDirect(listing.id, "Nemo", "");
-      const response = await adminGet(`/admin/emails?listing=${listing.id}`);
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "404s for a listing whose attendees have no email": async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Solo",
+        });
+        await createTestAttendeeDirect(listing.id, "Nemo", "");
+        return await adminGet(`/admin/emails?listing=${listing.id}`);
+      },
+      "404s for an attendee with no email on file": async () => {
+        const listing = await createTestListing({
+          maxAttendees: 5,
+          name: "Solo",
+        });
+        const { token } = await createTestAttendeeDirect(
+          listing.id,
+          "Nemo",
+          "",
+        );
+        return await adminGet(
+          `/admin/emails?attendee=${encodeURIComponent(token)}`,
+        );
+      },
+      "404s for an unknown attendee token": () =>
+        adminGet("/admin/emails?attendee=gone"),
     });
 
     test("preview falls back to a generic label for a stale token", async () => {

@@ -19,6 +19,7 @@ import { postListingSale } from "#test-utils/ledger.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, createTestManagerSession } from "#test-utils/session.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 /** A settle identity (session id + business time) for settleAttendeeBalance. */
 const settle = (id = "settle-session") => ({
@@ -117,9 +118,9 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
     });
   });
 
-  test("returns 404 for a missing attendee", async () => {
-    const response = await adminGet("/admin/attendees/9999/ledger");
-    expect(response.status).toBe(404);
+  testStatus(404, {
+    "returns 404 for a missing attendee": () =>
+      adminGet("/admin/attendees/9999/ledger"),
   });
 
   test("shows a fully-paid state once the balance is settled", async () => {

@@ -14,6 +14,14 @@ const expectParsed = (
   for (const [text, expected] of cases) expect(parse(text)).toBe(expected);
 };
 
+/** Asserts each input is rejected as null. */
+const expectRejected = (
+  parse: (text: string) => number | null,
+  values: readonly string[],
+): void => {
+  for (const value of values) expect(parse(value)).toBeNull();
+};
+
 describe("clampInteger", () => {
   const clampDays = clampInteger(1, 90);
 
@@ -49,9 +57,7 @@ describe("parseNonNegativeInt", () => {
   });
 
   test("rejects signs, fractions, exponents and trailing junk", () => {
-    for (const value of ["", "-1", "+1", "1.5", "1e2", "2x"]) {
-      expect(parseNonNegativeInt(value)).toBeNull();
-    }
+    expectRejected(parseNonNegativeInt, ["", "-1", "+1", "1.5", "1e2", "2x"]);
   });
 
   test("rejects integers above JavaScript's safe range", () => {
@@ -69,8 +75,6 @@ describe("parsePositiveInt", () => {
   });
 
   test("rejects zero, signs, fractions, exponents and trailing junk", () => {
-    for (const value of ["0", "-1", "+1", "1.5", "1e2", "1abc"]) {
-      expect(parsePositiveInt(value)).toBeNull();
-    }
+    expectRejected(parsePositiveInt, ["0", "-1", "+1", "1.5", "1e2", "1abc"]);
   });
 });

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
@@ -6,6 +6,7 @@ import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
   assertPublicHtml,
   expectIncludesAll,
@@ -54,7 +55,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "No listings listed.",
         "My Listings",
       );
-      assert(!html.includes('href="/admin/login"'));
+      expectOmitsAll(html, ['href="/admin/login"']);
     });
   });
 
@@ -81,7 +82,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "/",
         `<img src="/image/${image.filename}" alt="Welcome">`,
       );
-      assert(!html.includes("img#"));
+      expectOmitsAll(html, ["img#"]);
     });
 
     test("a group description's img#N reference renders the image's uid URL", async () => {
@@ -96,7 +97,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "/listings",
         `<img src="/image/${image.filename}" alt="Festival">`,
       );
-      assert(!html.includes("img#"));
+      expectOmitsAll(html, ["img#"]);
     });
 
     test("the terms' img#N reference renders the image's uid URL", async () => {
@@ -107,7 +108,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "/terms",
         `<img src="/image/${image.filename}" alt="TermsSeal">`,
       );
-      assert(!html.includes("img#"));
+      expectOmitsAll(html, ["img#"]);
     });
   });
 
@@ -159,7 +160,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "Fixed stay",
         "Flexible stay",
       );
-      assert(!html.includes(`href="/ticket/${fixed.slug}?date=${date}"`));
+      expectOmitsAll(html, [`href="/ticket/${fixed.slug}?date=${date}"`]);
       assertStringIncludes(
         html,
         `href="/ticket/${flexible.slug}?date=${date}"`,
@@ -170,7 +171,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       await enablePublicSite();
       await createTestListing({ maxAttendees: 5, name: "Standard Only" });
       const html = await assertPublicHtml("/listings", "Standard Only");
-      assert(!html.includes("listings-date-filter"));
+      expectOmitsAll(html, ["listings-date-filter"]);
     });
   });
 
@@ -183,8 +184,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
       await createTestListing({ name: "Visible Listing" });
 
       const html = await assertPublicHtml("/listings", "Visible Listing");
-      assert(!html.includes("Off Sale Listing"));
-      assert(!html.includes("Secret Listing"));
+      expectOmitsAll(html, ["Off Sale Listing", "Secret Listing"]);
     });
 
     test("drops a group kept off the list while keeping its member", async () => {
@@ -204,7 +204,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "/listings",
         "Visible Listing In Hidden Group",
       );
-      assert(!html.includes("Secret Group"));
+      expectOmitsAll(html, ["Secret Group"]);
     });
   });
 
@@ -235,7 +235,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
         "Weekend Package",
         "Standalone Listing",
       );
-      assert(!filtered.includes(`href="/ticket/${pkg.slug}"`));
+      expectOmitsAll(filtered, [`href="/ticket/${pkg.slug}"`]);
       expect(filtered.indexOf("Unavailable")).toBeLessThan(
         filtered.indexOf("Weekend Package"),
       );
@@ -335,8 +335,7 @@ describeWithEnv("public listing pages", { db: true, triggers: true }, () => {
     ): Promise<void> => {
       await createTestListing({ maxAttendees: 50, name: "Standalone" });
       const html = await assertPublicHtml("/listings", "Standalone");
-      assert(!html.includes(`href="/ticket/${group.slug}"`));
-      assert(!html.includes(groupName));
+      expectOmitsAll(html, [`href="/ticket/${group.slug}"`, groupName]);
     };
 
     test("suppresses a group whose members are all off sale", async () => {

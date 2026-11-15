@@ -4,7 +4,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
-  expectErrorFlash,
   expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
@@ -19,6 +18,7 @@ import {
   mockRequest,
 } from "#test-utils/mocks.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import { expectFormValueRefused } from "#test-utils/settings-refusal.ts";
 
 /** Post invalid embed hosts and assert a 302 redirect with error flash */
 async function expectInvalidEmbedHostsRefused(
@@ -190,12 +190,15 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
     });
 
     test("rejects bare wildcard embed host pattern", async () => {
-      const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "*",
-      });
-
-      expectErrorFlash(response, "Bare wildcard");
-      expect(settings.embedHosts).toBe("");
+      await expectFormValueRefused(
+        {
+          fields: { embed_hosts: "*" },
+          flash: "Bare wildcard",
+          path: "/admin/settings/embed-hosts",
+          stored: () => settings.embedHosts,
+        },
+        "",
+      );
     });
 
     test("normalizes and persists embed hosts to the database", async () => {

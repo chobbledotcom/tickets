@@ -6,13 +6,15 @@ import { deleteListing } from "#db/listings/delete.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookAttendeePair } from "#test-utils/db-helpers/attendee-pair.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { finalizeProcessedPayment } from "#test-utils/processed-payments.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { createStripeListing } from "#test-utils/stripe-listing.ts";
 import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
 
 const successRequest = (query: string): Request =>
@@ -20,8 +22,7 @@ const successRequest = (query: string): Request =>
 
 describeWithEnv("server (payment success details)", { db: true }, () => {
   test("direct success keeps separators between every stored token", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxAttendees: 5,
       unitPrice: 500,
     });
@@ -61,8 +62,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
   });
 
   test("redirect encodes separators between every stored token", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxAttendees: 5,
       unitPrice: 500,
     });
@@ -95,8 +95,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
   });
 
   test("an explicit thank-you URL is not replaced on a replay", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxAttendees: 5,
       thankYouUrl: "https://listing.example.com/thanks",
       unitPrice: 500,
@@ -134,8 +133,7 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
   });
 
   test("a deleted listing adds no made-up thank-you URL on a replay", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxAttendees: 5,
       unitPrice: 500,
     });
@@ -214,18 +212,16 @@ describeWithEnv("server (payment success details)", { db: true }, () => {
   });
 
   test("tokens keep separators and omit a multi-listing thank-you URL", async () => {
-    const first = await createTestListing({ maxAttendees: 5 });
-    const second = await createTestListing({ maxAttendees: 5 });
-    const { token: firstToken } = await createTestAttendeeDirect(
-      first.id,
-      "First",
-      "first@example.com",
+    const [first, second] = await createListingPair({ maxAttendees: 5 });
+    const [firstBooking, secondBooking] = await bookAttendeePair(
+      [first, second],
+      [
+        { email: "first@example.com", name: "First" },
+        { email: "second@example.com", name: "Second" },
+      ],
     );
-    const { token: secondToken } = await createTestAttendeeDirect(
-      second.id,
-      "Second",
-      "second@example.com",
-    );
+    const firstToken = firstBooking.token;
+    const secondToken = secondBooking.token;
     const tokens = `${firstToken}+${secondToken}`;
 
     const html = await (

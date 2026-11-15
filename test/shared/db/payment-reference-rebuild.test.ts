@@ -12,11 +12,6 @@ import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
-  bookAttendee,
-  bookedAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
   bookLegacyPaidAttendee,
   provenancePointerOf,
   rebuildStatingProviderForEveryRow,
@@ -106,21 +101,9 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       paymentId: "pi_tagged_blank",
     });
 
-    const listing = await createTestListing();
-    const pointed = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "pointed@example.com",
-        name: "Pointed",
-        paymentId: "pi_pointed",
-      }),
-    );
-    await seedHistoricalProcessedPayment(
+    const { attendee: pointed } = await bookLegacyPaidAttendee(
       "sess_pointed",
-      pointed.id,
       "pi_pointed",
-    );
-    await execute(
-      sql`UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ${"sess_pointed"}`,
     );
     await execute(
       sql`UPDATE attendees SET pii_payment_session_id = 'sess_pointed' WHERE id = ${pointed.id}`,

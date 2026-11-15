@@ -7,6 +7,7 @@ import { applySchemaChanges, syncIndexes } from "#db/migrations/schema-sync.ts";
 import { additive } from "#db/migrations/verify.ts";
 import { sql, sqlName } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectMigrationIdentity } from "#test-utils/migration-identity.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
 const LEGACY_TRIGGER_NAMES = ["insert", "update", "delete"].map(
@@ -26,12 +27,7 @@ describeWithEnv(
   { db: true, triggers: true },
   () => {
     test("the migration declares only the checkout stage schema objects", () => {
-      const migration = checkoutStagesMigration(context);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
+      expectMigrationIdentity(checkoutStagesMigration(context), {
         description: "Add dormant checkout stage storage.",
         id: "2026-07-15_checkout_stages",
         requires: {
@@ -139,16 +135,14 @@ describeWithEnv(
     });
 
     test("the cleanup migration declares the legacy table absent", () => {
-      const migration = dropCheckoutStageRevisionsMigration(cleanupContext);
-      expect({
-        description: migration.description,
-        id: migration.id,
-        requires: migration.requires,
-      }).toEqual({
-        description: "Remove unused checkout stage revision tracking.",
-        id: "2026-07-16_drop_checkout_stage_revisions",
-        requires: { absentTables: ["checkout_stage_revisions"] },
-      });
+      expectMigrationIdentity(
+        dropCheckoutStageRevisionsMigration(cleanupContext),
+        {
+          description: "Remove unused checkout stage revision tracking.",
+          id: "2026-07-16_drop_checkout_stage_revisions",
+          requires: { absentTables: ["checkout_stage_revisions"] },
+        },
+      );
     });
 
     test("the cleanup migration atomically removes legacy revision storage and reruns safely", async () => {

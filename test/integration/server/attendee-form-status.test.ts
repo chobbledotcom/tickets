@@ -1,4 +1,4 @@
-import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
+import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
@@ -16,6 +16,7 @@ import {
   saveContactRecord,
 } from "#db/contact-preferences.ts";
 import { sql } from "#db/sql.ts";
+import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
   expectHtmlResponse,
   expectIncludesAll,
@@ -161,7 +162,7 @@ describeWithEnv(
         const html = await getEdit(id);
 
         assertStringIncludes(html, "consider moving it to a paid status");
-        assert(!html.includes("still unpaid"));
+        expectOmitsAll(html, ["still unpaid"]);
       });
 
       test("edit page stays quiet for a reservation that still owes a balance", async () => {
@@ -170,15 +171,13 @@ describeWithEnv(
         const html = await getEdit(id);
         // No notice — this is the normal mid-reservation state (balance owed, not
         // yet paid). The balance itself is not shown as an editable field.
-        assert(!html.includes("still unpaid"));
-        assert(!html.includes("consider moving"));
+        expectOmitsAll(html, ["still unpaid", "consider moving"]);
       });
 
       test("edit page stays quiet when nothing is owed", async () => {
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        assert(!html.includes("still unpaid"));
-        assert(!html.includes("paid status but still owes"));
+        expectOmitsAll(html, ["still unpaid", "paid status but still owes"]);
       });
 
       test("edit page shows the attendee's status as a heading when multiple statuses exist", async () => {
@@ -204,21 +203,19 @@ describeWithEnv(
         // Fresh installs seed a single status, which carries no information.
         const id = await seedAttendee(null, 0);
         const html = await getEdit(id);
-        assert(!html.includes("<h2>Status:"));
+        expectOmitsAll(html, ["<h2>Status:"]);
       });
 
       test("edit page status select offers no 'no status' option", async () => {
         const reservation = await newReservation(); // a second status, so the select is shown
         const id = await seedAttendee(reservation.id, 0);
         const html = await getEdit(id);
-        // The empty placeholder choice is gone entirely.
-        assert(!html.includes("No status"));
-        // The status select itself has no empty-value option any more.
-        assert(
-          !html.includes(
-            '<select id="status_id" name="status_id"><option selected value="">',
-          ),
-        );
+        // The empty placeholder choice is gone entirely, and the status select
+        // itself carries no empty-value option any more.
+        expectOmitsAll(html, [
+          "No status",
+          '<select id="status_id" name="status_id"><option selected value="">',
+        ]);
       });
 
       test("edit page pre-selects the public default when the attendee has no status", async () => {
@@ -233,9 +230,9 @@ describeWithEnv(
         const only = await requirePaidDefaultStatus(); // the single seeded status
         const id = await seedAttendee(only!.id, 0);
         const html = await getEdit(id);
-        // No status dropdown is rendered for a single-status site...
-        assert(!html.includes('<select id="status_id"'));
-        assert(!html.includes("No status"));
+        // No status dropdown is rendered for a single-status site, and no
+        // "No status" choice is offered either.
+        expectOmitsAll(html, ['<select id="status_id"', "No status"]);
         // ...but the status is still submitted so a save can't clear it.
         assertStringIncludes(
           html,

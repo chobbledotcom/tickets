@@ -23,6 +23,7 @@ import { createTwoListingBooking } from "#test-utils/db-helpers/bookings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest, mockFormRequest } from "#test-utils/mocks.ts";
 import { adminGet, testCookie, testCsrfToken } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
   describe("GET /checkin/:tokens (unauthenticated)", () => {
@@ -105,22 +106,20 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expectIncludesAll(body, [listingA.name, listingB.name]);
     });
 
-    test("returns 404 for invalid tokens when authenticated", async () => {
-      const response = await adminGet("/checkin/bad-token");
-      expect(response.status).toBe(404);
-    });
-
-    test("returns 404 for orphaned attendee with no listing links", async () => {
-      const { listing, token } = await setupCheckinTest(
-        "Orphan",
-        "orphan@test.com",
-      );
-      const { getDb } = await import("#db/client.ts");
-      await getDb().execute(
-        sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id}`,
-      );
-      const response = await adminGet(`/checkin/${token}`);
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "returns 404 for invalid tokens when authenticated": () =>
+        adminGet("/checkin/bad-token"),
+      "returns 404 for orphaned attendee with no listing links": async () => {
+        const { listing, token } = await setupCheckinTest(
+          "Orphan",
+          "orphan@test.com",
+        );
+        const { getDb } = await import("#db/client.ts");
+        await getDb().execute(
+          sql`DELETE FROM listing_attendees WHERE listing_id = ${listing.id}`,
+        );
+        return await adminGet(`/checkin/${token}`);
+      },
     });
 
     test("shows listing name and quantity in admin view", async () => {

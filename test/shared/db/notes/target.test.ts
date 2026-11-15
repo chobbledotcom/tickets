@@ -9,14 +9,6 @@ import {
 import { sql } from "#db/sql.ts";
 import { whereSql } from "#db/where-clauses.ts";
 
-/** Notes in input order: two of them name one record, one names another, so
- *  grouping must both bucket and keep the order. */
-const interleavedNotes = [
-  { entity_id: 1, note: "first" },
-  { entity_id: 2, note: "other" },
-  { entity_id: 1, note: "second" },
-];
-
 describe("what a note is about", () => {
   test("names a record by its kind and its id", () => {
     expect(attendeeNotes(7)).toEqual({ id: 7, kind: "attendee" });
@@ -36,7 +28,14 @@ describe("what a note is about", () => {
   });
 
   test("groups notes by the record they are about, keeping their order", () => {
-    const grouped = groupNotesByTargetId(interleavedNotes);
+    // Two of the notes name one record, one names another, so grouping must
+    // both bucket and keep the order.
+    const notes = [
+      { entity_id: 1, note: "first" },
+      { entity_id: 2, note: "other" },
+      { entity_id: 1, note: "second" },
+    ];
+    const grouped = groupNotesByTargetId(notes);
 
     // The whole map answers at once: which records carry notes, each in input
     // order, and nothing for a record with none.

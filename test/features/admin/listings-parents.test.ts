@@ -110,9 +110,11 @@ describeWithEnv("duplicated listing child edges", { db: true }, () => {
   });
 
   test("marks a candidate with children ineligible by name", async () => {
-    const parent = await createTestListing({ name: "Parent" });
-    const candidate = await createTestListing({ name: "Candidate" });
-    const grandchild = await createTestListing({ name: "Grandchild" });
+    const [parent, candidate, grandchild] = await createNamedListings(
+      "Parent",
+      "Candidate",
+      "Grandchild",
+    );
     await listingChildren.setIds(candidate.id, [grandchild.id]);
 
     const section = await loadListingParentsSection(parent);

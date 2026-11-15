@@ -21,8 +21,8 @@ import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
+import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -217,13 +217,11 @@ describeWithEnv(
     });
 
     test("a booked listing's profit is its income minus its cost", async () => {
-      const listing = await createTestListing({ unitPrice: 600 });
-      await createTestAttendee(
-        listing.id,
-        listing.slug,
-        "Profit Probe",
-        "profit@example.com",
-      );
+      const { listing } = await setupListingAndAttendee({
+        email: "profit@example.com",
+        listing: { unitPrice: 600 },
+        name: "Profit Probe",
+      });
       const counted = await requireListingWithCount(listing.id);
       expect(counted.cost).toBe(0);
       expect(counted.profit).toBe(counted.income);

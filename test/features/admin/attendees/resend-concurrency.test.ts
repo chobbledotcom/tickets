@@ -288,12 +288,7 @@ describeWithEnv(
       // refused, the catch releases the lease, so both captured values go
       // back and a later resend after the obstacle is gone recovers them.
       await configureTestEmail();
-      const { attendee, listing } = await bookTestAttendeeWithFlags(
-        "Activity Fault Buyer",
-        2,
-        1,
-      );
-      await addWebhook(listing.id);
+      const { attendee } = await bookWebhookBuyer("Activity Fault Buyer", 2, 1);
 
       await expectPressWithRefusedActivity(
         attendee.id,
@@ -304,15 +299,8 @@ describeWithEnv(
         },
       );
 
-      const second = await resend(attendee.id, "Activity Fault Buyer", "both");
-      expectRedirectWithFlash(
-        `/admin/attendees/${attendee.id}/actions`,
-        t("success.notification_resent"),
-      )(second.response);
-      expect(await readPendingNotificationFlags(attendee.id)).toEqual({
-        email: 0,
-        webhooks: 0,
-      });
+      // With the obstacle gone, the repaired press recovers both sides.
+      await recoverAllSides(attendee.id, "Activity Fault Buyer", "both");
     });
 
     test("a failed restore keeps the original failure and the lease", async () => {
@@ -321,12 +309,7 @@ describeWithEnv(
       // the restore's — and the lease stays held: the claim's zeros stand,
       // for the operator to repair.
       await configureTestEmail();
-      const { attendee, listing } = await bookTestAttendeeWithFlags(
-        "Restore Fault Buyer",
-        2,
-        1,
-      );
-      await addWebhook(listing.id);
+      const { attendee } = await bookWebhookBuyer("Restore Fault Buyer", 2, 1);
 
       await expectPressWithRefusedActivity(
         attendee.id,

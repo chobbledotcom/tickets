@@ -1,10 +1,11 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { unzipSync } from "fflate";
 import { MASK_SENTINEL } from "#db/settings/mask.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
+import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
   expectFlashRedirect,
   getHeader,
@@ -196,8 +197,7 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
   test("does not show wallet link when Apple Wallet is not configured", async () => {
     const token = await walletAliceToken();
     const body = await fetchWalletTicketBody(token);
-    assert(!body.includes("wallet-link"));
-    assert(!body.includes("Apple Wallet"));
+    expectOmitsAll(body, ["wallet-link", "Apple Wallet"]);
   });
 
   test("shows wallet link when Apple Wallet is configured", async () => {

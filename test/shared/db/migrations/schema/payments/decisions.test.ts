@@ -16,20 +16,29 @@ const aDecision = (values: SqlStatement) =>
     (case_id, case_revision, claim, state, attempt_count, created_at)
     VALUES (${values})`;
 
+/* jscpd:ignore-start -- a list of strings, not code */
+/** Every column the table declares, in order. */
+const DECISION_COLUMNS: readonly string[] = [
+  "id",
+  "case_id",
+  "case_revision",
+  "claim",
+  "decision",
+  "state",
+  "attempt_count",
+  "created_at",
+  "last_attempt_at",
+  "next_retry_at",
+  "last_error",
+];
+/* jscpd:ignore-end */
+
 test("is what the owner's decision is made of", () => {
-  expectSchemaColumns(paymentCaseDecisionTable, "payment_case_decisions", [
-    "id",
-    "case_id",
-    "case_revision",
-    "claim",
-    "decision",
-    "state",
-    "attempt_count",
-    "created_at",
-    "last_attempt_at",
-    "next_retry_at",
-    "last_error",
-  ]);
+  expectSchemaColumns(
+    paymentCaseDecisionTable,
+    "payment_case_decisions",
+    DECISION_COLUMNS,
+  );
 });
 
 describeWithEnv("db > payment decision and message rules", { db: true }, () => {

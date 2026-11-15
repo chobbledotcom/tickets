@@ -1,359 +1,285 @@
-import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { groups } from "#db/groups.ts";
 import { handleRequest } from "#routes";
-import { stripeApi } from "#shared/stripe.ts";
-import { renderPaymentSuccess } from "#test/integration/server/payment-success-helpers.ts";
-import {
-  expectHtmlResponse,
-  expectIncludesAll,
-  followRedirect,
-} from "#test-utils/assertions.ts";
+import { expectHtml, followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { signedMeta, signMeta, singleItem } from "#test-utils/factories.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  signedMeta,
+  signMeta,
+  type TestListingOverrides,
+} from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import { setupStripe } from "#test-utils/settings.ts";
-import { stubCheckoutSession } from "#test-utils/stripe/responses.ts";
+import { createStripeListing } from "#test-utils/stripe-listing.ts";
+import { stubRetrieveCheckoutSession } from "#test-utils/webhooks/stripe.ts";
+import type { Group, ListingWithCount } from "#types";
 
-describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
-  describe("GET /payment/success (ticket)", () => {
-    test("shows thank_you_url for single-ticket success", async () => {
-      await setupStripe();
+/** The checkout session a case pays with: its ids, its total, and the buyer
+ *  whose details its metadata signs. */
+type SessionCase = {
+  readonly amountTotal: number;
+  readonly buyer: string;
+  readonly email: string;
+  /** The metadata shape the session carries: a bare price proof over the
+   *  fields the case names, or the full record a Stripe webhook writes. */
+  readonly metadata: "proof" | "webhook";
+  readonly paymentIntent: string;
+  readonly sessionId: string;
+};
 
-      const listing = await createTestListing({
+/** One page the success route must render, as `expectHtml` reads it. */
+type PageExpectation = {
+  readonly contains: string[];
+  readonly notContains?: string[];
+};
+
+/** One payment the success page replays: the listings the order sells, the
+ *  session that paid, and what each request must render. */
+type SuccessCase = {
+  /** Ticket lines: which listing, the price paid, and how many tickets. */
+  readonly lines: readonly (readonly [
+    listing: number,
+    price: number,
+    quantity: number,
+  ])[];
+  readonly listings: readonly TestListingOverrides[];
+  readonly name: string;
+  /** The replay leaves the order one attendee, the one the payment bought. */
+  readonly oneAttendee?: boolean;
+  /** The hidden package the order's listing belongs to. The item's `k: "p"`
+   *  edge and its group id let the webhook's tree revalidation resolve the
+   *  member as a package member rather than a standalone listing. */
+  readonly packageName?: string;
+  /** What following the first request's redirect must render. */
+  readonly redirect?: PageExpectation;
+  /** What the replay, the second request, must render. */
+  readonly replay?: PageExpectation;
+  readonly session: SessionCase;
+};
+
+/** The metadata the case's session carries: its ticket lines as items, signed
+ *  at the amount the session totals. */
+const sessionMetadata = (
+  c: SuccessCase,
+  listings: readonly ListingWithCount[],
+  pkg: Group | undefined,
+) => {
+  const fields = {
+    email: c.session.email,
+    items: JSON.stringify(
+      c.lines.map(([listing, price, quantity]) => ({
+        e: listings[listing]!.id,
+        ...(pkg === undefined ? {} : { k: "p", r: pkg.id }),
+        p: price,
+        q: quantity,
+      })),
+    ),
+    name: c.session.buyer,
+  };
+  return c.session.metadata === "webhook"
+    ? signedMeta(fields, c.session.amountTotal)
+    : signMeta(fields, c.session.amountTotal);
+};
+
+/** A payment the success page must render: the single-ticket case, the
+ *  concealed package member, and the cart or multi-listing replays. */
+/* jscpd:ignore-start -- a table of cases, not code */
+const cases: readonly SuccessCase[] = [
+  {
+    lines: [[0, 500, 1]],
+    listings: [
+      {
         maxAttendees: 50,
         thankYouUrl: "https://example.com/single-thanks",
         unitPrice: 500,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 500,
-            currency: "gbp",
-            id: "cs_single_thankyou",
-            metadata: signMeta(
-              {
-                email: "single@example.com",
-                items: singleItem(listing.id, 1, 500),
-                name: "Single",
-              },
-              500,
-            ),
-            payment_intent: "pi_single_thankyou",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        const redirectResponse = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_single_thankyou"),
-        );
-        expect(redirectResponse.status).toBe(302);
-        const response = await followRedirect(redirectResponse, handleRequest);
-        await expectHtmlResponse(
-          response,
-          200,
-          "https://example.com/single-thanks",
-          "View your ticket",
-        );
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("suppresses thank_you_url for a hidden package's sole member", async () => {
-      await setupStripe();
-
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Success Pkg",
-        slug: "hidden-success-pkg",
-      });
-      await groups.table.update(group.id, { hidePackageListings: true });
-      const listing = await createTestListing({
-        groupId: group.id,
+      },
+    ],
+    name: "shows thank_you_url for single-ticket success",
+    redirect: {
+      contains: ["https://example.com/single-thanks", "View your ticket"],
+    },
+    session: {
+      amountTotal: 500,
+      buyer: "Single",
+      email: "single@example.com",
+      metadata: "proof",
+      paymentIntent: "pi_single_thankyou",
+      sessionId: "cs_single_thankyou",
+    },
+  },
+  {
+    lines: [[0, 500, 1]],
+    listings: [
+      {
         maxAttendees: 50,
         name: "Concealed Member",
         thankYouUrl: "https://example.com/concealed-thanks",
         unitPrice: 500,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 500,
-            currency: "gbp",
-            id: "cs_hidden_pkg",
-            metadata: signedMeta(
-              {
-                email: "concealed@example.com",
-                // A package member carries its package edge tag (k:"p", r:group)
-                // so the webhook's tree revalidation resolves it as a package
-                // member rather than a standalone listing.
-                items: JSON.stringify([
-                  { e: listing.id, k: "p", p: 500, q: 1, r: group.id },
-                ]),
-                name: "Concealed Buyer",
-              },
-              500,
-            ),
-            payment_intent: "pi_hidden_pkg",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        const { redirectResponse, response, html } =
-          await renderPaymentSuccess("cs_hidden_pkg");
-        expect(redirectResponse.status).toBe(302);
-        expect(response.status).toBe(200);
-        // The ticket link still shows, but the concealed member's thank-you URL
-        // (which would meta-refresh to the listing the package hid) must not leak.
-        assertStringIncludes(html, "View your ticket");
-        assert(!html.includes("https://example.com/concealed-thanks"));
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("suppresses thank_you_url on replay for a hidden package's sole member", async () => {
-      await setupStripe();
-
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Replay Pkg",
-        slug: "hidden-replay-pkg",
-      });
-      await groups.table.update(group.id, { hidePackageListings: true });
-      const listing = await createTestListing({
-        groupId: group.id,
+      },
+    ],
+    name: "suppresses thank_you_url for a hidden package's sole member",
+    packageName: "Hidden Success Pkg",
+    // The ticket link still shows, but the concealed member's thank-you URL
+    // (which would meta-refresh to the listing the package hid) must not leak.
+    redirect: {
+      contains: ["View your ticket"],
+      notContains: ["https://example.com/concealed-thanks"],
+    },
+    session: {
+      amountTotal: 500,
+      buyer: "Concealed Buyer",
+      email: "concealed@example.com",
+      metadata: "webhook",
+      paymentIntent: "pi_hidden_pkg",
+      sessionId: "cs_hidden_pkg",
+    },
+  },
+  {
+    lines: [[0, 700, 1]],
+    listings: [
+      {
         maxAttendees: 50,
         name: "Concealed Replay Member",
         thankYouUrl: "https://example.com/concealed-replay",
         unitPrice: 700,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 700,
-            currency: "gbp",
-            id: "cs_hidden_replay",
-            metadata: signedMeta(
-              {
-                email: "replay@example.com",
-                // Package member tagged with its edge (k:"p", r:group) so the
-                // webhook's tree revalidation resolves it as a package member.
-                items: JSON.stringify([
-                  { e: listing.id, k: "p", p: 700, q: 1, r: group.id },
-                ]),
-                name: "Replay Buyer",
-              },
-              700,
-            ),
-            payment_intent: "pi_hidden_replay",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        // First request redirects with tokens (no stored tokens — a hidden package
-        // carries no explicit thank-you URL, so storeTokens is false).
-        const response1 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_hidden_replay"),
-        );
-        expect(response1.status).toBe(302);
-        // Replay finds the session already processed with no stored tokens, so it
-        // renders directly via the single-listing fallback — which must suppress
-        // the concealed member's thank-you URL too.
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_hidden_replay"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
-        assertStringIncludes(html, "Thank you for your order");
-        assert(!html.includes("https://example.com/concealed-replay"));
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("handles duplicate session replay (already processed)", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
+      },
+    ],
+    name: "suppresses thank_you_url on replay for a hidden package's sole member",
+    packageName: "Hidden Replay Pkg",
+    // The replay renders through the single-listing fallback, which must
+    // suppress the concealed member's thank-you URL too.
+    replay: {
+      contains: ["Thank you for your order"],
+      notContains: ["https://example.com/concealed-replay"],
+    },
+    session: {
+      amountTotal: 700,
+      buyer: "Replay Buyer",
+      email: "replay@example.com",
+      metadata: "webhook",
+      paymentIntent: "pi_hidden_replay",
+      sessionId: "cs_hidden_replay",
+    },
+  },
+  {
+    lines: [[0, 1000, 1]],
+    listings: [
+      {
         maxAttendees: 50,
         thankYouUrl: "https://example.com/replay-thanks",
         unitPrice: 1000,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 1000,
-            currency: "gbp",
-            id: "cs_dupe_session",
-            metadata: signMeta(
-              {
-                email: "dupe@example.com",
-                items: singleItem(listing.id, 1, 1000),
-                name: "Dupe",
-              },
-              1000,
-            ),
-            payment_intent: "pi_dupe",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        // First request should redirect with tokens
-        const response1 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_dupe_session"),
-        );
-        expect(response1.status).toBe(302);
-
-        // Second request (replay) renders directly — redirect path doesn't store tokens,
-        // so replay has no tokens to redirect with
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_dupe_session"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
-        assertStringIncludes(html, "Thank you for your order");
-
-        // Should still only have one attendee
-        const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
-        const attendees = await getAttendeesRaw(listing.id);
-        expect(attendees.length).toBe(1);
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("handles single-item cart session replay (shows thank_you_url)", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
+      },
+    ],
+    name: "handles duplicate session replay (already processed)",
+    oneAttendee: true,
+    replay: { contains: ["Thank you for your order"] },
+    session: {
+      amountTotal: 1000,
+      buyer: "Dupe",
+      email: "dupe@example.com",
+      metadata: "proof",
+      paymentIntent: "pi_dupe",
+      sessionId: "cs_dupe_session",
+    },
+  },
+  {
+    lines: [[0, 800, 1]],
+    listings: [
+      {
         maxAttendees: 50,
         name: "Cart Single",
         thankYouUrl: "https://example.com/cart-thanks",
         unitPrice: 800,
+      },
+    ],
+    name: "handles single-item cart session replay (shows thank_you_url)",
+    redirect: { contains: ["redirected"] },
+    // A single-item cart replay also shows thank_you_url.
+    replay: { contains: ["Thank you for your order", "redirected"] },
+    session: {
+      amountTotal: 800,
+      buyer: "Cart Single Buyer",
+      email: "cartsingle@example.com",
+      metadata: "proof",
+      paymentIntent: "pi_cart_single",
+      sessionId: "cs_cart_single",
+    },
+  },
+  {
+    lines: [
+      [0, 500, 1],
+      [1, 1000, 1],
+    ],
+    listings: [
+      { maxAttendees: 50, name: "Replay Multi 1", unitPrice: 500 },
+      { maxAttendees: 50, name: "Replay Multi 2", unitPrice: 1000 },
+    ],
+    name: "handles ticket duplicate session replay (already processed)",
+    replay: { contains: ["Thank you for your order"] },
+    session: {
+      amountTotal: 1500,
+      buyer: "Multi Replay",
+      email: "multireplay@example.com",
+      metadata: "proof",
+      paymentIntent: "pi_multi_dupe",
+      sessionId: "cs_multi_dupe",
+    },
+  },
+];
+/* jscpd:ignore-end */
+
+describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
+  describe("GET /payment/success (ticket)", () => {
+    for (const c of cases) {
+      test(c.name, async () => {
+        const pkg =
+          c.packageName === undefined
+            ? undefined
+            : await createHiddenPackageGroup(c.packageName);
+        const listings: ListingWithCount[] = [];
+        for (const overrides of c.listings) {
+          listings.push(
+            await createStripeListing({
+              ...overrides,
+              ...(pkg === undefined ? {} : { groupId: pkg.id }),
+            }),
+          );
+        }
+
+        using _retrieve = stubRetrieveCheckoutSession({
+          amountTotal: c.session.amountTotal,
+          metadata: sessionMetadata(c, listings, pkg),
+          paymentIntent: c.session.paymentIntent,
+          sessionId: c.session.sessionId,
+        });
+
+        const path = `/payment/success?session_id=${c.session.sessionId}`;
+
+        // The first request processes the session and answers with the
+        // redirect that carries the render tokens.
+        const first = await handleRequest(mockRequest(path));
+        expect(first.status).toBe(302);
+        if (c.redirect !== undefined) {
+          await expectHtml(await followRedirect(first, handleRequest), {
+            ...c.redirect,
+            status: 200,
+          });
+        }
+        // A replay finds the session processed and renders it again without a
+        // redirect, so the page must say the same thing.
+        if (c.replay !== undefined) {
+          await expectHtml(await handleRequest(mockRequest(path)), {
+            ...c.replay,
+            status: 200,
+          });
+        }
+        if (c.oneAttendee === true) {
+          // Both requests booked the same payment, so the order stays the one
+          // attendee it bought.
+          const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
+          expect(await getAttendeesRaw(listings[0]!.id)).toHaveLength(1);
+        }
       });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 800,
-            currency: "gbp",
-            id: "cs_cart_single",
-            metadata: signMeta(
-              {
-                email: "cartsingle@example.com",
-                items: JSON.stringify([{ e: listing.id, p: 800, q: 1 }]),
-                name: "Cart Single Buyer",
-              },
-              800,
-            ),
-            payment_intent: "pi_cart_single",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        // First request: process and redirect with tokens
-        const response1 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_cart_single"),
-        );
-        expect(response1.status).toBe(302);
-
-        // Follow redirect to render success page with tokens
-        const tokenResponse = await followRedirect(response1, handleRequest);
-        const tokenHtml = await tokenResponse.text();
-        // Single-listing cart: token path resolves one unique listing → shows thank_you_url
-        assertStringIncludes(tokenHtml, "redirected");
-
-        // Replay (no tokens stored): renders directly via items.length === 1 branch
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_cart_single"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
-        expectIncludesAll(html, [
-          "Thank you for your order",
-          // Single-item cart replay also shows thank_you_url
-          "redirected",
-        ]);
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
-
-    test("handles ticket duplicate session replay (already processed)", async () => {
-      await setupStripe();
-
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Replay Multi 1",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Replay Multi 2",
-        unitPrice: 1000,
-      });
-
-      const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
-        Promise.resolve(
-          stubCheckoutSession({
-            amount_total: 1500,
-            currency: "gbp",
-            id: "cs_multi_dupe",
-            metadata: signMeta(
-              {
-                email: "multireplay@example.com",
-                items: JSON.stringify([
-                  { e: listing1.id, p: 500, q: 1 },
-                  { e: listing2.id, p: 1000, q: 1 },
-                ]),
-                name: "Multi Replay",
-              },
-              1500,
-            ),
-            payment_intent: "pi_multi_dupe",
-            payment_status: "paid",
-          }),
-        ),
-      );
-
-      try {
-        // First request should redirect with tokens
-        const response1 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_dupe"),
-        );
-        expect(response1.status).toBe(302);
-
-        // Second request (replay) renders directly — redirect path doesn't store tokens,
-        // so replay has no tokens to redirect with
-        const response2 = await handleRequest(
-          mockRequest("/payment/success?session_id=cs_multi_dupe"),
-        );
-        expect(response2.status).toBe(200);
-        const html = await response2.text();
-        assertStringIncludes(html, "Thank you for your order");
-      } finally {
-        mockRetrieve.restore();
-      }
-    });
+    }
   });
 });

@@ -8,7 +8,6 @@ import {
   execute,
   executeReturningRow,
   executeUpdate,
-  extractUpdateColumns,
   getDb,
   insert,
   insertOrIgnore,
@@ -54,105 +53,6 @@ describe("DATABASE_MAX_ATTEMPTS", () => {
   test("counts the first try plus every wait on the remote ladder", () => {
     expect(DATABASE_MAX_ATTEMPTS).toBe(4);
   });
-});
-
-describe("extractUpdateColumns", () => {
-  /** One parse shape per case: name, SQL text, and the column names it must
-   *  yield, compared as a set. */
-  const cases: [name: string, text: string, expected: string[]][] = [
-    [
-      "single column assignment",
-      "UPDATE listing_attendees SET checked_in = ? WHERE attendee_id = ? AND listing_id = ?",
-      ["checked_in"],
-    ],
-    [
-      "multiple column assignments",
-      "UPDATE t SET a = a + 1, b = ?",
-      ["a", "b"],
-    ],
-    [
-      "WHERE clause = signs are not mistaken for assignments",
-      "UPDATE users SET password_hash = ?, invite_code_hash = ?, invite_expiry = ? WHERE id = ?",
-      ["invite_code_hash", "invite_expiry", "password_hash"],
-    ],
-    [
-      "table-qualified column name strips the qualifier",
-      "UPDATE t SET t.col = ?",
-      ["col"],
-    ],
-    [
-      "quoted column name strips the quotes",
-      'UPDATE t SET "my_col" = ?',
-      ["my_col"],
-    ],
-    [
-      "commas inside parentheses in an expression do not split the assignment",
-      "UPDATE t SET a = coalesce(x, 0), b = ?",
-      ["a", "b"],
-    ],
-    // An emoji is two UTF-16 code units. A code-point scan slices into its
-    // middle, reads the next column as ", quantity", and the write sniffs the
-    // wrong table — so its cache is never invalidated.
-    [
-      "columns after an astral character still split at the comma",
-      "UPDATE t SET note = \u{1F600}, quantity = 1",
-      ["note", "quantity"],
-    ],
-    // A value like ')(' must not stop the scan. A stop there would drop every
-    // later column from the sniff, so its cache is never invalidated.
-    [
-      "columns after a bracket inside a value still split at the comma",
-      "UPDATE t SET note = ')(', quantity = 1",
-      ["note", "quantity"],
-    ],
-    // A lone closer inside a quoted value used to shift the level for the rest
-    // of the clause, dropping every later column from the sniff.
-    [
-      "columns after an unbalanced bracket inside a quoted value",
-      "UPDATE t SET note = ')', quantity = 1",
-      ["note", "quantity"],
-    ],
-    [
-      "a doubled quote keeps its comma inside one value",
-      "UPDATE t SET note = 'a'', b', quantity = 1",
-      ["note", "quantity"],
-    ],
-    // Synthetic SQL whose SET clause opens with "(": the paren-depth scan must
-    // see that first character, otherwise depth goes negative at ")" and the
-    // top-level comma never splits, losing the second assignment.
-    [
-      "depth scan starts at the very first character of the SET clause",
-      "UPDATE t SET (a) = 1, b = 2",
-      ["(a)", "b"],
-    ],
-    ["column names are lower-cased", "UPDATE t SET MyCol = ?", ["mycol"]],
-  ];
-
-  for (const [name, text, expected] of cases) {
-    test(name, () => {
-      const cols = extractUpdateColumns(text);
-      expect([...cols!].sort()).toEqual([...expected].sort());
-    });
-  }
-
-  // Empty content between SET and WHERE covers the eqIdx < 0 guard; a
-  // non-UPDATE has no SET clause at all. Both mean "cannot read the columns".
-  const nullCases: [name: string, text: string][] = [
-    [
-      "returns null for non-UPDATE SQL (no SET clause)",
-      "INSERT INTO t (a) VALUES (?)",
-    ],
-    [
-      "returns null when SET clause has no parseable assignments",
-      "UPDATE t SET WHERE true",
-    ],
-  ];
-
-  for (const [name, text] of nullCases) {
-    test(name, () => {
-      expect(extractUpdateColumns(text)).toBeNull();
-    });
-  }
 });
 
 describeWithEnv("invalidateForSql fallback path", { db: true }, () => {
@@ -312,14 +212,31 @@ describeWithEnv("db > client", { db: true }, () => {
     });
   }
 
-  test("queryOnePrimary returns the single matching row from the primary", async () => {
-    await seedSetting("query_one_primary", "found");
-    const row = await queryOnePrimary<{ value: string }>(
-      sql`SELECT value FROM settings WHERE key = ${"query_one_primary"}`,
-    );
-    // Exactly one row must surface as that row (not null, not the next one).
-    expect(row?.value).toBe("found");
-  });
+  type SingularRead = (
+    statement: SqlStatement,
+  ) => Promise<{ value: string } | null>;
+
+  // Both singular readers must surface the one matching row — not null, and not
+  // a neighbouring row — so one table covers the replica and the primary read.
+  const singularReaders: [name: string, key: string, read: SingularRead][] = [
+    ["queryOne returns the single matching row", "query_one", queryOne],
+    [
+      "queryOnePrimary returns the single matching row from the primary",
+      "query_one_primary",
+      queryOnePrimary,
+    ],
+  ];
+
+  for (const [name, key, read] of singularReaders) {
+    test(name, async () => {
+      await seedSetting(key, "found");
+      const row = await read(
+        sql`SELECT value FROM settings WHERE key = ${key}`,
+      );
+      // Exactly one row must surface as that row (not null, not the next one).
+      expect(row?.value).toBe("found");
+    });
+  }
 
   test("queryAllPrimary returns every matching row from the primary", async () => {
     await seedSetting("query_all_primary_a", "first");
@@ -422,26 +339,41 @@ describeWithEnv("db > client", { db: true }, () => {
     expect(await storedValue("insert_test")).toBe("works");
   });
 
+  /** Assert one executeUpdate over a row seeded with `seed`: the count the write
+   *  reports and the value the row keeps afterwards. */
+  const expectUpdate = async (
+    [key, seed]: [key: string, value: string],
+    set: Record<string, string>,
+    where: Record<string, string>,
+    affected: number,
+    stored: string,
+  ): Promise<void> => {
+    await seedSetting(key, seed);
+    const result = await executeUpdate("settings", set, where);
+    expect(result.rowsAffected).toBe(affected);
+    expect(await storedValue(key)).toBe(stored);
+  };
+
+  // A write touches exactly the rows its WHERE matches: the matched row takes
+  // the new value, and a WHERE that matches nothing leaves its row as it was.
   test("executeUpdate writes the matched row", async () => {
-    await seedSetting("update_test", "before");
-    const result = await executeUpdate(
-      "settings",
+    await expectUpdate(
+      ["update_test", "before"],
       { value: "after" },
       { key: "update_test" },
+      1,
+      "after",
     );
-    expect(result.rowsAffected).toBe(1);
-    expect(await storedValue("update_test")).toBe("after");
   });
 
   test("executeUpdate leaves non-matching rows alone", async () => {
-    await seedSetting("update_scope", "kept");
-    const result = await executeUpdate(
-      "settings",
+    await expectUpdate(
+      ["update_scope", "kept"],
       { value: "clobbered" },
       { key: "update_scope", value: "other" },
+      0,
+      "kept",
     );
-    expect(result.rowsAffected).toBe(0);
-    expect(await storedValue("update_scope")).toBe("kept");
   });
 
   test("resetAggregates does not issue an empty update", async () => {
@@ -507,14 +439,5 @@ describeWithEnv("db > client", { db: true }, () => {
         sql`UPDATE settings SET value = 'y' WHERE key = ${"missing_key"} RETURNING value`,
       ),
     ).rejects.toThrow("Write returned no row");
-  });
-
-  test("queryOne returns the single matching row", async () => {
-    await seedSetting("query_one", "found");
-    const row = await queryOne<{ value: string }>(
-      sql`SELECT value FROM settings WHERE key = ${"query_one"}`,
-    );
-    // Exactly one row must surface as that row (not null, not the next one).
-    expect(row?.value).toBe("found");
   });
 });

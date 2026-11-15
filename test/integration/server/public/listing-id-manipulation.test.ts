@@ -8,7 +8,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { submitMultiTicketForm, submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
+import { createNamedListingPair } from "#test-utils/db-helpers/listing-pair-named.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -22,9 +22,9 @@ describeWithEnv(
   () => {
     describe("booking form listing_id manipulation", () => {
       test("single-ticket form ignores injected listing_id field", async () => {
-        const [target, other] = await createListingPair(
-          { maxAttendees: 50, name: "Target Listing" },
-          { maxAttendees: 50, name: "Other Listing" },
+        const [target, other] = await createNamedListingPair(
+          ["Target Listing", "Other Listing"],
+          { maxAttendees: 50 },
         );
 
         // Submit form to target listing but inject other listing's id
@@ -44,9 +44,9 @@ describeWithEnv(
       });
 
       test("ticket form ignores quantity fields for listings not in URL", async () => {
-        const [listing1, listing2] = await createListingPair(
-          { maxAttendees: 50, maxQuantity: 5, name: "Legit Listing 1" },
-          { maxAttendees: 50, maxQuantity: 5, name: "Legit Listing 2" },
+        const [listing1, listing2] = await createNamedListingPair(
+          ["Legit Listing 1", "Legit Listing 2"],
+          { maxAttendees: 50, maxQuantity: 5 },
         );
         const secret = await createTestListing({
           maxAttendees: 50,
@@ -77,9 +77,9 @@ describeWithEnv(
       });
 
       test("ticket URL cannot book inactive listings", async () => {
-        const [active, inactive] = await createListingPair(
-          { maxAttendees: 50, name: "Active Listing" },
-          { maxAttendees: 50, name: "Inactive Listing" },
+        const [active, inactive] = await createNamedListingPair(
+          ["Active Listing", "Inactive Listing"],
+          { maxAttendees: 50 },
         );
         await deactivateTestListing(inactive.id);
 

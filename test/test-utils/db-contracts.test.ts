@@ -60,6 +60,32 @@ import {
 } from "#test-utils/settings.ts";
 import { lastLogMessage } from "#test-utils/settings-handlers.ts";
 
+/** The overrides `buildAttendeeEditForm` accepts. */
+type EditFormOverrides = NonNullable<
+  Parameters<typeof buildAttendeeEditForm>[1]
+>;
+
+/** An attendee holding two booking lines on one ten-place listing, together
+ *  with the editor form that attendee opens. `edit` chooses the overrides the
+ *  form takes. */
+const twoLineAttendee = async (
+  name: string,
+  email: string,
+  edit: (listingId: number) => EditFormOverrides = () => ({}),
+) => {
+  const { attendee, listing } = await createTestAttendeeWithToken(
+    name,
+    email,
+    { maxAttendees: 10, maxQuantity: 5 },
+    2,
+  );
+  return {
+    attendee,
+    form: await buildAttendeeEditForm(attendee.id, edit(listing.id)),
+    listing,
+  };
+};
+
 describe("test-utils — db-backed & settings contracts", () => {
   afterEach(() => {
     resetDb();
@@ -221,14 +247,10 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("buildAttendeeEditForm preserves existing booking lines by default", async () => {
-      const { attendee, listing } = await createTestAttendeeWithToken(
+      const { form, listing } = await twoLineAttendee(
         "Default Form",
         "default-form@example.com",
-        { maxAttendees: 10, maxQuantity: 5 },
-        2,
       );
-
-      const form = await buildAttendeeEditForm(attendee.id);
 
       expect(form.name).toBe("");
       // One indexed line per existing booking row.
@@ -238,11 +260,9 @@ describe("test-utils — db-backed & settings contracts", () => {
     });
 
     test("existingAttendeeLines returns the complete stored form line", async () => {
-      const { attendee, listing } = await createTestAttendeeWithToken(
+      const { attendee, listing } = await twoLineAttendee(
         "Stored Form",
         "stored-form@example.com",
-        { maxAttendees: 10, maxQuantity: 5 },
-        2,
       );
 
       expect(await existingAttendeeLines(attendee.id)).toEqual([
@@ -266,21 +286,15 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       const form = await buildAttendeeEditForm(attendee.id);
 
-      expect(form.qty_0).toBe("0");
-      expect(form.noqty_0).toBe("1");
+      expect(form).toMatchObject({ noqty_0: "1", qty_0: "0" });
     });
 
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
-      const { attendee, listing } = await createTestAttendeeWithToken(
+      const { form, listing } = await twoLineAttendee(
         "Override Form",
         "override-form@example.com",
-        { maxAttendees: 10, maxQuantity: 5 },
-        2,
+        (listingId) => ({ lines: [{ eventId: listingId }] }),
       );
-
-      const form = await buildAttendeeEditForm(attendee.id, {
-        lines: [{ eventId: listing.id }],
-      });
 
       expect(form.line_listing_0).toBe(String(listing.id));
       expect(form.qty_0).toBe("1");

@@ -8,6 +8,15 @@ import {
   returnPathFromRequest,
 } from "#routes/admin/login-return.ts";
 
+/** The accepted targets whose query holds characters the login round trip
+ *  must neither decode nor reject. Each row is also a plain accepted target,
+ *  so the two tables name the value once. */
+const ENCODED_QUERY_TARGETS = [
+  "/admin/listings/12?filter=A%26B",
+  "/admin/listings/12?q=100%25",
+  "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
+] as const;
+
 /** The values a return target can take. Each accepted row names the exact
  *  path the login flow can send the user to. A query value's encoded
  *  characters (%26, %25) must survive, so the accepted target is the raw
@@ -18,51 +27,66 @@ const ACCEPTED: readonly (readonly [string, string])[] = [
   ["/admin/settings/", "/admin/settings/"],
   ["/admin/", "/admin/"],
   ["/admin/café", "/admin/caf%C3%A9"],
-  ["/admin/listings/12?filter=A%26B", "/admin/listings/12?filter=A%26B"],
-  ["/admin/listings/12?q=100%25", "/admin/listings/12?q=100%25"],
+  ...ENCODED_QUERY_TARGETS.map((target): readonly [string, string] => [
+    target,
+    target,
+  ]),
   [
     "/admin/listings/12?share=https://x.example",
     "/admin/listings/12?share=https://x.example",
-  ],
-  [
-    "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
-    "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
   ],
 ];
 
-/** The attack shapes and other values the rule must refuse: addresses for
- *  another site (direct, protocol-relative, percent-encoded), backslashes,
- *  control characters, climbs out of the admin area, the login and logout
- *  pages (with or without trailing slashes), malformed escapes, and anything
- *  whose path is not an admin path. The query carries parameter data, so a
- *  URL inside a query value is not an attack. */
-const REFUSED: readonly string[] = [
-  "//evil.com",
-  "/\\evil.com",
-  "\\\\evil.com",
-  "https://evil.com/admin",
-  "http://evil.com/admin/listings/12",
-  "javascript:alert(1)",
-  "%2F%2Fevil.com",
-  "%5Cevil.com",
-  "%2Fadmin%2Flistings",
-  "%zz",
-  "/admin/listings%zz",
-  "/admin%2F%2Fevil.com",
-  "/admin%5Cevil.com",
-  "%0A/admin/listings/12",
-  "/admin/listings/12\n",
-  "/admin/..%2F..%2Fpublic",
-  "/admin/../../public",
-  "/admin/login",
-  "/admin/login?next=/admin/listings",
-  "/admin/login/",
-  "/admin/logout",
-  "/admin/logout/",
-  "admin/listings/12",
-  "/admin",
-  "/public/book",
-  " /admin/listings/12",
+/** One class of refused value: what it is, and the values in it. */
+type RefusedClass = readonly [string, readonly string[]];
+
+/** The attack shapes and other values the rule must refuse, one row per
+ *  class: another site's address, a script URL, a backslash, a percent-
+ *  encoded address or separator, a control character, a climb out of the
+ *  admin area, a login or logout page, a malformed escape, and a value whose
+ *  path is not an admin page. The query carries parameter data, so a URL
+ *  inside a query value is not an attack. */
+const REFUSED: readonly RefusedClass[] = [
+  [
+    "another site's address",
+    [
+      "//evil.com",
+      "https://evil.com/admin",
+      "http://evil.com/admin/listings/12",
+    ],
+  ],
+  ["a script URL", ["javascript:alert(1)"]],
+  ["a backslash", ["/\\evil.com", "\\\\evil.com"]],
+  [
+    "a percent-encoded address or separator",
+    [
+      "%2F%2Fevil.com",
+      "%5Cevil.com",
+      "%2Fadmin%2Flistings",
+      "/admin%2F%2Fevil.com",
+      "/admin%5Cevil.com",
+    ],
+  ],
+  ["a malformed escape", ["%zz", "/admin/listings%zz"]],
+  ["a control character", ["%0A/admin/listings/12", "/admin/listings/12\n"]],
+  [
+    "a climb out of the admin area",
+    ["/admin/..%2F..%2Fpublic", "/admin/../../public"],
+  ],
+  [
+    "a login or logout page",
+    [
+      "/admin/login",
+      "/admin/login?next=/admin/listings",
+      "/admin/login/",
+      "/admin/logout",
+      "/admin/logout/",
+    ],
+  ],
+  [
+    "a path that is not an admin page",
+    ["admin/listings/12", "/admin", "/public/book", " /admin/listings/12"],
+  ],
 ];
 
 describe("the admin login return target", () => {
@@ -73,8 +97,10 @@ describe("the admin login return target", () => {
   });
 
   test("refuses every attack shape and off-admin value", () => {
-    for (const input of REFUSED) {
-      expect(adminReturnPath(input), input).toBeNull();
+    for (const [attack, values] of REFUSED) {
+      for (const value of values) {
+        expect(adminReturnPath(value), `${attack}: ${value}`).toBeNull();
+      }
     }
   });
 
@@ -132,11 +158,7 @@ describe("the admin login return target", () => {
     // the form, and the form's value is checked again on POST. The filter
     // value A%26B must still parse as one value A&B after login, and a
     // percent sign in a value must not read as a malformed escape.
-    for (const input of [
-      "/admin/listings/12?filter=A%26B",
-      "/admin/listings/12?q=100%25",
-      "/admin/users?invite=https%3A%2F%2Fchobble.example%2Fjoin%2Fabc123",
-    ]) {
+    for (const input of ENCODED_QUERY_TARGETS) {
       const target = adminReturnPath(input);
       expect(target, input).toBe(input);
       const href = adminLoginPageHref(target);

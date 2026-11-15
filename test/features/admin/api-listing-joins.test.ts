@@ -25,6 +25,10 @@ import {
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
+  createGroupWithMember,
+  createHiddenPackagePair,
+} from "#test-utils/db-helpers/group-members.ts";
+import {
   createHiddenPackageGroup,
   createTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
@@ -246,9 +250,15 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   test("refuses child edges when the preserved membership gained a hidden package", async () => {
     // The same race with child edges: a hidden package must not gain a member
     // that gates children, whatever order the two saves land in.
-    const hiddenPackage = await createHiddenPackageGroup("Late hidden pkg");
-    const listing = await createTestListing({ name: "Late hidden pkg parent" });
-    const child = await createTestListing({ name: "Late hidden pkg child" });
+    const {
+      child,
+      group: hiddenPackage,
+      parent: listing,
+    } = await createHiddenPackagePair(
+      "Late hidden pkg",
+      "Late hidden pkg parent",
+      "Late hidden pkg child",
+    );
     const resolved = await getListingWithCount(listing.id);
     if (!resolved) throw new Error(`no listing ${listing.id} in the database`);
     const result = await bodyToUpdateInput(
@@ -389,9 +399,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
   });
 
   test("persistListingJoins clears the membership when the input submits an empty set", async () => {
-    const listing = await createTestListing({ name: "Clear member" });
-    const group = await createTestGroup({ name: "Clear group" });
-    await setListingGroups(listing.id, [group.id]);
+    const { listing } = await createGroupWithMember(
+      "Clear group",
+      "Clear member",
+    );
 
     await persistJoins(listing.id, { childEdges: null, groupIds: [] });
 

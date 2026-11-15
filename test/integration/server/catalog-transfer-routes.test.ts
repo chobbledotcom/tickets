@@ -17,11 +17,16 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectDownloadHeaders } from "#test-utils/download.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import { adminGet, getTestSession } from "#test-utils/session.ts";
 
-/** POST a JSON blob to the import endpoint as an uploaded file. */
-const importUpload = async (blob: unknown): Promise<Response> => {
+/** POST a file to the import endpoint as an uploaded attachment, or with no
+ *  file at all when `file` is omitted. */
+const importFile = async (file?: {
+  data: string;
+  name: string;
+}): Promise<Response> => {
   const { cookie } = await getTestSession();
   const csrfToken = await signCsrfToken();
   return handleRequest(
@@ -29,14 +34,26 @@ const importUpload = async (blob: unknown): Promise<Response> => {
       "/admin/catalog/import",
       { csrf_token: csrfToken },
       cookie,
-      {
-        contentType: "application/json",
-        data: new TextEncoder().encode(JSON.stringify(blob)),
-        fieldName: "catalog_file",
-        name: "catalog.json",
-      },
+      file === undefined
+        ? undefined
+        : {
+            contentType: "application/json",
+            data: new TextEncoder().encode(file.data),
+            fieldName: "catalog_file",
+            name: file.name,
+          },
     ),
   );
+};
+
+/** POST a JSON blob to the import endpoint as `catalog.json`. */
+const importUpload = (blob: unknown): Promise<Response> =>
+  importFile({ data: JSON.stringify(blob), name: "catalog.json" });
+
+/** Assert the activity log carries a line naming `text`. */
+const expectLogged = async (text: string): Promise<void> => {
+  const log = await getAllActivityLog();
+  expect(log.some((entry) => entry.message.includes(text))).toBe(true);
 };
 
 describeWithEnv("server (catalog transfer)", { db: true }, () => {
@@ -49,12 +66,9 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         `/admin/listing/${listing.id}/export.json`,
       );
       expectStatus(200)(response);
-      assertStringIncludes(
-        response.headers.get("content-type") ?? "",
+      expectDownloadHeaders(
+        response,
         "application/json",
-      );
-      assertStringIncludes(
-        response.headers.get("content-disposition") ?? "",
         'attachment; filename="listing-exportable.json"',
       );
       const blob = await response.json();
@@ -94,7 +108,9 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       // must surface an operator-facing error, never a raw 500.
       const listing = await createTestListing({ name: "Bad Days" });
       await execute(
-        sql`UPDATE listings SET bookable_days = ${JSON.stringify(["Funday"])} WHERE id = ${listing.id}`,
+        sql`UPDATE listings SET bookable_days = ${JSON.stringify([
+          "Funday",
+        ])} WHERE id = ${listing.id}`,
       );
       const response = await adminGet(
         `/admin/listing/${listing.id}/export.json`,
@@ -175,8 +191,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       expect(created.unit_price).toBe(900);
       expect(await listingGroups.getIds(created.id)).toEqual([group.id]);
       // The import is recorded in the activity log.
-      const log = await getAllActivityLog();
-      expect(log.some((e) => e.message.includes("Imported One"))).toBe(true);
+      await expectLogged("Imported One");
     });
 
     test("creates a group from an uploaded blob", async () => {
@@ -190,26 +205,14 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         "/admin/groups",
         "Imported group Imported Group",
       )(response);
-      const log = await getAllActivityLog();
-      expect(log.some((e) => e.message.includes("Imported Group"))).toBe(true);
+      await expectLogged("Imported Group");
     });
 
     test("rejects an invalid JSON file", async () => {
-      const { cookie } = await getTestSession();
-      const csrfToken = await signCsrfToken();
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/catalog/import",
-          { csrf_token: csrfToken },
-          cookie,
-          {
-            contentType: "application/json",
-            data: new TextEncoder().encode("{ not json"),
-            fieldName: "catalog_file",
-            name: "bad.json",
-          },
-        ),
-      );
+      const response = await importFile({
+        data: "{ not json",
+        name: "bad.json",
+      });
       await expectFlashRedirect(
         "/admin/catalog/import",
         "The file is not valid JSON.",
@@ -218,15 +221,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
     });
 
     test("rejects a missing file", async () => {
-      const { cookie } = await getTestSession();
-      const csrfToken = await signCsrfToken();
-      const response = await handleRequest(
-        mockMultipartRequest(
-          "/admin/catalog/import",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
-      );
+      const response = await importFile();
       await expectFlashRedirect(
         "/admin/catalog/import",
         "Please select a JSON file to import.",
@@ -268,14 +263,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
         "2 listings and 1 group imported.",
       )(response);
       // The activity log carries one line for the whole import.
-      const log = await getAllActivityLog();
-      expect(
-        log.some((entry) =>
-          entry.message.includes(
-            "Bundle import: 2 listings and 1 groups created",
-          ),
-        ),
-      ).toBe(true);
+      await expectLogged("Bundle import: 2 listings and 1 groups created");
     });
 
     test("surfaces a bundle failure as a flash and creates nothing", async () => {

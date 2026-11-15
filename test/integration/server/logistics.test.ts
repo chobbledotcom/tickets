@@ -8,7 +8,6 @@ import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
 import {
-  expectFlash,
   expectFlashRedirect,
   expectHtmlResponse,
   expectIncludesAll,
@@ -20,6 +19,7 @@ import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/at
 import { createAgentAssignedToFirstUser } from "#test-utils/db-helpers/logistics-agent-users.ts";
 import { createLogisticsAgent } from "#test-utils/db-helpers/logistics-agents.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { testRejectsEmptyField } from "#test-utils/form-refusals.ts";
 import { awaitTestRequest, withExpectedError } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -108,12 +108,8 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
 
-    test("rejects an empty agent name", async () => {
-      const { response } = await adminFormPost("/admin/logistics", {
-        name: "",
-      });
-      expect(response.status).toBe(302);
-      expectFlash(response, expect.stringContaining("required"), false);
+    testRejectsEmptyField("rejects an empty agent name", "/admin/logistics", {
+      name: "",
     });
 
     test("GET /admin/logistics/new renders the standalone form", async () => {

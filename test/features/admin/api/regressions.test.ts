@@ -7,6 +7,7 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { bodyToCreateInput } from "#routes/admin/api-listing-body.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { expectApiDeactivation } from "#test-utils/admin-listing-status.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -92,7 +93,7 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       201,
       (body) => {
         expect(body.listing.max_price).toBe(0);
-        expect(body.listing.slug_index).toBeUndefined();
+        expect(body.listing.slug_index).toBe(undefined);
       },
     );
   });
@@ -261,15 +262,7 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
   test("reports when a listing is already deactivated", async () => {
     const listing = await createTestListing({ name: "Already Deactivated" });
 
-    await assertJson(
-      apiRequest(`/api/admin/listings/${listing.id}/deactivate`, {
-        method: "POST",
-      }),
-      200,
-      (body) => {
-        expect(body.listing.active).toBe(false);
-      },
-    );
+    await expectApiDeactivation(listing.id);
     await expectListingApiError(
       `/api/admin/listings/${listing.id}/deactivate`,
       "POST",

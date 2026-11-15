@@ -8,6 +8,7 @@ import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { testCases } from "#test-utils/case-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { type DayPrices, MAX_DURATION_DAYS } from "#types";
@@ -79,7 +80,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     assertStringIncludes(errors.lastMessage() ?? "", "listing 9 image");
   });
 
-  describe("listing date read transform", () => {
+  describe("date and closes_at read transforms", () => {
     test("reads an encrypted empty stored date as empty", async () => {
       expect(await rawListingsTable.readColumn("date", await encrypt(""))).toBe(
         "",
@@ -91,47 +92,72 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         rawListingsTable.readColumn("date", await encrypt("not-a-dateZ")),
       ).rejects.toThrow("stored datetime has invalid datetime: not-a-dateZ");
     });
-    test("returns empty string for no-date listing", async () => {
-      const listing = await insertListing("test-date-read-1", { date: "" });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.date).toBe("");
-    });
 
-    test("normalizes a timezone offset to UTC", async () => {
-      const listing = await insertListing("test-date-read-2", {
-        date: "2026-06-15T14:00:00+02:00",
+    /** The `column` value of the listing saved with `fields` under `slug`. */
+    const savedValue = async (
+      slug: string,
+      fields: Partial<ListingInput>,
+      column: "date" | "closes_at",
+    ): Promise<unknown> => {
+      const listing = await insertListing(slug, fields);
+      return (await getListingWithCount(listing.id))?.[column];
+    };
+
+    for (const [name, slug, fields, column, expected] of [
+      [
+        "returns empty string for no-date listing",
+        "test-date-read-1",
+        { date: "" },
+        "date",
+        "",
+      ],
+      [
+        "normalizes a timezone offset to UTC",
+        "test-date-read-2",
+        { date: "2026-06-15T14:00:00+02:00" },
+        "date",
+        "2026-06-15T12:00:00.000Z",
+      ],
+      [
+        "returns null for no-deadline listing",
+        "test-read-1",
+        { closesAt: "" },
+        "closes_at",
+        null,
+      ],
+      [
+        "returns normalized ISO string for valid datetime",
+        "test-read-2",
+        { closesAt: "2099-12-31T23:59" },
+        "closes_at",
+        "2099-12-31T23:59:00.000Z",
+      ],
+    ] as const) {
+      test(name, async () => {
+        expect(await savedValue(slug, fields, column)).toBe(expected);
       });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.date).toBe("2026-06-15T12:00:00.000Z");
-    });
+    }
 
-    test("rejects an invalid date", async () => {
-      await expect(
-        insertListing("test-date-read-invalid", { date: "not-a-dateZ" }),
-      ).rejects.toThrow("date has invalid datetime: not-a-dateZ");
-    });
-  });
-
-  describe("closes_at read transform", () => {
-    test("returns null for no-deadline listing", async () => {
-      const listing = await insertListing("test-read-1", { closesAt: "" });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBeNull();
-    });
-
-    test("returns normalized ISO string for valid datetime", async () => {
-      const listing = await insertListing("test-read-2", {
-        closesAt: "2099-12-31T23:59",
+    for (const [name, slug, fields, column] of [
+      [
+        "rejects an invalid date",
+        "test-date-read-invalid",
+        { date: "not-a-dateZ" },
+        "date",
+      ],
+      [
+        "names closes_at when rejecting an invalid date",
+        "test-closes-invalid",
+        { closesAt: "not-a-dateZ" },
+        "closes_at",
+      ],
+    ] as const) {
+      test(name, async () => {
+        await expect(insertListing(slug, fields)).rejects.toThrow(
+          `${column} has invalid datetime: not-a-dateZ`,
+        );
       });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBe("2099-12-31T23:59:00.000Z");
-    });
-
-    test("names closes_at when rejecting an invalid date", async () => {
-      await expect(
-        insertListing("test-closes-invalid", { closesAt: "not-a-dateZ" }),
-      ).rejects.toThrow("closes_at has invalid datetime: not-a-dateZ");
-    });
+    }
   });
 
   describe("duration_days write validation", () => {
@@ -184,30 +210,25 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       return listing;
     };
 
-    for (const { name, slug, stored } of [
+    testCases(
       {
-        name: "rejects malformed JSON stored in the database",
-        slug: "test-bd-json",
-        stored: "[",
+        "rejects malformed JSON stored in the database": ["test-bd-json", "["],
+        "rejects mixed element types stored in the database": [
+          "test-bd-2",
+          '["Monday",1]',
+        ],
+        "rejects non-array JSON stored in the database": [
+          "test-bd-1",
+          '"not-an-array"',
+        ],
       },
-      {
-        name: "rejects non-array JSON stored in the database",
-        slug: "test-bd-1",
-        stored: '"not-an-array"',
-      },
-      {
-        name: "rejects mixed element types stored in the database",
-        slug: "test-bd-2",
-        stored: '["Monday",1]',
-      },
-    ]) {
-      test(name, async () => {
+      async (slug, stored) => {
         const listing = await storeBookableDays(slug, stored);
         await expect(getListingWithCount(listing.id)).rejects.toThrow(
           `Invalid stored JSON in listings.bookable_days row ${listing.id}`,
         );
-      });
-    }
+      },
+    );
 
     test("preserves unknown day names for catalog repair", async () => {
       const listing = await storeBookableDays(

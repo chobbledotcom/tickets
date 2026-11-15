@@ -15,11 +15,16 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { getDb, queryOne } from "#db/client.ts";
-import { listingAggregates } from "#db/listings/aggregates.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createListings,
+  dailyListingBesideBookedStandard,
+  dailyListingBooked,
+  groupWithMembers,
+  setStoredBookedQuantity,
+} from "#test-utils/db-helpers/capacity-fixtures.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -47,22 +52,24 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
   });
 
   test("returns each line result in request order", async () => {
-    const available = await createTestListing({ maxAttendees: 1 });
-    const full = await createTestListing({ maxAttendees: 1 });
-    await bookAttendee(full, { quantity: 1 });
+    const [available, full] = await createListings({
+      count: 2,
+      maxAttendees: 1,
+    });
+    await bookAttendee(full!, { quantity: 1 });
 
     expect(
       await checkLinesCapacity([
         {
           date: null,
           durationDays: 1,
-          listingId: available.id,
+          listingId: available!.id,
           quantity: 1,
         },
         {
           date: null,
           durationDays: 1,
-          listingId: full.id,
+          listingId: full!.id,
           quantity: 1,
         },
       ]),
@@ -75,136 +82,150 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     ).rejects.toThrow("Listing not found: 999");
   });
 
-  test("checks per-date capacity for daily listings", async () => {
-    const listing = await createDailyTestListing({ maxAttendees: 2 });
-    await bookAttendee(listing, { date: "2026-05-01", quantity: 2 });
-    await expectBatchFits(
-      [{ listingId: listing.id, quantity: 1 }],
-      false,
-      "2026-05-01",
-    );
-    await expectBatchFits(
-      [{ listingId: listing.id, quantity: 2 }],
-      true,
-      "2026-05-02",
-    );
-  });
+  /** Each case is one daily listing, the days it is already full, and the
+   * cart lines whose verdicts the preflight must give. */
+  const dailyListingCases: {
+    booked: { day: string; quantity: number }[];
+    cap: number;
+    cases: {
+      cart: { durationDays?: number; quantity: number };
+      date?: string;
+      fits: boolean;
+    }[];
+    name: string;
+    span?: number;
+  }[] = [
+    {
+      booked: [{ day: "2026-05-01", quantity: 2 }],
+      cap: 2,
+      // One day is full; the day beside it still holds both places.
+      cases: [
+        { cart: { quantity: 1 }, date: "2026-05-01", fits: false },
+        { cart: { quantity: 2 }, date: "2026-05-02", fits: true },
+      ],
+      name: "checks per-date capacity for daily listings",
+    },
+    {
+      booked: [{ day: "2026-05-01", quantity: 2 }],
+      cap: 2,
+      // With no anchor date the listing's demand must fall back to its
+      // date-less running total (2 booked + 1 > 2), not a per-day expansion
+      // of a date that does not exist.
+      cases: [{ cart: { quantity: 1 }, fits: false }],
+      name: "a date-less batch counts a daily listing's running total",
+    },
+    {
+      booked: [{ day: "2026-05-02", quantity: 2 }],
+      cap: 2,
+      // The middle day of the cart's span is already full.
+      cases: [
+        {
+          cart: { durationDays: 3, quantity: 1 },
+          date: "2026-05-01",
+          fits: false,
+        },
+      ],
+      name: "rejects a multi-day booking when any day in the range is at capacity",
+      span: 3,
+    },
+    {
+      booked: [],
+      cap: 2,
+      cases: [
+        {
+          cart: { durationDays: 3, quantity: 1 },
+          date: "2026-05-01",
+          fits: true,
+        },
+      ],
+      name: "accepts a multi-day booking when every day has room",
+      span: 3,
+    },
+    {
+      booked: [
+        { day: "2026-05-01", quantity: 2 },
+        { day: "2026-05-03", quantity: 2 },
+      ],
+      cap: 2,
+      // The first and last days of the span are full; the middle one is free.
+      cases: [
+        {
+          cart: { durationDays: 1, quantity: 2 },
+          date: "2026-05-02",
+          fits: true,
+        },
+      ],
+      name: "admits a 1-day booking in the gap between two full days",
+      span: 3,
+    },
+  ];
+
+  for (const { booked, cap, cases, name, span } of dailyListingCases) {
+    test(name, async () => {
+      const listing = await dailyListingBooked({
+        booked,
+        maxAttendees: cap,
+        ...(span !== undefined && { durationDays: span }),
+      });
+      for (const { cart, date, fits } of cases) {
+        await expectBatchFits([{ ...cart, listingId: listing.id }], fits, date);
+      }
+    });
+  }
 
   test("a dated batch still counts a standard listing's demand as a running total", async () => {
-    const standard = await createTestListing({ maxAttendees: 2 });
-    const daily = await createDailyTestListing({ maxAttendees: 5 });
     // The standard listing's prior booking lives only in its running total —
     // its rows carry no booking range, so a per-day count would never see it.
-    await bookAttendee(standard, { quantity: 1 });
+    const { daily, standard } = await dailyListingBesideBookedStandard({
+      booked: 1,
+      standardCap: 2,
+    });
     // The date belongs to the daily item; the standard listing's demand must
     // still land on its running total (1 booked + 2 > 2), not in a per-day
     // bucket where the existing booking is invisible.
-    await expectBatchFits(
-      [
-        { listingId: standard.id, quantity: 2 },
-        { listingId: daily.id, quantity: 1 },
-      ],
-      false,
-      "2026-05-01",
-    );
-    await expectBatchFits(
-      [
-        { listingId: standard.id, quantity: 1 },
-        { listingId: daily.id, quantity: 1 },
-      ],
-      true,
-      "2026-05-01",
-    );
-  });
-
-  test("a date-less batch counts a daily listing's running total", async () => {
-    const daily = await createDailyTestListing({ maxAttendees: 2 });
-    await bookAttendee(daily, { date: "2026-05-01", quantity: 2 });
-    // With no anchor date the daily listing's demand must fall back to the
-    // date-less running total (2 booked + 1 > 2), not a per-day expansion of
-    // a date that does not exist.
-    await expectBatchFits([{ listingId: daily.id, quantity: 1 }], false);
-  });
-
-  test("rejects a multi-day booking when any day in the range is at capacity", async () => {
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      maxAttendees: 2,
-    });
-    await bookAttendee(listing, {
-      date: "2026-05-02",
-      durationDays: 1,
-      quantity: 2,
-    });
-    await expectBatchFits(
-      [{ durationDays: 3, listingId: listing.id, quantity: 1 }],
-      false,
-      "2026-05-01",
-    );
-  });
-
-  test("accepts a multi-day booking when every day has room", async () => {
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      maxAttendees: 2,
-    });
-    await expectBatchFits(
-      [{ durationDays: 3, listingId: listing.id, quantity: 1 }],
-      true,
-      "2026-05-01",
-    );
-  });
-
-  test("admits a 1-day booking in the gap between two full days", async () => {
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      maxAttendees: 2,
-    });
-    await bookAttendee(listing, {
-      date: "2026-05-01",
-      durationDays: 1,
-      quantity: 2,
-    });
-    await bookAttendee(listing, {
-      date: "2026-05-03",
-      durationDays: 1,
-      quantity: 2,
-    });
-    await expectBatchFits(
-      [{ durationDays: 1, listingId: listing.id, quantity: 2 }],
-      true,
-      "2026-05-02",
-    );
+    for (const { fits, standardQuantity } of [
+      { fits: false, standardQuantity: 2 },
+      { fits: true, standardQuantity: 1 },
+    ]) {
+      await expectBatchFits(
+        [
+          { listingId: standard.id, quantity: standardQuantity },
+          { listingId: daily.id, quantity: 1 },
+        ],
+        fits,
+        "2026-05-01",
+      );
+    }
   });
 
   test("enforces group per-day cap across Saturday/Sunday/combo scenario", async () => {
-    const group = await createTestGroup({ maxAttendees: 100 });
-    const sat = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
+    // Two one-day members and one two-day member of one group. The combo
+    // booking spans Saturday and Sunday, so Saturday is full at 100 while
+    // Sunday still holds 50.
+    const { group, members } = await groupWithMembers({
+      cap: 100,
+      count: 2,
+      daily: true,
     });
-    const sun = await createDailyTestListing({
-      groupId: group.id,
-      maxAttendees: 100,
-    });
+    const [sat, sun] = members;
     const combo = await createDailyTestListing({
       durationDays: 2,
       groupId: group.id,
       maxAttendees: 100,
     });
-    await bookAttendee(sat, { date: "2026-05-02", quantity: 50 });
+    await bookAttendee(sat!, { date: "2026-05-02", quantity: 50 });
     await bookAttendee(combo, {
       date: "2026-05-02",
       durationDays: 2,
       quantity: 50,
     });
     await expectBatchFits(
-      [{ listingId: sat.id, quantity: 1 }],
+      [{ listingId: sat!.id, quantity: 1 }],
       false,
       "2026-05-02",
     );
     await expectBatchFits(
-      [{ listingId: sun.id, quantity: 50 }],
+      [{ listingId: sun!.id, quantity: 50 }],
       true,
       "2026-05-03",
     );
@@ -214,13 +235,14 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // A package group's cap of 0 means no limit — the write's group clause
     // passes it, so the preflight's per-day clause must pass it too and not
     // read a 0 cap as "no place left".
-    const group = await createTestGroup({ maxAttendees: 0 });
-    const member = await createDailyTestListing({
-      groupId: group.id,
+    const { members } = await groupWithMembers({
+      cap: 0,
+      count: 1,
+      daily: true,
       maxAttendees: 10,
     });
     await expectBatchFits(
-      [{ durationDays: 2, listingId: member.id, quantity: 3 }],
+      [{ durationDays: 2, listingId: members[0]!.id, quantity: 3 }],
       true,
       "2026-05-01",
     );
@@ -265,10 +287,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // line that books no places cannot make that worse, so the preflight
     // must not refuse it.
     const listing = await createDailyTestListing({ maxAttendees: 1 });
-    await listingAggregates.update(listing.id, {
-      booked_quantity: 5,
-      tickets_count: 0,
-    });
+    await setStoredBookedQuantity(listing.id, 5);
     await expectBatchFits(
       [{ listingId: listing.id, quantity: 0 }],
       true,
@@ -288,11 +307,13 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // One clause per listing-day would emit 12 x 90 ANDed clauses and pass
     // SQLite's expression-depth limit at checkout time. The grouped per-day
     // counting keeps the clause count at one per listing.
-    const items: BatchAvailabilityItem[] = [];
-    for (let index = 0; index < 12; index++) {
-      const listing = await createDailyTestListing({ maxAttendees: 5 });
-      items.push({ durationDays: 90, listingId: listing.id, quantity: 1 });
-    }
+    const items = (
+      await createListings({ count: 12, daily: true, maxAttendees: 5 })
+    ).map((listing) => ({
+      durationDays: 90,
+      listingId: listing.id,
+      quantity: 1,
+    }));
     await expectBatchFits(items, true, "2026-05-01");
   });
 
@@ -305,21 +326,16 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
       listingType: "standard",
       maxAttendees: 5,
     });
-    await listingAggregates.update(listing.id, {
-      booked_quantity: 5,
-      tickets_count: 0,
-    });
+    await setStoredBookedQuantity(listing.id, 5);
     await expectBatchFits([{ listingId: listing.id, quantity: 1 }], false);
   });
 
   test("stays within a constant query budget for a large cart", async () => {
     // More daily listings than the N+1 read guard threshold (25): a per-listing
     // fan-out would run the occupancy read once each and trip the guard.
-    const items: BatchAvailabilityItem[] = [];
-    for (let i = 0; i < 28; i++) {
-      const listing = await createDailyTestListing({ maxAttendees: 5 });
-      items.push({ listingId: listing.id, quantity: 1 });
-    }
+    const items = (
+      await createListings({ count: 28, daily: true, maxAttendees: 5 })
+    ).map((listing) => ({ listingId: listing.id, quantity: 1 }));
     await withRequestContext(async () => {
       enableQueryLog();
       await expectBatchFits(items, true, "2026-05-01");
@@ -332,8 +348,10 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
     // Reused numbered placeholders must be accepted by SQLite itself: two
     // buckets share the same day pair, so the statement reuses one ?N for it.
     const free = await createDailyTestListing({ maxAttendees: 2 });
-    const full = await createDailyTestListing({ maxAttendees: 1 });
-    await bookAttendee(full, { date: "2026-05-01", quantity: 1 });
+    const full = await dailyListingBooked({
+      booked: [{ day: "2026-05-01", quantity: 1 }],
+      maxAttendees: 1,
+    });
     const demandFor = (...listingIds: number[]): CartDemand => {
       const listingDemand = new Map<number, CapacityBucket>();
       for (const listingId of listingIds) {

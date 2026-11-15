@@ -17,8 +17,23 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingEdit } from "#test-utils/listing-parents/helpers.ts";
-import { postChildren } from "#test-utils/parents.ts";
+import { makeParent, postChildren } from "#test-utils/parents.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+
+/** Save the edit form with assign-built-site switched on and assert the refusal
+ *  message. Both gates (a group, or existing children) refuse it the same way. */
+const expectEditRefusesPlan = async (
+  listingId: number,
+  message: string,
+  fields: Record<string, unknown> = {},
+): Promise<void> => {
+  const response = await postListingEdit(listingId, {
+    assignBuiltSite: true,
+    initialSiteMonths: 1,
+    ...fields,
+  });
+  await expectHtmlResponse(response, 400, message);
+};
 
 describeWithEnv(
   "server listings > assign_built_site relationships",
@@ -52,16 +67,10 @@ describeWithEnv(
         name: "Edit Form Candidate",
       });
 
-      const response = await postListingEdit(listing.id, {
-        assignBuiltSite: true,
-        groupId: group.id,
-        initialSiteMonths: 1,
-      });
-
-      await expectHtmlResponse(
-        response,
-        400,
+      await expectEditRefusesPlan(
+        listing.id,
         sitePlanMemberError("Edit Form Candidate"),
+        { groupId: group.id },
       );
       expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
       expect((await getListingWithCount(listing.id))?.assign_built_site).toBe(
@@ -86,18 +95,13 @@ describeWithEnv(
     });
 
     test("the edit form refuses turning on assign-built-site while children exist", async () => {
-      const parent = await createTestListing({ name: "Gated Parent" });
-      const child = await createTestListing({ name: "Gated Child" });
-      await listingChildren.setIds(parent.id, [child.id]);
-
-      const response = await postListingEdit(parent.id, {
-        assignBuiltSite: true,
-        initialSiteMonths: 1,
+      const { parent } = await makeParent({
+        children: [{ name: "Gated Child" }],
+        parent: { name: "Gated Parent" },
       });
 
-      await expectHtmlResponse(
-        response,
-        400,
+      await expectEditRefusesPlan(
+        parent.id,
         t("listings_table.children_err_parent_site_plan", {
           name: "Gated Parent",
         }),
