@@ -10,17 +10,16 @@
  * The clock lives here (`recorded_at`). The business time comes from the caller.
  */
 
-import type { InValue } from "@libsql/client";
 import {
   eventMatchConflict,
   LedgerConflictError,
   reversalConflict,
 } from "#accounting/conflicts.ts";
 import {
+  byColumnIn,
   insertIfNewStatement,
   insertStatement,
   selectTransfersMany,
-  type TransferRead,
 } from "#accounting/rows.ts";
 import {
   type BatchExecutor,
@@ -29,7 +28,6 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import { inList } from "#db/where-clauses.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { allUnique } from "#shared/all-unique.ts";
 import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
@@ -145,15 +143,6 @@ type BatchSnapshot = {
   readonly storedByReference: ReadonlyMap<string, Transfer>;
   readonly originalsById: ReadonlyMap<number, Transfer>;
 };
-
-/** Wants every transfer whose `column` is one of `values`. An empty set asks for
- *  nothing, and is answered without touching the database. */
-const byColumnIn = (
-  column: string,
-  values: readonly InValue[],
-): TransferRead => ({
-  where: inList(column, values),
-});
 
 /** Load everything {@link planGroup} needs to validate the batch, in three bulk
  *  selects that travel as one round trip — independent of the number of groups.

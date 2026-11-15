@@ -4,8 +4,8 @@
  * database.
  *
  * A read that joins, or selects something SQL invents, has no table to infer
- * from. Those use `readRows` instead, and open their rows with the same chosen
- * set via `table.read.pick([...])`.
+ * from. Those use the builder in `#db/select/query.ts` instead, and open their
+ * rows with the same chosen set via `table.read.pick([...])`.
  */
 
 import type { InValue } from "@libsql/client";
@@ -19,10 +19,17 @@ import {
   type StoredRowOf,
 } from "#db/chosen-columns.ts";
 
-import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { readOneRow, readRows } from "#db/read.ts";
+import {
+  among,
+  type Condition,
+  equal,
+  given,
+  named,
+} from "#db/select/expression.ts";
+import { fromNamed } from "#db/select/query.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
-import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";
 
 /**
@@ -44,10 +51,10 @@ export type RowFilter<Row> = {
 export type RowOptions = {
   /**
    * Filters the row shape cannot say — a subquery, a comparison, a condition
-   * built from settings. Written with the shared clause helpers in
-   * `#shared/db/where-clauses.ts`, and combined with the row filter by AND.
+   * built from settings. Written with the conditions in
+   * `#db/select/expression.ts`, and combined with the row filter by AND.
    */
-  where?: WhereClause[];
+  where?: readonly Condition[];
   /** Table alias, when the clauses or the order qualify their columns. */
   alias?: string;
   /** An `ORDER BY` body without the keyword. Omit for no ordering. */
@@ -57,7 +64,8 @@ export type RowOptions = {
 };
 
 /**
- * Turn a filter written as a row into the shared clause vocabulary.
+ * Turn a filter written as a row into conditions. A list keeps the rows that
+ * hold one of its values. A null keeps the rows that hold nothing.
  *
  * Two kinds of column are refused rather than answered wrongly. One the table
  * does not store — a value worked out from another table — is not there to be
@@ -67,12 +75,12 @@ export type RowOptions = {
  * nothing; such a value is found by the column carrying its one-way code,
  * which is stored as it is written.
  */
-const filterClauses = <Row>(
+const filterConditions = <Row>(
   table: { columns: readonly string[]; name: string; schema: TableSchema<Row> },
   filter: RowFilter<Row>,
   alias: string | undefined,
-): WhereClause[] =>
-  Object.entries(filter).flatMap(([column, value]) => {
+): Condition[] =>
+  Object.entries(filter).map(([column, value]) => {
     if (!table.columns.includes(column)) {
       throw new Error(
         `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
@@ -83,10 +91,12 @@ const filterClauses = <Row>(
         `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
       );
     }
-    const named = alias ? `${alias}.${column}` : column;
-    return Array.isArray(value)
-      ? inList(named, value as readonly InValue[])
-      : equals(named, value as Exclude<InValue, null>);
+    const stored = named(alias ? `${alias}.${column}` : column);
+    return given(value, (wanted) =>
+      Array.isArray(wanted)
+        ? among(stored, wanted as readonly Exclude<InValue, null>[])
+        : equal(stored, wanted as InValue),
+    );
   });
 
 /**
@@ -161,25 +171,28 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
   table: ReadableTable<Row>,
   chosen: ChosenColumns<Row, Columns>,
 ): Selection<Row, Columns> => {
-  /** The chosen set supplies the columns and the table; the caller supplies
-   * the rest of the read. */
+  /** The chosen set supplies the columns and the table. The caller supplies
+   * the rest of the read. A read with no alias calls the table by its name. */
   const readFor = (
     filter: RowFilter<Row>,
     { alias, limit, order, where = [] }: RowOptions,
-  ): Read => ({
-    columns: chosen.readColumnsSql(alias),
-    from: alias
-      ? sql`${sqlName(table.name)} AS ${sqlName(alias)}`
-      : sqlName(table.name),
-    limit,
-    order,
-    where: [...filterClauses(table, filter, alias), ...where],
-  });
+  ): SqlStatement => {
+    const kept = fromNamed(table.name)
+      .as(alias ?? table.name)
+      .where(() => [...filterConditions(table, filter, alias), ...where]);
+    const ordered = order === undefined ? kept : kept.orderBy(() => [order]);
+    const capped = limit === undefined ? ordered : ordered.limit(limit);
+    return capped.columns(() => chosen.readColumnsSql(alias));
+  };
 
-  const rowsOf = async (read: Read): Promise<ChosenRow<Row, Columns>[]> =>
+  const rowsOf = async (
+    read: SqlStatement,
+  ): Promise<ChosenRow<Row, Columns>[]> =>
     chosen.readAll(await readRows<StoredRowOf<Row, Columns>>(read));
 
-  const rowOf = async (read: Read): Promise<ChosenRow<Row, Columns> | null> => {
+  const rowOf = async (
+    read: SqlStatement,
+  ): Promise<ChosenRow<Row, Columns> | null> => {
     const row = await readOneRow<StoredRowOf<Row, Columns>>(read);
     return row === null ? null : chosen.read(row);
   };
@@ -187,16 +200,21 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
   // The read is built before anything is awaited, so a filter the table refuses
   // fails at the call rather than in a rejected promise later.
   const withRead =
-    <Result>(use: (read: Read) => Result) =>
+    <Result>(use: (read: SqlStatement) => Result, cap?: number) =>
     (filter: RowFilter<Row> = {}, options: RowOptions = {}): Result =>
-      use(readFor(filter, options));
+      use(
+        readFor(
+          filter,
+          cap === undefined ? options : { ...options, limit: cap },
+        ),
+      );
 
   return {
     ...chosen,
     every: (options) => () => rowsOf(readFor({}, options ?? {})),
     many: withRead(rowsOf),
-    one: withRead(rowOf),
-    statement: withRead(readStatement),
+    one: withRead(rowOf, 1),
+    statement: withRead((read) => read),
   };
 };
 

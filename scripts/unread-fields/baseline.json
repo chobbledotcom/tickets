@@ -325,12 +325,6 @@
       "fields": ["checked_in", "split_logistics_agents"]
     }
   ],
-  "src/shared/db/attendees/select.ts": [
-    {
-      "path": [{ "name": "GetAttendeesQuery" }],
-      "fields": ["order"]
-    }
-  ],
   "src/shared/db/attendees/servicing.ts": [
     {
       "path": [{ "name": "ServicingBookingSummary" }],
@@ -419,12 +413,6 @@
     {
       "path": [{ "name": "ParentAndChildLinkMaps" }],
       "fields": ["childIdsByParent"]
-    }
-  ],
-  "src/shared/db/listings/select.ts": [
-    {
-      "path": [{ "name": "GetListingsQuery" }],
-      "fields": ["order"]
     }
   ],
   "src/shared/db/logistics-agents.ts": [

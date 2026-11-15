@@ -14,8 +14,11 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
+import type { Condition } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
-import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
+import { deleteWhere } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
@@ -78,15 +81,19 @@ export const createOwnerNote = (
   transaction?: TxScope,
 ): Promise<void> => writeNote("owner", target, note, null, transaction);
 
+/** The notes, under the name of their table. The conditions of a note target
+ *  and the column list name their columns bare. */
+const notes = () => from(tables.system_notes).as("system_notes");
+
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
-const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
-  readRows<SystemNoteRow>({
-    columns: NOTE_COLUMNS,
-    from: sql`system_notes`,
-    order: sql`entity_id, id`,
-    where,
-  });
+const noteRowsWhere = (where: readonly Condition[]): Promise<SystemNoteRow[]> =>
+  readRows<SystemNoteRow>(
+    notes()
+      .where(() => where)
+      .orderBy((note) => [note.entity_id, note.id])
+      .columns(() => NOTE_COLUMNS),
+  );
 
 /**
  * The still-sealed rows for several records of one kind, oldest first. Cheap
@@ -164,7 +171,7 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
 
 /** One note, tied to the record it has to belong to, so a stray id can't reach
  *  another record's note. */
-const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] =>
+const noteOfTarget = (target: NoteTarget, noteId: number): Condition[] =>
   noteTargets.whereAlso(target, "id", noteId);
 
 /** A delete over the notes the clauses select. */
@@ -176,11 +183,12 @@ export const getNote = async (
   noteId: number,
   privateKey: CryptoKey,
 ): Promise<SystemNote | null> => {
-  const row = await readOneRow<SystemNoteRow>({
-    columns: NOTE_COLUMNS,
-    from: sql`system_notes`,
-    where: noteOfTarget(target, noteId),
-  });
+  const row = await readOneRow<SystemNoteRow>(
+    notes()
+      .where(() => noteOfTarget(target, noteId))
+      .limit(1)
+      .columns(() => NOTE_COLUMNS),
+  );
   return row ? openNote(row, privateKey) : null;
 };
 

@@ -9,13 +9,30 @@
 
 import type { LineBooking } from "#db/attendee-types.ts";
 import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlName,
-} from "#db/sql.ts";
-import { capacityRuleTypeSql } from "#shared/capacity-rules.ts";
+  and,
+  atMost,
+  type Condition,
+  type Counted,
+  type Expr,
+  equal,
+  greaterThan,
+  lessThan,
+  literal,
+  minus,
+  not,
+  notEqual,
+  type Operand,
+  orZero,
+  plus,
+  sum,
+  when,
+} from "#db/select/expression.ts";
+import { from, type Node, type Query } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import {
+  type CapacityRuleKey,
+  capacityRuleTypeSql,
+} from "#shared/capacity-rules.ts";
 import { addDays } from "#shared/dates.ts";
 import { DAY_MS } from "#shared/now.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -45,207 +62,257 @@ export const dateToRange = (date: string, durationDays = 1): DayRange => {
 
 /** The day window a counting subquery compares against: bound dates in the
  * write predicate, dayDemand column references in the batch clauses. */
-export type CountingDayRange = { endSql: SqlSlot; startSql: SqlSlot };
+export type CountingDayRange = {
+  end: Operand<string>;
+  start: Operand<string>;
+};
 
-type CountSqlValues = {
+type CountValues = {
   dayRange: CountingDayRange | null;
-  excludeAttendeeId: SqlSlot | null;
-  listingId: SqlSlot;
+  excludeAttendeeId: Operand<number> | null;
+  listingId: Operand<number>;
 };
 
-const attendeeExclusionSql = (
-  excludeAttendeeId: SqlSlot | null,
-): SqlStatement =>
-  excludeAttendeeId === null
-    ? sql``
-    : sql`AND attendee.attendee_id != ${excludeAttendeeId} `;
+/** The booking rows a count reads. */
+const bookedLines = () => from(tables.listing_attendees).as("attendee");
 
-const dailyListingCountSql = (
-  values: CountSqlValues & { dayRange: CountingDayRange },
-): SqlStatement =>
-  sql`(SELECT CASE
-          WHEN ${capacityRuleTypeSql("perDateCap", "listing.listing_type")} THEN (
-            SELECT COALESCE(SUM(attendee.quantity), 0)
-              FROM listing_attendees AS attendee
-             WHERE attendee.listing_id = ${values.listingId} ${attendeeExclusionSql(
-               values.excludeAttendeeId,
-             )}
-               AND attendee.start_at < ${values.dayRange.endSql}
-               AND attendee.end_at > ${values.dayRange.startSql}
-          )
-          ELSE listing.booked_quantity
-        END
-        FROM listings AS listing WHERE listing.id = ${values.listingId})`;
+type BookedLine = Node<"listing_attendees">;
 
-const undatedListingCountSql = (values: CountSqlValues): SqlStatement => {
-  if (values.excludeAttendeeId !== null) {
-    return sql`((SELECT booked_quantity FROM listings WHERE id = ${values.listingId})
-          - COALESCE((
-            SELECT SUM(attendee.quantity)
-              FROM listing_attendees AS attendee
-             WHERE attendee.listing_id = ${values.listingId}
-               AND attendee.attendee_id = ${values.excludeAttendeeId}
-          ), 0))`;
-  }
+/** Keeps the rows of other attendees. An edit must not count its own row. */
+const notBookedBy =
+  (excludeAttendeeId: Operand<number> | null) =>
+  (line: BookedLine): Condition =>
+    excludeAttendeeId === null || notEqual(line.attendee_id, excludeAttendeeId);
 
-  return sql`(SELECT booked_quantity FROM listings WHERE id = ${values.listingId})`;
+/** Keeps the rows that occupy some part of the day window. */
+const overlapping =
+  (dayRange: CountingDayRange) =>
+  (line: BookedLine): Condition[] => [
+    lessThan(line.start_at, dayRange.end),
+    greaterThan(line.end_at, dayRange.start),
+  ];
+
+/** Keeps the rows of other attendees that occupy some part of the day
+ *  window. */
+const heldThatDay =
+  (dayRange: CountingDayRange, excludeAttendeeId: Operand<number> | null) =>
+  (line: BookedLine): Condition[] => [
+    notBookedBy(excludeAttendeeId)(line),
+    ...overlapping(dayRange)(line),
+  ];
+
+/** The quantity that the rows hold. Zero with no row. */
+const quantityOf = <Line extends BookedLine>(
+  lines: Query<Line>,
+): Expr<Counted> => orZero(lines.scalar((line) => sum(line.quantity)));
+
+/** The booking rows of one listing. */
+const listingLines = (listingId: Operand<number>) =>
+  bookedLines().where((line) => equal(line.listing_id, listingId));
+
+/** The row of the listing itself. */
+const listingRow = (listingId: Operand<number>) =>
+  from(tables.listings).where((listing) => equal(listing.id, listingId));
+
+const dailyListingCount = (
+  values: CountValues & { dayRange: CountingDayRange },
+): Expr<Counted | null> => {
+  const bookedThatDay = quantityOf(
+    listingLines(values.listingId).where(
+      heldThatDay(values.dayRange, values.excludeAttendeeId),
+    ),
+  );
+  return listingRow(values.listingId).scalar((listing) =>
+    when(
+      [
+        [
+          capacityRuleTypeSql("perDateCap", listing.listing_type),
+          bookedThatDay,
+        ],
+      ],
+      listing.booked_quantity,
+    ),
+  );
 };
 
-export const buildListingCountSql = (values: CountSqlValues): SqlStatement =>
+const undatedListingCount = (values: CountValues): Expr<Counted | null> => {
+  const booked = listingRow(values.listingId).scalar(
+    (listing) => listing.booked_quantity,
+  );
+  const { excludeAttendeeId } = values;
+  if (excludeAttendeeId === null) return booked;
+  return minus(
+    booked,
+    quantityOf(
+      listingLines(values.listingId).where((line) =>
+        equal(line.attendee_id, excludeAttendeeId),
+      ),
+    ),
+  );
+};
+
+export const buildListingCountSql = (
+  values: CountValues,
+): Expr<Counted | null> =>
   values.dayRange === null
-    ? undatedListingCountSql(values)
-    : dailyListingCountSql({ ...values, dayRange: values.dayRange });
+    ? undatedListingCount(values)
+    : dailyListingCount({ ...values, dayRange: values.dayRange });
 
-// The group-count subqueries below correlate on `groupRow.id` — the group row
-// of the enclosing NOT EXISTS in buildDayCapacitySql — and reach that group's member
-// listings through the group_listings join table, so a listing that belongs to
-// several groups is counted against each group's cap independently.
+// The group counts below reach a group's member listings through the
+// group_listings join table, so a listing that belongs to several groups is
+// counted against the cap of each group independently.
 
-const DAILY_GROUP_MEMBER_SQL = {
-  join: sql`JOIN listings AS memberListing
-              ON memberListing.id = attendee.listing_id`,
-  rule: sql`AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}`,
-};
-const ALL_GROUP_MEMBER_SQL = { join: sql``, rule: sql`` };
+/** The running total of the group's members, or of its members that carry
+ *  `rule`. */
+export const groupRunningTotal = (
+  groupId: Operand<number>,
+  rule: CapacityRuleKey | null,
+): Expr<Counted> =>
+  orZero(
+    from(tables.listings)
+      .as("memberListing")
+      .join("memberLink", tables.group_listings, (listing) =>
+        equal(listing.memberLink.listing_id, listing.id),
+      )
+      .where((listing) => [
+        equal(listing.memberLink.group_id, groupId),
+        rule === null || capacityRuleTypeSql(rule, listing.listing_type),
+      ])
+      .scalar((listing) => sum(listing.booked_quantity)),
+  );
 
-const buildGroupExclusionSql = (
-  excludeAttendeeId: SqlSlot | null,
-  memberSql: typeof DAILY_GROUP_MEMBER_SQL,
-): SqlStatement => {
-  if (excludeAttendeeId === null) return sql``;
+/** The booking rows of the group's member listings. */
+const memberLines = (groupId: Operand<number>) =>
+  bookedLines()
+    .join("memberLink", tables.group_listings, (line) =>
+      equal(line.memberLink.listing_id, line.listing_id),
+    )
+    .where((line) => equal(line.memberLink.group_id, groupId));
 
-  return sql`- COALESCE((
-          SELECT SUM(attendee.quantity)
-            FROM listing_attendees AS attendee
-            JOIN group_listings AS groupListing
-              ON groupListing.listing_id = attendee.listing_id
-            ${memberSql.join}
-           WHERE groupListing.group_id = groupRow.id
-             ${memberSql.rule}
-             AND attendee.attendee_id = ${excludeAttendeeId}
-        ), 0)`;
-};
+/** The booking rows of the group's member listings that carry `rule`. */
+const memberLinesWithRule = (groupId: Operand<number>, rule: CapacityRuleKey) =>
+  memberLines(groupId)
+    .join("memberListing", tables.listings, (line) =>
+      equal(line.memberListing.id, line.listing_id),
+    )
+    .where((line) =>
+      capacityRuleTypeSql(rule, line.memberListing.listing_type),
+    );
 
-// `groupRef` names the group whose members are summed: "groupRow.id" correlates
-// on the enclosing NOT EXISTS row (the write predicate), while the batch read
-// preflight passes its own group id. The COUNTING body is otherwise identical,
-// so the write guard and the read preflight can never count a group differently.
-// (Self-exclusion is write-only — the batch never excludes — so those branches
-// keep the correlated "groupRow.id" they are only ever emitted with.)
-const buildDailyGroupCountSql = (
-  dayRange: CountingDayRange,
-  excludeAttendeeId: SqlSlot | null,
-  groupRef: SqlSlot,
-): SqlStatement =>
-  sql`(COALESCE((
-          SELECT SUM(memberListing.booked_quantity)
-            FROM listings AS memberListing
-            JOIN group_listings AS groupListing
-              ON groupListing.listing_id = memberListing.id
-           WHERE groupListing.group_id = ${groupRef}
-             AND ${capacityRuleTypeSql("dateLessCap", "memberListing.listing_type")}
-        ), 0)
-        ${buildGroupExclusionSql(excludeAttendeeId, DAILY_GROUP_MEMBER_SQL)}
-        + COALESCE((
-          SELECT SUM(attendee.quantity)
-            FROM listing_attendees AS attendee
-            JOIN group_listings AS groupListing
-              ON groupListing.listing_id = attendee.listing_id
-            JOIN listings AS memberListing
-              ON memberListing.id = attendee.listing_id
-           WHERE groupListing.group_id = ${groupRef}
-             AND ${capacityRuleTypeSql("perDateCap", "memberListing.listing_type")} ${attendeeExclusionSql(
-               excludeAttendeeId,
-             )}
-              AND attendee.start_at < ${dayRange.endSql}
-              AND attendee.end_at > ${dayRange.startSql}
-         ), 0))`;
+/** What the excluded attendee holds in the running total, so an edit does not
+ *  count its own rows. */
+const lessOwnRows = (
+  total: Expr<Counted>,
+  ownRows: ReturnType<typeof memberLines> | null,
+  excludeAttendeeId: Operand<number> | null,
+): Expr<Counted> =>
+  ownRows === null || excludeAttendeeId === null
+    ? total
+    : minus(
+        total,
+        quantityOf(
+          ownRows.where((line) => equal(line.attendee_id, excludeAttendeeId)),
+        ),
+      );
 
-const buildUndatedGroupCountSql = (
-  excludeAttendeeId: SqlSlot | null,
-  groupRef: SqlSlot,
-): SqlStatement =>
-  sql`(COALESCE((
-          SELECT SUM(memberListing.booked_quantity)
-            FROM listings AS memberListing
-            JOIN group_listings AS groupListing
-              ON groupListing.listing_id = memberListing.id
-           WHERE groupListing.group_id = ${groupRef}
-        ), 0)
-         ${buildGroupExclusionSql(excludeAttendeeId, ALL_GROUP_MEMBER_SQL)})`;
+/** How much of a group is taken in a day window, without the rows of the
+ *  excluded attendee. */
+type GroupCount<Range> = (
+  dayRange: Range,
+  excludeAttendeeId: Operand<number> | null,
+  groupId: Operand<number>,
+) => Expr<Counted>;
 
-export const buildGroupCountSql = (
-  dayRange: CountingDayRange | null,
-  excludeAttendeeId: SqlSlot | null,
-  groupRef: SqlSlot = sqlName("groupRow.id"),
-): SqlStatement => {
-  if (dayRange) {
-    return buildDailyGroupCountSql(dayRange, excludeAttendeeId, groupRef);
-  }
+// The write guard passes the group row of its enclosing NOT EXISTS as
+// `groupId`. The batch read preflight passes its own group id. The counting
+// body is the same, so the write guard and the read preflight cannot count a
+// group differently.
+const dailyGroupCount: GroupCount<CountingDayRange> = (
+  dayRange,
+  excludeAttendeeId,
+  groupId,
+) =>
+  plus(
+    lessOwnRows(
+      groupRunningTotal(groupId, "dateLessCap"),
+      memberLinesWithRule(groupId, "dateLessCap"),
+      excludeAttendeeId,
+    ),
+    quantityOf(
+      memberLinesWithRule(groupId, "perDateCap").where(
+        heldThatDay(dayRange, excludeAttendeeId),
+      ),
+    ),
+  );
 
-  return buildUndatedGroupCountSql(excludeAttendeeId, groupRef);
-};
+export const buildGroupCountSql: GroupCount<CountingDayRange | null> = (
+  dayRange,
+  excludeAttendeeId,
+  groupId,
+) =>
+  dayRange === null
+    ? lessOwnRows(
+        groupRunningTotal(groupId, null),
+        memberLines(groupId),
+        excludeAttendeeId,
+      )
+    : dailyGroupCount(dayRange, excludeAttendeeId, groupId);
 
 /** The listing's own cap for one day: the counted demand plus the asking
- * quantity against the listing's max. The line also enforces active = 1 (an
- * inactive listing's max_attendees subquery is NULL, so the comparison
- * fails). */
-const buildListingCapSql = (
-  count: CountSqlValues,
-  quantity: SqlSlot,
-): SqlStatement =>
-  sql`(
-    ${buildListingCountSql(count)}
-  ) + ${quantity} <= (SELECT max_attendees FROM listings WHERE id = ${count.listingId} AND active = 1)`;
+ * quantity against the listing's max. An inactive listing has no cap row, so
+ * the comparison is null and the booking is refused. */
+const listingCap = (count: CountValues, quantity: number): Expr<boolean> =>
+  atMost(
+    plus(buildListingCountSql(count), quantity),
+    listingRow(count.listingId)
+      .where((listing) => equal(listing.active, literal(1)))
+      .scalar((listing) => listing.max_attendees),
+  );
 
 /**
- * Build a single-day capacity clause (listing-cap + group-cap when applicable).
- * `dayRange` is null for non-daily / date-less bookings; those use the editable
- * booked_quantity running total. Dated daily checks still count overlapping rows.
+ * The capacity condition of one day: the listing cap, and the group caps.
+ * `dayRange` is null for a date-less booking, which reads the running total.
+ * A dated daily check counts the rows that overlap the day.
  */
-const buildDayCapacitySql = (
-  count: CountSqlValues,
-  quantity: SqlSlot,
-): SqlStatement => {
+const dayCapacity = (count: CountValues, quantity: number): Expr<boolean> => {
   const { dayRange, excludeAttendeeId, listingId } = count;
-  const groupCount = buildGroupCountSql(dayRange, excludeAttendeeId);
-
   // The group cap passes unless SOME group the listing belongs to is capped
   // and would be pushed over by this booking — so an ungrouped or all-uncapped
   // listing has no offending group and NOT EXISTS is satisfied.
-  return sql`${buildListingCapSql(count, quantity)}
-  AND NOT EXISTS (
-    SELECT 1
-    FROM group_listings AS groupListing
-    JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-    WHERE groupListing.listing_id = ${listingId}
-      AND groupRow.max_attendees > 0
-      AND (${groupCount}) + ${quantity} > groupRow.max_attendees
-  )`;
+  const overfullGroup = from(tables.group_listings, { group: {} }).where(
+    (membership) => [
+      equal(membership.listing_id, listingId),
+      greaterThan(membership.group.max_attendees, literal(0)),
+      greaterThan(
+        plus(
+          buildGroupCountSql(dayRange, excludeAttendeeId, membership.group.id),
+          quantity,
+        ),
+        membership.group.max_attendees,
+      ),
+    ],
+  );
+  return and(listingCap(count, quantity), not(overfullGroup.exists()));
 };
 
 const countingDayRange = (
   dayRange: DayRange | null,
 ): CountingDayRange | null =>
-  dayRange === null
-    ? null
-    : { endSql: dayRange.endAt, startSql: dayRange.startAt };
+  dayRange === null ? null : { end: dayRange.endAt, start: dayRange.startAt };
 
 /** One clause per booked day, AND'd together, so a multi-day booking is
  * judged on every day it occupies. A date-less demand is one clause. */
 const perDayClauses = (
   date: string | null,
   durationDays: number,
-  daySql: (dayRange: DayRange | null) => SqlStatement,
-): SqlStatement => {
-  if (!date) return daySql(null);
+  dayCondition: (dayRange: DayRange | null) => Expr<boolean>,
+): Expr<boolean> => {
+  if (!date) return dayCondition(null);
   const booked = parseDateStringOrThrow(date, "a stored booking date");
-  return sqlJoin(
-    Array.from(
-      { length: clampDurationDays(durationDays) },
-      (_, index) => sql`(${daySql(dateToRange(addDays(booked, index)))})`,
+  return and(
+    ...Array.from({ length: clampDurationDays(durationDays) }, (_, index) =>
+      dayCondition(dateToRange(addDays(booked, index))),
     ),
-    sql` AND `,
   );
 };
 
@@ -264,10 +331,10 @@ export const buildCapacityCondition = (
   excludeAttendeeId?: number,
   durationDays = 1,
   scope: { groupCaps: boolean } = { groupCaps: true },
-): SqlStatement => {
-  const sqlFor = (dayRange: DayRange | null): SqlStatement =>
+): Expr<boolean> => {
+  const conditionFor = (dayRange: DayRange | null): Expr<boolean> =>
     scope.groupCaps
-      ? buildDayCapacitySql(
+      ? dayCapacity(
           {
             dayRange: countingDayRange(dayRange),
             excludeAttendeeId: excludeAttendeeId ?? null,
@@ -275,7 +342,7 @@ export const buildCapacityCondition = (
           },
           quantity,
         )
-      : buildListingCapSql(
+      : listingCap(
           {
             dayRange: countingDayRange(dayRange),
             excludeAttendeeId: null,
@@ -283,7 +350,7 @@ export const buildCapacityCondition = (
           },
           quantity,
         );
-  return perDayClauses(date, durationDays, sqlFor);
+  return perDayClauses(date, durationDays, conditionFor);
 };
 
 /**
@@ -293,7 +360,7 @@ export const buildCapacityCondition = (
  * submission's group memberships before the move reads them, so the probe
  * cannot judge the old memberships against the new ones.
  */
-export const buildListingCapCondition = (booking: LineBooking): SqlStatement =>
+export const buildListingCapCondition = (booking: LineBooking): Expr<boolean> =>
   buildCapacityCondition(
     booking.listingId,
     booking.quantity,
@@ -303,9 +370,6 @@ export const buildListingCapCondition = (booking: LineBooking): SqlStatement =>
     { groupCaps: false },
   );
 
-/** A clause that refuses nothing: the zero-quantity line's demand. */
-const ALWAYS_FITS = sql`1`;
-
 /**
  * The capacity condition for one booked line. An edit passes the attendee whose
  * own row must not count against the room it is asking for. A zero-quantity
@@ -314,9 +378,9 @@ const ALWAYS_FITS = sql`1`;
 export const capacityConditionFor = (
   booking: LineBooking,
   excludeAttendeeId?: number,
-): SqlStatement =>
+): Expr<boolean> =>
   booking.quantity === 0
-    ? ALWAYS_FITS
+    ? and()
     : buildCapacityCondition(
         booking.listingId,
         booking.quantity,

@@ -3,13 +3,13 @@
  *  its tables through these, so a rename fails in one place. */
 
 import { expect } from "@std/expect";
-import type { Table } from "#db/migrations/schema/types.ts";
+import type { NamedTable, Table } from "#db/migrations/schema/types.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { jsonHash } from "#test-utils/hash.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
 /** A table group as the schema modules export it. */
-export type DeclaredTables = [name: string, table: Table][];
+export type DeclaredTables = readonly NamedTable[];
 
 /** Assert the whole declaration keeps its exact hash. The hash pins every
  *  column, index, and default in the group. */
