@@ -1,7 +1,8 @@
 /** The booking rows that started a Stripe subscription. */
 
 import * as v from "valibot";
-import { inPlaceholders, queryAll, type SqlStatement } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { CHECKED_STATUSES } from "#payment/subscription-machine-spec.ts";
 import {
   RecurringIntervalSchema,
@@ -25,32 +26,32 @@ const SubscribedRowSchema = v.object({
 
 export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
 
-const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries)
-  .map((column) => `booking.${column}`)
-  .join(", ");
+/** The subscribed columns, each named for its booking alias. */
+const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries).map(
+  (column) => `booking.${column}`,
+);
 
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   v.parse(
     v.array(SubscribedRowSchema),
     await queryAll(
-      `SELECT ${SUBSCRIBED_COLUMNS}
+      sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
          FROM listing_attendees AS booking
         WHERE booking.subscription_id != ''
         ORDER BY booking.id DESC`,
     ),
   );
 
+/** A row the scheduled check watches: the plan it read, and where it lives. */
 const CheckedRowSchema = v.object({
-  ...v.pick(SubscribedRowSchema, [
-    "attendee_id",
-    "listing_id",
-    "recurring_price",
-    "recurring_tax",
-    "subscription_id",
-    "subscription_status",
-  ]).entries,
+  attendee_id: v.number(),
   id: v.number(),
+  listing_id: v.number(),
+  recurring_price: v.number(),
+  recurring_tax: v.number(),
+  subscription_id: v.pipe(v.string(), v.minLength(1)),
+  subscription_status: SubscriptionStatusSchema,
 });
 
 export type CheckedRow = v.InferOutput<typeof CheckedRowSchema>;
@@ -64,30 +65,27 @@ export const getCheckedRows = async (
   v.parse(
     v.array(CheckedRowSchema),
     await queryAll(
-      `SELECT booking.id, booking.attendee_id, booking.listing_id,
+      sql`SELECT booking.id, booking.attendee_id, booking.listing_id,
               booking.recurring_price, booking.recurring_tax,
               booking.subscription_id, booking.subscription_status
          FROM listing_attendees AS booking
-        WHERE booking.subscription_status IN (${inPlaceholders(CHECKED_STATUSES)})
-          AND booking.id > ?
+        WHERE booking.subscription_status IN (${sqlList(CHECKED_STATUSES)})
+          AND booking.id > ${afterId}
         ORDER BY booking.id
-        LIMIT ?`,
-      [...CHECKED_STATUSES, afterId, limit],
+        LIMIT ${limit}`,
     ),
   );
 
 /** A merge can replace this booking while Stripe answers. Refuse stale money
  * in the same batch as its ledger legs. */
-export const renewalBookingGuard = (row: CheckedRow): SqlStatement => ({
-  args: [row.id, row.attendee_id, row.listing_id, row.subscription_id],
-  sql: `INSERT INTO listing_attendees (listing_id)
+export const renewalBookingGuard = (row: CheckedRow): SqlStatement =>
+  sql`INSERT INTO listing_attendees (listing_id)
         SELECT NULL
          WHERE NOT EXISTS (
            SELECT 1 FROM listing_attendees AS booking
-            WHERE booking.id = ? AND booking.attendee_id = ?
-              AND booking.listing_id = ? AND booking.subscription_id = ?
-         )`,
-});
+            WHERE booking.id = ${row.id} AND booking.attendee_id = ${row.attendee_id}
+              AND booking.listing_id = ${row.listing_id} AND booking.subscription_id = ${row.subscription_id}
+         )`;
 
 /** The stored words that a write of `status` can replace. An ended status is
  * final, so it replaces any live one. A live status needs the row to hold the
@@ -104,12 +102,9 @@ const replaceableBy = (
 export const statusWrite = (
   row: CheckedRow,
   status: SubscriptionStatus,
-): SqlStatement => {
-  const replaceable = replaceableBy(row, status);
-  return {
-    args: [status, row.id, ...replaceable],
-    sql: `UPDATE listing_attendees
-             SET subscription_status = ?
-           WHERE id = ? AND subscription_status IN (${inPlaceholders(replaceable)})`,
-  };
-};
+): SqlStatement =>
+  sql`UPDATE listing_attendees
+             SET subscription_status = ${status}
+           WHERE id = ${row.id} AND subscription_status IN (${sqlList(
+             replaceableBy(row, status),
+           )})`;

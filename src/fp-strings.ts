@@ -38,3 +38,13 @@ export const endsWithAny = textHasAny((text, piece) => text.endsWith(piece));
 
 /** Whether the text contains any of the given pieces. */
 export const includesAny = textHasAny((text, piece) => text.includes(piece));
+
+/** The items whose mark occurs in `text` at or after `from`, each with the
+ * place of its first occurrence, nearest first. */
+export const occurrencesIn =
+  <T>(text: string, markOf: (item: T) => string, from = 0) =>
+  (items: readonly T[]): { at: number; item: T }[] =>
+    items
+      .map((item) => ({ at: text.indexOf(markOf(item), from), item }))
+      .filter(({ at }) => at >= 0)
+      .sort((left, right) => left.at - right.at);

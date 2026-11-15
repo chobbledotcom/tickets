@@ -8,7 +8,6 @@ import * as v from "valibot";
 import { ADMIN_API } from "#routes/auth.ts";
 import { dateField, textField } from "#shared/rest/api-body-fields.ts";
 import {
-  bodyNumber,
   optionalDateString,
   optionalTextField,
   parseAndValidate,
@@ -232,15 +231,6 @@ test("requireEntityField names the field it reads", () => {
     error: "text is required",
     ok: false,
   });
-});
-
-test("bodyNumber returns the number when present", () => {
-  expect(bodyNumber({ count: 42 }, "count", 0)).toBe(42);
-});
-
-test("bodyNumber falls back when the key is missing or wrong type", () => {
-  expect(bodyNumber({}, "count", 5)).toBe(5);
-  expect(bodyNumber({ count: "nope" }, "count", 5)).toBe(5);
 });
 
 describeWithEnv("withApiEntity", { db: true }, () => {

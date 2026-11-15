@@ -15,6 +15,7 @@ import {
 } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -26,16 +27,10 @@ describeWithEnv(
       test("ticket paid flow redirects to Stripe checkout", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Paid Flow 1",
-          unitPrice: 1000,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Paid Flow 2",
-          unitPrice: 500,
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, name: "Multi Paid Flow 1", unitPrice: 1000 },
+          { maxAttendees: 50, name: "Multi Paid Flow 2", unitPrice: 500 },
+        );
 
         const response = await bookOneEachViaTicketForm(
           `${listing1.slug}+${listing2.slug}`,
@@ -51,16 +46,10 @@ describeWithEnv(
       test("ticket paid flow shows error when session creation fails", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Nourl 1",
-          unitPrice: 1000,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Nourl 2",
-          unitPrice: 500,
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, name: "Multi Nourl 1", unitPrice: 1000 },
+          { maxAttendees: 50, name: "Multi Nourl 2", unitPrice: 500 },
+        );
 
         // Mock createCheckoutSession to return no URL
         const { stripePaymentProvider } = await import(
@@ -87,16 +76,10 @@ describeWithEnv(
       test("ticket paid flow shows validation error from checkout session", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Valerr 1",
-          unitPrice: 1000,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Valerr 2",
-          unitPrice: 500,
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 50, name: "Multi Valerr 1", unitPrice: 1000 },
+          { maxAttendees: 50, name: "Multi Valerr 2", unitPrice: 500 },
+        );
 
         const { stripePaymentProvider } = await import(
           "#shared/stripe-provider.ts"
@@ -120,14 +103,10 @@ describeWithEnv(
       });
 
       test("skips sold-out listings in quantity parsing", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 1,
-          name: "Multi Soldout 1",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Multi Soldout 2",
-        });
+        const [listing1, listing2] = await createListingPair(
+          { maxAttendees: 1, name: "Multi Soldout 1" },
+          { maxAttendees: 50, name: "Multi Soldout 2" },
+        );
 
         // Fill listing1 to capacity
         await bookAttendee(listing1, {
@@ -151,18 +130,20 @@ describeWithEnv(
       test("returns error when paid ticket availability check fails", async () => {
         await setupStripe();
 
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Avail Race 1",
-          unitPrice: 500,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Multi Avail Race 2",
-          unitPrice: 1000,
-        });
+        const [listing1, listing2] = await createListingPair(
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Avail Race 1",
+            unitPrice: 500,
+          },
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Multi Avail Race 2",
+            unitPrice: 1000,
+          },
+        );
 
         // Mock checkBatchAvailability via attendeesApi to return false,
         // simulating a race condition where listing sells out between page load and check
@@ -230,18 +211,20 @@ describeWithEnv(
 
       test("returns popup page for ticket paid listing in iframe", async () => {
         await setupStripe();
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Iframe Multi 1",
-          unitPrice: 500,
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          maxQuantity: 5,
-          name: "Iframe Multi 2",
-          unitPrice: 1000,
-        });
+        const [listing1, listing2] = await createListingPair(
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Iframe Multi 1",
+            unitPrice: 500,
+          },
+          {
+            maxAttendees: 50,
+            maxQuantity: 5,
+            name: "Iframe Multi 2",
+            unitPrice: 1000,
+          },
+        );
 
         const response = await submitMultiTicketForm(
           `${listing1.slug}+${listing2.slug}?iframe=true`,

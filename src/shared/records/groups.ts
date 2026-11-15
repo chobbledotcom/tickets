@@ -5,6 +5,7 @@
 
 import type { InValue } from "@libsql/client";
 import { executeBatch, rowExists } from "#db/client.ts";
+import { deleteById } from "#db/delete-row.ts";
 import {
   clearExternalLinksStatement,
   externalLinkTargets,
@@ -29,9 +30,10 @@ import {
 } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import type { GroupInput } from "#shared/records/group-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
@@ -77,9 +79,8 @@ export const soldHiddenPackageError = async (
     return null;
   }
   const sold = await rowExists(
-    `SELECT 1 FROM listing_attendees
-      WHERE package_group_id = ? AND quantity > 0 LIMIT 1`,
-    [id],
+    sql`SELECT 1 FROM listing_attendees
+      WHERE package_group_id = ${id} AND quantity > 0 LIMIT 1`,
   );
   return sold ? t("error.sold_hidden_package") : null;
 };
@@ -120,8 +121,8 @@ export const deleteGroup = async (id: InValue) => {
     clearItemEdgesStatement(sitePageItemTargets.of("group")(groupId)),
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
-    noteDeleteStatement("group", { args: [groupId], sql: "?" }),
-    { args: [groupId], sql: "DELETE FROM groups WHERE id = ?" },
+    noteDeleteStatement("group", sql`${groupId}`),
+    deleteById("groups", groupId),
   ]);
 };
 

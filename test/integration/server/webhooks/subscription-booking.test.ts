@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -62,10 +63,9 @@ describeWithEnv("subscription booking", { db: true }, () => {
 
     expect(
       await queryAll(
-        `SELECT quantity, recurring_price, recurring_tax, recurring_interval,
+        sql`SELECT quantity, recurring_price, recurring_tax, recurring_interval,
                 subscription_id, subscription_status
-           FROM listing_attendees WHERE listing_id = ?`,
-        [listing.id],
+           FROM listing_attendees WHERE listing_id = ${listing.id}`,
       ),
     ).toEqual([
       {

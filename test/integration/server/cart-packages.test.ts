@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -35,9 +36,8 @@ const bookingRows = (
   { quantity: number; package_group_id: number; parent_listing_id: number }[]
 > =>
   queryAll(
-    `SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
-      WHERE listing_id = ? ORDER BY id ASC`,
-    [listingId],
+    sql`SELECT quantity, package_group_id, parent_listing_id FROM listing_attendees
+      WHERE listing_id = ${listingId} ORDER BY id ASC`,
   );
 
 const pageHtml = async (slugs: string): Promise<string> =>

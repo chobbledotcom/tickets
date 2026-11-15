@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { sitePageRecord, sitePageRule } from "#shared/records/site-pages.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import {
@@ -33,10 +34,9 @@ describeRecord(sitePageRecord, "Page", "Page name", () => {
   test("lists the pages in their sort order", async () => {
     const first = await createTestSitePage("first");
     const second = await createTestSitePage("second");
-    await execute("UPDATE site_pages SET sort_order = ? WHERE id = ?", [
-      9,
-      first.id,
-    ]);
+    await execute(
+      sql`UPDATE site_pages SET sort_order = ${9} WHERE id = ${first.id}`,
+    );
 
     expect((await sitePageRecord.getAll()).map((page) => page.slug)).toEqual([
       second.slug,
@@ -82,7 +82,7 @@ describeRecord(sitePageRecord, "Page", "Page name", () => {
     const page = await createTestSitePage("vanishing");
 
     await expectNotFoundAfterRacingDelete(
-      () => execute("DELETE FROM site_pages WHERE id = ?", [page.id]),
+      () => execute(sql`DELETE FROM site_pages WHERE id = ${page.id}`),
       () => sitePageRecord.update(page.id, pageInput("vanishing")),
     );
   });

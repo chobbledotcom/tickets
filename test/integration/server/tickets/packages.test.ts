@@ -15,6 +15,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -99,10 +100,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       );
       // The widget row stays a package member; the standalone row loses its
       // package id, the way a merge leaves the two side by side.
-      await getDb().execute({
-        args: [standalone.id],
-        sql: "UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE listing_attendees SET package_group_id = 0 WHERE listing_id = ${standalone.id}`,
+      );
 
       const body = await fetchTicketBody(token);
       expectIncludesAll(body, ["Kit Bag", "Standalone Ticket"]);
@@ -293,10 +293,9 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       assertArrayIncludes([302, 303], [submit.status]);
 
       const row = (
-        await getDb().execute({
-          args: [freebie.id],
-          sql: "SELECT package_group_id FROM listing_attendees WHERE listing_id = ? ORDER BY id DESC LIMIT 1",
-        })
+        await getDb().execute(
+          sql`SELECT package_group_id FROM listing_attendees WHERE listing_id = ${freebie.id} ORDER BY id DESC LIMIT 1`,
+        )
       ).rows[0]!;
       expect(Number(row.package_group_id)).toBe(group.id);
     });

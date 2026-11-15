@@ -2,8 +2,8 @@
 
 import * as v from "valibot";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { saleProviderOrNull } from "#shared/config.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 
 /** A recurring price needs a frequency, and a frequency needs a price. The

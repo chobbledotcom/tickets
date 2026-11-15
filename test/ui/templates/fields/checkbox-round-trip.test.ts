@@ -55,8 +55,7 @@ const editForms: readonly (readonly [string, readonly Field[]])[] = [
   ["group edit", getGroupForm().fields],
   [
     "listing edit",
-    getListingEditForm({ builder: true, logistics: true, storage: true })
-      .fields,
+    getListingEditForm({ closed: new Map(), storage: true }).fields,
   ],
   ["modifier edit", getModifierForm().fields],
 ];

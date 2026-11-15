@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { resultRows, type TxScope } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import type { Table } from "#db/table.ts";
 import { type EntityWrite, writeEntity } from "#shared/rest/write-entity.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
@@ -109,7 +110,7 @@ describe("writeEntity", () => {
         async (tx, _id, state) => {
           states.push(String(state));
           const current = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+            await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
           )[0];
           events.push(`write:${current?.name}`);
         },
@@ -122,7 +123,7 @@ describe("writeEntity", () => {
       plainWrite: reject("plainWrite"),
       readState: async (tx) => {
         const current = resultRows<Row>(
-          await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+          await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
         )[0];
         events.push(`read:${current?.name}`);
         return current?.name ?? null;
@@ -193,7 +194,7 @@ describe("writeEntity", () => {
         plainWrite: reject("plainWrite"),
         readState: async (tx) => {
           const row = resultRows<Row>(
-            await tx.execute("SELECT id, name FROM we_items WHERE id = 1"),
+            await tx.execute(sql`SELECT id, name FROM we_items WHERE id = 1`),
           )[0];
           return row?.name ?? null;
         },
@@ -207,13 +208,13 @@ describe("writeEntity", () => {
   test("checkTx without join writes forces the transactional path and refuses", async () => {
     const table = makeTable();
     let plainWriteRan = false;
-    let txSeen: TxScope | undefined;
+    const checkedIds: number[] = [];
     let thrown: unknown;
 
     try {
       await writeWith(table, {
-        checkTx: (tx) => {
-          txSeen = tx;
+        checkTx: (_tx, id) => {
+          checkedIds.push(id);
           return Promise.reject(new Error("no orphaning"));
         },
         existingId: 7,
@@ -228,7 +229,7 @@ describe("writeEntity", () => {
     }
 
     expect((thrown as Error).message).toBe("no orphaning");
-    expect(txSeen).toBeDefined();
+    expect(checkedIds).toEqual([7]);
     expect(plainWriteRan).toBe(false);
   });
 
@@ -299,6 +300,27 @@ describe("writeEntity", () => {
     });
 
     expect(row).toBeNull();
+  });
+
+  test("an update of a deleted row runs no join write and returns null", async () => {
+    const table = makeTable();
+    const joinIds: number[] = [];
+
+    const row = await writeWith(table, {
+      buildStatement: () => table.updateStatement!(1, { name: "renamed" }),
+      existingId: 1,
+      joinWrites: [
+        (_tx, id) => {
+          joinIds.push(id);
+          return Promise.resolve();
+        },
+      ],
+      plainWrite: reject("plainWrite"),
+      readBack: reject("readBack"),
+    });
+
+    expect(row).toBeNull();
+    expect(joinIds).toEqual([]);
   });
 
   test("runs without an afterCommit hook", async () => {

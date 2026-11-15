@@ -23,17 +23,15 @@ describe("parseApiJsonBody", () => {
     expect(result).toEqual({ quantity: 2 });
   });
 
-  test("rejects a non-record JSON body (null) with an error response", async () => {
-    // Regression: `null` parses fine but is not the record JsonBodyReader
-    // promises. It must be rejected here, not passed on to field parsing.
-    await expectInvalidBody("null");
-  });
-
-  test("rejects a JSON array body with an error response", async () => {
-    await expectInvalidBody("[1,2,3]");
-  });
-
-  test("rejects a malformed JSON body with an error response", async () => {
-    await expectInvalidBody("{not json");
-  });
+  // `null` parses fine but is not the record the reader promises, so it joins
+  // the bodies turned away here rather than reaching field parsing.
+  for (const [title, body] of [
+    ["rejects a non-record JSON body (null) with an error response", "null"],
+    ["rejects a JSON array body with an error response", "[1,2,3]"],
+    ["rejects a malformed JSON body with an error response", "{not json"],
+  ] as const) {
+    test(title, async () => {
+      await expectInvalidBody(body);
+    });
+  }
 });

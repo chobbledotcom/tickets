@@ -8,6 +8,7 @@ import {
   imagesTable,
   setItemsForImage,
 } from "#db/images.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
 import { expectApiError } from "#test-utils/assertions.ts";
@@ -109,15 +110,12 @@ export const insertBrokenImage = async (
 ): Promise<number> => {
   const brokenFilename = await encrypt("");
   const result = await execute(
-    `INSERT INTO images (name, filename, filename_thumb, alt_text)
-     VALUES (?, ?, ?, '')`,
-    [
-      await encrypt(options.name ?? "Broken"),
-      brokenFilename,
-      options.thumbFilename === undefined
-        ? brokenFilename
-        : await encrypt(options.thumbFilename),
-    ],
+    sql`INSERT INTO images (name, filename, filename_thumb, alt_text)
+     VALUES (${await encrypt(options.name ?? "Broken")}, ${brokenFilename}, ${
+       options.thumbFilename === undefined
+         ? brokenFilename
+         : await encrypt(options.thumbFilename)
+}, '')`,
   );
   return Number(result.lastInsertRowid);
 };
@@ -188,13 +186,6 @@ export const putImage = imageWrite("PUT");
 
 /** DELETE one image's JSON route as an owner API key. */
 export const deleteImage = imageWrite("DELETE");
-
-/** Assert the admin API refuses an unauthenticated request. */
-export const expectUnauthorized = async (
-  request: Promise<Response>,
-): Promise<void> => {
-  expect((await request).status).toBe(401);
-};
 
 /** Assert the image library answers its 404 for this request. */
 export const expectImageNotFound = (

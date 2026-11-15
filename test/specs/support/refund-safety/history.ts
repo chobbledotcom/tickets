@@ -3,6 +3,7 @@
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { execute, queryAll } from "#db/client.ts";
 import { loadIndexedPaymentReference } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { historicalPaymentReferenceStorage } from "#test-utils/historical-payment-references.ts";
 import type { PaymentProviderType } from "#types";
@@ -33,15 +34,14 @@ type ChangePaymentHistory = (attendeeId: number) => Promise<PaymentIdentity>;
 
 const paymentRowsFor = (attendeeId: number): Promise<StoredReferenceRow[]> =>
   queryAll<StoredReferenceRow>(
-    `SELECT payment.payment_session_id, payment.payment_reference,
+    sql`SELECT payment.payment_session_id, payment.payment_reference,
             payment.payment_reference_index, payment.protected_state,
             charge.refund_state_name
        FROM processed_payments AS payment
        LEFT JOIN payment_charges AS charge
          ON charge.reference_index = payment.payment_reference_index
-      WHERE payment.attendee_id = ? AND payment.payment_reference != ''
+      WHERE payment.attendee_id = ${attendeeId} AND payment.payment_reference != ''
       ORDER BY processed_at, payment_session_id`,
-    [attendeeId],
   );
 
 const oneModernPayment = async (attendeeId: number): Promise<ModernPayment> => {
@@ -81,24 +81,17 @@ const changeStoredPaymentReference =
     const { provider, reference, row } = await oneModernPayment(attendeeId);
     const replacement = await replacementFor(reference);
     const result = await execute(
-      `UPDATE processed_payments
-        SET payment_reference = ?, payment_reference_index = ?
-      WHERE payment_session_id = ?
-        AND payment_reference = ?
-        AND payment_reference_index = ?
+      sql`UPDATE processed_payments
+        SET payment_reference = ${replacement.encrypted}, payment_reference_index = ${replacement.index}
+      WHERE payment_session_id = ${row.payment_session_id}
+        AND payment_reference = ${row.payment_reference}
+        AND payment_reference_index = ${row.payment_reference_index}
         AND protected_state = ''
         AND NOT EXISTS (
           SELECT 1
             FROM payment_charges AS charge
            WHERE charge.reference_index = processed_payments.payment_reference_index
         )`,
-      [
-        replacement.encrypted,
-        replacement.index,
-        row.payment_session_id,
-        row.payment_reference,
-        row.payment_reference_index,
-      ],
     );
     if (result.rowsAffected !== 1) {
       throw new Error(

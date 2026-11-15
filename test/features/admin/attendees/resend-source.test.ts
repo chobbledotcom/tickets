@@ -10,6 +10,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -117,7 +118,7 @@ describeWithEnv("the booking source a re-send reports", { db: true }, () => {
       listing: { name: "Historyless", webhookUrl: WEBHOOK_URL },
       name: "No History",
     });
-    await execute("DELETE FROM contact_preferences");
+    await execute(sql`DELETE FROM contact_preferences`);
     const before = fetch.calls.length;
 
     await resend(attendee.id, "No History");

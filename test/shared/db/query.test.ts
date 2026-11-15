@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, insert } from "#db/client.ts";
 import { columnMapByIds, mapByIds, nameSource, rowsByIds } from "#db/query.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 /** Insert one attendee_statuses row with a plaintext name (the query helpers
@@ -15,7 +16,7 @@ const insertStatus = async (
     reservation_amount: "0",
     sort_order: sortOrder,
   });
-  return Number((await execute(stmt.sql, stmt.args)).lastInsertRowid);
+  return Number((await execute(stmt)).lastInsertRowid);
 };
 
 /** Identity "decryptor" for the plaintext names inserted above. */
@@ -39,7 +40,7 @@ describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
     const rows = await rowsByIds<{ id: number; name: string }>(
       [alpha, beta],
       (placeholders) =>
-        `SELECT status.id, status.name FROM attendee_statuses AS status WHERE status.id IN (${placeholders}) ORDER BY status.id`,
+        sql`SELECT status.id, status.name FROM attendee_statuses AS status WHERE status.id IN (${placeholders}) ORDER BY status.id`,
     );
 
     expect(rows).toEqual([
@@ -69,7 +70,7 @@ describeWithEnv("db > query > id-keyed lookups", { db: true }, () => {
     const map = await mapByIds<{ id: number; sort_order: number }>(
       [alpha, beta],
       (placeholders) =>
-        `SELECT status.id, status.sort_order FROM attendee_statuses AS status WHERE status.id IN (${placeholders})`,
+        sql`SELECT status.id, status.sort_order FROM attendee_statuses AS status WHERE status.id IN (${placeholders})`,
       (row) => [row.id, row.sort_order],
     );
 

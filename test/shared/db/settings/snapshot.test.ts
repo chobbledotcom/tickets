@@ -4,6 +4,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("db > settings > snapshot", { db: true }, () => {
@@ -13,7 +14,7 @@ describeWithEnv("db > settings > snapshot", { db: true }, () => {
     });
 
     test("getCountryFromDb returns GB when no country is stored", async () => {
-      await getDb().execute("DELETE FROM settings");
+      await getDb().execute(sql`DELETE FROM settings`);
       settings.invalidateCache();
       expect(settings.country).toBe("GB");
     });

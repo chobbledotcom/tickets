@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -77,9 +78,8 @@ const orderRowsFor = async (
 ): Promise<{ order_token: string; parent_listing_id: number }[]> => {
   const { queryAll } = await import("#db/client.ts");
   return queryAll<{ order_token: string; parent_listing_id: number }>(
-    `SELECT order_token, parent_listing_id FROM listing_attendees
-     WHERE listing_id = ? ORDER BY id DESC`,
-    [listingId],
+    sql`SELECT order_token, parent_listing_id FROM listing_attendees
+     WHERE listing_id = ${listingId} ORDER BY id DESC`,
   );
 };
 

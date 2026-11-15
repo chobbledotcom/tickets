@@ -1,7 +1,7 @@
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import type { GroupInput } from "#shared/catalog-fields/fields.ts";
+import type { GroupInput } from "#shared/records/group-fields.ts";
 import type { TestListingOverrides } from "#test-utils/factories.ts";
 import type { Group, ListingWithCount } from "#types";
 import { createTestListing } from "./listings.ts";

@@ -249,7 +249,7 @@
   "fields.listing.contact.phone": "Phone number",
   "fields.listing.contact.address": "Address",
   "fields.listing.contact.special_instructions": "Special instructions",
-  "fields.listing.price": "Ticket price (leave empty for free)",
+  "fields.listing.price": "Ticket price",
   "fields.listing.price_placeholder": "e.g. 10.00",
   "fields.listing.price_title": "A non-negative number (e.g. 10.00)",
   "fields.listing.allow_pay_more": "Allow pay more",

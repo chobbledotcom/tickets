@@ -9,12 +9,8 @@ import {
   getAttendees,
 } from "#db/attendees/select.ts";
 import { dateToRange } from "#db/capacity.ts";
-import {
-  queryAll,
-  queryBatch,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { queryAll, queryBatch, resultRows } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { flatMap, sortStrings, unique } from "#fp";
 import { coveredDays } from "#shared/dates.ts";
 import type { Attendee, ListingWithCount } from "#types";
@@ -62,7 +58,7 @@ export const getListingWithAttendeesRaw = async (
 /** Read every occupied date across daily listing bookings. */
 export const getDailyListingAttendeeDates = async (): Promise<string[]> => {
   const rows = await queryAll<{ start_at: string; end_at: string }>(
-    `SELECT DISTINCT listingAttendee.start_at, listingAttendee.end_at
+    sql`SELECT DISTINCT listingAttendee.start_at, listingAttendee.end_at
      FROM listing_attendees AS listingAttendee
      INNER JOIN listings AS listing ON listingAttendee.listing_id = listing.id
      WHERE listing.listing_type = 'daily'

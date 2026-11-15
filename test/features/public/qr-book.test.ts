@@ -82,12 +82,11 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("unknown listing slug renders the error page", async () => {
-      const token = await signQrBookToken(
-        "unknown-slug",
-        buildQrBookPayload({ name: "Ada" }),
-      );
-      const response = await awaitTestRequest(
-        qrBookPath("unknown-slug", token),
+      const response = await scanRequest(
+        { slug: "unknown-slug" },
+        {
+          name: "Ada",
+        },
       );
       expect(response.status).toBe(404);
     });
@@ -98,30 +97,33 @@ describeWithEnv("QR booking", { db: true }, () => {
         unitPrice: 500,
       });
       using time = new FakeTime(1_700_000_000_000);
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", value: 500 }),
-      );
+      const token = await bookToken(listing.slug, { name: "Ada", value: 500 });
       time.tick((QR_TOKEN_MAX_AGE_S + 30) * 1000);
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       expect(response.status).toBe(400);
     });
 
-    test("daily listing with an un-bookable date is rejected", async () => {
-      const listing = await createDailyTestListing({ unitPrice: 500 });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ date: "1999-01-01", name: "Ada", value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
-      expect(response.status).toBe(400);
-    });
+    const rejectedDailyScans: readonly [
+      name: string,
+      payload: Parameters<typeof bookToken>[1],
+    ][] = [
+      // An un-bookable date and no date at all both reach the error page.
+      [
+        "daily listing with an un-bookable date is rejected",
+        { date: "1999-01-01", name: "Ada", value: 500 },
+      ],
+      [
+        "daily listing with no date in the token is rejected",
+        { name: "Ada", value: 500 },
+      ],
+    ];
 
-    test("daily listing with no date in the token is rejected", async () => {
-      const listing = await createDailyTestListing({ unitPrice: 500 });
-      const response = await scanRequest(listing, { name: "Ada", value: 500 });
-      expect(response.status).toBe(400);
-    });
+    for (const [name, payload] of rejectedDailyScans) {
+      test(name, async () => {
+        const listing = await createDailyTestListing({ unitPrice: 500 });
+        expect((await scanRequest(listing, payload)).status).toBe(400);
+      });
+    }
   });
 
   describe("pre-fill rendering", () => {
@@ -133,10 +135,10 @@ describeWithEnv("QR booking", { db: true }, () => {
         maxPrice: 10000,
         unitPrice: 500,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", value: 2500 }),
-      );
+      const token = await bookToken(listing.slug, {
+        name: "Ada",
+        value: 2500,
+      });
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
       expect(
@@ -170,11 +172,11 @@ describeWithEnv("QR booking", { db: true }, () => {
         maxQuantity: 5,
         unitPrice: 500,
       });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ name: "Ada", quantity: 3, value: 500 }),
-      );
-      const response = await awaitTestRequest(qrBookPath(listing.slug, token));
+      const response = await scanRequest(listing, {
+        name: "Ada",
+        quantity: 3,
+        value: 500,
+      });
       const body = await response.text();
       expect(body).toMatch(/<option value="3"\s+selected>/);
     });
@@ -188,57 +190,82 @@ describeWithEnv("QR booking", { db: true }, () => {
   });
 
   describe("skip-to-Stripe", () => {
-    test("renders the booking form (never direct checkout) for a customisable listing", async () => {
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 2: 1800 },
-        durationDays: 2,
-        fields: "",
-        maxAttendees: 10,
-      });
-      await scanWithStripe(listing, async ({ response, stripe }) => {
-        // The visitor must choose a day count, so the form renders instead.
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-        assertStringIncludes(await response.text(), 'name="day_count"');
-      });
-    });
-
-    test("accepts an individually-bookable date for a customisable daily listing", async () => {
-      const listing = await createTestListing({
-        customisableDays: true,
-        dayPrices: { 1: 1000, 2: 1800 },
-        durationDays: 2,
-        fields: "",
-        listingType: "daily",
-        maxAttendees: 10,
-        maximumDaysAfter: 60,
-        minimumDaysBefore: 0,
-      });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({
-          date: addDays(testDate(todayInTz("UTC")), 5),
-          name: "Ada",
-          value: 1000,
-        }),
-      );
-      await withStripe(async () => {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(200);
-        assertStringIncludes(await response.text(), 'name="day_count"');
-      });
-    });
-
-    test("renders the error page when the provider cannot create a session", async () => {
-      const listing = await createTestListing({
+    /** A listing that asks for no extra field at one fixed price. */
+    const fixedListing = () =>
+      createTestListing({
         fields: "",
         maxAttendees: 10,
         unitPrice: 500,
       });
-      const response = await scanWithCheckoutResult(listing, null);
+
+    /** A two-day customisable listing: the scan renders the day-count form. */
+    const customisableListing = (
+      overrides: Parameters<typeof createTestListing>[0] = {},
+    ) =>
+      createTestListing({
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        fields: "",
+        maxAttendees: 10,
+        ...overrides,
+      });
+
+    /** Scan `listing` and assert the form renders instead of starting
+     *  checkout. Returns the form HTML for a caller to assert on. */
+    const expectScanFormOnly = async (
+      listing: { slug: string },
+      payload: Parameters<typeof bookToken>[1] | undefined,
+    ): Promise<string> => {
+      let html = "";
+      await withStripe(async (stripe) => {
+        const response = await scanRequest(listing, payload);
+        expect(response.status).toBe(200);
+        expect(stripe.calls()).toBe(0);
+        html = await response.text();
+      });
+      return html;
+    };
+
+    const formScans: readonly [
+      name: string,
+      overrides: Parameters<typeof createTestListing>[0],
+      payload?: Parameters<typeof bookToken>[1],
+    ][] = [
+      [
+        "renders the booking form (never direct checkout) for a customisable listing",
+        {},
+      ],
+      [
+        "accepts an individually-bookable date for a customisable daily listing",
+        {
+          listingType: "daily",
+          maximumDaysAfter: 60,
+          minimumDaysBefore: 0,
+        },
+        {
+          date: addDays(testDate(todayInTz("UTC")), 5),
+          name: "Ada",
+          value: 1000,
+        },
+      ],
+    ];
+
+    for (const [name, overrides, payload] of formScans) {
+      test(name, async () => {
+        // The visitor must choose a day count, so the form renders instead.
+        assertStringIncludes(
+          await expectScanFormOnly(
+            await customisableListing(overrides),
+            payload,
+          ),
+          'name="day_count"',
+        );
+      });
+    }
+
+    test("renders the error page when the provider cannot create a session", async () => {
+      const response = await scanWithCheckoutResult(await fixedListing(), null);
       expect(response.status).toBe(500);
       assertStringIncludes(
         await response.text(),
@@ -247,62 +274,39 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("returns a provider validation refusal with its HTTP 400 status", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
       const refusal =
         "The payment processor rejected the phone number as invalid. Please correct it and try again.";
-      const response = await scanWithCheckoutResult(listing, {
+      const response = await scanWithCheckoutResult(await fixedListing(), {
         error: refusal,
       });
       expect(response.status).toBe(400);
       assertStringIncludes(await response.text(), refusal);
     });
 
-    test("falls through when name is missing even though value is set", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-      const token = await signQrBookToken(
-        listing.slug,
-        buildQrBookPayload({ value: 1000 }),
-      );
-      await withStripe(async (stripe) => {
-        const response = await awaitTestRequest(
-          qrBookPath(listing.slug, token),
-        );
-        expect(response.status).toBe(200);
-        expect(stripe.calls()).toBe(0);
-      });
-    });
-
-    test("falls through when value is missing even though name is set", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
-
-      await scanWithStripe(
-        listing,
-        async ({ response, stripe }) => {
-          expect(response.status).toBe(200);
-          expect(stripe.calls()).toBe(0);
-        },
+    const fallThroughScans: readonly [
+      name: string,
+      payload: Parameters<typeof bookToken>[1],
+    ][] = [
+      // A missing name or value leaves the booking incomplete, so no signed
+      // checkout starts and the form renders.
+      [
+        "falls through when name is missing even though value is set",
+        { value: 1000 },
+      ],
+      [
+        "falls through when value is missing even though name is set",
         { name: "Ada" },
-      );
-    });
+      ],
+    ];
+
+    for (const [name, payload] of fallThroughScans) {
+      test(name, async () => {
+        await expectScanFormOnly(await fixedListing(), payload);
+      });
+    }
 
     test("a signed zero value skips to checkout", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
+      const listing = await fixedListing();
 
       await scanWithStripe(
         listing,
@@ -329,18 +333,10 @@ describeWithEnv("QR booking", { db: true }, () => {
     });
 
     test("skips straight to Stripe even when global terms are configured", async () => {
-      const listing = await createTestListing({
-        fields: "",
-        maxAttendees: 10,
-        unitPrice: 500,
-      });
+      const listing = await fixedListing();
       await settings.update.terms("# Test terms");
-      const token = await bookToken(listing.slug);
       try {
-        await withStripe(async (stripe) => {
-          const response = await awaitTestRequest(
-            qrBookPath(listing.slug, token),
-          );
+        await scanWithStripe(listing, async ({ response, stripe }) => {
           expectStripeRedirect(response, stripe);
         });
       } finally {

@@ -7,16 +7,14 @@ import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
 import { stripePaymentProvider } from "#shared/stripe-provider.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  createTestListing,
-  deactivateTestListing,
-} from "#test-utils/db-helpers/listings.ts";
+import { deactivateTestListing } from "#test-utils/db-helpers/listings.ts";
 import { logLogged, useErrorLogSpy } from "#test-utils/debug-log.ts";
 import { signedMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { mockWebhookRequest } from "#test-utils/mocks.ts";
-import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
+import { stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
 import { foundStripeIntent } from "#test-utils/stripe/responses.ts";
+import { createStripeListing } from "#test-utils/stripe-listing.ts";
 import {
   checkoutSessionEvent,
   expectWebhookIgnored,
@@ -38,10 +36,37 @@ describeWithEnv(
       return await response.text();
     };
 
-    test("webhook rejects a paid session with no provider payment reference", async () => {
-      await setupStripe();
+    /** The signed one-ticket event a case delivers: the listing's ticket at
+     *  `price`, the buyer it names, and the ids the webhook answers on. The
+     *  price proof always agrees to `price`, so a case may still total a
+     *  different amount at the provider. */
+    const oneTicketEvent = (opts: {
+      readonly amountTotal?: number;
+      readonly buyer: string;
+      readonly email: string;
+      readonly eventId: string;
+      readonly listing: number;
+      readonly paymentIntent: string | null;
+      readonly price: number;
+      readonly sessionId: string;
+    }) =>
+      checkoutSessionEvent({
+        amountTotal: opts.amountTotal ?? opts.price,
+        eventId: opts.eventId,
+        metadata: signedMeta(
+          {
+            email: opts.email,
+            items: singleItem(opts.listing, 1, opts.price),
+            name: opts.buyer,
+          },
+          opts.price,
+        ),
+        paymentIntent: opts.paymentIntent,
+        sessionId: opts.sessionId,
+      });
 
-      const listing = await createTestListing({
+    test("webhook rejects a paid session with no provider payment reference", async () => {
+      const listing = await createStripeListing({
         maxAttendees: 50,
         name: "WH Noref",
         unitPrice: 500,
@@ -52,18 +77,13 @@ describeWithEnv(
       // boundary as a blank_reference rejection: nothing names the charge, so
       // there is nothing to refund and the webhook acknowledges it unprocessed.
       const mockVerify = await stubWebhookVerify(
-        checkoutSessionEvent({
-          amountTotal: 500,
+        oneTicketEvent({
+          buyer: "No Ref",
+          email: "noref@example.com",
           eventId: "evt_noref",
-          metadata: signedMeta(
-            {
-              email: "noref@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "No Ref",
-            },
-            500,
-          ),
+          listing: listing.id,
           paymentIntent: null,
+          price: 500,
           sessionId: "cs_noref",
         }),
       );
@@ -83,9 +103,7 @@ describeWithEnv(
     });
 
     test("webhook retries when the refund of a rejected paid session fails", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
+      const listing = await createStripeListing({
         maxAttendees: 50,
         name: "WH Malformed",
         unitPrice: 500,
@@ -102,18 +120,14 @@ describeWithEnv(
         Promise.resolve(foundStripeIntent("pi_malformed", 500)),
       );
       const mockVerify = await stubWebhookVerify(
-        checkoutSessionEvent({
+        oneTicketEvent({
           amountTotal: 10.5,
+          buyer: "Malformed",
+          email: "malformed@example.com",
           eventId: "evt_malformed",
-          metadata: signedMeta(
-            {
-              email: "malformed@example.com",
-              items: singleItem(listing.id, 1, 500),
-              name: "Malformed",
-            },
-            500,
-          ),
+          listing: listing.id,
           paymentIntent: "pi_malformed",
+          price: 500,
           sessionId: "cs_malformed",
         }),
       );
@@ -142,27 +156,20 @@ describeWithEnv(
     });
 
     test("keeps a refund retryable when its provider is not configured", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
+      const listing = await createStripeListing({
         maxAttendees: 50,
         name: "WH Tryrefund Noprov",
         unitPrice: 500,
       });
       await deactivateTestListing(listing.id);
 
-      const event = checkoutSessionEvent({
-        amountTotal: 500,
+      const event = oneTicketEvent({
+        buyer: "No Provider",
+        email: "noprov@example.com",
         eventId: "evt_tryrefund_noprov",
-        metadata: signedMeta(
-          {
-            email: "noprov@example.com",
-            items: singleItem(listing.id, 1, 500),
-            name: "No Provider",
-          },
-          500,
-        ),
+        listing: listing.id,
         paymentIntent: "pi_tryrefund_noprov",
+        price: 500,
         sessionId: "cs_tryrefund_noprov",
       });
       // The provider disappears after the initial webhook check but before the
@@ -194,9 +201,7 @@ describeWithEnv(
     });
 
     test("multi-ticket webhook skips refund when second listing not found", async () => {
-      await setupStripe();
-
-      const listing1 = await createTestListing({
+      const listing1 = await createStripeListing({
         maxAttendees: 50,
         name: "WH Multi Rollback 1",
         unitPrice: 500,

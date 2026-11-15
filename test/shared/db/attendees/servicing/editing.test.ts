@@ -1,9 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ATTENDEE_KIND, SERVICING_KIND } from "#db/attendees/kind.ts";
+import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createDailyTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  createDailyTestListing,
+  deactivateTestListing,
+} from "#test-utils/db-helpers/listings.ts";
 import {
   createDailyListingPair,
   createServicingHold,
@@ -17,6 +22,18 @@ import {
   updateServicingEvent,
 } from "#test-utils/servicing.ts";
 import { adminFormPost } from "#test-utils/session.ts";
+
+/** Writes a ten-place daily listing and a hold on it for 2099-07-01 — the shape
+ * the edit-page tests below need. */
+async function createHeldListing(name: string, quantity: number) {
+  const listing = await createDailyTestListing({ maxAttendees: 10, name });
+  const { id } = await createServicingHold({
+    date: "2099-07-01",
+    listing: { maxAttendees: 10, name },
+    quantity,
+  });
+  return { holdId: id, listing };
+}
 
 describeWithEnv("servicing §4 — editing", { db: true }, () => {
   test("editing a servicing event preserves its token", async () => {
@@ -117,21 +134,10 @@ describeWithEnv(
       // the hold was created vanished from the form — and saving the form then
       // silently dropped the hold. The edit page must include held listings
       // regardless of active state, mark them inactive, and preserve them.
-      const { deactivateTestListing } = await import(
-        "#test-utils/db-helpers/listings.ts"
-      );
-      const listing = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Boiler Room",
-      });
-      const { id } = await createServicingHold({
-        date: "2099-07-01",
-        listing: { maxAttendees: 10, name: "Boiler Room" },
-        quantity: 2,
-      });
+      const { holdId, listing } = await createHeldListing("Boiler Room", 2);
       await deactivateTestListing(listing.id);
 
-      const body = await renderAdminPage(`/admin/servicing/${id}`);
+      const body = await renderAdminPage(`/admin/servicing/${holdId}`);
       expectIncludesAll(body, ["Boiler Room", "(inactive)"]);
       expect(body).toMatch(
         new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
@@ -139,14 +145,14 @@ describeWithEnv(
 
       // Saving the form (preserving the held quantity) must keep the hold — it
       // is not silently dropped because the listing is inactive.
-      const { response } = await adminFormPost(`/admin/servicing/${id}`, {
+      const { response } = await adminFormPost(`/admin/servicing/${holdId}`, {
         [`quantity_${listing.id}`]: "2",
         day_count: "1",
         name: "Boiler Service",
         start_date: "2099-07-01",
       });
       expect(response.status).toBe(302);
-      const after = await getServicingEvent(id);
+      const after = await getServicingEvent(holdId);
       expect(
         after?.bookings.find((b) => b.listingId === listing.id)?.quantity,
       ).toBe(2);
@@ -157,24 +163,12 @@ describeWithEnv(
       // from a partial failure or direct DB edit) must not be silently hidden:
       // the edit page surfaces a "will be removed on save" indicator so the
       // operator sees the repair instead of a form that quietly drops it.
-      const { getDb } = await import("#db/client.ts");
-      const listing = await createDailyTestListing({
-        maxAttendees: 10,
-        name: "Doomed Room",
-      });
-      const { id } = await createServicingHold({
-        date: "2099-07-01",
-        listing: { maxAttendees: 10, name: "Doomed Room" },
-        quantity: 3,
-      });
+      const { holdId, listing } = await createHeldListing("Doomed Room", 3);
       // Delete the listing row directly, leaving the booking link in place —
       // the inconsistent state the indicator is for.
-      await getDb().execute({
-        args: [listing.id],
-        sql: "DELETE FROM listings WHERE id = ?",
-      });
+      await getDb().execute(sql`DELETE FROM listings WHERE id = ${listing.id}`);
 
-      const body = await renderAdminPage(`/admin/servicing/${id}`);
+      const body = await renderAdminPage(`/admin/servicing/${holdId}`);
       expectIncludesAll(body, ["no longer exist", "will be removed"]);
     });
   },

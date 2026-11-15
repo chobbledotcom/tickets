@@ -2,15 +2,16 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { coreTables } from "#db/migrations/schema/tables-core.ts";
 import { jsonHash } from "#test-utils/hash.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete core schema declaration exact", async () => {
-  expect(await jsonHash(coreTables)).toBe(
+  expect(await jsonHash(sqlText(coreTables))).toBe(
     "236952aa4c4b99d1f21e3a39d54df24dd31a8d84138e77712d9b367dbb241a66",
   );
 });
 
 test("defines fenced maintenance task state and its due-work index", () => {
-  expect(coreTables).toContainEqual([
+  expect(sqlText(coreTables)).toContainEqual([
     "maintenance_tasks",
     {
       columns: [

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   expectFlash,
   expectHtmlResponse,
@@ -152,8 +153,7 @@ describeWithEnv(
         expectFlash(response, expect.stringContaining("Merged"), true);
 
         const rows = await queryAll<{ quantity: number }>(
-          "SELECT quantity FROM listing_attendees WHERE attendee_id = ?",
-          [target.id],
+          sql`SELECT quantity FROM listing_attendees WHERE attendee_id = ${target.id}`,
         );
         expect(rows.map((row) => row.quantity)).toEqual([3]);
       });

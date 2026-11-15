@@ -13,12 +13,12 @@ import {
   loadPaymentReference,
   paymentReferenceIndex,
 } from "#db/payment-reference-store.ts";
+import { sql } from "#db/sql.ts";
 import { rowNodeOf } from "#payment/row-machine-spec.ts";
 import { readRowState } from "#payment/row-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookedAttendeeId } from "#test-utils/db-helpers/booked-attendee.ts";
 import { taggedPaymentReference } from "#test-utils/processed-payments.ts";
 
 type StoredAnchor = {
@@ -29,25 +29,17 @@ type StoredAnchor = {
   protected_state: string;
 };
 
-const makeAttendee = async (): Promise<number> => {
-  const listing = await createTestListing({ maxAttendees: 20 });
-  const made = await bookAttendee(listing, {
-    email: "anchor@example.com",
-    name: "Payment Anchor",
-  });
-  if (!made.success) throw new Error("attendee setup failed");
-  return made.attendees[0]!.id;
-};
+const makeAttendee = (): Promise<number> =>
+  bookedAttendeeId({ email: "anchor@example.com", name: "Payment Anchor" }, 20);
 
 const anchorRows = (attendeeId: number): Promise<StoredAnchor[]> =>
   queryAll<StoredAnchor>(
-    `SELECT failure_data, payment_reference, payment_reference_index,
+    sql`SELECT failure_data, payment_reference, payment_reference_index,
             payment_session_id, protected_state
        FROM processed_payments
-      WHERE attendee_id = ?
+      WHERE attendee_id = ${attendeeId}
         AND payment_session_id LIKE 'legacy:%'
       ORDER BY payment_session_id`,
-    [attendeeId],
   );
 
 /** Book an attendee, store a claimed anchor for it, and read the held row. */
@@ -65,7 +57,7 @@ const storeHeldAnchor = async (
     returnedAt,
   );
   const anchor = await prepared.forAttendee(attendeeId);
-  await execute(anchor.statement.sql, anchor.statement.args);
+  await execute(anchor.statement);
 
   const [held] = await anchorRows(attendeeId);
   if (held === undefined || held.failure_data === "") {
@@ -94,7 +86,7 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       ]);
 
       for (const _attempt of [1, 2]) {
-        await execute(anchor.statement.sql, anchor.statement.args);
+        await execute(anchor.statement);
       }
 
       const rows = await anchorRows(attendeeId);
@@ -119,12 +111,11 @@ describeWithEnv("db > payment anchor > attendee", { db: true }, () => {
       const payment = taggedPaymentReference("pi_missing_attendee");
       const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
       const anchor = await prepared.forAttendee(999_999);
-      await execute(anchor.statement.sql, anchor.statement.args);
+      await execute(anchor.statement);
 
       expect(
         await queryOne<{ count: number }>(
-          "SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ?",
-          [await paymentReferenceIndex(payment)],
+          sql`SELECT COUNT(*) AS count FROM processed_payments WHERE payment_reference_index = ${await paymentReferenceIndex(payment)}`,
         ),
       ).toEqual({ count: 0 });
     });

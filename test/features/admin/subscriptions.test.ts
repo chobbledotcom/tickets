@@ -3,6 +3,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -71,14 +72,8 @@ describeWithEnv("server (admin subscriptions)", { db: true }, () => {
   test("shows a failed checkout after its ticket was removed", async () => {
     const { attendeeId, listingId } = await subscribe("Ada", MONTHLY);
     await executeBatch([
-      {
-        args: [attendeeId],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ?",
-      },
-      {
-        args: [listingId],
-        sql: "DELETE FROM listings WHERE id = ?",
-      },
+      sql`UPDATE listing_attendees SET quantity = 0 WHERE attendee_id = ${attendeeId}`,
+      sql`DELETE FROM listings WHERE id = ${listingId}`,
     ]);
     expectIncludesAll(await pageHtml("/admin/subscriptions"), [
       `href="/admin/attendees/${attendeeId}"`,

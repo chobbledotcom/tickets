@@ -19,6 +19,7 @@ import {
   verifyCurrentAppSchema,
 } from "#db/migrations/schema-sync.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import {
   markAppliedThrough,
   markSchemaMarkersStale,
@@ -52,7 +53,7 @@ const UNCHANGED_DORMANT_TABLES = [
  * columns, provider_refunded_at and legacy_source, and added refund columns
  * that are NOT NULL with no default, which SQLite refuses to add.
  */
-const INTERMEDIATE_PAYMENT_CHARGES_SQL = `CREATE TABLE payment_charges (
+const INTERMEDIATE_PAYMENT_CHARGES_SQL = sql`CREATE TABLE payment_charges (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   payment_id TEXT NOT NULL,
   origin TEXT NOT NULL DEFAULT 'current',
@@ -100,9 +101,7 @@ const windBackToIntermediateBuild = async (): Promise<void> => {
 /** One stored charge, as the intermediate build's own writers left it. */
 const storeOneCharge = async (): Promise<void> => {
   await getDb().execute(
-    "INSERT INTO payment_charges " +
-      "(payment_id, provider_reference, created_at, updated_at, observed_at) " +
-      "VALUES ('pay-1', 'sealed-reference', 100, 100, 100)",
+    sql`INSERT INTO payment_charges (payment_id, provider_reference, created_at, updated_at, observed_at) VALUES ('pay-1', 'sealed-reference', 100, 100, 100)`,
   );
 };
 
@@ -155,7 +154,7 @@ describeWithEnv(
       );
 
       const stored = await getDb().execute(
-        "SELECT COUNT(*) AS value FROM payment_charges",
+        sql`SELECT COUNT(*) AS value FROM payment_charges`,
       );
       expect(Number(stored.rows[0]!.value)).toBe(1);
     });

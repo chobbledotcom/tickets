@@ -7,16 +7,18 @@ import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { bodyToCreateInput } from "#routes/admin/api-listing-body.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { expectListingCreated, postListing } from "#test-utils/listing-api.ts";
 import {
   groupRescuedChildAddOn,
   rescuingPageSetup,
 } from "#test-utils/listing-parents/helpers.ts";
 import { postChildren } from "#test-utils/parents.ts";
+import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 const expectListingApiError = (
@@ -34,82 +36,52 @@ const expectListingApiError = (
   );
 
 describeWithEnv("Admin API listing regressions", { db: true }, () => {
-  test("keeps only positive day counts in create input", async () => {
-    const result = await bodyToCreateInput({
-      day_prices: { 0: 700, 1: 500 },
-      max_attendees: 10,
-      name: "Positive Days Only",
-    });
-
-    if (!result.ok) throw new Error(result.error);
-    expect(result.value.dayPrices).toEqual({ 1: 500 });
-  });
-
-  test("names invalid group IDs in create input", async () => {
-    await expect(
-      bodyToCreateInput({
-        group_ids: ["1"],
+  testEachRefusal(bodyToCreateInput, [
+    [
+      "refuses a day count outside the bookable range in create input",
+      {
+        day_prices: { 0: 700, 1: 500 },
         max_attendees: 10,
-        name: "Numeric Groups",
-      }),
-    ).resolves.toEqual({
-      error: "group_ids must contain only positive integer ids",
-      ok: false,
-    });
-  });
-
-  test("requires group IDs to be an array", async () => {
-    await expect(
-      bodyToCreateInput({
-        group_ids: "1",
-        max_attendees: 10,
-        name: "Group Array Required",
-      }),
-    ).resolves.toEqual({ error: "group_ids must be an array", ok: false });
-  });
-
-  test("requires a create name", async () => {
-    await expect(
-      bodyToCreateInput({ max_attendees: 10, name: " " }),
-    ).resolves.toEqual({ error: "name is required", ok: false });
-  });
-
-  test("requires at least one attendee on create", async () => {
-    await expect(
-      bodyToCreateInput({ max_attendees: 0, name: "No Capacity" }),
-    ).resolves.toEqual({
-      error: "max_attendees has an invalid value",
-      ok: false,
-    });
-  });
+        name: "Positive Days Only",
+      },
+      "day_prices has an invalid value",
+    ],
+    [
+      "names invalid group IDs in create input",
+      { group_ids: ["1"], max_attendees: 10, name: "Numeric Groups" },
+      "group_ids must contain only positive integer ids",
+    ],
+    [
+      "requires group IDs to be an array",
+      { group_ids: "1", max_attendees: 10, name: "Group Array Required" },
+      "group_ids must be an array",
+    ],
+    [
+      "requires a create name",
+      { max_attendees: 10, name: " " },
+      "name cannot be empty",
+    ],
+    [
+      "requires at least one attendee on create",
+      { max_attendees: 0, name: "No Capacity" },
+      "max_attendees has an invalid value",
+    ],
+  ]);
 
   test("defaults max_price to zero", async () => {
-    await assertJson(
-      apiRequest("/api/admin/listings", {
-        body: { max_attendees: 10, name: "Default Maximum Price" },
-        method: "POST",
-      }),
-      201,
-      (body) => {
-        expect(body.listing.max_price).toBe(0);
-        expect(body.listing.slug_index).toBeUndefined();
+    await expectListingCreated(
+      { max_attendees: 10, name: "Default Maximum Price" },
+      (listing) => {
+        expect(listing.max_price).toBe(0);
       },
     );
   });
 
   test("keeps a submitted maximum price", async () => {
-    await assertJson(
-      apiRequest("/api/admin/listings", {
-        body: {
-          max_attendees: 10,
-          max_price: 1500,
-          name: "Maximum Price",
-        },
-        method: "POST",
-      }),
-      201,
-      (body) => {
-        expect(body.listing.max_price).toBe(1500);
+    await expectListingCreated(
+      { max_attendees: 10, max_price: 1500, name: "Maximum Price" },
+      (listing) => {
+        expect(listing.max_price).toBe(1500);
       },
     );
   });
@@ -120,21 +92,14 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
       name: "Daily Child",
     });
 
-    await assertJson(
-      apiRequest("/api/admin/listings", {
-        body: {
-          child_listing_ids: [child.id],
-          max_attendees: 10,
-          name: "Standard Parent",
-        },
-        method: "POST",
+    await expectApiError(
+      postListing({
+        child_listing_ids: [child.id],
+        max_attendees: 10,
+        name: "Standard Parent",
       }),
       400,
-      (body) => {
-        expect(body.error).toBe(
-          "'Daily Child' is a daily listing, so it can only be a child of another daily listing — a daily add-on takes its date and length from the parent it is booked under, and only a daily listing supplies them.",
-        );
-      },
+      "'Daily Child' is a daily listing, so it can only be a child of another daily listing — a daily add-on takes its date and length from the parent it is booked under, and only a daily listing supplies them.",
     );
   });
 

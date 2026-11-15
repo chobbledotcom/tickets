@@ -17,12 +17,11 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import { setupAnswerTier } from "#test-utils/modifiers.ts";
-import { setupStripe } from "#test-utils/settings.ts";
+import { createStripeListing } from "#test-utils/stripe-listing.ts";
 
 describeWithEnv("server (/calculate running total)", { db: true }, () => {
   test("returns a priced summary for a valid selection", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Adult Ticket",
       unitPrice: 1500,
@@ -43,9 +42,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("prices a multi-unit line with a booking-fee extra line", async () => {
-    await setupStripe();
     await settings.update.bookingFee("10");
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Workshop",
       unitPrice: 1000,
@@ -69,8 +67,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("totals without any contact details (PII is stripped)", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Free Entry",
       unitPrice: 0,
@@ -112,8 +109,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("rejects a sold-out answer tier in the quote", async () => {
-    await setupStripe();
-    const listing = await createTestListing({ maxAttendees: 50 });
+    const listing = await createStripeListing({ maxAttendees: 50 });
     // A stock-limited answer tier with no stock left, selected by the quote.
     const { answerId, modifierId, questionId } = await setupAnswerTier(listing);
 
@@ -135,8 +131,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
   });
 
   test("reports unavailable tickets when capacity is exhausted", async () => {
-    await setupStripe();
-    const listing = await createTestListing({
+    const listing = await createStripeListing({
       maxQuantity: 5,
       name: "Capped",
       unitPrice: 1000,

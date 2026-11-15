@@ -8,6 +8,7 @@ import {
   getRefundAllSummary,
   loadRefundAllBatch,
 } from "#db/refund-all-candidates.ts";
+import { sql } from "#db/sql.ts";
 import { armRefundSend, readyRefund } from "#payment/refund-authority.ts";
 import { markRefundProviderConflict } from "#payment/refund-authority-choice.ts";
 import {
@@ -80,6 +81,28 @@ const resultWithRows = (rows: ResultSet["rows"]): ResultSet => ({
   ...emptyResultSet(),
   rows,
 });
+
+/** Two legacy histories that must both block Refund All once an indexed
+ *  payment follows: one whose reference index a legacy write cleared, and one
+ *  that only ever recorded PII. */
+const LEGACY_HISTORY_CASES = [
+  {
+    attendeeName: "Mixed Payment",
+    email: "mixed-payment@example.com",
+    later: { reference: "pi_new_indexed", session: "new_indexed_payment" },
+    legacyReference: "",
+    name: "blocks a mixed unindexed and indexed history before selecting a batch",
+    unindexFirstPayment: true,
+  },
+  {
+    attendeeName: "Legacy Deposit",
+    email: "legacy-deposit@example.com",
+    later: { reference: "pi_later_balance", session: "later_balance" },
+    legacyReference: "pi_legacy_deposit",
+    name: "blocks a PII-only first payment beside a later indexed payment",
+    unindexFirstPayment: false,
+  },
+];
 
 describeWithEnv("db > Refund All candidates", { db: true }, () => {
   test("fails loudly when the summary query answers with no row", async () => {
@@ -158,51 +181,42 @@ describeWithEnv("db > Refund All candidates", { db: true }, () => {
     });
   });
 
-  test("blocks a mixed unindexed and indexed history before selecting a batch", async () => {
-    const listing = await createPaidListing();
-    const attendee = await createPaidTestAttendee(
-      listing.id,
-      "Mixed Payment",
-      "mixed-payment@example.com",
-      "",
-    );
-    await finalizeProcessedPayment("old_unindexed_payment", attendee.id, "", {
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_old_unindexed",
-    });
-    const oldPayment = await candidateFor(listing.id, attendee.id);
-    await execute(
-      `UPDATE processed_payments
-          SET payment_reference_index = ''
-        WHERE payment_session_id = ?`,
-      [paymentRowOf(oldPayment)],
-    );
-    await finalizeProcessedPayment("new_indexed_payment", attendee.id, "", {
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_new_indexed",
-    });
+  for (const scenario of LEGACY_HISTORY_CASES) {
+    test(scenario.name, async () => {
+      const listing = await createPaidListing();
+      const attendee = await createPaidTestAttendee(
+        listing.id,
+        scenario.attendeeName,
+        scenario.email,
+        scenario.legacyReference,
+      );
+      if (scenario.unindexFirstPayment) {
+        await finalizeProcessedPayment(
+          "old_unindexed_payment",
+          attendee.id,
+          "",
+          {
+            kind: "tagged",
+            provider: "stripe",
+            reference: "pi_old_unindexed",
+          },
+        );
+        const oldPayment = await candidateFor(listing.id, attendee.id);
+        await execute(
+          sql`UPDATE processed_payments
+              SET payment_reference_index = ''
+            WHERE payment_session_id = ${paymentRowOf(oldPayment)}`,
+        );
+      }
+      await finalizeProcessedPayment(scenario.later.session, attendee.id, "", {
+        kind: "tagged",
+        provider: "stripe",
+        reference: scenario.later.reference,
+      });
 
-    await expectLegacyRefundAllBlocked(listing.id);
-  });
-
-  test("blocks a PII-only first payment beside a later indexed payment", async () => {
-    const listing = await createPaidListing();
-    const attendee = await createPaidTestAttendee(
-      listing.id,
-      "Legacy Deposit",
-      "legacy-deposit@example.com",
-      "pi_legacy_deposit",
-    );
-    await finalizeProcessedPayment("later_balance", attendee.id, "", {
-      kind: "tagged",
-      provider: "stripe",
-      reference: "pi_later_balance",
+      await expectLegacyRefundAllBlocked(listing.id);
     });
-
-    await expectLegacyRefundAllBlocked(listing.id);
-  });
+  }
 
   test("blocks a paid PII-only attendee without counting free or unpaid bookings", async () => {
     const listing = await createPaidListing();

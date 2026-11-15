@@ -11,6 +11,7 @@ import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
@@ -58,14 +59,14 @@ const editAs = async (
 };
 
 describeWithEnv("what an editor may not change", { db: true }, () => {
-  test("leaves the stored webhook URL alone", async () => {
+  test("is refused when the form sends a webhook URL, and the stored one stays", async () => {
     const listing = await createTestListing({
       name: "Locked Webhook",
       webhookUrl: "https://owner.example.com/hook",
     });
     const { cookie } = await createTestEditorSession();
 
-    await editAs(
+    const response = await editAs(
       cookie,
       listing.id,
       buildUpdateListingForm(
@@ -74,27 +75,30 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
       ),
     );
 
-    expect((await getStoredListingWithCount(listing.id))!.webhook_url).toBe(
-      "https://owner.example.com/hook",
-    );
+    expect([
+      response.status,
+      (await getStoredListingWithCount(listing.id))!.webhook_url,
+    ]).toEqual([400, "https://owner.example.com/hook"]);
   });
 
-  test("leaves the stored defaults flag alone", async () => {
+  test("is refused when the form sends the defaults flag, and the stored one stays", async () => {
+    await settings.update.listingDefaults({ hidden: true });
     const listing = await createTestListing({
       name: "Locked Defaults",
       useDefaults: true,
     });
     const { cookie } = await createTestEditorSession();
 
-    await editAs(
+    const response = await editAs(
       cookie,
       listing.id,
       buildUpdateListingForm({ useDefaults: false }, listing),
     );
 
-    expect((await getStoredListingWithCount(listing.id))!.use_defaults).toBe(
-      true,
-    );
+    expect([
+      response.status,
+      (await getStoredListingWithCount(listing.id))!.use_defaults,
+    ]).toEqual([400, true]);
   });
 
   test("cannot correct the ticket count a staff member can", async () => {
@@ -102,7 +106,7 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
     const { cookie } = await createTestEditorSession();
 
     await editAs(cookie, listing.id, {
-      ...buildUpdateListingForm({}, listing),
+      ...buildUpdateListingForm({}, listing, "editor"),
       booked_quantity: "7",
       tickets_count: "7",
     });

@@ -8,6 +8,7 @@ import {
   serializeEnabledFeatures,
   setFeatureEnabled,
 } from "#shared/admin-features.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 
 const DEFAULT_ENABLED_FEATURES = parseEnabledFeatures("");
 
@@ -84,7 +85,9 @@ const featureDefinition = ([
 
 describe("admin features", () => {
   test("defines the complete feature list in display order", () => {
-    expect(ADMIN_FEATURES).toEqual(EXPECTED_FEATURES.map(featureDefinition));
+    expect(sqlText(ADMIN_FEATURES)).toEqual(
+      EXPECTED_FEATURES.map(featureDefinition),
+    );
   });
 
   test("defaults every feature to disabled", () => {

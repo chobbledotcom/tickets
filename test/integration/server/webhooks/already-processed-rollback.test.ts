@@ -2,6 +2,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { createListingPair } from "#test-utils/db-helpers/listing-pair.ts";
+import { createSoldOutListingPair } from "#test-utils/db-helpers/listing-pairs.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -22,16 +24,10 @@ describeWithEnv(
     test("webhook handles multi-ticket with inactive listing and rollback", async () => {
       await setupStripe();
 
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi WH Active",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi WH Inactive",
-        unitPrice: 500,
-      });
+      const [listing1, listing2] = await createListingPair(
+        { maxAttendees: 50, name: "Multi WH Active", unitPrice: 500 },
+        { maxAttendees: 50, name: "Multi WH Inactive", unitPrice: 500 },
+      );
       await deactivateTestListing(listing2.id);
 
       await expectWebhookKeptAndRefunded(
@@ -64,22 +60,11 @@ describeWithEnv(
     test("webhook handles multi-ticket sold out in second listing", async () => {
       await setupStripe();
 
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi WH Avail",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 1,
-        name: "Multi WH Full",
-        unitPrice: 500,
-      });
-      await bookAttendee(listing2, {
-        email: "first@example.com",
-        name: "First",
-        paymentId: "pi_first",
-        quantity: 1,
-      });
+      // listing2 holds a single slot, so its line cannot be seated.
+      const { listing1, listing2 } = await createSoldOutListingPair(
+        ["Multi WH Avail", "Multi WH Full"],
+        [500, 500],
+      );
 
       const { mockRefund } = await expectWebhookKeptAndRefunded(
         checkoutSessionEvent({

@@ -29,14 +29,13 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { sql } from "#db/sql.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   deactivationOrphanedAddOnError,
   listingSaveOrphanedAddOnTx,
 } from "#shared/add-on-reachability.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   dayPriceFieldsFromInput,
@@ -47,11 +46,12 @@ import {
   planInGroupError,
   planRuleError,
 } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
+import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
 import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
-
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
@@ -68,16 +68,13 @@ export const generateUniqueListingSlug = (excludeListingId?: number) =>
  * The date a save writes. The date box hides whenever the listing is daily,
  * before or after this save. A hidden box submits an empty value. That empty
  * value must not wipe the stored date: the owner can still switch the type
- * back to standard and get the date back. A typed date always writes. An
- * absent submitted date means "the stored value stands", as the API's stored
- * fallback has always written.
+ * back to standard and get the date back. A typed date always writes.
  */
 export const keepDailyListingDate = (
-  submitted: string | undefined,
+  submitted: string,
   stored: Pick<Listing, "date" | "listing_type">,
   wouldBeType: Listing["listing_type"] | undefined,
 ): string => {
-  if (submitted === undefined) return stored.date;
   if (submitted !== "") return submitted;
   return stored.listing_type === "daily" || wouldBeType === "daily"
     ? stored.date
@@ -442,10 +439,9 @@ export const toggleListingActive = async (
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
       const [row] = resultRows<{ active: number }>(
-        await tx.execute({
-          args: [listingId],
-          sql: "SELECT listing.active FROM listings AS listing WHERE listing.id = ?",
-        }),
+        await tx.execute(
+          sql`SELECT listing.active FROM listings AS listing WHERE listing.id = ${listingId}`,
+        ),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.

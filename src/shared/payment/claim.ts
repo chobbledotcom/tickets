@@ -9,6 +9,7 @@
  */
 
 import type { RefundClaim } from "#payment/row-state.ts";
+import { flagOfKind } from "#shared/fp-bind.ts";
 
 /** A run asking to work on one reference group. Only the same sorted set of
  *  initiating attendees can resume its crashed command. */
@@ -69,8 +70,7 @@ const CLAIMS_THE_ROW = {
 } as const satisfies Record<ClaimDecision["kind"], boolean>;
 
 /** Whether the run can go on to touch this row's money. */
-export const holdsTheRow = (decision: ClaimDecision): boolean =>
-  CLAIMS_THE_ROW[decision.kind];
+export const holdsTheRow = flagOfKind(CLAIMS_THE_ROW);
 
 /**
  * The shortest a claim can be treated as live for, however the reservation

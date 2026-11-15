@@ -1,19 +1,28 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getAllListings } from "#db/listings/records.ts";
+import {
+  getAllListings,
+  getStoredListingWithCount,
+} from "#db/listings/records.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import {
-  expectErrorFlash,
   expectFlash,
   expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { buildUpdateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, adminGet } from "#test-utils/session.ts";
+import {
+  adminFormPost,
+  adminGet,
+  adminMultipartPost,
+  setupListingAndLogin,
+} from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
+import { expectFormValueRefused } from "#test-utils/settings-refusal.ts";
 import { extractFormEntries } from "#test-utils/test-browser/forms.ts";
 
 const findByName = async (name: string) =>
@@ -138,11 +147,15 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
     });
 
     test("rejects an invalid webhook url without saving", async () => {
-      const { response } = await adminFormPost("/admin/listing-defaults", {
-        default_webhook_url: "not-a-url",
-      });
-      expectErrorFlash(response, "https");
-      expect(settings.listingDefaults).toEqual({});
+      await expectFormValueRefused(
+        {
+          fields: { default_webhook_url: "not-a-url" },
+          flash: "https",
+          path: "/admin/listing-defaults",
+          stored: () => settings.listingDefaults,
+        },
+        {},
+      );
     });
 
     test("ignores the logistics default while logistics is disabled", async () => {
@@ -371,24 +384,32 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       expect(offBody).not.toMatch(/checked[^>]*id="use-defaults"/);
     });
 
-    test("no toggle when the operator has set no defaults", async () => {
-      const response = await adminGet("/admin/listing/new?template=custom");
-      const body = await response.text();
-      assert(!body.includes('id="use-defaults"'));
-    });
-
-    test("preserves an inheriting listing's flag while no defaults exist", async () => {
-      // Listing flagged to inherit, but the operator has since cleared every
-      // default — the edit form has no visible toggle, so it must carry the
-      // flag in a hidden input rather than silently dropping it on save.
-      const listing = await createTestListing({
+    test("with no defaults set, no form shows the toggle and a save keeps an inheriting listing's flag", async () => {
+      // The listing was flagged to inherit, but the operator has since cleared
+      // every default. The edit form shows no toggle and sends no flag, so the
+      // save keeps the stored one.
+      const { listing } = await setupListingAndLogin({
         name: "Still inheriting",
         useDefaults: true,
       });
-      const response = await adminGet(`/admin/listing/${listing.id}/edit`);
-      const body = await response.text();
-      assert(!body.includes('id="use-defaults"'));
-      assertStringIncludes(body, 'name="use_defaults" type="hidden" value="1"');
+      const pages = await Promise.all(
+        [
+          "/admin/listing/new?template=custom",
+          `/admin/listing/${listing.id}/edit`,
+        ].map(async (path) => (await adminGet(path)).text()),
+      );
+      expect(pages.filter((page) => /use[-_]defaults/.test(page))).toEqual([]);
+      const { response: saved } = await adminMultipartPost(
+        `/admin/listing/${listing.id}/edit`,
+        buildUpdateListingForm(
+          { name: "Renamed" },
+          (await getStoredListingWithCount(listing.id))!,
+        ),
+      );
+      expect([
+        saved.status,
+        (await getStoredListingWithCount(listing.id))!.use_defaults,
+      ]).toEqual([302, true]);
     });
   });
 });

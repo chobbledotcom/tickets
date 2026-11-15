@@ -9,6 +9,7 @@ import {
 } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { sql } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
 import {
   addAnswer,
@@ -19,6 +20,8 @@ import {
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createQuestionWithAnswerPair } from "#test-utils/db-helpers/question-answer-pair.ts";
+import { stringUsedCounts } from "#test-utils/db-helpers/questions.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 
@@ -31,9 +34,10 @@ const choiceAnswersFor = async (att: {
   return batch.get(att.id);
 };
 
-/** "Colour?" question with Red/Blue options plus one attendee who has saved Red
- *  — the shared setup behind the replace and rollback tests below. */
-const seedColourAttendeeWithRed = async (): Promise<{
+/** "Colour?" question with Red/Blue options, an attendee who has saved Red, and
+ *  the checked Red id — the prior state the replace and rollback tests start
+ *  from. */
+const seedAttendeeHoldingRed = async (): Promise<{
   a1: { id: number };
   a2: { id: number };
   att: { id: number };
@@ -44,8 +48,13 @@ const seedColourAttendeeWithRed = async (): Promise<{
   const listing = await createTestListing();
   const att = await createAttendee(listing.id);
   await saveAttendeeAnswers(new Map([[att.id, [a1.id]]]));
+  expect(await choiceAnswersFor(att)).toEqual([a1.id]);
   return { a1, a2, att };
 };
+
+/** One attendee's stored text answers, decrypted for the edit form. */
+const textAnswersOf = async (attendeeId: number) =>
+  await getAttendeeTextAnswers(attendeeId, await getTestPrivateKey());
 
 describeWithEnv("custom questions", { db: true }, () => {
   describe("createAttendee helper", () => {
@@ -84,9 +93,10 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("batch retrieval for multiple attendees", async () => {
-      const q = await createQuestion("Size?");
-      const a1 = await addAnswer(q.id, 0, "Small");
-      const a2 = await addAnswer(q.id, 1, "Large");
+      const { a1, a2 } = await createQuestionWithAnswerPair("Size?", [
+        "Small",
+        "Large",
+      ]);
 
       const listing = await createTestListing();
       const att1 = await createAttendee(listing.id, "Alice");
@@ -130,13 +140,14 @@ describeWithEnv("custom questions", { db: true }, () => {
     });
 
     test("saveAttendeeAnswers does nothing for an empty map", async () => {
-      await saveAttendeeAnswers(new Map());
       // No error thrown, no batch executed
+      await expect(saveAttendeeAnswers(new Map())).resolves.toBe(undefined);
     });
 
     test("saveAttendeeAnswers skips inserts for an answerless attendee", async () => {
       await saveAttendeeAnswers(new Map([[1, []]]));
-      // No error thrown, no rows inserted (delete-only path)
+      const after = await getAttendeeAnswersBatch([1], { texts: false });
+      expect(after.has(1)).toBe(false);
     });
 
     test("saveAttendeeAnswers skips answer ids whose answer was deleted", async () => {
@@ -148,12 +159,11 @@ describeWithEnv("custom questions", { db: true }, () => {
       const att = await createAttendee(listing.id);
       await saveAttendeeAnswers(new Map([[att.id, [999_999]]]));
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
 
     test("saveAttendeeAnswers replaces existing answers atomically", async () => {
-      const { a1, a2, att } = await seedColourAttendeeWithRed();
-      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+      const { a2, att } = await seedAttendeeHoldingRed();
 
       await saveAttendeeAnswers(new Map([[att.id, [a2.id]]]));
 
@@ -166,8 +176,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       // committed left the attendee with no answers at all. Now the whole save
       // runs in one transaction, so a mid-save INSERT failure rolls the DELETE
       // back and the attendee's prior answers survive.
-      const { a1, a2, att } = await seedColourAttendeeWithRed();
-      expect(await choiceAnswersFor(att)).toEqual([a1.id]);
+      const { a1, a2, att } = await seedAttendeeHoldingRed();
 
       await withPoisonedWrite(
         (sql) => sql.includes("INSERT INTO attendee_answers"),
@@ -223,14 +232,11 @@ describeWithEnv("custom questions", { db: true }, () => {
         { questionId: q.id, text: "Front row please" },
       ]);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        attendee.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(attendee.id);
       expect(textAnswers.get(q.id)).toBe("Front row please");
 
       const strings = await queryAll<{ created: string; used_count: number }>(
-        "SELECT created, used_count FROM strings",
+        sql`SELECT created, used_count FROM strings`,
       );
       expect(strings.map((row) => row.used_count)).toEqual([1]);
       expect(Number.isNaN(Date.parse(strings[0]!.created))).toBe(false);
@@ -244,16 +250,10 @@ describeWithEnv("custom questions", { db: true }, () => {
         { questionId: q.id, text: "Final answer" },
       ]);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        attendee.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(attendee.id);
       expect(textAnswers.get(q.id)).toBe("Final answer");
 
-      const strings = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
-      );
-      expect(strings.map((row) => row.used_count)).toEqual([1]);
+      expect(await stringUsedCounts()).toEqual([1]);
     });
 
     test("re-saving an unchanged sole-user text answer keeps it readable", async () => {
@@ -266,10 +266,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveTextAnswers(att.id, keepMe);
       await saveTextAnswers(att.id, keepMe);
 
-      const textAnswers = await getAttendeeTextAnswers(
-        att.id,
-        await getTestPrivateKey(),
-      );
+      const textAnswers = await textAnswersOf(att.id);
       expect(textAnswers.get(q.id)).toBe("Keep me");
     });
 
@@ -292,32 +289,26 @@ describeWithEnv("custom questions", { db: true }, () => {
         ]),
       );
 
-      const afterInsert = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
-      );
-      expect(afterInsert.map((row) => row.used_count)).toEqual([2]);
+      expect(await stringUsedCounts()).toEqual([2]);
 
-      await saveAttendeeAnswers(new Map([[att1.id, []]]));
-      const afterOneClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
-      );
-      expect(afterOneClear.map((row) => row.used_count)).toEqual([1]);
-
-      // Freeing the last reference does NOT delete the row — a pending paid
-      // checkout could still reference it in its signed metadata. The row
-      // lingers at used_count 0 until the age-based pruner removes it.
-      await saveAttendeeAnswers(new Map([[att2.id, []]]));
-      const afterAllClear = await queryAll<{ used_count: number }>(
-        "SELECT used_count FROM strings",
-      );
-      expect(afterAllClear.map((row) => row.used_count)).toEqual([0]);
+      // Clearing one attendee drops the count by one. Freeing the last
+      // reference does NOT delete the row — a pending paid checkout could still
+      // reference it in its signed metadata — so the row lingers at used_count
+      // 0 until the age-based pruner removes it.
+      for (const [attendee, expected] of [
+        [att1, 1],
+        [att2, 0],
+      ] as const) {
+        await saveAttendeeAnswers(new Map([[attendee.id, []]]));
+        expect(await stringUsedCounts()).toEqual([expected]);
+      }
 
       // Once aged past retention, the pruner deletes the unused row.
       await execute(
-        "UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0",
+        sql`UPDATE strings SET created = '2000-01-01T00:00:00Z' WHERE used_count = 0`,
       );
       await runDatabasePruning();
-      expect(await queryAll("SELECT id FROM strings")).toEqual([]);
+      expect(await queryAll(sql`SELECT id FROM strings`)).toEqual([]);
     });
 
     test("skips a text answer whose question was deleted at finalize", async () => {
@@ -339,18 +330,16 @@ describeWithEnv("custom questions", { db: true }, () => {
       const ids = await getOrCreateStringIds(["reuse me"]);
       const id = ids.get("reuse me")!;
       // Backdate it as if abandoned by an earlier checkout.
-      await execute("UPDATE strings SET created = ? WHERE id = ?", [
-        "2000-01-01T00:00:00Z",
-        id,
-      ]);
+      await execute(
+        sql`UPDATE strings SET created = ${"2000-01-01T00:00:00Z"} WHERE id = ${id}`,
+      );
 
       const beforeReuse = nowIso();
       const reused = await getOrCreateStringIds(["reuse me"]);
       expect(reused.get("reuse me")).toBe(id);
 
       const rows = await queryAll<{ created: string }>(
-        "SELECT created FROM strings WHERE id = ?",
-        [id],
+        sql`SELECT created FROM strings WHERE id = ${id}`,
       );
       // The refreshed timestamp must be at least the instant before the reuse,
       // not merely "after the backdated 2000 value" — this catches a mutant
@@ -370,7 +359,7 @@ describeWithEnv("custom questions", { db: true }, () => {
       await saveAttendeeAnswers(new Map([[att.id, []]]));
 
       const after = await getAttendeeAnswersBatch([att.id], { texts: false });
-      expect(after.get(att.id)).toBeUndefined();
+      expect(after.has(att.id)).toBe(false);
     });
   });
 });

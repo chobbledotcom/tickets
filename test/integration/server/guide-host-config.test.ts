@@ -6,87 +6,110 @@ import { assertAdminHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { validEmail } from "#test-utils/email.ts";
 import { withEnv } from "#test-utils/env.ts";
-import { guide } from "#test-utils/guide.ts";
+import { expectGuidePage } from "#test-utils/guide.ts";
 
 describeWithEnv("server (admin guide host config)", { db: true }, () => {
   describe("GET /admin/guide", () => {
+    /** The guide's host-config marker, shown only when the site supplies it. */
+    const HOST_CONFIGURED = "already set up by the company that runs your site";
+
+    /** Assert the guide falls back to `heading` and names no host config. */
+    const expectDefaultGuide = async (heading: string) => {
+      const html = await expectGuidePage(heading);
+      assert(!html.includes(HOST_CONFIGURED));
+    };
+
+    /** Assert the guide names `expected` once `configure` supplies the host
+     *  config, then drop the override. */
+    const expectHostConfiguredGuide = async (
+      configure: () => void,
+      reset: () => void,
+      ...expected: string[]
+    ) => {
+      configure();
+      try {
+        await assertAdminHtml("/admin/guide", ...expected);
+      } finally {
+        reset();
+      }
+    };
+
     test("shows default email setup instructions when no host email configured", async () => {
-      const html = await guide("Choose your email company from the dropdown");
-      assert(
-        !html.includes("already set up by the company that runs your site"),
-      );
+      await expectDefaultGuide("Choose your email company from the dropdown");
     });
 
     test("shows host email config and setup instructions when configured", async () => {
-      hostEmail.setOverride({
-        apiKey: "re_test_key",
-        fromAddress: validEmail("tickets@example.com"),
-        provider: "resend",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site",
-          "Resend",
-          "tickets@example.com",
-          "Choose your email company from the dropdown",
-        );
-      } finally {
-        hostEmail.resetOverride();
-      }
-    });
-
-    test("shows default Google Wallet setup when no host config", async () => {
-      const html = await guide("You need three values from");
-      assert(
-        !html.includes("already set up by the company that runs your site"),
+      await expectHostConfiguredGuide(
+        () =>
+          hostEmail.setOverride({
+            apiKey: "re_test_key",
+            fromAddress: validEmail("tickets@example.com"),
+            provider: "resend",
+          }),
+        () => hostEmail.resetOverride(),
+        HOST_CONFIGURED,
+        "Resend",
+        "tickets@example.com",
+        "Choose your email company from the dropdown",
       );
     });
 
-    test("shows host Google Wallet config when env vars set", async () => {
-      settings.googleWallet.setHostConfigForTest({
-        issuerId: "3388000000012345678",
-        serviceAccountEmail: "wallet@project.iam.gserviceaccount.com",
-        serviceAccountKey: "pem-key-data",
-      });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site, using",
-          "3388000000012345678",
-          "You need three values from",
-        );
-      } finally {
-        settings.googleWallet.resetHostConfig();
-      }
-    });
+    /** Each wallet brand's guide fallback heading. */
+    const walletDefaults = [
+      {
+        heading: "You need three values from",
+        name: "shows default Google Wallet setup when no host config",
+      },
+      {
+        heading: "You need five values from",
+        name: "shows default wallet setup instructions when no host wallet configured",
+      },
+    ];
 
-    test("shows default wallet setup instructions when no host wallet configured", async () => {
-      const html = await guide("You need five values from");
-      assert(
-        !html.includes("already set up by the company that runs your site"),
-      );
-    });
-
-    test("shows host wallet config and setup instructions when configured", async () => {
-      settings.appleWallet.setHostConfigForTest({
-        passTypeId: "pass.com.host.tickets",
-        signingCert: "cert-data",
-        signingKey: "key-data",
-        teamId: "HOSTTEAM01",
-        wwdrCert: "wwdr-data",
+    for (const { heading, name } of walletDefaults) {
+      test(name, async () => {
+        await expectDefaultGuide(heading);
       });
-      try {
-        await assertAdminHtml(
-          "/admin/guide",
-          "already set up by the company that runs your site, using",
-          "pass.com.host.tickets",
-          "You need five values from",
+    }
+
+    /** Each wallet brand whose host config the guide can show. */
+    const walletHosts = [
+      {
+        apply: () =>
+          settings.googleWallet.setHostConfigForTest({
+            issuerId: "3388000000012345678",
+            serviceAccountEmail: "wallet@project.iam.gserviceaccount.com",
+            serviceAccountKey: "pem-key-data",
+          }),
+        name: "shows host Google Wallet config when env vars set",
+        named: ["3388000000012345678", "You need three values from"],
+        reset: () => settings.googleWallet.resetHostConfig(),
+      },
+      {
+        apply: () =>
+          settings.appleWallet.setHostConfigForTest({
+            passTypeId: "pass.com.host.tickets",
+            signingCert: "cert-data",
+            signingKey: "key-data",
+            teamId: "HOSTTEAM01",
+            wwdrCert: "wwdr-data",
+          }),
+        name: "shows host wallet config and setup instructions when configured",
+        named: ["pass.com.host.tickets", "You need five values from"],
+        reset: () => settings.appleWallet.resetHostConfig(),
+      },
+    ];
+
+    for (const wallet of walletHosts) {
+      test(wallet.name, async () => {
+        await expectHostConfiguredGuide(
+          wallet.apply,
+          wallet.reset,
+          `${HOST_CONFIGURED}, using`,
+          ...wallet.named,
         );
-      } finally {
-        settings.appleWallet.resetHostConfig();
-      }
-    });
+      });
+    }
 
     test("hides built sites section when builder is disabled", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
@@ -98,7 +121,7 @@ describeWithEnv("server (admin guide host config)", { db: true }, () => {
       using _ambient = withEnv({ CAN_BUILD_SITES: "true" });
       const live = await assertAdminHtml("/admin/guide", 'id="built-sites"');
       assertStringIncludes(live, 'id="built-sites"');
-      const cached = await guide();
+      const cached = await expectGuidePage();
       assert(!cached.includes('id="built-sites"'));
     });
 

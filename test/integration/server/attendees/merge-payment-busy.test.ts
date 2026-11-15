@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import {
   getMergeVersion,
@@ -29,10 +30,9 @@ const paymentRow = (
   sessionId: string,
 ): Promise<{ attendee_id: number; protected_state: string } | null> =>
   queryOne(
-    `SELECT attendee_id, protected_state
+    sql`SELECT attendee_id, protected_state
        FROM processed_payments
-      WHERE payment_session_id = ?`,
-    [sessionId],
+      WHERE payment_session_id = ${sessionId}`,
   );
 
 describeWithEnv(

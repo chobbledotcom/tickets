@@ -16,6 +16,7 @@ import {
   wholeNumber,
 } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, Table } from "#db/migrations/schema/types.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 
 /**
  * A value counts as hidden only if it is really text, says how it was hidden,
@@ -28,15 +29,19 @@ import type { Column, Table } from "#db/migrations/schema/types.ts";
  * swallows separators, so the second half refuses one more than the envelope
  * has.
  */
-const sealed = (name: string, prefix: string, parts: number): string =>
-  `(typeof(${name}) = 'text' AND ${name} GLOB '${prefix}${":?*".repeat(
-    parts,
-  )}' AND ${name} NOT GLOB '${prefix}${":*".repeat(parts + 1)}')`;
+const sealed = (name: string, prefix: string, parts: number): SqlStatement => {
+  const column = sqlName(name);
+  return sql`(typeof(${column}) = 'text' AND ${column} GLOB ${sqlLiteral(
+    `${prefix}${":?*".repeat(parts)}`,
+  )} AND ${column} NOT GLOB ${sqlLiteral(
+    `${prefix}${":*".repeat(parts + 1)}`,
+  )})`;
+};
 
 /** The same rule, for a column a row can leave empty. It is written for a
  *  CHECK, which supplies the outer brackets. */
-export const ownerEncryptedRuleOrNull = (name: string): string =>
-  `${name} IS NULL OR ${sealed(name, "hyb:1", 3)}`;
+export const ownerEncryptedRuleOrNull = (name: string): SqlStatement =>
+  sql`${sqlName(name)} IS NULL OR ${sealed(name, "hyb:1", 3)}`;
 
 /** A column that must hold a value hidden for the owner with their key. */
 export const ownerEncryptedColumn = (name: string): Column => [

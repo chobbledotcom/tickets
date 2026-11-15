@@ -7,10 +7,10 @@
  */
 
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
 import { syncCache } from "#db/settings/cache.ts";
 import { writeOrDelete } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
@@ -35,20 +35,15 @@ export const withCurrentTask = async <T>(
   if (expectedVersion === null) return staleTask();
   // Ensure the row exists (no-op if already present)
   await executeWithoutCacheInvalidation(
-    "INSERT OR IGNORE INTO settings (key, value) VALUES (?, '')",
-    [CONFIG_KEYS.CURRENT_TASK],
+    sql`INSERT OR IGNORE INTO settings (key, value) VALUES (${CONFIG_KEYS.CURRENT_TASK}, '')`,
   );
   // Atomic claim: only succeeds when no task is running
-  const { sql: claimSql, args: claimArgs } = numberedStatement(
-    (bind) =>
-      `UPDATE settings SET value = ${bind(taskName)} WHERE key = ${bind(CONFIG_KEYS.CURRENT_TASK)} AND value = '' ` +
-      `AND (${bind(expectedVersion ?? null)} IS NULL OR ${bind(expectedVersion ?? null)} = CAST(COALESCE((SELECT value FROM settings WHERE key = ${bind(CONFIG_KEYS.SETTINGS_VERSION)}), '0') AS INTEGER))`,
+  const claim = await executeWithoutCacheInvalidation(
+    sql`UPDATE settings SET value = ${taskName} WHERE key = ${CONFIG_KEYS.CURRENT_TASK} AND value = '' AND (${expectedVersion ?? null} IS NULL OR ${expectedVersion ?? null} = CAST(COALESCE((SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}), '0') AS INTEGER))`,
   );
-  const claim = await executeWithoutCacheInvalidation(claimSql, claimArgs);
   if (claim.rowsAffected === 0) {
     const version = await executeWithoutCacheInvalidation(
-      "SELECT CAST(COALESCE((SELECT value FROM settings WHERE key = ?), '0') AS INTEGER) AS value",
-      [CONFIG_KEYS.SETTINGS_VERSION],
+      sql`SELECT CAST(COALESCE((SELECT value FROM settings WHERE key = ${CONFIG_KEYS.SETTINGS_VERSION}), '0') AS INTEGER) AS value`,
     );
     const currentVersion = Number(version.rows[0]?.value);
     return expectedVersion !== undefined && expectedVersion !== currentVersion

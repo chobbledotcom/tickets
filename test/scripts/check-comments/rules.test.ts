@@ -10,6 +10,7 @@ import {
   namesMentioned,
   readComments,
 } from "#scripts/check-comments/rules.ts";
+import { testCases } from "#test-utils/test-cases.ts";
 
 const LIMITS: CommentLimits = { maxColumns: 40, maxLines: 3 };
 
@@ -27,36 +28,55 @@ const onlyIssue = (
 };
 
 describe("readComments", () => {
-  test("finds a line comment and a block comment", () => {
-    const found = readComments("// one\nconst a = 1;\n/* two */\n");
-    expect(found).toEqual([
-      { column: 0, end: 6, line: 1, start: 0, text: "// one" },
-      { column: 0, end: 29, line: 3, start: 20, text: "/* two */" },
-    ]);
-  });
-
-  test("reports the line a comment opens on, not the file start", () => {
-    const found = readComments("const a = 1;\n\n\n// here\n");
-    expect(found).toEqual([
-      { column: 0, end: 22, line: 4, start: 15, text: "// here" },
-    ]);
-  });
-
-  test("counts a newline the file opens with", () => {
-    // The scan starts at the very first character, so a file beginning with a
-    // blank line still puts its first comment on line 2.
-    expect(readComments("\n// here\n")).toEqual([
-      { column: 0, end: 8, line: 2, start: 1, text: "// here" },
-    ]);
-  });
-
-  test("ignores a comment marker inside a string", () => {
-    expect(readComments('const url = "https://example.com/a";\n')).toEqual([]);
-  });
-
-  test("ignores a comment marker inside a template literal", () => {
-    expect(readComments("const a = `/* not a comment */`;\n")).toEqual([]);
-  });
+  testCases(
+    [
+      [
+        "finds a line comment and a block comment",
+        ["// one\nconst a = 1;\n/* two */\n"],
+        [
+          { column: 0, end: 6, line: 1, start: 0, text: "// one" },
+          { column: 0, end: 29, line: 3, start: 20, text: "/* two */" },
+        ],
+      ],
+      [
+        "reports the line a comment opens on, not the file start",
+        ["const a = 1;\n\n\n// here\n"],
+        [{ column: 0, end: 22, line: 4, start: 15, text: "// here" }],
+      ],
+      // The scan starts at the very first character, so a file that opens with
+      // a blank line still puts its first comment on line 2.
+      [
+        "counts a newline the file opens with",
+        ["\n// here\n"],
+        [{ column: 0, end: 8, line: 2, start: 1, text: "// here" }],
+      ],
+      [
+        "ignores a comment marker inside a string",
+        ['const url = "https://example.com/a";\n'],
+        [],
+      ],
+      [
+        "ignores a comment marker inside a template literal",
+        ["const a = `/* not a comment */`;\n"],
+        [],
+      ],
+      // The directive family retired with deno lint, so its comments are prose.
+      [
+        "keeps a deno-lint-ignore comment as prose",
+        ["// deno-lint-ignore no-explicit-any\n"],
+        [
+          {
+            column: 0,
+            end: 35,
+            line: 1,
+            start: 0,
+            text: "// deno-lint-ignore no-explicit-any",
+          },
+        ],
+      ],
+    ],
+    readComments,
+  );
 
   test("drops directives, which a tool reads rather than a person", () => {
     const source = [
@@ -75,19 +95,6 @@ describe("readComments", () => {
   test("keeps a comment that merely mentions a directive-like word", () => {
     const found = readComments("// prefer a named type over a cast\n");
     expect(found).toHaveLength(1);
-  });
-
-  // The directive family retired with deno lint, so its comments are prose.
-  test("keeps a deno-lint-ignore comment as prose", () => {
-    expect(readComments("// deno-lint-ignore no-explicit-any\n")).toEqual([
-      {
-        column: 0,
-        end: 35,
-        line: 1,
-        start: 0,
-        text: "// deno-lint-ignore no-explicit-any",
-      },
-    ]);
   });
 });
 
@@ -234,10 +241,6 @@ describe("comment-dead-link rule", () => {
     );
   });
 
-  test("passes a link to a known name", () => {
-    expect(links("/** See {@link helper}. */\n")).toEqual([]);
-  });
-
   test("judges a member link on the name before the dot", () => {
     expect(links("/** {@link helper.total} */\n")).toEqual([]);
     expect(links("/** {@link gone.total} */\n")).toHaveLength(1);
@@ -260,9 +263,13 @@ describe("comment-dead-link rule", () => {
     expect(links("/**\n * {@link\n * gone}\n */\n")).toHaveLength(1);
   });
 
-  test("ignores a comment with no links at all", () => {
-    expect(links("// just prose\n")).toEqual([]);
-  });
+  testCases(
+    [
+      ["passes a link to a known name", ["/** See {@link helper}. */\n"], []],
+      ["ignores a comment with no links at all", ["// just prose\n"], []],
+    ],
+    links,
+  );
 });
 
 describe("comment-gate-citation rule", () => {
@@ -284,75 +291,61 @@ describe("comment-gate-citation rule", () => {
   });
 
   test("flags a credit word before or after the tool it credits", () => {
-    expect(
-      citations("src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
-    expect(
-      citations("src/shared/db.ts", "// keeps biome happy\n"),
-    ).toHaveLength(1);
+    for (const comment of [
+      "// so the linter passes\n",
+      "// keeps biome happy\n",
+    ]) {
+      expect(citations("src/shared/db.ts", comment)).toHaveLength(1);
+    }
   });
 
   test("passes comments that describe the code without naming a check", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Eliminates duplication between adapters.\n",
-      ),
-    ).toEqual([]);
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// avoid V8 coverage gaps on `throw` inside catch blocks.\n",
-      ),
-    ).toEqual([]);
+    for (const comment of [
+      "// Eliminates duplication between adapters.\n",
+      "// avoid V8 coverage gaps on `throw` inside catch blocks.\n",
+    ]) {
+      expect(citations("src/shared/db.ts", comment)).toEqual([]);
+    }
   });
 
-  test("passes a comment that describes a tool's flags", () => {
-    expect(
-      citations("src/shared/db.ts", "// Biome flags are read from settings.\n"),
-    ).toEqual([]);
-  });
-
-  test("passes a comment that names a check as its topic", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Deno lint rules: avoid nested calls in the parser.\n",
-      ),
-    ).toEqual([]);
-  });
-
-  test("passes a comment whose subject is the tool itself", () => {
-    expect(
-      citations(
-        "src/shared/db.ts",
-        "// Biome avoids duplicating the scanner.\n",
-      ),
-    ).toEqual([]);
-  });
+  for (const [name, comment] of [
+    [
+      "passes a comment that describes a tool's flags",
+      "// Biome flags are read from settings.\n",
+    ],
+    [
+      "passes a comment that names a check as its topic",
+      "// Deno lint rules: avoid nested calls in the parser.\n",
+    ],
+    [
+      "passes a comment whose subject is the tool itself",
+      "// Biome avoids duplicating the scanner.\n",
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(citations("src/shared/db.ts", comment)).toEqual([]);
+    });
+  }
 
   test("finds a citation however the src path is spelled", () => {
-    expect(
-      citations("/repo/src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
-    expect(
-      citations("src/shared/db.ts", "// so the linter passes\n"),
-    ).toHaveLength(1);
+    for (const path of ["/repo/src/shared/db.ts", "src/shared/db.ts"]) {
+      expect(citations(path, "// so the linter passes\n")).toHaveLength(1);
+    }
   });
 
   test("passes the tooling trees, whose comments document the checks", () => {
-    expect(
-      citations(
+    for (const [path, comment] of [
+      [
         "scripts/check-comments/rules.ts",
         '// "avoids jscpd duplication" is the shape this rule flags.\n',
-      ),
-    ).toEqual([]);
-    expect(
-      citations(
+      ],
+      [
         "test/scripts/check-comments/rules.test.ts",
         "// so precommit passes on a shallow clone\n",
-      ),
-    ).toEqual([]);
+      ],
+    ] as const) {
+      expect(citations(path, comment)).toEqual([]);
+    }
   });
 
   test("passes directives a tool reads", () => {

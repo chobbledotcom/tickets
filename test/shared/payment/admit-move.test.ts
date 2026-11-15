@@ -213,38 +213,55 @@ describe("payment > admit move", () => {
   });
 
   describe("the word the consumers that cannot decrypt see", () => {
-    test("a claimed row shows its claim", () => {
-      expect(mirrorFor(CLAIMED)).toBe("claim");
-    });
-
-    test("a row waiting on the owner shows its review", () => {
+    /** Each row is one test: the states it shows, and the word each must give
+     *  out. The word is what the prune and the orphan purge can see, so a row
+     *  that shows the wrong one is a row they may destroy. */
+    const shownWords: readonly {
+      readonly name: string;
+      readonly checks: readonly (readonly [
+        state: PaymentRowState,
+        word: string,
+      ])[];
+    }[] = [
+      { checks: [[CLAIMED, "claim"]], name: "a claimed row shows its claim" },
       // The prune and the orphan purge read only this word, so a review that
       // does not show here is a row they will happily destroy.
-      expect(mirrorFor(UNDER_REVIEW)).toBe("review");
-    });
-
-    test("a row whose money is off the books shows that", () => {
+      {
+        checks: [[UNDER_REVIEW, "review"]],
+        name: "a row waiting on the owner shows its review",
+      },
       // Same reason as the review: this word is the whole of what the prune
       // and the orphan purge can see.
-      expect(mirrorFor(UNRECORDED)).toBe("unrecorded");
-    });
+      {
+        checks: [[UNRECORDED, "unrecorded"]],
+        name: "a row whose money is off the books shows that",
+      },
+      {
+        checks: [[{ ...CLAIMED, ...UNDER_REVIEW }, "claim"]],
+        name: "a claim outranks a review while both are on the row",
+      },
+      {
+        checks: [
+          [{ ...UNRECORDED, ...UNDER_REVIEW }, "review"],
+          [{ ...CLAIMED, ...UNRECORDED }, "claim"],
+        ],
+        name: "an owner review outranks ledger repair, and a claim outranks both",
+      },
+      {
+        checks: [[SETTLED, ""]],
+        name: "a payment that already ended shows nothing",
+      },
+      {
+        checks: [[FREE, ""]],
+        name: "a row in the middle of nothing shows nothing",
+      },
+    ];
 
-    test("a claim outranks a review while both are on the row", () => {
-      expect(mirrorFor({ ...CLAIMED, ...UNDER_REVIEW })).toBe("claim");
-    });
-
-    test("an owner review outranks ledger repair, and a claim outranks both", () => {
-      expect(mirrorFor({ ...UNRECORDED, ...UNDER_REVIEW })).toBe("review");
-      expect(mirrorFor({ ...CLAIMED, ...UNRECORDED })).toBe("claim");
-    });
-
-    test("a payment that already ended shows nothing", () => {
-      expect(mirrorFor(SETTLED)).toBe("");
-    });
-
-    test("a row in the middle of nothing shows nothing", () => {
-      expect(mirrorFor(FREE)).toBe("");
-    });
+    for (const { checks, name } of shownWords) {
+      test(name, () => {
+        for (const [state, word] of checks) expect(mirrorFor(state)).toBe(word);
+      });
+    }
 
     test("the SQL guard makes the same decision from those words", () => {
       expect(mirroredMoveRefusalOrNull(["review", "claim"], "delete")).toBe(
@@ -261,11 +278,13 @@ describe("payment > admit move", () => {
   });
 
   test("the SQL work predicates render the table's own words", () => {
-    expect(rowWorkMirrorSql("payment.", "claim")).toBe(
+    expect(rowWorkMirrorSql("payment.", "claim").sql).toBe(
       "payment.protected_state = 'claim'",
     );
-    expect(rowWorkMirrorSql("", "review")).toBe("protected_state = 'review'");
-    expect(rowWorkMirrorSql("payment.", "unrecorded")).toBe(
+    expect(rowWorkMirrorSql("", "review").sql).toBe(
+      "protected_state = 'review'",
+    );
+    expect(rowWorkMirrorSql("payment.", "unrecorded").sql).toBe(
       "payment.protected_state = 'unrecorded'",
     );
   });
