@@ -2,6 +2,7 @@
 
 import { execute } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 
 /** The plan a subscribed booking row keeps. */
 export type TestPlan = {
@@ -25,20 +26,10 @@ export const givePlan = async (
   subscriptionId: string,
   plan: TestPlan,
 ): Promise<void> => {
-  await execute(
-    `UPDATE listing_attendees
-        SET recurring_interval = ?, recurring_price = ?, recurring_tax = ?,
-            subscription_id = ?, subscription_status = ?
-      WHERE attendee_id = ?`,
-    [
-      plan.interval,
-      plan.price,
-      plan.tax,
-      subscriptionId,
-      plan.status,
-      attendeeId,
-    ],
-  );
+  await execute(sql`UPDATE listing_attendees
+        SET recurring_interval = ${plan.interval}, recurring_price = ${plan.price}, recurring_tax = ${plan.tax},
+            subscription_id = ${subscriptionId}, subscription_status = ${plan.status}
+      WHERE attendee_id = ${attendeeId}`);
 };
 
 /** `listing`, now charging 5.00 each month after its ticket price. The plan
@@ -49,8 +40,7 @@ export const withMonthlyPlan = async <Listing extends { id: number }>(
   Listing & { recurring_interval: "month"; recurring_price: number }
 > => {
   await execute(
-    "UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ?",
-    [listing.id],
+    sql`UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ${listing.id}`,
   );
   invalidateListingsCache();
   return { ...listing, recurring_interval: "month", recurring_price: 500 };

@@ -14,8 +14,8 @@ import {
   hasNewsPosts,
   updateNewsPost,
 } from "#db/news-posts.ts";
+import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
-
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
 import { expectEncryptedAtRest } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -41,8 +41,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         snippet: string;
         created: string;
       }>(
-        "SELECT name, meta_title, meta_description, snippet, content, created FROM news_posts WHERE id = ?",
-        [created.id],
+        sql`SELECT name, meta_title, meta_description, snippet, content, created FROM news_posts WHERE id = ${created.id}`,
       );
       // At rest, everything is ciphertext (enc:… envelope), not plaintext.
       expectEncryptedAtRest(
@@ -72,8 +71,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
     test("empty optional fields stay empty strings, never ciphertext", async () => {
       const created = await createTestNewsPost("Bare post");
       const raw = await queryAll<{ snippet: string; content: string }>(
-        "SELECT snippet, content FROM news_posts WHERE id = ?",
-        [created.id],
+        sql`SELECT snippet, content FROM news_posts WHERE id = ${created.id}`,
       );
       expect(raw[0]?.snippet).toBe("");
       expect(raw[0]?.content).toBe("");
@@ -197,8 +195,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         created: "2026-07-06T12:00:00.000Z",
       });
       const raw = await queryAll<{ slug: string; slug_index: string }>(
-        "SELECT slug, slug_index FROM news_posts WHERE id = ?",
-        [post.id],
+        sql`SELECT slug, slug_index FROM news_posts WHERE id = ${post.id}`,
       );
       expectEncryptedAtRest(raw[0]?.slug);
       // The index is the plaintext HMAC of the slug, not the slug itself.
@@ -309,8 +306,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(await getNewsPostById(post.id)).toBeNull();
       expect(await getImagesForItem("news", post.id)).toHaveLength(0);
       const kept = await queryAll<{ id: number }>(
-        "SELECT id FROM images WHERE id = ?",
-        [image.id],
+        sql`SELECT id FROM images WHERE id = ${image.id}`,
       );
       expect(kept).toHaveLength(1);
     });

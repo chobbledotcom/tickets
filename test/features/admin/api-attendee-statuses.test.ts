@@ -3,10 +3,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import { assertJson } from "#test-utils/assertions.ts";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -22,10 +23,9 @@ const createStatus = async (
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
-  await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
 };
 
 describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
@@ -52,17 +52,13 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
           });
           // The answer carries the three default flags and the amount, but not
           // the dashboard-only sort order.
-          expect(confirmed.sort_order).toBeUndefined();
+          expect(Object.hasOwn(confirmed, "sort_order")).toBe(false);
         },
       );
     });
 
-    test("returns 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/attendee-statuses"),
-      );
-      expect(response.status).toBe(401);
-    });
+    test("returns 401 without auth", () =>
+      expectUnauthorized("/api/admin/attendee-statuses"));
   });
 
   describe("GET /api/admin/attendee-statuses/:statusId", () => {
@@ -81,12 +77,10 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     });
 
     test("returns 404 for a non-existent status", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/attendee-statuses/99999"),
         404,
-        (body) => {
-          expect(body.error).toBe("Status not found");
-        },
+        "Status not found",
       );
     });
   });

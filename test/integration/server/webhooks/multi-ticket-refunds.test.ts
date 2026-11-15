@@ -5,9 +5,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta } from "#test-utils/factories.ts";
-import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe, stubWebhookVerify } from "#test-utils/settings.ts";
 import { stripeRefundRequestShape } from "#test-utils/stripe/fixtures.ts";
+import { expectTwoListingOrderKeptAndRefunded } from "#test-utils/webhooks/multi-listing-orders.ts";
 import {
   expectWebhookKeptAndRefunded,
   stubRefundPayment,
@@ -15,7 +15,6 @@ import {
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectMergedMultiListingAttendee,
   postWebhookAndAssert,
 } from "#test-utils/webhooks.ts";
 
@@ -94,51 +93,34 @@ describeWithEnv(
     test("multi-ticket is kept and refunded when prices changed since checkout", async () => {
       await setupStripe();
 
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Multi Mismatch 1",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Multi Mismatch 2",
-        unitPrice: 300,
-      });
-
-      // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000
-      // Price changed after checkout was created — should refund
-      const { mockRefund } = await expectWebhookKeptAndRefunded(
-        checkoutSessionEvent({
-          amountTotal: 1000,
-          eventId: "evt_multi_mismatch",
-          metadata: signedMeta(
+      // expectedTotal = 500*1 + 300*2 = 1100, but amountTotal = 1000: the
+      // prices changed after checkout was created.
+      const { attendee, mockRefund } =
+        await expectTwoListingOrderKeptAndRefunded(
+          "multi_mismatch",
+          {
+            amountTotal: 1000,
+            email: "multimismatch@example.com",
+            payer: "Multi Mismatch",
+          },
+          [
             {
-              email: "multimismatch@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 400, q: 1 },
-                { e: listing2.id, p: 600, q: 2 },
-              ]),
-              name: "Multi Mismatch",
+              name: "Multi Mismatch 1",
+              price: 400,
+              quantity: 1,
+              unitPrice: 500,
             },
-            1000,
-          ),
-          paymentIntent: "pi_multi_mismatch",
-          sessionId: "cs_multi_mismatch",
-        }),
-        "re_multi_mismatch",
-      );
+            {
+              name: "Multi Mismatch 2",
+              price: 600,
+              quantity: 2,
+              unitPrice: 300,
+            },
+          ],
+        );
 
-      // The multi-listing booking is kept across both listings as one
-      // quantity-0 placeholder and refunded once, with a system note.
-      const attendee = await expectMergedMultiListingAttendee(
-        listing1.id,
-        listing2.id,
-      );
       const { getNoteRows } = await import("#db/notes/queries.ts");
       expect((await getNoteRows("attendee", [attendee.id])).length).toBe(1);
-      await expectSessionFailed("cs_multi_mismatch");
 
       // Verify refund was attempted exactly once
       expect(mockRefund.calls.length).toBe(1);
@@ -147,77 +129,71 @@ describeWithEnv(
       ]);
     });
 
-    test("multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
-        maxAttendees: 50,
-        unitPrice: 1000,
-      });
-
-      // p=500 but listing costs 1000*1=1000, and listing is not can_pay_more
-      const { mockRefund } = await expectWebhookKeptAndRefunded(
-        checkoutSessionEvent({
-          amountTotal: 500,
-          eventId: "evt_item_mismatch",
-          metadata: signedMeta(
-            {
-              email: "mismatch@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 500, q: 1 }]),
-              name: "Mismatch User",
-            },
-            500,
-          ),
-          paymentIntent: "pi_item_mismatch",
-          sessionId: "cs_item_mismatch",
-        }),
-        "re_mismatch",
-      );
-
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
-        listing.id,
-        "cs_item_mismatch",
-        mockRefund,
-      );
-    });
-
-    test("multi-ticket keeps and refunds when sum(p) does not equal amountTotal", async () => {
-      await setupStripe();
-
-      const listing = await createTestListing({
+    // Each case sends an order whose items do not add up to the amount
+    // charged: the first names a price below the listing's own, the second a
+    // sum above the amount charged.
+    const singleListingRefusals = [
+      {
+        amountTotal: 500,
+        canPayMore: false,
+        email: "mismatch@example.com",
+        id: "item_mismatch",
+        name: "multi-ticket keeps and refunds when per-item p does not match unit_price * q for non-pay-more listing",
+        payer: "Mismatch User",
+        price: 500,
+        refundId: "re_mismatch",
+      },
+      {
+        amountTotal: 1500,
         canPayMore: true,
-        maxAttendees: 50,
-        unitPrice: 1000,
+        email: "total@example.com",
+        id: "total_mismatch",
+        name: "multi-ticket keeps and refunds when sum(p) does not equal amountTotal",
+        payer: "Total Mismatch",
+        price: 2000,
+        refundId: "re_total",
+      },
+    ];
+
+    for (const refusal of singleListingRefusals) {
+      test(refusal.name, async () => {
+        await setupStripe();
+
+        // The listing costs 1000*1=1000; only the metadata price differs.
+        const listing = await createTestListing({
+          canPayMore: refusal.canPayMore,
+          maxAttendees: 50,
+          unitPrice: 1000,
+        });
+
+        const { mockRefund } = await expectWebhookKeptAndRefunded(
+          checkoutSessionEvent({
+            amountTotal: refusal.amountTotal,
+            eventId: `evt_${refusal.id}`,
+            metadata: signedMeta(
+              {
+                email: refusal.email,
+                items: JSON.stringify([
+                  { e: listing.id, p: refusal.price, q: 1 },
+                ]),
+                name: refusal.payer,
+              },
+              refusal.amountTotal,
+            ),
+            paymentIntent: `pi_${refusal.id}`,
+            sessionId: `cs_${refusal.id}`,
+          }),
+          refusal.refundId,
+        );
+
+        // Signed by us → the booking is kept as a quantity-0 placeholder and
+        // refunded once, with a system note recording the reason.
+        await expectKeptAsQuantityZeroAndRefunded(
+          listing.id,
+          `cs_${refusal.id}`,
+          mockRefund,
+        );
       });
-
-      // p=2000 is valid for can_pay_more (>= 1000), but amountTotal=1500 != sum(p)=2000
-      const { mockRefund } = await expectWebhookKeptAndRefunded(
-        checkoutSessionEvent({
-          amountTotal: 1500,
-          eventId: "evt_total_mismatch",
-          metadata: signedMeta(
-            {
-              email: "total@example.com",
-              items: JSON.stringify([{ e: listing.id, p: 2000, q: 1 }]),
-              name: "Total Mismatch",
-            },
-            1500,
-          ),
-          paymentIntent: "pi_total_mismatch",
-          sessionId: "cs_total_mismatch",
-        }),
-        "re_total",
-      );
-
-      // Signed by us → the booking is kept as a quantity-0 placeholder and
-      // refunded once, with a system note recording the reason.
-      await expectKeptAsQuantityZeroAndRefunded(
-        listing.id,
-        "cs_total_mismatch",
-        mockRefund,
-      );
-    });
+    }
   },
 );

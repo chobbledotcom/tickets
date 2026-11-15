@@ -3,6 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#crypto/hashing.ts";
 import { execute, getDb, insert } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   createInvitedUser,
   decryptAdminLevel,
@@ -31,10 +32,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       try {
         const before = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(before!)).toBe("owner");
-        await execute("UPDATE users SET admin_level = ? WHERE id = ?", [
-          await encrypt("manager"),
-          1,
-        ]);
+        await execute(
+          sql`UPDATE users SET admin_level = ${await encrypt("manager")} WHERE id = ${1}`,
+        );
         const after = await getUserAuthFieldsById(1);
         expect(await decryptAdminLevel(after!)).toBe("manager");
       } finally {
@@ -45,8 +45,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           sql.includes("SELECT id, admin_level FROM users"),
         ),
       ).toEqual([
-        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
-        "SELECT id, admin_level FROM users WHERE id = ? LIMIT 1",
+        "SELECT id, admin_level FROM users WHERE id = ?1 LIMIT 1",
+        "SELECT id, admin_level FROM users WHERE id = ?1 LIMIT 1",
       ]);
     });
 
@@ -191,8 +191,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       // Accepting an invite clears its code to an encrypted empty string.
       await getDb().execute(
-        "UPDATE users SET invite_code_hash = ? WHERE id = ?",
-        [await encrypt(""), user.id],
+        sql`UPDATE users SET invite_code_hash = ${await encrypt("")} WHERE id = ${user.id}`,
       );
 
       const { getUserById: getUser } = await import("#db/users.ts");

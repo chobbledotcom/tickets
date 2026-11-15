@@ -9,6 +9,7 @@ import {
   releaseReservation,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -74,11 +75,7 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
             // Replay the crash window after settlement but before the final
             // outcome write, using bytes captured from this real delivery.
             await execute(
-              "UPDATE processed_payments SET failure_data = ? WHERE payment_session_id = ?",
-              [
-                requireValue(pending, "Pending outcome was not captured"),
-                SESSION_ID,
-              ],
+              sql`UPDATE processed_payments SET failure_data = ${requireValue(pending, "Pending outcome was not captured")} WHERE payment_session_id = ${SESSION_ID}`,
             );
             expect((await failure()).refunded).not.toBe(true);
           }

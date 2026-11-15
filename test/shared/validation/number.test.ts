@@ -6,6 +6,22 @@ import {
   parsePositiveInt,
 } from "#shared/validation/number.ts";
 
+/** Asserts each input parses to the value written beside it. */
+const expectParsed = (
+  parse: (text: string) => number | null,
+  cases: readonly (readonly [string, number])[],
+): void => {
+  for (const [text, expected] of cases) expect(parse(text)).toBe(expected);
+};
+
+/** Asserts each input is rejected as null. */
+const expectRejected = (
+  parse: (text: string) => number | null,
+  values: readonly string[],
+): void => {
+  for (const value of values) expect(parse(value)).toBeNull();
+};
+
 describe("clampInteger", () => {
   const clampDays = clampInteger(1, 90);
 
@@ -32,16 +48,16 @@ describe("clampInteger", () => {
 
 describe("parseNonNegativeInt", () => {
   test("accepts zero and positive decimal integers, including leading zeros", () => {
-    expect(parseNonNegativeInt("0")).toBe(0);
-    expect(parseNonNegativeInt("12")).toBe(12);
-    expect(parseNonNegativeInt("007")).toBe(7);
-    expect(parseNonNegativeInt(" 12 ")).toBe(12);
+    expectParsed(parseNonNegativeInt, [
+      ["0", 0],
+      ["12", 12],
+      ["007", 7],
+      [" 12 ", 12],
+    ]);
   });
 
   test("rejects signs, fractions, exponents and trailing junk", () => {
-    for (const value of ["", "-1", "+1", "1.5", "1e2", "2x"]) {
-      expect(parseNonNegativeInt(value)).toBeNull();
-    }
+    expectRejected(parseNonNegativeInt, ["", "-1", "+1", "1.5", "1e2", "2x"]);
   });
 
   test("rejects integers above JavaScript's safe range", () => {
@@ -51,14 +67,14 @@ describe("parseNonNegativeInt", () => {
 
 describe("parsePositiveInt", () => {
   test("accepts positive plain decimal integers", () => {
-    expect(parsePositiveInt("1")).toBe(1);
-    expect(parsePositiveInt("007")).toBe(7);
-    expect(parsePositiveInt(" 7 ")).toBe(7);
+    expectParsed(parsePositiveInt, [
+      ["1", 1],
+      ["007", 7],
+      [" 7 ", 7],
+    ]);
   });
 
   test("rejects zero, signs, fractions, exponents and trailing junk", () => {
-    for (const value of ["0", "-1", "+1", "1.5", "1e2", "1abc"]) {
-      expect(parsePositiveInt(value)).toBeNull();
-    }
+    expectRejected(parsePositiveInt, ["0", "-1", "+1", "1.5", "1e2", "1abc"]);
   });
 });

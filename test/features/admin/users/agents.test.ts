@@ -20,6 +20,7 @@ import {
   createTestAgentSession,
 } from "#test-utils/session.ts";
 import { enableFeature } from "#test-utils/settings.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 const inviteAgent = (username: string, agentId?: string) =>
   adminFormPost("/admin/users", {
@@ -145,22 +146,15 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     expect(await userAgents.getIds(userId)).toEqual([van.id]);
   });
 
-  test("editing agents for a non-agent user is rejected", async () => {
-    // User 1 is the owner created during setup — not a delivery agent.
-    const response = await adminGet("/admin/users/1/agents");
-    expect(response.status).toBe(404);
-  });
-
-  test("editing agents for a missing user is a 404", async () => {
-    const response = await adminGet("/admin/users/99999/agents");
-    expect(response.status).toBe(404);
-  });
-
-  test("posting agents for a missing user is a 404", async () => {
-    const { response } = await adminFormPost("/admin/users/99999/agents", {
-      agent_ids: "1",
-    });
-    expect(response.status).toBe(404);
+  // User 1 is the owner created during setup — not a delivery agent.
+  testStatus(404, {
+    "editing agents for a missing user is a 404": () =>
+      adminGet("/admin/users/99999/agents"),
+    "editing agents for a non-agent user is rejected": () =>
+      adminGet("/admin/users/1/agents"),
+    "posting agents for a missing user is a 404": async () =>
+      (await adminFormPost("/admin/users/99999/agents", { agent_ids: "1" }))
+        .response,
   });
 
   test("the users list shows an agent's assigned agent names", async () => {

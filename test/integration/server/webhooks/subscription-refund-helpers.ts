@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { returnsNext, stub } from "@std/testing/mock";
 import { queryAll, queryOne } from "#db/client.ts";
 import { listingsTable } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { handleRequest } from "#routes";
@@ -89,10 +90,9 @@ export const deliver = () =>
 
 export const storedPlans = (listingId: number) =>
   queryAll(
-    `SELECT quantity, recurring_price, recurring_tax, recurring_interval,
+    sql`SELECT quantity, recurring_price, recurring_tax, recurring_interval,
           subscription_id, subscription_status
-     FROM listing_attendees WHERE listing_id = ?`,
-    [listingId],
+     FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
 
 export const expectPlan = async (
@@ -104,8 +104,7 @@ export const expectPlan = async (
 
 export const placeholderOwner = async (listingId: number): Promise<number> => {
   const row = await queryOne<{ attendee_id: number }>(
-    "SELECT attendee_id FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
   return requireValue(row, "Failed checkout placeholder not found").attendee_id;
 };

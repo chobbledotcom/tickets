@@ -17,6 +17,7 @@ import {
   reversalConflict,
 } from "#accounting/conflicts.ts";
 import {
+  insertIfNewStatement,
   insertStatement,
   selectTransfersMany,
   type TransferRead,
@@ -24,11 +25,10 @@ import {
 import {
   type BatchExecutor,
   executeBatch,
-  orIgnore,
   queryBatch,
-  type SqlStatement,
   type TxScope,
 } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { inList } from "#db/where-clauses.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { allUnique } from "#shared/all-unique.ts";
@@ -147,8 +147,7 @@ type BatchSnapshot = {
 };
 
 /** Wants every transfer whose `column` is one of `values`. An empty set asks for
- *  nothing, and is answered without touching the database. `column` is a
- *  trusted constant. */
+ *  nothing, and is answered without touching the database. */
 const byColumnIn = (
   column: string,
   values: readonly InValue[],
@@ -240,7 +239,7 @@ const planGroup = (
   inputs: TransferInput[],
   snapshot: BatchSnapshot,
   recordedAt: string,
-  render: (statement: SqlStatement) => SqlStatement = (statement) => statement,
+  buildInsert: typeof insertStatement = insertStatement,
 ): PlannedGroup => {
   const eventGroup = eventGroupOf(inputs);
   const existing = snapshot.existingByGroup.get(eventGroup) ?? [];
@@ -251,7 +250,7 @@ const planGroup = (
     .find((conflict) => conflict !== null);
   if (error !== undefined) return { error, kind: "conflict" };
   return {
-    inserts: inputs.map((input) => render(insertStatement(input, recordedAt))),
+    inserts: inputs.map((input) => buildInsert(input, recordedAt)),
     kind: "posted",
     result: { inserted: inputs.length, skipped: 0 },
   };
@@ -302,7 +301,12 @@ const planTransferBatch = (
       results.push(EMPTY_RESULT);
       continue;
     }
-    const planned = planGroup(inputs, snapshot, recordedAt, orIgnore);
+    const planned = planGroup(
+      inputs,
+      snapshot,
+      recordedAt,
+      insertIfNewStatement,
+    );
     if (planned.kind === "conflict") return planned;
     inserts.push(...planned.inserts);
     results.push(planned.result);

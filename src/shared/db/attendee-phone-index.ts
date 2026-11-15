@@ -4,6 +4,7 @@
 
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { executeUpdate, queryOne } from "#db/client.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 
 /**
  * Store the phone blind-index on an attendee, but only if one is not set yet.
@@ -28,10 +29,9 @@ export const findAttendeeIdByPhoneIndex = async (
 ): Promise<number | null> => {
   if (!phoneIndex) return null;
   const row = await queryOne<{ id: number }>(
-    `SELECT id FROM attendees
-     WHERE phone_index = ? AND kind = '${ATTENDEE_KIND}'
+    sql`SELECT id FROM attendees
+     WHERE phone_index = ${phoneIndex} AND kind = ${sqlLiteral(ATTENDEE_KIND)}
      LIMIT 1`,
-    [phoneIndex],
   );
   return row?.id ?? null;
 };

@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createSystemNote } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
+import { sql } from "#db/sql.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import {
   listingHasEmailableAttendees,
@@ -344,8 +345,7 @@ describeWithEnv("loading a listing's admin page", { db: true }, () => {
       await addAnswer(questionId, "Blue");
       const { getDb } = await import("#db/client.ts");
       await getDb().execute(
-        "UPDATE questions SET assign_all = 1 WHERE id = ?",
-        [questionId],
+        sql`UPDATE questions SET assign_all = 1 WHERE id = ${questionId}`,
       );
     };
 

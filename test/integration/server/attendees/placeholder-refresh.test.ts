@@ -3,16 +3,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { deleteAttendee } from "#db/attendees/delete.ts";
 import { queryOne } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { listProviderRefundCases } from "#db/provider-refund-cases.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
+import { createPaidAttendeeWithoutLedger } from "#test-utils/db-helpers/attendee-payments.ts";
 import { postPaymentLeg } from "#test-utils/db-helpers/payment-leg.ts";
+import { createPricedListing } from "#test-utils/db-helpers/priced-listing.ts";
 import {
   protectedStateOf,
   putRowState,
@@ -55,11 +57,11 @@ const setupPlaceholderForRefresh = async (
   paymentReference: string,
   beforeRefresh?: (listingId: number) => Promise<void>,
 ): Promise<Attendee> => {
-  const listing = await createTestListing({
+  const listing = await createPricedListing({
     maxAttendees: 50,
     unitPrice: 800,
   });
-  const created = await attendeesApi.createAttendeeAtomic({
+  const attendee = await createAttendeeOrThrow({
     bookings: [
       { date: "2026-08-01", listingId: listing.id, pricePaid: 0, quantity: 0 },
     ],
@@ -67,8 +69,6 @@ const setupPlaceholderForRefresh = async (
     name,
     paymentId: paymentReference,
   });
-  if (!created.success) throw new Error(`setup failed: ${created.reason}`);
-  const attendee = created.attendees[0]!;
   await postPaymentLeg(attendee.id, 500, sessionId, listing.id, 0);
   await reserveSession(sessionId);
   await finalizeReservedPayment(
@@ -83,7 +83,7 @@ const setupPlaceholderForRefresh = async (
 
 /** Submit the refresh with the provider reporting the refund as settled,
  *  and verify the refund_cash leg was posted to the attendee's account. */
-const refreshAndVerifyRefundCash = async (
+const expectRefreshRecordsRefundCash = async (
   attendee: Attendee,
 ): Promise<void> => {
   await submitRefreshPayment(attendee, () => Promise.resolve(true));
@@ -103,7 +103,7 @@ describeWithEnv(
           "placeholder-refresh-session",
           "pi_placeholder_refresh",
         );
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
       });
 
       test("a current payment refresh creates no refund work or delete blocker", async () => {
@@ -123,7 +123,7 @@ describeWithEnv(
 
         expect(
           await queryOne<{ count: number }>(
-            "SELECT COUNT(*) AS count FROM payment_charges",
+            sql`SELECT COUNT(*) AS count FROM payment_charges`,
           ),
         ).toEqual({ count: 0 });
         expect((await listProviderRefundCases()).cases).toEqual([]);
@@ -139,7 +139,7 @@ describeWithEnv(
           "pi_placeholder_deleted",
           deleteListing,
         );
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
       });
 
       // The fault this closes: refresh found the money already back at the
@@ -148,20 +148,17 @@ describeWithEnv(
       // so the record of the refund — and the correction's target — could be
       // destroyed while the books still said the person had paid.
       test("marks the row when a found refund cannot be recorded", async () => {
-        const listing = await createTestListing({
+        const listing = await createPricedListing({
           maxAttendees: 50,
           unitPrice: 800,
         });
-        const created = await attendeesApi.createAttendeeAtomic({
-          bookings: [{ listingId: listing.id, pricePaid: 800, quantity: 1 }],
-          email: "unrecorded@example.com",
-          name: "Unrecorded",
-          paymentId: "pi_unrecorded_refresh",
-        });
-        if (!created.success) {
-          throw new Error(`setup failed: ${created.reason}`);
-        }
-        const attendee = created.attendees[0]!;
+        const attendee = await createPaidAttendeeWithoutLedger(
+          listing.id,
+          "Unrecorded",
+          "unrecorded@example.com",
+          "pi_unrecorded_refresh",
+          800,
+        );
         await reserveSession("unrecorded-refresh-session");
         await finalizeReservedPayment(
           "unrecorded-refresh-session",
@@ -203,7 +200,7 @@ describeWithEnv(
           UNRECORDED_MIRROR,
         );
 
-        await refreshAndVerifyRefundCash(attendee);
+        await expectRefreshRecordsRefundCash(attendee);
 
         expect(await protectedStateOf("caught-up-session")).toBe("");
       });

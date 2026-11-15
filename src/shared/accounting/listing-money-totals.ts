@@ -6,7 +6,9 @@ import {
 } from "#accounting/manual-entries.ts";
 import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
 import { requireOne } from "#db/client.ts";
-import { clauseArgs, whereSql } from "#db/where-clauses.ts";
+import type { WholeNumberRow } from "#db/query.ts";
+import { sql, sqlLiteral, sqlRows } from "#db/sql.ts";
+import { whereSql } from "#db/where-clauses.ts";
 
 export type ListingMoneyTotals = {
   externalCosts: number;
@@ -20,16 +22,16 @@ export type ListingMoneyTotals = {
   transferCount: number;
 };
 
-type ListingMoneyTotalsRow = {
-  external_costs: number | bigint;
-  external_income: number | bigint;
-  gross_sales: number | bigint;
-  manual_adjustments: number | bigint;
-  net_balance: number | bigint;
-  refunds: number | bigint;
-  servicing_costs: number | bigint;
-  transfer_count: number | bigint;
-};
+type ListingMoneyTotalsRow = WholeNumberRow<
+  | "external_costs"
+  | "external_income"
+  | "gross_sales"
+  | "manual_adjustments"
+  | "net_balance"
+  | "refunds"
+  | "servicing_costs"
+  | "transfer_count"
+>;
 
 /** The full money breakdown for one-or-many listings inside a range. Revenue
  * account movements and service-event cost-account movements stay separate:
@@ -54,52 +56,51 @@ export const listingMoneyTotals = async (
       transferCount: 0,
     };
   }
-  const selectedIds =
-    "SELECT selectedListing.id FROM selected_listing AS selectedListing";
-  const revenueCredit = `transfer.dest_type = '${REVENUE}' AND transfer.dest_id IN (${selectedIds})`;
-  const revenueDebit = `transfer.source_type = '${REVENUE}' AND transfer.source_id IN (${selectedIds})`;
-  const costDebit = `transfer.source_type = '${COST}' AND transfer.source_id IN (${selectedIds})`;
-  const costCredit = `transfer.dest_type = '${COST}' AND transfer.dest_id IN (${selectedIds})`;
+  const selectedIds = sql`SELECT selectedListing.id FROM selected_listing AS selectedListing`;
+  const revenueCredit = sql`transfer.dest_type = ${sqlLiteral(REVENUE)} AND transfer.dest_id IN (${selectedIds})`;
+  const revenueDebit = sql`transfer.source_type = ${sqlLiteral(REVENUE)} AND transfer.source_id IN (${selectedIds})`;
+  const costDebit = sql`transfer.source_type = ${sqlLiteral(COST)} AND transfer.source_id IN (${selectedIds})`;
+  const costCredit = sql`transfer.dest_type = ${sqlLiteral(COST)} AND transfer.dest_id IN (${selectedIds})`;
   const rangeParts = occurredAtRange(range, "transfer.occurred_at");
   // An aggregate without GROUP BY always returns one row. COALESCE supplies
   // zeroes when no transfers match, so the result cannot be null.
   const row = await requireOne<ListingMoneyTotalsRow>(
-    `WITH selected_listing(id) AS (VALUES ${listingIds.map(() => "(?)").join(", ")})
+    sql`WITH selected_listing(id) AS (VALUES ${sqlRows(
+      listingIds.map((id) => [String(id)]),
+    )})
      SELECT
        COUNT(*) AS transfer_count,
        COALESCE(SUM(CASE
-          WHEN transfer.kind IN ('${KIND.sale}', '${KIND.taxSale}') AND ${revenueCredit} THEN transfer.amount
-          WHEN transfer.kind = '${KIND.taxSale}' AND ${revenueDebit} THEN -transfer.amount
+          WHEN transfer.kind IN (${sqlLiteral(KIND.sale)}, ${sqlLiteral(KIND.taxSale)}) AND ${revenueCredit} THEN transfer.amount
+          WHEN transfer.kind = ${sqlLiteral(KIND.taxSale)} AND ${revenueDebit} THEN -transfer.amount
           ELSE 0 END), 0) AS gross_sales,
        COALESCE(SUM(CASE
-          WHEN transfer.kind = '${MANUAL_LISTING_INCOME}' AND ${revenueCredit} THEN transfer.amount
+          WHEN transfer.kind = ${sqlLiteral(MANUAL_LISTING_INCOME)} AND ${revenueCredit} THEN transfer.amount
           ELSE 0 END), 0) AS external_income,
        COALESCE(SUM(CASE
-          WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueCredit} AND transfer.source_type = '${WRITEOFF_TYPE}' THEN transfer.amount
-          WHEN transfer.kind = '${KIND.adjustment}' AND ${revenueDebit} AND transfer.dest_type = '${WRITEOFF_TYPE}' THEN -transfer.amount
+          WHEN transfer.kind = ${sqlLiteral(KIND.adjustment)} AND ${revenueCredit} AND transfer.source_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN transfer.amount
+          WHEN transfer.kind = ${sqlLiteral(KIND.adjustment)} AND ${revenueDebit} AND transfer.dest_type = ${sqlLiteral(WRITEOFF_TYPE)} THEN -transfer.amount
           ELSE 0 END), 0) AS manual_adjustments,
        COALESCE(SUM(CASE
-          WHEN transfer.kind IN ('${KIND.refundSale}', '${KIND.refundTaxSale}') AND ${revenueDebit} THEN transfer.amount
-          WHEN transfer.kind = '${KIND.refundTaxSale}' AND ${revenueCredit} THEN -transfer.amount
+          WHEN transfer.kind IN (${sqlLiteral(KIND.refundSale)}, ${sqlLiteral(KIND.refundTaxSale)}) AND ${revenueDebit} THEN transfer.amount
+          WHEN transfer.kind = ${sqlLiteral(KIND.refundTaxSale)} AND ${revenueCredit} THEN -transfer.amount
           ELSE 0 END), 0) AS refunds,
        COALESCE(SUM(CASE
-         WHEN transfer.kind = '${MANUAL_LISTING_COST}' AND ${revenueDebit} THEN transfer.amount
+         WHEN transfer.kind = ${sqlLiteral(MANUAL_LISTING_COST)} AND ${revenueDebit} THEN transfer.amount
          ELSE 0 END), 0) AS external_costs,
-       COALESCE(SUM(CASE WHEN transfer.kind = '${KIND.serviceCost}' AND ${costDebit}
+       COALESCE(SUM(CASE WHEN transfer.kind = ${sqlLiteral(KIND.serviceCost)} AND ${costDebit}
                          THEN transfer.amount ELSE 0 END
-                  - CASE WHEN transfer.kind = '${KIND.serviceCost}' AND ${costCredit}
+                  - CASE WHEN transfer.kind = ${sqlLiteral(KIND.serviceCost)} AND ${costCredit}
                          THEN transfer.amount ELSE 0 END), 0) AS servicing_costs,
        COALESCE(SUM(CASE WHEN ${revenueCredit} THEN transfer.amount ELSE 0 END
                   - CASE WHEN ${revenueDebit} THEN transfer.amount ELSE 0 END), 0) AS net_balance
       FROM transfers AS transfer
      ${whereSql([
        {
-         args: [],
-         clause: `(${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})`,
+         clause: sql`(${revenueCredit} OR ${revenueDebit} OR ${costDebit} OR ${costCredit})`,
        },
        ...rangeParts,
      ])}`,
-    [...listingIds.map(String), ...clauseArgs(rangeParts)],
   );
   const grossSales = Number(row.gross_sales);
   const externalIncome = Number(row.external_income);

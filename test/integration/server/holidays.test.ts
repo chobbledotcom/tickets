@@ -149,27 +149,17 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       method: "POST",
     });
 
-    test("creates holiday and redirects", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2027-01-01",
-        name: "New Year",
-        startDate: "2027-01-01",
+    for (const [testName, name, startDate, endDate] of [
+      ["creates holiday and redirects", "New Year", "2027-01-01", "2027-01-01"],
+      ["creates multi-day holiday", "Easter", "2026-04-03", "2026-04-06"],
+    ] as const) {
+      test(testName, async () => {
+        const holiday = await createTestHoliday({ endDate, name, startDate });
+        expect(holiday.name).toBe(name);
+        expect(holiday.start_date).toBe(startDate);
+        expect(holiday.end_date).toBe(endDate);
       });
-      expect(holiday.name).toBe("New Year");
-      expect(holiday.start_date).toBe("2027-01-01");
-      expect(holiday.end_date).toBe("2027-01-01");
-    });
-
-    test("creates multi-day holiday", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-04-06",
-        name: "Easter",
-        startDate: "2026-04-03",
-      });
-      expect(holiday.name).toBe("Easter");
-      expect(holiday.start_date).toBe("2026-04-03");
-      expect(holiday.end_date).toBe("2026-04-06");
-    });
+    }
 
     test("rejects missing name", async () => {
       const { response } = await adminFormPost("/admin/holidays", {

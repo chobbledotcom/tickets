@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { sql } from "#db/sql.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 
 /**
@@ -17,44 +18,42 @@ export const ADMIN_FEATURES = [
   },
   {
     descriptionKey: "features.attributes.description",
-    inUseSql: "EXISTS (SELECT 1 FROM attributes AS attribute)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM attributes AS attribute)`,
     key: "attributes",
     labelKey: "features.attributes.name",
     slug: "attributes",
   },
   {
     descriptionKey: "features.questions.description",
-    inUseSql: "EXISTS (SELECT 1 FROM questions AS question)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM questions AS question)`,
     key: "questions",
     labelKey: "features.questions.name",
     slug: "questions",
   },
   {
     descriptionKey: "features.modifiers.description",
-    inUseSql: "EXISTS (SELECT 1 FROM modifiers AS modifier)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM modifiers AS modifier)`,
     key: "modifiers",
     labelKey: "features.modifiers.name",
     slug: "modifiers",
   },
   {
     descriptionKey: "features.logistics.description",
-    inUseSql:
-      "EXISTS (SELECT 1 FROM logistics_agents AS logisticsAgent) OR EXISTS (SELECT 1 FROM listings AS listing WHERE listing.uses_logistics = 1)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM logistics_agents AS logisticsAgent) OR EXISTS (SELECT 1 FROM listings AS listing WHERE listing.uses_logistics = 1)`,
     key: "logistics",
     labelKey: "features.logistics.name",
     slug: "logistics",
   },
   {
     descriptionKey: "features.api_keys.description",
-    inUseSql: "EXISTS (SELECT 1 FROM api_keys AS apiKey)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM api_keys AS apiKey)`,
     key: "apiKeys",
     labelKey: "features.api_keys.name",
     slug: "api-keys",
   },
   {
     descriptionKey: "features.servicing.description",
-    inUseSql:
-      "EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.kind = 'servicing')",
+    inUseSql: sql`EXISTS (SELECT 1 FROM attendees AS attendee WHERE attendee.kind = 'servicing')`,
     key: "servicing",
     labelKey: "features.servicing.name",
     slug: "servicing",
@@ -75,15 +74,14 @@ export const ADMIN_FEATURES = [
   },
   {
     descriptionKey: "features.invoices.description",
-    inUseSql: "EXISTS (SELECT 1 FROM invoices AS invoice)",
+    inUseSql: sql`EXISTS (SELECT 1 FROM invoices AS invoice)`,
     key: "invoices",
     labelKey: "features.invoices.name",
     slug: "invoices",
   },
   {
     descriptionKey: "features.subscriptions.description",
-    inUseSql:
-      "EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')",
+    inUseSql: sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')`,
     key: "subscriptions",
     labelKey: "features.subscriptions.name",
     slug: "subscriptions",

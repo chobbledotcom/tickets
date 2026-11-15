@@ -27,6 +27,7 @@ import { createAttendeeAtomicImpl } from "#db/attendees/create.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { attendeeTaxSaveWork } from "#routes/admin/attendee-tax.ts";
 import {
   apiCreateLedgerPoster,
@@ -287,7 +288,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
     await settings.update.tax(added);
     const original = await allTransfers();
     await withDbFault(
-      "CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'tax assessment unavailable'); END",
+      sql`CREATE TRIGGER tax_assessment_fault BEFORE INSERT ON booking_tax_assessments WHEN NEW.revision > 0 BEGIN SELECT RAISE(ABORT, 'tax assessment unavailable'); END`,
       "tax_assessment_fault",
       async () => {
         await expect(save(fixture)).rejects.toThrow(
@@ -356,8 +357,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
     expect(
       (
         await queryOne<{ status_id: number | null }>(
-          "SELECT status_id FROM attendees AS attendee WHERE id = ?",
-          [fixture.attendee.id],
+          sql`SELECT status_id FROM attendees AS attendee WHERE id = ${fixture.attendee.id}`,
         )
       )?.status_id,
     ).toBe(status.id);

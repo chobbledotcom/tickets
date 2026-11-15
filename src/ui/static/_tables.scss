@@ -1,0 +1,165 @@
+/** Tables with the column-width schema, and the quotes and scrollbars. */
+
+@use "sass:map";
+@use "mixins" as *;
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-holidays-scroll {
+  max-height: 6rem;
+  overflow-y: auto;
+}
+
+/* Tables size to their content rather than stretching to the full container
+   width — a two-column table no longer spreads its cells across the whole page.
+   No `max-width` cap: a table wider than its container is meant to grow past it
+   and scroll, which the `.table-scroll` wrapper (overflow-x: auto) handles. */
+table {
+  @include panel-border;
+  border-spacing: 0;
+  padding: 0;
+  white-space: nowrap;
+  width: fit-content;
+}
+
+table td,
+table th,
+table tr {
+  padding: 0.4rem 0.8rem;
+  text-align: var(--justify-important);
+}
+
+table thead {
+  background-color: var(--color-table);
+  border-collapse: collapse;
+  border-radius: var(--border-radius);
+  color: var(--color-bg);
+  margin: 0;
+  padding: 0;
+}
+
+table thead tr:first-child th:first-child {
+  border-top-left-radius: var(--border-radius);
+}
+
+table thead tr:first-child th:last-child {
+  border-top-right-radius: var(--border-radius);
+}
+
+table > th > label {
+  text-align: var(--justify-important);
+}
+
+table thead th:first-child,
+table tr td:first-child {
+  text-align: var(--justify-normal);
+}
+
+table tr:nth-child(even) {
+  background-color: var(--color-accent);
+}
+
+table input {
+  margin: 0;
+}
+
+/* Column-width schema
+   --------------------
+   Now that tables size to their content, recurring kinds of column — the
+   up/down reorder arrows, money figures (revenue/income/amounts), integer
+   quantities, and trailing edit/delete action links — should each be treated
+   the same way wherever they appear rather than re-deciding per table. This map
+   is the single source of truth for that: each entry generates a `.col-<kind>`
+   class applied to the matching <th>/<td> (use `colClass()` from
+   `#templates/components/table-columns.ts` to reference these names from a
+   template). Every kind is a narrow, shrink-to-content column — `width: 1%`
+   plus `white-space: nowrap` makes the cell take only as much room as its
+   content needs, so these columns can never be stretched wide; the alignment
+   below is what actually distinguishes them. Add a kind here (and to the
+   matching TS union) rather than hand-setting a width on a one-off column. */
+$column-kinds: (
+  "reorder": ("align": center),
+  "amount": ("align": right),
+  "quantity": ("align": right),
+  "actions": ("align": right),
+);
+
+@each $kind, $spec in $column-kinds {
+  th.col-#{$kind},
+  td.col-#{$kind} {
+    width: 1%;
+    white-space: nowrap;
+    text-align: map.get($spec, "align");
+  }
+}
+
+td.cell-description {
+  font-size: 0.85em;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The key column of a detail table sizes to its widest label rather than a
+   fixed width, so short labels don't leave a wide empty gutter and long ones
+   aren't clipped — the value column takes the rest, and the `.table-scroll`
+   wrapper handles any overflow on narrow screens. */
+.listing-details-table th {
+  width: fit-content;
+}
+
+/* Income & ledger breakdown: a compact reconciliation table whose figures are
+   right-aligned and whose two subtotal rows (recognised income, net balance)
+   carry a top border so they read as running totals. */
+.listing-breakdown-table .col-amount {
+  width: 1px;
+}
+
+.listing-breakdown-table .breakdown-subtotal th,
+.listing-breakdown-table .breakdown-subtotal td {
+  border-top: 1px solid var(--color-bg-secondary);
+}
+
+/* Quotes */
+blockquote {
+  display: block;
+  font-size: x-large;
+  line-height: var(--line-height);
+  margin-inline: auto;
+  max-width: var(--width-card-medium);
+  padding: var(--space-m);
+  text-align: var(--justify-important);
+}
+
+blockquote footer {
+  color: var(--color-text-secondary);
+  display: block;
+  font-size: small;
+  line-height: var(--line-height);
+  padding: var(--space-m) 0;
+}
+
+/* Scrollbars */
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar);
+  border-radius: 10px;
+}
+

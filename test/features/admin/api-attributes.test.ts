@@ -8,6 +8,7 @@ import {
   listingAttributeOptions,
 } from "#db/attributes.ts";
 import { handleRequest } from "#routes";
+import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
   assertApiDeleteOk,
   assertJson,
@@ -18,7 +19,6 @@ import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
-import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,
   createTestManagerSession,
@@ -49,12 +49,8 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
       });
     });
 
-    test("returns 401 without auth", async () => {
-      const response = await handleRequest(
-        mockRequest("/api/admin/attributes"),
-      );
-      expect(response.status).toBe(401);
-    });
+    test("returns 401 without auth", () =>
+      expectUnauthorized("/api/admin/attributes"));
   });
 
   describe("GET /api/admin/attributes/:attributeId", () => {

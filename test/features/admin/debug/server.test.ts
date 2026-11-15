@@ -35,6 +35,52 @@ const debugStatusRow = (label: string, configured: boolean): string =>
       : '<span class="badge-missing">Not configured</span>',
   );
 
+/** Each debug page section and the text it must show, in page order. */
+const SECTION_CONTENT: Readonly<Record<string, string[]>> = {
+  "shows Apple Wallet section": [
+    "Apple Wallet",
+    "DB config",
+    "Env var config",
+    "Active source",
+    "Pass Type ID",
+  ],
+  "shows Build section": ["Build", "Timestamp", "Commit"],
+  "shows breadcrumb back to settings": ['href="/admin/settings"', "Settings"],
+  "shows combined Bunny section with storage, CDN, and DNS": [
+    "Bunny",
+    "File storage (images)",
+    "CDN management",
+    "CDN hostname",
+    "Custom domain",
+    "DNS subdomain",
+    "Subdomain suffix",
+    "Registered subdomain",
+  ],
+  "shows combined Database &amp; Domain section": [
+    "Database &amp; Domain",
+    "DB_URL",
+    "Effective domain",
+  ],
+  "shows Email section": [
+    "Email",
+    "Provider (DB)",
+    "From address",
+    "Host provider (env)",
+  ],
+  "shows Notifications section": ["Notifications", "NTFY URL"],
+  "shows Payments section": ["Payments", "Provider", "API key", "Webhook"],
+  "shows Runtime section with version rows": [
+    "Runtime",
+    "Host runtime",
+    "Deno version",
+    "V8 version",
+    "TypeScript version",
+    "Node compatibility",
+    "OS / architecture",
+    "User agent",
+  ],
+};
+
 /** Store a complete Apple Wallet config with the requested signing key. */
 const configureAppleDebug = async (
   signingKey = generateTestCerts().signingKey,
@@ -58,47 +104,16 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
       await expectHtmlResponse(response, 200, "Debug Info");
     });
 
-    test("shows breadcrumb back to settings", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        'href="/admin/settings"',
-        "Settings",
-      );
-    });
-
-    test("shows Build section", async () => {
-      await assertAdminHtml("/admin/debug", "Build", "Timestamp", "Commit");
-    });
-
-    test("shows Runtime section with version rows", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Runtime",
-        "Host runtime",
-        "Deno version",
-        "V8 version",
-        "TypeScript version",
-        "Node compatibility",
-        "OS / architecture",
-        "User agent",
-      );
-    });
+    for (const [name, expected] of Object.entries(SECTION_CONTENT)) {
+      test(name, async () => {
+        await assertAdminHtml("/admin/debug", ...expected);
+      });
+    }
 
     test("shows the actual Deno version it is running on", async () => {
       const { denoVersion } = getRuntimeInfo();
       const html = await assertAdminHtml("/admin/debug", "Deno version");
       assertStringIncludes(html, denoVersion);
-    });
-
-    test("shows Apple Wallet section", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Apple Wallet",
-        "DB config",
-        "Env var config",
-        "Active source",
-        "Pass Type ID",
-      );
     });
 
     test("shows Apple Wallet cert validation as Not set when unconfigured", async () => {
@@ -109,53 +124,6 @@ describeWithEnv("server (admin debug)", { db: true }, () => {
         debugRow("Signing certificate", "Not set"),
         debugRow("Signing key", "Not set"),
         debugRow("WWDR certificate", "Not set"),
-      );
-    });
-
-    test("shows Payments section", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Payments",
-        "Provider",
-        "API key",
-        "Webhook",
-      );
-    });
-
-    test("shows Email section", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Email",
-        "Provider (DB)",
-        "From address",
-        "Host provider (env)",
-      );
-    });
-
-    test("shows Notifications section", async () => {
-      await assertAdminHtml("/admin/debug", "Notifications", "NTFY URL");
-    });
-
-    test("shows combined Bunny section with storage, CDN, and DNS", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Bunny",
-        "File storage (images)",
-        "CDN management",
-        "CDN hostname",
-        "Custom domain",
-        "DNS subdomain",
-        "Subdomain suffix",
-        "Registered subdomain",
-      );
-    });
-
-    test("shows combined Database &amp; Domain section", async () => {
-      await assertAdminHtml(
-        "/admin/debug",
-        "Database &amp; Domain",
-        "DB_URL",
-        "Effective domain",
       );
     });
 

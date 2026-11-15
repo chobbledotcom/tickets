@@ -32,7 +32,7 @@ const newListingFormFields = (
   minimum_days_before: "",
   name,
   thank_you_url: "",
-  unit_price: "",
+  unit_price: "0",
   webhook_url: "",
 });
 

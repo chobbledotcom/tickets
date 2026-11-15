@@ -18,8 +18,9 @@ import {
   type ReadableTable,
   type StoredRowOf,
 } from "#db/chosen-columns.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
 import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";
@@ -50,7 +51,7 @@ export type RowOptions = {
   /** Table alias, when the clauses or the order qualify their columns. */
   alias?: string;
   /** An `ORDER BY` body without the keyword. Omit for no ordering. */
-  order?: string;
+  order?: SqlStatement;
   /** A row cap. Omit for no limit. */
   limit?: number;
 };
@@ -94,6 +95,8 @@ const filterClauses = <Row>(
  * about — while `Selected` is what comes back.
  */
 export type Rows<Row, Selected = Row> = {
+  /** A read of every row of the table, for a caller to run later. */
+  every: (options?: RowOptions) => () => Promise<Selected[]>;
   /** Every row the filter keeps. */
   many: (filter?: RowFilter<Row>, options?: RowOptions) => Promise<Selected[]>;
   /** The first row the filter keeps, or null when it keeps none. */
@@ -165,7 +168,9 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
     { alias, limit, order, where = [] }: RowOptions,
   ): Read => ({
     columns: chosen.readColumnsSql(alias),
-    from: alias ? `${table.name} AS ${alias}` : table.name,
+    from: alias
+      ? sql`${sqlName(table.name)} AS ${sqlName(alias)}`
+      : sqlName(table.name),
     limit,
     order,
     where: [...filterClauses(table, filter, alias), ...where],
@@ -181,12 +186,17 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
 
   // The read is built before anything is awaited, so a filter the table refuses
   // fails at the call rather than in a rejected promise later.
+  const withRead =
+    <Result>(use: (read: Read) => Result) =>
+    (filter: RowFilter<Row> = {}, options: RowOptions = {}): Result =>
+      use(readFor(filter, options));
+
   return {
     ...chosen,
-    many: (filter = {}, options = {}) => rowsOf(readFor(filter, options)),
-    one: (filter = {}, options = {}) => rowOf(readFor(filter, options)),
-    statement: (filter = {}, options = {}) =>
-      readStatement(readFor(filter, options)),
+    every: (options) => () => rowsOf(readFor({}, options ?? {})),
+    many: withRead(rowsOf),
+    one: withRead(rowOf),
+    statement: withRead(readStatement),
   };
 };
 
@@ -224,6 +234,7 @@ export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
   const key = once(() => pick([table.primaryKey] as const));
 
   return {
+    every: (options) => whole().every(options),
     // Reading one row already caps the read at one, so this asks for nothing
     // beyond the key column itself.
     exists: async (filter, options) =>

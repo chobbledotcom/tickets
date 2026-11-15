@@ -10,6 +10,7 @@
 
 import { queryOne } from "#db/client.ts";
 import { hashEmail, isHashUnsubscribed } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   browserSeenBy,
@@ -140,6 +141,5 @@ export const recordKeptUnderTheirCode = async (
   email: string,
 ): Promise<boolean> =>
   (await queryOne<{ present: number }>(
-    "SELECT 1 AS present FROM contact_preferences WHERE contact_hash = ?",
-    [await hashEmail(email)],
+    sql`SELECT 1 AS present FROM contact_preferences WHERE contact_hash = ${await hashEmail(email)}`,
   )) !== null;

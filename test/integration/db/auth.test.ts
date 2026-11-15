@@ -9,12 +9,16 @@ import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb, insert } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
-import { createSession, getSession } from "#db/sessions.ts";
+import { getSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   assertAdminPasswordRejects,
@@ -24,8 +28,46 @@ import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
 } from "#test-utils/internal.ts";
+import { createLiveSessions } from "#test-utils/live-sessions.ts";
+import type { User } from "#types";
 
 describeWithEnv("db > auth", { db: true }, () => {
+  /** Change the admin password the way the settings screen does: verify the
+   *  stored hash of the old password, hand it to `updateUserPassword`, and
+   *  assert the change took. Both rows come back so a caller can compare the
+   *  re-wrapped DATA_KEY or derive the new KEK. */
+  const changeAdminPassword = async (
+    newPassword: string,
+  ): Promise<{ after: User; before: User }> => {
+    const before = await getUserByUsername(TEST_ADMIN_USERNAME);
+    expect(before).not.toBeNull();
+    const oldHash = await verifyUserPassword(before!, TEST_ADMIN_PASSWORD);
+    expect(oldHash).toMatch(/^pbkdf2:/);
+
+    const changed = await settings.updateUserPassword(before!.id, {
+      newPassword,
+      oldKekVersion: before!.kek_version,
+      oldPassword: TEST_ADMIN_PASSWORD,
+      oldPasswordHash: oldHash!,
+      oldWrappedDataKey: before!.wrapped_data_key!,
+    });
+    expect(changed).toBe(true);
+
+    const after = await getUserByUsername(TEST_ADMIN_USERNAME);
+    expect(after).not.toBeNull();
+    return { after: after!, before: before! };
+  };
+
+  /** Record the configured maximum of attempts for `ip`, as a client that
+   *  keeps typing the wrong password would, and report whether the limiter
+   *  now holds it out. */
+  const lockOut = async (ip: string): Promise<boolean> => {
+    for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
+      await loginLimiter.record(ip);
+    }
+    return loginLimiter.isLimited(ip);
+  };
+
   describe("admin password", () => {
     test("verifyUserPassword returns hash for correct password", () =>
       assertAdminPasswordVerifies());
@@ -34,34 +76,17 @@ describeWithEnv("db > auth", { db: true }, () => {
       assertAdminPasswordRejects());
 
     test("updateUserPassword re-wraps DATA_KEY with new KEK", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const oldWrappedKey = user!.wrapped_data_key;
+      const { after, before } = await changeAdminPassword("newpassword456");
 
-      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
-
-      const success = await settings.updateUserPassword(user!.id, {
-        newPassword: "newpassword456",
-        oldKekVersion: user!.kek_version,
-        oldPassword: TEST_ADMIN_PASSWORD,
-        oldPasswordHash: oldHash!,
-        oldWrappedDataKey: user!.wrapped_data_key!,
-      });
-      expect(success).toBe(true);
-
-      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(updatedUser!.wrapped_data_key).not.toBe(oldWrappedKey);
+      expect(after.wrapped_data_key).not.toBe(before.wrapped_data_key);
       // Re-wrapped under the v2 (password-bound) scheme.
-      expect(updatedUser!.kek_version).toBe(2);
+      expect(after.kek_version).toBe(2);
 
-      expect(
-        await verifyUserPassword(updatedUser!, TEST_ADMIN_PASSWORD),
-      ).toBeNull();
+      expect(await verifyUserPassword(after, TEST_ADMIN_PASSWORD)).toBeNull();
 
-      expect(
-        await verifyUserPassword(updatedUser!, "newpassword456"),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(after, "newpassword456")).toMatch(
+        /^pbkdf2:/,
+      );
     });
 
     test("updateUserPassword fails with wrong old password", async () => {
@@ -82,9 +107,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(success).toBe(false);
 
       const unchanged = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(
-        await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD),
-      ).toBeTruthy();
+      expect(await verifyUserPassword(unchanged!, TEST_ADMIN_PASSWORD)).toMatch(
+        /^pbkdf2:/,
+      );
     });
 
     test("password change allows decryption of both old and new attendee records", async () => {
@@ -97,52 +122,38 @@ describeWithEnv("db > auth", { db: true }, () => {
       });
 
       // Create an attendee BEFORE password change
-      const beforeResult = await bookAttendee(listing, {
-        email: "alice@example.com",
-        name: "Alice Before",
-        paymentId: "pi_before_change",
-      });
-      if (!beforeResult.success) throw new Error("Failed to create attendee");
-      const attendeeBefore = beforeResult.attendees[0]!;
+      const attendeeBefore = bookedAttendee(
+        await bookAttendee(listing, {
+          email: "alice@example.com",
+          name: "Alice Before",
+          paymentId: "pi_before_change",
+        }),
+      );
 
       // Change the password
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
-      const oldHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(oldHash).toBeTruthy();
-
-      const changeSuccess = await settings.updateUserPassword(user!.id, {
-        newPassword,
-        oldKekVersion: user!.kek_version,
-        oldPassword: TEST_ADMIN_PASSWORD,
-        oldPasswordHash: oldHash!,
-        oldWrappedDataKey: user!.wrapped_data_key!,
-      });
-      expect(changeSuccess).toBe(true);
+      const { after: updatedUser } = await changeAdminPassword(newPassword);
 
       // Create an attendee AFTER password change
-      const afterResult = await bookAttendee(listing, {
-        email: "bob@example.com",
-        name: "Bob After",
-        paymentId: "pi_after_change",
-      });
-      if (!afterResult.success) throw new Error("Failed to create attendee");
-      const attendeeAfter = afterResult.attendees[0]!;
+      const attendeeAfter = bookedAttendee(
+        await bookAttendee(listing, {
+          email: "bob@example.com",
+          name: "Bob After",
+          paymentId: "pi_after_change",
+        }),
+      );
 
       // Get the private key using the NEW password
-      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(updatedUser).not.toBeNull();
       const newPasswordHash = await verifyUserPassword(
-        updatedUser!,
+        updatedUser,
         newPassword,
       );
-      expect(newPasswordHash).toBeTruthy();
+      expect(newPasswordHash).toMatch(/^pbkdf2:/);
 
       const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
-      const dataKey = await unwrapKey(updatedUser!.wrapped_data_key!, kek);
+      const dataKey = await unwrapKey(updatedUser.wrapped_data_key!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
-      expect(wrappedPrivateKey).toBeTruthy();
+      expect(wrappedPrivateKey).not.toBe("");
 
       // Asserted non-empty above, so the "" branch of the union is excluded.
       const privateKeyJwk = await decryptWithKey(
@@ -151,60 +162,48 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
       const privateKey = await importPrivateKey(privateKeyJwk);
 
-      // Decrypt the attendee created BEFORE password change
-      const decryptedBefore = await getAttendeeOrNull(
-        attendeeBefore.id,
-        privateKey,
-      );
-      expect(decryptedBefore).not.toBeNull();
-      expect(decryptedBefore?.name).toBe("Alice Before");
-      expect(decryptedBefore?.email).toBe("alice@example.com");
-      expect(decryptedBefore?.payment_id).toBe("pi_before_change");
-
-      // Decrypt the attendee created AFTER password change
-      const decryptedAfter = await getAttendeeOrNull(
-        attendeeAfter.id,
-        privateKey,
-      );
-      expect(decryptedAfter).not.toBeNull();
-      expect(decryptedAfter?.name).toBe("Bob After");
-      expect(decryptedAfter?.email).toBe("bob@example.com");
-      expect(decryptedAfter?.payment_id).toBe("pi_after_change");
+      // The attendee booked BEFORE the change and the one booked AFTER it both
+      // decrypt under the re-wrapped key.
+      for (const expected of [
+        {
+          attendee: attendeeBefore,
+          email: "alice@example.com",
+          name: "Alice Before",
+          paymentId: "pi_before_change",
+        },
+        {
+          attendee: attendeeAfter,
+          email: "bob@example.com",
+          name: "Bob After",
+          paymentId: "pi_after_change",
+        },
+      ]) {
+        const decrypted = await getAttendeeOrNull(
+          expected.attendee.id,
+          privateKey,
+        );
+        expect(decrypted).not.toBeNull();
+        expect(decrypted?.name).toBe(expected.name);
+        expect(decrypted?.email).toBe(expected.email);
+        expect(decrypted?.payment_id).toBe(expected.paymentId);
+      }
     });
   });
 
   describe("updateUserPassword invalidates sessions", () => {
     test("updates password and invalidates all sessions", async () => {
-      const user = await getUserByUsername(TEST_ADMIN_USERNAME);
-      expect(user).not.toBeNull();
+      await createLiveSessions(["session1", "session2"]);
 
-      await createSession("session1", "csrf1", Date.now() + 10000, null, 1);
-      await createSession("session2", "csrf2", Date.now() + 10000, null, 1);
+      const { after: updatedUser } =
+        await changeAdminPassword("new-password-123");
 
-      const initialHash = await verifyUserPassword(user!, TEST_ADMIN_PASSWORD);
-      expect(initialHash).toBeTruthy();
-
-      const success = await settings.updateUserPassword(user!.id, {
-        newPassword: "new-password-123",
-        oldKekVersion: user!.kek_version,
-        oldPassword: TEST_ADMIN_PASSWORD,
-        oldPasswordHash: initialHash!,
-        oldWrappedDataKey: user!.wrapped_data_key!,
-      });
-      expect(success).toBe(true);
-
-      const updatedUser = await getUserByUsername(TEST_ADMIN_USERNAME);
-      const newValid = await verifyUserPassword(
-        updatedUser!,
-        "new-password-123",
+      expect(await verifyUserPassword(updatedUser, "new-password-123")).toMatch(
+        /^pbkdf2:/,
       );
-      expect(newValid).toBeTruthy();
 
-      const oldValid = await verifyUserPassword(
-        updatedUser!,
-        TEST_ADMIN_PASSWORD,
-      );
-      expect(oldValid).toBeNull();
+      expect(
+        await verifyUserPassword(updatedUser, TEST_ADMIN_PASSWORD),
+      ).toBeNull();
 
       const session1 = await getSession("session1");
       const session2 = await getSession("session2");
@@ -231,10 +230,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       const ip = "192.168.1.8";
       await loginLimiter.record(ip);
 
-      const row = await getDb().execute({
-        args: [await hmacHash(ip)],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${await hmacHash(ip)}`,
+      );
       expect(row.rows).toEqual([{ attempts: 1 }]);
     });
 
@@ -249,20 +247,12 @@ describeWithEnv("db > auth", { db: true }, () => {
     });
 
     test("login limiter returns true when locked", async () => {
-      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
-        await loginLimiter.record("192.168.1.4");
-      }
-
-      const limited = await loginLimiter.isLimited("192.168.1.4");
-      expect(limited).toBe(true);
+      expect(await lockOut("192.168.1.4")).toBe(true);
     });
 
     test("clearLoginAttempts clears attempts", async () => {
       const ip = "192.168.1.5";
-      for (let attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
-        await loginLimiter.record(ip);
-      }
-      expect(await loginLimiter.isLimited(ip)).toBe(true);
+      expect(await lockOut(ip)).toBe(true);
 
       await clearLoginAttempts(ip);
 
@@ -281,10 +271,9 @@ describeWithEnv("db > auth", { db: true }, () => {
       );
 
       expect(await loginLimiter.isLimited(ip)).toBe(false);
-      const row = await getDb().execute({
-        args: [ipHash],
-        sql: "SELECT attempts FROM login_attempts WHERE ip = ?",
-      });
+      const row = await getDb().execute(
+        sql`SELECT attempts FROM login_attempts WHERE ip = ${ipHash}`,
+      );
       expect(row.rows).toEqual([]);
     });
 
@@ -305,18 +294,12 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("login limiter resets expired lockout and returns false", async () => {
       const ip = "192.168.99.1";
 
-      for (let i = 0; i < MAX_LOGIN_ATTEMPTS; i++) {
-        await loginLimiter.record(ip);
-      }
-      expect(await loginLimiter.isLimited(ip)).toBe(true);
+      expect(await lockOut(ip)).toBe(true);
 
       // Simulate expired lockout
-      await getDb().execute({
-        args: [Date.now() - 1000],
-        sql: `UPDATE login_attempts
-              SET locked_until = ?
-              WHERE locked_until IS NOT NULL`,
-      });
+      await getDb().execute(sql`UPDATE login_attempts
+              SET locked_until = ${Date.now() - 1000}
+              WHERE locked_until IS NOT NULL`);
 
       const limited = await loginLimiter.isLimited(ip);
       expect(limited).toBe(false);

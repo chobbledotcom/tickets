@@ -19,6 +19,7 @@ import {
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#db/orphan-attendees.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -60,8 +61,7 @@ const insertOrphan = async (createdIso: string): Promise<number> => {
 /** Is an attendee row with this id still present? */
 const attendeeExists = async (id: number): Promise<boolean> => {
   const row = await queryOne<{ one: number }>(
-    "SELECT 1 AS one FROM attendees WHERE id = ?",
-    [id],
+    sql`SELECT 1 AS one FROM attendees WHERE id = ${id}`,
   );
   return row !== null;
 };
@@ -87,8 +87,7 @@ const childCount = async (
   attendeeId: number,
 ): Promise<number> => {
   const row = await requireOne<{ count: number }>(
-    `SELECT COUNT(*) AS count FROM ${table} WHERE attendee_id = ?`,
-    [attendeeId],
+    sql`SELECT COUNT(*) AS count FROM ${sqlName(table)} WHERE attendee_id = ${attendeeId}`,
   );
   assertExists(row);
   return row.count;
@@ -159,8 +158,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       );
       await purgeOrphanedAttendees(nowIso());
       const remaining = await requireOne<{ c: number }>(
-        "SELECT COUNT(*) AS c FROM service_costs WHERE servicing_attendee_id = ?",
-        [id],
+        sql`SELECT COUNT(*) AS c FROM service_costs WHERE servicing_attendee_id = ${id}`,
       );
       expect(remaining?.c).toBe(0);
     });
@@ -190,10 +188,9 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       expect(await childCount("processed_payments", id)).toBe(0);
       expect(await childCount("refund_confirmations", id)).toBe(0);
       const remainingReferences = await queryOne<{ count: number }>(
-        `SELECT COUNT(*) AS count
+        sql`SELECT COUNT(*) AS count
            FROM refund_confirmation_references AS reference
-          WHERE reference.confirmation_identity = ?`,
-        [confirmation.identity],
+          WHERE reference.confirmation_identity = ${confirmation.identity}`,
       );
       expect(remainingReferences?.count).toBe(0);
       expect(await getNoteRows("attendee", [id])).toEqual([]);
@@ -228,8 +225,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
 
       expect(
         await queryOne<{ assigned_attendee_id: number | null }>(
-          "SELECT assigned_attendee_id FROM built_sites WHERE id = ?",
-          [site.id],
+          sql`SELECT assigned_attendee_id FROM built_sites WHERE id = ${site.id}`,
         ),
       ).toEqual({ assigned_attendee_id: null });
     });
@@ -316,8 +312,7 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     test("goes as normal once the work on its payment is finished", async () => {
       const id = await heldOrphan();
       await execute(
-        "UPDATE processed_payments SET protected_state = '' WHERE attendee_id = ?",
-        [id],
+        sql`UPDATE processed_payments SET protected_state = '' WHERE attendee_id = ${id}`,
       );
 
       await purgeOrphanedAttendees(nowIso());

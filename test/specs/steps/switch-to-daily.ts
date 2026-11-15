@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { queryAll } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   adminBrowser,
@@ -32,8 +33,7 @@ const dayKept = whatWasKeptFor("day");
  * day. Read directly: the story's claim is about the rows, not a page. */
 const undatedRowCount = async (listingId: number): Promise<number> => {
   const rows = await queryAll<{ start_at: string | null }>(
-    "SELECT start_at FROM listing_attendees WHERE listing_id = ?",
-    [listingId],
+    sql`SELECT start_at FROM listing_attendees WHERE listing_id = ${listingId}`,
   );
   return rows.filter((row) => row.start_at === null).length;
 };

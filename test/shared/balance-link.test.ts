@@ -22,6 +22,11 @@ describe("balance-link", () => {
     return buildSignedToken("bal1.", encoded, `balance:${encoded}`);
   };
 
+  /** Assert the verifier refuses `token`, whatever stage rejects it. */
+  const expectRefused = async (token: string): Promise<void> => {
+    expect(await verifyBalanceToken(token)).toBeNull();
+  };
+
   test("a balance link is valid for 90 days", () => {
     // Pins the link lifetime to 90 days, expressed in seconds (90 × 86,400).
     // Lengthening or shortening the window is a behaviour change to catch here.
@@ -37,12 +42,12 @@ describe("balance-link", () => {
   });
 
   test("rejects a token without the expected prefix", async () => {
-    expect(await verifyBalanceToken("nope.abc.def")).toBeNull();
+    await expectRefused("nope.abc.def");
   });
 
   test("rejects a malformed token", async () => {
-    expect(await verifyBalanceToken("bal1.onlyonepart")).toBeNull();
-    expect(await verifyBalanceToken("bal1.")).toBeNull();
+    await expectRefused("bal1.onlyonepart");
+    await expectRefused("bal1.");
   });
 
   test("rejects a tampered payload", async () => {
@@ -53,22 +58,20 @@ describe("balance-link", () => {
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
-    expect(
-      await verifyBalanceToken(`bal1.${forgedPayload}.${hmac}`),
-    ).toBeNull();
+    await expectRefused(`bal1.${forgedPayload}.${hmac}`);
   });
 
   test("rejects a tampered signature", async () => {
     const token = await signBalanceToken(42);
     const [, payload] = token.split(".");
-    expect(await verifyBalanceToken(`bal1.${payload}.deadbeef`)).toBeNull();
+    await expectRefused(`bal1.${payload}.deadbeef`);
   });
 
   test("rejects a correctly-signed token whose payload is the wrong shape", async () => {
     // Sign a non-conforming payload with a valid HMAC, so the signature passes
     // but the field validation rejects it.
     const token = await signRawPayload({ not: "a balance" });
-    expect(await verifyBalanceToken(token)).toBeNull();
+    await expectRefused(token);
   });
 
   test("rejects a correctly-signed token whose attendee id is not a number", async () => {
@@ -77,24 +80,24 @@ describe("balance-link", () => {
     // and reach this check before the expiry/skew bounds can rescue it.
     const validExpiry = Math.floor(Date.now() / 1000) + 1000;
     const token = await signRawPayload({ a: "42", e: validExpiry });
-    expect(await verifyBalanceToken(token)).toBeNull();
+    await expectRefused(token);
   });
 
   test("rejects a correctly-signed token whose expiry is not a number", async () => {
     // Signature is valid and `a` is a number, but `e` is a string. The expiry
     // field must be validated independently of the id field.
     const token = await signRawPayload({ a: 42, e: "soon" });
-    expect(await verifyBalanceToken(token)).toBeNull();
+    await expectRefused(token);
   });
 
   test("rejects an expired token", async () => {
     const token = await signBalanceToken(42, -10);
-    expect(await verifyBalanceToken(token)).toBeNull();
+    await expectRefused(token);
   });
 
   test("rejects a token dated implausibly far in the future", async () => {
     const token = await signBalanceToken(42, BALANCE_LINK_MAX_AGE_S + 1000);
-    expect(await verifyBalanceToken(token)).toBeNull();
+    await expectRefused(token);
   });
 
   test("does not verify a token minted by a different scheme", async () => {
@@ -108,6 +111,6 @@ describe("balance-link", () => {
       "listing",
       buildQrBookPayload({ name: "Ada" }),
     );
-    expect(await verifyBalanceToken(qrToken)).toBeNull();
+    await expectRefused(qrToken);
   });
 });

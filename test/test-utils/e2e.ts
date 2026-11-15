@@ -99,7 +99,7 @@ export const createListing = async (
 ): Promise<string> => {
   await browser.visit("/admin/listing/new?template=custom");
   await browser.submitForm(
-    { max_attendees: "50", max_quantity: "5", ...fields },
+    { max_attendees: "50", max_quantity: "5", unit_price: "0", ...fields },
     "Create Listing",
   );
   return gotoListing(browser, fields.name);

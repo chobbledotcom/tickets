@@ -5,11 +5,6 @@
 
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
-import {
-  type CatalogField,
-  isWholeNumberKind,
-} from "#shared/catalog-fields/definition.ts";
-import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { formatCurrency, getDecimalPlaces } from "#shared/currency.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { formatBytes } from "#shared/format-units.ts";
@@ -25,6 +20,11 @@ import {
   requireChoiceOptions,
 } from "#shared/forms/field.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { closedFieldsFor } from "#shared/records/write-access.ts";
+import { type ClosedFields, fieldOfKey } from "#shared/rest/field-specs.ts";
+import { isWholeNumberField } from "#shared/rest/field-values.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
@@ -47,19 +47,32 @@ import {
   wholeNumberCheck,
 } from "#templates/fields/validators.ts";
 import {
+  type AdminLevel,
   ContactFieldSchema,
   ListingTypeSchema,
   MAX_DURATION_DAYS,
 } from "#types";
 
 export interface ListingFormView {
-  builder?: boolean;
-  logistics?: boolean;
+  /** The fields this writer cannot set. The page hides their boxes. */
+  closed: ClosedFields;
   nameAutofocus?: boolean;
   storage?: boolean;
   subscriptions?: boolean;
-  webhook?: boolean;
 }
+
+/** A view that hides no field box, for a read of the box names. */
+const OPEN_VIEW: ListingFormView = { closed: new Map() };
+
+/** True when the page shows the box of this field. */
+const shows = (view: ListingFormView, key: string): boolean =>
+  !view.closed.has(key);
+
+/** What the listing page shows to a writer of this level. */
+export const listingFormView = (adminLevel: AdminLevel): ListingFormView => ({
+  closed: closedFieldsFor(LISTING_FIELDS, adminLevel),
+  storage: isStorageEnabled(),
+});
 
 type ListingNumberFieldOptions = Partial<
   Pick<
@@ -88,19 +101,11 @@ type ListingNumberField<
   type: "number";
 };
 
-/** The catalog entry behind each listing form number field, keyed by the
- *  submitted name. The entry's kind is the shared declaration the listing
- *  JSON API enforces on the same value. */
-const CATALOG_FIELD_BY_NAME: Record<string, CatalogField> = Object.fromEntries(
-  Object.values(listingCatalogFields).map((entry) => [entry[0], entry]),
-);
-
 /** The label and hint of a listing box, read from its `copy` keys. */
 const fieldCopy = (copy: string): { hint: string; label: string } => ({
   hint: t(`fields.listing.${copy}_hint`),
   label: t(`fields.listing.${copy}`),
 });
-
 const listingNumberField = <
   TName extends ListingNumberFieldName,
   TSection extends string,
@@ -111,15 +116,13 @@ const listingNumberField = <
   options: TOptions,
 ): ListingNumberField<TName, TSection> & TOptions => {
   const copy = fieldCopy(LISTING_NUMBER_COPY[name]);
-  const catalogField = CATALOG_FIELD_BY_NAME[name];
   return {
     ...copy,
     ...options,
     // A whole-number kind refuses a fraction on the form, the same rule the
     // API check enforces on the body value. The field's declared bounds stay
     // responsible for the range, and its message.
-    ...(catalogField !== undefined &&
-    isWholeNumberKind(catalogField) &&
+    ...(isWholeNumberField(fieldOfKey(LISTING_FIELDS, name)) &&
     options.validate === undefined
       ? { validate: validateWholeNumber(copy.label) }
       : {}),
@@ -202,7 +205,7 @@ const payMoreOrDaysTick = <TName extends string, TSection extends string>(
 });
 
 /** Listing fields and their sections, rebuilt per request for translated copy. */
-const listingFields = (view: ListingFormView = {}) =>
+const listingFields = (view: ListingFormView = OPEN_VIEW) =>
   [
     {
       ...(view.nameAutofocus ? { autofocus: true } : {}),
@@ -288,7 +291,11 @@ const listingFields = (view: ListingFormView = {}) =>
       hintHtml: t("fields.listing.contact_fields_hint_html"),
       validate: validateListingFields,
     },
-    ticketMoneyField("unit_price", "price"),
+    {
+      ...ticketMoneyField("unit_price", "price"),
+      required: true,
+      requiredMessage: t("fields.validation.unit_price_required"),
+    },
     payMoreOrDaysTick(
       "can_pay_more",
       "allow_pay_more",
@@ -340,7 +347,7 @@ const listingFields = (view: ListingFormView = {}) =>
       section: "advanced",
       type: "url",
       validate: validateHttpsDomainUrl,
-      visible: view.webhook !== false,
+      visible: shows(view, "webhook_url"),
     },
     {
       hint: t("fields.listing.non_transferable_hint"),
@@ -379,28 +386,26 @@ const listingFields = (view: ListingFormView = {}) =>
       ],
       section: "options",
       type: "checkbox-group",
-      visible: view.logistics === true,
+      visible: shows(view, "uses_logistics"),
     },
     listingNumberField("months_per_unit", "advanced", {
       max: 24,
       min: 0,
-      visible: view.builder === true,
+      visible: shows(view, "months_per_unit"),
     }),
     listingNumberField("initial_site_months", "advanced", {
       max: 120,
       min: 0,
-      visible: view.builder === true,
+      visible: shows(view, "initial_site_months"),
     }),
     {
-      hint: t("fields.listing.assign_built_site_hint"),
-      label: t("fields.listing.assign_built_site"),
-      name: "assign_built_site",
-      options: [
-        { label: t("fields.listing.assign_built_site_label"), value: "1" },
-      ],
+      ...checkboxField("assign_built_site", {
+        hint: t("fields.listing.assign_built_site_hint"),
+        label: t("fields.listing.assign_built_site"),
+        optionLabel: t("fields.listing.assign_built_site_label"),
+      }),
       section: "advanced",
-      type: "checkbox-group",
-      visible: view.builder === true,
+      visible: shows(view, "assign_built_site"),
     },
     {
       label: t("fields.listing.attachment", {
@@ -415,7 +420,7 @@ const listingFields = (view: ListingFormView = {}) =>
 
 export const getListingForm = defineFieldsForm(listingFields);
 
-const listingEditFields = (view: ListingFormView = {}) =>
+const listingEditFields = (view: ListingFormView = OPEN_VIEW) =>
   [...listingFields(view), { ...getSlugField(), section: "advanced" }] as const;
 
 export const getListingEditForm = defineFieldsForm(listingEditFields);

@@ -8,6 +8,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getAllImages } from "#db/images.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
@@ -215,7 +216,7 @@ describeWithEnv(
         const cookie = await testCookie();
         const csrfToken = await testCsrfToken();
 
-        await getDb().execute("DROP TABLE images");
+        await getDb().execute(sql`DROP TABLE images`);
         await withBunnyStorageStub(
           () => new Response(null, { status: 201 }),
           async () => {

@@ -533,14 +533,18 @@ A flagged pair is one merge:
 - The renamed scan holds accepted matches in
   `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
   with `deno task cpd:renamed --update`.
-- The strict scans hold the clones that existed when they started to count
+- The strict scans hold the cloned code that existed when they started to count
   renamed copies, in `cfg/.jscpd.baseline.json`,
   `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
   `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
-  with
-  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines. The one exception is a re-paired
-  clone, which the next item defines.
+  with `deno task cpd:update`. Never add a clone to these baselines.
+- A baseline holds one count for each duplicated snippet. The fingerprint of a
+  snippet covers its text with every run of whitespace removed. A line that
+  moves, a blank line, a file rename, and a new partner for a recorded place
+  therefore keep the count. jscpd's own `--baseline` file hashes the raw text
+  of a clone pair, so this repository writes its own baseline over the scan
+  report, in `scripts/jscpd/baseline.ts`. `deno task cpd:update` rewrites every
+  baseline, and `deno task cpd` checks each scan against it.
 - A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
   a clone that the merge base on `origin/main` does not hold, and on a count
   above the base's, so precommit and CI catch both. It reads every
@@ -549,17 +553,14 @@ A flagged pair is one merge:
   new. It fails on a scan task that names another path, so a new scan's
   baseline is compared too. Run it on its own with
   `deno task check:jscpd-baselines`.
-- The ratchet accepts a reshaped clone. An edit to a file can give a recorded
-  clone in that file a new fingerprint. Record the new fingerprint with
-  `--update`. The added clones pass when the baseline does not accept more
-  clones than the same baseline at the merge base. Say so in the pull
-  request.
-- The ratchet accepts a re-paired clone when the total rises. A clone pair has
-  one fingerprint. When a branch deletes one side of a pair, the scan pairs
-  the other side with a new partner, and that pair has a new fingerprint. The
-  ratchet then repeats the scan with the merge base's baseline. An added clone passes when the
-  branch changed neither of its files. The count of added clones must not
-  exceed the count of such re-pairs.
+- A baseline names its fingerprint version. The ratchet cannot compare counts
+  of two versions, so it passes a merge base copy that holds an older version.
+  A baseline whose own version is old fails, and the fix is
+  `deno task cpd:update`.
+- A rewrite re-keys the recorded places it changes. The ratchet accepts those
+  places while the baseline's total falls. A baseline whose total rises, or one
+  that adds more places than it gives up, still fails. A count above the
+  base's for a snippet that the base holds still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. The
@@ -584,6 +585,25 @@ to do.
   single-record reads (`getAllListings`), full-table backup and restore, and
   `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
+
+### The `sql` Tag
+
+Write all SQL in a `sql` template from `#db/sql.ts`. The runners refuse a
+plain string.
+
+- A value in a slot is a bound argument. It never enters the SQL text.
+- A statement in a slot brings its own values with it.
+- Use `sqlName` and `sqlNames` for a table name or a column name.
+- Use `sqlLiteral` for a constant that the SQL text must hold: schema text,
+  trigger text, and a constant that a partial index names.
+- Use `sqlList` for the values of an `IN (...)`, and `sqlRows` for VALUES rows.
+- Bind an id as text when the SQL compares it with a TEXT column. libsql binds
+  a JavaScript number as a float, and `CAST(5.0 AS TEXT)` gives `'5.0'`.
+- Do not write a slot inside a quoted SQL literal. The tag refuses it.
+- `sqlFromDump` is for backup restore only.
+
+The SQL tag check in `test/integration/code-quality.test.ts` fails on SQL text
+or a placeholder outside a `sql` template in `src/`.
 
 ### Transactions and Batches
 

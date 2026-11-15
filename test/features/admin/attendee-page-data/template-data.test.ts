@@ -16,6 +16,9 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 
 const blankForm = () => buildCreateForm([], [], new Map(), "");
 
+/** The error fields every create form's template data carries. */
+const ERROR_FIELDS = ["attendeeError", "dateError", "formError"] as const;
+
 /** The create form's template data for a blank form booked on `status` — the
  * shape the no-order balance tests read. */
 const dataForStatus = async (status: { id: number }) => {
@@ -48,9 +51,9 @@ describeWithEnv("attendee form template data", { db: true }, () => {
       formError: "",
     });
 
-    expect(data.attendeeError).toBe("");
-    expect(data.dateError).toBe("");
-    expect(data.formError).toBe("");
+    for (const errorField of ERROR_FIELDS) {
+      expect(data[errorField]).toBe("");
+    }
     expect(data.hasMixedTimings).toBe(false);
     expect(data.questions).toEqual([]);
     expect(data.selectedAnswerIds).toEqual([]);

@@ -20,14 +20,16 @@ import {
   type CountingDayRange,
   dateToRange,
 } from "#db/capacity.ts";
-import type { SqlStatement } from "#db/client.ts";
+
 import {
-  numberedStatement,
-  type SqlParameter,
-  type SqlParameterToken,
-} from "#db/numbered-statement.ts";
+  type SqlStatement,
+  sql,
+  sqlCommas,
+  sqlJoin,
+  sqlLiteral,
+  sqlName,
+} from "#db/sql.ts";
 import { countsPerDate } from "#shared/capacity-rules.ts";
-import { remembered } from "#shared/remembered.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 
 /** One listing's or one group's cart demand. `perDay` holds the dated demand
@@ -114,18 +116,21 @@ const hasUndatedDemand = (bucket: CapacityBucket): boolean =>
 /** The bucket's per-day rows as VALUES tuples of (start_at, end_at, qty). The
  * demand quantity stays a literal: it is a non-negative cart total, never
  * user-typed text. */
-const dayDemandRows = (bucket: CapacityBucket, bind: SqlParameter): string =>
-  [...bucket.perDay]
-    .map(([day, qty]) => {
+const dayDemandRows = (bucket: CapacityBucket): SqlStatement =>
+  sqlCommas(
+    [...bucket.perDay].map(([day, qty]) => {
       const { endAt, startAt } = dateToRange(day);
-      return `(${bind(startAt)}, ${bind(endAt)}, ${qty})`;
-    })
-    .join(", ");
+      return sql`(${startAt}, ${endAt}, ${sqlLiteral(qty)})`;
+    }),
+  );
 
 const DAY_RANGE: CountingDayRange = {
-  endSql: "dayDemand.column2",
-  startSql: "dayDemand.column1",
+  endSql: sqlName("dayDemand.column2"),
+  startSql: sqlName("dayDemand.column1"),
 };
+
+/** The per-kind cap rule: whether an overflow against a cap is a refusal. */
+type Violation = (overflow: SqlStatement, cap: SqlStatement) => SqlStatement;
 
 /** Refuse when any single day's occupancy plus that day's cart demand, on
  * top of the demand every date carries, breaks the cap. `violation` is the
@@ -133,17 +138,16 @@ const DAY_RANGE: CountingDayRange = {
  * listing refusal), a group passes an uncapped cap of 0 (the write's
  * `max_attendees > 0` gate). */
 const perDayClause = (
-  capSql: string,
-  countSql: string,
-  violation: (overflow: string, cap: string) => string,
+  capSql: SqlStatement,
+  countSql: SqlStatement,
+  violation: Violation,
   bucket: CapacityBucket,
-  bind: SqlParameter,
-): string =>
-  `NOT EXISTS (
+): SqlStatement =>
+  sql`NOT EXISTS (
     SELECT 1
-      FROM (VALUES ${dayDemandRows(bucket, bind)}) AS dayDemand
+      FROM (VALUES ${dayDemandRows(bucket)}) AS dayDemand
      WHERE ${violation(
-       `(${countSql}) + dayDemand.column3 + ${bucket.everyDay}`,
+       sql`(${countSql}) + dayDemand.column3 + ${sqlLiteral(bucket.everyDay)}`,
        capSql,
      )}
   )`;
@@ -152,119 +156,101 @@ const perDayClause = (
  * listing carries a cap only while it is active, so the filter is part of the
  * subquery. */
 const capSqlFor =
-  (table: "listings" | "groups", activeFilter: string) =>
-  (idSql: SqlParameterToken): string =>
-    `(SELECT max_attendees FROM ${table} WHERE id = ${idSql}${activeFilter})`;
+  (table: "listings" | "groups", activeFilter: SqlStatement) =>
+  (id: number): SqlStatement =>
+    sql`(SELECT max_attendees FROM ${sqlName(
+      table,
+    )} WHERE id = ${id}${activeFilter})`;
 
-const listingCapSql = capSqlFor("listings", " AND active = 1");
+const listingCapSql = capSqlFor("listings", sql` AND active = 1`);
 
-const groupCapSql = capSqlFor("groups", "");
+const groupCapSql = capSqlFor("groups", sql``);
 
 /** One per-day clause builder per bucket kind: each brings its own cap, its
  * own counting subquery, and its own cap rule; the refusal shape is shared. */
 const perDayClauseOf =
   (
-    capSql: (idSql: SqlParameterToken) => string,
-    countSql: (idSql: SqlParameterToken) => string,
-    violation: (overflow: string, cap: string) => string,
+    capSql: (id: number) => SqlStatement,
+    countSql: (id: number) => SqlStatement,
+    violation: Violation,
   ) =>
-  (
-    idSql: SqlParameterToken,
-    bucket: CapacityBucket,
-    bind: SqlParameter,
-  ): string =>
-    perDayClause(capSql(idSql), countSql(idSql), violation, bucket, bind);
+  (id: number, bucket: CapacityBucket): SqlStatement =>
+    perDayClause(capSql(id), countSql(id), violation, bucket);
 
 const listingPerDayClause = perDayClauseOf(
   listingCapSql,
-  (idSql) =>
+  (id) =>
     buildListingCountSql({
       dayRange: DAY_RANGE,
       excludeAttendeeId: null,
-      listingId: idSql,
+      listingId: id,
     }),
-  (overflow, cap) => `${cap} IS NULL OR ${overflow} > ${cap}`,
+  (overflow, cap) => sql`${cap} IS NULL OR ${overflow} > ${cap}`,
 );
 
 const groupPerDayClause = perDayClauseOf(
   groupCapSql,
-  (idSql) => buildGroupCountSql(DAY_RANGE, null, idSql),
-  (overflow, cap) => `${cap} > 0 AND ${overflow} > ${cap}`,
+  (id) => buildGroupCountSql(DAY_RANGE, null, id),
+  (overflow, cap) => sql`${cap} > 0 AND ${overflow} > ${cap}`,
 );
 
-const LISTING_UNDATED = (
-  idSql: SqlParameterToken,
-  bucket: CapacityBucket,
-): string =>
+const LISTING_UNDATED = (id: number, bucket: CapacityBucket): SqlStatement =>
   undatedClause(
     buildListingCountSql({
       dayRange: null,
       excludeAttendeeId: null,
-      listingId: idSql,
+      listingId: id,
     }),
-    listingCapSql(idSql),
+    listingCapSql(id),
     bucket,
   );
 
-const GROUP_UNDATED = (
-  idSql: SqlParameterToken,
-  bucket: CapacityBucket,
-): string =>
-  `(${groupCapSql(idSql)} = 0 OR ${undatedClause(
-    buildGroupCountSql(null, null, idSql),
-    groupCapSql(idSql),
+const GROUP_UNDATED = (id: number, bucket: CapacityBucket): SqlStatement =>
+  sql`(${groupCapSql(id)} = 0 OR ${undatedClause(
+    buildGroupCountSql(null, null, id),
+    groupCapSql(id),
     bucket,
   )})`;
 
 /** The undated clause for a bucket whose cart carries date-less demand:
  * `running total + the demand its last date-less line saw <= cap`. */
 const undatedClause = (
-  countSql: string,
-  capSql: string,
+  countSql: SqlStatement,
+  capSql: SqlStatement,
   bucket: CapacityBucket,
-): string => `(${countSql}) + ${bucket.throughLastUndated} <= ${capSql}`;
+): SqlStatement =>
+  sql`(${countSql}) + ${sqlLiteral(bucket.throughLastUndated)} <= ${capSql}`;
 
 const demandClauses = (
   demand: Map<number, CapacityBucket>,
-  bind: SqlParameter,
   perDay: typeof listingPerDayClause,
   undated: typeof LISTING_UNDATED,
-): string[] =>
+): SqlStatement[] =>
   [...demand].flatMap(([id, bucket]) => {
     if (bucket.perDay.size === 0 && !hasUndatedDemand(bucket)) return [];
-    // The id binds on the bucket's first clause, so an empty bucket binds none.
-    const idSql = bind(id);
-    const clauses = bucket.perDay.size > 0 ? [perDay(idSql, bucket, bind)] : [];
+    const clauses = bucket.perDay.size > 0 ? [perDay(id, bucket)] : [];
     if (!hasUndatedDemand(bucket)) return clauses;
-    return [...clauses, undated(idSql, bucket)];
+    return [...clauses, undated(id, bucket)];
   });
 
 /** A 1/0 expression: does this cart demand fit right now? */
-const fitExpression = (demand: CartDemand, bind: SqlParameter): string => {
+const fitExpression = (demand: CartDemand): SqlStatement => {
   const clauses = [
     ...demandClauses(
       demand.listingDemand,
-      bind,
       listingPerDayClause,
       LISTING_UNDATED,
     ),
-    ...demandClauses(
-      demand.groupDemand,
-      bind,
-      groupPerDayClause,
-      GROUP_UNDATED,
-    ),
+    ...demandClauses(demand.groupDemand, groupPerDayClause, GROUP_UNDATED),
   ];
-  return clauses.length === 0 ? "1" : `(${clauses.join(" AND ")})`;
+  return clauses.length === 0 ? sql`1` : sql`(${sqlJoin(clauses, sql` AND `)})`;
 };
 
 /** One SELECT returning `fits` (1/0): does this cart demand fit right now?
  * The checkout preflight asks once for the whole cart; a refusal diagnosis
  * asks write-order prefixes this way, one statement per sampled prefix in
- * one snapshot batch. The binder reuses a placeholder for a value it has
- * bound already, so listings booking the same dates bind each day range
- * once and the statement stays under SQLite's variable-number cap. */
+ * one snapshot batch. Equal values share one slot, so listings booking the
+ * same dates bind each day range once and the statement stays under SQLite's
+ * variable-number cap. */
 export const buildCartCapacitySql = (demand: CartDemand): SqlStatement =>
-  numberedStatement(
-    (bind) => `SELECT ${fitExpression(demand, remembered(bind))} AS fits`,
-  );
+  sql`SELECT ${fitExpression(demand)} AS fits`;

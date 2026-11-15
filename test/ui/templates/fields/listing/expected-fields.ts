@@ -34,6 +34,7 @@ const INTERVAL_CHOICES = [
 
 // The expected fields are written out literally so a changed name, label,
 // hint, bound, flag, or choice fails here instead of moving along with it.
+/* jscpd:ignore-start -- a list of field records, not code */
 export const LISTING_FIELDS = [
   {
     hint: "Displayed to attendees on the ticket page",
@@ -183,10 +184,16 @@ export const LISTING_FIELDS = [
     type: "checkbox-group",
   },
   {
-    ...MONEY_TEXT,
-    label: "Ticket price (leave empty for free)",
+    inputmode: "decimal",
+    label: "Ticket price",
     name: "unit_price",
+    pattern: "\\d+(\\.\\d{1,2})?",
+    placeholder: "e.g. 10.00",
+    required: true,
+    requiredMessage: "Enter a ticket price. Type 0 for free.",
     section: "tickets",
+    title: "A non-negative number (e.g. 10.00)",
+    type: "text",
   },
   {
     hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
@@ -367,6 +374,7 @@ export const LISTING_FIELDS = [
     visible: false,
   },
 ];
+/* jscpd:ignore-end */
 
 export const SLUG_FIELD = {
   hint: "URL-friendly identifier (lowercase letters, numbers, hyphens, and underscores). Changing this will break any existing links, embeds, or QR codes that point to this page. Only change if you know what you're doing.",

@@ -16,15 +16,26 @@ export const useHandler = (
   browser.handleRequest = (request) => Promise.resolve(handler(request));
 };
 
+/** What the last send carried: where it went and what it said. */
+export interface RecordedSend {
+  body: string;
+  method: string;
+  path: string;
+  query: string;
+}
+
+/** A browser that keeps each send, with a reader for the last one. */
+export interface RecordingBrowser {
+  browser: TestBrowser;
+  sent: () => RecordedSend;
+}
+
 /** A browser that keeps what its last send carried — where it went and what it
  * said — so a test can read back either, or both. Nothing was sent yet reads
  * as an empty address and an empty body. */
-export const recordingBrowser = (): {
-  browser: TestBrowser;
-  sent: () => { body: string; method: string; path: string; query: string };
-} => {
+export const recordingBrowser = (): RecordingBrowser => {
   const browser = new TestBrowser();
-  let sent = { body: "", method: "", path: "", query: "" };
+  let sent: RecordedSend = { body: "", method: "", path: "", query: "" };
   useHandler(browser, async (request) => {
     const url = new URL(request.url);
     sent = {
@@ -36,6 +47,13 @@ export const recordingBrowser = (): {
     return new Response("saved");
   });
   return { browser, sent: () => sent };
+};
+
+/** A recording browser in front of a page that holds this HTML. */
+export const recordingPage = (html: string): RecordingBrowser => {
+  const { browser, sent } = recordingBrowser();
+  browser.currentHtml = html;
+  return { browser, sent };
 };
 
 /** A browser whose sends are read back as what they said. */

@@ -11,6 +11,7 @@ import { getDb } from "#db/client.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
@@ -98,15 +99,9 @@ export const makeBookingOn = async (
     ]),
   );
   const endDate = addDays(startDate, durationDays);
-  await getDb().execute({
-    args: [
-      `${startDate}T00:00:00Z`,
-      `${endDate}T00:00:00Z`,
-      attendee.id,
-      listing.id,
-    ],
-    sql: "UPDATE listing_attendees SET start_at = ?, end_at = ? WHERE attendee_id = ? AND listing_id = ?",
-  });
+  await getDb().execute(
+    sql`UPDATE listing_attendees SET start_at = ${`${startDate}T00:00:00Z`}, end_at = ${`${endDate}T00:00:00Z`} WHERE attendee_id = ${attendee.id} AND listing_id = ${listing.id}`,
+  );
   return {
     attendeeId: attendee.id,
     listingId: listing.id,

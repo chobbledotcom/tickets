@@ -1,4 +1,4 @@
-import { LibsqlBatchError, LibsqlError } from "@libsql/client";
+import { type Client, LibsqlBatchError, LibsqlError } from "@libsql/client";
 import {
   ClosedError,
   InternalError,
@@ -6,6 +6,7 @@ import {
 } from "@libsql/hrana-client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   hranaBatchReply,
@@ -13,12 +14,22 @@ import {
   hranaTestDatabase,
 } from "#test-utils/hrana.ts";
 
+/** Assert a two-statement write batch over `remote` rejects as `errorClass` and
+ *  matches `shape`: both faults surface through the same batch reply path. */
+const expectTwoStatementBatchFailure = async (
+  remote: { client: Client },
+  errorClass: typeof LibsqlBatchError | typeof LibsqlError,
+  shape: Record<PropertyKey, unknown>,
+): Promise<void> => {
+  const result = remote.client.batch([sql`SELECT 1`, sql`SELECT 2`], "write");
+  await expect(result).rejects.toBeInstanceOf(errorClass);
+  await expect(result).rejects.toMatchObject(shape);
+};
+
 for (const fault of ["begin", "select", "commit"] as const) {
   test(`rejects a ${fault} failure without a partial result`, async () => {
     using remote = hranaTestDatabase({ fault });
-    const result = remote.client.batch(["SELECT 1", "SELECT 2"], "write");
-    await expect(result).rejects.toBeInstanceOf(LibsqlError);
-    await expect(result).rejects.toMatchObject({
+    await expectTwoStatementBatchFailure(remote, LibsqlError, {
       code: "SQLITE_ERROR",
       message: expect.stringContaining(`forced ${fault} failure`),
     });
@@ -36,7 +47,7 @@ test("preserves the failed statement index and provider error", async () => {
     },
   });
   const result = remote.client.batch(
-    ["SELECT 1", "SELECT missing", "SELECT 3"],
+    [sql`SELECT 1`, sql`SELECT missing`, sql`SELECT 3`],
     "write",
   );
   await expect(result).rejects.toBeInstanceOf(LibsqlBatchError);
@@ -57,7 +68,7 @@ for (const index of [0, 1, 2, 3]) {
       }),
     });
     await expect(
-      remote.client.batch(["SELECT 1"], "write"),
+      remote.client.batch([sql`SELECT 1`], "write"),
     ).rejects.toMatchObject({
       code: "HRANA_PROTO_ERROR",
       message: expect.stringContaining("number of pipeline results"),
@@ -79,9 +90,7 @@ for (const missing of ["null", "absent"] as const) {
         );
       }),
     });
-    const result = remote.client.batch(["SELECT 1", "SELECT 2"], "write");
-    await expect(result).rejects.toBeInstanceOf(LibsqlBatchError);
-    await expect(result).rejects.toMatchObject({
+    await expectTwoStatementBatchFailure(remote, LibsqlBatchError, {
       code: "TRANSACTION_CLOSED",
       message: expect.stringContaining(
         "Primary read statement was not executed",
@@ -102,7 +111,7 @@ for (const code of [undefined, "SQLITE_BUSY", "SQLITE_CONSTRAINT_UNIQUE"]) {
       }),
     });
     await expect(
-      remote.client.batch(["SELECT 1"], "write"),
+      remote.client.batch([sql`SELECT 1`], "write"),
     ).rejects.toMatchObject({
       cause: expect.any(LibsqlError),
       code: code ?? "UNKNOWN",
@@ -121,7 +130,7 @@ test("rejects conflicting row success and error replies", async () => {
     }),
   });
   await expect(
-    remote.client.batch(["SELECT 1"], "write"),
+    remote.client.batch([sql`SELECT 1`], "write"),
   ).rejects.toMatchObject({
     code: "HRANA_PROTO_ERROR",
     message: expect.stringContaining("both result and error"),
@@ -139,7 +148,7 @@ test("rejects a failure of the whole query batch", async () => {
     }),
   });
   await expect(
-    remote.client.batch(["SELECT 1"], "write"),
+    remote.client.batch([sql`SELECT 1`], "write"),
   ).rejects.toMatchObject({ code: "SQLITE_BUSY" });
 });
 
@@ -181,7 +190,7 @@ for (const response of [
       }),
     });
     await expect(
-      remote.client.batch(["SELECT 1"], "write"),
+      remote.client.batch([sql`SELECT 1`], "write"),
     ).rejects.toMatchObject({ code: "HRANA_PROTO_ERROR" });
   });
 }
@@ -189,7 +198,7 @@ for (const response of [
 test("preserves a JSON parser error", async () => {
   using remote = hranaTestDatabase({ reply: () => new Response("{") });
   await expect(
-    remote.client.batch(["SELECT 1"], "write"),
+    remote.client.batch([sql`SELECT 1`], "write"),
   ).rejects.toBeInstanceOf(SyntaxError);
 });
 
@@ -204,7 +213,9 @@ test("preserves a transport failure without an automatic retry", async () => {
       },
     },
   });
-  await expect(remote.client.batch(["SELECT 1"], "write")).rejects.toBe(error);
+  await expect(remote.client.batch([sql`SELECT 1`], "write")).rejects.toBe(
+    error,
+  );
   expect(calls).toBe(1);
 });
 
@@ -218,7 +229,7 @@ for (const [error, code] of [
       config: { fetch: () => Promise.reject(error) },
     });
     await expect(
-      remote.client.batch(["SELECT 1"], "write"),
+      remote.client.batch([sql`SELECT 1`], "write"),
     ).rejects.toMatchObject({ cause: error, code });
   });
 }
@@ -236,7 +247,7 @@ test("rejects an unsafe returned integer without a partial result", async () => 
       }),
   });
   await expect(
-    remote.client.batch(["SELECT 1"], "write"),
+    remote.client.batch([sql`SELECT 1`], "write"),
   ).rejects.toBeInstanceOf(RangeError);
 });
 
@@ -251,7 +262,7 @@ for (const value of [
       remote.client.batch([["SELECT ?", [value]]], "write"),
     ).rejects.toBeInstanceOf(RangeError);
     expect(remote.requests).toEqual([]);
-    expect(await remote.client.batch(["SELECT 1"], "write")).toHaveLength(1);
+    expect(await remote.client.batch([sql`SELECT 1`], "write")).toHaveLength(1);
   });
 }
 
@@ -259,7 +270,7 @@ test("rejects HTTP 503 as SERVER_ERROR", async () => {
   using remote = hranaTestDatabase({
     reply: () => new Response("Unavailable", { status: 503 }),
   });
-  const result = remote.client.batch(["SELECT 1"], "write");
+  const result = remote.client.batch([sql`SELECT 1`], "write");
   await expect(result).rejects.toBeInstanceOf(LibsqlError);
   await expect(result).rejects.toMatchObject({
     code: "SERVER_ERROR",
@@ -271,7 +282,7 @@ test("rejects HTTP 503 as SERVER_ERROR", async () => {
 for (const action of ["close", "reconnect"] as const) {
   test(`${action} rejects work before the first HTTP request`, async () => {
     using remote = hranaTestDatabase();
-    const pending = remote.client.batch(["SELECT 1"], "write");
+    const pending = remote.client.batch([sql`SELECT 1`], "write");
     remote.client[action]();
     await expect(pending).rejects.toMatchObject({
       code: "UNKNOWN",
@@ -279,7 +290,7 @@ for (const action of ["close", "reconnect"] as const) {
     });
     expect(remote.requests).toEqual([]);
     remote.client.reconnect();
-    expect(await remote.client.batch(["SELECT 2"], "write")).toHaveLength(1);
+    expect(await remote.client.batch([sql`SELECT 2`], "write")).toHaveLength(1);
   });
 }
 
@@ -294,9 +305,9 @@ test("uses a fresh stream after an HTTP 503 failure", async () => {
     },
   });
   await expect(
-    remote.client.batch(["SELECT 1"], "write"),
+    remote.client.batch([sql`SELECT 1`], "write"),
   ).rejects.toMatchObject({ code: "SERVER_ERROR" });
-  expect(await remote.client.batch(["SELECT 2"], "write")).toHaveLength(1);
+  expect(await remote.client.batch([sql`SELECT 2`], "write")).toHaveLength(1);
   expect(attempts).toBe(2);
   expect(remote.envelopes.map((envelope) => envelope.baton)).toEqual([
     undefined,

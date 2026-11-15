@@ -1,6 +1,6 @@
 /**
  * Column-width schema, TS side. The widths and alignment live once in the
- * `$column-kinds` map in `src/ui/static/style.scss`, which generates a
+ * `$column-kinds` map in `src/ui/static/_tables.scss`, which generates a
  * `.col-<kind>` class per kind. {@link ColumnKind} mirrors those names, so it
  * must be kept in step with the SCSS map.
  *

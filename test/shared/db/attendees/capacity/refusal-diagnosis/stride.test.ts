@@ -10,6 +10,7 @@ import {
 } from "#db/groups.ts";
 import { listingsTable } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -57,18 +58,30 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     return members.map((listing) => line(listing.id));
   };
 
+  /** Run the diagnosis under a database-call budget and return what it named.
+   * `calls` pins the round trips the ask actually spent inside that budget. */
+  const diagnoseWithinBudget = async (
+    budget: number,
+    calls: number,
+    lines: LineBooking[],
+  ): Promise<number[]> => {
+    let diagnosis: number[] | undefined;
+    expect(
+      await countDatabaseCalls(budget, async () => {
+        diagnosis = await refusedOrderUnfitListingIds(lines);
+      }),
+    ).toBe(calls);
+    return requireValue(diagnosis, "the diagnosis must name its answer");
+  };
+
   test("a longer refused order narrows a bracket instead of one query per line", async () => {
     // Seventeen lines share one place. The first stride batch samples every
     // third prefix plus the bracket end, the second asks the bracket's own
     // lines: three round trips total, not one probe statement per prefix.
     const lines = await seventeenLinesSharingOnePlace();
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(4, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(3);
-    expect(diagnosis).toEqual([lines[1]!.listingId]);
+    expect(await diagnoseWithinBudget(4, 3, lines)).toEqual([
+      lines[1]!.listingId,
+    ]);
   });
 
   test("every probe batch holds at most the stride sample plus its bracket ends", async () => {
@@ -101,13 +114,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       line(index % 2 ? b.id : a.id),
     );
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(4, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(4);
-    expect(diagnosis).toEqual([a.id]);
+    expect(await diagnoseWithinBudget(4, 4, lines)).toEqual([a.id]);
   });
 
   test("a booking that consumes room between batches still names the first unfit line", async () => {
@@ -127,21 +134,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     using _batchGate = gateDiagnosisBatches(async (call) => {
       if (call === 2) {
         await execute(
-          "INSERT INTO listing_attendees " +
-            "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
-            "VALUES (?, ?, NULL, NULL, ?, ?, 0, 0)",
-          [a.id, 999_999, 12, ""],
+          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_999}, NULL, NULL, ${12}, ${""}, 0, 0)`,
         );
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(8, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(6);
-    expect(diagnosis).toEqual([b.id]);
+    expect(await diagnoseWithinBudget(8, 6, lines)).toEqual([b.id]);
   });
 
   test("a room that moves under every batch names nothing once its batch budget spends", async () => {
@@ -158,15 +156,11 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     const holdPlaces = async (places: number): Promise<void> => {
       if (churnPlaces === 0) {
         await execute(
-          "INSERT INTO listing_attendees " +
-            "(listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) " +
-            "VALUES (?, ?, NULL, NULL, ?, '', 0, 0)",
-          [a.id, 999_998, places],
+          sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id) VALUES (${a.id}, ${999_998}, NULL, NULL, ${places}, '', 0, 0)`,
         );
       } else {
         await execute(
-          "UPDATE listing_attendees SET quantity = ? WHERE attendee_id = ?",
-          [places, 999_998],
+          sql`UPDATE listing_attendees SET quantity = ${places} WHERE attendee_id = ${999_998}`,
         );
       }
       churnPlaces = places;
@@ -178,13 +172,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(17, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(17);
-    expect(diagnosis).toEqual([]);
+    expect(await diagnoseWithinBudget(17, 17, lines)).toEqual([]);
   });
 
   test("a member that joins a new full group mid-diagnosis still names the first unfit line", async () => {
@@ -214,20 +202,12 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       // stale-sided fits.
       if (call === 1) {
         await execute(
-          "INSERT INTO group_listings (group_id, listing_id) " +
-            "VALUES (?, ?), (?, ?)",
-          [fullGroup.id, a.id, fullGroup.id, b.id],
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${fullGroup.id}, ${a.id}), (${fullGroup.id}, ${b.id})`,
         );
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(6, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(6);
-    expect(diagnosis).toEqual([b.id]);
+    expect(await diagnoseWithinBudget(6, 6, lines)).toEqual([b.id]);
   });
 
   test("a membership set that comes back in a different row order is the same facts", async () => {
@@ -249,8 +229,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       name: "Two-group member",
     });
     await execute(
-      "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-      [other.id, first.id],
+      sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`,
     );
     const second = await createTestListing({
       groupId: shared.id,
@@ -262,27 +241,19 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     using _batchGate = gateDiagnosisBatches(async (call) => {
       if (call === 1) {
         // The rows land in the opposite scan order; the set is unchanged.
-        await execute("DELETE FROM group_listings WHERE listing_id = ?", [
-          first.id,
-        ]);
         await execute(
-          "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-          [other.id, first.id],
+          sql`DELETE FROM group_listings WHERE listing_id = ${first.id}`,
         );
         await execute(
-          "INSERT INTO group_listings (group_id, listing_id) VALUES (?, ?)",
-          [shared.id, first.id],
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${other.id}, ${first.id})`,
+        );
+        await execute(
+          sql`INSERT INTO group_listings (group_id, listing_id) VALUES (${shared.id}, ${first.id})`,
         );
       }
     });
 
-    let diagnosis: number[] | undefined;
-    expect(
-      await countDatabaseCalls(5, async () => {
-        diagnosis = await refusedOrderUnfitListingIds(lines);
-      }),
-    ).toBe(5);
-    expect(diagnosis).toEqual([second.id]);
+    expect(await diagnoseWithinBudget(5, 5, lines)).toEqual([second.id]);
   });
 
   test("a listing that vanishes mid-diagnosis names nothing", async () => {
@@ -297,20 +268,13 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       // batch, so that batch's own fact re-read answers for the vanished
       // listing.
       if (call === 1) {
-        await execute("DELETE FROM listings WHERE id = ?", [second.id]);
+        await execute(sql`DELETE FROM listings WHERE id = ${second.id}`);
       }
     });
 
-    let diagnosis: number[] | undefined;
     expect(
-      await countDatabaseCalls(3, async () => {
-        diagnosis = await refusedOrderUnfitListingIds([
-          line(first.id),
-          line(second.id),
-        ]);
-      }),
-    ).toBe(3);
-    expect(diagnosis).toEqual([]);
+      await diagnoseWithinBudget(3, 3, [line(first.id), line(second.id)]),
+    ).toEqual([]);
   });
 
   test("an order whose first line alone busts a zero-cap listing names it", async () => {

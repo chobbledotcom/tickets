@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -73,8 +74,7 @@ describeWithEnv("rejected subscription checkout", { db: true }, () => {
             await expectStatuses(deliver, 302);
             if (pruned)
               await execute(
-                "DELETE FROM processed_payments WHERE payment_session_id = ?",
-                [SESSION_ID],
+                sql`DELETE FROM processed_payments WHERE payment_session_id = ${SESSION_ID}`,
               );
             session.amount_total = null;
             await expectStatuses(deliver, 400);

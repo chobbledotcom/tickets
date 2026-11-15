@@ -5,7 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { assertJson } from "#test-utils/assertions.ts";
+import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   addListing,
@@ -61,12 +61,10 @@ describeWithEnv("Admin API - External link search", { db: true }, () => {
     });
 
     test("refuses a search without a record", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/external-sources/links?link_type=listing"),
         400,
-        (body) => {
-          expect(body.error).toBe("link_type and link_id go together");
-        },
+        "link_type and link_id go together",
       );
     });
 
@@ -138,35 +136,40 @@ describeWithEnv("Admin API - External link search", { db: true }, () => {
       );
     });
 
-    test("answers nothing for an id no source holds", async () => {
-      await createSource();
+    // Each case names an external id no record answers. The first holds a
+    // source the id misses; the second holds no source at all.
+    const emptyLookups = [
+      {
+        name: "answers nothing for an id no source holds",
+        query: "external_id=UNKNOWN",
+        withSource: true,
+      },
+      {
+        name: "answers nothing when the directory holds no sources",
+        query: "external_id=ANY",
+        withSource: false,
+      },
+    ];
 
-      await assertJson(
-        apiRequest("/api/admin/external-sources/lookup?external_id=UNKNOWN"),
-        200,
-        (body) => {
-          expect(body.links).toEqual([]);
-        },
-      );
-    });
+    for (const { name, query, withSource } of emptyLookups) {
+      test(name, async () => {
+        if (withSource) await createSource();
 
-    test("answers nothing when the directory holds no sources", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources/lookup?external_id=ANY"),
-        200,
-        (body) => {
-          expect(body.links).toEqual([]);
-        },
-      );
-    });
+        await assertJson(
+          apiRequest(`/api/admin/external-sources/lookup?${query}`),
+          200,
+          (body) => {
+            expect(body.links).toEqual([]);
+          },
+        );
+      });
+    }
 
     test("refuses a lookup without an external id", async () => {
-      await assertJson(
+      await expectApiError(
         apiRequest("/api/admin/external-sources/lookup"),
         400,
-        (body) => {
-          expect(body.error).toBe("external_id is required");
-        },
+        "external_id is required",
       );
     });
   });

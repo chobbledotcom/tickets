@@ -11,20 +11,12 @@ import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import {
-  buildCreateListingResource,
-  buildUpdateListingResource,
-} from "#routes/admin/listings-form.ts";
+import { buildUpdateListingResource } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { listingRecord } from "#shared/records/listings.ts";
-import {
-  createListing,
-  listingForm,
-  saveListingEdit,
-  updateListing,
-} from "#test/features/admin/listings-form/helpers.ts";
+import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assignTestAttributeOptions,
@@ -32,8 +24,16 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { testEachRefusal } from "#test-utils/refusal-table.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
-import { featureSetting, withSetting } from "#test-utils/settings.ts";
+
+import {
+  createListing,
+  listingForm,
+  saveListingEdit,
+  tryCreateListing,
+  updateListing,
+} from "./listings-form/helpers.ts";
 
 describeWithEnv("listings form", { db: true }, () => {
   describe("create", () => {
@@ -54,8 +54,7 @@ describeWithEnv("listings form", { db: true }, () => {
         ["max_attendees", "0"],
         ["min_quantity", "0"],
       ] as const) {
-        const form = listingForm({ [field]: value });
-        const result = await buildCreateListingResource(form).create(form);
+        const result = await tryCreateListing({ [field]: value });
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBe(
@@ -107,61 +106,21 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(blank.date).toBe("");
     });
 
-    test("chosen bookable days are kept as chosen", async () => {
-      const row = await createListing({
-        bookable_days: ["Monday", "Thursday"],
-      });
-      expect(row.bookable_days).toEqual(["Monday", "Thursday"]);
-    });
-
-    test("a single chosen day stays that one day", async () => {
-      const row = await createListing({ bookable_days: ["Friday"] });
-      expect(row.bookable_days).toEqual(["Friday"]);
-    });
-
-    test("an impossible date is refused before anything is saved", async () => {
-      const form = listingForm({ date_date: "2026-02-30", date_time: "10:00" });
-      const result = await buildCreateListingResource(form).create(form);
-      expect(result).toEqual({
-        error: "Please enter a valid date and time",
-        ok: false,
-      });
+    test("chosen bookable days are kept as chosen, even a single one", async () => {
+      for (const days of [["Monday", "Thursday"], ["Friday"]]) {
+        expect(
+          (await createListing({ bookable_days: days, name: days.join(" ") }))
+            .bookable_days,
+        ).toEqual(days);
+      }
     });
 
     test("a listing with no closing date stores nothing in that column", async () => {
       const row = await createListing();
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.closes_at FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.closes_at FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.closes_at).toBeNull();
-    });
-
-    test("the use-defaults tick is saved", async () => {
-      const on = await createListing({ use_defaults: "1" });
-      expect(on.use_defaults).toBe(true);
-
-      const off = await createListing({ name: "Own values" });
-      expect(off.use_defaults).toBe(false);
-    });
-
-    test("demo mode drops the webhook address, normal mode keeps it", async () => {
-      const hook = "https://example.com/hook";
-      const real = await createListing({ webhook_url: hook });
-      expect(real.webhook_url).toBe(hook);
-
-      setDemoModeForTest(true);
-      try {
-        const demo = await createListing({
-          name: "Demo listing",
-          webhook_url: hook,
-        });
-        expect(demo.webhook_url).toBe("");
-      } finally {
-        setDemoModeForTest(false);
-      }
     });
 
     test("duplicating a listing copies the source's attribute choices", async () => {
@@ -205,13 +164,12 @@ describeWithEnv("listings form", { db: true }, () => {
       });
       expect(priced.status).toBe(200);
 
-      const form = listingForm({
+      const result = await tryCreateListing({
         duplicated_from: String(source.id),
         group_ids: String(group.id),
         max_quantity: "2",
         name: "Undercapped copy",
       });
-      const result = await buildCreateListingResource(form).create(form);
       expect(result).toEqual({
         error: t("error.package_member_cap", {
           max_quantity: 2,
@@ -247,58 +205,46 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(await getListingDayPrices(row.id)).toEqual({ 1: 1500 });
     });
 
-    test("an unreadable day price rejects the save with a plain message", async () => {
-      const form = listingForm({ day_price_1: "abc", duration_days: "2" });
-      const result = await buildCreateListingResource(form).create(form);
-      expect(result).toEqual({
-        error: "Enter a valid day price for each duration, or leave it blank.",
-        ok: false,
-      });
-    });
+    testEachRefusal(tryCreateListing, [
+      [
+        "an impossible date is refused before anything is saved",
+        { date_date: "2026-02-30", date_time: "10:00" },
+        "Please enter a valid date and time",
+      ],
+      [
+        "an unreadable day price rejects the save with a plain message",
+        { day_price_1: "abc", duration_days: "2" },
+        "Enter a valid day price for each duration, or leave it blank.",
+      ],
+    ]);
 
     test("ticked groups are saved; unticked junk ids are not", async () => {
       const group = await createTestGroup({ name: "Form group" });
       const row = await createListing({
         group_ids: [String(group.id), "0", "-4"],
       });
-      const links = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT groupListing.group_id FROM group_listings AS groupListing " +
-          "WHERE groupListing.listing_id = ?",
-      });
+      const links = await getDb().execute(
+        sql`SELECT groupListing.group_id FROM group_listings AS groupListing WHERE groupListing.listing_id = ${row.id}`,
+      );
       expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
     });
-
-    test("builder and logistics choices stay off while their features are off", async () => {
-      const row = await createListing({
-        assign_built_site: "1",
-        uses_logistics: "1",
-      });
-      expect(row.assign_built_site).toBe(false);
-      expect(row.uses_logistics).toBe(false);
-    });
-
-    test("a logistics choice is kept when the feature is on", () =>
-      withSetting(featureSetting("logistics"), async () => {
-        const on = await createListing({ uses_logistics: "1" });
-        expect(on.uses_logistics).toBe(true);
-        // An unticked checkbox never reaches the form at all.
-        const off = await createListing({ name: "No logistics" });
-        expect(off.uses_logistics).toBe(false);
-      }));
   });
 
   describe("update", () => {
     test("answers not found when the row vanished before the update", async () => {
-      const created = await createListing();
-      const stored = (await getStoredListingWithCount(created.id))!;
-      const form = listingForm({ slug: "kept-slug" });
-      await deleteListing(created.id);
+      const { id } = await createListing();
+      const update = buildUpdateListingResource(
+        (await getStoredListingWithCount(id))!,
+        listingFormView("owner"),
+      );
+      await deleteListing(id);
 
       expect(
-        await buildUpdateListingResource(stored).update(created.id, form),
-      ).toEqual({ notFound: true, ok: false });
+        await update.update(id, listingForm({ slug: "kept-slug" })),
+      ).toEqual({
+        notFound: true,
+        ok: false,
+      });
     });
 
     test("answers not found when the write loses the row", async () => {
@@ -330,6 +276,12 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.slug_index).toBe(await hmacHash("new-slug"));
     });
 
+    test("a refused update fails with the refusal it got", async () => {
+      const { id } = await createListing();
+      const refused = updateListing(id, { name: "" });
+      await expect(refused).rejects.toThrow('update failed: {"error":');
+    });
+
     test("an empty-date save of a daily listing keeps its stored date", async () => {
       // The form's date box hides while the listing is daily, so the save
       // submits an empty date. The guard must see the STORED row: fed the
@@ -353,12 +305,9 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.unit_price).toBe(0);
       // A real stored zero, not an absent value: the column is what the base
       // price row is mirrored from.
-      const stored = await getDb().execute({
-        args: [row.id],
-        sql:
-          "SELECT listing.unit_price FROM listings AS listing " +
-          "WHERE listing.id = ?",
-      });
+      const stored = await getDb().execute(
+        sql`SELECT listing.unit_price FROM listings AS listing WHERE listing.id = ${row.id}`,
+      );
       expect(stored.rows[0]!.unit_price).toBe(0);
     });
 

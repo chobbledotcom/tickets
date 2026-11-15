@@ -20,6 +20,7 @@ import {
 } from "#crypto/keys.ts";
 import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
 import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
@@ -60,18 +61,19 @@ export const storeSumupCheckout = async (
       dataKey,
     ),
   ]);
-  const { sql, args } = insert("sumup_checkouts", {
-    created_at: nowIso(),
-    metadata: ciphertext,
-    // No checkout id yet, so there is nothing to ask SumUp about and nothing
-    // to schedule. Both land together when creation succeeds.
-    next_check_at: null,
-    recovery_state: "staged",
-    reference_index: referenceIndex,
-    sumup_id: "",
-    wrapped_key: wrappedKey,
-  });
-  await execute(sql, args);
+  await execute(
+    insert("sumup_checkouts", {
+      created_at: nowIso(),
+      metadata: ciphertext,
+      // No checkout id yet, so there is nothing to ask SumUp about and nothing
+      // to schedule. Both land together when creation succeeds.
+      next_check_at: null,
+      recovery_state: "staged",
+      reference_index: referenceIndex,
+      sumup_id: "",
+      wrapped_key: wrappedKey,
+    }),
+  );
 };
 
 /** Record the SumUp-side checkout id once creation succeeds, and put the row
@@ -115,8 +117,7 @@ export const getSealedSumupCheckout = async (
     reference_index: string;
     wrapped_key: WrappedKey;
   }>(
-    "SELECT metadata, reference_index, wrapped_key FROM sumup_checkouts WHERE sumup_id = ?",
-    [sumupId],
+    sql`SELECT metadata, reference_index, wrapped_key FROM sumup_checkouts WHERE sumup_id = ${sumupId}`,
   );
   if (!row) return null;
   return {
@@ -167,8 +168,7 @@ export const getSumupCheckout = async (
 ): Promise<SumupCheckoutEntry | null> => {
   const referenceIndex = await hmacHash(reference);
   const row = await queryOne<SumupCheckoutRow>(
-    "SELECT wrapped_key, metadata, sumup_id FROM sumup_checkouts WHERE reference_index = ?",
-    [referenceIndex],
+    sql`SELECT wrapped_key, metadata, sumup_id FROM sumup_checkouts WHERE reference_index = ${referenceIndex}`,
   );
   if (!row) return null;
   return {

@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
@@ -34,7 +35,7 @@ const returnToSuccessPage = (reference: string): Promise<Response> =>
  * one group, so a second group means the ledger posted a second order. */
 const ledgerEventGroups = async (): Promise<string[]> => {
   const rows = await queryAll<{ event_group: string }>(
-    "SELECT DISTINCT event_group FROM transfers",
+    sql`SELECT DISTINCT event_group FROM transfers`,
   );
   return rows.map((row) => row.event_group);
 };

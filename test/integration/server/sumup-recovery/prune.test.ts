@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import {
   RECOVERY_NODES,
   type RecoveryNodeId,
@@ -17,16 +18,10 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
     const old = isoBefore(PRUNE_SUMUP_RETENTION_MS + 60_000);
     for (const node of RECOVERY_NODES) {
       await execute(
-        `INSERT INTO sumup_checkouts
+        sql`INSERT INTO sumup_checkouts
            (reference_index, wrapped_key, metadata, sumup_id, created_at,
             recovery_state, next_check_at)
-         VALUES (?, '', '', ?, ?, ?, NULL)`,
-        [
-          `idx_${node.id}`,
-          node.id === "staged" ? "" : `co_${node.id}`,
-          old,
-          node.id,
-        ],
+         VALUES (${`idx_${node.id}`}, '', '', ${node.id === "staged" ? "" : `co_${node.id}`}, ${old}, ${node.id}, NULL)`,
       );
     }
   };
@@ -34,7 +29,7 @@ describeWithEnv("server > SumUp recovery pruning", { db: true }, () => {
   const survivingStates = async (): Promise<RecoveryNodeId[]> =>
     (
       await queryAll<{ recovery_state: RecoveryNodeId }>(
-        "SELECT recovery_state FROM sumup_checkouts ORDER BY recovery_state",
+        sql`SELECT recovery_state FROM sumup_checkouts ORDER BY recovery_state`,
       )
     ).map((row) => row.recovery_state);
 

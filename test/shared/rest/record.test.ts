@@ -10,6 +10,7 @@
 import { expect } from "@std/expect";
 import { beforeEach, describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
   defineRecord,
@@ -50,7 +51,7 @@ const widgetRecord = (
   });
 
 const storedWidgets = async (): Promise<IdNameRow[]> =>
-  table.read.many({}, { order: "id ASC" });
+  table.read.many({}, { order: sql`id ASC` });
 
 const createWidget = async (
   name: string,
@@ -64,7 +65,7 @@ const createWidget = async (
 describeWithEnv("the admin record write path", { db: true }, () => {
   beforeEach(async () => {
     await getDb().execute(
-      `CREATE TABLE IF NOT EXISTS ${TABLE} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
+      sql`CREATE TABLE IF NOT EXISTS ${sqlName(TABLE)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
     );
   });
 
@@ -316,6 +317,26 @@ describeWithEnv("the admin record write path", { db: true }, () => {
 
     expect(verdict).toEqual({ kind: "refused", message: "Order failed" });
     expect(await storedWidgets()).toEqual([]);
+  });
+
+  test("only a create appends the row to its order, so an update keeps its place", async () => {
+    const appended: unknown[] = [];
+    const record = widgetRecord({
+      order: {
+        append: ({ key }) => {
+          appended.push(key);
+          return Promise.resolve();
+        },
+      },
+    });
+    await createWidget("First", record);
+    await createWidget("Second", record);
+
+    expect(await record.update(1, { name: "Renamed" })).toEqual({
+      kind: "written",
+      row: { id: 1, name: "Renamed" },
+    });
+    expect(appended).toEqual([1, 2]);
   });
 });
 

@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 import { execute } from "#db/client.ts";
 import { getAllRawEmailTemplates } from "#db/email-templates.ts";
+import { sql } from "#db/sql.ts";
 import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { writtenRow } from "#test-utils/record-commands.ts";
@@ -63,7 +64,7 @@ describeRecord(emailTemplateRecord, "Template", "Template subject", () => {
 
   test("updates a template stored under id 0 in place", async () => {
     await createTemplate("Old", "Old body");
-    await execute("UPDATE email_templates SET id = 0 WHERE id = 1");
+    await execute(sql`UPDATE email_templates SET id = 0 WHERE id = 1`);
 
     expect(
       await emailTemplateRecord.update(0, {

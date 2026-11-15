@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -45,7 +46,7 @@ export default schemaMigration(
     // Backfill question_id onto pre-existing choice rows (text rows are new and
     // already carry it). Runs after the rebuild so the column exists under the
     // relaxed constraints and the validation trigger sees a valid NEW row.
-    await getDb().execute(`UPDATE attendee_answers
+    await getDb().execute(sql`UPDATE attendee_answers
       SET question_id = (SELECT question_id FROM answers WHERE answers.id = attendee_answers.answer_id)
       WHERE answer_id IS NOT NULL AND question_id IS NULL`);
   },

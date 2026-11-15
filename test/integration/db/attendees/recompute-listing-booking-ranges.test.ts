@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { recomputeListingBookingRanges } from "#db/attendees/update.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createDailyTestListing,
@@ -10,10 +11,9 @@ import {
 } from "#test-utils/db-helpers/listings.ts";
 
 const getRow = async (listingId: number) => {
-  const res = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
-  });
+  const res = await getDb().execute(
+    sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`,
+  );
   return res.rows[0]!;
 };
 

@@ -7,6 +7,7 @@ import { holidays } from "#db/holidays.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { lazyRef } from "#fp";
 import { runCleanups } from "#scripts/cleanup.ts";
@@ -309,6 +310,5 @@ export const rawListingRange = (
   listingId: number,
 ): Promise<RawListingRange | null> =>
   queryOne<RawListingRange>(
-    "SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ? ORDER BY attendee_id LIMIT 1",
-    [listingId],
+    sql`SELECT start_at, end_at, quantity FROM listing_attendees WHERE listing_id = ${listingId} ORDER BY attendee_id LIMIT 1`,
   );

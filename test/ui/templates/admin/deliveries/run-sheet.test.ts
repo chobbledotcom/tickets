@@ -7,6 +7,7 @@ import {
   type DeliveryLegView,
   renderRunSheetDays,
 } from "#templates/admin/deliveries/run-sheet.tsx";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -156,10 +157,12 @@ describe("renderRunSheetDays", () => {
       // Non-callable phone is shown as plain text, with no tel: link.
       "no-digits-here",
     ]);
-    assert(!html.includes("tel:"));
-    // Blank address and map lines are left out.
-    assert(!html.includes("1 Test Street"));
-    assert(!html.includes("maps/search"));
+    expectExcludesAll(html, [
+      "tel:",
+      // Blank address and map lines are left out.
+      "1 Test Street",
+      "maps/search",
+    ]);
   });
 
   test("omits the phone line entirely when there is no phone", async () => {

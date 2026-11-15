@@ -4,13 +4,12 @@ import { twoListingsAttendees } from "#test/integration/server/attendee-read-hel
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
-import { expectSessionFailed } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
+import { expectTwoListingOrderKeptAndRefunded } from "#test-utils/webhooks/multi-listing-orders.ts";
 import { expectWebhookKeptAndRefunded } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutSessionEvent,
   expectKeptAsQuantityZeroAndRefunded,
-  expectMergedMultiListingAttendee,
   expectRefundedWithNote,
   expectWebhookProcessed,
 } from "#test-utils/webhooks.ts";
@@ -76,49 +75,19 @@ describeWithEnv(
     test("multi-ticket keeps and refunds amount above listing price when can_pay_more is disabled", async () => {
       await setupStripe();
 
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "No Pay More",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 50,
-        maxQuantity: 5,
-        name: "Normal Price",
-        unitPrice: 1000,
-      });
+      // Both listings hold a price the buyer may exceed only with
+      // can_pay_more, which listing1 does not have on.
+      const { attendee, mockRefund } =
+        await expectTwoListingOrderKeptAndRefunded(
+          "no_pay_more",
+          { amountTotal: 3000, email: "over@example.com", payer: "Over Payer" },
+          [
+            { name: "No Pay More", price: 2000, quantity: 1, unitPrice: 500 },
+            { name: "Normal Price", price: 1000, quantity: 1, unitPrice: 1000 },
+          ],
+        );
 
-      // Same metadata shape as the pay-more test, but listing1 has can_pay_more=false
-      const { mockRefund } = await expectWebhookKeptAndRefunded(
-        checkoutSessionEvent({
-          amountTotal: 3000,
-          eventId: "evt_no_pay_more",
-          metadata: signedMeta(
-            {
-              email: "over@example.com",
-              items: JSON.stringify([
-                { e: listing1.id, p: 2000, q: 1 },
-                { e: listing2.id, p: 1000, q: 1 },
-              ]),
-              name: "Over Payer",
-            },
-            3000,
-          ),
-          paymentIntent: "pi_no_pay_more",
-          sessionId: "cs_no_pay_more",
-        }),
-        "re_no_pay_more",
-      );
-
-      // Signed by us → the order is kept as one quantity-0 placeholder across
-      // both listings and refunded once, with a system note.
-      const attendee = await expectMergedMultiListingAttendee(
-        listing1.id,
-        listing2.id,
-      );
       await expectRefundedWithNote(attendee.id, mockRefund);
-      await expectSessionFailed("cs_no_pay_more");
     });
 
     test("multi-ticket can_pay_more accepts total at max_price × quantity boundary", async () => {

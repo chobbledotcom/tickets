@@ -14,6 +14,7 @@ import {
   EDITOR,
   type OpensAPage,
   opensPagesAs,
+  savesServedForm,
   withAdminPage,
 } from "#test/specs/support/browser.ts";
 import { expectCanReallySend } from "#test/specs/support/form-controls/rules.ts";
@@ -133,7 +134,12 @@ export const ownersListingsPage = (world: TicketsWorld): Promise<string> =>
 /** The editor starts a new listing, picks what kind it is from the kinds the
  * site offers, fills the form in and saves it. */
 export const editorAddsListing: ActOnOneThing = async (world, name) => {
-  const typed = { max_attendees: "10", max_quantity: "1", name };
+  const typed = {
+    max_attendees: "10",
+    max_quantity: "1",
+    name,
+    unit_price: "0",
+  };
   const browser = await openAsEditor(world, "/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
   expectCanReallySend(browser.currentHtml, typed);
@@ -178,17 +184,17 @@ export const editorRenames: ChangeOneThing<string> = async (
 /** The editor's save carries a forwarding address their form never offered.
  * That is the whole point of the attempt, so nothing is checked first — the
  * site has to be what turns it away, not the page. */
-export const editorCraftsForwardingTo: ChangeOneThing<string> = (
+export const editorCraftsForwardingTo: ChangeOneThing<string> = async (
   world,
   name,
   address,
-) =>
-  // The save being accepted is what organiserSavesFields checks for us. A whole edit
-  // turned away would leave the address alone too, and prove nothing about this
-  // one field.
-  saveListingEdit(editorBrowser(world), listingIdNamed(world, name), () => ({
-    webhook_url: address,
-  }));
+) => {
+  const browser = await openAsEditor(
+    world,
+    `/admin/listing/${listingIdNamed(world, name)}/edit`,
+  );
+  await savesServedForm(browser, () => ({ webhook_url: address }));
+};
 
 /** The owner makes the same change the ordinary way, through the box their own
  * form offers them. */
