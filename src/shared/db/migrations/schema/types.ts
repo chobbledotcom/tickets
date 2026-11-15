@@ -33,6 +33,9 @@ export type Table = {
 /** One declared table: its name, then its columns and indexes. */
 export type NamedTable = readonly [name: string, table: Table];
 
+/** The declared tables, in the order the migrations create them. */
+export type Schema = readonly NamedTable[];
+
 /**
  * A SQLite trigger that maintains or validates stored data. Unlike indexes,
  * triggers are not part of a single table's definition, so they live in their

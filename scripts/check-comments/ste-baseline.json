@@ -543,8 +543,8 @@
     "semicolon": 3
   },
   "src/shared/db/capacity.ts": {
-    "long-sentence": 5,
-    "semicolon": 2,
+    "long-sentence": 4,
+    "semicolon": 1,
     "banned-modal": 1
   },
   "src/shared/db/checkout-pending-answers.ts": {

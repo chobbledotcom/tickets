@@ -1,7 +1,7 @@
 // effects: pure
 /**
- * Every table as a read sees it: the type of its stored row, the columns that
- * refer to another table, and the word a query calls it by.
+ * Every table as a read sees it. Each table has the type of its stored row,
+ * the columns that refer to another table, and the word a query calls it by.
  *
  * All of it comes from the schema declaration. A column that the schema does
  * not declare is a compile error in a read.

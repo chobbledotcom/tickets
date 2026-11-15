@@ -32,6 +32,9 @@ declare const ROWS: unique symbol;
  * row type from the statement, so the caller does not name it again. */
 export type RowsStatement<Row> = SqlStatement & { readonly [ROWS]: Row };
 
+/** A read: a statement that names its row, or one whose caller names it. */
+export type Read<Row> = SqlStatement | RowsStatement<Row>;
+
 /** What a template slot can hold: a value to bind, or SQL to splice in. */
 export type SqlSlot = InValue | SqlStatement;
 

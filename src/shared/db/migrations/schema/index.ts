@@ -11,7 +11,7 @@ import { invoiceTables } from "./tables-invoices.ts";
 import { questionTables } from "./tables-questions.ts";
 import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
-import type { NamedTable } from "./types.ts";
+import type { NamedTable, Schema } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
 // Schema (ordered: tables with no FK deps first). Concatenating the groups in
@@ -30,7 +30,7 @@ export const TYPED_SCHEMA = [
 ] as const satisfies readonly NamedTable[];
 
 /** Every declared table, as the migrations read it. */
-export const SCHEMA: readonly NamedTable[] = TYPED_SCHEMA;
+export const SCHEMA: Schema = TYPED_SCHEMA;
 
 /** Ordered table names — matches FK dependency order (parents before children) */
 export const SCHEMA_TABLE_NAMES: readonly string[] = SCHEMA.map(

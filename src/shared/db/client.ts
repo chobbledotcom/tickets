@@ -29,7 +29,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import {
-  type RowsStatement,
+  type Read,
   type SqlSlot,
   type SqlStatement,
   sql,
@@ -341,24 +341,19 @@ const firstRowOrNull = <T>(result: ResultSet): T | null => {
   return rows.length === 0 ? null : rows[0]!;
 };
 
-/** A read: a statement that names its row, or one whose caller names it. */
-type ReadOf<Row> = SqlStatement | RowsStatement<Row>;
-
 /**
  * {@link queryAll} for a caller that must read its own writes. The same rows,
  * pinned to the primary, because a replica can lag behind the write and miss
  * them. See {@link queryBatchPrimary}.
  */
-export const queryAllPrimary = async <T>(
-  statement: ReadOf<T>,
-): Promise<T[]> => {
+export const queryAllPrimary = async <T>(statement: Read<T>): Promise<T[]> => {
   const [result] = await queryBatchPrimary([statement]);
   return resultRows<T>(result!);
 };
 
 /** Query all rows as a typed array. A read whose cache refill requires
  *  read-your-writes goes to the primary instead. */
-export const queryAll = async <T>(statement: ReadOf<T>): Promise<T[]> =>
+export const queryAll = async <T>(statement: Read<T>): Promise<T[]> =>
   mustReadFromPrimary() && primaryReadMode() !== "read"
     ? queryAllPrimary<T>(statement)
     : resultRows<T>(await execute(statement));
@@ -367,7 +362,7 @@ export const queryAll = async <T>(statement: ReadOf<T>): Promise<T[]> =>
  * query returns none. */
 const firstRowOn =
   (readAll: typeof queryAll) =>
-  async <T>(statement: ReadOf<T>): Promise<T | null> =>
+  async <T>(statement: Read<T>): Promise<T | null> =>
     (await readAll<T>(statement))[0] ?? null;
 
 /** Query one row, or null when the query returns none. */
@@ -386,7 +381,7 @@ const requireQueryRow = async <T>(
 };
 
 /** Query one required row and name the failed query when none exists. */
-export const requireOne = <T>(statement: ReadOf<T>): Promise<T> =>
+export const requireOne = <T>(statement: Read<T>): Promise<T> =>
   requireQueryRow(queryOne<T>(statement), statement.sql, "Required");
 
 /** Query an optional row on the primary — the singular of
@@ -394,7 +389,7 @@ export const requireOne = <T>(statement: ReadOf<T>): Promise<T> =>
 export const queryOnePrimary = firstRowOn(queryAllPrimary);
 
 /** Query one required row from the primary. */
-export const requireOnePrimary = <T>(statement: ReadOf<T>): Promise<T> =>
+export const requireOnePrimary = <T>(statement: Read<T>): Promise<T> =>
   requireQueryRow(
     queryOnePrimary<T>(statement),
     statement.sql,
