@@ -60,10 +60,6 @@ export const updateListing = async (
   extra: TestFormValues = {},
 ): Promise<Listing> => {
   const result = await saveListingEdit(id, extra);
-  if (!result.ok) {
-    throw new Error(
-      "error" in result ? `update failed: ${result.error}` : "update not found",
-    );
-  }
+  if (!result.ok) throw new Error(`update failed: ${JSON.stringify(result)}`);
   return result.row;
 };

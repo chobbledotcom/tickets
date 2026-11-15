@@ -7,7 +7,6 @@
 
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateUniqueGroupSlug, getGroupById } from "#db/groups.ts";
-import { t } from "#i18n";
 import {
   handleAddListingsToGroup,
   handleRemoveListingsGet,
@@ -25,11 +24,7 @@ import {
 import type { FormParams } from "#shared/form-data.ts";
 import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { groupRecord, soldHiddenPackageError } from "#shared/records/groups.ts";
-import {
-  formFieldsInput,
-  shownFieldKeys,
-  unshownFieldOrNull,
-} from "#shared/rest/field-reads.ts";
+import { formFieldsInput, shownFieldKeys } from "#shared/rest/field-reads.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { adminGroupDeletePage } from "#templates/admin/groups/delete.tsx";
@@ -58,14 +53,6 @@ const shownGroupFields = (): ReadonlySet<string> =>
 
 const sharedGroupFields = (values: GroupCreateFormValues) =>
   formFieldsInput(GROUP_FIELDS, values, shownGroupFields());
-
-/** Refuse a form that sends a field box its page did not show, then check
- *  the package members. */
-const validateGroupForm = (form: FormParams): string | null =>
-  unshownFieldOrNull(GROUP_FIELDS, [...form.keys()], shownGroupFields()) ===
-  null
-    ? validatePackageMemberForm(form)
-    : t("fields.validation.unshown_field");
 
 const extractGroupCreateInput = async (
   values: GroupCreateFormValues,
@@ -100,7 +87,7 @@ const pages = recordPages(groupRecord, {
   renderNew: adminGroupNewPage,
   toEditInput: extractGroupEditInput,
   toInput: extractGroupCreateInput,
-  validateForm: validateGroupForm,
+  validateForm: validatePackageMemberForm,
 });
 
 export const withGroup = withEntityLoader((id: number) => getGroupById(id));

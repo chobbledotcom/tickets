@@ -281,6 +281,12 @@ describeWithEnv("listings form", { db: true }, () => {
       expect(row.slug_index).toBe(await hmacHash("new-slug"));
     });
 
+    test("a refused update fails with the refusal it got", async () => {
+      const { id } = await createListing();
+      const refused = updateListing(id, { name: "" });
+      await expect(refused).rejects.toThrow('update failed: {"error":');
+    });
+
     test("an empty-date save of a daily listing keeps its stored date", async () => {
       // The form's date box hides while the listing is daily, so the save
       // submits an empty date. The guard must see the STORED row: fed the
