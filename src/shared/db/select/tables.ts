@@ -8,13 +8,9 @@
  */
 
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
+import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
-import type {
-  Column,
-  ColumnKind,
-  RefersTo,
-} from "#db/migrations/schema/types.ts";
-import { requiredMapValue } from "#fp";
+import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -33,29 +29,30 @@ export type RowOf<Name extends TableName> = {
   [Each in ColumnOf<Name> as Each[0]]: StoredIn<Each[1]>;
 };
 
+/** The referring columns of a table, and the table each one points at. */
+type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES
+  ? (typeof REFERENCES)[Name]
+  : Record<never, never>;
+
 /** The name a join uses for a referring column: the column without `_id`. */
 type JoinKey<ColumnName> = ColumnName extends `${infer Key}_id` ? Key : never;
 
-/** The referring columns of a table, by the name a join uses for each. */
-type ReferringColumns<Name extends TableName> = {
-  [Each in ColumnOf<Name> as Each[1] extends RefersTo<string>
-    ? JoinKey<Each[0]>
-    : never]: Each[1];
-};
-
 /** The names a join can follow from a table. */
-export type ReferenceOf<Name extends TableName> = keyof ReferringColumns<Name> &
-  string;
+export type ReferenceOf<Name extends TableName> = JoinKey<
+  keyof ReferencesOf<Name>
+>;
 
 /** The table that a reference points at. */
-export type TargetOf<Name extends TableName, Key extends ReferenceOf<Name>> =
-  ReferringColumns<Name>[Key] extends RefersTo<infer Target extends TableName>
-    ? Target
-    : never;
+export type TargetOf<
+  Name extends TableName,
+  Key extends ReferenceOf<Name>,
+> = ReferencesOf<Name>[`${Key}_id` & keyof ReferencesOf<Name>] & TableName;
+
+type StoredAt<Row, Column> = Column extends keyof Row ? Row[Column] : never;
 
 /** Whether the referring column can hold nothing. */
 export type IsOptional<Name extends TableName, Key extends ReferenceOf<Name>> =
-  null extends StoredIn<ReferringColumns<Name>[Key]> ? true : false;
+  null extends StoredAt<RowOf<Name>, `${Key}_id`> ? true : false;
 
 /** The references of `From` that point at `To`. */
 export type ReferenceTo<From extends TableName, To extends TableName> = {
@@ -146,12 +143,15 @@ const handleOf = ([name, table]: (typeof TYPED_SCHEMA)[number]): [
   TableHandle,
 ] => [name, { columns: table.columns, name, singular: SINGULAR[name] }];
 
-const handles = new Map(TYPED_SCHEMA.map(handleOf));
-
 /** Every declared table, by name. */
-export const tables = Object.fromEntries(handles) as {
+export const tables = Object.fromEntries(TYPED_SCHEMA.map(handleOf)) as {
   readonly [Name in TableName]: TableHandle<Name>;
 };
+
+/** The declared references, for a table that code names by text. */
+const REFERENCES_BY_TABLE: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = REFERENCES;
 
 /** Where a reference leads: the referring column, the table it points at, and
  *  whether the column can hold nothing. */
@@ -169,22 +169,24 @@ export const referenceOf = (table: TableHandle, key: string): Reference => {
   if (declared === undefined) {
     throw new Error(`${table.name} has no ${column} column to join along`);
   }
-  const facts = columnFacts(declared[1]);
-  if (facts.refersTo === null) {
+  const targets: Readonly<Record<string, string>> | undefined =
+    REFERENCES_BY_TABLE[table.name];
+  const target = targets?.[column];
+  if (target === undefined) {
     throw new Error(`${table.name}.${column} does not refer to a table`);
   }
   return {
     column,
-    optional: facts.canBeNull,
-    target: requiredMapValue(
-      handles,
-      facts.refersTo,
-      `${table.name}.${column} refers to ${facts.refersTo}, which is not a declared table`,
-    ),
+    optional: columnFacts(declared[1]).canBeNull,
+    target: tableNamed(target),
   };
 };
 
 /** The declared table of this name. Code over any table holds the name as
  *  text. */
-export const tableNamed = (name: string): TableHandle =>
-  requiredMapValue(handles, name, `${name} is not a declared table`);
+export const tableNamed = (name: string): TableHandle => {
+  if (!Object.hasOwn(tables, name)) {
+    throw new Error(`${name} is not a declared table`);
+  }
+  return tables[name as TableName];
+};

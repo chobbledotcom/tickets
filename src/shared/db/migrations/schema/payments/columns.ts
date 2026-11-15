@@ -11,7 +11,6 @@
 
 import {
   checked,
-  refersTo,
   rowId,
   text,
   wholeNumber,
@@ -76,11 +75,7 @@ export const paymentRecord = <
   [
     name,
     {
-      columns: [
-        ["id", rowId],
-        ["payment_id", refersTo("payment_sessions")(text)],
-        ...parts.columns,
-      ],
+      columns: [["id", rowId], ["payment_id", text], ...parts.columns],
       indexes: parts.indexes,
     },
   ] as const satisfies NamedTable;

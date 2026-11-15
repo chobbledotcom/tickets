@@ -10,7 +10,6 @@ import {
   checked,
   defaulted,
   oneOf,
-  refersTo,
   rowId,
   text,
   textOrNull,
@@ -22,9 +21,9 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { NamedTable } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const questionTables = [
+export const questionTables = declaredTables([
   [
     "questions",
     {
@@ -69,13 +68,13 @@ export const questionTables = [
     {
       columns: [
         ["id", rowId],
-        ["question_id", refersTo("questions")(wholeNumber)],
+        ["question_id", wholeNumber],
         ["text", text],
         sortOrderColumn,
         // The price modifier this answer triggers (an "answer"-trigger
         // modifier), or NULL for an answer with no price effect. Many answers
         // may point at one "pricing tier" modifier; an answer has at most one.
-        ["modifier_id", refersTo("modifiers")(wholeNumberOrNull)],
+        ["modifier_id", wholeNumberOrNull],
         // Precomputed COUNT of attendee_answers rows for this answer,
         // maintained by the ANSWER_AGGREGATE_TRIGGERS so the question/answer
         // admin pages report how many times the answer was chosen without
@@ -99,8 +98,8 @@ export const questionTables = [
     {
       columns: [
         ["id", rowId],
-        ["listing_id", refersTo("listings")(wholeNumber)],
-        ["question_id", refersTo("questions")(wholeNumber)],
+        ["listing_id", wholeNumber],
+        ["question_id", wholeNumber],
         sortOrderColumn,
       ],
       indexes: [
@@ -130,7 +129,7 @@ export const questionTables = [
     {
       columns: [
         ["id", rowId],
-        ["attribute_id", refersTo("attributes")(wholeNumber)],
+        ["attribute_id", wholeNumber],
         ["text", text],
         sortOrderColumn,
       ],
@@ -147,8 +146,8 @@ export const questionTables = [
     "listing_attribute_options",
     {
       columns: [
-        ["listing_id", refersTo("listings")(wholeNumber)],
-        ["option_id", refersTo("attribute_options")(wholeNumber)],
+        ["listing_id", wholeNumber],
+        ["option_id", wholeNumber],
       ],
       indexes: [
         {
@@ -171,14 +170,8 @@ export const questionTables = [
         ["id", rowId],
         ["site_data", text],
         ["assignable", wholeNumberStartingAtZero],
-        [
-          "assigned_attendee_id",
-          refersTo("attendees")(wholeNumberStartingAtNull),
-        ],
-        [
-          "assigned_listing_id",
-          refersTo("listings")(wholeNumberStartingAtNull),
-        ],
+        ["assigned_attendee_id", wholeNumberStartingAtNull],
+        ["assigned_listing_id", wholeNumberStartingAtNull],
         ["created", text],
         // Positive epoch milliseconds wait for completion. Negative values
         // own a provider operation, and zero is idle.
@@ -213,9 +206,9 @@ export const questionTables = [
     {
       columns: [
         attendeeIdColumn,
-        ["question_id", refersTo("questions")(wholeNumber)],
+        ["question_id", wholeNumber],
         ["question_text", text],
-        ["answer_id", refersTo("answers")(wholeNumberOrNull)],
+        ["answer_id", wholeNumberOrNull],
         [
           "answer_text",
           checked(sql`(answer_text IS NULL) = (answer_id IS NULL)`)(textOrNull),
@@ -247,9 +240,9 @@ export const questionTables = [
       columns: [
         ["id", rowId],
         attendeeIdColumn,
-        ["answer_id", refersTo("answers")(wholeNumberOrNull)],
-        ["question_id", refersTo("questions")(wholeNumberOrNull)],
-        ["string_id", refersTo("strings")(wholeNumberOrNull)],
+        ["answer_id", wholeNumberOrNull],
+        ["question_id", wholeNumberOrNull],
+        ["string_id", wholeNumberOrNull],
       ],
       indexes: [
         {
@@ -313,4 +306,4 @@ export const questionTables = [
       ],
     },
   ],
-] as const satisfies readonly NamedTable[];
+]);

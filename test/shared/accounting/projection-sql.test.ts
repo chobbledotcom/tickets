@@ -60,23 +60,17 @@ describe("ledgerLegs", () => {
 });
 
 describe("onAccount", () => {
-  test("matches the source side with the id CAST to TEXT", () => {
-    expect(onAccount("source", ATTENDEE, la.attendee_id)(leg).sql).toBe(
-      side("source", ATTENDEE, "la.attendee_id"),
-    );
-  });
+  const sides = [
+    ["source", ATTENDEE, la.attendee_id, "la.attendee_id"],
+    ["dest", REVENUE, listing.id, "listing.id"],
+    ["dest", WRITEOFF_TYPE, a.id, "a.id"],
+  ] as const;
 
-  test("matches the dest side on the dest columns", () => {
-    expect(onAccount("dest", REVENUE, listing.id)(leg).sql).toBe(
-      side("dest", REVENUE, "listing.id"),
-    );
-  });
-
-  test("writes the account type as it is", () => {
-    expect(onAccount("dest", WRITEOFF_TYPE, a.id)(leg).sql).toBe(
-      side("dest", WRITEOFF_TYPE, "a.id"),
-    );
-  });
+  for (const [role, type, id, idText] of sides) {
+    test(`matches the ${role} side of a ${type} account with the id CAST to TEXT`, () => {
+      expect(onAccount(role, type, id)(leg).sql).toBe(side(role, type, idText));
+    });
+  }
 
   test("binds an id that is text", () => {
     expect(onAccount("dest", ATTENDEE, "7")(leg)).toEqual(
@@ -195,29 +189,23 @@ describe("order amount subqueries", () => {
       `leg.kind IN (${kinds.map((kind) => `'${kind}'`).join(", ")}) AND `,
     );
 
+  const reservationKinds = [
+    KIND.sale,
+    KIND.modifier,
+    KIND.taxSale,
+    KIND.taxModifier,
+    KIND.vat,
+  ];
+
   test("keeps fees and manual charges out of the reservation subtotal", () => {
     expect(reservationSubtotalSubquery(ATTENDEE, a.id).sql).toBe(
-      expectedTotal([
-        KIND.sale,
-        KIND.modifier,
-        KIND.taxSale,
-        KIND.taxModifier,
-        KIND.vat,
-      ]),
+      expectedTotal(reservationKinds),
     );
   });
 
   test("includes fees, VAT and manual charges in the full order total", () => {
     expect(orderTotalSubquery(ATTENDEE, a.id).sql).toBe(
-      expectedTotal([
-        KIND.sale,
-        KIND.modifier,
-        KIND.taxSale,
-        KIND.taxModifier,
-        KIND.vat,
-        KIND.fee,
-        MANUAL_ATTENDEE_CHARGE,
-      ]),
+      expectedTotal([...reservationKinds, KIND.fee, MANUAL_ATTENDEE_CHARGE]),
     );
   });
 });

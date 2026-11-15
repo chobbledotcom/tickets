@@ -1,5 +1,4 @@
 import {
-  refersTo,
   requiredTextKey,
   text,
   wholeNumber,
@@ -12,7 +11,7 @@ export const refundConfirmationTable = [
   {
     columns: [
       ["identity", requiredTextKey],
-      ["attendee_id", refersTo("attendees")(wholeNumber)],
+      ["attendee_id", wholeNumber],
       ["created", text],
     ],
     indexes: [

@@ -9,7 +9,7 @@
  */
 
 import { resultRows, type TxScope } from "#db/client.ts";
-import { inQuery, valuesOf } from "#db/select/expression.ts";
+import { inStatement } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -100,7 +100,7 @@ const edgeExists = (
   listings: SqlStatement,
 ): SqlStatement =>
   from(tables.listing_parents)
-    .where((edge) => inQuery(edge[edgeColumn], valuesOf<number>(listings)))
+    .where((edge) => inStatement(edge[edgeColumn], listings))
     .exists();
 
 const listingCount = (listings: SqlStatement): SqlStatement =>

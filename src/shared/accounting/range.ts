@@ -10,8 +10,13 @@
  * range (the {@link emptyRange} default) selects the whole ledger ("forever").
  */
 
-import { LEDGER_ROW } from "#accounting/projection-sql.ts";
 import { atLeast, type Condition, lessThan } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+
+/** The ledger row of a statement written by hand. The statement must name
+ *  the table `transfers AS transfer`, the word a read from the builder uses. */
+export const LEDGER_ROW = tableNode(tables.transfers, "transfer");
 
 /** A bounded window over `occurred_at`: `startMs` ≤ occurred_at < `endMs`. A
  *  null bound is open on that side, and both null is "forever". */

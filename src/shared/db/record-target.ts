@@ -14,9 +14,8 @@ import {
   among,
   type Condition,
   equal,
-  inQuery,
+  inStatement,
   named,
-  valuesOf,
 } from "#db/select/expression.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { deleteWhere } from "#db/where-clauses.ts";
@@ -110,7 +109,7 @@ export const defineRecordTarget = <Kind extends string>({
 
   const whereChosenBy = (kind: Kind, idsQuery: SqlStatement): Condition[] => [
     ...ofKind(undefined, kind),
-    inQuery(named<number>(columns.id), valuesOf<number>(idsQuery)),
+    inStatement(named(columns.id), idsQuery),
   ];
 
   const where = (target: RecordTarget<Kind>, alias?: string): Condition[] => [

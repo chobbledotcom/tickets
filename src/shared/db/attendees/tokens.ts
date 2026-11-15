@@ -248,20 +248,7 @@ type AttendeeScanRow = {
 const attendeeWithBookingsBuild = (
   row: AttendeeScanRow,
   bookings: TokenBookingRow[],
-): AttendeeWithBookings => ({
-  bookings,
-  created: row.created,
-  email_owed: row.email_owed,
-  email_pending: row.email_pending,
-  id: row.id,
-  kind: row.kind,
-  pii_blob: row.pii_blob,
-  remaining_balance: row.remaining_balance,
-  status_id: row.status_id,
-  ticket_token: "",
-  ticket_token_index: row.ticket_token_index,
-  webhooks_pending: row.webhooks_pending,
-});
+): AttendeeWithBookings => ({ ...row, bookings, ticket_token: "" });
 
 /**
  * Look up attendees by plaintext tokens, returning full booking data.

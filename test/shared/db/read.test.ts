@@ -17,14 +17,20 @@ const listingIds = (ids: readonly number[]) =>
     .orderBy((listing) => [listing.id])
     .select((listing) => ({ id: listing.id }));
 
+/** The ids of two stored listings, in the order of the database. */
+const twoListingIds = async (): Promise<[number, number]> => {
+  const first = await createTestListing({ name: "First" });
+  const second = await createTestListing({ name: "Second" });
+  return [first.id, second.id];
+};
+
 describeWithEnv("readRows", { db: true }, () => {
   test("returns every row that the read keeps", async () => {
-    const first = await createTestListing({ name: "First" });
-    const second = await createTestListing({ name: "Second" });
+    const [first, second] = await twoListingIds();
 
-    expect(await readRows(listingIds([second.id, first.id]))).toEqual([
-      { id: first.id },
-      { id: second.id },
+    expect(await readRows(listingIds([second, first]))).toEqual([
+      { id: first },
+      { id: second },
     ]);
   });
 
@@ -48,11 +54,10 @@ describe("a read that no row can pass", () => {
 
 describeWithEnv("readOneRow", { db: true }, () => {
   test("returns the first row that the read keeps", async () => {
-    const first = await createTestListing({ name: "First" });
-    const second = await createTestListing({ name: "Second" });
+    const [first, second] = await twoListingIds();
 
-    expect(await readOneRow(listingIds([first.id, second.id]))).toEqual({
-      id: first.id,
+    expect(await readOneRow(listingIds([first, second]))).toEqual({
+      id: first,
     });
   });
 

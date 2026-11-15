@@ -3,16 +3,10 @@
 import type { SqlStatement } from "#db/sql.ts";
 
 declare const STORED: unique symbol;
-declare const REFERS_TO: unique symbol;
 
 /** A column's type in SQL, and the value a stored row holds in that column. */
 export type ColumnKind<Stored> = SqlStatement & {
   readonly [STORED]: Stored;
-};
-
-/** A column kind whose value is the `id` of a row in the table `Target`. */
-export type RefersTo<Target extends string> = {
-  readonly [REFERS_TO]: Target;
 };
 
 export type Column = readonly [name: string, type: SqlStatement];
@@ -35,6 +29,12 @@ export type NamedTable = readonly [name: string, table: Table];
 
 /** The declared tables, in the order the migrations create them. */
 export type Schema = readonly NamedTable[];
+
+/** The tables as the code writes them. The type keeps the name of each table
+ *  and the name and the type of each column, so a read can know its row. */
+export const declaredTables = <const Tables extends Schema>(
+  tables: Tables,
+): Tables => tables;
 
 /**
  * A SQLite trigger that maintains or validates stored data. Unlike indexes,

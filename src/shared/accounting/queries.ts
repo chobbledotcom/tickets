@@ -25,14 +25,18 @@ import {
   accountBalanceSubquery,
   attendeeOwedSubquery,
   creditsLessWriteoffDebits,
-  LEDGER_ROW,
   type Leg,
   type LegTest,
   ledgerLegs,
   modifierLeg,
+  onSide,
   signedSum,
 } from "#accounting/projection-sql.ts";
-import { type LedgerRange, occurredAtRange } from "#accounting/range.ts";
+import {
+  LEDGER_ROW,
+  type LedgerRange,
+  occurredAtRange,
+} from "#accounting/range.ts";
 import {
   selectByEventGroup,
   selectTransfers,
@@ -53,6 +57,7 @@ import {
   type Expr,
   equal,
   literal,
+  type Operand,
   or,
   valued,
   whereTail,
@@ -69,23 +74,24 @@ const newestFirst = (leg: Leg): SqlStatement[] => [
   desc(leg.id),
 ];
 
+/** The newest legs that pass the conditions, capped at `limit`. The order and
+ *  the limit run in SQL, so the whole ledger is never loaded. */
+const newestTransfers = (
+  limit: number,
+  conditions: (leg: Leg) => readonly Condition[],
+): Promise<Transfer[]> =>
+  selectTransfers(queryBatch, (ledger) =>
+    ledger.where(conditions).orderBy(newestFirst).limit(limit),
+  );
+
 type Side = "source" | "dest";
 
 /** The row has an account of `type` with one of `ids` on its `side`. The type
  *  and the ids are bound, so a caller can pass an account from a request. */
 const sideAmong =
-  (side: Side, type: string, ids: readonly string[]): LegTest =>
+  (side: Side, type: Operand<string>, ids: readonly string[]): LegTest =>
   (leg) =>
     and(equal(leg[`${side}_type`], type), among(leg[`${side}_id`], ids));
-
-/** The row has the account on its `side`. */
-const sideIs =
-  (side: Side, acct: AccountRef): LegTest =>
-  (leg) =>
-    and(
-      equal(leg[`${side}_type`], acct.type),
-      equal(leg[`${side}_id`], acct.id),
-    );
 
 /** The WHERE scope for "every transfer touching any of these accounts".
  *  One group per account type. */
@@ -192,9 +198,7 @@ export const allTransfers = (): Promise<Transfer[]> =>
  *  loaded into memory. `occurred_at` is the stored INTEGER epoch, so DESC is
  *  newest-first. */
 export const recentTransfers = (limit: number): Promise<Transfer[]> =>
-  selectTransfers(queryBatch, (ledger) =>
-    ledger.orderBy(newestFirst).limit(limit),
-  );
+  newestTransfers(limit, () => []);
 
 /** Legs shown on the operator-facing ledger list. Routine checkout cash
  * plumbing ("Card / bank → <attendee>" and its refund mirror) stays hidden.
@@ -210,8 +214,8 @@ const touchesAccounts =
   (type: string, ids: readonly string[]): LegTest =>
   (leg) =>
     or(
-      and(equal(leg.dest_type, literal(type)), among(leg.dest_id, ids)),
-      and(equal(leg.source_type, literal(type)), among(leg.source_id, ids)),
+      sideAmong("dest", literal(type), ids)(leg),
+      sideAmong("source", literal(type), ids)(leg),
     );
 
 /** The legs that touch the revenue account or the cost account of one of
@@ -241,16 +245,11 @@ export const visibleTransfers = (
   listingIds: readonly number[] | null,
   limit: number,
 ): Promise<Transfer[]> =>
-  selectTransfers(queryBatch, (ledger) =>
-    ledger
-      .where((leg) => [
-        VISIBLE_TRANSFER_SCOPE,
-        ...occurredAtRange(range),
-        listingLegScope(listingIds)(leg),
-      ])
-      .orderBy(newestFirst)
-      .limit(limit),
-  );
+  newestTransfers(limit, (leg) => [
+    VISIBLE_TRANSFER_SCOPE,
+    ...occurredAtRange(range),
+    listingLegScope(listingIds)(leg),
+  ]);
 
 /** Distinct-day bounds (earliest/latest `occurred_at`) over the whole ledger, or
  *  null when it is empty — the span the date-range pickers offer as selectable. */
@@ -380,10 +379,10 @@ export const accountBalancesForIds = async (
 /** Balance of one account: money in (as destination) minus money out (as
  *  source), summed in SQL. Zero when the account has no transfers. This is a
  *  direct scalar read rather than the grouped many-account query, so it shares
- *  the same `sideIs` test the rest of this module uses. */
+ *  the side test that the projections use. */
 export const accountBalance = async (acct: AccountRef): Promise<number> => {
-  const asDest = sideIs("dest", acct);
-  const asSource = sideIs("source", acct);
+  const asDest = onSide("dest", acct.type, acct.id);
+  const asSource = onSide("source", acct.type, acct.id);
   const row = await requireOne(
     ledgerLegs()
       .where((leg) => or(asDest(leg), asSource(leg)))

@@ -5,7 +5,6 @@ import { datedRowColumns, itemLinkColumns } from "./columns.ts";
 import {
   checked,
   defaulted,
-  refersTo,
   rowId,
   text,
   textKey,
@@ -16,10 +15,10 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { NamedTable } from "./types.ts";
+import { declaredTables } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
-export const coreTables = [
+export const coreTables = declaredTables([
   [
     "settings",
     {
@@ -152,7 +151,7 @@ export const coreTables = [
     "listing_prices",
     {
       columns: [
-        ["listing_id", refersTo("listings")(wholeNumber)],
+        ["listing_id", wholeNumber],
         ["price_type", text],
         ["price_id", textStartingBlank],
         ["unit_price", wholeNumber],
@@ -223,7 +222,7 @@ export const coreTables = [
         ["csrf_token", text],
         ["expires", wholeNumber],
         ["wrapped_data_key", textOrNull],
-        ["user_id", refersTo("users")(wholeNumberOrNull)],
+        ["user_id", wholeNumberOrNull],
       ],
     },
   ],
@@ -251,10 +250,7 @@ export const coreTables = [
     // one item.
     "image_uses",
     {
-      columns: [
-        ["image_id", refersTo("images")(wholeNumber)],
-        ...itemLinkColumns,
-      ],
+      columns: [["image_id", wholeNumber], ...itemLinkColumns],
       indexes: [
         {
           columns: ["item_type", "item_id", "sort_order"],
@@ -279,8 +275,8 @@ export const coreTables = [
     {
       columns: [
         ["id", rowId],
-        ["user_id", refersTo("users")(wholeNumber)],
-        ["agent_id", refersTo("logistics_agents")(wholeNumber)],
+        ["user_id", wholeNumber],
+        ["agent_id", wholeNumber],
       ],
       indexes: [
         {
@@ -336,4 +332,4 @@ export const coreTables = [
       ],
     },
   ],
-] as const satisfies readonly NamedTable[];
+]);

@@ -2,26 +2,22 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
+import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
 import {
   among,
-  count,
   desc,
   equal,
   greaterThan,
   inQuery,
+  inStatement,
   literal,
+  matchesNothing,
   named,
+  notInQuery,
   sum,
-  valuesOf,
 } from "#db/select/expression.ts";
-import {
-  from,
-  fromNamed,
-  readsNothing,
-  tableNode,
-  via,
-} from "#db/select/query.ts";
+import { from, fromNamed, tableNode, via } from "#db/select/query.ts";
 import {
   referenceOf,
   type TableHandle,
@@ -93,35 +89,35 @@ describe("from", () => {
 });
 
 describe("joins", () => {
-  test("follow a reference by the column name without _id", () => {
-    expect(
+  const alongReferences = [
+    [
+      "follow a reference by the column name without _id",
       from(tables.listing_attendees, { listing: {} }).values(
         (line) => line.listing.name,
-      ).sql,
-    ).toBe(
+      ),
       "SELECT listing.name FROM listing_attendees AS listingAttendee JOIN listings AS listing ON listing.id = listingAttendee.listing_id",
-    );
-  });
-
-  test("join left along a column that can hold nothing, and below it", () => {
-    expect(
+    ],
+    [
+      "join left along a column that can hold nothing, and below it",
       from(tables.attendee_answers, { answer: { question: {} } }).values(
         (given) => given.answer.question.id,
-      ).sql,
-    ).toBe(
+      ),
       "SELECT question.id FROM attendee_answers AS attendeeAnswer LEFT JOIN answers AS answer ON answer.id = attendeeAnswer.answer_id LEFT JOIN questions AS question ON question.id = answer.question_id",
-    );
-  });
-
-  test("give a key that SQL reads as its own word another word", () => {
-    expect(
+    ],
+    [
+      "give a key that SQL reads as its own word another word",
       from(tables.group_listings, { group: {} }).values(
         (membership) => membership.group.max_attendees,
-      ).sql,
-    ).toBe(
+      ),
       "SELECT groupRow.max_attendees FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id",
-    );
-  });
+    ],
+  ] as const;
+
+  for (const [title, read, text] of alongReferences) {
+    test(title, () => {
+      expect(read.sql).toBe(text);
+    });
+  }
 
   test("join the rows that refer back to the parent", () => {
     const memberships = via(tables.group_listings, "listing", { group: {} });
@@ -240,29 +236,45 @@ describe("a read inside another", () => {
     });
   });
 
+  test("names the values a column cannot take", () => {
+    expect(
+      from(tables.listings)
+        .where((listing) =>
+          notInQuery(
+            listing.id,
+            from(tables.listing_parents).values(
+              (edge) => edge.child_listing_id,
+            ),
+          ),
+        )
+        .values((listing) => listing.id).sql,
+    ).toBe(
+      "SELECT listing.id FROM listings AS listing WHERE NOT listing.id IN (SELECT listingParent.child_listing_id FROM listing_parents AS listingParent)",
+    );
+  });
+
   test("refuses to hide a table of the outer read", () => {
-    const parentOf = (childId: Parameters<typeof equal<number>>[1]) =>
-      from(tables.listings).where((parent) => equal(parent.id, childId));
+    const everyListing = from(tables.listings);
     expect(() =>
       from(tables.listings)
-        .where((listing) => parentOf(listing.id).exists())
+        .where(() => everyListing.exists())
         .values((listing) => listing.id),
     ).toThrow(
       "A read inside another names a table listing, which hides the outer listing. Use .as() to give one another word.",
     );
     expect(
       from(tables.listings)
-        .where((listing) => parentOf(listing.id).as("parent").exists())
+        .where(() => everyListing.as("parent").exists())
         .values((listing) => listing.id).sql,
     ).toBe(
-      "SELECT listing.id FROM listings AS listing WHERE EXISTS (SELECT 1 FROM listings AS parent WHERE parent.id = listing.id)",
+      "SELECT listing.id FROM listings AS listing WHERE EXISTS (SELECT 1 FROM listings AS parent)",
     );
   });
 
   test("lets two sibling reads share a word", () => {
     const read = from(tables.groups).select((group) => ({
-      first: bookedBy(group.id).scalar(() => count()),
-      second: bookedBy(group.id).scalar(() => count()),
+      first: bookedBy(group.id).scalar((line) => sum(line.quantity)),
+      second: bookedBy(group.id).scalar((line) => sum(line.quantity)),
     }));
     expect(read.sql.split("AS listingAttendee").length).toBe(3);
   });
@@ -281,15 +293,15 @@ describe("matchesNothing", () => {
   });
 });
 
-describe("readsNothing", () => {
+describe("the statement of a read", () => {
   const ids = (wanted: readonly number[]) =>
     from(tables.listings)
       .where((listing) => among(listing.id, wanted))
       .values((listing) => listing.id);
 
-  test("marks the statement of a read that no row can pass", () => {
-    expect(readsNothing(ids([]))).toBe(true);
-    expect(readsNothing(ids([1]))).toBe(false);
+  test("carries the mark of a read that no row can pass", () => {
+    expect(matchesNothing(ids([]))).toBe(true);
+    expect(matchesNothing(ids([1]))).toBe(false);
   });
 
   test("leaves the statement as valid SQL for a batch", () => {
@@ -298,8 +310,8 @@ describe("readsNothing", () => {
     );
   });
 
-  test("is false for a statement written by hand", () => {
-    expect(readsNothing(sql`SELECT 1 WHERE 0`)).toBe(false);
+  test("carries no mark where it is written by hand", () => {
+    expect(matchesNothing(sql`SELECT 1 WHERE 0`)).toBe(false);
   });
 });
 
@@ -370,9 +382,9 @@ describe("statements written by hand", () => {
       placed(
         from(tables.listings)
           .where((listing) =>
-            inQuery(
+            inStatement(
               listing.id,
-              valuesOf<number>(sql`SELECT thing FROM things WHERE x = ${3}`),
+              sql`SELECT thing FROM things WHERE x = ${3}`,
             ),
           )
           .values((listing) => listing.id),
@@ -403,10 +415,12 @@ describe("a table named by text", () => {
   });
 });
 
-const referringColumns = TYPED_SCHEMA.flatMap(([name, table]) =>
-  table.columns
-    .filter(([, type]) => columnFacts(type).refersTo !== null)
-    .map(([column]) => ({ column, table: name })),
+const referringColumns = Object.entries(REFERENCES).flatMap(
+  ([table, targets]) =>
+    Object.keys(targets).map((column) => ({
+      column,
+      table,
+    })),
 );
 
 describeWithEnv("the declared schema", { db: true }, () => {
@@ -414,7 +428,7 @@ describeWithEnv("the declared schema", { db: true }, () => {
     for (const { column, table } of referringColumns) {
       const key = column.slice(0, -"_id".length);
       const read = from(
-        tables[table] as TableHandle<"listings">,
+        tableNamed(table) as TableHandle<"listings">,
         {
           [key]: {},
         } as never,

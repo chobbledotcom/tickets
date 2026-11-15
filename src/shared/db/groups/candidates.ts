@@ -2,7 +2,7 @@
 
 import { LISTING_ORDER_SQL, LISTING_ROW } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
-import { equal, inQuery, not } from "#db/select/expression.ts";
+import { equal, notInQuery } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
@@ -46,21 +46,15 @@ const candidateColumns = rawListingsTable.read.pick([
 export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
+  const memberIds = from(tables.group_listings)
+    .where((member) => equal(member.group_id, groupId))
+    .values((member) => member.listing_id);
   const rows = await candidateColumns.many(
     {},
     {
       alias: "listing",
       order: LISTING_ORDER_SQL.created_desc,
-      where: [
-        not(
-          inQuery(
-            LISTING_ROW.id,
-            from(tables.group_listings)
-              .where((member) => equal(member.group_id, groupId))
-              .values((member) => member.listing_id),
-          ),
-        ),
-      ],
+      where: [notInQuery(LISTING_ROW.id, memberIds)],
     },
   );
   return rows.map((row) => {

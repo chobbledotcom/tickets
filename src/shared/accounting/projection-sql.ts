@@ -35,7 +35,7 @@ import {
   valued,
   when,
 } from "#db/select/expression.ts";
-import { from, type Node, tableNode } from "#db/select/query.ts";
+import { from, type Node } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
@@ -49,10 +49,6 @@ export type LegTest = (leg: Leg) => Expr<boolean>;
 /** The ledger rows, under the word every ledger read uses. */
 export const ledgerLegs = () => from(tables.transfers).as("leg");
 
-/** The ledger row of a statement written by hand. The statement must name
- *  the table `transfers AS transfer`, the word a read from the builder uses. */
-export const LEDGER_ROW: Leg = tableNode(tables.transfers, "transfer");
-
 /** An account id in SQL: a column or a value of the surrounding statement, or
  *  text to bind. A bound number is refused. libsql binds a number as a float,
  *  and the CAST of a float gives `5.0`, which matches no account. */
@@ -65,14 +61,16 @@ type Role = "source" | "dest";
 const asText = (id: AccountId): Expr<string> =>
   valued(sql`CAST(${id} AS TEXT)`);
 
-/** The row has the account on its `role` side. */
-export const onAccount =
-  (role: Role, type: string, id: AccountId): LegTest =>
+/** The row has this account type and this account id on its `role` side. */
+export const onSide =
+  (role: Role, type: Operand<string>, id: Operand<string>): LegTest =>
   (leg) =>
-    and(
-      equal(leg[`${role}_type`], literal(type)),
-      equal(leg[`${role}_id`], asText(id)),
-    );
+    and(equal(leg[`${role}_type`], type), equal(leg[`${role}_id`], id));
+
+/** The row has the account on its `role` side. The type is a constant of the
+ *  code, written into the SQL text. */
+export const onAccount = (role: Role, type: string, id: AccountId): LegTest =>
+  onSide(role, literal(type), asText(id));
 
 const ofKind =
   (kind: string): LegTest =>
@@ -96,13 +94,23 @@ const some =
   (leg) =>
     or(...tests.map((test) => test(leg)));
 
-/** A test keyed by the three ledger facts a booking's legs carry: the
+/** A value keyed by the three ledger facts a booking's legs carry: the
  * attendee, the listing's revenue account, and the booking's event group. */
-type BookingLegTest = (
+type OfBooking<Value> = (
   attendeeId: AccountId,
   listingId: AccountId,
   eventGroup: Operand<string>,
-) => LegTest;
+) => Value;
+
+/** A value of one account. */
+type OfAccount<Value> = (type: string, id: AccountId) => Value;
+
+/** The row bills the attendee for the listing. */
+const billedForListing = (attendeeId: AccountId, listingId: AccountId) =>
+  every(
+    onAccount("source", ATTENDEE, attendeeId),
+    onAccount("dest", REVENUE, listingId),
+  );
 
 /**
  * The gross `sale` leg of a booking row: billed from the attendee to the
@@ -110,11 +118,14 @@ type BookingLegTest = (
  * amount-paid projection and the paid-line check share it, so the two cannot
  * drift.
  */
-export const saleLeg: BookingLegTest = (attendeeId, listingId, eventGroup) =>
+export const saleLeg: OfBooking<LegTest> = (
+  attendeeId,
+  listingId,
+  eventGroup,
+) =>
   every(
     ofKind(KIND.sale),
-    onAccount("source", ATTENDEE, attendeeId),
-    onAccount("dest", REVENUE, listingId),
+    billedForListing(attendeeId, listingId),
     inEventGroup(eventGroup),
   );
 
@@ -135,8 +146,8 @@ export const paymentLegExists = (
     .exists();
 
 /**
- * The signed sum every net-balance read shares: amounts on rows that pass
- * `adds` add, amounts on rows that pass `subtracts` subtract, and the sum is
+ * The signed sum every net-balance read shares. Amounts on rows that pass
+ * `adds` add, and amounts on rows that pass `subtracts` subtract. The sum is
  * zero when no row passes. The one home for the sign convention of the ledger
  * in SQL, so no two balance reads can disagree on which side credits.
  */
@@ -167,15 +178,12 @@ const signedLegSum = (
     .aggregate(signedSum(adds, subtracts));
 
 /** One booking's recognised ticket price, including signed tax corrections. */
-export const bookingSaleTotalSubquery = (
-  attendeeId: AccountId,
-  listingId: AccountId,
-  eventGroup: Operand<string>,
-): Expr<Counted> => {
-  const credit = every(
-    onAccount("source", ATTENDEE, attendeeId),
-    onAccount("dest", REVENUE, listingId),
-  );
+export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
+  attendeeId,
+  listingId,
+  eventGroup,
+) => {
+  const credit = billedForListing(attendeeId, listingId);
   const debit = every(
     onAccount("dest", ATTENDEE, attendeeId),
     onAccount("source", REVENUE, listingId),
@@ -196,10 +204,10 @@ export const bookingSaleTotalSubquery = (
 
 /** Recognised income includes signed tax reclassifications and write-offs.
  * Refunds leave that historical earned amount unchanged. */
-export const creditsLessWriteoffDebits = (
-  type: string,
-  id: AccountId,
-): Expr<Counted> => {
+export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
+  type,
+  id,
+) => {
   const credited: LegTest = (leg) =>
     and(
       onAccount("dest", type, id)(leg),
@@ -234,15 +242,6 @@ export const modifierLeg = {
   signedAmount: signedSum(surchargeSide, discountSide),
 } as const;
 
-/** The legs that pay into an account, then the legs that pay out of it. */
-const legsOfAccount = (
-  type: string,
-  id: AccountId,
-): [moneyIn: LegTest, moneyOut: LegTest] => [
-  onAccount("dest", type, id),
-  onAccount("source", type, id),
-];
-
 /**
  * The net ledger balance of an account: money in as the destination less money
  * out as the source. It is the same signed sum that the TS-side `balanceOf`
@@ -250,33 +249,24 @@ const legsOfAccount = (
  * account reads it as it is, and an "owed" figure negates it. It reads only
  * the account's own legs, so an index backs it.
  */
-export const accountBalanceSubquery = (
-  type: string,
-  id: AccountId,
-): Expr<Counted> => signedLegSum(...legsOfAccount(type, id));
+export const accountBalanceSubquery: OfAccount<Expr<Counted>> = (type, id) =>
+  signedLegSum(onAccount("dest", type, id), onAccount("source", type, id));
 
 /** The row has the outside world on its `role` side. */
-const onWorld =
-  (role: Role): LegTest =>
-  (leg) =>
-    and(
-      equal(leg[`${role}_type`], literal(WORLD.type)),
-      equal(leg[`${role}_id`], literal(WORLD.id)),
-    );
+const onWorld = (role: Role): LegTest =>
+  onSide(role, literal(WORLD.type), literal(WORLD.id));
 
 /** Net cash received from the outside world by one account. Payments into the
  * account add. Refunds and reversals back to the world subtract. Other ledger
  * legs do not represent cash and are ignored. */
-export const externalCashBalanceSubquery = (
-  type: string,
-  id: AccountId,
-): Expr<Counted> => {
-  const [accountIn, accountOut] = legsOfAccount(type, id);
-  return signedLegSum(
-    every(accountIn, onWorld("source")),
-    every(accountOut, onWorld("dest")),
+export const externalCashBalanceSubquery: OfAccount<Expr<Counted>> = (
+  type,
+  id,
+) =>
+  signedLegSum(
+    every(onAccount("dest", type, id), onWorld("source")),
+    every(onAccount("source", type, id), onWorld("dest")),
   );
-};
 
 const billedTotalSubquery = (
   kinds: readonly string[],

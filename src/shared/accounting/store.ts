@@ -16,6 +16,7 @@ import {
   reversalConflict,
 } from "#accounting/conflicts.ts";
 import {
+  byColumnIn,
   insertIfNewStatement,
   insertStatement,
   selectTransfersMany,
@@ -26,7 +27,6 @@ import {
   queryBatch,
   type TxScope,
 } from "#db/client.ts";
-import { among } from "#db/select/expression.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { identity, mapById, mapNotNullish, unique } from "#fp";
 import { allUnique } from "#shared/all-unique.ts";
@@ -159,9 +159,9 @@ const loadBatchSnapshot = async (
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
   const [existing, stored, originals] = await selectTransfersMany(read, [
-    (ledger) => ledger.where((leg) => among(leg.event_group, eventGroups)),
-    (ledger) => ledger.where((leg) => among(leg.reference, references)),
-    (ledger) => ledger.where((leg) => among(leg.id, reversesIds)),
+    byColumnIn("event_group", eventGroups),
+    byColumnIn("reference", references),
+    byColumnIn("id", reversesIds),
   ]);
   return {
     existingByGroup: Map.groupBy(existing, (leg) => leg.eventGroup),

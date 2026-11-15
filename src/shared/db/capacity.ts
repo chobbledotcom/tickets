@@ -27,7 +27,7 @@ import {
   sum,
   when,
 } from "#db/select/expression.ts";
-import { from, type Node } from "#db/select/query.ts";
+import { from, type Node, type Query } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   type CapacityRuleKey,
@@ -92,6 +92,24 @@ const overlapping =
     greaterThan(line.end_at, dayRange.start),
   ];
 
+/** Keeps the rows of other attendees that occupy some part of the day
+ *  window. */
+const heldThatDay =
+  (dayRange: CountingDayRange, excludeAttendeeId: Operand<number> | null) =>
+  (line: BookedLine): Condition[] => [
+    notBookedBy(excludeAttendeeId)(line),
+    ...overlapping(dayRange)(line),
+  ];
+
+/** The quantity that the rows hold. Zero with no row. */
+const quantityOf = <Line extends BookedLine>(
+  lines: Query<Line>,
+): Expr<Counted> => orZero(lines.scalar((line) => sum(line.quantity)));
+
+/** The booking rows of one listing. */
+const listingLines = (listingId: Operand<number>) =>
+  bookedLines().where((line) => equal(line.listing_id, listingId));
+
 /** The row of the listing itself. */
 const listingRow = (listingId: Operand<number>) =>
   from(tables.listings).where((listing) => equal(listing.id, listingId));
@@ -99,14 +117,10 @@ const listingRow = (listingId: Operand<number>) =>
 const dailyListingCount = (
   values: CountValues & { dayRange: CountingDayRange },
 ): Expr<Counted | null> => {
-  const bookedThatDay = orZero(
-    bookedLines()
-      .where((line) => [
-        equal(line.listing_id, values.listingId),
-        notBookedBy(values.excludeAttendeeId)(line),
-        ...overlapping(values.dayRange)(line),
-      ])
-      .scalar((line) => sum(line.quantity)),
+  const bookedThatDay = quantityOf(
+    listingLines(values.listingId).where(
+      heldThatDay(values.dayRange, values.excludeAttendeeId),
+    ),
   );
   return listingRow(values.listingId).scalar((listing) =>
     when(
@@ -129,13 +143,10 @@ const undatedListingCount = (values: CountValues): Expr<Counted | null> => {
   if (excludeAttendeeId === null) return booked;
   return minus(
     booked,
-    orZero(
-      bookedLines()
-        .where((line) => [
-          equal(line.listing_id, values.listingId),
-          equal(line.attendee_id, excludeAttendeeId),
-        ])
-        .scalar((line) => sum(line.quantity)),
+    quantityOf(
+      listingLines(values.listingId).where((line) =>
+        equal(line.attendee_id, excludeAttendeeId),
+      ),
     ),
   );
 };
@@ -199,43 +210,46 @@ const lessOwnRows = (
     ? total
     : minus(
         total,
-        orZero(
-          ownRows
-            .where((line) => equal(line.attendee_id, excludeAttendeeId))
-            .scalar((line) => sum(line.quantity)),
+        quantityOf(
+          ownRows.where((line) => equal(line.attendee_id, excludeAttendeeId)),
         ),
       );
+
+/** How much of a group is taken in a day window, without the rows of the
+ *  excluded attendee. */
+type GroupCount<Range> = (
+  dayRange: Range,
+  excludeAttendeeId: Operand<number> | null,
+  groupId: Operand<number>,
+) => Expr<Counted>;
 
 // The write guard passes the group row of its enclosing NOT EXISTS as
 // `groupId`. The batch read preflight passes its own group id. The counting
 // body is the same, so the write guard and the read preflight cannot count a
 // group differently.
-const dailyGroupCount = (
-  dayRange: CountingDayRange,
-  excludeAttendeeId: Operand<number> | null,
-  groupId: Operand<number>,
-): Expr<Counted> =>
+const dailyGroupCount: GroupCount<CountingDayRange> = (
+  dayRange,
+  excludeAttendeeId,
+  groupId,
+) =>
   plus(
     lessOwnRows(
       groupRunningTotal(groupId, "dateLessCap"),
       memberLinesWithRule(groupId, "dateLessCap"),
       excludeAttendeeId,
     ),
-    orZero(
-      memberLinesWithRule(groupId, "perDateCap")
-        .where((line) => [
-          notBookedBy(excludeAttendeeId)(line),
-          ...overlapping(dayRange)(line),
-        ])
-        .scalar((line) => sum(line.quantity)),
+    quantityOf(
+      memberLinesWithRule(groupId, "perDateCap").where(
+        heldThatDay(dayRange, excludeAttendeeId),
+      ),
     ),
   );
 
-export const buildGroupCountSql = (
-  dayRange: CountingDayRange | null,
-  excludeAttendeeId: Operand<number> | null,
-  groupId: Operand<number>,
-): Expr<Counted> =>
+export const buildGroupCountSql: GroupCount<CountingDayRange | null> = (
+  dayRange,
+  excludeAttendeeId,
+  groupId,
+) =>
   dayRange === null
     ? lessOwnRows(
         groupRunningTotal(groupId, null),

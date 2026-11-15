@@ -610,7 +610,7 @@
   },
   "src/shared/db/listing-overview-stats.ts": {
     "banned-modal": 1,
-    "long-sentence": 3
+    "long-sentence": 1
   },
   "src/shared/db/listing-parents.ts": {
     "semicolon": 6,
@@ -864,11 +864,6 @@
     "long-sentence": 8,
     "banned-modal": 5
   },
-  "src/shared/db/read.ts": {
-    "participle": 1,
-    "semicolon": 1,
-    "long-sentence": 1
-  },
   "src/shared/db/restore-legacy-columns.ts": {
     "banned-modal": 1,
     "wordy": 3,
@@ -938,7 +933,7 @@
   "src/shared/db/table-reader.ts": {
     "long-sentence": 9,
     "banned-modal": 5,
-    "semicolon": 3
+    "semicolon": 2
   },
   "src/shared/db/table.ts": {
     "wordy": 7,
@@ -959,11 +954,6 @@
     "wordy": 2,
     "semicolon": 2,
     "present-perfect": 3
-  },
-  "src/shared/db/where-clauses.ts": {
-    "semicolon": 2,
-    "contraction": 2,
-    "banned-modal": 1
   },
   "src/shared/demo/mode.ts": {
     "long-sentence": 4,

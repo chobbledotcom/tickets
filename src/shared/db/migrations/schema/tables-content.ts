@@ -11,7 +11,6 @@ import {
 import {
   checked,
   defaulted,
-  refersTo,
   rowId,
   text,
   textKey,
@@ -20,9 +19,9 @@ import {
   wholeNumberStartingAtNull,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import type { NamedTable } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
-export const contentTables = [
+export const contentTables = declaredTables([
   [
     // Per-contact marketing preferences, contact history, and visit counts,
     // keyed by an opaque HMAC blind index. Public checkout/unsubscribe paths can
@@ -79,7 +78,7 @@ export const contentTables = [
       columns: [
         ["id", rowId],
         attendeeIdColumn,
-        ["listing_id", refersTo("listings")(wholeNumber)],
+        ["listing_id", wholeNumber],
         ["provider_id", text],
         ["created", text],
       ],
@@ -133,7 +132,7 @@ export const contentTables = [
         ["event_group", text],
         ["kind", textStartingBlank],
         ["memo", textStartingBlank],
-        ["reverses_id", refersTo("transfers")(wholeNumberStartingAtNull)],
+        ["reverses_id", wholeNumberStartingAtNull],
         // The event group of the booking order a refund leg reverses — the
         // join a per-order read (the refunded status) uses to tell two orders
         // of one listing apart. Empty on every non-refund leg.
@@ -179,9 +178,9 @@ export const contentTables = [
     {
       columns: [
         ["id", rowId],
-        ["servicing_attendee_id", refersTo("attendees")(wholeNumber)],
-        ["listing_id", refersTo("listings")(wholeNumber)],
-        ["transfer_id", refersTo("transfers")(wholeNumber)],
+        ["servicing_attendee_id", wholeNumber],
+        ["listing_id", wholeNumber],
+        ["transfer_id", wholeNumber],
         ["occurred_at", text],
         ["memo", textStartingBlank],
         ["created", text],
@@ -262,10 +261,7 @@ export const contentTables = [
     // (the schema can't express a partial-unique index).
     "site_page_items",
     {
-      columns: [
-        ["page_id", refersTo("site_pages")(wholeNumber)],
-        ...itemLinkColumns,
-      ],
+      columns: [["page_id", wholeNumber], ...itemLinkColumns],
       indexes: [
         {
           columns: ["page_id", "sort_order"],
@@ -308,4 +304,4 @@ export const contentTables = [
       ],
     },
   ],
-] as const satisfies readonly NamedTable[];
+]);

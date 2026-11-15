@@ -29,14 +29,13 @@ import {
   equal,
   given,
   greaterThan,
-  inQuery,
+  inStatement,
   lessThan,
   literal,
   matchesGlob,
   not,
   orZero,
   sum,
-  valuesOf,
   when,
   wholeCondition,
 } from "#db/select/expression.ts";
@@ -83,6 +82,15 @@ export const refundedRowOf = (row: BookingRow): RefundedRowExprs => ({
   placeholderWhen: equal(row.quantity, literal(0)),
 });
 
+/** Each side of a refund leg, and the side of the leg it gives back: the
+ *  money returns along the same accounts. */
+const MIRRORED_SIDES = [
+  ["source_type", "dest_type"],
+  ["source_id", "dest_id"],
+  ["dest_type", "source_type"],
+  ["dest_id", "source_id"],
+] as const;
+
 const legExists = (test: LegTest): Expr<boolean> =>
   ledgerLegs().where(test).exists();
 
@@ -91,14 +99,17 @@ const isRefund = (leg: Leg): Expr<boolean> => matchesGlob(leg.kind, "refund_*");
 export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
   const { attendeeId, eventGroup, listingId, placeholderWhen } = row;
   const wasSold = legExists(saleLeg(attendeeId, listingId, eventGroup));
-  const saleCameBack = legExists((leg) =>
-    and(
-      equal(leg.kind, literal(KIND.refundSale)),
-      onAccount("source", REVENUE, listingId)(leg),
-      onAccount("dest", ATTENDEE, attendeeId)(leg),
-      equal(leg.reverses_group, eventGroup),
-    ),
-  );
+  /** The leg that gives the sale of one listing back to the attendee. */
+  const saleRefund =
+    (listing: AccountId): LegTest =>
+    (leg) =>
+      and(
+        equal(leg.kind, literal(KIND.refundSale)),
+        onAccount("source", REVENUE, listing)(leg),
+        onAccount("dest", ATTENDEE, attendeeId)(leg),
+        equal(leg.reverses_group, eventGroup),
+      );
+  const saleCameBack = legExists(saleRefund(listingId));
   // A free line has no sale of its own, so it reads the order as a whole:
   // refunded only once the order was reversed AND every sale leg of it came
   // back. A partial reversal must not refund a free package member beside an
@@ -115,17 +126,7 @@ export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
       onAccount("source", ATTENDEE, attendeeId)(sale),
       equal(sale.dest_type, literal(REVENUE)),
       equal(sale.event_group, eventGroup),
-      not(
-        ledgerLegs()
-          .as("returned")
-          .where((refund) => [
-            equal(refund.kind, literal(KIND.refundSale)),
-            onAccount("source", REVENUE, sale.dest_id)(refund),
-            onAccount("dest", ATTENDEE, attendeeId)(refund),
-            equal(refund.reverses_group, eventGroup),
-          ])
-          .exists(),
-      ),
+      not(ledgerLegs().as("returned").where(saleRefund(sale.dest_id)).exists()),
     ]);
   const orderFullyReturned = not(unreturnedSale.exists());
   const cashCameBack = legExists((leg) =>
@@ -148,10 +149,9 @@ export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
             isRefund(refund),
             equal(refund.reverses_group, assessment.chain.event_group),
             equal(refund.amount, assessment.chain.amount),
-            equal(refund.source_type, assessment.chain.dest_type),
-            equal(refund.source_id, assessment.chain.dest_id),
-            equal(refund.dest_type, assessment.chain.source_type),
-            equal(refund.dest_id, assessment.chain.source_id),
+            ...MIRRORED_SIDES.map(([back, out]) =>
+              equal(refund[back], assessment.chain[out]),
+            ),
           ])
           .exists(),
       ),
@@ -381,7 +381,7 @@ const whereConditions = (where: AttendeeWhere): Condition[] => [
   KIND_CONDITION[where.kind ?? "attendee"],
   given(where.attendeeIds, (ids) => among(ATTENDEE_ROW.id, ids)),
   given(where.attendeeIdsSubquery, (chosen) =>
-    inQuery(ATTENDEE_ROW.id, valuesOf<number>(chosen)),
+    inStatement(ATTENDEE_ROW.id, chosen),
   ),
   given(where.listingIds, (ids) => among(BOOKING_ROW.listing_id, ids)),
   where.realLinesOnly ? greaterThan(BOOKING_ROW.quantity, literal(0)) : true,
@@ -407,20 +407,13 @@ const attendeesWithBookings = (
   where: AttendeeWhere,
 ): Query<unknown> => {
   const everyAttendee = from(tables.attendees);
-  const booked: Query<unknown> =
-    join === "left"
-      ? everyAttendee.leftJoin(
-          "listingAttendee",
-          tables.listing_attendees,
-          (attendee) =>
-            equal(attendee.listingAttendee.attendee_id, attendee.id),
-        )
-      : everyAttendee.join(
-          "listingAttendee",
-          tables.listing_attendees,
-          (attendee) =>
-            equal(attendee.listingAttendee.attendee_id, attendee.id),
-        );
+  const withLines =
+    join === "left" ? everyAttendee.leftJoin : everyAttendee.join;
+  const booked: Query<unknown> = withLines(
+    "listingAttendee",
+    tables.listing_attendees,
+    (attendee) => equal(attendee.listingAttendee.attendee_id, attendee.id),
+  );
   return where.dailyRange === undefined
     ? booked
     : booked.join("listing", tables.listings, (row) =>

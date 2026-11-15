@@ -10,9 +10,9 @@
 import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
-import { equal } from "#db/select/expression.ts";
+import { among, named } from "#db/select/expression.ts";
 import { from, type Node, type Query } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
+import { type RowOf, tables } from "#db/select/tables.ts";
 import {
   type SqlSlot,
   type SqlStatement,
@@ -208,6 +208,16 @@ export type TransferRead = (ledger: LedgerRead) => LedgerRead;
 
 const everyTransfer: TransferRead = (ledger) => ledger;
 
+/** Wants every transfer whose `column` is one of `values`. An empty list asks
+ *  for nothing, and is answered without a round trip. */
+export const byColumnIn =
+  (
+    column: keyof RowOf<"transfers">,
+    values: readonly (string | number)[],
+  ): TransferRead =>
+  (ledger) =>
+    ledger.where(() => among(named(column), values));
+
 const transferStatement = (read: LedgerRead): SqlStatement =>
   read.columns(() => COLUMNS);
 
@@ -278,17 +288,11 @@ export const selectByEventGroup = (
   read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, (ledger) =>
-    ledger.where((leg) => equal(leg.event_group, eventGroup)),
-  );
+  selectTransfers(read, byColumnIn("event_group", [eventGroup]));
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (
   read: BatchExecutor,
   id: number,
 ): Promise<Transfer | null> =>
-  (
-    await selectTransfers(read, (ledger) =>
-      ledger.where((leg) => equal(leg.id, id)),
-    )
-  )[0] ?? null;
+  (await selectTransfers(read, byColumnIn("id", [id])))[0] ?? null;

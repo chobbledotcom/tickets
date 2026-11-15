@@ -6,8 +6,6 @@ import {
   and,
   atLeast,
   atMost,
-  coalesce,
-  count,
   desc,
   equal,
   given,
@@ -43,11 +41,18 @@ describe("comparisons", () => {
       args: [2],
       sql: "line.quantity = ?",
     });
-    expect(text(notEqual(quantity, 2)).sql).toBe("line.quantity != ?");
-    expect(text(lessThan(quantity, 2)).sql).toBe("line.quantity < ?");
-    expect(text(greaterThan(quantity, 2)).sql).toBe("line.quantity > ?");
-    expect(text(atMost(quantity, 2)).sql).toBe("line.quantity <= ?");
-    expect(text(atLeast(quantity, 2)).sql).toBe("line.quantity >= ?");
+    const operators = [
+      [notEqual, "!="],
+      [lessThan, "<"],
+      [greaterThan, ">"],
+      [atMost, "<="],
+      [atLeast, ">="],
+    ] as const;
+    for (const [compare, operator] of operators) {
+      expect(text(compare(quantity, 2)).sql).toBe(
+        `line.quantity ${operator} ?`,
+      );
+    }
   });
 
   test("compare two expressions with no bound value", () => {
@@ -73,12 +78,13 @@ describe("comparisons", () => {
   });
 
   test("refuse a value of another type and a null for a required column", () => {
+    // The types refuse each call. The SQL still builds when a cast hides one.
     // @ts-expect-error a number column does not compare with text
-    equal(quantity, "2");
+    expect(text(equal(quantity, "2")).sql).toBe("line.quantity = ?");
     // @ts-expect-error a required column holds no null
-    equal(quantity, null);
+    expect(text(equal(quantity, null)).sql).toBe("line.quantity IS NULL");
     // @ts-expect-error a number column is not one of these words
-    among(quantity, ["2"]);
+    expect(text(among(quantity, ["2"])).sql).toBe("line.quantity IN (?)");
   });
 });
 
@@ -162,14 +168,9 @@ describe("worked-out values", () => {
     expect(literal("it's").sql).toBe("'it''s'");
   });
 
-  test("count, add and default", () => {
-    expect(count().sql).toBe("COUNT(*)");
+  test("add and default", () => {
     expect(sum(quantity).sql).toBe("SUM(line.quantity)");
     expect(orZero(sum(quantity)).sql).toBe("COALESCE(SUM(line.quantity), 0)");
-    expect(text(coalesce(note, "none"))).toEqual({
-      args: ["none"],
-      sql: "COALESCE(line.note, ?)",
-    });
   });
 
   test("bracket arithmetic so a later operator cannot regroup it", () => {

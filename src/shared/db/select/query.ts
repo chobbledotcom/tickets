@@ -34,6 +34,7 @@ import {
   type Condition,
   type Expr,
   matchesNothing,
+  matchingNothing,
   type ValuesStatement,
   valued,
   whereTail,
@@ -163,23 +164,25 @@ type Joining<
   Nullable extends boolean,
 > = Root & { readonly [Each in Key]: Node<Name, None, Nullable> };
 
+/** A join of `table` under `key`, where `on` holds. */
+type JoinStep<Root, Nullable extends boolean> = <
+  Key extends string,
+  Name extends TableName,
+>(
+  key: Key,
+  table: TableHandle<Name>,
+  on: (node: Joining<Root, Key, Name, Nullable>) => Condition,
+) => Query<Joining<Root, Key, Name, Nullable>>;
+
 export type Query<Root> = Readonly<{
   /** The read with its first table under another word. A table that a
    *  statement reads twice needs a word for each place. */
   as: (alias: string) => Query<Root>;
   /** The read with `table` joined under `key`, where `on` holds. */
-  join: <Key extends string, Name extends TableName>(
-    key: Key,
-    table: TableHandle<Name>,
-    on: (node: Joining<Root, Key, Name, false>) => Condition,
-  ) => Query<Joining<Root, Key, Name, false>>;
+  join: JoinStep<Root, false>;
   /** The same join, where a row with no match stays and the joined columns
    *  are null. */
-  leftJoin: <Key extends string, Name extends TableName>(
-    key: Key,
-    table: TableHandle<Name>,
-    on: (node: Joining<Root, Key, Name, true>) => Condition,
-  ) => Query<Joining<Root, Key, Name, true>>;
+  leftJoin: JoinStep<Root, true>;
   /** The read with more conditions. */
   where: (
     conditions: (node: Root) => Condition | readonly Condition[],
@@ -321,14 +324,6 @@ const refuseHiddenTable = (
   }
 };
 
-/** Statements whose conditions no row can pass. */
-const emptyReads = new WeakSet<SqlStatement>();
-
-/** Whether no row can pass the conditions of a read from the builder, so a
- *  runner can answer it with no rows and skip the database. */
-export const readsNothing = (statement: SqlStatement): boolean =>
-  emptyReads.has(statement);
-
 const tail = (
   keyword: SqlStatement,
   body: SqlStatement | null,
@@ -387,8 +382,7 @@ const query = <Root>(
       listOrNull(listing.order?.(node)),
     )}${listing.limit === undefined ? sql`` : sql` LIMIT ${listing.limit}`}`;
     refuseHiddenTable(built, aliases);
-    if (conditions.some(matchesNothing)) emptyReads.add(built);
-    return built;
+    return conditions.some(matchesNothing) ? matchingNothing(built) : built;
   };
 
   return {
@@ -434,10 +428,14 @@ export const tableNode = <Name extends TableName>(
   word: string,
 ): Node<Name> => nodeOf(table, word, { aliases: [], parts: [] }) as Node<Name>;
 
+/** The spec of a read that joins nothing. It names no join, so it fits every
+ *  table. */
+const NO_JOINS = {} as never;
+
 /** Rows of `table`, joined as `spec` says. */
 export const from = <Name extends TableName, const Joined extends Spec = None>(
   table: TableHandle<Name>,
-  spec: Joins<Name, Joined> = {} as Joins<Name, Joined>,
+  spec: Joins<Name, Joined> = NO_JOINS,
 ): Query<Node<Name, Joined>> => query(table, spec, { joins: [], wheres: [] });
 
 /** Rows of the table of this name, for code over any table. The read has no
@@ -453,6 +451,6 @@ export const via = <
 >(
   table: TableHandle<Name>,
   edge: Edge,
-  spec: Joins<Name, Joined> = {} as Joins<Name, Joined>,
+  spec: Joins<Name, Joined> = NO_JOINS,
 ): Via<Name, NoInfer<Edge>, NoInfer<Joined>, false> =>
   new Via(table, edge, spec, false);

@@ -8,19 +8,18 @@ import { datedRowColumns } from "./columns.ts";
 import {
   checked,
   oneOf,
-  refersTo,
   text,
   textOrNull,
   wholeNumber,
 } from "./scalar-columns.ts";
-import type { NamedTable } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
 /* jscpd:ignore-end */
 
 /** The record kinds a link can point at, as a CHECK the database enforces. */
 const linkKind = oneOf("link_type", EXTERNAL_LINK_KINDS)(text);
 
-export const externalSourceTables = [
+export const externalSourceTables = declaredTables([
   [
     // A place this site's records also appear elsewhere, such as an invoice
     // system or a carrier. `name` and `url_pattern` hold owner-key ciphertext,
@@ -41,7 +40,7 @@ export const externalSourceTables = [
     {
       columns: [
         ...datedRowColumns,
-        ["source_id", refersTo("external_sources")(wholeNumber)],
+        ["source_id", wholeNumber],
         ["link_type", linkKind],
         ["link_id", wholeNumber],
         ["external_id", textOrNull],
@@ -72,4 +71,4 @@ export const externalSourceTables = [
       ],
     },
   ],
-] as const satisfies readonly NamedTable[];
+]);

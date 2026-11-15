@@ -6,9 +6,9 @@ import {
   and,
   type Expr,
   equal,
-  inQuery,
   literal,
   not,
+  notInQuery,
   or,
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
@@ -94,12 +94,10 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
         // A child listing is only offered on its own when it says it can be.
         or(
           equal(LISTING_ROW.bookable_alone, literal(1)),
-          not(
-            inQuery(
-              LISTING_ROW.id,
-              from(tables.listing_parents).values(
-                (edge) => edge.child_listing_id,
-              ),
+          notInQuery(
+            LISTING_ROW.id,
+            from(tables.listing_parents).values(
+              (edge) => edge.child_listing_id,
             ),
           ),
         ),

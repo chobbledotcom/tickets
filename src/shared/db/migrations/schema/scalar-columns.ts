@@ -19,14 +19,12 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
-import type { ColumnKind, RefersTo } from "./types.ts";
+import type { ColumnKind } from "./types.ts";
 
 /** What a read must know about a column type beyond its SQL text. */
 type ColumnFacts = {
   /** Whether a row can hold nothing in the column. */
   readonly canBeNull: boolean;
-  /** The table whose `id` the column holds, or null for a plain value. */
-  readonly refersTo: string | null;
 };
 
 const factsOfType = new WeakMap<SqlStatement, ColumnFacts>();
@@ -50,11 +48,11 @@ export const columnFacts = (type: SqlStatement): ColumnFacts => {
 
 /** A type whose column always holds a value. */
 const storing = <Stored>(type: SqlStatement): ColumnKind<Stored> =>
-  withFacts(type, { canBeNull: false, refersTo: null });
+  withFacts(type, { canBeNull: false });
 
 /** A type whose column can hold nothing. */
 const storingOrNull = <Stored>(type: SqlStatement): ColumnKind<Stored | null> =>
-  withFacts(type, { canBeNull: true, refersTo: null });
+  withFacts(type, { canBeNull: true });
 
 /** A type with more SQL after it holds the same value as the type it wraps. */
 const sameKind = <Kind extends SqlStatement>(
@@ -116,28 +114,27 @@ export const textKey = storing<string>(sql`TEXT PRIMARY KEY`);
 /** A text key that must always be found. */
 export const requiredTextKey = storing<string>(sql`TEXT PRIMARY KEY NOT NULL`);
 
+/** A column type with a rule added. The type still stores the same value. */
+type WithRule = <Kind extends SqlStatement>(type: Kind) => Kind;
+
 /** A rule about this column's own value, in SQL. */
 export const checked =
-  (rule: SqlStatement) =>
-  <Kind extends SqlStatement>(type: Kind): Kind =>
+  (rule: SqlStatement): WithRule =>
+  (type) =>
     sameKind(type, sql`${type} CHECK (${rule})`);
 
 /** A type that must hold one of a fixed set of words, in SQL. Read the words
  *  from the one module that names them, so the column and the form or API that
  *  sends them cannot drift apart. */
-export const oneOf =
-  (column: string, words: readonly string[]) =>
-  <Kind extends SqlStatement>(type: Kind): Kind =>
-    checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`)(
-      type,
-    );
+export const oneOf = (column: string, words: readonly string[]): WithRule =>
+  checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`);
 
 /** Rules about the whole row. SQLite lets a table say them only on a column.
  *  They hang on the row's last column, one per line, aligned to read inside the
  *  generated statement. */
 export const aboutTheRow =
-  (rules: readonly SqlStatement[]) =>
-  <Kind extends SqlStatement>(type: Kind): Kind =>
+  (rules: readonly SqlStatement[]): WithRule =>
+  (type) =>
     sameKind(
       type,
       sqlJoin(
@@ -145,10 +142,3 @@ export const aboutTheRow =
         sql`\n          `,
       ),
     );
-
-/** A column that holds the `id` of a row in `target`. The SQL text of the type
- *  stays the same. A read joins the two tables along this column. */
-export const refersTo =
-  <Target extends string>(target: Target) =>
-  <Kind extends SqlStatement>(type: Kind): Kind & RefersTo<Target> =>
-    withFacts(sql`${type}`, { ...columnFacts(type), refersTo: target });

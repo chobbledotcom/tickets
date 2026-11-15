@@ -5,7 +5,6 @@ tables declare identically. Keeping them here means one definition instead of
 duplicated column lists that can drift. */
 
 import {
-  refersTo,
   rowId,
   text,
   wholeNumber,
@@ -30,7 +29,7 @@ export const slugNamedEntityColumns = [
  *  it the same way. */
 export const attendeeIdColumn = [
   "attendee_id",
-  refersTo("attendees")(wholeNumber),
+  wholeNumber,
 ] as const satisfies Column;
 
 /**

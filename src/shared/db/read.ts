@@ -4,12 +4,12 @@
  */
 
 import { queryAll } from "#db/client.ts";
-import { readsNothing } from "#db/select/query.ts";
+import { matchesNothing } from "#db/select/expression.ts";
 import type { Read } from "#db/sql.ts";
 
 /** Every row that the read keeps. */
 export const readRows = <Row>(read: Read<Row>): Promise<Row[]> =>
-  readsNothing(read) ? Promise.resolve([]) : queryAll<Row>(read);
+  matchesNothing(read) ? Promise.resolve([]) : queryAll<Row>(read);
 
 /** The first row that the read keeps, or null when it keeps none. Limit the
  *  read to one row where it can keep more. */
