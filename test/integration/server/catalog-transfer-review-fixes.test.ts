@@ -97,26 +97,23 @@ describeWithEnv(
       assertStringIncludes(result.error, "referenced more than once");
     });
 
-    test("strips webhook URL and use-defaults for an editor import", async () => {
+    test("refuses an editor import that sets the webhook URL", async () => {
       const result = await importCatalog(
         {
           kind: "listing",
           listing: {
             maxAttendees: 5,
             name: "Editor Listing",
-            useDefaults: true,
             webhookUrl: "https://example.com/hook",
           },
           version: 1,
         },
         "editor",
       );
-      if (!result.ok) throw new Error(result.error);
-      const imported = (await getListingWithCount(
-        requireEntityImport(result).id,
-      ))!;
-      expect(imported.webhook_url).toBe("");
-      expect(imported.use_defaults).toBe(false);
+      expect(result).toEqual({
+        error: "editors cannot set webhookUrl",
+        ok: false,
+      });
     });
 
     test("keeps the webhook URL for a non-editor import", async () => {
@@ -151,8 +148,10 @@ describeWithEnv(
       );
     });
 
-    test("clears uses-logistics when logistics is disabled", async () => {
-      expect(await importLogisticsListing("Logi Off")).toBe(false);
+    test("refuses uses-logistics when logistics is disabled", async () => {
+      await expect(importLogisticsListing("Logi Off")).rejects.toThrow(
+        "usesLogistics needs logistics turned on",
+      );
     });
 
     test("keeps uses-logistics when logistics is enabled", async () => {

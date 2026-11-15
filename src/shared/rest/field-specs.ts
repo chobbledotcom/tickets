@@ -40,9 +40,8 @@ export type ClosedReason = Feature | Lock;
 
 /** The facts about one write that decide which fields it can set. */
 export type WriteAccess = {
-  readonly demo: boolean;
-  readonly editor: boolean;
   readonly features: Readonly<Record<Feature, boolean>>;
+  readonly locks: Readonly<Record<Lock, boolean>>;
 };
 
 /** One declared field. `key` is its column and its API key. `header`,
@@ -153,7 +152,7 @@ const closedReasonOrNull =
     if (field.feature !== undefined && !access.features[field.feature]) {
       return field.feature;
     }
-    return field.lockedFor?.find((lock) => access[lock]) ?? null;
+    return field.lockedFor?.find((lock) => access.locks[lock]) ?? null;
   };
 
 /** The fields that one write cannot set, keyed by column, with the reason. */

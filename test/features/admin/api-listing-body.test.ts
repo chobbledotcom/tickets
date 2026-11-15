@@ -46,12 +46,12 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     const createRefusals: CreateRefusal[] = [
       {
         body: { max_attendees: 10, name: 123 },
-        error: "name is required",
+        error: "name must be a string",
         label: "returns error for non-string name",
       },
       {
         body: listingBody("  ", {}),
-        error: "name is required",
+        error: "name cannot be empty",
         label: "returns error for a whitespace-only name",
       },
       {
@@ -138,67 +138,57 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     });
 
     test("maps every supported scalar without changing neutral values", async () => {
-      const result = await bodyToCreateInput({
-        active: false,
-        bookable_alone: true,
-        bookable_days: [],
-        can_pay_more: false,
-        closes_at: null,
-        customisable_days: true,
-        date: null,
-        day_prices: { 1: 0, 2: 2500 },
-        description: "Description",
-        duration_days: 2,
-        fields: "",
-        group_ids: [1, 3],
-        hidden: true,
-        listing_type: "daily",
-        location: "Location",
-        max_attendees: 25,
-        max_price: 0,
-        max_quantity: 1,
-        maximum_days_after: 0,
-        min_quantity: 2,
-        minimum_days_before: 0,
-        name: "  Full listing  ",
-        non_transferable: true,
-        thank_you_url: "",
-        unit_price: 0,
-        use_defaults: false,
-        webhook_url: "",
-      });
+      // Each row: the body key, the value sent, and the read value when the
+      // read changes it. The read key is the camelCase body key.
+      const rows: [string, unknown, unknown?][] = [
+        ["active", false],
+        ["bookable_alone", true],
+        ["bookable_days", []],
+        ["can_pay_more", false],
+        ["closes_at", null, ""],
+        ["customisable_days", true],
+        ["date", null, ""],
+        ["day_prices", { 1: 0, 2: 2500 }],
+        ["description", "Description"],
+        ["duration_days", 2],
+        ["fields", ""],
+        ["group_ids", [1, 3]],
+        ["hidden", true],
+        ["listing_type", "daily"],
+        ["location", "Location"],
+        ["max_attendees", 25],
+        ["max_price", 0],
+        ["max_quantity", 1],
+        ["maximum_days_after", 0],
+        ["min_quantity", 2],
+        ["minimum_days_before", 0],
+        ["name", "  Full listing  ", "Full listing"],
+        ["non_transferable", true],
+        ["thank_you_url", ""],
+        ["unit_price", 0],
+        ["use_defaults", false],
+        ["webhook_url", ""],
+      ];
+      const camel = (key: string) =>
+        key.replace(/_(\w)/g, (_, letter: string) => letter.toUpperCase());
+      const result = await bodyToCreateInput(
+        Object.fromEntries(rows.map(([key, sent]) => [key, sent])),
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
         const { slug, slugIndex, ...input } = result.value;
         expect(input).toEqual({
-          active: false,
-          bookableAlone: true,
-          bookableDays: [],
-          canPayMore: false,
-          closesAt: "",
-          customisableDays: true,
-          date: "",
-          dayPrices: { 1: 0, 2: 2500 },
-          description: "Description",
-          durationDays: 2,
-          fields: "",
-          groupIds: [1, 3],
-          hidden: true,
-          listingType: "daily",
-          location: "Location",
-          maxAttendees: 25,
-          maximumDaysAfter: 0,
-          maxPrice: 0,
-          maxQuantity: 1,
-          minimumDaysBefore: 0,
-          minQuantity: 2,
-          name: "Full listing",
-          nonTransferable: true,
-          thankYouUrl: "",
-          unitPrice: 0,
-          useDefaults: false,
-          webhookUrl: "",
+          ...Object.fromEntries(
+            rows.map(([key, sent, ...read]) => [
+              camel(key),
+              read.length > 0 ? read[0] : sent,
+            ]),
+          ),
+          // The fields the body left out read as their declared defaults.
+          assignBuiltSite: false,
+          purchaseOnly: false,
+          usesLogistics: false,
         });
         expect(slug).toMatch(/^[0-9a-h]{5}$/);
         expect(slugIndex).toHaveLength(44);
@@ -371,8 +361,13 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
       expect(result.ok && Object.hasOwn(result.value, "closesAt")).toBe(false);
     });
   });
+});
 
-  describe("months_per_unit and initial_site_months", () => {
+// Both are site building fields, which a site without site building refuses.
+describeWithEnv(
+  "Admin API - listing site building fields",
+  { db: true, env: { CAN_BUILD_SITES: "true" } },
+  () => {
     test("months_per_unit round-trips on save", async () => {
       const listing = await createTestListing({
         hidden: true,
@@ -401,5 +396,24 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         }),
       ).rejects.toThrow();
     });
-  });
-});
+
+    test("the body sets the site building fields while site building is on", async () => {
+      const plan = { assign_built_site: true, initial_site_months: 6 };
+      const created = requireSuccess(
+        await bodyToCreateInput({
+          max_attendees: 10,
+          months_per_unit: 3,
+          name: "Plan",
+          purchase_only: true,
+          ...plan,
+        }),
+      );
+      expect([
+        created.assignBuiltSite,
+        created.initialSiteMonths,
+        created.monthsPerUnit,
+        created.purchaseOnly,
+      ]).toEqual([true, 6, 3, true]);
+    });
+  },
+);

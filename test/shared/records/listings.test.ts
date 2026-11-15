@@ -22,6 +22,7 @@ const createListing = (name: string) => {
     max_attendees: "50",
     max_quantity: "5",
     name,
+    unit_price: "0",
   });
   return buildCreateListingResource(form, listingFormView("owner")).create(
     form,

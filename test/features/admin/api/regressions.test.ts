@@ -71,7 +71,7 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
   test("requires a create name", async () => {
     await expect(
       bodyToCreateInput({ max_attendees: 10, name: " " }),
-    ).resolves.toEqual({ error: "name is required", ok: false });
+    ).resolves.toEqual({ error: "name cannot be empty", ok: false });
   });
 
   test("requires at least one attendee on create", async () => {

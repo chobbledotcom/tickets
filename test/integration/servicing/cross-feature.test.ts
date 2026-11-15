@@ -16,6 +16,7 @@ import {
   createServicingHold,
   expectLogisticsDisabled,
 } from "#test-utils/servicing.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 describeWithEnv(
   "servicing edge cases — cross-feature interactions",
@@ -25,6 +26,7 @@ describeWithEnv(
       // The listing has `uses_logistics = true` and logistics agents configured;
       // a customer booking on it would split the attendee row. A servicing
       // hold must not — `split_logistics_agents` stays 0, no agents assigned.
+      await enableFeature("logistics");
       const { id } = await createServicingHold({
         listing: { name: "Logistics L", usesLogistics: true },
       });

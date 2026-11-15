@@ -346,14 +346,12 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       visible: shows(view, "initial_site_months"),
     }),
     {
-      hint: t("fields.listing.assign_built_site_hint"),
-      label: t("fields.listing.assign_built_site"),
-      name: "assign_built_site",
-      options: [
-        { label: t("fields.listing.assign_built_site_label"), value: "1" },
-      ],
+      ...checkboxField("assign_built_site", {
+        hint: t("fields.listing.assign_built_site_hint"),
+        label: t("fields.listing.assign_built_site"),
+        optionLabel: t("fields.listing.assign_built_site_label"),
+      }),
       section: "advanced",
-      type: "checkbox-group",
       visible: shows(view, "assign_built_site"),
     },
     {

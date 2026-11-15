@@ -1,12 +1,15 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import {
   createTestListing,
   updateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { testListingInput } from "#test-utils/factories.ts";
+import { adminMultipartPost } from "#test-utils/session.ts";
 
 describeWithEnv("server listings > assign_built_site", { db: true }, () => {
   describe("assign_built_site", () => {
@@ -17,11 +20,13 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
       expect(saved?.assign_built_site).toBe(true);
     });
 
-    test("ignores assign_built_site when CAN_BUILD_SITES is not set", async () => {
+    test("refuses assign_built_site when CAN_BUILD_SITES is not set", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
-      const listing = await createTestListing({ assignBuiltSite: true });
-      const saved = await getListingWithCount(listing.id);
-      expect(saved?.assign_built_site).toBe(false);
+      const { response } = await adminMultipartPost("/admin/listing", {
+        ...buildCreateListingForm(testListingInput({ name: "No builder" })),
+        assign_built_site: "1",
+      });
+      expect([response.status, await getAllListings()]).toEqual([400, []]);
     });
 
     test("defaults to false even when CAN_BUILD_SITES is true", async () => {

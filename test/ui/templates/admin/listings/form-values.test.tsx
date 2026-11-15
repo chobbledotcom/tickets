@@ -13,7 +13,6 @@ import {
   listingFormClassAttr,
   listingToFieldValues,
   renderDayPricesFieldset,
-  showUseDefaultsToggle,
 } from "#templates/admin/listings/form-values.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
@@ -72,11 +71,11 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a free listing leaves its price box empty rather than typing 0.00", () => {
+  test("a free listing fills its price box with 0.00, since a blank box is refused", () => {
     const values = listingToFieldValues(
       testListingWithCount({ unit_price: 0 }),
     );
-    expect(values.unit_price).toBe("");
+    expect(values.unit_price).toBe("0.00");
   });
 
   test("a one-penny price still fills the box", () => {
@@ -172,17 +171,5 @@ describe("listingFormClassAttr", () => {
       class: "listing-form--default-hidden",
     });
     expect(listingFormClassAttr(null, {})).toEqual({});
-  });
-});
-
-describe("showUseDefaultsToggle", () => {
-  test("the toggle shows once a default exists, unless the writer cannot set it", () => {
-    const defaults: ListingDefaults = { hidden: true };
-    const locked = new Map([["use_defaults", "editor"]] as const);
-    expect([
-      showUseDefaultsToggle(new Map(), defaults),
-      showUseDefaultsToggle(new Map(), {}),
-      showUseDefaultsToggle(locked, defaults),
-    ]).toEqual([true, false, false]);
   });
 });

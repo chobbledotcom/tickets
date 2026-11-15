@@ -8,7 +8,6 @@ import {
   type FieldValues,
 } from "#shared/forms/values.ts";
 import {
-  hasAnyListingDefault,
   type ListingDefaultField,
   type ListingDefaultKind,
   type ListingDefaults,
@@ -16,7 +15,6 @@ import {
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import type { ListingTemplate } from "#shared/listing-templates.ts";
-import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { utcToLocalInput } from "#shared/timezone.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { getListingForm } from "#templates/fields/listing.ts";
@@ -129,10 +127,3 @@ export const listingFormClassAttr = (
   const classes = listingFormClassFor(template, defaults);
   return classes ? { class: classes } : {};
 };
-
-/** True when the page shows the "use listing defaults" switch: some default
- *  is set, and the writer can set the switch. */
-export const showUseDefaultsToggle = (
-  closed: ClosedFields,
-  defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");

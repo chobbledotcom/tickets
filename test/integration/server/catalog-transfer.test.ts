@@ -122,6 +122,27 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(blob.listing.thankYouUrl).toBe("https://thanks.example.com");
     });
 
+    test("leaves out the fields the exporter cannot set, so the file imports back", async () => {
+      const listing = await createTestListing({
+        name: "Withheld",
+        webhookUrl: "https://hooks.example.com/orders",
+      });
+
+      const owner = unwrapExport(await exportListing(listing.id, "owner"));
+      const editor = unwrapExport(await exportListing(listing.id, "editor"));
+      expect([
+        owner.listing.webhookUrl,
+        "usesLogistics" in owner.listing,
+        "assignBuiltSite" in owner.listing,
+        ["active", "useDefaults", "webhookUrl"].filter(
+          (key) => key in editor.listing,
+        ),
+      ]).toEqual(["https://hooks.example.com/orders", false, false, []]);
+
+      editor.listing.name = "Withheld copy";
+      expect((await importCatalog(editor, "editor")).ok).toBe(true);
+    });
+
     test("rejects stale listing image fields", async () => {
       const staleFields = [
         ["imageThumbUrl", "legacy-thumb.webp"],

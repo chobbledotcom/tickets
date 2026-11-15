@@ -42,8 +42,15 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       (body) => {
         expect(body.listing.name).toBe("Editor Made Listing");
         // The create route answers through the post-write response path, so
-        // the editor's money-free read applies here too.
-        for (const field of ["cost", "income", "profit"]) {
+        // the editor's money-free read applies here too. The fields an editor
+        // cannot set are not readable for the role either.
+        for (const field of [
+          "cost",
+          "income",
+          "profit",
+          "use_defaults",
+          "webhook_url",
+        ]) {
           expect(field in body.listing).toBe(false);
         }
       },
@@ -126,10 +133,9 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
   // the registration webhook posts full attendee PII to the URL) and offers no
   // active control (only staff deactivate or reactivate). The JSON body must
   // obey the same locks for editors, not silently accept the fields.
-  test("freezes the webhook fields to stored values for an editor update", async () => {
+  test("refuses an editor update that names a locked field, and changes nothing", async () => {
     const listing = await createTestListing({
       name: "Editor Lock",
-      useDefaults: false,
       webhookUrl: "https://hooks.example.com/stored",
     });
     const editor = await editorSession();
@@ -137,60 +143,46 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     const response = await handleRequest(
       requestAsSession(`/api/admin/listings/${listing.id}`, editor, {
         body: JSON.stringify({
-          active: false,
           name: "Editor Lock Renamed",
-          use_defaults: true,
           webhook_url: "https://editor.example/exfil",
         }),
         headers: { "content-type": "application/json" },
         method: "PUT",
       }),
     );
-    expect(response.status).toBe(200);
 
     const row = await getListingWithCount(listing.id);
-    expect(row?.name).toBe("Editor Lock Renamed");
-    expect(row?.active).toBe(true);
-    expect(row?.use_defaults).toBe(false);
-    expect(row?.webhook_url).toBe("https://hooks.example.com/stored");
+    expect([
+      response.status,
+      await response.json(),
+      row?.name,
+      row?.webhook_url,
+    ]).toEqual([
+      400,
+      { error: "editors cannot set webhook_url" },
+      "Editor Lock",
+      "https://hooks.example.com/stored",
+    ]);
   });
 
-  test("ignores the locked fields for an editor create", async () => {
-    const created = await assertJson<{
-      listing: {
-        active: boolean;
-        id: number;
-      };
-    }>(
-      handleRequest(
-        requestAsSession("/api/admin/listings", await editorSession(), {
-          body: JSON.stringify({
-            active: false,
-            listing_type: "standard",
-            max_attendees: 10,
-            name: "Editor Locked Create",
-            use_defaults: true,
-            webhook_url: "https://editor.example/exfil",
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
+  test("refuses an editor create that names a locked field", async () => {
+    const response = await handleRequest(
+      requestAsSession("/api/admin/listings", await editorSession(), {
+        body: JSON.stringify({
+          active: true,
+          listing_type: "standard",
+          max_attendees: 10,
+          name: "Editor Locked Create",
         }),
-      ),
-      201,
-      (body) => {
-        expect(body.listing.active).toBe(true);
-        // The editor's answer hides the locked fields (they are not settable
-        // and not readable for the role), so the ignored submission is pinned
-        // on the stored row instead.
-        for (const field of ["use_defaults", "webhook_url"]) {
-          expect(field in body.listing).toBe(false);
-        }
-      },
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
     );
-    expect(created.listing.id).toBeGreaterThan(0);
-    const row = await getListingWithCount(created.listing.id);
-    expect(row?.webhook_url).toBe("");
-    expect(row?.use_defaults).toBe(false);
+
+    expect([response.status, await response.json()]).toEqual([
+      400,
+      { error: "editors cannot set active" },
+    ]);
   });
 
   test("deactivates a normal listing through the update body for staff", async () => {
@@ -226,7 +218,7 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
     );
     const oneBody = await one.json();
     expect(one.status).toBe(200);
-    expect(oneBody.listing).toBeDefined();
+    expect(oneBody.listing).toMatchObject({ id });
     return oneBody.listing as Record<string, unknown>;
   };
 

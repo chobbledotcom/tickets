@@ -34,6 +34,7 @@ import {
   checkedValues,
   type ValidationResult,
 } from "#shared/forms/validation.ts";
+import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import {
   generateUniqueListingSlug,
   keepDailyListingDate,
@@ -54,7 +55,6 @@ import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { normalizeSlug } from "#shared/slug.ts";
 import { commaParts } from "#shared/split.ts";
 import { parseOptionalMinorUnits } from "#shared/validation/money.ts";
-import { showUseDefaultsToggle } from "#templates/admin/listings/form-values.tsx";
 import {
   getListingEditForm,
   getListingForm,

@@ -12,16 +12,18 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testFormParams } from "#test-utils/form-values.ts";
 import type { AdminLevel } from "#types";
 
-/** Read one edit form of a stored listing as a writer of this level. */
+/** Read one edit form of a new stored listing as a writer of this level. */
 const readEdit = async (
   adminLevel: AdminLevel,
   extra: Record<string, string>,
 ) => {
-  const listing = await createTestListing({ name: "Hall" });
+  const name = `Hall ${adminLevel} ${Object.keys(extra).join(" ")}`;
+  const listing = await createTestListing({ name });
   const stored = (await getStoredListingWithCount(listing.id))!;
   const form = testFormParams({
     max_attendees: "50",
-    name: "Hall",
+    max_quantity: "1",
+    name,
     slug: stored.slug,
     unit_price: "0",
     ...extra,
@@ -48,7 +50,7 @@ describeWithEnv("listing editor field locks", { db: true }, () => {
     });
     const active = await readEdit("owner", { active: "0" });
     expect([
-      webhook.ok && webhook.value.webhookUrl,
+      webhook.ok ? webhook.value.webhookUrl : webhook.error,
       active.ok ? "read" : active.error,
     ]).toEqual([
       "https://owner.example/hook",

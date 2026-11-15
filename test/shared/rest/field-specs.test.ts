@@ -63,9 +63,8 @@ describe("field specs", () => {
       logistics: boolean,
     ): [string, string][] => [
       ...closedFields(FIELDS, {
-        demo,
-        editor,
         features: { builder: true, logistics },
+        locks: { demo, editor },
       }),
     ];
 

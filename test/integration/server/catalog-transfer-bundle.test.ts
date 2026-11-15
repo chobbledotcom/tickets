@@ -5,7 +5,6 @@ import { execute } from "#db/client.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -262,12 +261,15 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     );
   });
 
-  test("clears the webhook URL for an editor bundle import", async () => {
+  test("refuses an editor bundle import that sets the webhook URL", async () => {
     const bundle = dayGroupBundle(1);
     bundle.listings[0]!.listing.webhookUrl = "https://example.com/hook";
     const result = await importCatalog(bundle, "editor");
-    if (!result.ok) throw new Error(result.error);
-    const imported = await getListingWithCount(await listingIdByName("Act 0"));
-    expect(imported!.webhook_url).toBe("");
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    assertStringIncludes(
+      result.error,
+      '"Act 0": editors cannot set webhookUrl',
+    );
   });
 });

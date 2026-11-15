@@ -33,6 +33,7 @@ describeWithEnv(
           max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
+          unit_price: "0",
         });
 
       test("updates listing group_id", async () => {
@@ -57,6 +58,7 @@ describeWithEnv(
             max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
+            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -82,6 +84,7 @@ describeWithEnv(
             max_quantity: "1",
             name: listing.name,
             slug: listing.slug,
+            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -187,6 +190,7 @@ describeWithEnv(
             name: "Slug Update Test",
             slug: "new-custom-slug",
             thank_you_url: "https://example.com",
+            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -211,6 +215,7 @@ describeWithEnv(
             max_quantity: "1",
             name: "Normalize Test",
             slug: "  My Custom Slug  ",
+            unit_price: "0",
           },
         );
         await expectFlashRedirect(
@@ -233,6 +238,7 @@ describeWithEnv(
           max_quantity: "1",
           name: "Invalid Slug Test",
           slug: "invalid_slug!@#",
+          unit_price: "0",
         });
         await expectHtmlResponse(
           response,
@@ -259,6 +265,7 @@ describeWithEnv(
             max_quantity: "1",
             name: "Listing Two",
             slug: listing1.slug,
+            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -285,6 +292,7 @@ describeWithEnv(
             max_quantity: "1",
             name: listing.name,
             slug: group.slug,
+            unit_price: "0",
           },
         );
         await expectHtmlResponse(
@@ -307,6 +315,7 @@ describeWithEnv(
             max_quantity: "1",
             name: "Same Slug Test",
             slug: listing.slug,
+            unit_price: "0",
           },
         );
         await expectFlashRedirect(

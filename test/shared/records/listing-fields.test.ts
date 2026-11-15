@@ -12,9 +12,8 @@ import {
 
 /** A staff writer on a site with every feature on and no demo. */
 const OPEN: WriteAccess = {
-  demo: false,
-  editor: false,
   features: { builder: true, logistics: true },
+  locks: { demo: false, editor: false },
 };
 
 /** The closed fields of one writer, in declaration order. */
@@ -54,7 +53,12 @@ describe("listing and group fields", () => {
   });
 
   test("an editor cannot set the bookable state, the defaults switch, or the webhook", () => {
-    expect(closedOf(LISTING_FIELDS, { ...OPEN, editor: true })).toEqual([
+    expect(
+      closedOf(LISTING_FIELDS, {
+        ...OPEN,
+        locks: { demo: false, editor: true },
+      }),
+    ).toEqual([
       ["active", "editor"],
       ["use_defaults", "editor"],
       ["webhook_url", "editor"],
@@ -63,8 +67,14 @@ describe("listing and group fields", () => {
 
   test("demo mode closes the webhook, and the demo lock names the reason first", () => {
     expect([
-      closedOf(LISTING_FIELDS, { ...OPEN, demo: true }),
-      closedOf(LISTING_FIELDS, { ...OPEN, demo: true, editor: true }),
+      closedOf(LISTING_FIELDS, {
+        ...OPEN,
+        locks: { demo: true, editor: false },
+      }),
+      closedOf(LISTING_FIELDS, {
+        ...OPEN,
+        locks: { demo: true, editor: true },
+      }),
     ]).toEqual([
       [["webhook_url", "demo"]],
       [
@@ -78,9 +88,8 @@ describe("listing and group fields", () => {
   test("no writer is ever closed out of a group field", () => {
     expect(
       closedOf(GROUP_FIELDS, {
-        demo: true,
-        editor: true,
         features: { builder: false, logistics: false },
+        locks: { demo: true, editor: true },
       }),
     ).toEqual([]);
   });

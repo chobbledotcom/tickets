@@ -4,6 +4,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
+import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -17,10 +18,7 @@ import {
   listingFormView,
 } from "#templates/fields/listing.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
-import {
-  renderDayPricesFieldset,
-  showUseDefaultsToggle,
-} from "./form-values.tsx";
+import { renderDayPricesFieldset } from "./form-values.tsx";
 
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
 
@@ -218,10 +216,6 @@ export const ListingFormSections = ({
             </label>
           )}
         </fieldset>
-      )}
-
-      {!showUseDefaults && useDefaultsChecked && (
-        <input name="use_defaults" type="hidden" value="1" />
       )}
 
       <FormSections sections={sections} />

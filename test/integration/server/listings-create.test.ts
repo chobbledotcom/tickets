@@ -42,6 +42,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "Test Listing",
         thank_you_url: "https://example.com",
+        unit_price: "0",
       },
       multipart: true,
     });
@@ -54,6 +55,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         name: "Hireable",
         template_id: "hireable-item",
         thank_you_url: "https://example.com",
+        unit_price: "0",
       });
       await expectHtmlResponse(
         response,
@@ -72,6 +74,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         purchase_only: "",
         template_id: "one-off-event",
         thank_you_url: "https://example.com",
+        unit_price: "0",
         uses_logistics: "",
       });
       expect(response.status).toBe(400);
@@ -84,6 +87,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         template_id: "online-digital",
         thank_you_url: "https://example.com",
+        unit_price: "0",
         // name omitted → validation error
       });
       expect(response.status).toBe(400);
@@ -96,6 +100,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "New Listing",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
@@ -121,6 +126,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
               max_quantity: "1",
               name: "Saved before error",
               thank_you_url: "https://example.com/thanks",
+              unit_price: "0",
             }),
           ),
       );
@@ -145,6 +151,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
           max_quantity: "1",
           name: "Lagged Listing",
           thank_you_url: "https://example.com/thanks",
+          unit_price: "0",
         });
         await expectFlashRedirect("/admin", "Listing created")(response);
       } finally {
@@ -156,21 +163,21 @@ describeWithEnv("server listings > create", { db: true }, () => {
       expect(listing?.name).toBe("Lagged Listing");
     });
 
-    test("clears webhook URL when creating listing in demo mode", async () => {
+    test("refuses a webhook URL when creating listing in demo mode", async () => {
       setDemoModeForTest(true);
 
       const { response } = await adminMultipartPost("/admin/listing", {
         max_attendees: "50",
         max_quantity: "1",
         name: "Demo Listing",
+        unit_price: "0",
         webhook_url: "https://example.com/webhook",
       });
-      await expectFlashRedirect("/admin", "Listing created")(response);
 
-      // Verify webhook_url was cleared
-      const listing = await getListingWithCount(1);
-      expect(listing).not.toBeNull();
-      expect(listing?.webhook_url).toBe("");
+      expect([response.status, await getListingWithCount(1)]).toEqual([
+        400,
+        null,
+      ]);
     });
 
     test("creates listing with group_id when provided", async () => {
@@ -184,6 +191,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "Grouped Listing",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
 
@@ -198,6 +206,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "Bad Group Listing",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       expectStatus(400)(response);
 
@@ -224,6 +233,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "Daily Mismatch",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       expectStatus(400)(response);
       const body = await response.clone().text();
@@ -240,6 +250,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
             max_quantity: "1",
             name: "New Listing",
             thank_you_url: "https://example.com/thanks",
+            unit_price: "0",
           },
           await testCookie(),
         ),
@@ -256,6 +267,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
             max_quantity: "1",
             name: "New Listing",
             thank_you_url: "https://example.com/thanks",
+            unit_price: "0",
           },
           await testCookie(),
         ),
@@ -268,6 +280,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_attendees: "",
         name: "",
         thank_you_url: "",
+        unit_price: "0",
       });
       await expectHtmlResponse(response, 400, "Add Listing");
     });
@@ -279,6 +292,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_attendees: "",
         name: "",
         thank_you_url: "",
+        unit_price: "0",
       });
       const html = await response.text();
       expect(response.status).toBe(400);
@@ -307,6 +321,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         max_quantity: "1",
         name: "Duplicate Listing",
         thank_you_url: "https://example.com",
+        unit_price: "0",
       });
       expect(response.status).toBe(400);
       assertStringIncludes(

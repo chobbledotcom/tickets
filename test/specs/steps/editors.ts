@@ -248,6 +248,16 @@ When(
   },
 );
 
+Then(
+  "{word} is told the form sent a field it does not show",
+  function (this: TicketsWorld, _who: string): void {
+    assertStringIncludes(
+      editorBrowser(this).pageText,
+      t("fields.validation.unshown_field"),
+    );
+  },
+);
+
 When(
   "the owner saves {word} with somewhere else to forward bookings to",
   async function (this: TicketsWorld, name: string): Promise<void> {

@@ -26,6 +26,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         name: "Updated Listing",
         slug: "updated-listing",
         thank_you_url: "https://example.com/updated",
+        unit_price: "0",
       },
       multipart: true,
       setup: async () => {
@@ -43,6 +44,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         name: "Updated Listing",
         slug: "updated-listing",
         thank_you_url: "https://example.com/updated",
+        unit_price: "0",
       });
       expect(response.status).toBe(404);
     });
@@ -63,6 +65,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
             name: "Updated Listing",
             slug: "updated-listing",
             thank_you_url: "https://example.com/updated",
+            unit_price: "0",
           },
           cookie,
         ),
@@ -82,6 +85,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         name: "",
         slug: "test-slug",
         thank_you_url: "https://example.com",
+        unit_price: "0",
       });
       await expectHtmlResponse(response, 400, "Listing name is required");
     });
@@ -128,6 +132,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
           slug: listing.slug,
           thank_you_url: "https://example.com",
           tickets_count: "4",
+          unit_price: "0",
         },
       );
       await expectFlashRedirect(
@@ -158,6 +163,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
           slug: listing.slug,
           thank_you_url: "https://example.com",
           tickets_count: "4",
+          unit_price: "0",
         },
       );
 
@@ -168,29 +174,24 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       );
     });
 
-    test("clears webhook URL when updating listing in demo mode", async () => {
-      setDemoModeForTest(true);
-
+    test("refuses a webhook URL when updating listing in demo mode", async () => {
       const { listing } = await setupListingAndLogin({
         maxAttendees: 100,
         webhookUrl: "https://example.com/original-webhook",
       });
+      setDemoModeForTest(true);
 
       const { response } = await adminFormPost("/admin/listing/1/edit", {
         max_attendees: "200",
         max_quantity: "5",
         name: listing.name,
         slug: listing.slug,
+        unit_price: "0",
         webhook_url: "https://example.com/new-webhook",
       });
-      await expectFlashRedirect(
-        "/admin/listing/1",
-        "Listing updated",
-      )(response);
 
-      // Verify webhook_url was cleared
       const updated = await getListingWithCount(1);
-      expect(updated?.webhook_url).toBe("");
+      expect([response.status, updated?.max_attendees]).toEqual([400, 100]);
     });
   });
 });

@@ -179,6 +179,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
           max_quantity: "1",
           name: listing.name,
           slug: listing.slug,
+          unit_price: "0",
         },
       );
       await expectHtmlResponse(

@@ -18,10 +18,9 @@ export const closedFieldsFor = (
   adminLevel: AdminLevel | undefined,
 ): ClosedFields =>
   closedFields(fields, {
-    demo: isDemoMode(),
-    editor: adminLevel === "editor",
     features: {
       builder: isBuilderEnabled(),
       logistics: settings.features.logistics,
     },
+    locks: { demo: isDemoMode(), editor: adminLevel === "editor" },
   });

@@ -39,6 +39,7 @@ describeWithEnv(
           name: listing.name,
           slug: listing.slug,
           thank_you_url: "https://example.com/updated",
+          unit_price: "0",
         });
 
         const logs = await getListingActivityLog(listing.id);

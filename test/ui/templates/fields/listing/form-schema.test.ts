@@ -17,6 +17,7 @@ describe("listing form schema", () => {
         max_quantity: "2",
         months_per_unit: "3",
         name: "Example",
+        unit_price: "0",
       }),
     );
 

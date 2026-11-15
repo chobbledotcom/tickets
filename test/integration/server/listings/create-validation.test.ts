@@ -26,9 +26,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       expect(response.status).toBe(302);
     });
 
-    test("creates a free listing when unit_price is blank (no price)", async () => {
-      // Exercises the optional-price parse's blank path: a blank unit_price
-      // resolves to no price, and the listing stores 0 (free).
+    test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
       const { response } = await adminFormPost("/admin/listing", {
         max_attendees: "50",
         max_quantity: "1",
@@ -36,8 +34,12 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         thank_you_url: "https://example.com/thanks",
         unit_price: "",
       });
-      expect(response.status).toBe(302);
-      expect((await getListingWithCount(1))?.unit_price).toBe(0);
+      expect(response.status).toBe(400);
+      assertStringIncludes(
+        await response.text(),
+        "Enter a ticket price. Type 0 for free.",
+      );
+      expect(await getListingWithCount(1)).toBeNull();
     });
   });
   describe("POST /admin/listing day-price validation", () => {
@@ -50,6 +52,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         max_quantity: "1",
         name: "Bad Day Price",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       expect(response.status).toBe(400);
       assertStringIncludes(await response.text(), "valid day price");
@@ -65,6 +68,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         max_attendees: "50",
         max_quantity: "1",
         name: "Bad Day Price",
+        unit_price: "0",
       });
       expect(response.status).toBe(400);
       const html = await response.text();
@@ -81,6 +85,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         max_quantity: "1",
         name: "Good Day Price",
         thank_you_url: "https://example.com/thanks",
+        unit_price: "0",
       });
       expect(response.status).toBe(302);
       expect((await getListingWithCount(1))?.day_prices).toEqual({ 1: 1000 });

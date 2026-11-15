@@ -15,10 +15,8 @@ import { t } from "#i18n";
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
-  type ListingUpdateResult,
 } from "#routes/admin/listings-form.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { listingRecord } from "#shared/records/listings.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -28,60 +26,14 @@ import {
 } from "#test-utils/db-helpers/attributes.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import {
-  type TestFormValues,
-  testFormParams,
-} from "#test-utils/form-values.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
-import { featureSetting, withSetting } from "#test-utils/settings.ts";
-import type { Listing } from "#types";
 
-const listingForm = (extra: TestFormValues = {}) =>
-  testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
-    name: "Parsed listing",
-    unit_price: "0",
-    ...extra,
-  });
-
-const createListing = async (extra: TestFormValues = {}): Promise<Listing> => {
-  const form = listingForm(extra);
-  const result = await buildCreateListingResource(
-    form,
-    listingFormView("owner"),
-  ).create(form);
-  if (!result.ok) throw new Error(`create failed: ${result.error}`);
-  return result.row;
-};
-
-/** Run one edit save against the stored row, as the production edit handler
- *  does. A daily listing's effective date is already empty, so the save's date
- *  guard must see the value the row still stores. */
-const saveListingEdit = async (
-  id: number,
-  extra: TestFormValues = {},
-): Promise<ListingUpdateResult> => {
-  const form = listingForm({ slug: "kept-slug", ...extra });
-  const stored = (await getStoredListingWithCount(id))!;
-  return buildUpdateListingResource(stored, listingFormView("owner")).update(
-    id,
-    form,
-  );
-};
-
-const updateListing = async (
-  id: number,
-  extra: TestFormValues = {},
-): Promise<Listing> => {
-  const result = await saveListingEdit(id, extra);
-  if (!result.ok) {
-    throw new Error(
-      "error" in result ? `update failed: ${result.error}` : "update not found",
-    );
-  }
-  return result.row;
-};
+import {
+  createListing,
+  listingForm,
+  saveListingEdit,
+  updateListing,
+} from "./listings-form/helpers.ts";
 
 describeWithEnv("listings form", { db: true }, () => {
   describe("create", () => {
@@ -191,31 +143,6 @@ describeWithEnv("listings form", { db: true }, () => {
           "WHERE listing.id = ?",
       });
       expect(stored.rows[0]!.closes_at).toBeNull();
-    });
-
-    test("the use-defaults tick is saved", async () => {
-      const on = await createListing({ use_defaults: "1" });
-      expect(on.use_defaults).toBe(true);
-
-      const off = await createListing({ name: "Own values" });
-      expect(off.use_defaults).toBe(false);
-    });
-
-    test("demo mode drops the webhook address, normal mode keeps it", async () => {
-      const hook = "https://example.com/hook";
-      const real = await createListing({ webhook_url: hook });
-      expect(real.webhook_url).toBe(hook);
-
-      setDemoModeForTest(true);
-      try {
-        const demo = await createListing({
-          name: "Demo listing",
-          webhook_url: hook,
-        });
-        expect(demo.webhook_url).toBe("");
-      } finally {
-        setDemoModeForTest(false);
-      }
     });
 
     test("duplicating a listing copies the source's attribute choices", async () => {
@@ -329,24 +256,6 @@ describeWithEnv("listings form", { db: true }, () => {
       });
       expect(links.rows.map((r) => r.group_id)).toEqual([group.id]);
     });
-
-    test("builder and logistics choices stay off while their features are off", async () => {
-      const row = await createListing({
-        assign_built_site: "1",
-        uses_logistics: "1",
-      });
-      expect(row.assign_built_site).toBe(false);
-      expect(row.uses_logistics).toBe(false);
-    });
-
-    test("a logistics choice is kept when the feature is on", () =>
-      withSetting(featureSetting("logistics"), async () => {
-        const on = await createListing({ uses_logistics: "1" });
-        expect(on.uses_logistics).toBe(true);
-        // An unticked checkbox never reaches the form at all.
-        const off = await createListing({ name: "No logistics" });
-        expect(off.uses_logistics).toBe(false);
-      }));
   });
 
   describe("update", () => {

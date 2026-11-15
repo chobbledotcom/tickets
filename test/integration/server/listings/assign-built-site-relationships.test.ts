@@ -34,6 +34,7 @@ describeWithEnv(
         max_attendees: "50",
         max_quantity: "1",
         name: "Create Form Plan",
+        unit_price: "0",
       });
 
       await expectHtmlResponse(
