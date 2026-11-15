@@ -2,6 +2,8 @@
  * The expected universe is built from seed inputs before either production read.
  * No rendered page, role, label, link, or personal-data claim is made here.
  */
+
+import { assert } from "@std/assert";
 import * as v from "valibot";
 import { executeBatch } from "#db/client.ts";
 import {
@@ -13,7 +15,7 @@ import {
   RecurringIntervalSchema,
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
-import { seedBooking } from "./environment.ts";
+import { outcomeOf, seedBooking } from "./environment.ts";
 import { type RecordFacts, recordPlanObservation } from "./records-facts.ts";
 
 const projection = (
@@ -34,15 +36,17 @@ const projection = (
   status: row.subscription_status,
 });
 
+const REFUSED = Symbol("refused by boundary validation");
+
 /** Only a boundary validation error counts as the expected loud refusal. */
-const rejectsInvalidPlan = (read: () => Promise<unknown>): Promise<boolean> =>
-  read().then(
-    () => false,
-    (error: unknown) => {
-      if (!(error instanceof v.ValiError)) throw error;
-      return true;
-    },
-  );
+const rejectsInvalidPlan = async (
+  read: () => Promise<unknown>,
+): Promise<boolean> => {
+  const outcome = await outcomeOf(read, [
+    [(error) => error instanceof v.ValiError, REFUSED],
+  ]);
+  return outcome === REFUSED;
+};
 
 export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
   const universe: SubscribedRow[] = [];
@@ -105,8 +109,10 @@ export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
   }
   // Ordinary and absent single reads must not invent a subscription.
   for (const id of [101, 102, 987654]) {
-    if ((await getSubscribedRowOrNull(id)) !== null)
-      throw new Error(`Unexpected subscribed row ${id}`);
+    assert(
+      (await getSubscribedRowOrNull(id)) === null,
+      `Unexpected subscribed row ${id}`,
+    );
   }
   const invalid: RecordFacts["invalid"] = [];
   await seedBooking({

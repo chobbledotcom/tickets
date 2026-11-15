@@ -1,5 +1,6 @@
 /** Production-backed checkout evidence. No live provider or application DB is used. */
 import { tlaModule, tlaStringSet } from "#scripts/verify-models/data.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
 import { admissionFacts } from "./checkout-admission.ts";
 import { CHECKOUT_TABLES, type CheckoutFacts } from "./checkout-facts.ts";
@@ -42,8 +43,7 @@ export const checkoutFacts = (
       facts.requests.push(observed.request);
       await storePlans(example, observed.start);
     }
-    const first = cases[0];
-    if (first === undefined) throw new Error("Checkout has no calendar domain");
+    const first = requireValue(cases[0], "Checkout has no calendar domain");
     // These supplied amounts check local attachment arithmetic, not Stripe price
     // acceptance. A quantity-zero retained row can still have a live plan.
     for (const [offset, amount] of [0, 3, 9007199254740000].entries()) {

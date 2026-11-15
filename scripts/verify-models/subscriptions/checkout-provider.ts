@@ -1,4 +1,7 @@
 /** Execute the real Stripe callers with a local client. Replies are assumptions. */
+
+import { assert } from "@std/assert";
+import { requireValue } from "#shared/required-value.ts";
 import type { StripeCheckoutSessionCreateParams } from "#shared/stripe/client.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import type {
@@ -66,8 +69,10 @@ export const checkoutCases = (): CheckoutCase[] => {
   const cases: CheckoutCase[] = [];
   for (const [now, interval, next] of dates)
     for (const status of SubscriptionStatusSchema.options) {
-      const policy = policies[cases.length % policies.length];
-      if (policy === undefined) throw new Error("Checkout has no tax domain");
+      const policy = requireValue(
+        policies[cases.length % policies.length],
+        "Checkout has no tax domain",
+      );
       const index = cases.length + 1;
       const quantity = (index % 2) + 1;
       const price = index % 3 === 0 ? 3 : 501;
@@ -150,7 +155,6 @@ export const observeCheckout = async (
   };
   client.invoices.retrieveWithPayments = async (id) => {
     invoiceRead = id;
-    // A later renewal has a different intent; selecting it must not pass.
     const invoice: StripeInvoicePayments = {
       id,
       payments: {
@@ -162,8 +166,7 @@ export const observeCheckout = async (
           { payment: { payment_intent: null, type: "charge" }, status: "paid" },
           {
             payment: {
-              payment_intent:
-                id === firstInvoice ? reference : `pi_renewal_${index}`,
+              payment_intent: reference,
               type: "payment_intent",
             },
             status: "paid",
@@ -204,15 +207,14 @@ export const observeCheckout = async (
     };
     // This executes the production request composer, not a copy of its params.
     await stripeApi.createCheckoutSession(intent, "https://example.invalid");
-    if (params === undefined)
-      throw new Error("Stripe checkout issued no request");
+    assert(params !== undefined, "Stripe checkout issued no request");
     const observed = await stripePaymentProvider.retrieveSession(sessionId);
-    if (
-      observed === null ||
-      !("id" in observed) ||
-      observed.subscription === undefined
-    )
-      throw new Error("Checkout supplied no observed subscription");
+    assert(
+      observed !== null &&
+        "id" in observed &&
+        observed.subscription !== undefined,
+      "Checkout supplied no observed subscription",
+    );
     const recurring = params.line_items.filter(
       (line) => line.price_data.recurring !== undefined,
     );
@@ -220,11 +222,16 @@ export const observeCheckout = async (
       (line) => line.price_data.recurring === undefined,
     );
     const [initial, ordinary] = once;
-    if (initial === undefined || ordinary === undefined)
-      throw new Error("Checkout supplied incomplete one-time lines");
+    assert(
+      initial !== undefined && ordinary !== undefined,
+      "Checkout supplied incomplete one-time lines",
+    );
     const [line] = recurring;
-    if (line === undefined || params.subscription_data === undefined)
-      throw new Error("Checkout supplied no recurring request");
+    assert(
+      line?.price_data.recurring !== undefined &&
+        params.subscription_data !== undefined,
+      "Checkout supplied no recurring request",
+    );
     const rate = policy.mode === "none" ? 0 : policy.rateBasisPoints;
     return {
       request: {
@@ -245,7 +252,7 @@ export const observeCheckout = async (
         expectedTrialEnd: Date.parse(next) / 1000,
         firstInvoice,
         initialQuantity: initial.quantity,
-        interval: line.price_data.recurring?.interval ?? "",
+        interval: line.price_data.recurring.interval,
         invoiceRead,
         listing: start.listingId,
         metadataListing: Number(params.subscription_data.metadata.listing_id),

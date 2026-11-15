@@ -1,4 +1,6 @@
 /** Shared fact tables and negative controls for the subscription producers. */
+
+import { assert } from "@std/assert";
 import {
   corruptOneFact,
   type ModelDataSource,
@@ -107,7 +109,7 @@ export const producerFor = <Facts>(
     const before = render(facts);
     change(facts);
     const after = render(facts);
-    if (before === after) throw new Error("The control changed no model fact.");
+    assert(before !== after, "The control changed no model fact.");
     return after;
   };
   const tableControl = (

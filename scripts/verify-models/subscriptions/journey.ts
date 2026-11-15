@@ -1,4 +1,6 @@
 /** These joins retain the same real rows across the model evidence boundaries. */
+
+import { assert } from "@std/assert";
 import { pick } from "@std/collections";
 import { stub } from "@std/testing/mock";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
@@ -234,8 +236,7 @@ export const failedJourneyFacts = async (): Promise<
         rows[0],
         "The failed join lost its retained plan",
       );
-      if (rows.length !== 1)
-        throw new Error("The failed join has duplicate retained plans");
+      assert(rows.length === 1, "The failed join has duplicate retained plans");
       const { price, ...stored } = storedRowFacts(row);
       facts.push({
         ...stored,

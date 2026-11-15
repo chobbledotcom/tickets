@@ -1,16 +1,17 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { describe, it } from "@std/testing/bdd";
-import {
-  cancellationFacts,
-  controls,
-} from "#scripts/verify-models/subscriptions/cancellation.ts";
+import { cancellationFacts } from "#scripts/verify-models/subscriptions/cancellation.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { records } from "#test-utils/tla-data.ts";
 import {
   activeOverEnded,
   decodedCancellationData,
 } from "./cancellation-fixture.ts";
+
+/** The controls as the checker reads them, through the registry. */
+const { controls } = registeredModel("SubscriptionCancellation");
 
 const registeredControl = (name: string) =>
   requireValue(

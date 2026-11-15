@@ -13,6 +13,7 @@ import {
   runRecordScenario,
 } from "#scripts/verify-models/subscriptions/records-operations.ts";
 import { projectionFacts } from "#scripts/verify-models/subscriptions/records-projection.ts";
+import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 const scenario = (operation: string, status = "active", quantity = 0) => {
@@ -332,7 +333,8 @@ describe("subscription record production facts", () => {
       "missing-required-record-domain",
       "duplicate-projected-booking",
     ]);
-    for (const control of controls) {
+    // The checker reads each control through the registry.
+    for (const control of registeredModel("SubscriptionRecords").controls) {
       const corrupt = await control.data();
       const operations = records(corrupt, "OperationFacts") as ParsedFact[];
       const projected = records(corrupt, "ObservedProjection") as ParsedFact[];

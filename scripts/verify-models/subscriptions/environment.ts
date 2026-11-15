@@ -8,6 +8,10 @@ import { rebuildWipedSchema } from "#db/migrations.ts";
 import { lazyRef } from "#fp";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
+import {
+  denoEnvironment,
+  setEnvironmentValue,
+} from "#scripts/environment-values.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import type {
@@ -60,8 +64,7 @@ export const withSubscriptionDb = async <Result>(
     setDb(null);
     setEncryptionKeyForTest(null);
     client.close();
-    if (previousUrl === undefined) Deno.env.delete("DB_URL");
-    else Deno.env.set("DB_URL", previousUrl);
+    setEnvironmentValue(denoEnvironment, "DB_URL", previousUrl);
     await Deno.remove(directory, { recursive: true });
   }
 };
@@ -138,3 +141,26 @@ export const paidInvoice = (id: string, amount = 600): StripePaidInvoice => ({
   id,
   status_transitions: { paid_at: Date.parse(MODEL_TIME) / 1000 },
 });
+
+/** One refusal that a scenario expects: the test of its error, and the
+ * outcome that the facts record for it. */
+export type ExpectedRefusal<Outcome> = readonly [
+  isExpected: (error: unknown) => boolean,
+  outcome: Outcome,
+];
+
+/** Runs one production call. An error that an expected refusal accepts gives
+ * the outcome of that refusal. Any other error escapes, so an unexpected
+ * failure cannot become a fact. */
+export const outcomeOf = async <Outcome>(
+  run: () => Promise<Outcome>,
+  refusals: readonly ExpectedRefusal<Outcome>[],
+): Promise<Outcome> => {
+  try {
+    return await run();
+  } catch (error) {
+    const refusal = refusals.find(([isExpected]) => isExpected(error));
+    if (refusal === undefined) throw error;
+    return refusal[1];
+  }
+};

@@ -2,9 +2,12 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MODEL_TIME } from "#scripts/verify-models/subscriptions/environment.ts";
-import { controls } from "#scripts/verify-models/subscriptions/renewals.ts";
 import { requireValue } from "#shared/required-value.ts";
+import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { records } from "#test-utils/tla-data.ts";
+
+/** The controls as the checker reads them, through the registry. */
+const { controls } = registeredModel("SubscriptionRenewals");
 
 type Match = Record<string, string | number | boolean>;
 type Example = {

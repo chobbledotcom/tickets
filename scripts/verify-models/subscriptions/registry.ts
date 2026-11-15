@@ -1,4 +1,6 @@
 /** Metadata stays independent of the application and lazy proof producers. */
+
+import { assert } from "@std/assert";
 import type { ModelDataSource } from "#scripts/verify-models/data.ts";
 import {
   type CheckPhase,
@@ -29,12 +31,10 @@ const subscriptionModel = (
         producer.controls.find((control) => control.name === name),
         `The ${module} model has no ${name} control.`,
       );
-      if (
-        control.phase !== phase ||
-        producer.controls.length !== entries.length
-      ) {
-        throw new Error(`The ${module} control metadata differs at ${name}.`);
-      }
+      assert(
+        control.phase === phase && producer.controls.length === entries.length,
+        `The ${module} control metadata differs at ${name}.`,
+      );
       return control.data;
     }),
     name,

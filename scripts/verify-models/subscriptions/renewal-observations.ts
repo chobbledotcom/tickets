@@ -7,12 +7,16 @@ import { notNullGuardFailure } from "#db/query.ts";
 import { type CheckedRow, getSubscribedRowOrNull } from "#db/subscriptions.ts";
 import { inList } from "#db/where-clauses.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
+import {
+  denoEnvironment,
+  setEnvironmentValue,
+} from "#scripts/environment-values.ts";
 import type { Transfer } from "#shared/ledger/types.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { StripePaidInvoice } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { recordObserved } from "#shared/subscriptions/record.ts";
-import { paidInvoice, seedBooking } from "./environment.ts";
+import { outcomeOf, paidInvoice, seedBooking } from "./environment.ts";
 import type {
   IdentityChange,
   RenewalCase,
@@ -177,19 +181,21 @@ const changeIdentity = async (
   ]);
 };
 
-const recordOutcome = async (write: () => Promise<void>): Promise<string> => {
-  try {
+const recordOutcome = (write: () => Promise<void>): Promise<string> =>
+  outcomeOf(async () => {
     await write();
     return "returned";
-  } catch (error) {
-    if (error instanceof LedgerConflictError) return "ledger_conflict";
-    if (notNullGuardFailure(error, "listing_attendees.listing_id"))
-      return "booking_fence";
-    if (error instanceof Error && error.message.includes(WRITE_FAULT))
-      return "write_fault";
-    throw error;
-  }
-};
+  }, [
+    [(error) => error instanceof LedgerConflictError, "ledger_conflict"],
+    [
+      (error) => notNullGuardFailure(error, "listing_attendees.listing_id"),
+      "booking_fence",
+    ],
+    [
+      (error) => error instanceof Error && error.message.includes(WRITE_FAULT),
+      "write_fault",
+    ],
+  ]);
 
 const setWriteFault = (): Promise<unknown> =>
   execute(
@@ -251,9 +257,11 @@ export const observePass = async (
     outcome = await recordOutcome(write);
   } finally {
     if (pass.fault) await execute("DROP TRIGGER model_renewal_fault");
-    if (previousExpectedError === undefined)
-      Deno.env.delete("TEST_EXPECT_ERROR");
-    else Deno.env.set("TEST_EXPECT_ERROR", previousExpectedError);
+    setEnvironmentValue(
+      denoEnvironment,
+      "TEST_EXPECT_ERROR",
+      previousExpectedError,
+    );
   }
   const after = await currentRowOrNull(row.id);
   const afterLegs = await readLegs();

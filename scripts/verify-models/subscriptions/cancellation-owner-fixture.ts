@@ -25,6 +25,7 @@ import type { StripeSubscription } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
 import type { SubscriptionStatus } from "#shared/subscriptions/plan.ts";
+import { outcomeOf } from "./environment.ts";
 
 export const OWNER_START = {
   amount: 600,
@@ -189,14 +190,13 @@ const expectedOwnerFailure = (
   sample: OwnerCase,
   fault: CancellationFault,
 ): boolean => {
-  if (!(error instanceof Error)) return false;
-  if (sample.ledgerFault) return error.message.includes(LEDGER_FAULT);
+  const message = String(error);
+  if (sample.ledgerFault) return message.includes(LEDGER_FAULT);
   const replaced = sample.change !== undefined && sample.change !== "status";
   const wrongCommand =
     fault === "wrong-cancellation-identity" &&
     sample.scenario === "owner-final";
-  if (replaced || wrongCommand) return error.message.includes(IDENTITY_REFUSAL);
-  return false;
+  return (replaced || wrongCommand) && message.includes(IDENTITY_REFUSAL);
 };
 
 const tamperOwnerStatus = async (
@@ -221,11 +221,18 @@ export const invokeOwnerCancellation = async (
     fault === "wrong-cancellation-identity" &&
     sample.scenario === "owner-final";
   const command = wrongCommand ? { ...row, subscription_id: "sub_wrong" } : row;
-  try {
-    return { returned: await cancelOwnerSubscription(command), threw: false };
-  } catch (error) {
-    if (!expectedOwnerFailure(error, sample, fault)) throw error;
-    await tamperOwnerStatus(sample, fault);
-    return { returned: false, threw: true };
-  }
+  const result = await outcomeOf(
+    async () => ({
+      returned: await cancelOwnerSubscription(command),
+      threw: false,
+    }),
+    [
+      [
+        (error) => expectedOwnerFailure(error, sample, fault),
+        { returned: false, threw: true },
+      ],
+    ],
+  );
+  if (result.threw) await tamperOwnerStatus(sample, fault);
+  return result;
 };

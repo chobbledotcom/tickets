@@ -30,6 +30,7 @@ import type {
   SubscriptionStart,
   SubscriptionStatus,
 } from "#shared/subscriptions/plan.ts";
+import { outcomeOf } from "./environment.ts";
 
 export type CheckoutCase = {
   scenario: string;
@@ -73,7 +74,6 @@ export const configureCheckoutAttempt = (
   const firstRefusal =
     attempt === 1 &&
     (sample.retry || sample.placeholder || sample.protected === "anchorless");
-  probe.canEnd = !firstRefusal;
   probe.cancelRefused = firstRefusal || (sample.cancelRefused ?? false);
   probe.readRefused = firstRefusal || (sample.readRefused ?? false);
   probe.observedStatus = sample.end ?? "canceled";
@@ -85,7 +85,6 @@ const expectedCheckoutFailure = (
   error: unknown,
   sample: CheckoutCase,
 ): boolean => {
-  if (!(error instanceof Error)) return false;
   const start = sample.observedStart ?? checkoutStart(sample.start);
   const refused = sample.refusal ?? {
     reason: "rejected_request",
@@ -107,7 +106,7 @@ const expectedCheckoutFailure = (
     );
   if (sample.interruption)
     errors.add(`Money for session ${CHECKOUT_SESSION} could not be recorded`);
-  return errors.has(error.message);
+  return error instanceof Error && errors.has(error.message);
 };
 
 const completePlaceholder = async (
@@ -154,18 +153,19 @@ const invokeCheckout = async (
   sample: CheckoutCase,
   rejection: SessionRejection,
   entrypoint: string,
-): Promise<CheckoutAttemptResult> => {
-  try {
+): Promise<CheckoutAttemptResult> =>
+  outcomeOf<CheckoutAttemptResult>(async () => {
     const result =
       entrypoint === "placeholder"
         ? await completePlaceholder(rejection)
         : await settleRejectedSubscription(rejection);
     return { refunded: result.refunded === true, threw: false };
-  } catch (error) {
-    if (!expectedCheckoutFailure(error, sample)) throw error;
-    return { refunded: false, threw: true };
-  }
-};
+  }, [
+    [
+      (error) => expectedCheckoutFailure(error, sample),
+      { refunded: false, threw: true },
+    ],
+  ]);
 
 /** A returned refund with failed ledger insertion leaves held recoverable work. */
 export const executeCheckoutAttempt = async (

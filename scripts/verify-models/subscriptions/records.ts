@@ -5,6 +5,7 @@
  */
 import { generateKeyPair } from "#crypto/hybrid.ts";
 import { tlaModule } from "#scripts/verify-models/data.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { type Faults, producerFor, recordSetsFor } from "./controls.ts";
 import { withSubscriptionDb } from "./environment.ts";
 import { RECORD_TABLES, type RecordFacts } from "./records-facts.ts";
@@ -110,8 +111,10 @@ export const { controls, modelData } = producerFor(
   (changedData) => [
     {
       data: changedData((facts) => {
-        const row = facts.observed.find((row) => row.booking === 1);
-        if (!row) throw new Error("Missing duplicate booking control");
+        const row = requireValue(
+          facts.observed.find((row) => row.booking === 1),
+          "Missing duplicate booking control",
+        );
         facts.observed.push({ ...row, slot: 999 });
       }),
       name: "duplicate-projected-booking",

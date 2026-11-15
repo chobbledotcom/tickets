@@ -1,10 +1,12 @@
 /** Real capacity INSERTs store the attachment; subsequent real edits must not rewrite it. */
 
+import { assert } from "@std/assert";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { executeBatch, queryAll } from "#db/client.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
 import { type CheckoutFacts, expectedVat } from "./checkout-facts.ts";
@@ -75,13 +77,13 @@ const seedPlanBookings = async (
       sql: "UPDATE listings SET active = 1 WHERE id IN (?, ?)",
     },
   ]);
-  const subscribedBooking: ListingBooking = {
+  const subscribedBooking: SeededBooking = {
     listingId: start.listingId,
     quantity,
   };
   // Each missing ownership predicate must meet its own earlier distractor.
   // The known input object, not the production attachment, names the owner.
-  const bookings: ListingBooking[] = [
+  const bookings: SeededBooking[] = [
     { listingId: start.listingId + 1, quantity: 1 },
     { listingId: start.listingId, packageGroupId: 81, quantity: 1 },
     {
@@ -125,11 +127,14 @@ const seedPlanBookings = async (
         booking === subscribedBooking
           ? { ...start, tax: expectedVat(start.amount, rate) }
           : undefined,
-      quantity: booking.quantity ?? 1,
+      quantity: booking.quantity,
     })),
   ];
   return { attendee, expected, other };
 };
+
+/** Each seeded booking states its quantity, so no stored default hides it. */
+type SeededBooking = ListingBooking & { quantity: number };
 
 /** A stored row keeps its own person, listing and quantity before plan checks. */
 const storedPlanFact = (
@@ -138,12 +143,12 @@ const storedPlanFact = (
   scenario: string,
   stage: string,
 ): CheckoutFacts["plans"][number] => {
-  if (
-    row.attendee_id !== reference.attendee ||
-    row.listing_id !== reference.listing ||
-    row.quantity !== reference.quantity
-  )
-    throw new Error("Stored checkout row changed its identity");
+  assert(
+    row.attendee_id === reference.attendee &&
+      row.listing_id === reference.listing &&
+      row.quantity === reference.quantity,
+    "Stored checkout row changed its identity",
+  );
   return {
     amount: row.recurring_price,
     attempt: 1,
@@ -182,9 +187,10 @@ const readPlanBookings = async (
   if (rows.length !== expected.length)
     throw new Error("Stored checkout row coverage is incomplete");
   return rows.map((row) => {
-    const reference = expected.find((entry) => entry.booking === row.id);
-    if (reference === undefined)
-      throw new Error("Unexpected stored checkout booking");
+    const reference = requireValue(
+      expected.find((entry) => entry.booking === row.id),
+      "Unexpected stored checkout booking",
+    );
     return storedPlanFact(row, reference, scenario, stage);
   });
 };

@@ -122,7 +122,6 @@ export const seedHonouredCheckout = async (
 };
 
 export type CheckoutProbe = CancellationProbe & {
-  canEnd: boolean;
   observedStatus: SubscriptionStart["status"];
   providerStatus: SubscriptionStart["status"];
   cancelRefused: boolean;
@@ -146,7 +145,6 @@ export const withCheckoutProvider: CancellationProvider<
   const probe: CheckoutProbe = {
     ...cancellationProbe(),
     cancelRefused: false,
-    canEnd: true,
     confirmed: SUBSCRIPTION_NODE_OF[start.status] === "ended",
     endOrder: 0,
     heldAtCancel: 0,
@@ -162,7 +160,7 @@ export const withCheckoutProvider: CancellationProvider<
   };
   const restoreProvider = restoreCancellationProvider();
   const answer = (id: string) => {
-    const status = probe.canEnd ? probe.observedStatus : "trialing";
+    const status = probe.observedStatus;
     probe.providerStatus = status;
     if (SUBSCRIPTION_NODE_OF[status] === "ended" && !probe.confirmed) {
       probe.confirmed = true;
@@ -210,17 +208,13 @@ export const withCheckoutProvider: CancellationProvider<
     readSubscription(
       fault === "wrong-checkout-subscription-read" ? "sub_wrong" : id,
     );
-  stripeApi.readPaidInvoices = (id) => {
-    observeCancellationRead(probe, "invoice", id, start.id);
-    return Promise.resolve({ resource: [], status: "found" as const });
-  };
   stripeApi.readPaymentIntent = (id) =>
     Promise.resolve({
       resource: {
         id,
         latest_charge: {
           amount_captured: 600,
-          amount_refunded: probe.refunds > 0 ? 600 : 0,
+          amount_refunded: 600 * Math.min(probe.refunds, 1),
           captured: true,
           currency: "gbp",
           paid: true,

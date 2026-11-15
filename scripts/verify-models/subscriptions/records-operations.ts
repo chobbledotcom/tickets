@@ -3,6 +3,8 @@
  * Merge validation and apply are separate observations. Apply alone has no
  * subscription-loss guard. The caller must validate the same diff and choice.
  */
+
+import { assert } from "@std/assert";
 import { generateKeyPair, importPrivateKey } from "#crypto/hybrid.ts";
 import type { DesiredListingLine } from "#db/attendee-types.ts";
 import {
@@ -29,7 +31,7 @@ import {
   type SubscriptionPlan,
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
-import { seedBooking, withSubscriptionDb } from "./environment.ts";
+import { outcomeOf, seedBooking, withSubscriptionDb } from "./environment.ts";
 import type { RecordFacts } from "./records-facts.ts";
 import {
   type RecordStageOutcome,
@@ -164,19 +166,18 @@ const desiredLine = (
 });
 
 /** Only the exact subscription refusal can be an ordinary delete outcome. */
-const remove = async (): Promise<boolean> => {
-  try {
+const remove = (): Promise<boolean> =>
+  outcomeOf(async () => {
     await deleteAttendee(1);
     return true;
-  } catch (error) {
-    if (
-      !(error instanceof PaymentRowsBusyError) ||
-      error.message !== t("error.subscription_live")
-    )
-      throw error;
-    return false;
-  }
-};
+  }, [
+    [
+      (error) =>
+        error instanceof PaymentRowsBusyError &&
+        error.message === t("error.subscription_live"),
+      false,
+    ],
+  ]);
 
 const merge = async (input: RecordScenario, keys: Keys) => {
   const diff = await buildAttendeeMergeDiff(
@@ -210,8 +211,10 @@ const merge = async (input: RecordScenario, keys: Keys) => {
   const validationUnchanged = beforeValidation === (await readRecordSnapshot());
   if (!validation.valid) {
     const expected = `Listing #11: ${t("error.subscription_live")}`;
-    if (validation.errors.length !== 1 || validation.errors[0] !== expected)
-      throw new Error(JSON.stringify(validation));
+    assert(
+      validation.errors.length === 1 && validation.errors[0] === expected,
+      JSON.stringify(validation),
+    );
     return {
       accepted: false,
       applyRan: false,
@@ -220,7 +223,12 @@ const merge = async (input: RecordScenario, keys: Keys) => {
     };
   }
   const fault = new Error("Records model companion write failed");
-  try {
+  const applied = {
+    applyRan: true,
+    validationAccepted: true,
+    validationUnchanged,
+  };
+  return outcomeOf(async () => {
     await applyAttendeeMerge({
       decision,
       diff,
@@ -239,21 +247,8 @@ const merge = async (input: RecordScenario, keys: Keys) => {
         if (input.operation === "merge-fault") throw fault;
       },
     });
-    return {
-      accepted: true,
-      applyRan: true,
-      validationAccepted: true,
-      validationUnchanged,
-    };
-  } catch (error) {
-    if (error !== fault) throw error;
-    return {
-      accepted: false,
-      applyRan: true,
-      validationAccepted: true,
-      validationUnchanged,
-    };
-  }
+    return { ...applied, accepted: true };
+  }, [[(error) => error === fault, { ...applied, accepted: false }]]);
 };
 
 /** A stale admitted preview must not bypass the deletion writer's live guard. */
@@ -266,8 +261,10 @@ const prepareDeleteRace = async (input: RecordScenario) => {
     },
   ]);
   const preview = await loadPaymentMoveSnapshot([1]);
-  if (preview.admission.delete.kind !== "available")
-    throw new Error("Race preview must permit deletion");
+  assert(
+    preview.admission.delete.kind === "available",
+    "Race preview must permit deletion",
+  );
   await executeBatch([
     {
       args: [],
@@ -298,8 +295,10 @@ const edit = async (input: RecordScenario) => {
     desired,
     true,
   );
-  if (!result.success && result.reason !== "subscription_live")
-    throw new Error(JSON.stringify(result));
+  assert(
+    result.success || result.reason === "subscription_live",
+    JSON.stringify(result),
+  );
   return result.success;
 };
 
