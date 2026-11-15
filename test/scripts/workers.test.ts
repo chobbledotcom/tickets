@@ -43,27 +43,29 @@ describe("resolveDenoJobs", () => {
 
 describe("coverageDenoJobs", () => {
   test("caps the workers when the caller set none", () => {
-    expect(coverageDenoJobs(undefined, 16)).toBe(4);
-    expect(coverageDenoJobs(undefined, 8)).toBe(4);
+    expect(coverageDenoJobs(undefined, 16)).toBe(8);
+    expect(coverageDenoJobs(undefined, 8)).toBe(8);
     expect(coverageDenoJobs(undefined, 2)).toBe(2);
   });
 
   test("caps the workers for blank and invalid values", () => {
-    expect(coverageDenoJobs("", 16)).toBe(4);
-    expect(coverageDenoJobs("0", 16)).toBe(4);
-    expect(coverageDenoJobs("abc", 16)).toBe(4);
+    expect(coverageDenoJobs("", 16)).toBe(8);
+    expect(coverageDenoJobs("0", 16)).toBe(8);
+    expect(coverageDenoJobs("abc", 16)).toBe(8);
   });
 
   test("leaves a valid explicit count alone", () => {
-    expect(coverageDenoJobs("8", 16)).toBeUndefined();
+    expect(coverageDenoJobs("12", 16)).toBeUndefined();
     expect(coverageDenoJobs("1", 16)).toBeUndefined();
   });
 });
 
 describe("precommitDenoJobs", () => {
   test("caps the default, because the run's test step is the coverage gate", () => {
-    expect(precommitDenoJobs(16, false, undefined)).toBe(4);
-    expect(precommitDenoJobs(16, true, undefined)).toBe(4);
+    // A local 32-thread machine takes (threads / 2) - 1 below the cap, and
+    // CI takes every thread up to the cap.
+    expect(precommitDenoJobs(32, false, undefined)).toBe(8);
+    expect(precommitDenoJobs(16, true, undefined)).toBe(8);
   });
 
   test("keeps the small-machine floor under the cap", () => {
@@ -72,13 +74,13 @@ describe("precommitDenoJobs", () => {
   });
 
   test("a valid explicit count wins", () => {
-    expect(precommitDenoJobs(16, false, "8")).toBe(8);
+    expect(precommitDenoJobs(16, false, "9")).toBe(9);
     expect(precommitDenoJobs(16, true, "1")).toBe(1);
   });
 
   test("an invalid count falls back to the capped default", () => {
-    expect(precommitDenoJobs(16, false, "abc")).toBe(4);
-    expect(precommitDenoJobs(16, false, "0")).toBe(4);
-    expect(precommitDenoJobs(16, false, "")).toBe(4);
+    expect(precommitDenoJobs(32, false, "abc")).toBe(8);
+    expect(precommitDenoJobs(32, false, "0")).toBe(8);
+    expect(precommitDenoJobs(32, false, "")).toBe(8);
   });
 });

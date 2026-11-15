@@ -38,12 +38,13 @@ export const resolveDenoJobs = (
  * Worker count for the coverage gate: every test worker's V8 coverage
  * buffers and isolate state grow with the files its group holds, and the
  * workers run concurrently, so the gate's total memory is roughly
- * workers × per-isolate peak. Four keeps that sum inside a standard CI
- * runner's budget (the group count rises with the file count, so each
- * isolate stays small). A valid explicit `DENO_JOBS` wins; blank and
- * invalid values fall back to the capped count.
+ * workers × per-isolate peak. The cap keeps that sum inside the runner's
+ * memory budget, and 8 matches the 8-core CI runner (the group count rises
+ * with the file count, so each isolate stays small). A valid explicit
+ * `DENO_JOBS` still wins; blank and invalid values fall back to the capped
+ * count.
  */
-export const COVERAGE_WORKER_CAP = 4;
+export const COVERAGE_WORKER_CAP = 8;
 
 export const coverageDenoJobs = (
   currentDenoJobs: string | undefined,
