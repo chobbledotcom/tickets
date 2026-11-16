@@ -10,6 +10,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -20,6 +21,7 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { hiddenPackageMember, member } from "./helpers.ts";
 
@@ -28,8 +30,6 @@ describeWithEnv(
   { db: true },
   () => {
     test("the hidden package booking page does not expose its single member", async () => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createHiddenPackageGroup("HiddenPage", {
         slug: "hidden-page",
       });
@@ -46,8 +46,6 @@ describeWithEnv(
     });
 
     test("a concealed package member keeps its own booking page", async () => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createHiddenPackageGroup("DirectHide", {
         slug: "direct-hide",
       });
@@ -59,8 +57,6 @@ describeWithEnv(
     });
 
     test("a concealed package member keeps its QR booking paths", async () => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createHiddenPackageGroup("QrHide", {
         slug: "qr-hide",
       });
@@ -86,8 +82,6 @@ describeWithEnv(
     });
 
     test("a regular group shows a shared concealed-package member", async () => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils/mocks.ts");
       const pkg = await createHiddenPackageGroup("HidePkg", {
         slug: "hide-pkg",
       });
@@ -108,8 +102,6 @@ describeWithEnv(
     });
 
     test("a direct /ticket/<package> URL 404s once a member is deactivated", async () => {
-      const { handleRequest } = await import("#routes");
-      const { mockRequest } = await import("#test-utils/mocks.ts");
       const group = await createTestGroup({
         isPackage: true,
         name: "Bundle",
