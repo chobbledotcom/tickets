@@ -23,7 +23,7 @@ import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteFrom, insertInto } from "#db/write.ts";
+import { deleteFrom, insertInto, type NewValues } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -255,10 +255,11 @@ export const createExternalSourceLink = (
     // sealed: the row is the input, plus the keys that SQLite made.
     const statement = insertInto(
       tables.external_source_links,
-      await encoded(tables.external_source_links, {
+      // The values name every column but the id, which SQLite makes.
+      (await encoded(tables.external_source_links, {
         ...linkColumns(input),
         created: nowIso(),
-      }),
+      })) as NewValues<"external_source_links">,
     ).returning("created", "id");
     const row = requireValue(
       resultRows(await tx.execute(statement))[0],

@@ -29,7 +29,7 @@ import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
 import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";
@@ -144,12 +144,16 @@ export const logActivities = async (
         created: nowIso(),
         listing_id: line.listingId,
         message: line.message,
-      }).returning("id", "created", "attendee_id", "listing_id", "message");
+      }).returning("id", "created", "attendee_id", "listing_id");
     }),
   );
   const results = await batchOnScope(statements, transaction);
   return results.map((result, index) => ({
-    ...requireValue(resultRows(result)[0], "Activity log row missing"),
+    // The batch hands back plain result sets, so the row type is named here.
+    ...requireValue(
+      resultRows<Omit<ActivityLogEntry, "message">>(result)[0],
+      "Activity log row missing",
+    ),
     message: activities[index]!.message,
   }));
 };

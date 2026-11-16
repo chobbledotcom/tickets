@@ -2,18 +2,22 @@
  * First-class uploaded images and their ordered item links.
  */
 
-import type { InValue } from "@libsql/client";
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import type { StoredRowOf } from "#db/chosen-columns.ts";
+import { decrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   executeBatch,
   queryAllPrimary,
+  resultRows,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { readOneRow, readRows } from "#db/read.ts";
+import {
+  findRow,
+  insertRowStatement,
+  updateRowStatement,
+} from "#db/record-table.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,
@@ -24,8 +28,11 @@ import {
   among,
   and,
   equal,
+  desc,
+  type Expr,
   not,
   or,
+  valued,
   wholeCondition,
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
@@ -39,12 +46,10 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
-import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
-import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
-import { decryptImageFilename } from "#shared/images/broken.ts";
+import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
   type Image,
@@ -83,108 +88,114 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
 
 export type OrderedImage = Image & { sort_order: number };
 
-/** Encrypted filename column: sealed on write. On read, a value that will not
- * decrypt to a real filename becomes the broken-image marker. It is reported,
- * never thrown. One broken record must not take down every page that lists
- * images. The `as` cast is the same sanctioned read boundary as col.encrypted. */
-const encryptedFilenameText = (label: string): ColumnDef<NonEmptyString> =>
-  col.converted<NonEmptyString>({
-    read: (raw: InValue, rowId?: unknown) =>
-      decryptImageFilename(raw as string, `image ${String(rowId)} ${label}`),
-    write: (value: NonEmptyString) => encrypt(value),
-  });
+/** The columns of an image write. */
+const imageValues = (input: Partial<ImageInput>) =>
+  Object.fromEntries(
+    Object.entries({
+      alt_text: input.altText,
+      filename: input.filename,
+      filename_thumb: input.filenameThumb,
+      name: input.name,
+    }).filter(([, value]) => value !== undefined),
+  );
 
-export const imagesTable = defineIdTable<Image, ImageInput>("images", {
-  alt_text: col.encryptedText(encrypt, decrypt),
-  filename: encryptedFilenameText("filename"),
-  filename_thumb: encryptedFilenameText("thumbnail filename"),
-  id: col.generated<number>(),
-  name: col.encryptedText(encrypt, decrypt),
-});
+/** Every image, newest first. */
+export const getAllImages = (): Promise<Image[]> =>
+  readRows(
+    from(tables.images)
+      .orderBy((image) => [desc(image.id)])
+      .everyColumn(),
+  );
 
-const imageColumns = imagesTable.read.pick([
-  "id",
-  "name",
-  "filename",
-  "filename_thumb",
-  "alt_text",
-]);
+export const getImageById = (id: number): Promise<Image | null> =>
+  findRow(tables.images, id);
 
-export const imageFileColumns = imagesTable.read.pick([
-  "id",
-  "filename",
-  "filename_thumb",
-  "alt_text",
-]);
+/** The first image of an item as a read projects it: sealed, or "" when the
+ *  item has no image. */
+export type SealedItemImages = {
+  readonly [Value in keyof ItemImageColumns]: EnvKeyEncrypted | "";
+};
 
-export const getAllImages = imageColumns.every({ order: sql`id DESC` });
-
-export const getImageById = readById(imagesTable);
-
-export const imageFilenameSubquery = (
+/** One column of the first image of an item, or "" when it has none. */
+const firstImageValue = (
   itemType: ImageUseItemType,
   itemIdExpr: SqlStatement,
-  filenameColumn: "filename" | "filename_thumb" | "alt_text",
-  alias: string,
-): SqlStatement =>
-  sql`COALESCE((SELECT ${sqlName(`image.${filenameColumn}`)}
+  column: "alt_text" | "filename" | "filename_thumb",
+): Expr<EnvKeyEncrypted | ""> =>
+  valued(sql`COALESCE((SELECT ${sqlName(`image.${column}`)}
       FROM image_uses AS imageUse
       JOIN images AS image ON image.id = imageUse.image_id
      WHERE imageUse.item_type = ${sqlLiteral(itemType)}
        AND imageUse.item_id = ${itemIdExpr}
      ORDER BY imageUse.sort_order ASC, imageUse.image_id ASC
-     LIMIT 1), '') AS ${sqlName(alias)}`;
+     LIMIT 1), '')`);
 
+/** The sealed first-image values of an item, for a builder select. Open them
+ *  with {@link openItemImages}. */
+export const itemImageValues = (
+  itemType: ImageUseItemType,
+  itemIdExpr: SqlStatement,
+): { [Value in keyof ItemImageColumns]: Expr<EnvKeyEncrypted | ""> } => ({
+  image_alt_text: firstImageValue(itemType, itemIdExpr, "alt_text"),
+  image_thumb_url: firstImageValue(itemType, itemIdExpr, "filename_thumb"),
+  image_url: firstImageValue(itemType, itemIdExpr, "filename"),
+});
+
+/** The same values as a column list for a read written by hand. */
 export const imageFilenameSubqueries = (
   itemType: ImageUseItemType,
   itemIdExpr: SqlStatement,
 ): SqlStatement =>
-  sqlCommas([
-    imageFilenameSubquery(itemType, itemIdExpr, "filename", "image_url"),
-    imageFilenameSubquery(itemType, itemIdExpr, "alt_text", "image_alt_text"),
-    imageFilenameSubquery(
-      itemType,
-      itemIdExpr,
-      "filename_thumb",
-      "image_thumb_url",
+  sqlCommas(
+    Object.entries(itemImageValues(itemType, itemIdExpr)).map(
+      ([name, value]) => sql`${value} AS ${sqlName(name)}`,
     ),
-  ]);
+  );
+
+/** Open the projected first-image values of an item. A filename that will not
+ *  open reads as the broken-image marker. */
+export const openItemImages = async (
+  sealed: SealedItemImages,
+  source: string,
+): Promise<ItemImageColumns> => ({
+  image_alt_text:
+    sealed.image_alt_text === "" ? "" : await decrypt(sealed.image_alt_text),
+  image_thumb_url: await decryptImageFilenameOrEmpty(
+    sealed.image_thumb_url,
+    `${source} thumbnail image`,
+  ),
+  image_url: await decryptImageFilenameOrEmpty(
+    sealed.image_url,
+    `${source} image`,
+  ),
+});
 
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
  * they open, so they say it once here. */
-const imagesOfItem = (
-  columns: SqlStatement,
-  itemType: ImageUseItemType,
-  itemId: number,
-  limit?: number,
-): SqlStatement => {
-  const ordered = from(tables.image_uses, { image: {} })
+const imagesOfItem = (itemType: ImageUseItemType, itemId: number) =>
+  from(tables.image_uses, { image: {} })
     .where(() =>
       imageUseTargets.where(imageUseTargets.of(itemType)(itemId), "imageUse"),
     )
     .orderBy((use) => [use.sort_order, use.image_id]);
-  return (limit === undefined ? ordered : ordered.limit(limit)).columns(
-    () => columns,
-  );
-};
 
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
   itemId: number,
 ): Promise<ItemImageColumns> => {
-  type ImageFileRow = StoredRowOf<Image, typeof imageFileColumns.columns> & {
-    id: number;
-  };
-  const stored = await readOneRow<ImageFileRow>(
-    imagesOfItem(imageFileColumns.columnsSql("image"), itemType, itemId, 1),
+  const image = await readOneRow(
+    imagesOfItem(itemType, itemId)
+      .limit(1)
+      .select((use) => ({
+        alt_text: use.image.alt_text,
+        filename: use.image.filename,
+        filename_thumb: use.image.filename_thumb,
+        id: use.image.id,
+      })),
   );
-  if (!stored)
+  if (!image)
     return { image_alt_text: "", image_thumb_url: "", image_url: "" };
-  const image = await imageFileColumns.read(
-    stored,
-    `${stored.id} (first image of ${itemType} ${itemId})`,
-  );
   return {
     image_alt_text: image.alt_text,
     image_thumb_url: image.filename_thumb,
@@ -192,26 +203,20 @@ export const getImageFilenamesForItem = async (
   };
 };
 
-export const getImagesForItem = async (
+export const getImagesForItem = (
   itemType: ImageUseItemType,
   itemId: number,
-): Promise<OrderedImage[]> => {
-  type OrderedImageRow = StoredRowOf<Image, typeof imageColumns.columns> & {
-    sort_order: number;
-  };
-  const rows = await readRows<OrderedImageRow>(
-    imagesOfItem(
-      sql`${imageColumns.columnsSql("image")}, imageUse.sort_order`,
-      itemType,
-      itemId,
-    ),
+): Promise<OrderedImage[]> =>
+  readRows(
+    imagesOfItem(itemType, itemId).select((use) => ({
+      alt_text: use.image.alt_text,
+      filename: use.image.filename,
+      filename_thumb: use.image.filename_thumb,
+      id: use.image.id,
+      name: use.image.name,
+      sort_order: use.sort_order,
+    })),
   );
-  const images = await imageColumns.readAll(rows);
-  return images.map((image, index) => ({
-    ...image,
-    sort_order: rows[index]!.sort_order,
-  }));
-};
 
 /** The columns of one link between an image and a record. */
 const imageUseColumns = (use: Node<"image_uses">) => ({
@@ -391,11 +396,30 @@ const withImageVersionBump = <T>(
     return result;
   });
 
+/** The insert of one image record, on an open transaction. */
+const insertImage = async (
+  transaction: TxScope,
+  input: ImageInput,
+): Promise<Image> => {
+  const [image] = resultRows(
+    await transaction.execute(
+      await insertRowStatement(tables.images, {
+        alt_text: input.altText ?? "",
+        filename: input.filename,
+        filename_thumb: input.filenameThumb,
+        name: input.name,
+      }),
+    ),
+  );
+  if (image === undefined) throw new Error("The image insert gave back no row");
+  return image;
+};
+
 /** Insert one image record. The insert is unconditional, so the written row
  * always comes back. */
 export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
   withImageVersionBump((transaction) =>
-    writeTableRow(transaction, imagesTable, { input, kind: "insert" }),
+    insertImage(transaction, input),
   );
 
 /** Update one image record's metadata. Returns null when the id names no
@@ -412,7 +436,12 @@ export const updateImageRecord = async (
     throw new Error(`Image ${id} update names no column to write`);
   }
   return withImageVersionBump(
-    (tx) => writeTableRow(tx, imagesTable, { id, input, kind: "update" }),
+    async (tx) =>
+      resultRows(
+        await tx.execute(
+          await updateRowStatement(tables.images, id, imageValues(input)),
+        ),
+      )[0] ?? null,
     transaction,
   );
 };

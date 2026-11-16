@@ -11,13 +11,13 @@ import {
   getImageById,
   type ImageInput,
   type ImageUseTarget,
-  imagesTable,
   imageUseTargets,
   insertImageRecord,
   missingImageUseTargets,
   setItemsForImage,
   updateImageRecord,
 } from "#db/images.ts";
+import { tables } from "#db/select/tables.ts";
 import { refuseTheWriteOn } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
@@ -271,6 +271,6 @@ export const imageRecord = defineNamedRowRecord<
   nameLabel: "images.delete.confirm_label",
   rule: imageRule,
   surface: { deleteDestination: "imageDelete", list: "images" },
-  table: imagesTable,
+  table: tables.images,
   write: imageWrites,
 });

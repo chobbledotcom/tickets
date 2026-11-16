@@ -56,15 +56,19 @@ const withId =
   () =>
     equal(named<number>(`${word}.id`), id);
 
+/** The read of the row with this id. */
+export const rowById = <Name extends TableWithId>(
+  table: TableHandle<Name>,
+  id: number,
+) => from(table).where(withId(table.singular, id));
+
 /** The read of the whole row with this id. The read picks every column of
  *  the table, so each row it gives is the decoded row of the table. */
 const rowRead = <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
 ): RowsStatement<DecodedRowOf<Name>> =>
-  from(table).where(withId(table.singular, id)).everyColumn() as RowsStatement<
-    DecodedRowOf<Name>
-  >;
+  rowById(table, id).everyColumn() as RowsStatement<DecodedRowOf<Name>>;
 
 /** The row with this id, or null when there is none. */
 export const findRow = <Name extends TableWithId>(
@@ -84,7 +88,7 @@ export const hasRow = <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
 ): Promise<boolean> =>
-  readExists(from(table).where(withId(table.singular, id)));
+  readExists(rowById(table, id));
 
 /** The insert of one row that gives back the row it wrote. */
 export const insertRowStatement = async <Name extends TableWithId>(

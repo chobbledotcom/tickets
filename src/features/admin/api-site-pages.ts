@@ -22,10 +22,11 @@ import {
   createSitePage,
   getSitePageById,
   type SitePageWriteInput,
-  sitePagesTable,
   updateSitePage,
 } from "#db/site-pages.ts";
-import { sql } from "#db/sql.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { filter, map, pipe } from "#fp";
 import { t } from "#i18n";
@@ -63,13 +64,10 @@ import {
 const ENTRY = ADMIN_API_RESOURCES["site-pages"];
 const RESPONSE_KEY = "page";
 
-/** The page rows the list answers with, in the order the form's list shows. */
-const LIST_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
-
 /** The API's collection read: a client manages whole pages, so the list
  *  answers the full stored row. This is the resource's one whole-table read. */
 const allPages = (): Promise<SitePage[]> =>
-  sitePagesTable.read.many({}, LIST_ORDER);
+  readRows(from(tables.site_pages).sortedBy("sort_order", "id").everyColumn());
 
 /** The page-write audience: the roles the Site → Pages page declares, with
  *  API-key auth. The surface table is the one place the roles are written. */
