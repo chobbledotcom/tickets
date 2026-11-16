@@ -12,6 +12,7 @@ import type {
   Transaction,
   TransactionMode,
 } from "@libsql/client";
+import { decodeResult, decodeResults } from "#db/codecs/decode.ts";
 import { createDatabaseClient } from "#db/database-client.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import {
@@ -141,8 +142,11 @@ type AroundExecute = Parameters<typeof wrapExecute>[1];
 const executeWithRoundTrip =
   (around: AroundExecute) =>
   (target: Pick<Client, "execute">, operation: string) =>
-    wrapExecute(target, (statement, execute) =>
-      around(statement, () => databaseRoundTrip(operation, execute)),
+    wrapExecute(target, async (statement, execute) =>
+      decodeResult(
+        statement,
+        await around(statement, () => databaseRoundTrip(operation, execute)),
+      ),
     );
 
 /** Count and retry a bare client statement. Transaction statements use only the
@@ -163,18 +167,29 @@ const TRANSACTION_OPERATION: Record<TransactionOperation, string> = {
   rollback: "transaction rollback",
 };
 
+/** A transaction whose reads decode their rows. */
+const decodingTransaction = (transaction: Transaction): Transaction =>
+  proxyMembers(transaction, {
+    batch: async (statements: InStatement[]) =>
+      decodeResults(statements, await transaction.batch(statements)),
+    execute: async (statement: InStatement) =>
+      decodeResult(statement, await transaction.execute(statement)),
+  });
+
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
-  wrapTransactionOperations(transaction, (operation, run) =>
-    // Rollback is mandatory cleanup: an interactive transaction left open (its
-    // rollback blocked) poisons the shared write connection for the rest of the
-    // request. It is counted like any other subrequest — so the running total
-    // stays accurate for later calls — but never blocked, so it always runs even
-    // once the budget is spent.
-    databaseRoundTrip(
-      TRANSACTION_OPERATION[operation],
-      run,
-      operation !== "rollback",
-    ),
+  wrapTransactionOperations(
+    decodingTransaction(transaction),
+    (operation, run) =>
+      // Rollback is mandatory cleanup: an interactive transaction left open (its
+      // rollback blocked) poisons the shared write connection for the rest of the
+      // request. It is counted like any other subrequest — so the running total
+      // stays accurate for later calls — but never blocked, so it always runs even
+      // once the budget is spent.
+      databaseRoundTrip(
+        TRANSACTION_OPERATION[operation],
+        run,
+        operation !== "rollback",
+      ),
   );
 
 const guardedClients = new WeakMap<Client, Client>();
@@ -185,8 +200,11 @@ const withRoundTripGuard = (client: Client): Client => {
   if (existing) return existing;
   const guarded = proxyMembers(client, {
     [GUARDED_CLIENT]: true,
-    batch: (statements: InStatement[], mode?: TransactionMode) =>
-      databaseRoundTrip("batch", () => client.batch(statements, mode)),
+    batch: async (statements: InStatement[], mode?: TransactionMode) =>
+      decodeResults(
+        statements,
+        await databaseRoundTrip("batch", () => client.batch(statements, mode)),
+      ),
     execute: executeWithTransientRetry(client, "statement"),
     executeMultiple: (sql: string): Promise<void> =>
       databaseRoundTrip("script", () => client.executeMultiple(sql)),

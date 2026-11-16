@@ -38,6 +38,7 @@ import {
   Via,
   type Where,
 } from "#db/select/shape.ts";
+import { fromColumn, withSources } from "#db/select/sources.ts";
 import {
   type ReferenceOf,
   referenceOf,
@@ -104,7 +105,10 @@ const nodeOf = (
   }
   plan.aliases.push(alias);
   return Object.fromEntries(
-    table.columns.map(([name]) => [name, column(alias, name)]),
+    table.columns.map(([name]) => [
+      name,
+      fromColumn(column(alias, name), { column: name, table: table.name }),
+    ]),
   );
 };
 
@@ -258,14 +262,16 @@ const query = <Root, First>(
   };
 
   /** The statement that reads each picked value under its name. */
-  const named = (pick: (node: Root) => Selection): SqlStatement =>
-    statement((node) =>
-      sqlCommas(
-        Object.entries(pick(node)).map(
-          ([name, value]) => sql`${value} AS ${sqlName(name)}`,
-        ),
-      ),
-    );
+  const named = (pick: (node: Root) => Selection): SqlStatement => {
+    let picked: [string, SqlStatement][] = [];
+    const read = statement((node) => {
+      picked = Object.entries(pick(node));
+      return sqlCommas(
+        picked.map(([name, value]) => sql`${value} AS ${sqlName(name)}`),
+      );
+    });
+    return withSources(read, picked);
+  };
 
   return {
     aggregate: (pick) => {

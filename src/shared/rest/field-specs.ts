@@ -114,7 +114,7 @@ export type InputKey<Key extends string> =
     : Key;
 
 /** The kind of the field that declares one key. */
-type KindOf<Fields extends FieldSpecs, Key> = Extract<
+export type KindOf<Fields extends FieldSpecs, Key> = Extract<
   Fields[number],
   { key: Key }
 >["kind"];

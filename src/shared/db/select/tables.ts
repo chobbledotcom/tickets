@@ -3,12 +3,13 @@
  * Every table as a read sees it. Each table has the type of its stored row,
  * the columns that refer to another table, and the word a query calls it by.
  *
- * All of it comes from the schema declaration, apart from the values that
- * `StoredValues` names. A column that the schema does not declare is a compile
- * error in a read.
+ * All of it comes from the schema declaration, apart from the stored types
+ * that the codecs in `#db/codecs/columns.ts` name. A column that the schema
+ * does not declare is a compile error in a read.
  */
 
-import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import type { CODECS } from "#db/codecs/columns.ts";
+import type { AppOf, StoredOf } from "#db/codecs/kinds.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
@@ -17,7 +18,6 @@ import type {
   ColumnKind,
   Filling,
 } from "#db/migrations/schema/types.ts";
-import type { ImageUseItemType, Modifier, SitePageItemType } from "#types";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -40,58 +40,51 @@ type OptionalColumnOf<Name extends TableName> = {
 };
 
 /** The row of a table as its column types alone give it. */
-type DeclaredRow<Name extends TableName> = {
+export type DeclaredRow<Name extends TableName> = {
   [Each in ColumnOf<Name> as Each[0]]: StoredIn<Each[1]>;
 };
 
-/** The values that the code writes to a column whose type says only "text".
- *  The database does not check them. The code that writes the column keeps
- *  them true, and a read takes the type of the column from here. */
-type StoredValues = {
-  attendees: { pii_blob: OwnerKeyEncrypted | "" };
-  contact_preferences: { stats_blob: OwnerKeyEncrypted | "" };
-  groups: { name: EnvKeyEncrypted };
-  image_uses: { item_type: ImageUseItemType };
-  modifiers: Pick<Modifier, "calc_kind" | "direction" | "scope" | "trigger"> & {
-    name: EnvKeyEncrypted;
-  };
-  site_page_items: { item_type: SitePageItemType };
-  system_notes: { note: EnvKeyEncrypted | OwnerKeyEncrypted };
-  users: { admin_level: EnvKeyEncrypted; username_hash: EnvKeyEncrypted };
-};
-
-/** The named values of one table, or nothing for a table with none. */
-type ValuesOf<Name> = Name extends keyof StoredValues
-  ? StoredValues[Name]
+/** The codecs of one table, or none. */
+type CodecsOf<Name> = Name extends keyof typeof CODECS
+  ? (typeof CODECS)[Name]
   : Record<never, never>;
 
 type StoredAt<Row, Column> = Column extends keyof Row ? Row[Column] : never;
 
-/** The columns of one entry of `StoredValues` that fit no declared column. A
- *  value fits when the type of its column can hold it. */
-type UnfitIn<Name extends keyof StoredValues> = {
-  [Column in keyof StoredValues[Name]]: StoredValues[Name][Column] extends StoredAt<
-    DeclaredRow<Name>,
-    Column
-  >
+/** The columns of one table whose codec stores a value that its declared
+ *  column cannot hold. */
+type UnfitIn<Name extends keyof typeof CODECS> = {
+  [Column in keyof CodecsOf<Name>]: StoredOf<
+    CodecsOf<Name>[Column]
+  > extends StoredAt<DeclaredRow<Name>, Column>
     ? never
     : Column;
-}[keyof StoredValues[Name]];
+}[keyof CodecsOf<Name>];
 
-/** Every entry of `StoredValues` that fits no declared column. */
+/** Every codec that stores a value that its column cannot hold. */
 type Unfit = {
-  [Name in keyof StoredValues]: UnfitIn<Name>;
-}[keyof StoredValues];
+  [Name in keyof typeof CODECS]: UnfitIn<Name>;
+}[keyof typeof CODECS];
 
-/** The row a table stores: each column, and the value it holds. An entry of
- *  `StoredValues` that fits no column leaves every row with no type. */
-export type RowOf<Name extends TableName> = [Unfit] extends [never]
+/** A row of a table, with each column read through `Through`. A codec that
+ *  does not fit its column leaves every row with no type. */
+type RowThrough<Name extends TableName, Stored extends boolean> = [
+  Unfit,
+] extends [never]
   ? {
-      [Column in keyof DeclaredRow<Name>]: Column extends keyof ValuesOf<Name>
-        ? ValuesOf<Name>[Column]
+      [Column in keyof DeclaredRow<Name>]: Column extends keyof CodecsOf<Name>
+        ? Stored extends true
+          ? StoredOf<CodecsOf<Name>[Column]>
+          : AppOf<CodecsOf<Name>[Column]>
         : StoredAt<DeclaredRow<Name>, Column>;
     }
   : never;
+
+/** The row a table stores: each column, and the value it holds. */
+export type RowOf<Name extends TableName> = RowThrough<Name, true>;
+
+/** The row the code reads: each column through its codec. */
+export type DecodedRowOf<Name extends TableName> = RowThrough<Name, false>;
 
 /** A new row of a table: every column that the database cannot fill, and any
  *  of the others. */

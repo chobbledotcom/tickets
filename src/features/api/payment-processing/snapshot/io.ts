@@ -4,8 +4,6 @@ import {
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
 import { lineGroupIds } from "#booking/signed-metadata.ts";
-import { decrypt } from "#crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
@@ -14,7 +12,7 @@ import { rawListingsTable } from "#db/listings/table.ts";
 import { readBatch } from "#db/read.ts";
 import { among, or } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import {
   type RowsStatement,
   type SqlStatement,
@@ -164,11 +162,6 @@ const snapshotStatements = (
   ] as const;
 };
 
-type RawGroupRow = {
-  hide_package_listings: number;
-  id: number;
-  name: EnvKeyEncrypted;
-};
 type LedgerRow = {
   has_legs: number;
   owner_attendee_id: number | null;
@@ -178,16 +171,6 @@ type ListingIdRow = {
 };
 type ModifierScopeRow = ListingIdRow & {
   modifier_id: number;
-};
-type RawModifierRow = {
-  calc_kind: SnapshotModifierRow["calcKind"];
-  calc_value: number;
-  direction: SnapshotModifierRow["direction"];
-  id: number;
-  min_visits: number;
-  name: EnvKeyEncrypted;
-  scope: SnapshotModifierRow["scope"];
-  trigger: SnapshotModifierRow["trigger"];
 };
 type RawDayPriceRow = ListingIdRow & {
   days: number;
@@ -200,41 +183,39 @@ const mapListings = async (
 ): Promise<ListingWithCount[]> =>
   Promise.all(rows.map(decryptListingWithCount));
 
-const decryptNames = async <Row extends { name: EnvKeyEncrypted }>(
-  rows: Row[],
-): Promise<Array<Omit<Row, "name"> & { name: string }>> =>
-  Promise.all(
-    rows.map(async ({ name, ...row }) => ({
-      ...row,
-      name: await decrypt(name),
-    })),
-  );
+type GroupRow = Pick<
+  DecodedRowOf<"groups">,
+  "hide_package_listings" | "id" | "name"
+>;
 
-const mapNamedRows = async <Row extends { name: EnvKeyEncrypted }, Output>(
-  rows: Row[],
-  toOutput: (row: Omit<Row, "name"> & { name: string }) => Output,
-): Promise<Output[]> => (await decryptNames(rows)).map(toOutput);
+const mapGroup = (row: GroupRow): SnapshotGroupRow => ({
+  hideListings: row.hide_package_listings,
+  id: row.id,
+  name: row.name,
+});
 
-const mapGroups = async (rows: RawGroupRow[]): Promise<SnapshotGroupRow[]> =>
-  mapNamedRows(rows, (row) => ({
-    hideListings: row.hide_package_listings === 1,
-    id: row.id,
-    name: row.name,
-  }));
+type ModifierRow = Pick<
+  DecodedRowOf<"modifiers">,
+  | "calc_kind"
+  | "calc_value"
+  | "direction"
+  | "id"
+  | "min_visits"
+  | "name"
+  | "scope"
+  | "trigger"
+>;
 
-const mapModifiers = async (
-  rows: RawModifierRow[],
-): Promise<SnapshotModifierRow[]> =>
-  mapNamedRows(rows, (row) => ({
-    calcKind: row.calc_kind,
-    calcValue: row.calc_value,
-    direction: row.direction,
-    id: row.id,
-    minVisits: row.min_visits,
-    name: row.name,
-    scope: row.scope,
-    trigger: row.trigger,
-  }));
+const mapModifier = (row: ModifierRow): SnapshotModifierRow => ({
+  calcKind: row.calc_kind,
+  calcValue: row.calc_value,
+  direction: row.direction,
+  id: row.id,
+  minVisits: row.min_visits,
+  name: row.name,
+  scope: row.scope,
+  trigger: row.trigger,
+});
 
 export const loadPaidOrderSnapshot = async (
   eventId: string,
@@ -263,7 +244,7 @@ export const loadPaidOrderSnapshot = async (
       childId: row.child_listing_id,
       parentId: row.parent_listing_id,
     })),
-    groups: await mapGroups(groups),
+    groups: groups.map(mapGroup),
     ledger: { hasLegs: has_legs === 1, ownerAttendeeId: owner_attendee_id },
     listings: await mapListings(listings),
     memberships,
@@ -271,7 +252,7 @@ export const loadPaidOrderSnapshot = async (
       listingId: row.listing_id,
       modifierId: row.modifier_id,
     })),
-    modifiers: await mapModifiers(modifiers),
+    modifiers: modifiers.map(mapModifier),
     publicStatusIds: publicStatuses.map((row) => row.id),
     visitCounts: visitCounts.map((row) => row.visits),
   };

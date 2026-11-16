@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   among,
   equal,
@@ -17,7 +18,7 @@ describe("insertInto", () => {
       placed(
         insertInto(tables.holidays, {
           end_date: "b",
-          name: "n",
+          name: "n" as EnvKeyEncrypted,
           start_date: "a",
         }),
       ),
@@ -140,7 +141,7 @@ describe("insertInto", () => {
     expect(
       insertInto(tables.holidays, {
         end_date: "b",
-        name: "n",
+        name: "n" as EnvKeyEncrypted,
         start_date: "a",
       }).returning("id", "name").sql,
     ).toBe(

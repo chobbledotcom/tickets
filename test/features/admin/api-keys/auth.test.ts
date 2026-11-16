@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import type { WrappedKey } from "#crypto/sealed.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { apiKeyLimiter } from "#db/api-key-attempts.ts";
 import { getDb } from "#db/client.ts";
@@ -136,9 +138,9 @@ describeWithEnv("API key authentication", { db: true }, () => {
           created: new Date().toISOString(),
           key_index: keyIndex,
           last_used: "",
-          name: "Ghost",
+          name: await encrypt("Ghost"),
           user_id: 9999,
-          wrapped_data_key: "dummy",
+          wrapped_data_key: "dummy" as WrappedKey,
         }),
       );
       await getDb().execute(sql`PRAGMA foreign_keys = ON`);

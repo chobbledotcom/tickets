@@ -18,6 +18,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
@@ -146,12 +147,12 @@ export const dropOwnedObjects = async (
   return droppedTriggers;
 };
 
-export const seedSentinelListing = (): Promise<unknown> =>
+export const seedSentinelListing = async (): Promise<unknown> =>
   getDb().execute(
     insertInto(tables.listings, {
       created: "2024-01-01T00:00:00Z",
       max_attendees: 10,
-      name: "sentinel-listing",
+      name: await encrypt("sentinel-listing"),
     }),
   );
 

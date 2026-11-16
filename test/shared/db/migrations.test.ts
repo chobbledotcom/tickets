@@ -9,6 +9,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
 import { getDb, setDb } from "#db/client.ts";
 import { getAllListings } from "#db/listings/records.ts";
@@ -326,7 +327,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
         insertInto(tables.listings, {
           created: "2024-01-01T00:00:00Z",
           max_attendees: 5,
-          name: "crash-survivor",
+          name: await encrypt("crash-survivor"),
         }),
       );
       const listingId = Number(seeded.lastInsertRowid);

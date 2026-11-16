@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { execute, queryAll, queryOne, withTransaction } from "#db/client.ts";
 import {
   defineOrderedCollection,
@@ -35,7 +36,7 @@ const pageItems = defineOrderedCollection({
 
 const insertStatus = async (sortOrder: number): Promise<number> => {
   const statement = insertInto(tables.attendee_statuses, {
-    name: "status",
+    name: await encrypt("status"),
     reservation_amount: "0",
     sort_order: sortOrder,
   });

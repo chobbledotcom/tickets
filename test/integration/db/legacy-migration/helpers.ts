@@ -1,6 +1,7 @@
 import { createClient, type InStatement, type ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
+import { encrypt } from "#crypto/encryption.ts";
 import { setDb } from "#db/client.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
@@ -305,7 +306,7 @@ export const createLegacyMigrationHarness = (): LegacyMigrationHarness => {
         created: "2024-01-01T00:00:00Z",
         id: 1,
         max_attendees: 100,
-        name: "Test Listing",
+        name: await encrypt("Test Listing"),
       }),
     );
     return client;

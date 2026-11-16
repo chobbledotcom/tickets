@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { setDb } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
 import { tables } from "#db/select/tables.ts";
@@ -27,7 +28,7 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
         created: "2024-01-01T00:00:00Z",
         id: 1,
         max_attendees: 100,
-        name: "Test Listing",
+        name: await encrypt("Test Listing"),
       }),
     );
     await client.execute(

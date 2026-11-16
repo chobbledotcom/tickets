@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute } from "#db/client.ts";
 import { columnMapByIds, mapByIds, nameSource, rowsByIds } from "#db/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -14,7 +15,7 @@ const insertStatus = async (
   sortOrder: number,
 ): Promise<number> => {
   const stmt = insertInto(tables.attendee_statuses, {
-    name,
+    name: name as EnvKeyEncrypted,
     reservation_amount: "0",
     sort_order: sortOrder,
   });

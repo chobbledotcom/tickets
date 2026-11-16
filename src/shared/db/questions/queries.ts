@@ -2,14 +2,13 @@
  * Read queries and listing-assignment mutations for custom questions.
  *
  * Question + answer rows are joined and grouped into {@link QuestionWithAnswers}
- * records, decrypting text in parallel. Listing-question membership is written
- * here too; display order always comes from the question's own sort_order.
+ * records. Listing-question membership is written here too. Display order
+ * always comes from the question's own sort_order.
  */
 
 import { queryAll, queryAllPrimary } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
-import type { Answer, QuestionWithAnswers } from "#db/question-types.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { readRows } from "#db/read.ts";
 import {
   among,
@@ -23,10 +22,10 @@ import {
   valued,
 } from "#db/select/expression.ts";
 import { from, via } from "#db/select/query.ts";
-import type { NodeOf } from "#db/select/shape.ts";
+import type { NodeOf, Out } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import { filter, map, mapParallel, reduce } from "#fp";
+import { filter, map, reduce } from "#fp";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
@@ -39,21 +38,6 @@ export const listingQuestions = linkTableSide(
   "listing_id",
   "question_id",
 );
-
-/** Flat row from a question ← LEFT JOIN answers query. `q_assign_all` is the
- * stored form (INTEGER 0/1) — {@link decryptQuestion} turns it into a boolean
- * via the column's read transform. */
-type JoinedRow = {
-  q_id: number;
-  q_assign_all: boolean;
-  q_display_type: QuestionWithAnswers["display_type"];
-  q_text: string;
-  a_id: number | null;
-  a_text: string | null;
-  a_question_id: number | null;
-  a_sort_order: number | null;
-  a_active: boolean | null;
-};
 
 /** Every question with its answers. A question with no answer stays. */
 const questionsWithAnswers = () =>
@@ -74,19 +58,21 @@ const inQuestionOrder = (question: QuestionNode) => [
   question.answer.sort_order,
 ];
 
-/** The columns of a joined row. A switch column is typed as the boolean that
- *  the read transform of its table gives. */
+/** The columns of a joined row. */
 const joinedColumns = (question: QuestionNode) => ({
-  a_active: valued<boolean | null>(question.answer.active),
+  a_active: question.answer.active,
   a_id: question.answer.id,
   a_question_id: question.answer.question_id,
   a_sort_order: question.answer.sort_order,
   a_text: question.answer.text,
-  q_assign_all: valued<boolean>(question.assign_all),
+  q_assign_all: question.assign_all,
   q_display_type: question.display_type,
   q_id: question.id,
   q_text: question.text,
 });
+
+/** One question and one of its answers. */
+type JoinedRow = Out<ReturnType<typeof joinedColumns>>;
 
 /** The question asks every listing. */
 const asksEveryListing = (question: QuestionNode): Expr<boolean> =>
@@ -95,52 +81,32 @@ const asksEveryListing = (question: QuestionNode): Expr<boolean> =>
 const joinedRowsOf = (read: QuestionRead) =>
   read.orderBy(inQuestionOrder).select(joinedColumns);
 
-/** Decrypt a single question and its answers */
-const decryptQuestion = async (
-  id: number,
-  assignAll: boolean,
-  displayType: QuestionWithAnswers["display_type"],
-  rawText: string,
-  rawAnswers: Answer[],
-): Promise<QuestionWithAnswers> => {
-  const [text, assign_all, answers] = await Promise.all([
-    questionsTable.readColumn("text", rawText),
-    questionsTable.readColumn("assign_all", assignAll),
-    mapParallel((a: Answer) => answersTable.fromDb(a))(rawAnswers),
-  ]);
-  return {
-    answers,
-    assign_all,
-    display_type: displayType,
-    id,
-    text,
-  };
-};
-
 /** Group flat joined rows into QuestionWithAnswers[], preserving row order.
- * Decrypts question and answer text in parallel. The first row of each
- * question group carries the question's fields; every row with an answer id
- * contributes an answer (in row order). */
-const groupJoinedRows = (rows: JoinedRow[]): Promise<QuestionWithAnswers[]> =>
-  mapParallel(([id, groupRows]: [number, JoinedRow[]]) => {
+ * The first row of each question group carries the question's fields. Every
+ * row with an answer id adds an answer, in row order. */
+const groupJoinedRows = (rows: JoinedRow[]): QuestionWithAnswers[] =>
+  [...Map.groupBy(rows, (row) => row.q_id)].map(([id, groupRows]) => {
     const first = groupRows[0]!;
-    const answers = groupRows
-      .filter((r) => r.a_id !== null)
-      .map((r) => ({
-        active: r.a_active!,
-        id: r.a_id!,
-        question_id: r.a_question_id!,
-        sort_order: r.a_sort_order!,
-        text: r.a_text!,
-      }));
-    return decryptQuestion(
+    return {
+      answers: groupRows.flatMap((row) =>
+        row.a_id === null
+          ? []
+          : [
+              {
+                active: row.a_active!,
+                id: row.a_id,
+                question_id: row.a_question_id!,
+                sort_order: row.a_sort_order!,
+                text: row.a_text!,
+              },
+            ],
+      ),
+      assign_all: first.q_assign_all,
+      display_type: first.q_display_type,
       id,
-      first.q_assign_all,
-      first.q_display_type,
-      first.q_text,
-      answers,
-    );
-  })([...Map.groupBy(rows, (r) => r.q_id)]);
+      text: first.q_text,
+    };
+  });
 
 /** Keep only questions that have at least one answer */
 const withAnswers = filter(
@@ -151,9 +117,9 @@ const withAnswers = filter(
 /** Fetch questions with their answers, keeping only the ones the read
  * selects. */
 const fetchQuestions = (read: QuestionRead = questionsWithAnswers()) =>
-  readRows<JoinedRow>(joinedRowsOf(read));
+  readRows(joinedRowsOf(read));
 
-/** Get all questions with their answers (sorted by sort_order), decrypted */
+/** Get all questions with their answers, sorted by sort_order. */
 export const getAllQuestionsWithAnswers = async (): Promise<
   QuestionWithAnswers[]
 > => groupJoinedRows(await fetchQuestions());
@@ -164,7 +130,7 @@ export const getQuestionsForListing = async (
   listingId: number,
 ): Promise<QuestionWithAnswers[]> =>
   withAnswers(
-    await groupJoinedRows(
+    groupJoinedRows(
       await fetchQuestions(
         questionsWithAnswers()
           .leftJoin("listingQuestion", tables.listing_questions, (question) =>
@@ -222,7 +188,7 @@ export const getQuestionsWithListingIds = async (
     from(tables.listing_questions).where((assigned) =>
       among(assigned.listing_id, listingIds),
     );
-  const rows = await queryAll<JoinedRowWithListings>(
+  const rows = await queryAll(
     questionsWithAnswers()
       .where((question) =>
         or(
@@ -261,7 +227,7 @@ export const getQuestionsWithListingIds = async (
     new Map() as QuestionListingMap,
   )(rows);
 
-  const questions = withAnswers(await groupJoinedRows(rows));
+  const questions = withAnswers(groupJoinedRows(rows));
   return { questionListingMap, questions };
 };
 
@@ -271,7 +237,7 @@ const questionRows = (id: number, primary: boolean) => {
   const read = joinedRowsOf(
     questionsWithAnswers().where((question) => equal(question.id, id)),
   );
-  return primary ? queryAllPrimary<JoinedRow>(read) : readRows<JoinedRow>(read);
+  return primary ? queryAllPrimary(read) : readRows(read);
 };
 
 const questionWithAnswers =
@@ -280,7 +246,7 @@ const questionWithAnswers =
     const rows = await questionRows(id, primary);
     if (rows.length === 0) return null;
     // rows is non-empty so groupJoinedRows always returns at least one entry
-    return (await groupJoinedRows(rows))[0]!;
+    return groupJoinedRows(rows)[0]!;
   };
 
 /** Get question with answers by ID. A replica can serve it. */

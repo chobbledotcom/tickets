@@ -1,4 +1,5 @@
 import { encrypt } from "#crypto/encryption.ts";
+import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
 import { tables } from "#db/select/tables.ts";
@@ -23,11 +24,11 @@ export const addUserOwnedAccessRecords = async (
   await getDb().execute(
     insertInto(tables.api_keys, {
       created: "2026-07-19T00:00:00.000Z",
-      key_index: `${label}-key-index`,
+      key_index: `${label}-key-index` as BlindIndex,
       last_used: "",
       name: await encrypt(`${label} key`),
       user_id: userId,
-      wrapped_data_key: `${label}-wrapped-key`,
+      wrapped_data_key: `${label}-wrapped-key` as WrappedKey,
     }),
   );
 };
