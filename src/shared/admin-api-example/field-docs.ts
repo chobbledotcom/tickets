@@ -9,7 +9,6 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import { readBody } from "#shared/rest/field-reads.ts";
 import type {
-  ClosedReason,
   FieldKind,
   FieldSpec,
   FieldSpecs,
@@ -34,9 +33,6 @@ export type ValueForm =
   | { form: "whole_number"; min: number }
   | { form: "whole_number_range"; max: number; min: number };
 
-/** Why some writers cannot set a field. */
-export type FieldLimit = ClosedReason | "owner";
-
 /** One documented field. `defaultJson` is the value a create stores when the
  *  body leaves the field out, as JSON text. It is null when the body must
  *  supply the field, when the stored value is empty, and on an update, which
@@ -44,7 +40,6 @@ export type FieldLimit = ClosedReason | "owner";
 export type FieldDocRow = {
   defaultJson: string | null;
   key: string;
-  limits: readonly FieldLimit[];
   required: boolean;
   value: ValueForm;
 };
@@ -83,12 +78,6 @@ const KIND_FORMS: Record<FieldKind, (field: FieldSpec) => ValueForm> = {
   }),
 };
 
-/** The limits a field declares: the feature it needs, then its locks. */
-const limitsOf = (field: FieldSpec): FieldLimit[] => [
-  ...(field.feature === undefined ? [] : [field.feature]),
-  ...(field.lockedFor ?? []),
-];
-
 /** JSON text of a value, or null when there is no value to show. */
 const jsonOrNull = (value: unknown): string | null =>
   value === undefined || value === "" ? null : JSON.stringify(value);
@@ -102,7 +91,6 @@ const createRow = (field: FieldSpec): FieldDocRow => {
       ? jsonOrNull(field.default ?? Object.values(read.value)[0])
       : null,
     key: field.key,
-    limits: limitsOf(field),
     required: !read.ok,
     value: KIND_FORMS[field.kind](field),
   };
@@ -110,7 +98,6 @@ const createRow = (field: FieldSpec): FieldDocRow => {
 
 /** A body key that no field list declares, such as a list of linked ids. */
 export type ExtraField = {
-  limits: readonly FieldLimit[];
   /** The one verb that takes the key. Absent means both verbs take it. */
   only?: "update";
   value: ValueForm;
@@ -119,22 +106,27 @@ export type ExtraField = {
 const byKey = (rows: FieldDocRow[]): FieldDocRow[] =>
   rows.toSorted((a, b) => a.key.localeCompare(b.key));
 
-/** The field rows of a resource that a field list declares. */
+/** The field rows of a resource that a field list declares. A key that the
+ *  viewer cannot set has no row. */
 export const specFieldDocs = (
   fields: FieldSpecs,
   extras: Readonly<Record<string, ExtraField>>,
+  closed: ReadonlySet<string>,
 ): FieldDocs => {
-  const declared = fields.map(createRow);
-  const extra = Object.entries(extras).map(([key, field]) => ({
-    only: field.only,
-    row: {
-      defaultJson: null,
-      key,
-      limits: field.limits,
-      required: false,
-      value: field.value,
-    },
-  }));
+  const declared = fields
+    .filter((field) => !closed.has(field.key))
+    .map(createRow);
+  const extra = Object.entries(extras)
+    .filter(([key]) => !closed.has(key))
+    .map(([key, field]) => ({
+      only: field.only,
+      row: {
+        defaultJson: null,
+        key,
+        required: false,
+        value: field.value,
+      },
+    }));
   return {
     create: byKey([
       ...declared,
@@ -197,7 +189,6 @@ export const schemaRows = (schema: v.GenericSchema): FieldDocRow[] => {
     Object.entries(entries).map(([key, entry]) => ({
       defaultJson: null,
       key,
-      limits: [],
       required: entry.type !== "optional",
       value: schemaForm(entry),
     })),

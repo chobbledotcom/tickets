@@ -31,7 +31,7 @@
   "features.money.description": "Show the Money page in the admin menu.",
   "features.external_sources.name": "External sources",
   "features.external_sources.description": "Show a private list of where your records appear in other systems. Admins use it only for their own reference.",
-  "features.external_sources.disabled": "The external sources feature is disabled. Turn it on in Settings, then try again.",
+  "features.api_disabled": "The {feature} feature is disabled. Turn it on in Settings, then try again.",
   "features.external_sources.url_pattern": "URL pattern",
   "features.external_sources.record": "Record",
   "features.external_sources.external_id": "External ID",

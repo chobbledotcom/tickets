@@ -11,9 +11,9 @@ import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import {
   createTestEditorSession,
   createTestManagerSession,

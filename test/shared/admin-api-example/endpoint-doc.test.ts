@@ -6,14 +6,18 @@ import {
   childWriteDocs,
   choiceWriteDocs,
   crudDocs,
+  crudDocsFor,
+  docKeysOf,
   type EndpointDoc,
   json,
+  shownFor,
 } from "#shared/admin-api-example/endpoint-doc.ts";
 import type { FieldDocRow } from "#shared/admin-api-example/field-docs.ts";
 import {
   ADMIN_API_RESOURCES,
   type AdminApiResource,
 } from "#shared/admin-api-resources.ts";
+import { everyFeature, OPEN_ACCESS } from "./helpers.ts";
 
 /** A resource with one child surface, as the resource table declares one. */
 const TOUR = {
@@ -44,7 +48,6 @@ const ONE_STOP = `${STOPS}/:stopId`;
 const textRow = (key: string, required = true): FieldDocRow => ({
   defaultJson: null,
   key,
-  limits: [],
   required,
   value: { form: "text" },
 });
@@ -88,12 +91,12 @@ const stopWrites = (
 const docsOf = (
   entry: AdminApiResource,
   bodies: {
-    createBody?: unknown;
-    example?: unknown;
-    updateBody?: unknown;
+    createBody?: object;
+    example?: object;
+    updateBody?: object;
   } = {},
 ): EndpointDoc[] =>
-  crudDocs({
+  crudDocsFor(OPEN_ACCESS)({
     createBody: {},
     deleteBody: { confirm_identifier: "Old town" },
     desc: ["List", "Get", "Create", "Update", "Delete"],
@@ -217,5 +220,102 @@ describe("endpoint docs", () => {
     ]) {
       expect(() => docsOf(entry)).toThrow(refusal);
     }
+  });
+
+  test("a resource with a declared field list stops docs that name no viewer", () => {
+    const withoutViewer = () =>
+      crudDocs({
+        createBody: {},
+        deleteBody: {},
+        desc: ["List", "Get", "Create", "Update", "Delete"],
+        entry: ADMIN_API_RESOURCES.groups,
+        example: {},
+        updateBody: {},
+      });
+
+    expect(withoutViewer).toThrow(
+      "Group declares its fields, so its docs need the access of the viewer",
+    );
+  });
+
+  test("a resource with no declared field list closes and hides no key", () => {
+    const keys = docKeysOf(TOUR, undefined);
+
+    expect([[...keys.closed], [...keys.hidden]]).toEqual([[], []]);
+  });
+
+  test("the doc keys of a listing follow the access of the viewer", () => {
+    const keysFor = (access: typeof OPEN_ACCESS) => {
+      const keys = docKeysOf(ADMIN_API_RESOURCES.listings, access);
+      return { closed: [...keys.closed], hidden: [...keys.hidden] };
+    };
+
+    expect(keysFor(OPEN_ACCESS)).toEqual({ closed: [], hidden: [] });
+    expect(
+      keysFor({
+        features: { ...OPEN_ACCESS.features, logistics: false },
+        locks: { ...OPEN_ACCESS.locks, demo: true, nonOwner: true },
+      }),
+    ).toEqual({
+      closed: ["uses_logistics", "webhook_url", "attribute_option_ids"],
+      hidden: ["uses_logistics"],
+    });
+  });
+
+  test("a closed key leaves the table and both bodies, and a hidden key leaves the answers", () => {
+    const docs = crudDocsFor({
+      features: { ...OPEN_ACCESS.features, logistics: false },
+      locks: OPEN_ACCESS.locks,
+    })({
+      createBody: { name: "Walk", uses_logistics: true },
+      deleteBody: {},
+      desc: ["List", "Get", "Create", "Update", "Delete"],
+      entry: ADMIN_API_RESOURCES.listings,
+      example: { id: 4, name: "Tour", uses_logistics: false },
+      listExtras: { admin_level: "owner" },
+      updateBody: { uses_logistics: true },
+    });
+    const [list, get, create, update] = docs.map((endpoint) => ({
+      request: endpoint.request,
+      response: endpoint.response,
+    }));
+
+    expect([list, get, create, update]).toEqual([
+      {
+        request: undefined,
+        response: json({
+          admin_level: "owner",
+          listings: [{ id: 4, name: "Tour" }],
+        }),
+      },
+      {
+        request: undefined,
+        response: json({ listing: { id: 4, name: "Tour" } }),
+      },
+      {
+        request: json({ name: "Walk" }),
+        response: json({ listing: { id: 4, name: "Walk" } }),
+      },
+      {
+        request: json({}),
+        response: json({ listing: { id: 4, name: "Tour" } }),
+      },
+    ]);
+    expect(fieldKeys(docs[2])).not.toContain("uses_logistics");
+    expect(fieldKeys(docs[3])).not.toContain("uses_logistics");
+    expect(fieldKeys(docs[2])).toContain("name");
+  });
+
+  test("the docs of a resource stay while its feature is on, and go while it is off", () => {
+    const docs = docsOf(TOUR);
+    const shownWith = (on: boolean, entry: { path: string }) =>
+      shownFor({ access: OPEN_ACCESS, features: everyFeature(on) })(
+        { ...TOUR, path: entry.path },
+        docs,
+      );
+
+    expect(shownWith(true, ADMIN_API_RESOURCES.questions)).toBe(docs);
+    expect(shownWith(false, ADMIN_API_RESOURCES.questions)).toEqual([]);
+    expect(shownWith(false, ADMIN_API_RESOURCES.holidays)).toBe(docs);
   });
 });

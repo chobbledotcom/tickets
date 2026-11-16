@@ -8,7 +8,7 @@ import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 
 const ID_LIST = { form: "list_of", of: { form: "whole_number", min: 1 } };
-const UPDATE_SLUG = { limits: [], only: "update", value: { form: "text" } };
+const UPDATE_SLUG = { only: "update", value: { form: "text" } };
 
 describe("declared write fields", () => {
   test("each resource with a field list names that list", () => {
@@ -28,9 +28,9 @@ describe("declared write fields", () => {
 
   test("a listing links its groups, its add-ons, and its attribute options by id", () => {
     expect(DECLARED_FIELDS.listings?.extras).toEqual({
-      attribute_option_ids: { limits: ["owner"], value: ID_LIST },
-      child_listing_ids: { limits: [], value: ID_LIST },
-      group_ids: { limits: [], value: ID_LIST },
+      attribute_option_ids: { value: ID_LIST },
+      child_listing_ids: { value: ID_LIST },
+      group_ids: { value: ID_LIST },
       slug: UPDATE_SLUG,
     });
   });
@@ -38,7 +38,6 @@ describe("declared write fields", () => {
   test("a group names each package member by the keys of one member", () => {
     expect(DECLARED_FIELDS.groups?.extras).toEqual({
       package_members: {
-        limits: [],
         value: {
           form: "list_of",
           of: {

@@ -9,6 +9,7 @@ import {
   closedFieldErrorOrNull,
   closedFields,
   type FieldKind,
+  featureClosedKeys,
   fieldOfKey,
 } from "#shared/rest/field-specs.ts";
 
@@ -63,8 +64,8 @@ describe("field specs", () => {
       logistics: boolean,
     ): [string, string][] => [
       ...closedFields(FIELDS, {
-        features: { builder: true, logistics },
-        locks: { demo, editor },
+        features: { attributes: true, builder: true, logistics },
+        locks: { demo, editor, nonOwner: false },
       }),
     ];
 
@@ -105,6 +106,32 @@ describe("field specs", () => {
       null,
       "editors cannot set active",
     ]);
+  });
+
+  test("the refusal names the attributes feature and the owner-only rule", () => {
+    const closed = new Map([
+      ["attribute_option_ids", "attributes"],
+      ["option_ids", "nonOwner"],
+    ] as const);
+
+    expect([
+      closedFieldErrorOrNull(closed, ["attribute_option_ids"]),
+      closedFieldErrorOrNull(closed, ["option_ids"]),
+    ]).toEqual([
+      "attribute_option_ids needs attributes turned on",
+      "option_ids is owner-only",
+    ]);
+  });
+
+  test("an answer leaves out each key whose feature is off, and no other key", () => {
+    const hidden = (logistics: boolean) =>
+      featureClosedKeys(FIELDS, {
+        attributes: true,
+        builder: true,
+        logistics,
+      });
+
+    expect([hidden(false), hidden(true)]).toEqual([["is_public"], []]);
   });
 
   test("fieldOfKey finds the declared field, and refuses a key it does not declare", () => {

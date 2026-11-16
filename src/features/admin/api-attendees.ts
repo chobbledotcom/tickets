@@ -41,6 +41,8 @@ import {
   type CreateAdjustment,
 } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
+import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
+import { withoutHiddenKeys } from "#shared/records/write-access.ts";
 import { answerParsed } from "#shared/rest/crud-parsers.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import { queueManualAddWebhooks } from "#shared/webhook/delivery.ts";
@@ -61,11 +63,14 @@ export type AdminApiAttendee = Omit<
   "pii_blob" | "ticket_token_index"
 >;
 
+/** One attendee as the API answers with it. The answer leaves out the
+ *  sealed fields, and each key whose feature is off. */
 export const toApiAttendee = ({
   pii_blob: _,
   ticket_token_index: __,
   ...attendee
-}: Attendee): AdminApiAttendee => attendee;
+}: Attendee): Record<string, unknown> =>
+  withoutHiddenKeys(ATTENDEE_FEATURE_KEYS, attendee);
 
 /** The owed-email flag a hand-added attendee starts with. It goes up (orange)
  * when a booked line's listing collects an email, because the API create

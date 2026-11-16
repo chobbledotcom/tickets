@@ -13,10 +13,13 @@ import type { UpdateListingBody } from "#routes/admin/api-listing-body.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
-import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  LISTING_WRITE_KEYS,
+} from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
-import type { FieldSpecs } from "#shared/rest/field-specs.ts";
-import type { ExtraField, FieldLimit, ValueForm } from "./field-docs.ts";
+import type { FieldSpecs, KeyAccess } from "#shared/rest/field-specs.ts";
+import type { ExtraField, ValueForm } from "./field-docs.ts";
 
 /** The body keys a write takes beside its field list. */
 type ExtraFields<Body, Fields extends FieldSpecs> = Record<
@@ -25,14 +28,12 @@ type ExtraFields<Body, Fields extends FieldSpecs> = Record<
 >;
 
 /** A body key that links records by id. */
-const idList = (limits: readonly FieldLimit[] = []): ExtraField => ({
-  limits,
+const ID_LIST: ExtraField = {
   value: { form: "list_of", of: { form: "whole_number", min: 1 } },
-});
+};
 
 /** The slug an update can change. A create makes its own. */
 const UPDATE_SLUG: ExtraField = {
-  limits: [],
   only: "update",
   value: { form: "text" },
 };
@@ -51,33 +52,49 @@ const PACKAGE_MEMBERS: ValueForm = {
   of: { form: "object", names: Object.keys(PACKAGE_MEMBER_KEYS) },
 };
 
-/** Only an owner sets the attribute options of a listing. */
 const LISTING_EXTRA_FIELDS = {
-  attribute_option_ids: idList(["owner"]),
-  child_listing_ids: idList(),
-  group_ids: idList(),
+  attribute_option_ids: ID_LIST,
+  child_listing_ids: ID_LIST,
+  group_ids: ID_LIST,
   slug: UPDATE_SLUG,
 } satisfies ExtraFields<UpdateListingBody, typeof LISTING_FIELDS>;
 
 const GROUP_EXTRA_FIELDS = {
-  package_members: { limits: [], value: PACKAGE_MEMBERS },
+  package_members: { value: PACKAGE_MEMBERS },
   slug: UPDATE_SLUG,
 } satisfies ExtraFields<UpdateGroupBody, typeof GROUP_FIELDS>;
 
 /** The write fields one resource declares: its field list, and the body keys
- *  outside the list. */
-type DeclaredFields = {
+ *  outside the list. `access` holds the access rule of every key that has
+ *  one. The server reads the same rules when it refuses a write. */
+export type DeclaredFields = {
+  access: readonly KeyAccess[];
   extras: Readonly<Record<string, ExtraField>>;
   fields: FieldSpecs;
 };
+
+/** A resource whose only write keys are its field list. */
+const listOnly = (fields: FieldSpecs): DeclaredFields => ({
+  access: fields,
+  extras: {},
+  fields,
+});
 
 /** The declared write fields of each resource that has a field list, by
  *  resource path. A resource that is absent here declares its fields in the
  *  body schemas of the resource table. */
 export const DECLARED_FIELDS: Readonly<Record<string, DeclaredFields>> = {
-  "attendee-statuses": { extras: {}, fields: STATUS_FIELDS },
-  attributes: { extras: {}, fields: ATTRIBUTE_FIELDS },
-  groups: { extras: GROUP_EXTRA_FIELDS, fields: GROUP_FIELDS },
-  holidays: { extras: {}, fields: HOLIDAY_FIELDS },
-  listings: { extras: LISTING_EXTRA_FIELDS, fields: LISTING_FIELDS },
+  "attendee-statuses": listOnly(STATUS_FIELDS),
+  attributes: listOnly(ATTRIBUTE_FIELDS),
+  groups: {
+    access: GROUP_FIELDS,
+    extras: GROUP_EXTRA_FIELDS,
+    fields: GROUP_FIELDS,
+  },
+  holidays: listOnly(HOLIDAY_FIELDS),
+  listings: {
+    access: LISTING_WRITE_KEYS,
+    extras: LISTING_EXTRA_FIELDS,
+    fields: LISTING_FIELDS,
+  },
 };

@@ -5,8 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { documentedBodies } from "./helpers.ts";
+import { ADMIN_API_ENDPOINTS, documentedBodies } from "./helpers.ts";
 
 const bodiesOf = documentedBodies(ADMIN_API_ENDPOINTS);
 
@@ -24,15 +23,6 @@ const STATUS = {
   is_reservation: false,
   name: "Confirmed",
   reservation_amount: "0",
-};
-
-const EASY = { attribute_id: 6, id: 11, sort_order: 0, text: "Easy" };
-const HARD = { attribute_id: 6, id: 12, sort_order: 1, text: "Hard" };
-const ATTRIBUTE = {
-  id: 6,
-  name: "Difficulty",
-  options: [EASY, HARD],
-  sort_order: 2,
 };
 
 describe("documented example values", () => {
@@ -100,29 +90,5 @@ describe("documented example values", () => {
     );
 
     expect(counts).toEqual([0, 0, 0]);
-  });
-
-  test("the example attribute holds its two options in display order", () => {
-    expect(
-      bodiesOf("GET", "/api/admin/attributes/:attributeId").response,
-    ).toEqual({ attribute: ATTRIBUTE });
-  });
-
-  test("an added option joins the attribute last", () => {
-    const { response } = bodiesOf(
-      "POST",
-      "/api/admin/attributes/:attributeId/options",
-    );
-
-    expect(response).toEqual({
-      attribute: {
-        ...ATTRIBUTE,
-        options: [
-          EASY,
-          HARD,
-          { attribute_id: 6, id: 13, sort_order: 2, text: "Medium" },
-        ],
-      },
-    });
   });
 });

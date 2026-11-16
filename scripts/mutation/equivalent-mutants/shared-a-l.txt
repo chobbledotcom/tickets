@@ -327,11 +327,9 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → || audite
 
 # The optional parameters are Record<string, unknown> | undefined: undefined
 # is the only absent value, so ?? and || read identically over the type.
-src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0epxqlj  ?? → || audited:19f0e8u # newRecordDefaults is undefined or a truthy record object
-src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0lfuyxn  ?? → || audited:19f0e8u # freshRecord is undefined or a truthy record object
-src/shared/admin-api-example/endpoint-doc.ts::crudDocs.listResponse~0u4m5ni  ?? → || audited:19f0e8u # listResponse is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0epxqlj  ?? → || audited:0r6kgt7 # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0lfuyxn  ?? → || audited:0r6kgt7 # freshRecord is undefined or a truthy record object
 src/shared/admin-api-example/field-docs.ts::KIND_FORMS.count.min~16n3kul  ??→|| audited:1mttza9 # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
-src/shared/admin-api-example/field-docs.ts::limitsOf~0eojpgy  ??→|| audited:1mttza9 # lockedFor is undefined or an array, and an array is always truthy
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
 

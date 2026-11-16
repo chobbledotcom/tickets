@@ -15,12 +15,11 @@ import {
   schemaRows,
   specFieldDocs,
 } from "#shared/admin-api-example/field-docs.ts";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { MAX_DURATION_DAYS } from "#types";
-import { documented } from "./helpers.ts";
+import { ADMIN_API_ENDPOINTS, documented } from "./helpers.ts";
 
 /** The field rows of one documented write. */
 const rowsOf = (method: string, path: string): readonly FieldDocRow[] => {
@@ -92,7 +91,6 @@ describe("documented request fields", () => {
     expect(rowOf(listingCreate(), "closes_at")).toEqual({
       defaultJson: null,
       key: "closes_at",
-      limits: [],
       required: false,
       value: { form: "or_null", of: { form: "time" } },
     });
@@ -146,16 +144,6 @@ describe("documented request fields", () => {
     expect(rowOf(status, "is_reservation").defaultJson).toBe("false");
   });
 
-  test("a field names the feature it needs and the writers it is locked for", () => {
-    const limits = (key: string) => rowOf(listingCreate(), key).limits;
-
-    expect(limits("assign_built_site")).toEqual(["builder"]);
-    expect(limits("uses_logistics")).toEqual(["logistics"]);
-    expect(limits("webhook_url")).toEqual(["demo", "editor"]);
-    expect(limits("attribute_option_ids")).toEqual(["owner"]);
-    expect(limits("group_ids")).toEqual([]);
-  });
-
   test("each kind of field shows the form of its value", () => {
     const form = (key: string) => rowOf(listingCreate(), key).value;
 
@@ -189,13 +177,16 @@ describe("documented request fields", () => {
   });
 
   test("a count with no smallest value of its own starts at zero", () => {
-    const { create } = specFieldDocs([{ key: "seats", kind: "count" }], {});
+    const { create } = specFieldDocs(
+      [{ key: "seats", kind: "count" }],
+      {},
+      new Set(),
+    );
 
     expect(create).toEqual([
       {
         defaultJson: null,
         key: "seats",
-        limits: [],
         required: false,
         value: { form: "whole_number", min: 0 },
       },
@@ -203,7 +194,7 @@ describe("documented request fields", () => {
   });
 
   test("a group write names its package members by their keys", () => {
-    const { create, update } = specFieldDocs(GROUP_FIELDS, {});
+    const { create, update } = specFieldDocs(GROUP_FIELDS, {}, new Set());
     const groupCreate = rowsOf("POST", "/api/admin/groups");
 
     expect(keysOf(groupCreate)).toEqual(
@@ -226,14 +217,12 @@ describe("documented request fields", () => {
       {
         defaultJson: null,
         key: "assign_all",
-        limits: [],
         required: false,
         value: { form: "switch" },
       },
       {
         defaultJson: null,
         key: "display_type",
-        limits: [],
         required: true,
         value: {
           form: "one_of",
@@ -243,7 +232,6 @@ describe("documented request fields", () => {
       {
         defaultJson: null,
         key: "text",
-        limits: [],
         required: true,
         value: { form: "text" },
       },

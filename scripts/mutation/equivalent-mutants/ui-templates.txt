@@ -105,7 +105,6 @@ src/ui/templates/admin/api-field-table.tsx::fieldTable~19eegd3  field → "" aud
 src/ui/templates/admin/api-field-table.tsx::fieldTable~1guipl4  value → "" audited:0nc9rg7 # same as the field key — the field table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/api-field-table.tsx::fieldTable~14xs3kd  required → "" audited:0nc9rg7 # same as the field key — the field table renders without columnKeys, hiddenKeys, or filters
 src/ui/templates/admin/api-field-table.tsx::fieldTable~0ythlfd  default → "" audited:0nc9rg7 # same as the field key — the field table renders without columnKeys, hiddenKeys, or filters
-src/ui/templates/admin/api-field-table.tsx::fieldTable~12rts7u  limit → "" audited:0nc9rg7 # same as the field key — the field table renders without columnKeys, hiddenKeys, or filters
 
 # users list table (users.tsx) — same class as the api-keys key table above:
 # adminUsersPage is usersTable's only consumer and passes no options at all.

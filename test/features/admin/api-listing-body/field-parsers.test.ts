@@ -5,8 +5,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { describeWithAttributes as describeWithEnv } from "#test-utils/feature-suites.ts";
 
 describeWithEnv("Admin API listing body field rules", { db: true }, () => {
   test("an empty date stores the undated sentinel", async () => {

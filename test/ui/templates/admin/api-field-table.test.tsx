@@ -1,6 +1,5 @@
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { FieldTable } from "#templates/admin/api-field-table.tsx";
 import { adminApiDocsPage } from "#templates/admin/api-keys.tsx";
 import {
@@ -11,32 +10,30 @@ import {
   expectIncludesAll,
   tableRowContaining,
 } from "#test-utils/assertions.ts";
+import { ADMIN_API_ENDPOINTS } from "../../../shared/admin-api-example/helpers.ts";
 
 describe("FieldTable", () => {
   beforeAll(setupAdminPageTest);
 
-  test("shows each field with its value, its default, and its limits", () => {
+  test("shows each field with its value, and its default", () => {
     const html = String(
       <FieldTable
         rows={[
           {
             defaultJson: null,
             key: "closes_at",
-            limits: [],
             required: false,
             value: { form: "or_null", of: { form: "time" } },
           },
           {
             defaultJson: "1",
             key: "max_quantity",
-            limits: ["demo", "editor"],
             required: true,
             value: { form: "whole_number", min: 1 },
           },
           {
             defaultJson: null,
             key: "items",
-            limits: ["owner"],
             required: false,
             value: {
               form: "list_of",
@@ -53,7 +50,6 @@ describe("FieldTable", () => {
       "<th>Value</th>",
       "<th>Required</th>",
       "<th>Default</th>",
-      "<th>Limit</th>",
     ]);
     expectIncludesAll(tableRowContaining(html, "closes_at"), [
       "<code>closes_at</code>",
@@ -65,11 +61,9 @@ describe("FieldTable", () => {
       "Whole number, 1 or more",
       "<td>Yes</td>",
       "<code>1</code>",
-      "Cannot be set in the demo. Editors cannot set it",
     ]);
     expectIncludesAll(tableRowContaining(html, "items"), [
       "List of: Object with item_id, item_type",
-      "Owners only",
     ]);
   });
 
@@ -88,8 +82,6 @@ describe("FieldTable", () => {
       "Object of day counts, each with its price in minor units",
       "One of: standard, daily",
       "Price in minor units, as a whole number",
-      "Needs site building turned on",
-      "Needs logistics turned on",
       "<td>true or false</td>",
       "<td>Number, or null</td>",
       "or empty text",

@@ -14,7 +14,7 @@ import {
 import { t } from "#i18n";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 import {
   ownerApiGet,
   ownerApiPost,

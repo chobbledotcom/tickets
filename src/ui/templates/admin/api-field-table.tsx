@@ -37,9 +37,6 @@ const fieldTable = defineTable<FieldDocRow>([
     "api_keys.fields.col.default",
     (row) => row.defaultJson !== null && <code>{row.defaultJson}</code>,
   ),
-  translatedTableColumn("limit", "api_keys.fields.col.limit", (row) =>
-    row.limits.map((limit) => t(`api_keys.fields.limit.${limit}`)).join(". "),
-  ),
 ]);
 
 /** The labelled table of the fields one request body takes. */
