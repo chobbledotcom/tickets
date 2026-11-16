@@ -11,16 +11,13 @@ import type { RouteHandlerFn } from "#routes/router.ts";
 import { resourceFeature } from "#shared/admin-api-resource-features.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import {
-  ADMIN_FEATURES,
+  ADMIN_FEATURES_BY_KEY,
   type AdminFeatureKey,
 } from "#shared/admin-features.ts";
 
 /** The name of one feature as a sentence holds it. */
-const featureName = (key: AdminFeatureKey): string => {
-  const feature = ADMIN_FEATURES.find((each) => each.key === key);
-  if (feature === undefined) throw new Error(`No admin feature ${key}`);
-  return t(feature.labelKey).toLowerCase();
-};
+const featureName = (key: AdminFeatureKey): string =>
+  t(ADMIN_FEATURES_BY_KEY[key].labelKey).toLowerCase();
 
 /** The routes of one resource, each one refused while the feature of the
  *  resource is off. A resource of no feature keeps its routes as they are. */

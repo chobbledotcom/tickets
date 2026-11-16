@@ -84,6 +84,15 @@ export type AdminFeatureDefinition = (typeof ADMIN_FEATURES)[number];
 export type AdminFeatureKey = AdminFeatureDefinition["key"];
 export type EnabledFeatures = { [Key in AdminFeatureKey]: boolean };
 
+type AdminFeaturesByKey = {
+  [Feature in AdminFeatureDefinition as Feature["key"]]: Feature;
+};
+
+/** Each feature, by its key. */
+export const ADMIN_FEATURES_BY_KEY = Object.fromEntries(
+  ADMIN_FEATURES.map((feature) => [feature.key, feature]),
+) as AdminFeaturesByKey;
+
 const FEATURE_KEYS = ADMIN_FEATURES.map(
   (feature) => feature.key,
 ) as AdminFeatureKey[];
