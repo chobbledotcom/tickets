@@ -2,7 +2,10 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { updateRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
 import { buildTestData, describeEmailRenderer } from "./test-helpers.ts";
@@ -67,11 +70,7 @@ describeEmailRenderer(() => {
     });
 
     test("a collapsed hidden package of free-base members is paid from prices", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Free Kit",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Free Kit");
       const memberA = await createTestListing({
         groupId: group.id,
         name: "A",
@@ -101,11 +100,7 @@ describeEmailRenderer(() => {
     });
 
     test("a dated hidden package collapses keeping the widest member's range", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Dated Kit",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Dated Kit");
       const spans: [name: string, endDate: string | null][] = [
         ["Day Only", null],
         ["Narrow A", "2026-08-02"],
@@ -177,11 +172,7 @@ describeEmailRenderer(() => {
       // Booking one thing out of a hidden bundle is still a bundle booking, so
       // the row it collapses to carries the bundle's name and the buyer's own
       // contact — the whole point of hiding the members.
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Single Kit",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Single Kit");
       const only = await createTestListing({
         groupId: group.id,
         name: "Only Member",
@@ -206,11 +197,7 @@ describeEmailRenderer(() => {
     });
 
     test("a standalone booking of a hidden one-member package's listing is NOT collapsed", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Solo Kit",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Solo Kit");
       const widget = await createTestListing({
         groupId: group.id,
         name: "Widget",

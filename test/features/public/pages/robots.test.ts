@@ -6,7 +6,10 @@ import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestNewsPost,
@@ -72,11 +75,7 @@ describeWithEnv(
 
     test("indexes a visible listing inside a concealing package", async () => {
       await enablePublicSite();
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Private Kit",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Private Kit");
       const listing = await createTestListing({
         groupId: group.id,
         name: "Separate Unit",

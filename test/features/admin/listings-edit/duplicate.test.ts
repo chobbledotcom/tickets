@@ -11,12 +11,13 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
 import { mockMultipartRequest } from "#test-utils/mocks.ts";
@@ -145,8 +146,7 @@ describeWithEnv("when the gate cannot be carried over", { db: true }, () => {
 describeWithEnv("duplicating into a hidden package", { db: true }, () => {
   test("keeps the copy but drops the gate, and says so", async () => {
     const { parent } = await parentOf(1, "Packaged");
-    const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
-    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
+    const hidden = await createHiddenPackageGroup("Hidden");
 
     const { copyId, message } = await duplicate(
       parent.id,

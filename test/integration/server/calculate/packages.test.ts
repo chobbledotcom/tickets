@@ -7,13 +7,14 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -27,13 +28,9 @@ const quotePackage = (
 describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
   test("a hidden package's quote fragment names the package, never a member", async () => {
     await setupStripe();
-    const group = await createTestGroup({
-      hidden: false,
-      isPackage: true,
-      name: "Mystery Box",
+    const group = await createHiddenPackageGroup("Mystery Box", {
       slug: "mystery-box",
     });
-    await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Secret Contents",

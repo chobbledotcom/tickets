@@ -1,8 +1,6 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -14,7 +12,10 @@ import {
   fetchListingBySlug,
   fetchListingsList,
 } from "#test-utils/api/helpers.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { jsonRequest } from "#test-utils/mocks.ts";
 
@@ -128,11 +129,7 @@ describePublicApi(() => {
   describe("package concealment stays within package booking", () => {
     /** A concealing package with one member listing. */
     const hiddenPackageMember = async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Bundle",
-      });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup("Hidden Bundle");
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 

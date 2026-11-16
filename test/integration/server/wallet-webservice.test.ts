@@ -4,11 +4,11 @@ import { unzipSync } from "fflate";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
-import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { configureAppleWallet } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeWithToken } from "#test-utils/db-helpers/attendees.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** Make a request through the full handler pipeline */

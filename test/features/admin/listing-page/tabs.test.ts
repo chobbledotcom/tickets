@@ -7,12 +7,10 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createHiddenPackageGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -83,8 +81,8 @@ describeWithEnv("the tabs a listing offers", { db: true }, () => {
       const cookie = await createTestManagerSession();
 
       const tabs = await tabsOf(listing.id, cookie);
-      expect(tabs.attributes).toBeUndefined();
-      expect(tabs.questions).toBeUndefined();
+      expect(tabs).not.toHaveProperty("attributes");
+      expect(tabs).not.toHaveProperty("questions");
     } finally {
       settings.clearTestOverride("enabled_features");
     }
@@ -140,7 +138,7 @@ describeWithEnv("the tabs a listing does not offer", { db: true }, () => {
       purchaseOnly: true,
     });
 
-    expect((await tabsOf(listing.id)).scanner).toBeUndefined();
+    expect(await tabsOf(listing.id)).not.toHaveProperty("scanner");
   });
 
   test("no booking QR on a listing only reachable through its parent", async () => {
@@ -151,13 +149,12 @@ describeWithEnv("the tabs a listing does not offer", { db: true }, () => {
     const child = await createTestListing({ maxAttendees: 10, name: "Child" });
     await listingChildren.setIds(parent.id, [child.id]);
 
-    expect((await tabsOf(child.id)).qr).toBeUndefined();
+    expect(await tabsOf(child.id)).not.toHaveProperty("qr");
     expect((await tabsOf(parent.id)).qr).toBe("Booking QR");
   });
 
   test("a package member keeps its standalone booking QR", async () => {
-    const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
-    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
+    const hidden = await createHiddenPackageGroup("Hidden");
     const member = await createTestListing({
       groupId: hidden.id,
       maxAttendees: 10,

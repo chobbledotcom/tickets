@@ -19,7 +19,10 @@ import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import {
   editFields,
@@ -118,12 +121,9 @@ describeWithEnv(
     });
 
     test("allows deleting a hidden package with no sold tickets", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Empty Kit",
+      const group = await createHiddenPackageGroup("Empty Kit", {
         slug: "empty-kit",
       });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       await member(group, "Empty Member");
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,

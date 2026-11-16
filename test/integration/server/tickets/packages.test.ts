@@ -14,8 +14,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
@@ -23,7 +21,10 @@ import { todayInTz } from "#shared/timezone.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { submitPackageBooking } from "#test-utils/packages.ts";
@@ -59,8 +60,7 @@ const bookedToken = async (
 
 /** A private one-member package and its sole listing. */
 const hiddenOneMemberPackage = async () => {
-  const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
-  await updateRow(tables.groups, group.id, { hide_package_listings: true });
+  const group = await createHiddenPackageGroup("Kit Bag");
   const widget = await createTestListing({
     groupId: group.id,
     name: "Widget",
@@ -256,8 +256,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       slug: string,
       member: { name: string; thankYouUrl?: string },
     ) => {
-      const group = await createTestGroup({ isPackage: true, name, slug });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      const group = await createHiddenPackageGroup(name, { slug });
       const freebie = await createTestListing({
         groupId: group.id,
         name: member.name,

@@ -1,7 +1,5 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
@@ -18,7 +16,10 @@ import {
   assignTestAttributeOptions,
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -238,12 +239,9 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
     });
 
     test("shows a concealing package and its standalone member", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Mystery Box",
+      const group = await createHiddenPackageGroup("Mystery Box", {
         slug: "mystery-box",
       });
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const secret = await createTestListing({
         groupId: group.id,
         name: "Secret Widget",

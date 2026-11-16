@@ -79,11 +79,13 @@ export const createTestGroup = async (
   return group;
 };
 
-/** Create a package that hides member names on its own buyer surfaces. */
+/** Create a package that hides member names on its own buyer surfaces.
+ *  `fields` sets the other group fields, such as the slug. */
 export const createHiddenPackageGroup = async (
   name = "Bundle",
+  fields: Partial<Omit<GroupInput, "slugIndex">> = {},
 ): Promise<Group> => {
-  const group = await createTestGroup({ isPackage: true, name });
+  const group = await createTestGroup({ ...fields, isPackage: true, name });
   const { updateRow } = await import("#db/record-table.ts");
   const { tables } = await import("#db/select/tables.ts");
   // Return the updated row. The object from before the update still says the

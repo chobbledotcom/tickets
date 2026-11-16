@@ -7,11 +7,13 @@ import { deleteRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createSoldOutListingPair } from "#test-utils/db-helpers/listing-pairs.ts";
 import {
   createTestListing,

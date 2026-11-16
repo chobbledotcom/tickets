@@ -3,8 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { withTransaction } from "#db/client.ts";
 import { getListingWithCount, updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
@@ -19,7 +17,10 @@ import { downloadRaw, uploadRaw } from "#shared/storage.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withDbFault } from "#test-utils/db-fault.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   listingWithTwoUndatedBookings,
@@ -269,11 +270,7 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
       children: [{ name: "Gate Child" }],
       parent: { name: "Gate Parent" },
     });
-    const hidden = await createTestGroup({
-      isPackage: true,
-      name: "Hidden Pkg",
-    });
-    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
+    const hidden = await createHiddenPackageGroup("Hidden Pkg");
 
     // A hidden package collapses members to the package name, so a member that
     // gates children (would render a child selector) leaks them.
