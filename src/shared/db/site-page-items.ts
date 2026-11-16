@@ -48,9 +48,12 @@ const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
  * for callers to fold into that record's own delete batch (so the cleanup is
  * atomic with the row delete — no dangling public-nav entry).
  */
-export const clearItemEdgesStatement = sitePageItemTargets.deleteFrom(
-  tables.site_page_items,
-);
+export const clearItemEdgesStatement = (
+  target: SitePageItemTarget,
+): SqlStatement =>
+  deleteFrom(tables.site_page_items).where(() =>
+    sitePageItemTargets.where(target),
+  );
 
 export const sitePageItemOrder = defineOrderedCollection({
   key: ["item_type", "item_id"] as const,

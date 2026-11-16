@@ -51,9 +51,9 @@ describe("insertInto", () => {
     expect(() =>
       insertInto(tables.listing_parents, [
         { child_listing_id: 1, parent_listing_id: 2 },
-        { child_listing_id: 3, parent_listing_id: 2 },
+        { parent_listing_id: 2 } as never,
       ]),
-    ).toThrow("must name the same columns in the same order");
+    ).toThrow("must name the same columns");
   });
 
   test("refuses an empty list of rows and a row with no column", () => {

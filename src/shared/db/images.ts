@@ -309,9 +309,10 @@ const linkImageStatement = (
   );
 
 /** Clear every image link of one record. */
-export const clearImageUsesForItemStatement = imageUseTargets.deleteFrom(
-  tables.image_uses,
-);
+export const clearImageUsesForItemStatement = (
+  target: ImageUseTarget,
+): SqlStatement =>
+  deleteFrom(tables.image_uses).where(() => imageUseTargets.where(target));
 
 export const setImagesForItem = (
   itemType: ImageUseItemType,

@@ -153,13 +153,13 @@ const columnsOfRows = (
   rows: readonly object[],
 ): readonly string[] => {
   const columns = given(rows[0]!).map(([column]) => column);
-  const shape = columns.join();
+  const shape = columns.toSorted().join();
   for (const row of rows) {
-    const own = given(row).map(([column]) => column);
+    const own = given(row)
+      .map(([column]) => column)
+      .toSorted();
     if (own.join() !== shape) {
-      throw new Error(
-        `Each new row of ${name} must name the same columns in the same order.`,
-      );
+      throw new Error(`Each new row of ${name} must name the same columns.`);
     }
   }
   if (columns.length === 0) {

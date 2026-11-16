@@ -213,7 +213,10 @@ export const deleteNotes = async (
 
 /** Delete the notes of records chosen by a subquery — for a delete path that
  *  clears a record's dependent rows in one batch. */
-export const noteDeleteStatement: (
+export const noteDeleteStatement = (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-) => SqlStatement = noteTargets.deleteChosenBy(tables.system_notes);
+): SqlStatement =>
+  deleteFrom(tables.system_notes).where(() =>
+    noteTargets.whereChosenBy(entity, idsQuery),
+  );

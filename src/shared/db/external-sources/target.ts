@@ -14,7 +14,7 @@ import {
 } from "#db/record-target.ts";
 import { tables } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import { update } from "#db/write.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
@@ -39,13 +39,17 @@ export const externalLinkTargets: RecordTargets<ExternalLinkKind> =
  *  way it owns its notes and image uses. */
 export const clearExternalLinksStatement = (
   target: ExternalLinkTarget,
-): SqlStatement => externalLinkTargets.deleteFrom(LINK_TABLE)(target);
+): SqlStatement =>
+  deleteFrom(LINK_TABLE).where(() => externalLinkTargets.where(target));
 
 /** Delete the links that name any of the records another query chooses. */
 export const clearExternalLinksForIdsStatement = (
   kind: ExternalLinkKind,
   ids: SqlStatement,
-): SqlStatement => externalLinkTargets.deleteChosenBy(LINK_TABLE)(kind, ids);
+): SqlStatement =>
+  deleteFrom(LINK_TABLE).where(() =>
+    externalLinkTargets.whereChosenBy(kind, ids),
+  );
 
 /** Move the links that name one record to another record, as a merge does. */
 export const repointExternalLinksStatement = (
