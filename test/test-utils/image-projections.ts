@@ -70,8 +70,8 @@ export const projectionCases: readonly {
     broken: true,
     expected: BROKEN_IMAGE_FIELDS,
     read: (listingId) => getImageFilenamesForItem("listing", listingId),
-    report: ({ imageId, listingId }) =>
-      `image ${imageId} (first image of listing ${listingId}) filename decrypted to an empty value`,
+    report: ({ imageId }) =>
+      `image ${imageId} filename decrypted to an empty value`,
     title: "projects the broken-image marker for an item's first image",
   },
   {
