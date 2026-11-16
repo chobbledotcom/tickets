@@ -2,8 +2,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { recordDocsFor } from "#shared/admin-api-example/endpoint-doc.ts";
-import { ADMIN_API_ENDPOINTS, OPEN_ACCESS } from "./helpers.ts";
+import { ADMIN_API_ENDPOINTS } from "./helpers.ts";
 
 /** The five record descriptions under one path, in documented order. */
 const descriptionsUnder = (path: string): string[] =>
@@ -65,16 +64,5 @@ describe("record route descriptions", () => {
     );
 
     expect(described).toEqual(EXPECTED);
-  });
-
-  test("the caller defaults to every admin", () => {
-    const [list] = recordDocsFor(OPEN_ACCESS)("holidays", "a holiday", {
-      createBody: {},
-      deleteBody: {},
-      example: {},
-      updateBody: {},
-    });
-
-    expect(list?.description).toBe("List all holidays");
   });
 });

@@ -145,6 +145,7 @@ export const applyCreate = async (
 const EDIT_SAVE_ERRORS = {
   capacity_exceeded: "attendee_form.error_capacity",
   no_lines: "attendee_form.error_no_lines",
+  subscription_live: "error.subscription_live",
 } as const;
 
 export const applyEdit = async (

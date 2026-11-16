@@ -8,7 +8,7 @@
   "src/shared/db/modifier-resolve.ts": 616,
   "src/shared/db/table.ts": 709,
   "src/shared/limits.ts": 674,
-  "src/shared/merge/attendee-merge.ts": 859,
+  "src/shared/merge/attendee-merge.ts": 855,
   "src/shared/payment-helpers.ts": 612,
   "src/shared/payment/refund-machine-spec.ts": 534,
   "src/shared/storage.ts": 527,

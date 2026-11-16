@@ -6,6 +6,7 @@
  * the status it reports. The scheduled check and a webhook delivery each make
  * that read. An ended row takes nothing. */
 
+import { isOneOf } from "#fp";
 import {
   derivedNodeIds,
   type MachineMoves,
@@ -51,19 +52,23 @@ export const SUBSCRIPTION_NODES: readonly MachineNode<
 export type SubscriptionEventId =
   | "checkout_completed"
   | "observed_ended"
-  | "observed_live";
+  | "observed_live"
+  | "owner_cancelled";
 
-/** Who fires an event: the paid checkout, or a Stripe read. */
+/** Who fires an event: the paid checkout, a Stripe read, or the owner. */
 type SubscriptionEvent = {
   readonly id: SubscriptionEventId;
-  readonly kind: "complete" | "observe";
+  readonly kind: "cancel" | "complete" | "observe";
 };
 
+/* jscpd:ignore-start -- a list of strings, not code */
 export const SUBSCRIPTION_EVENTS: readonly SubscriptionEvent[] = [
   { id: "checkout_completed", kind: "complete" },
   { id: "observed_live", kind: "observe" },
   { id: "observed_ended", kind: "observe" },
+  { id: "owner_cancelled", kind: "cancel" },
 ];
+/* jscpd:ignore-end */
 
 /** Every way a row can move. An ended row refuses every event. */
 export const SUBSCRIPTION_MOVES: MachineMoves<
@@ -71,7 +76,11 @@ export const SUBSCRIPTION_MOVES: MachineMoves<
   SubscriptionEventId
 > = {
   ended: {},
-  live: { observed_ended: "ended", observed_live: "live" },
+  live: {
+    observed_ended: "ended",
+    observed_live: "live",
+    owner_cancelled: "ended",
+  },
   none: { checkout_completed: "live" },
 };
 
@@ -96,14 +105,29 @@ export const observedStatusNode = (
     `A ${from} subscription refuses what Stripe reports`,
   );
 
-const OBSERVED_NODES = derivedNodeIds({
+const NODES_MOVED_BY = derivedNodeIds({
   events: SUBSCRIPTION_EVENTS,
   moves: SUBSCRIPTION_MOVES,
   nodes: SUBSCRIPTION_NODES,
-}).movedBy((event) => event.kind === "observe");
+}).movedBy;
+
+/** The status words on the nodes that events of `kind` move. */
+const statusesMovedBy = (
+  kind: SubscriptionEvent["kind"],
+): readonly SubscriptionStatus[] => {
+  const nodes = NODES_MOVED_BY((event) => event.kind === kind);
+  return SubscriptionStatusSchema.options.filter((status) =>
+    nodes.includes(SUBSCRIPTION_NODE_OF[status]),
+  );
+};
 
 /** The status words of a live row: the rows that a Stripe read acts on. */
-export const LIVE_STATUSES: readonly SubscriptionStatus[] =
-  SubscriptionStatusSchema.options.filter((status) =>
-    OBSERVED_NODES.includes(SUBSCRIPTION_NODE_OF[status]),
-  );
+export const LIVE_STATUSES = statusesMovedBy("observe");
+
+/** The status words of the rows an owner can cancel. A booking row that holds
+ * one of them cannot be deleted. */
+export const CANCELLABLE_STATUSES = statusesMovedBy("cancel");
+
+/** Whether a stored status word names a subscription that the owner can
+ * still cancel. A blank word names none. */
+export const isCancellable = isOneOf(CANCELLABLE_STATUSES);

@@ -50,7 +50,7 @@ const renewalLegs = (
   });
 
 /** A refused Stripe read leaves this subscription for a later read. */
-const readForSubscriptionOrNull = async <Resource>(
+export const readForSubscriptionOrNull = async <Resource>(
   row: LiveRow,
   read: ProviderReader<Resource>,
 ): Promise<Resource | null> => {
@@ -66,11 +66,11 @@ const readForSubscriptionOrNull = async <Resource>(
 /**
  * Store the status `observed` for the subscription of `row`, with every paid
  * renewal. Stripe reported `observed` before this reads the invoices, so the
- * list holds each payment made up to that status. A row that ends here leaves
- * with all its money in the ledger. A refused invoice read hands back false. A
+ * list holds each payment made up to that status. A row that ends here keeps
+ * all its money in the ledger. A refused invoice read hands back false. A
  * refused write throws to the caller.
  */
-const recordObserved = async (
+export const recordObserved = async (
   row: LiveRow,
   observed: SubscriptionStatus,
 ): Promise<boolean> => {

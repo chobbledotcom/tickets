@@ -77,6 +77,12 @@ describe("attendeeFailureFormatter", () => {
       );
     });
   }
+
+  test("asks to cancel a live subscription whatever the surface says", () => {
+    expect(format("subscription_live", "My Listing")).toBe(
+      "This booking has a subscription that still charges. Cancel the subscription first.",
+    );
+  });
 });
 
 describe("refusedOrderItem", () => {

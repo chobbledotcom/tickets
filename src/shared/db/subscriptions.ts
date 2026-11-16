@@ -1,12 +1,22 @@
 /** The booking rows that started a Stripe subscription. */
 
 import * as v from "valibot";
+import {
+  queryAllPrimary,
+  queryOnePrimary,
+  resultRows,
+  type TxScope,
+} from "#db/client.ts";
 import { readRows } from "#db/read.ts";
 import { desc, greaterThan, not, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
-import { LIVE_STATUSES } from "#payment/subscription-machine-spec.ts";
+import { t } from "#i18n";
+import {
+  CANCELLABLE_STATUSES,
+  LIVE_STATUSES,
+} from "#payment/subscription-machine-spec.ts";
 import {
   RecurringIntervalSchema,
   SUBSCRIPTION_NODE_OF,
@@ -78,16 +88,33 @@ const provedBy =
 
 const bookings = () => from(tables.listing_attendees);
 
+/** The booking rows that started a subscription. */
+const subscribedBookings = () =>
+  bookings().where((booking) => notEqual(booking.subscription_id, ""));
+
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   (
     await readRows(
-      bookings()
-        .where((booking) => notEqual(booking.subscription_id, ""))
+      subscribedBookings()
         .orderBy((booking) => [desc(booking.id)])
         .pick(...SUBSCRIBED_COLUMNS),
     )
   ).map(provedBy(SubscribedWordsSchema));
+
+/** The subscribed booking row `id`, or null when no such row started a
+ * subscription. A cancel form can name a row that is gone. The read uses the
+ * primary, so the guarded status write sees the status that it compares. */
+export const getSubscribedRowOrNull = async (
+  id: number,
+): Promise<SubscribedRow | null> => {
+  const row = await queryOnePrimary(
+    subscribedBookings()
+      .where({ id })
+      .pick(...SUBSCRIBED_COLUMNS),
+  );
+  return row === null ? null : provedBy(SubscribedWordsSchema)(row);
+};
 
 /** The next rows the scheduled check asks Stripe about, in id order after
  * the row `afterId`. */
@@ -161,3 +188,31 @@ export const statusWrite = (
            WHERE id = ${row.id} AND subscription_status IN (${sqlList(
              replaceableBy(row, status),
            )})`;
+
+/** The booking rows whose subscription still charges. Such a row cannot be
+ * deleted. */
+const liveBookings = () =>
+  bookings().where({ subscription_status: CANCELLABLE_STATUSES });
+
+/** The read for a live subscription among the bookings of these attendees. */
+export const liveBookingOfAttendees = (
+  attendeeIds: readonly number[],
+): SqlStatement => liveBookings().where({ attendee_id: attendeeIds }).probe();
+
+/** Why one listing cannot be deleted, or null. The read joins the caller's
+ * transaction when it runs inside one. */
+export type ListingCheck = (
+  listingId: number,
+  tx?: TxScope,
+) => Promise<string | null>;
+
+/** The refusal while a booking of the listing has a subscription that still
+ * charges. */
+export const liveListingRefusal: ListingCheck = async (listingId, tx) => {
+  const read = liveBookings().where({ listing_id: listingId }).probe();
+  const rows =
+    tx === undefined
+      ? await queryAllPrimary(read)
+      : resultRows(await tx.execute(read));
+  return rows.length > 0 ? t("error.subscription_live") : null;
+};
