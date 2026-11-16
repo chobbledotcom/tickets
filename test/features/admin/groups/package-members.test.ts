@@ -177,7 +177,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   /** Save the group as a package with one malformed member input, and expect
    *  the save to come back with the given plain-words refusal and no price
    *  override written. */
-  const refuseMemberInput = async (
+  const expectMemberInputRefused = async (
     group: { id: number; name: string; slug: string },
     memberInputs: TestFormValues,
     message: string,
@@ -207,7 +207,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a junk price with a plain-words message", async () => {
     const { group, member } = await refusablePackage("Junk price");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       { [`package_price_${member.id}`]: "12abc" },
       t("error.package_member_price"),
@@ -216,7 +216,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a junk quantity with a plain-words message", async () => {
     const { group, member } = await refusablePackage("Junk qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -228,7 +228,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a zero quantity with the same message", async () => {
     const { group, member } = await refusablePackage("Zero qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -242,7 +242,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   // number the parse converts to 10.
   test("refuses a scientific-notation quantity", async () => {
     const { group, member } = await refusablePackage("Exponent qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -280,7 +280,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a junk day price with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Junk day price");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -294,7 +294,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a zero day count with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Zero day count");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -308,7 +308,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses an unsafe day count with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Huge day count");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",
@@ -322,7 +322,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a day count above the supported maximum", async () => {
     const { group, member } = await dayPricedPackage("Day count 91");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
         [`package_price_${member.id}`]: "9.00",

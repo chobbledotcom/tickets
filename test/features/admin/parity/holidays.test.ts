@@ -53,9 +53,7 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
       false,
     )(response);
     const all = await holidays.getAll();
-    expect(
-      all.find((h) => h.name === "Backwards Page Holiday"),
-    ).toBeUndefined();
+    expect(all.map((h) => h.name)).not.toContain("Backwards Page Holiday");
   });
 
   test("api create stores the posted dates and name", async () => {

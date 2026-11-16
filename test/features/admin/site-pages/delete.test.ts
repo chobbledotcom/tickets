@@ -28,7 +28,10 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         confirm_identifier: "nope",
       });
       expectRedirect(wrong.response);
-      expect(await records.site_pages.find(page.id)).toBeTruthy();
+      expect(await records.site_pages.find(page.id)).toMatchObject({
+        id: page.id,
+        name: page.name,
+      });
 
       const right = await adminFormPost(`${BASE}/${page.id}/delete`, {
         confirm_identifier: page.name,

@@ -88,10 +88,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(listings.length).toBe(2);
 
       // Verify both paid and free listings are created
-      const paidListing = listings.find((e) => e.unitPrice > 0);
-      const freeListing = listings.find((e) => e.unitPrice === 0);
-      expect(paidListing).toBeDefined();
-      expect(freeListing).toBeDefined();
+      const isPaid = listings.map((e) => e.unitPrice > 0).sort();
+      expect(isPaid).toEqual([false, true]);
 
       for (const listing of listings) {
         const attendees = await getAttendeesRaw(listing.id);

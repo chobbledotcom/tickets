@@ -132,7 +132,10 @@ const expectFoldMatchesJudge = async (
   const folded = await foldFor(testCase, built, dayCount);
   expect(folded.ok, testCase.name).toBe(true);
   const alternative = alternativeAt(outcome, dayCount);
-  expect(alternative, testCase.name).toBeDefined();
+  expect(
+    outcome.alternatives.map((option) => option.dayCount),
+    testCase.name,
+  ).toContain(dayCount);
   if (!folded.ok || testCase.fold === "explicit-choice" || !alternative) return;
   expect(sortedEntries(folded.quantities), testCase.name).toEqual(
     sortedEntries(alternative.unitsByListingId),
@@ -192,7 +195,6 @@ const expectGalleryAgreesWithCheckout = async (
     true,
   );
   const state = states.get(judged.key);
-  expect(state, testCase.name).toBeDefined();
   expect(state?.kind, testCase.name).toBe(
     testCase.capacityRefuses ? "unavailable" : "available",
   );

@@ -70,7 +70,7 @@ describe("test-utils — listing & attendee factories", () => {
         thankYouUrl: "https://custom.example.com/done",
       });
       expect(listing.thankYouUrl).toBe("https://custom.example.com/done");
-      expect(listing.slug).toBeTruthy();
+      expect(listing.slug).toMatch(/^[0-9a-h]{5}$/);
     });
 
     test("creates an listing with default settings", async () => {
@@ -237,8 +237,8 @@ describe("test-utils — listing & attendee factories", () => {
       );
       expect(attendee.id).toBeGreaterThan(0);
       expect(attendee.listing_id).toBe(listing.id);
-      expect(token).toBeTruthy();
-      expect(typeof token).toBe("string");
+      expect(token).toBe(attendee.ticket_token);
+      expect(token).toMatch(/^\S+$/);
     });
 
     test("throws error when capacity is exceeded", async () => {

@@ -84,7 +84,7 @@ describe("content form fields", () => {
     const editSlug = forms.editForm.fields[1] as {
       publicLinkPath?: (slug: string) => string;
     };
-    expect(createSlug.publicLinkPath).toBeUndefined();
+    expect(Object.keys(createSlug)).not.toContain("publicLinkPath");
     expect(editSlug.publicLinkPath?.("abc")).toBe("/thing/abc");
   });
 

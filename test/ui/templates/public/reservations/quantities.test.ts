@@ -45,42 +45,46 @@ describe("monthLabelsForListing", () => {
     ).toBe("6 months");
   });
 
-  test("keeps the plain count on a renewal page for a non-tier listing", async () => {
+  /** A count of 0 to 2 as the selector shows it with this listing's labels. */
+  const optionsFor = (
+    listing: Parameters<typeof monthLabelsForListing>[0],
+    renewal?: boolean,
+  ): string => quantityOptions(2, 0, monthLabelsForListing(listing, renewal));
+  const PLAIN_OPTIONS =
+    '<option value="0" selected>0</option><option value="1">1</option><option value="2">2</option>';
+
+  test("keeps the plain count on a renewal page for a non-tier listing", () => {
     // A renewal page only offers qualifying tiers, so a listing that prices
     // no months per unit never reaches one; outside a renewal its units stay
     // plain tickets.
     expect(
-      monthLabelsForListing(
-        {
-          assignBuiltSite: false,
-          initialSiteMonths: 0,
-          monthsPerUnit: 0,
-        },
+      optionsFor(
+        { assignBuiltSite: false, initialSiteMonths: 0, monthsPerUnit: 0 },
         true,
       ),
-    ).toBeUndefined();
+    ).toBe(PLAIN_OPTIONS);
   });
 
   test("leaves ordinary listings to the plain count", () => {
     expect(
-      monthLabelsForListing({
+      optionsFor({
         assignBuiltSite: false,
         initialSiteMonths: 0,
         monthsPerUnit: 0,
       }),
-    ).toBeUndefined();
+    ).toBe(PLAIN_OPTIONS);
   });
 
   test("a retired plan keeps the plain count", () => {
     // Disabling site assignment retains the stored month term; the count is
     // plain tickets again from the moment the flag is off.
     expect(
-      monthLabelsForListing({
+      optionsFor({
         assignBuiltSite: false,
         initialSiteMonths: 3,
         monthsPerUnit: 0,
       }),
-    ).toBeUndefined();
+    ).toBe(PLAIN_OPTIONS);
   });
 
   test("a one-month renewal tier still prices its counts in months", () => {

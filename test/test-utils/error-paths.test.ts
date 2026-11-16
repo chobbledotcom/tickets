@@ -273,10 +273,13 @@ describe("test-utils — error paths & contracts", () => {
         const response = await fetch("data:text/plain,fallback");
 
         expect(await response.text()).toBe("fallback");
-        expect(fetchMock.calls).toEqual([
-          { body: null, url: "data:text/plain,fallback" },
-        ]);
-        expect(fetchMock.emailCall()).toBeUndefined();
+        expect({
+          calls: fetchMock.calls,
+          emailCall: fetchMock.emailCall(),
+        }).toStrictEqual({
+          calls: [{ body: null, url: "data:text/plain,fallback" }],
+          emailCall: undefined,
+        });
       } finally {
         fetchMock.restore();
       }
@@ -375,13 +378,19 @@ describe("test-utils — error paths & contracts", () => {
 
     test("email sandbox replaces an existing fetch stub and restores all state", () => {
       const sandbox = emailTestSandbox();
+      const original = globalThis.fetch;
 
       sandbox.stubFetch(() => Promise.resolve(new Response("first")));
+      const firstStub = sandbox.fetchStub;
       sandbox.stubFetch(() => Promise.resolve(new Response("second")));
-      expect(sandbox.fetchStub).toBeDefined();
+      const secondStub = sandbox.fetchStub;
+      expect(firstStub?.restored).toBe(true);
+      expect(secondStub?.restored).toBe(false);
 
       sandbox.teardown();
-      expect(sandbox.fetchStub).toBeUndefined();
+      expect(secondStub?.restored).toBe(true);
+      expect(globalThis.fetch).toBe(original);
+      expect(sandbox).toMatchObject({ fetchStub: undefined });
     });
   });
 
