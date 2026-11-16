@@ -24,11 +24,9 @@
 }
 
 .listing-type-card {
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex;
   column-gap: var(--space-m);
-  row-gap: var(--space-s);
-  align-items: start;
+  align-items: flex-start;
   padding: var(--space-m);
   border: 1px solid var(--color-link);
   border-radius: 8px;
@@ -36,16 +34,24 @@
   color: inherit;
 }
 
-/* The card's icon: large, left of the label and description, in the same
-   purple the menu links use (--color-link). */
+/* The card's icon: large, left of the text, in the same purple the menu
+   links use (--color-link). */
 .listing-type-card-icon {
-  grid-row: 1 / span 2;
+  flex: none;
 }
 
 .listing-type-card-icon .icon {
   color: var(--color-link);
   height: 72px;
   width: 72px;
+}
+
+/* The label and description keep one fixed gap between them, whatever the
+   description's length — the icon's height never stretches their rows. */
+.listing-type-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
 }
 
 .listing-type-card:hover {

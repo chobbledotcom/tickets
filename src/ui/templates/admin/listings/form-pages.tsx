@@ -138,8 +138,10 @@ const listingTypeCard = (card: PickerCard): Child => {
       <span class="listing-type-card-icon">
         <Icon name={card.icon} />
       </span>
-      <strong>{card.label}</strong>
-      <span>{card.description}</span>
+      <span class="listing-type-card-body">
+        <strong>{card.label}</strong>
+        <span>{card.description}</span>
+      </span>
     </a>
   );
 };
