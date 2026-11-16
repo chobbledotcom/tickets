@@ -181,21 +181,21 @@ export const testModifier = (overrides: Partial<Modifier> = {}): Modifier => ({
 });
 
 /** Build a radio question fixture with answer options. Each `[id, text]` pair
- * becomes an active answer whose sort_order follows the array order. */
+ * becomes an active answer whose sort order follows the array order. */
 export const testRadioQuestion = (
   id: number,
   text: string,
   answers: [number, string][],
 ): QuestionWithAnswers => ({
-  answers: answers.map(([answerId, answerText], sort_order) => ({
+  answers: answers.map(([answerId, answerText], sortOrder) => ({
     active: true,
     id: answerId,
-    question_id: id,
-    sort_order,
+    questionId: id,
+    sortOrder,
     text: answerText,
   })),
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id,
   text,
 });
@@ -222,23 +222,23 @@ export const testGroup = (overrides: Partial<Group> = {}): Group => ({
 export const testAnswer = (overrides: Partial<Answer> = {}): Answer => ({
   active: true,
   id: 10,
-  question_id: 1,
-  sort_order: 0,
+  questionId: 1,
+  sortOrder: 0,
   text: "A",
   ...overrides,
 });
 
-/** Factory for a {@link QuestionWithAnswers}: `display_type` defaults to
+/** Factory for a {@link QuestionWithAnswers}: `displayType` defaults to
  *  `"radio"` with no answers, so a radio/dropdown/free-text question is built by
- *  overriding `display_type` and passing `answers`. The returned type keeps
- *  `display_type` as the literal {@link QuestionDisplayType}, so callers need no
+ *  overriding `displayType` and passing `answers`. The returned type keeps
+ *  `displayType` as the literal {@link QuestionDisplayType}, so callers need no
  *  `… as const`. */
 export const testQuestion = (
   overrides: Partial<QuestionWithAnswers> = {},
 ): QuestionWithAnswers => ({
   answers: [],
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id: 1,
   text: "Question?",
   ...overrides,
@@ -443,8 +443,8 @@ export const makeTestEntry = (
  *  factories and the questions template tests so the answer array lives in
  *  one place. */
 export const smallLargeAnswers = [
-  testAnswer({ id: 10, sort_order: 0, text: "Small" }),
-  testAnswer({ id: 11, sort_order: 1, text: "Large" }),
+  testAnswer({ id: 10, sortOrder: 0, text: "Small" }),
+  testAnswer({ id: 11, sortOrder: 1, text: "Large" }),
 ];
 
 /** The canonical "Size?" question answer-data fixture used by both the

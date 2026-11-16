@@ -23,22 +23,22 @@ import { ticketContext, twoListingContext } from "#test-utils/ticket-ctx.ts";
 
 const question = (
   id: number,
-  display_type: QuestionWithAnswers["display_type"],
+  displayType: QuestionWithAnswers["displayType"],
 ): QuestionWithAnswers => ({
   answers:
-    display_type === "free_text"
+    displayType === "free_text"
       ? []
       : [
           {
             active: true,
             id: id * 10,
-            question_id: id,
-            sort_order: 0,
+            questionId: id,
+            sortOrder: 0,
             text: "Answer",
           },
         ],
-  assign_all: false,
-  display_type,
+  assignAll: false,
+  displayType,
   id,
   text: `Question ${id}`,
 });
@@ -141,10 +141,10 @@ describe("ticket form answer grouping", () => {
   test("skips an inactive-only choice question so answer ids stay aligned", () => {
     const inactiveOnly: QuestionWithAnswers = {
       answers: [
-        { active: false, id: 10, question_id: 1, sort_order: 0, text: "Gone" },
+        { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Gone" },
       ],
-      assign_all: false,
-      display_type: "radio",
+      assignAll: false,
+      displayType: "radio",
       id: 1,
       text: "Q1",
     };

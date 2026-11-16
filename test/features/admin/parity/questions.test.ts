@@ -140,7 +140,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
       `/admin/questions/${row.id}`,
       "Question created",
     )(response);
-    expect(row.display_type).toBe("radio");
+    expect(row.displayType).toBe("radio");
   });
 
   test("both surfaces refuse a question text past the textarea cap with the same message", async () => {
@@ -217,9 +217,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
         text: kept.text,
       });
       await editOnPage(id, { display_type: "free_text", text: kept.pageText });
-      expect((await getQuestionWithAnswers(id))!.display_type).toBe(
-        kept.stored,
-      );
+      expect((await getQuestionWithAnswers(id))!.displayType).toBe(kept.stored);
 
       await expectPutKeeps(
         id,

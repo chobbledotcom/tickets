@@ -52,8 +52,8 @@ const rowOf = (row: ScanRow): TokenEntry => ({
   listing: {
     id: row.listingId,
     name: `Listing ${row.listingId}`,
-    non_transferable: row.nonTransferable,
-    purchase_only: row.purchaseOnly,
+    nonTransferable: row.nonTransferable,
+    purchaseOnly: row.purchaseOnly,
   } as ListingWithCount,
   parentListingId: 0,
 });

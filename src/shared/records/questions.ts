@@ -45,8 +45,8 @@ export const questionRule = (
   if (!capped.ok) return capped;
   if (stored === null) return okResult({ ...input, text: capped.value });
   const displayType =
-    stored.display_type === "free_text" || input.displayType === "free_text"
-      ? stored.display_type
+    stored.displayType === "free_text" || input.displayType === "free_text"
+      ? stored.displayType
       : requireQuestionDisplayType(input.displayType);
   return okResult({ ...input, displayType, text: capped.value });
 };

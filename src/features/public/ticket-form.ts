@@ -66,7 +66,7 @@ const answeredQuestionPairs = (
   info.activeQuestions
     .filter(
       (question) =>
-        question.display_type !== "free_text" &&
+        question.displayType !== "free_text" &&
         question.answers.some((a) => a.active),
     )
     .map((question, index) => [question.id, info.answerIds[index]!] as const);

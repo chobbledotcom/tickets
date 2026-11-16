@@ -73,8 +73,8 @@ const updateQuestionInput = (
   const text = (body.text ?? existing.text).trim();
   if (text === "") return errorResult("text cannot be empty");
   return okResult({
-    assignAll: body.assign_all ?? existing.assign_all,
-    displayType: body.display_type ?? existing.display_type,
+    assignAll: body.assign_all ?? existing.assignAll,
+    displayType: body.display_type ?? existing.displayType,
     text,
   });
 };
@@ -177,7 +177,7 @@ const answerHandlers = childTextConfig(
     // Free-text questions collect a typed value, never an answer id, so the
     // request is refused with the same message the HTML form answers.
     refuseAdd: (question) =>
-      question.display_type === "free_text"
+      question.displayType === "free_text"
         ? apiErrorResponse(t("questions.answers.free_text_no_options"))
         : null,
     remove: deleteAnswerWithLog,

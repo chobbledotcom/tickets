@@ -89,7 +89,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { getQuestionWithAnswers } = await import(
         "#db/questions/queries.ts"
       );
-      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
+      expect((await getQuestionWithAnswers(qId))!.assignAll).toBe(true);
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
@@ -116,7 +116,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { getQuestionWithAnswers, questionListings } = await import(
         "#db/questions/queries.ts"
       );
-      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(false);
+      expect((await getQuestionWithAnswers(qId))!.assignAll).toBe(false);
       expect(await questionListings.getIds(qId)).toEqual([]);
     });
 

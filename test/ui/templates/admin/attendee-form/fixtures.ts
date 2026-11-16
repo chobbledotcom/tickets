@@ -57,11 +57,11 @@ export const data = (
 
 export const question = (): QuestionWithAnswers => ({
   answers: [
-    { active: true, id: 61, question_id: 6, sort_order: 1, text: "Vegan" },
-    { active: true, id: 62, question_id: 6, sort_order: 2, text: "Standard" },
+    { active: true, id: 61, questionId: 6, sortOrder: 1, text: "Vegan" },
+    { active: true, id: 62, questionId: 6, sortOrder: 2, text: "Standard" },
   ],
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id: 6,
   text: "Meal preference",
 });

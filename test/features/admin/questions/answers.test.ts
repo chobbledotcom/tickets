@@ -117,11 +117,11 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       );
       const question = await getQuestionWithAnswers(id);
       expect(question!.answers[0]!.text).toBe("First");
-      expect(question!.answers[0]!.sort_order).toBe(0);
+      expect(question!.answers[0]!.sortOrder).toBe(0);
       expect(question!.answers[1]!.text).toBe("Second");
-      expect(question!.answers[1]!.sort_order).toBe(1);
+      expect(question!.answers[1]!.sortOrder).toBe(1);
       expect(question!.answers[2]!.text).toBe("Third");
-      expect(question!.answers[2]!.sort_order).toBe(2);
+      expect(question!.answers[2]!.sortOrder).toBe(2);
     });
   });
 

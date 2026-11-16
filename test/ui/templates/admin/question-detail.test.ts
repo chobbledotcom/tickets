@@ -41,7 +41,7 @@ describe("QuestionEditPanel", () => {
     const html = String(
       QuestionEditPanel({
         question: testQuestion({
-          display_type: "free_text",
+          displayType: "free_text",
           id: 1,
           text: "Notes?",
         }),
@@ -110,7 +110,7 @@ describe("QuestionAnswersSection", () => {
       QuestionAnswersSection({
         answerCounts: new Map(),
         question: testQuestion({
-          display_type: "free_text",
+          displayType: "free_text",
           id: 1,
           text: "Notes?",
         }),
@@ -155,9 +155,9 @@ describe("QuestionAnswersSection", () => {
   test("renders both move buttons for middle answer", () => {
     const q = testQuestion({
       answers: [
-        testAnswer({ id: 10, sort_order: 0, text: "A" }),
-        testAnswer({ id: 11, sort_order: 1, text: "B" }),
-        testAnswer({ id: 12, sort_order: 2, text: "C" }),
+        testAnswer({ id: 10, sortOrder: 0, text: "A" }),
+        testAnswer({ id: 11, sortOrder: 1, text: "B" }),
+        testAnswer({ id: 12, sortOrder: 2, text: "C" }),
       ],
       id: 1,
       text: "Q?",
@@ -221,7 +221,7 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set(),
-        question: { ...question, assign_all: true },
+        question: { ...question, assignAll: true },
       }),
     );
     const toggle = html.indexOf('checked name="assign_all" type="checkbox"');
@@ -238,7 +238,7 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set(),
-        question: { ...question, assign_all: true },
+        question: { ...question, assignAll: true },
       }),
     );
     assertStringIncludes(html, "<strong>Linked listings (all):</strong>");
@@ -287,7 +287,7 @@ describe("QuestionListingsSection", () => {
       QuestionListingsSection({
         allListings: TEST_LISTINGS,
         assignedListingIds: new Set([1, 2]),
-        question: { ...question, assign_all: false },
+        question: { ...question, assignAll: false },
       }),
     );
     assertStringIncludes(html, "<p>Spring Gig, Summer Gig</p>");

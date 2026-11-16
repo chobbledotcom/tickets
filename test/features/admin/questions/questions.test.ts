@@ -158,7 +158,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const question = (await getAllQuestionsWithAnswers()).find(
         (q) => q.text === "Choose one?",
       );
-      expect(question?.display_type).toBe("select");
+      expect(question?.displayType).toBe("select");
       await expectFlashRedirect(
         `/admin/questions/${question!.id}`,
         "Question created",

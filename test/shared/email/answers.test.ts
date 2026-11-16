@@ -142,12 +142,11 @@ describe("order answer lines from staged question data", () => {
     opts: { assignAll?: boolean; displayType?: "radio" | "free_text" } = {},
   ) => ({
     answers: answers.map((a) =>
-      testAnswer({ id: a.id, question_id: id, text: a.text }),
+      testAnswer({ id: a.id, questionId: id, text: a.text }),
     ),
-    assign_all: opts.assignAll ?? false,
-    display_type: opts.displayType ?? "radio",
+    assignAll: opts.assignAll ?? false,
+    displayType: opts.displayType ?? "radio",
     id,
-    sort_order: id,
     text,
   });
 

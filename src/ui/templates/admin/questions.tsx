@@ -61,7 +61,7 @@ const questionListings = ({
   listingNames: string[];
   totalListings: number;
 }): { count: number; title: string } => {
-  const all = question.assign_all === true;
+  const all = question.assignAll === true;
   const count = all ? totalListings : listingNames.length;
   const title = all ? t("questions.all_listings") : listingNames.join(", ");
   return { count, title };

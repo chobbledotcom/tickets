@@ -22,16 +22,16 @@ const twoRadioQuestions = (): QuestionWithAnswers[] => [
 
 /** The "Favourite colour?" question with Red/Blue radio answers — the
  *  canonical single-question fixture reused across radio, select, and
- *  saved-form-data tests. Override `display_type` for the select variant. */
+ *  saved-form-data tests. Override `displayType` for the select variant. */
 const colourQuestion = (
   displayType: "radio" | "select" = "radio",
 ): QuestionWithAnswers[] => [
   testQuestion({
     answers: [
-      testAnswer({ id: 10, sort_order: 0, text: "Red" }),
-      testAnswer({ id: 11, sort_order: 1, text: "Blue" }),
+      testAnswer({ id: 10, sortOrder: 0, text: "Red" }),
+      testAnswer({ id: 11, sortOrder: 1, text: "Blue" }),
     ],
-    display_type: displayType,
+    displayType: displayType,
     id: 1,
     text: "Favourite colour?",
   }),
@@ -61,10 +61,10 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { active: false, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "Favourite colour?",
       },
@@ -77,17 +77,17 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
           {
             active: false,
             id: 11,
-            question_id: 1,
-            sort_order: 1,
+            questionId: 1,
+            sortOrder: 1,
             text: "Blue",
           },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "Favourite colour?",
       },
@@ -118,8 +118,8 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [],
-        assign_all: false,
-        display_type: "free_text" as const,
+        assignAll: false,
+        displayType: "free_text" as const,
         id: 1,
         text: "Your name?",
       },
@@ -145,8 +145,8 @@ describe("renderQuestions", () => {
       return renderQuestions([
         {
           answers: [],
-          assign_all: false,
-          display_type: "free_text" as const,
+          assignAll: false,
+          displayType: "free_text" as const,
           id: 1,
           text: "Your name?",
         },
@@ -176,10 +176,10 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "S&M" },
+          { active: true, id: 10, questionId: 1, sortOrder: 0, text: "S&M" },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "What <b>size</b>?",
       },
@@ -209,10 +209,10 @@ describe("renderQuestions", () => {
     const questions: QuestionWithAnswers[] = [
       {
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "A1" },
+          { active: true, id: 10, questionId: 1, sortOrder: 0, text: "A1" },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "Q1",
       },
@@ -227,8 +227,8 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [],
-        assign_all: false,
-        display_type: "free_text" as const,
+        assignAll: false,
+        displayType: "free_text" as const,
         id: 1,
         text: "Your name?",
       },
@@ -242,8 +242,8 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [],
-        assign_all: false,
-        display_type: "free_text" as const,
+        assignAll: false,
+        displayType: "free_text" as const,
         id: 1,
         text: "Tell us **more** about yourself",
       },
@@ -269,10 +269,10 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assign_all: false,
-        display_type: "select" as const,
+        assignAll: false,
+        displayType: "select" as const,
         id: 1,
         text: "Choose [a colour](https://example.com)",
       },
@@ -297,10 +297,10 @@ describe("renderQuestions", () => {
     const html = renderQuestions([
       {
         answers: [
-          { active: true, id: 10, question_id: 1, sort_order: 0, text: "Red" },
+          { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Red" },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "# Heading\n\nPick a colour",
       },

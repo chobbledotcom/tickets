@@ -297,7 +297,7 @@ const parseAnsweredValue = (
   question: QuestionWithAnswers,
   at: string,
 ): Result<ApiAnswer> => {
-  if (question.display_type === "free_text") {
+  if (question.displayType === "free_text") {
     const freeText = entry.freeText;
     if (typeof freeText !== "string" || freeText.trim() === "") {
       return errorResult(`${at}.freeText must be non-empty text`);
@@ -350,10 +350,10 @@ const parseAnswer = (
   if (hasAnswerId === hasFreeText) {
     return errorResult(`${at} must name an answerId or a freeText, not both`);
   }
-  if (hasAnswerId && question.display_type === "free_text") {
+  if (hasAnswerId && question.displayType === "free_text") {
     return errorResult(`${at}.answerId only applies to choice questions`);
   }
-  if (!hasAnswerId && question.display_type !== "free_text") {
+  if (!hasAnswerId && question.displayType !== "free_text") {
     return errorResult(`${at}.freeText only applies to free-text questions`);
   }
   return parseAnsweredValue(entry, question, at);

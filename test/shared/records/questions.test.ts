@@ -13,8 +13,8 @@ import { describeRecord } from "#test-utils/record-labels.ts";
 const LIMIT = 10_240;
 
 const stored = (displayType: QuestionDisplayType): Question => ({
-  assign_all: false,
-  display_type: displayType,
+  assignAll: false,
+  displayType: displayType,
   id: 1,
   text: "Stored",
 });

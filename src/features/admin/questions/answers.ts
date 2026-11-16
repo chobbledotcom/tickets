@@ -126,7 +126,7 @@ const handleAddAnswer = createAuthedFormRoute<
     // Free-text questions collect a typed value, never an answer id, so the
     // request is refused with an error, and any answer-triggered modifiers
     // never run.
-    if (question.display_type === "free_text") {
+    if (question.displayType === "free_text") {
       return errorRedirect(
         `/admin/questions/${params.id}`,
         t("questions.answers.free_text_no_options"),

@@ -9,8 +9,8 @@ const freeText = (
   text = `Question ${id}`,
 ): QuestionWithAnswers => ({
   answers: [],
-  assign_all: false,
-  display_type: "free_text",
+  assignAll: false,
+  displayType: "free_text",
   id,
   text,
 });
@@ -20,13 +20,13 @@ const radio = (id: number): QuestionWithAnswers => ({
     {
       active: true,
       id: id * 10,
-      question_id: id,
-      sort_order: 0,
+      questionId: id,
+      sortOrder: 0,
       text: "Answer",
     },
   ],
-  assign_all: false,
-  display_type: "radio",
+  assignAll: false,
+  displayType: "radio",
   id,
   text: `Question ${id}`,
 });
@@ -112,17 +112,17 @@ describe("parseQuestionAnswers free-text handling", () => {
 describe("parseQuestionAnswers deactivated answers", () => {
   const withInactive = (id: number): QuestionWithAnswers => ({
     answers: [
-      { active: true, id: 10, question_id: id, sort_order: 0, text: "Active" },
+      { active: true, id: 10, questionId: id, sortOrder: 0, text: "Active" },
       {
         active: false,
         id: 11,
-        question_id: id,
-        sort_order: 1,
+        questionId: id,
+        sortOrder: 1,
         text: "Retired",
       },
     ],
-    assign_all: false,
-    display_type: "radio",
+    assignAll: false,
+    displayType: "radio",
     id,
     text: `Question ${id}`,
   });
@@ -132,13 +132,13 @@ describe("parseQuestionAnswers deactivated answers", () => {
       {
         active: false,
         id: 20,
-        question_id: id,
-        sort_order: 0,
+        questionId: id,
+        sortOrder: 0,
         text: "Retired",
       },
     ],
-    assign_all: false,
-    display_type: "radio",
+    assignAll: false,
+    displayType: "radio",
     id,
     text: `Question ${id}`,
   });

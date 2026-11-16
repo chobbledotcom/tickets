@@ -12,7 +12,7 @@ import { setupQuestionPageTest, tShirtQuestion } from "./fixtures.ts";
 
 describe("adminQuestionDeletePage", () => {
   const question = testQuestion({
-    answers: [testAnswer({ id: 10, sort_order: 0, text: "Small" })],
+    answers: [testAnswer({ id: 10, sortOrder: 0, text: "Small" })],
     id: 1,
     text: "T-shirt size?",
   });

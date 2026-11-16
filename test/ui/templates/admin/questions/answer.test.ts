@@ -52,7 +52,7 @@ describe("adminAnswerEditPage", () => {
   test("renders the active box unchecked for a deactivated answer", () => {
     const html = adminAnswerEditPage(
       question,
-      testAnswer({ active: false, id: 12, sort_order: 2, text: "Retired" }),
+      testAnswer({ active: false, id: 12, sortOrder: 2, text: "Retired" }),
       OWNER_SESSION,
       undefined,
       aligned,
@@ -155,7 +155,7 @@ describe("adminAnswerRecalculatePage", () => {
   afterAll(resetFeaturePageTest);
 
   const question = testQuestion({
-    answers: [testAnswer({ id: 11, sort_order: 1, text: "Large" })],
+    answers: [testAnswer({ id: 11, sortOrder: 1, text: "Large" })],
     id: 1,
     text: "T-shirt size?",
   });
