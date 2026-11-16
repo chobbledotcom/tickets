@@ -4,6 +4,7 @@
 import * as v from "valibot";
 import { toCamelCase } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import { definedValuesBy } from "#shared/defined-values.ts";
 import {
   optionalDateString,
   parseEach,
@@ -151,10 +152,10 @@ const asInput = <Fields extends FieldSpecs>(
   values: readonly (readonly [string, unknown])[],
 ): FieldsInput<Fields> =>
   // Each entry is the value its own kind read.
-  Object.fromEntries(
-    values.flatMap(([key, value]) =>
-      value === undefined ? [] : [[toCamelCase(key), value]],
-    ),
+  definedValuesBy(
+    values,
+    ([key]) => toCamelCase(key),
+    ([, value]) => value,
   ) as FieldsInput<Fields>;
 
 /** One JSON write: the body, and the stored row or null on create. */
@@ -298,15 +299,17 @@ export const transferValues = <const Fields extends FieldSpecs>(
   row: object,
   withheld: ClosedFields = NOTHING_CLOSED,
 ): Record<string, unknown> =>
-  Object.fromEntries(
-    fields.flatMap((field) => {
+  definedValuesBy(
+    fields,
+    (field) => toCamelCase(field.key),
+    (field) => {
       // A stored row holds a column for each of its declared fields.
       const value = (row as Record<string, unknown>)[field.key];
       const skip = TRANSFER_SKIPS[field.kind];
       return withheld.has(field.key) || value === undefined || skip?.(value)
-        ? []
-        : [[toCamelCase(field.key), value]];
-    }),
+        ? undefined
+        : value;
+    },
   );
 
 /** The refusal for the first closed field that one transfer supplies, named

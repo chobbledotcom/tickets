@@ -40,15 +40,11 @@ export const {
   onPrimary: getAnswerSelectionTotalsOnPrimary,
   onReplica: getAnswerSelectionTotals,
 } = onReplicaAndPrimary(
-  (readAll) =>
-    async (questionIds: number[]): Promise<Map<number, number>> =>
-      fieldById("times_selected")(
-        await readAll(
-          from(tables.answers)
-            .where({ question_id: questionIds })
-            .pick("id", "times_selected"),
-        ),
-      ),
+  (questionIds: number[]) =>
+    from(tables.answers)
+      .where({ question_id: questionIds })
+      .pick("id", "times_selected"),
+  fieldById("times_selected"),
 );
 
 /** The answer's stored times_selected together with the value it would hold if

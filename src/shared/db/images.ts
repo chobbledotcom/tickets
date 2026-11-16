@@ -4,7 +4,7 @@
 
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { removalWithChildren } from "#db/child-rows.ts";
+import { removalWithChildren, targetRowsRemoval } from "#db/child-rows.ts";
 import {
   executeBatch,
   resultRows,
@@ -227,14 +227,12 @@ export const {
   onPrimary: getImageUsesForImageOnPrimary,
   onReplica: getImageUsesForImage,
 } = onReplicaAndPrimary(
-  (readAll) =>
-    (imageId: number): Promise<ImageUse[]> =>
-      readAll(
-        from(tables.image_uses)
-          .where((use) => equal(use.image_id, imageId))
-          .orderBy((use) => [use.item_type, use.item_id])
-          .select(imageUseColumns),
-      ),
+  (imageId: number) =>
+    from(tables.image_uses)
+      .where((use) => equal(use.image_id, imageId))
+      .orderBy((use) => [use.item_type, use.item_id])
+      .select(imageUseColumns),
+  (uses): ImageUse[] => uses,
 );
 
 /** The links a write submits that name no stored record of their kind. The
@@ -288,10 +286,10 @@ const linkImageStatement = (
   );
 
 /** Clear every image link of one record. */
-export const clearImageUsesForItemStatement = (
-  target: ImageUseTarget,
-): SqlStatement =>
-  deleteFrom(tables.image_uses).where(() => imageUseTargets.where(target));
+export const clearImageUsesForItemStatement = targetRowsRemoval(
+  tables.image_uses,
+  imageUseTargets,
+);
 
 export const setImagesForItem = (
   itemType: ImageUseItemType,

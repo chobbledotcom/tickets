@@ -11,12 +11,12 @@ import {
   loadSelectedPaymentReferenceRows,
   MAX_REFUND_REFERENCES_PER_ATTENDEE,
   type PaymentReferenceRow,
-  querySelectedPaymentReferenceRows,
 } from "#db/payment-reference-rows.ts";
 import {
   loadIndexedPaymentReference,
   matchingPaymentReferenceIndexes,
 } from "#db/payment-reference-store.ts";
+import { rowsForIds } from "#db/rows-for-ids.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { requiredMapValue } from "#fp";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
@@ -126,7 +126,7 @@ const queryProcessedReferences = <Row>(
   attendeeIds: readonly number[],
   select: SqlStatement,
 ): Promise<Row[]> =>
-  querySelectedPaymentReferenceRows<Row>(
+  rowsForIds<Row>(
     attendeeIds,
     (idSlots) =>
       sql`SELECT ${select}

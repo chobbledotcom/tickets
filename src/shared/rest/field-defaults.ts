@@ -5,6 +5,7 @@
  * where the table has a different default or none.
  */
 
+import { definedValuesBy } from "#shared/defined-values.ts";
 import type {
   FieldKind,
   FieldSpec,
@@ -37,9 +38,8 @@ const NEW_ROW_VALUES: Record<FieldKind, (field: FieldSpec) => unknown> = {
 export const newRowDefaults = (
   fields: FieldSpecs,
 ): Readonly<Record<string, unknown>> =>
-  Object.fromEntries(
-    fields.flatMap((field) => {
-      const value = NEW_ROW_VALUES[field.kind](field);
-      return value === undefined ? [] : [[field.key, value]];
-    }),
+  definedValuesBy(
+    fields,
+    (field) => field.key,
+    (field) => NEW_ROW_VALUES[field.kind](field),
   );

@@ -239,17 +239,11 @@ export const {
   onPrimary: getQuestionWithAnswersOnPrimary,
   onReplica: getQuestionWithAnswers,
 } = onReplicaAndPrimary(
-  (readAll) =>
-    async (id: number): Promise<QuestionWithAnswers | null> => {
-      const rows = await readAll(
-        joinedRowsOf(
-          questionsWithAnswers().where((question) => equal(question.id, id)),
-        ),
-      );
-      if (rows.length === 0) return null;
-      // rows is non-empty so groupJoinedRows always returns at least one entry
-      return groupJoinedRows(rows)[0]!;
-    },
+  (id: number) =>
+    joinedRowsOf(
+      questionsWithAnswers().where((question) => equal(question.id, id)),
+    ),
+  (rows): QuestionWithAnswers | null => groupJoinedRows(rows)[0] ?? null,
 );
 
 /** The question a write just made, read from the primary. A write that

@@ -27,8 +27,9 @@ import { remainingBalanceFromLedger } from "#db/attendees/select.ts";
 import { executeBatchWithResults, queryOne } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
 import { readBatch } from "#db/read.ts";
-import { equal, inQuery } from "#db/select/expression.ts";
+import { type Condition, equal, inQuery } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   type RowsStatement,
@@ -205,28 +206,34 @@ export const settleAttendeeBalance = async (
   // `expectedAmount`. A concurrent settle whose payment leg already landed sees
   // owed = 0 and no-ops, so the balance settles exactly once — no stored column.
   const owed = attendeeOwedSubquery(String(attendeeId));
+  /** The test that keeps this attendee while they still owe `expectedAmount`,
+   *  and while each of `also` holds. */
+  const whileOwed =
+    (...also: ((attendee: Node<"attendees">) => Condition)[]) =>
+    (attendee: Node<"attendees">) => [
+      equal(attendee.id, attendeeId),
+      ...also.map((test) => test(attendee)),
+      equal(owed, expectedAmount),
+    ];
   const results = await executeBatchWithResults([
     // Verdict (first statement): a harmless self-update while they still owe
     // the expected amount. A mismatched or already-settled balance matches 0
     // rows.
     update(tables.attendees, (attendee) => ({
       status_id: attendee.status_id,
-    })).where((attendee) => [
-      equal(attendee.id, attendeeId),
-      equal(owed, expectedAmount),
-    ]),
+    })).where(whileOwed()),
     // Lifecycle move: only reservations advance to the paid default. Other
     // statuses are operator-owned and stay put once their balance is cleared.
-    update(tables.attendees, { status_id: paid.id }).where((attendee) => [
-      equal(attendee.id, attendeeId),
-      inQuery(
-        attendee.status_id,
-        from(tables.attendee_statuses)
-          .where({ is_reservation: 1 })
-          .values((status) => status.id),
+    update(tables.attendees, { status_id: paid.id }).where(
+      whileOwed((attendee) =>
+        inQuery(
+          attendee.status_id,
+          from(tables.attendee_statuses)
+            .where({ is_reservation: 1 })
+            .values((status) => status.id),
+        ),
       ),
-      equal(owed, expectedAmount),
-    ]),
+    ),
     ...extraStatements,
     // An invoice bills this attendee's outstanding balance. Clearing that
     // balance closes the open invoice in the same transaction.

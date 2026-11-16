@@ -826,7 +826,7 @@
     "semicolon": 1
   },
   "src/shared/db/questions/attendee-answers/reads.ts": {
-    "long-sentence": 4,
+    "long-sentence": 3,
     "present-perfect": 1,
     "semicolon": 3,
     "contraction": 2

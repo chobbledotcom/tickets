@@ -6,7 +6,6 @@
  */
 
 import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { queryAll, queryAllPrimary } from "#db/client.ts";
@@ -15,16 +14,11 @@ import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { attendeesWithChangedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { readRows } from "#db/read.ts";
+import { rowsForIds } from "#db/rows-for-ids.ts";
 import { equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { groupToMap, mapParallel } from "#fp";
 
 /** Group `(attendee_id, answer_id)` rows into an attendee → answer-ids map. */
@@ -34,9 +28,8 @@ const choiceAnswerMapFromRows = groupToMap(
 );
 
 /** Load `attendee_answers` rows for a set of attendees, restricted to rows where
- * `column` is set (non-null). Returns an empty array for an empty attendee
- * list, so the two batch readers (choice ids, decrypted free-text) share one
- * empty-guard + IN-clause query instead of each spelling it out. */
+ * `column` is set (non-null). The two batch readers (choice ids, decrypted
+ * free-text) share this one query. */
 const selectAttendeeAnswerRows = <R>(
   attendeeIds: number[],
   column: string,
@@ -44,15 +37,16 @@ const selectAttendeeAnswerRows = <R>(
   join: SqlStatement = sql``,
   readAll: typeof queryAll = queryAll,
 ): Promise<R[]> =>
-  attendeeIds.length === 0
-    ? Promise.resolve([])
-    : readAll<R>(
-        sql`SELECT ${selectColumns}
+  rowsForIds<R>(
+    attendeeIds,
+    (idSlots) =>
+      sql`SELECT ${selectColumns}
        FROM attendee_answers AS attendee_answer
        ${join}
       WHERE ${sqlName(`attendee_answer.${column}`)} IS NOT NULL
-        AND attendee_answer.attendee_id IN (${sqlList(attendeeIds)})`,
-      );
+        AND attendee_answer.attendee_id IN (${idSlots})`,
+    readAll,
+  );
 
 /** The choice-id read over the two readers: the shared shape, the caller
  * decides which side of the replication it needs. */

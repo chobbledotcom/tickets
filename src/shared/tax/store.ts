@@ -28,18 +28,19 @@ export const readTaxAssessments = async (
     from(tables.booking_tax_assessments)
       .where((assessment) => among(assessment.attendee_id, attendeeIds))
       .sortedBy("booking_group", "revision")
-      .everyColumn(),
+      .select((assessment) => ({
+        assessment: assessment.assessment,
+        attendeeId: assessment.attendee_id,
+        bookingGroup: assessment.booking_group,
+        eventGroup: assessment.event_group,
+        kind: assessment.state,
+        occurredAt: assessment.occurred_at,
+        revision: assessment.revision,
+      })),
   );
-  return rows.map((row) => ({
-    attendeeId: row.attendee_id,
-    bookingGroup: row.booking_group,
-    eventGroup: row.event_group,
-    occurredAt: row.occurred_at,
-    state: {
-      assessment: row.assessment,
-      kind: row.state,
-      revision: row.revision,
-    },
+  return rows.map(({ assessment, kind, revision, ...stored }) => ({
+    ...stored,
+    state: { assessment, kind, revision },
   }));
 };
 

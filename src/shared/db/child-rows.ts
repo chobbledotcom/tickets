@@ -5,6 +5,7 @@
  */
 
 import { executeBatch } from "#db/client.ts";
+import type { RecordTarget, RecordTargets } from "#db/record-target.ts";
 import {
   type Condition,
   equal,
@@ -42,3 +43,9 @@ export const inOneBatch =
   (removal: (id: number) => Write<TableName>[]) =>
   (id: number): Promise<void> =>
     executeBatch(removal(id));
+
+/** The delete of every row of `table` that hangs off one record. */
+export const targetRowsRemoval =
+  <Kind extends string>(table: TableHandle, targets: RecordTargets<Kind>) =>
+  (target: RecordTarget<Kind>): Write<TableName> =>
+    deleteFrom(table).where(() => targets.where(target));

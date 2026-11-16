@@ -9,11 +9,10 @@
  * SQL that carries it out.
  */
 
-import { execute, queryAll, queryBatch, resultRows } from "#db/client.ts";
+import { queryAll, queryBatch, resultRows } from "#db/client.ts";
 import { SCAN_LIMIT } from "#db/schema-anomaly-scan.ts";
-import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
-import { update } from "#db/write.ts";
+import { changeSumupCheckouts } from "#db/sumup-checkouts.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
@@ -82,23 +81,19 @@ export const getDueSumupCheckouts = async (): Promise<DueSumupCheckout[]> => {
  * matches the state and check time it was read with, so two runners that
  * looked at one row cannot both believe they wrote it — the loser finds no
  * row. */
-const moveSumupRecoveryRow = async (
+const moveSumupRecoveryRow = (
   checkout: DueSumupCheckout,
   recoveryState: RecoveryNodeId,
   nextCheckAt: string | null,
-): Promise<number> => {
-  const result = await execute(
-    update(tables.sumup_checkouts, {
-      next_check_at: nextCheckAt,
-      recovery_state: recoveryState,
-    }).where({
+): Promise<number> =>
+  changeSumupCheckouts(
+    { next_check_at: nextCheckAt, recovery_state: recoveryState },
+    {
       next_check_at: checkout.checkedAt,
       recovery_state: checkout.state,
       reference_index: checkout.referenceIndex,
-    }),
+    },
   );
-  return result.rowsAffected;
-};
 
 /**
  * Move one row on by the event its check amounted to.

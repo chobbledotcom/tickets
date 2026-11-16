@@ -20,10 +20,11 @@ import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
 import { rowsById } from "#db/record-table.ts";
 import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
+import { rowsForIds } from "#db/rows-for-ids.ts";
 import { equal } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom } from "#db/write.ts";
 import {
@@ -205,13 +206,7 @@ const attributeFromRows = (
 export const {
   onPrimary: getAttributeWithOptionsOnPrimary,
   onReplica: getAttributeWithOptions,
-} = onReplicaAndPrimary(
-  (readAll) =>
-    async (id: number): Promise<AttributeWithOptions | null> =>
-      attributeFromRows(
-        await readAll<JoinedAttributeRow>(attributeJoinedSql(id)),
-      ),
-);
+} = onReplicaAndPrimary(attributeJoinedSql, attributeFromRows);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (await queryOne(rowsById(tables.attributes, id).limit(1).pick("id")))?.id ??
@@ -312,22 +307,20 @@ export const deleteAttribute = (attributeId: number): Promise<void> =>
 const selectedOptionRows = (
   listingIds: number[],
 ): Promise<SelectedAttributeRow[]> =>
-  listingIds.length === 0
-    ? Promise.resolve([])
-    : queryAll<SelectedAttributeRow>(
-        ATTRIBUTE_COLUMNS.decoded(
-          sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLUMNS.list}
+  rowsForIds<SelectedAttributeRow>(listingIds, (idSlots) =>
+    ATTRIBUTE_COLUMNS.decoded(
+      sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLUMNS.list}
            FROM listing_attribute_options AS listingAttribute
            JOIN attribute_options AS attributeOption
              ON attributeOption.id = listingAttribute.option_id
            JOIN attributes AS attribute
              ON attribute.id = attributeOption.attribute_id
-          WHERE listingAttribute.listing_id IN (${sqlList(listingIds)})
+          WHERE listingAttribute.listing_id IN (${idSlots})
           ORDER BY listingAttribute.listing_id,
                    attribute.sort_order, attribute.id,
                    attributeOption.sort_order, attributeOption.id`,
-        ),
-      );
+    ),
+  );
 
 const selectedRowsForListing = groupToMap<
   SelectedAttributeRow,

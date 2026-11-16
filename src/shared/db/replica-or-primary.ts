@@ -9,12 +9,17 @@ import { readRows } from "#db/read.ts";
 import type { Read } from "#db/sql.ts";
 
 /** A read of every row that a statement gives. */
-export type RowsReader = <Row>(read: Read<Row>) => Promise<Row[]>;
+type RowsReader = <Row>(read: Read<Row>) => Promise<Row[]>;
 
-/** The read that `build` makes, on a replica and on the primary. */
-export const onReplicaAndPrimary = <Reader>(
-  build: (readAll: RowsReader) => Reader,
-): { onPrimary: Reader; onReplica: Reader } => ({
-  onPrimary: build(queryAllPrimary),
-  onReplica: build(readRows),
-});
+/** The read that `read` makes for an input, with its rows shaped by `shape`,
+ *  on a replica and on the primary. */
+export const onReplicaAndPrimary = <Input, Row, Answer>(
+  read: (input: Input) => Read<Row>,
+  shape: (rows: Row[]) => Answer,
+) => {
+  const readOn =
+    (readAll: RowsReader) =>
+    async (input: Input): Promise<Answer> =>
+      shape(await readAll(read(input)));
+  return { onPrimary: readOn(queryAllPrimary), onReplica: readOn(readRows) };
+};

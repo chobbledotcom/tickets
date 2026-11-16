@@ -47,6 +47,7 @@ import {
 } from "#db/write.ts";
 import { fieldById } from "#fp";
 import { toCamelCase } from "#shared/column-names.ts";
+import { definedValuesBy } from "#shared/defined-values.ts";
 import { nowIso } from "#shared/now.ts";
 import { newRowDefaults } from "#shared/rest/field-defaults.ts";
 import type { FieldSpecs } from "#shared/rest/field-specs.ts";
@@ -257,11 +258,10 @@ export const rowValuesOf = <Name extends TableName>(
   input: object,
 ): RecordChanges<Name> => {
   const named: Readonly<Record<string, unknown>> = { ...input };
-  return Object.fromEntries(
-    table.columns.flatMap(([column]) => {
-      const value = named[toCamelCase(column)];
-      return value === undefined ? [] : [[column, value]];
-    }),
+  return definedValuesBy(
+    table.columns,
+    ([column]) => column,
+    ([column]) => named[toCamelCase(column)],
   ) as RecordChanges<Name>;
 };
 

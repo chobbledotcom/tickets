@@ -112,12 +112,12 @@ export const completeSetup = async (
     if (claim.rowsAffected !== 1) throw new SetupAlreadyCompleteError();
     await tx.batch([
       ownerInsert,
-      settingUpsert(CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey),
-      settingUpsert(CONFIG_KEYS.PUBLIC_KEY, publicKey),
-      settingUpsert(CONFIG_KEYS.COUNTRY, country),
+      settingUpsert([CONFIG_KEYS.WRAPPED_PRIVATE_KEY, encryptedPrivateKey]),
+      settingUpsert([CONFIG_KEYS.PUBLIC_KEY, publicKey]),
+      settingUpsert([CONFIG_KEYS.COUNTRY, country]),
       // A new site starts with the dashboard welcome message on.
-      settingUpsert(CONFIG_KEYS.WELCOME_ENABLED, "true"),
-      settingUpsert(CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE),
+      settingUpsert([CONFIG_KEYS.WELCOME_ENABLED, "true"]),
+      settingUpsert([CONFIG_KEYS.SETUP_COMPLETE, SETUP_DONE_VALUE]),
     ]);
   });
   // Setup's config lands via a batch (not writeRaw), so bump the version by hand

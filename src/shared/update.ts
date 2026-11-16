@@ -171,9 +171,7 @@ export const recordScriptVersion = async (): Promise<void> => {
     if (changes.length > 0) {
       // Runs concurrently with the request; the normal write path would
       // wipe the settings snapshot the request just loaded.
-      await executeBatchWithoutCacheInvalidation(
-        changes.map(([key, value]) => settingUpsert(key, value)),
-      );
+      await executeBatchWithoutCacheInvalidation(changes.map(settingUpsert));
     }
   } catch (e) {
     logDebug(
