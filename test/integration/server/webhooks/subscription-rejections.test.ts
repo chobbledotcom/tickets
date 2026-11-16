@@ -23,7 +23,10 @@ import {
 } from "./subscription-refund-helpers.ts";
 
 describeWithEnv("rejected subscription checkout", { db: true }, () => {
-  for (const reason of ["malformed charge", "blank reference"] as const) {
+  for (const reason of [
+    "malformed charge",
+    "unpaid malformed charge",
+  ] as const) {
     test(`stores the plan and retries cancellation for a signed ${reason}`, async () => {
       await setupStripe();
       const listingId = await checkoutListingId();
@@ -45,8 +48,8 @@ describeWithEnv("rejected subscription checkout", { db: true }, () => {
         expectActions(
           cancel,
           refund,
-          reason === "blank reference" ? 3 : 2,
-          reason === "blank reference" ? 0 : 1,
+          reason === "unpaid malformed charge" ? 3 : 2,
+          reason === "unpaid malformed charge" ? 0 : 1,
         );
         await expectPlan(listingId);
       });

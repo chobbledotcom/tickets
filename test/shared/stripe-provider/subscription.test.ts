@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { FakeTime } from "@std/testing/time";
-import { t } from "#i18n";
 import type { CheckoutIntent } from "#shared/payments.ts";
 import type {
   StripeInvoicePayments,
@@ -131,22 +130,27 @@ describeStripe("Stripe subscription checkout", () => {
     });
   });
 
-  test("refuses a subscription deposit before it asks Stripe", async () => {
-    const client = await stripeClient();
-    const create = stub(client.checkout.sessions, "create", () =>
-      Promise.resolve(stripeCheckoutSession()),
-    );
-    try {
-      expect(
-        await stripePaymentProvider.createCheckoutSession(
-          checkoutIntent({ items: [monthly], reservationAmount: "10%" }),
-          "http://localhost",
-        ),
-      ).toEqual({ error: t("payment.error.subscription_no_deposit") });
-      expect(create.calls.length).toBe(0);
-    } finally {
-      create.restore();
-    }
+  test("takes a deposit today and keeps the full recurring charge", async () => {
+    using _time = new FakeTime(NOW_MS);
+    await withSetting({ booking_fee: "0", currency: "GBP" }, async () => {
+      const { recurring: _, ...oneOff } = monthly;
+      const deposit = { reservationAmount: "10%", taxPolicy: ADDED };
+      const ordinary = await sentParams(
+        checkoutIntent({ ...deposit, items: [oneOff] }),
+      );
+      const full = await sentParams(
+        checkoutIntent({ items: [monthly], taxPolicy: ADDED }),
+      );
+      const subscribed = await sentParams(
+        checkoutIntent({ ...deposit, items: [monthly] }),
+      );
+      expect(subscribed.line_items).toEqual([
+        ...ordinary.line_items!,
+        full.line_items!.at(-1),
+      ]);
+      expect(ordinary.line_items).not.toEqual(full.line_items!.slice(0, -1));
+      expect(subscribed.mode).toBe("subscription");
+    });
   });
 
   test("reads the started plan and the payment of the session's own invoice", async () => {
