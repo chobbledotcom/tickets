@@ -15,7 +15,7 @@ import {
 } from "#db/attendees/overlap.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
 import type { DayRange } from "#db/capacity.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import { requiredMapValue, unique } from "#fp";
 import {
   type AttendeeLogisticsTabData,
@@ -87,7 +87,7 @@ const loadOtherAttendees = async (
     unique(rows.map((row) => row.attendee_id)),
     await requireRequestPrivateKey(),
   );
-  const namesByListing = await listingNames.byIds(
+  const namesByListing = await listingNamesByIds(
     unique(rows.map((row) => row.listing_id)),
   );
   return rows.map((row: OverlappingBooking) => ({

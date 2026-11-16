@@ -7,7 +7,7 @@
  */
 
 import { logActivity } from "#db/activity-log.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { compact } from "#fp";
 import { t } from "#i18n";
 import { CONTENT_FORM, formGuard } from "#routes/auth.ts";
@@ -64,7 +64,7 @@ const processFormFile = async (opts: {
 
   const [uploadResult] = await Promise.allSettled([opts.upload(data, entry)]);
   if (uploadResult.status === "fulfilled") {
-    await listingsTable.update(opts.listingId, uploadResult.value);
+    await updateListing(opts.listingId, uploadResult.value);
     await logActivity(`${opts.label} uploaded for listing`, opts.listingId);
     return null;
   }
@@ -158,7 +158,7 @@ const handleFileDelete = (
           false,
         );
       }
-      await listingsTable.update(id, clearFields);
+      await updateListing(id, clearFields);
       await logActivity(`${label} removed for '${listing.name}'`, listing);
     }
     return redirect(

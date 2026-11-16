@@ -2,7 +2,7 @@
  * subscription stands. */
 
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import { getSubscribedRows, type SubscribedRow } from "#db/subscriptions.ts";
 import { map, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
@@ -29,7 +29,7 @@ const subscriberRows = async (
       idsOf(rows, (row) => row.attendee_id),
       await requireRequestPrivateKey(),
     ),
-    listingNames.byIds(idsOf(rows, (row) => row.listing_id)),
+    listingNamesByIds(idsOf(rows, (row) => row.listing_id)),
   ]);
   return rows.map((row) => ({
     attendeeId: row.attendee_id,

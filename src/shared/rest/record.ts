@@ -15,14 +15,13 @@ import {
   hasRow,
   insertRowStatement,
   type NewRecord,
-  type RecordChanges,
+  newRowValuesOf,
+  rowValuesOf,
   updateRowStatement,
 } from "#db/record-table.ts";
-import type { TableHandle, TableName, TableWithId } from "#db/select/tables.ts";
+import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
-import { toCamelCase } from "#shared/column-names.ts";
-import { nowIso } from "#shared/now.ts";
 import {
   type AdminRecord,
   type AnswersOf,
@@ -51,32 +50,6 @@ import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.
 import { okResult } from "#shared/result.ts";
 
 export * from "#shared/rest/record-contract.ts";
-
-/** The row values that a record input names. A form names each column in
- * camelCase, so each input key that names a column of the table becomes that
- * column. A key that names no column, such as side data for a join write, is
- * left out. */
-export const rowValuesOf = <Name extends TableName>(
-  table: TableHandle<Name>,
-  input: object,
-): RecordChanges<Name> => {
-  const named: Readonly<Record<string, unknown>> = { ...input };
-  return Object.fromEntries(
-    table.columns.flatMap(([column]) => {
-      const value = named[toCamelCase(column)];
-      return value === undefined ? [] : [[column, value]];
-    }),
-  ) as RecordChanges<Name>;
-};
-
-/** The values that every new row starts with: the time it was created, where
- * its table records that. */
-const newRowStart = (
-  table: TableHandle<TableName>,
-): Readonly<Record<string, unknown>> =>
-  table.columns.some(([column]) => column === "created")
-    ? { created: nowIso() }
-    : {};
 
 /** Read one row by its key, from the replica for a page read and from the
  * primary when a write must see its own row. The record's row holds every
@@ -358,11 +331,11 @@ const buildRecord = <Shape extends RecordShape>(
           table,
           // The rule checked the input of a new row. With the starting values,
           // it names every column that the table cannot fill.
-          {
-            ...newRowStart(table),
-            ...spec.newRowDefaults?.(),
-            ...rowValuesOf(table, value as object),
-          } as NewRecord<RecordTable["name"]>,
+          newRowValuesOf(
+            table,
+            value as object,
+            spec.fieldDefaults,
+          ) as NewRecord<RecordTable["name"]>,
         ),
       verb: "created",
     });

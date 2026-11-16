@@ -30,6 +30,10 @@ import {
   rowsWith,
   update,
 } from "#db/write.ts";
+import { toCamelCase } from "#shared/column-names.ts";
+import { nowIso } from "#shared/now.ts";
+import { newRowDefaults } from "#shared/rest/field-defaults.ts";
+import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 
 /** A new row as the code holds it: a value for every column that the
  *  database cannot fill, and any of the others. */
@@ -157,3 +161,35 @@ export const deleteRow = async <Name extends TableWithId>(
     deleteFrom(table).where(rowsWith(table, "id" as ColumnName<Name>, id)),
   );
 };
+
+/** The row values that a record input names. A form names each column in
+ * camelCase, so each input key that names a column of the table becomes that
+ * column. A key that names no column, such as side data for a join write, is
+ * left out. */
+export const rowValuesOf = <Name extends TableName>(
+  table: TableHandle<Name>,
+  input: object,
+): RecordChanges<Name> => {
+  const named: Readonly<Record<string, unknown>> = { ...input };
+  return Object.fromEntries(
+    table.columns.flatMap(([column]) => {
+      const value = named[toCamelCase(column)];
+      return value === undefined ? [] : [[column, value]];
+    }),
+  ) as RecordChanges<Name>;
+};
+
+/** The values of a new row from a record input: the time it was created,
+ * where its table records that, then the declared default of each field in
+ * `fields`, then the values that the input names. */
+export const newRowValuesOf = <Name extends TableName>(
+  table: TableHandle<Name>,
+  input: object,
+  fields: FieldSpecs = [],
+): RecordChanges<Name> => ({
+  ...(table.columns.some(([column]) => column === "created")
+    ? { created: nowIso() }
+    : {}),
+  ...newRowDefaults(fields),
+  ...rowValuesOf(table, input),
+});

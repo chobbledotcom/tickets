@@ -9,7 +9,7 @@ import {
   getAttendeeNamesByIds,
 } from "#db/attendees/queries.ts";
 import { getListingWithAttendeesRaw } from "#db/listings/attendees.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import {
   type AuthPolicy,
   type AuthSession,
@@ -87,7 +87,7 @@ export const loadAttendeeAndListingRefs = async (
 }> => {
   const [attendees, listings] = await Promise.all([
     loadAttendeeLinkRefs(attendeeIds),
-    listingNames.byIds(listingIds),
+    listingNamesByIds(listingIds),
   ]);
   return { attendees, listings };
 };

@@ -93,7 +93,7 @@ export const getListingAndGroups = async (
     // form must not pre-fill the stale date a daily listing still stores. The
     // save keeps the stored value.
     getStoredListingWithCount(listingId),
-    groups.cache.getAll(),
+    groups.getAll(),
     listingGroups.getIds(listingId),
   ]);
   const listing = stored === null ? null : resolveListingDate(stored);

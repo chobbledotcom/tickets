@@ -14,7 +14,7 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
-import type { ListingOption } from "#db/listings/table.ts";
+import type { ListingOption } from "#db/listings/catalog.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";

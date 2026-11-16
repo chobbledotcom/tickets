@@ -16,7 +16,7 @@ import {
 } from "#db/listing-prices.ts";
 import {
   getStoredListingWithCount,
-  listingNames,
+  listingNamesByIds,
 } from "#db/listings/records.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { withGroupOrNull } from "#routes/admin/find-group.ts";
@@ -135,7 +135,7 @@ export const exportListing = async (
     ),
   }));
 
-  const parentNames = await listingNames.byIds(parentIds);
+  const parentNames = await listingNamesByIds(parentIds);
   const parents = mapNotNullish((parentId: number) =>
     parentNames.get(parentId),
   )(parentIds);
@@ -167,7 +167,7 @@ export const exportGroup = (
 
     const rows = await getGroupPackagePrices(id);
     const [namesByListing, dayPrices] = await Promise.all([
-      listingNames.byIds(rows.map((r) => r.listing_id)),
+      listingNamesByIds(rows.map((r) => r.listing_id)),
       getGroupDayPrices(id),
     ]);
 

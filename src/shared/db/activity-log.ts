@@ -21,7 +21,7 @@ import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
-import { listingReader } from "#db/listings/select.ts";
+import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { readRows } from "#db/read.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { desc, valued } from "#db/select/expression.ts";
@@ -297,7 +297,7 @@ export const getListingWithActivityLogOrNull = async (
     newestEntries({ listing_id: listingId }, limit),
   ]);
 
-  const listingRow = resultRows<ListingWithCount>(results[0]!)[0];
+  const listingRow = resultRows<ListingRecordRow>(results[0]!)[0];
   if (!listingRow) return null;
 
   const listing = await decryptListingWithCount(listingRow);

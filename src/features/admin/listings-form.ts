@@ -19,7 +19,8 @@ import {
   moveUndatedBookingsToDayTx,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { hasRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import { t } from "#i18n";
@@ -359,7 +360,7 @@ export const buildUpdateListingResource = (
       id: number,
       submitted: FormParams,
     ): Promise<ListingUpdateResult> => {
-      if (!(await listingsTable.read.exists({ id }))) {
+      if (!(await hasRow(tables.listings, id))) {
         return { notFound: true, ok: false };
       }
       const parsed = await parseInput(submitted);

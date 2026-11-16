@@ -19,13 +19,14 @@ import {
   requireMembershipValidation,
   validateMembershipPairsTx,
 } from "#db/groups/membership.ts";
-import { groups } from "#db/groups.ts";
+import { newGroupValues } from "#db/groups.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireListingChildrenPackageCheck } from "#db/listing-parents.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { newListingValues } from "#db/listings/records.ts";
+import { insertRowStatement } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
@@ -145,20 +146,26 @@ const writeBundle = async (
   return withTransaction(async (tx) => {
     const listingStatements = await Promise.all(
       listingPlans.map((listingPlan, index) =>
-        listingsTable.insertStatement!({
-          ...listingPlan.input,
-          slug: slugs[index]!.slug,
-          slugIndex: slugs[index]!.slugIndex,
-        }),
+        insertRowStatement(
+          tables.listings,
+          newListingValues({
+            ...listingPlan.input,
+            slug: slugs[index]!.slug,
+            slugIndex: slugs[index]!.slugIndex,
+          }),
+        ),
       ),
     );
     const groupStatements = await Promise.all(
       groupPlans.map((groupPlan, index) =>
-        groups.table.insertStatement!(
-          groupDataToInput(
-            groupPlan.body.group,
-            slugs[listingCount + index]!.slug,
-            slugs[listingCount + index]!.slugIndex,
+        insertRowStatement(
+          tables.groups,
+          newGroupValues(
+            groupDataToInput(
+              groupPlan.body.group,
+              slugs[listingCount + index]!.slug,
+              slugs[listingCount + index]!.slugIndex,
+            ),
           ),
         ),
       ),

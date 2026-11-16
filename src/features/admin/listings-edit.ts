@@ -116,7 +116,7 @@ const renderNewListingPage = async (
   opts: Parameters<typeof adminListingNewPage>[2],
   status?: number,
 ): Promise<Response> => {
-  const allGroups = await groups.cache.getAll();
+  const allGroups = await groups.getAll();
   return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
 };
 

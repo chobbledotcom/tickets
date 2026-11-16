@@ -5,7 +5,9 @@
  * picked column through its codec, as it does for a builder read.
  */
 
+import { tableNode } from "#db/select/query.ts";
 import { withSources } from "#db/select/sources.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** The picked columns of a hand-written read. */
@@ -28,4 +30,16 @@ export const pickedColumns = (
       entries.map(([name, value]) => sql`${value} AS ${sqlName(name)}`),
     ),
   };
+};
+
+/** Every column of `table` under `word`, for a hand-written read of whole rows
+ *  with values worked out beside them. */
+export const everyColumnPicked = (
+  table: TableHandle<TableName>,
+  word: string,
+): PickedColumns => {
+  const node: Readonly<Record<string, SqlStatement>> = tableNode(table, word);
+  return pickedColumns(
+    Object.fromEntries(table.columns.map(([column]) => [column, node[column]!])),
+  );
 };

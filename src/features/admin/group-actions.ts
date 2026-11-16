@@ -20,7 +20,6 @@ import {
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
-  groups,
   setGroupListingsActive,
 } from "#db/groups.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
@@ -32,12 +31,14 @@ import {
 } from "#db/listing-prices.ts";
 import {
   getStoredListingsWithCountsByIds,
-  listingsTable,
+  newListingValues,
 } from "#db/listings/records.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { insertRowStatement } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -284,20 +285,22 @@ const handleDuplicateGroupPost = groupFormPost(
     // clone by the slug_index each was just inserted with, so no per-row id
     // read is needed. Parent/child edges are remapped after the batch commits,
     // since they read the new clone rows.
-    const groupInsert = await groups.table.insertStatement!({
+    const groupInsert = await insertRowStatement(tables.groups, {
       description: group.description,
       hidden: group.hidden,
-      hidePackageListings: group.hide_package_listings,
-      isPackage: group.is_package,
-      maxAttendees: group.max_attendees,
+      hide_package_listings: group.hide_package_listings,
+      is_package: group.is_package,
+      max_attendees: group.max_attendees,
       name: newName,
-      showHiddenListings: group.show_hidden_listings,
+      show_hidden_listings: group.show_hidden_listings,
       slug,
-      slugIndex,
-      termsAndConditions: group.terms_and_conditions,
+      slug_index: slugIndex,
+      terms_and_conditions: group.terms_and_conditions,
     });
     const cloneInserts = await Promise.all(
-      cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
+      cloneInputs.map(({ input }) =>
+        insertRowStatement(tables.listings, newListingValues(input)),
+      ),
     );
     const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
       // Every clone was just read as a member of the source group, so it always
@@ -326,8 +329,7 @@ const handleDuplicateGroupPost = groupFormPost(
     const idBySlugIndex = new Map(
       (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
     );
-    // The clones above went through insertStatement in the batch, and this
-    // bypasses the listingsTable wrapper. Sync their `base` price rows
+    // The clones above went through the batch, not through createListing. Sync their `base` price rows
     // explicitly, or a priced clone has no matching base row until it is edited.
     await syncListingPricesForIds([...idBySlugIndex.values()]);
     const idMap = new Map(

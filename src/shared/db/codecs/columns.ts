@@ -114,7 +114,11 @@ export const CODECS = {
     link_type: typed<ExternalLinkKind>(),
   },
   external_sources: { name: adminSealed, url_pattern: adminSealed },
-  groups: { ...fieldCodecs("groups", GROUP_FIELDS), slug: sealed },
+  groups: {
+    ...fieldCodecs("groups", GROUP_FIELDS),
+    slug: sealed,
+    slug_index: typed<BlindIndex>(),
+  },
   holidays: fieldCodecs("holidays", HOLIDAY_FIELDS),
   image_uses: { item_type: typed<ImageUseItemType>() },
   images: {
@@ -134,6 +138,9 @@ export const CODECS = {
     attachment_name: blankAsItself(sealed),
     attachment_url: blankAsItself(sealed),
     slug: sealed,
+    // Every listing gets its slug when it is made, so the index is never
+    // empty.
+    slug_index: typed<BlindIndex>(),
   },
   logistics_agents: { name: sealed },
   modifiers: {

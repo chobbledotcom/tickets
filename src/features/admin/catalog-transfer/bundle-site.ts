@@ -5,14 +5,14 @@
  * one query, all before the first database write.
  */
 
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupsById } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
-import { modifiersTable } from "#db/modifiers.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { readRows } from "#db/read.ts";
+import { among, equal } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { requiredMapValue, unique } from "#fp";
 import { matchKey as nameKey } from "#shared/keys.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -92,27 +92,23 @@ const optInAddOnsByGroupId = async (
   for (const groupId of groupIds) {
     byGroup.set(groupId, { addOnIds: new Set(), addOns: [] });
   }
-  const rows = await queryAll<{
-    group_id: number;
-    modifier_id: number;
-    name: EnvKeyEncrypted;
-  }>(
-    sql`SELECT modifierGroup.group_id, modifier.id AS modifier_id, modifier.name
-       FROM modifiers AS modifier
-       JOIN modifier_groups AS modifierGroup
-         ON modifierGroup.modifier_id = modifier.id
-      WHERE modifier.active = 1 AND modifier.trigger = 'optional'
-        AND modifier.scope = 'groups'
-        AND modifierGroup.group_id IN (${sqlList(groupIds)})`,
+  const rows = await readRows(
+    from(tables.modifier_groups, { modifier: {} })
+      .where((link) => [
+        equal(link.modifier.active, 1),
+        equal(link.modifier.trigger, "optional"),
+        equal(link.modifier.scope, "groups"),
+        among(link.group_id, groupIds),
+      ])
+      .select((link) => ({
+        group_id: link.group_id,
+        modifier_id: link.modifier.id,
+        name: link.modifier.name,
+      })),
   );
   for (const row of rows) {
     const optIns = groupOptIns(byGroup, row.group_id);
-    const name = await modifiersTable.readColumn(
-      "name",
-      row.name,
-      row.modifier_id,
-    );
-    optIns.addOns.push({ id: row.modifier_id, name });
+    optIns.addOns.push({ id: row.modifier_id, name: row.name });
     optIns.addOnIds.add(row.modifier_id);
   }
   return byGroup;

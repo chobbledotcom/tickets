@@ -264,7 +264,7 @@ export const loadBookableGroupIds = async (
 export const loadDecidedGroups = async (
   gate: GroupGate,
 ): Promise<GroupWithMembers[]> => {
-  const visibleGroups = (await groups.cache.getAll()).filter(
+  const visibleGroups = (await groups.getAll()).filter(
     (group) => !group.hidden,
   );
   const membersByGroup = await publicMembersByGroup(visibleGroups);

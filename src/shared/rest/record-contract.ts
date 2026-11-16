@@ -8,6 +8,7 @@ import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import type { OrderedCollection } from "#db/ordered-collection.ts";
 import type {
   DecodedRowOf,
+  NewRowOf,
   TableHandle,
   TableWithId,
 } from "#db/select/tables.ts";
@@ -28,6 +29,7 @@ import type {
   PersistStep,
   PreparedResult,
 } from "#shared/rest/crud-api-types.ts";
+import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 import type { AsyncResult } from "#shared/result.ts";
 import type { AdminLevel } from "#types";
 
@@ -211,19 +213,35 @@ export type StateOf<Shape extends RecordShape> = Shape extends {
   ? State
   : never;
 
+/** The keys of two rows that both hold. */
+type SharedKeys<A, B> = keyof A & keyof B;
+
+/** Whether two rows give each key that they share the same type. */
+type Agree<A, B> = [Pick<A, SharedKeys<A, B>>] extends [
+  Pick<B, SharedKeys<A, B>>,
+]
+  ? [Pick<B, SharedKeys<A, B>>] extends [Pick<A, SharedKeys<A, B>>]
+    ? true
+    : false
+  : false;
+
+/** The keys that a value of `T` must hold. */
+type RequiredKeys<T> = {
+  [Key in keyof T]-?: Record<never, never> extends Pick<T, Key> ? never : Key;
+}[keyof T];
+
 /** The tables that a generated write of this record can change: a table
- * whose decoded row holds every value of the record's row, or one whose
- * decoded row the record's row holds with values that its reads add. */
-export type RecordTableOf<Shape extends RecordShape> = Extract<
-  {
-    [Name in TableWithId]: DecodedRowOf<Name> extends RowOf<Shape>
+ * whose decoded row agrees with the record's row on every column that both
+ * hold, where the record's row holds every column that a new row must give.
+ * A record's row can hold values that its reads add, and leave out columns
+ * that the table fills. */
+export type RecordTableOf<Shape extends RecordShape> = {
+  [Name in TableWithId]: Agree<DecodedRowOf<Name>, RowOf<Shape>> extends true
+    ? RequiredKeys<NewRowOf<Name>> extends keyof RowOf<Shape>
       ? Name
-      : RowOf<Shape> extends DecodedRowOf<Name>
-        ? Name
-        : never;
-  }[TableWithId],
-  TableWithId
->;
+      : never
+    : never;
+}[TableWithId];
 
 /** The one write rule. `input` is what the caller sent, already converted to
  * the record's input shape at the door. `stored` is the stored row on update
@@ -334,9 +352,9 @@ export interface RecordSpec<Shape extends RecordShape>
   /** Where the record lives: the record area that declares its routes and
    * its audience, or the route ids of a record outside a record area. */
   readonly surface: RecordAreaId | RecordSurface;
-  /** The values that a generated create starts from, for the fields that its
-   * input leaves out. */
-  readonly newRowDefaults?: () => Readonly<Record<string, unknown>>;
+  /** The fields whose declared defaults a generated create starts from, for
+   * the fields that its input leaves out. */
+  readonly fieldDefaults?: FieldSpecs;
   /** The table that the generated writes change. */
   readonly table?: TableHandle<RecordTableOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table

@@ -10,12 +10,14 @@
  * picker in `groups.ts` do.
  */
 
+import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   type AccountId,
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
-import { imageFilenameSubqueries } from "#db/images.ts";
+import { imageFilenameSubqueries, type SealedItemImages } from "#db/images.ts";
+import { everyColumnPicked } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
 import {
   among,
@@ -25,13 +27,19 @@ import {
   literal,
 } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import type { ListingWithCount } from "#types";
 
 /** The listing row of a statement that names the table
  *  `listings AS listing`. */
 export const LISTING_ROW = tableNode(tables.listings, "listing");
+
+/** Every stored column of the listing, which the client decodes. */
+const STORED_COLUMNS = everyColumnPicked(tables.listings, "listing");
+
+/** Mark a read that selects {@link listingColumns}, so the client decodes the
+ *  stored columns of its rows. */
+export const decodedListingRead = STORED_COLUMNS.decoded;
 
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */
@@ -41,7 +49,7 @@ const listingMoneyProjections = (idExpression: AccountId): SqlStatement =>
 /** A complete stored listing row plus its ledger, day-price, and image values. */
 const storedListingColumns = (): SqlStatement => {
   const idExpression = LISTING_ROW.id;
-  return sql`listing.*,
+  return sql`${STORED_COLUMNS.list},
        ${listingMoneyProjections(idExpression)},
        COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
          FROM listing_prices AS listingPrice
@@ -51,8 +59,10 @@ const storedListingColumns = (): SqlStatement => {
 };
 
 /** The SELECT column list for a listing record read: every stored column, the
- * worked-out values, and the trigger-maintained booking count. */
-const listingColumns = (): SqlStatement =>
+ * worked-out values, and the trigger-maintained booking count. A read that
+ * writes its own conditions selects this list under `listings AS listing`, and
+ * marks the read with {@link decodedListingRead}. */
+export const listingColumns = (): SqlStatement =>
   sql`${storedListingColumns()},
        listing.booked_quantity AS attendee_count`;
 
@@ -67,7 +77,7 @@ export type ListingWhere = {
   ids?: number[];
   /** Listings by the blind index of their slug. A single slug is a
    * one-element array. */
-  slugIndexes?: string[];
+  slugIndexes?: BlindIndex[];
   /** Listings that ARE members of any of these groups. This one also changes
    * the shape of the read: it joins through `group_listings`, groups the rows
    * by listing (a listing may be in several of the requested groups), and
@@ -118,7 +128,8 @@ const listingStatement = (query: GetListingsQuery): SqlStatement => {
   const conditions = whereConditions(query.where);
   const order =
     query.order === undefined ? [] : [LISTING_ORDER_SQL[query.order]];
-  return query.where.inGroups === undefined
+  return decodedListingRead(
+    query.where.inGroups === undefined
     ? from(tables.listings)
         .where(() => conditions)
         .orderBy(() => order)
@@ -130,7 +141,8 @@ const listingStatement = (query: GetListingsQuery): SqlStatement => {
         .columns(
           (member) =>
             sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
-        );
+        ),
+  );
 };
 
 /** The statement, for a caller that must embed the read in a batch, and the
@@ -141,14 +153,21 @@ export const listingReader = {
   statement: listingStatement,
 };
 
-/** The raw shape a listing read returns: the stored columns plus the worked-out
- * values, before decryption and before any inherited defaults are overlaid. */
-export type ListingRecordRow = Omit<ListingWithCount, "profit">;
+/** The shape a listing read returns: the decoded stored columns plus the
+ * worked-out values, before the projected values are opened and before any
+ * inherited defaults are overlaid. */
+export type ListingRecordRow = DecodedRowOf<"listings"> &
+  SealedItemImages & {
+    attendee_count: number;
+    cost: number | bigint;
+    day_prices: string;
+    income: number | bigint;
+  };
 
 /**
  * The one reader every listing-record surface uses: declare the filter and the
- * order, and it returns raw rows. Encrypted columns are still encrypted —
- * decrypt with the readers in `records.ts` before display.
+ * order, and it returns the rows. The projected day prices and images are
+ * still sealed. Open them with the readers in `records.ts` before display.
  */
 export const getListingRows = (
   query: GetListingsQuery,

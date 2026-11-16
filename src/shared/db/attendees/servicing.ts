@@ -25,7 +25,7 @@ import { decryptAttendeeFields } from "#db/attendees/pii.ts";
 import { loadAttendeeRows } from "#db/attendees/queries.ts";
 import { type AttendeeRowFor, getAttendees } from "#db/attendees/select.ts";
 import { queryAll, queryOne, requireOne, withTransaction } from "#db/client.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import {
   type AttendeeAnswersBatch,
   getAttendeeAnswersBatch,
@@ -149,7 +149,7 @@ const formatServicingCapacityError = attendeeFailureFormatter({
 /** The comma-joined names of the given listing ids, dropping any id whose
  *  listing has since been deleted (a name lookup miss) rather than throwing. */
 const joinedListingNames = async (ids: number[]): Promise<string> => {
-  const names = await listingNames.byIds(ids);
+  const names = await listingNamesByIds(ids);
   return ids
     .map((id) => names.get(id))
     .filter((name): name is string => Boolean(name))

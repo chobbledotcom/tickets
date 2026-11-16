@@ -3,7 +3,6 @@
  */
 
 import * as v from "valibot";
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
@@ -13,14 +12,9 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import {
-  cachedEntityTable,
-  idAndEncryptedSlugSchema,
-} from "#db/common-schema.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
-import { fieldColumns } from "#db/field-columns.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
-import { GROUP_ROW, groupListings, listingGroups } from "#db/groups/table.ts";
+import { groupListings, listingGroups } from "#db/groups/table.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
 import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import {
   getGroupDayPricesByGroupIds,
@@ -31,8 +25,8 @@ import {
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import { envNameSource, rowsByIds } from "#db/query.ts";
-import { readExists } from "#db/read.ts";
+import { readExists, readRows } from "#db/read.ts";
+import { type NewRecord, newRowValuesOf } from "#db/record-table.ts";
 import {
   among,
   type Expr,
@@ -45,7 +39,8 @@ import {
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
+import { tableCache } from "#db/table-cache.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { deleteFrom, insertInto, insertingAll, update } from "#db/write.ts";
 import {
@@ -73,40 +68,39 @@ const groupIdsJson = defineStoredJson(
   v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
 );
 
-/** Raw groups table with CRUD operations */
-const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
-  ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  ...fieldColumns("groups", GROUP_FIELDS)(encrypt, decrypt),
-});
-
-const packageDisplayColumns = rawGroupsTable.read.pick([
-  "id",
-  "hide_package_listings",
-  "name",
-]);
-
-/** Execute a query and decrypt the resulting group rows */
-export const groups = cachedEntityTable<Group, GroupInput>(
-  "groups",
-  rawGroupsTable,
-  {
-    fetchAll: () => rawGroupsTable.read.many({}, { order: sql`id ASC` }),
+/** Every group, keyed by id and by slug index. The codecs decrypt each
+ * group. */
+export const groups = tableCache(
+  tables.groups,
+  createKeyedCache<Group>({
+    fetchAll: () =>
+      readRows(from(tables.groups).sortedBy("id").everyColumn()),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
-  },
+  }),
 );
+
+/** The values of a new group from the form input: each field the input
+ * leaves out takes its declared default. */
+export const newGroupValues = (input: GroupInput): NewRecord<"groups"> =>
+  // The group rule checked that the input names every required field.
+  newRowValuesOf(tables.groups, input, GROUP_FIELDS) as NewRecord<"groups">;
 
 /** Every group keyed by id, from the request-cached set — the batched
  * alternative to one read per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  mapById(identity<Group>)(await groups.cache.getAll());
+  mapById(identity<Group>)(await groups.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
-export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  envNameSource("groups", "groupRecord").all();
+export const getAllGroupNames = async (): Promise<Map<number, string>> =>
+  new Map(
+    (await readRows(from(tables.groups).sortedBy("id").pick("id", "name"))).map(
+      (group) => [group.id, group.name],
+    ),
+  );
 
 /** Groups by id in one query, read straight from the table: a group about to be
  * shown, edited or acted on must be the stored row, not a cached copy that
@@ -118,7 +112,11 @@ export const getGroupsByIds = async (
   ids.length === 0
     ? new Map()
     : mapById(identity<Group>)(
-        await rawGroupsTable.read.many({ id: [...new Set(ids)] }),
+        await readRows(
+          from(tables.groups)
+            .where({ id: [...new Set(ids)] })
+            .everyColumn(),
+        ),
       );
 
 /** One stored group, through the shared many-group read. Null when no group has
@@ -130,7 +128,7 @@ export const getGroupById = async (id: number): Promise<Group | null> =>
  * Get a single group by slug_index (from cache)
  */
 export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
-  groups.cache.getByKey(slugIndex);
+  groups.getByKey(slugIndex);
 
 /** Check if a group slug is already in use — across listings and groups. */
 export const isGroupSlugTaken = slugTakenIn("groups");
@@ -314,18 +312,16 @@ export const hasPackageBookingsTx = async (
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayColumns.many(
-    {},
-    {
-      alias: "groupRecord",
-      where: [
+  const packageGroups = await readRows(
+    from(tables.groups)
+      .where((group) => [
         among(
-          GROUP_ROW.id,
+          group.id,
           [...new Set(groupIds)].filter((groupId) => groupId > 0),
         ),
-        equal(GROUP_ROW.is_package, 1),
-      ],
-    },
+        equal(group.is_package, 1),
+      ])
+      .pick("id", "hide_package_listings", "name"),
   );
   return new Map(
     packageGroups.map((group) => [
@@ -354,8 +350,8 @@ export const packageDisplaysForRows = (
  * Carries the source member's per-package `quantity`; the flat price override
  * lives in `listing_prices` and is copied separately (keyed to the new group). */
 export const cloneGroupMembershipStatement = (member: {
-  groupSlugIndex: string;
-  listingSlugIndex: string;
+  groupSlugIndex: BlindIndex;
+  listingSlugIndex: BlindIndex;
   quantity: number;
 }): SqlStatement =>
   insertInto(tables.group_listings, {
@@ -368,7 +364,7 @@ export const cloneGroupMembershipStatement = (member: {
  *  row is always there, and the NOT NULL column refuses a missing one. */
 const idOfSlug = (
   table: typeof tables.groups | typeof tables.listings,
-  slugIndex: string,
+  slugIndex: BlindIndex,
 ): Expr<number> =>
   valued(
     from(table)
@@ -583,15 +579,15 @@ export const loadPackageMemberPricingByGroupIds = async (
 export const getGroupPackagePricesByGroupIds = async (
   groupIds: number[],
 ): Promise<Map<number, GroupListing[]>> =>
-  Map.groupBy(
-    await rowsByIds<GroupListing>(
-      groupIds,
-      (boundIds) =>
+  groupIds.length === 0
+    ? new Map()
+    : Map.groupBy(
+    await queryAll<GroupListing>(
         sql`SELECT groupListing.group_id, groupListing.listing_id,
             ${groupFlatPriceSubquery(sql`groupListing.group_id`)},
             groupListing.quantity
        FROM group_listings AS groupListing
-      WHERE groupListing.group_id IN (${boundIds})
+      WHERE groupListing.group_id IN (${sqlList(groupIds)})
    ORDER BY groupListing.listing_id ASC`,
     ),
     (row) => row.group_id,

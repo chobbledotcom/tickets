@@ -1,14 +1,12 @@
 import { bookingEventGroup } from "#accounting/mappers.ts";
-import {
-  accountBalanceSubquery,
-  creditsLessWriteoffDebits,
-} from "#accounting/projection-sql.ts";
 import { lineGroupIds } from "#booking/signed-metadata.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
-import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
-import { LISTING_ROW, type ListingRecordRow } from "#db/listings/select.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
+import {
+  decodedListingRead,
+  type ListingRecordRow,
+  listingColumns,
+} from "#db/listings/select.ts";
 import { readBatch } from "#db/read.ts";
 import { among, or } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
@@ -19,7 +17,6 @@ import {
   sql,
   sqlList,
   sqlName,
-  sqlNames,
   typedSql,
 } from "#db/sql.ts";
 import { unique } from "#fp";
@@ -43,27 +40,16 @@ const selectIn = (
     : sql`${sqlName(column)} IN (${sqlList(values)})`;
 
 const listingStatement = (listingIds: number[]): SqlStatement => {
-  const columns = sqlNames(
-    rawListingsTable.columns.map((column) => `listing.${column}`),
-  );
   const requested = selectIn("listing.id", listingIds);
   const linked = selectIn("listingParent.parent_listing_id", listingIds);
-  return sql`SELECT ${columns},
-       ${creditsLessWriteoffDebits("revenue", LISTING_ROW.id)} AS income,
-       -${accountBalanceSubquery("cost", LISTING_ROW.id)} AS cost,
-       COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
-         FROM listing_prices AS listingPrice
-         WHERE listingPrice.listing_id = listing.id
-           AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
-       ${imageFilenameSubqueries("listing", sql`listing.id`)},
-       listing.booked_quantity AS attendee_count
+  return decodedListingRead(sql`SELECT ${listingColumns()}
      FROM listings AS listing
      WHERE ${requested}
         OR listing.id IN (
           SELECT listingParent.child_listing_id
           FROM listing_parents AS listingParent
           WHERE ${linked}
-        )`;
+        )`);
 };
 
 const usableContactHashes = async (

@@ -13,7 +13,7 @@ import {
   type ImageUseTarget,
   imageUseTargets,
 } from "#db/images.ts";
-import { getAllListingOptions } from "#db/listings/records.ts";
+import { getAllListingOptions } from "#db/listings/catalog.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -137,7 +137,7 @@ const activeOptionsOfType =
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   activeOptionsOfType("group")(
-    (await groups.cache.getAll()).map(
+    (await groups.getAll()).map(
       (group) => [group.id, group.name] as const,
     ),
   );

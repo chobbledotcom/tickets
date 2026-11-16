@@ -9,7 +9,6 @@
 
 import { inOwnTx, ledgerTx } from "#accounting/ledger-tx.ts";
 import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   executeBatch,
   queryAll,
@@ -23,23 +22,23 @@ import {
   type AggregateRecalculation,
   type AggregateValues,
   aggregateRepairs,
-  idAndEncryptedNameSchema,
 } from "#db/common-schema.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
 import { linkTableSide } from "#db/link-table.ts";
+import { everyColumnPicked } from "#db/picked-columns.ts";
+import type { ListsByIds } from "#db/query.ts";
+import { readRows } from "#db/read.ts";
 import {
-  columnMapByIds,
-  envNameSource,
-  type ListsByIds,
-  queryAndMap,
-} from "#db/query.ts";
-import { type Condition, equal, whereTail } from "#db/select/expression.ts";
+  among,
+  type Condition,
+  equal,
+  notEqual,
+  whereTail,
+} from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
-import { col } from "#db/table.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { update } from "#db/write.ts";
-import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
+import { emptyListsFor, fieldById, requiredMapValue } from "#fp";
 import type {
   CalcKind,
   ModifierDirection,
@@ -48,11 +47,9 @@ import type {
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
 
-/** The stored modifier row. `total_revenue` is NOT a column — it is projected
- * from the transfers ledger at read time (see {@link modifierRevenueSubquery})
- * and merged onto the read type {@link Modifier} — so it is absent here, exactly
- * as `listings.income` is absent from the listings table row. */
-export type ModifierRow = Omit<Modifier, "total_revenue">;
+/** The stored modifier row. `total_revenue` is not a column: every loader
+ * projects it from the transfers ledger ({@link modifierRevenueSubquery}). */
+export type ModifierRow = DecodedRowOf<"modifiers">;
 
 /** Modifier input fields for create/update (camelCase, mapped to columns). */
 export type ModifierInput = {
@@ -71,38 +68,11 @@ export type ModifierInput = {
   stock?: number | null;
 };
 
-/** Modifiers table with CRUD operations. Name is encrypted at rest, matching
- * the other owner-defined entities. Behavioural columns (active, trigger,
- * scope, min_subtotal) have sensible defaults so the base create form need
- * only supply the pricing rule; later admin fields populate the rest. */
-export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
-  "modifiers",
-  {
-    ...idAndEncryptedNameSchema(encrypt, decrypt),
-    active: col.boolean(true),
-    calc_kind: col.simple<CalcKind>(),
-    calc_value: col.simple<number>(),
-    code: col.encryptedText(encrypt, decrypt),
-    code_index: col.withDefault<string | null>(() => null),
-    direction: col.simple<ModifierDirection>(),
-    max_per_order: col.withDefault<number | null>(() => null),
-    min_subtotal: col.withDefault(() => 0),
-    min_visits: col.withDefault(() => 0),
-    scope: col.withDefault<ModifierScope>(() => "all"),
-    stock: col.withDefault<number | null>(() => null),
-    // Trigger-maintained aggregates over modifier_usages — read-only here
-    // (generated), so insert/update never write them and the DB default / the
-    // triggers keep them current. total_revenue is no longer a column: it is
-    // projected from the transfers ledger by {@link modifierRevenueSubquery},
-    // which every loader selects alongside the stored modifier columns.
-    total_uses: col.generated<number>(),
-    trigger: col.withDefault<ModifierTrigger>(() => "automatic"),
-    usage_count: col.generated<number>(),
-  },
-);
-
 /** The modifier row of a statement that names the table `modifiers` bare. */
 const MODIFIER_ROW = tableNode(tables.modifiers, "modifiers");
+
+/** Every stored modifier column, which the client decodes. */
+const STORED_COLUMNS = everyColumnPicked(tables.modifiers, "modifiers");
 
 /**
  * Subquery projecting a modifier's revenue from the ledger: the modifier
@@ -119,37 +89,41 @@ const MODIFIER_ROW = tableNode(tables.modifiers, "modifiers");
 const modifierRevenueSubquery = (): SqlStatement =>
   sql`${accountBalanceSubquery("modifier", MODIFIER_ROW.id)} AS total_revenue`;
 
-/** Decrypt a modifier row and merge the ledger-projected total_revenue its
- * loader selected alongside the stored modifier columns. The row carries
- * `total_revenue` from {@link modifierRevenueSubquery} (the column itself is
- * gone), so it is always a number. Mirrors `decryptListingWithCount`'s
- * attach-the-projection step. */
-const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
-  ...(await modifiersTable.fromDb(row)),
-  total_revenue: Number(row.total_revenue),
-});
-
-/** Execute a query and decrypt the resulting modifier rows, merging the
- * ledger-projected total_revenue every loader selects. */
-const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
+/** A modifier row with the ledger-projected total_revenue its loader selected.
+ * SQLite can give the sum back as a bigint. */
+const withRevenue = (
+  row: ModifierRow & { total_revenue: number | bigint },
+): Modifier => ({ ...row, total_revenue: Number(row.total_revenue) });
 
 const modifierSelect = (parts: readonly Condition[]): SqlStatement =>
-  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery()} FROM modifiers${whereTail(parts)} ORDER BY id ASC`;
+  STORED_COLUMNS.decoded(
+    sql`SELECT ${STORED_COLUMNS.list}, ${modifierRevenueSubquery()} FROM modifiers${whereTail(parts)} ORDER BY id ASC`,
+  );
+
+/** The rows of a modifier read. */
+type StoredModifier = ModifierRow & { total_revenue: number | bigint };
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
-const queryModifiersWhere = (
+const queryModifiersWhere = async (
   parts: readonly Condition[],
-): Promise<Modifier[]> => queryModifiers(modifierSelect(parts));
+): Promise<Modifier[]> =>
+  (await queryAll<StoredModifier>(modifierSelect(parts))).map(withRevenue);
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
   queryModifiersWhere([]);
 
 /** Read and decrypt names only for the requested modifier ids. */
-export const getModifierNamesByIds = envNameSource(
-  "modifiers",
-  "modifier",
-).byIds;
+export const getModifierNamesByIds = async (
+  ids: readonly number[],
+): Promise<Map<number, string>> =>
+  fieldById("name")(
+    await readRows(
+      from(tables.modifiers)
+        .where({ id: [...ids] })
+        .pick("id", "name"),
+    ),
+  );
 
 /** Get the active modifiers, decrypted, ordered by id. An optional transaction
  * reads the same rows through it, so a reachability guard inside a write
@@ -158,8 +132,8 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
   const parts = [equal(MODIFIER_ROW.active, 1)];
   return tx === undefined
     ? queryModifiersWhere(parts)
-    : mapParallel(mapModifierRow)(
-        resultRows<Modifier>(await tx.execute(modifierSelect(parts))),
+    : resultRows<StoredModifier>(await tx.execute(modifierSelect(parts))).map(
+        withRevenue,
       );
 };
 
@@ -168,10 +142,10 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
  * they see the projected figure rather than the dropped column (the bare
  * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const row = await queryOne<Modifier>(
+  const row = await queryOne<StoredModifier>(
     modifierSelect([equal(MODIFIER_ROW.id, id)]),
   );
-  return row ? mapModifierRow(row) : null;
+  return row ? withRevenue(row) : null;
 };
 
 export const MODIFIER_AGGREGATE_FIELDS = ["total_uses", "usage_count"] as const;
@@ -319,13 +293,16 @@ export const setModifierAnswers = (
  * points at it. */
 export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
   new Map(
-    [
-      ...(await columnMapByIds(
-        "answers",
-        "answer",
-        "modifier_id",
-        answerIds,
-        sql` AND answer.modifier_id IS NOT NULL`,
-      )),
-    ].map(([id, modifierId]) => [id, [modifierId]]),
+    (
+      await readRows(
+        from(tables.answers)
+          .where((answer) => [
+            among(answer.id, answerIds),
+            notEqual(answer.modifier_id, null),
+          ])
+          .pick("id", "modifier_id"),
+      )
+    ).flatMap(({ id, modifier_id }) =>
+      modifier_id === null ? [] : [[id, [modifier_id]] as const],
+    ),
   );

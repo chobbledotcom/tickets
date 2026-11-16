@@ -1,7 +1,7 @@
 /** The listings a group's "add listings" form can offer. */
 
-import { LISTING_ORDER_SQL, LISTING_ROW } from "#db/listings/select.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
+import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
+import { readRows } from "#db/read.ts";
 import { equal, notInQuery } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -21,7 +21,7 @@ export type GroupListingCandidate = SortableListing & {
   active: boolean;
 };
 
-const candidateColumns = rawListingsTable.read.pick([
+const CANDIDATE_COLUMNS = [
   "id",
   "name",
   "active",
@@ -36,7 +36,7 @@ const candidateColumns = rawListingsTable.read.pick([
   // three availability fields above — all inheritable, so the row carries the
   // inheritance flag and the site settings are applied before it is returned.
   "use_defaults",
-]);
+] as const;
 
 /**
  * Listings that are NOT already in the given group. Membership is many-to-many,
@@ -49,13 +49,11 @@ export const getListingsNotInGroup = async (
   const memberIds = from(tables.group_listings)
     .where((member) => equal(member.group_id, groupId))
     .values((member) => member.listing_id);
-  const rows = await candidateColumns.many(
-    {},
-    {
-      alias: "listing",
-      order: LISTING_ORDER_SQL.created_desc,
-      where: [notInQuery(LISTING_ROW.id, memberIds)],
-    },
+  const rows = await readRows(
+    from(tables.listings)
+      .where((listing) => notInQuery(listing.id, memberIds))
+      .orderBy(() => [LISTING_ORDER_SQL.created_desc])
+      .pick(...CANDIDATE_COLUMNS),
   );
   return rows.map((row) => {
     // The flag has done its job once the settings are applied; leaving it on the

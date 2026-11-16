@@ -119,7 +119,7 @@ const scopeLinksFor = async (
     };
   }
   if (modifier.scope === "groups") {
-    const allGroups = await groups.cache.getAll();
+    const allGroups = await groups.getAll();
     // Groups have no deactivated state, so every group option is active.
     return {
       kind: "groups",

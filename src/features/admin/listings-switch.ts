@@ -19,7 +19,8 @@ import {
   undatedBookingsForListing,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { rowValuesOf, updateRowStatement } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
@@ -127,10 +128,12 @@ export const probeAssignDates = async (
 ): Promise<boolean[]> => {
   try {
     return await withTransaction(async (tx) => {
-      // `updateStatement` is optional only on the façade type. The REST layer
-      // calls it the same way (see the record's write path).
       await tx.execute(
-        await listingsTable.updateStatement!(stored.id, wouldBe),
+        await updateRowStatement(
+          tables.listings,
+          stored.id,
+          rowValuesOf(tables.listings, wouldBe),
+        ),
       );
       const results = await tx.batch([
         dateVerdictsStatement(stored.id, quantity, dates, durationDays),

@@ -15,7 +15,7 @@ import {
   servicingHoldsListing,
   updateServicingEvent,
 } from "#db/attendees/servicing.ts";
-import { getAllListings, listingNames } from "#db/listings/records.ts";
+import { getAllListings, listingNamesByIds } from "#db/listings/records.ts";
 import { identity, map, mapById, unique } from "#fp";
 import { t } from "#i18n";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
@@ -91,7 +91,7 @@ const loadEditPage = async (
     getAllListings().then((all) => listingsForServicingEdit(all, event)),
     getServicingCosts(id),
   ]);
-  const costListingNames = await listingNames.byIds(
+  const costListingNames = await listingNamesByIds(
     unique(map((cost: ServicingCostRecord) => cost.listingId)(costs)),
   );
   return renderServicingPage({

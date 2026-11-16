@@ -13,7 +13,6 @@ import {
   listingParents,
 } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
 import {
   childOnlyAddOnNameWithScopes,
   childUnreachableAddOnError,
@@ -25,6 +24,8 @@ import {
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
 import { modifierGroups } from "#db/modifiers.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { once, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
@@ -38,9 +39,6 @@ type GuardRefusal = Promise<string | null>;
  * listing absent from the map keeps its current groups. */
 type WouldBeGroups = ReadonlyMap<number, readonly number[]>;
 
-const listingStateColumns = rawListingsTable.read.pick(["id", "active"]);
-const bookableAloneColumn = rawListingsTable.read.pick(["bookable_alone"]);
-
 /** Each listing's id and active flag. Inside a write transaction, the two
  * columns are read through it, because the cache can be stale there. */
 const listingStates = async (
@@ -48,9 +46,7 @@ const listingStates = async (
 ): Promise<{ active: boolean; id: number }[]> =>
   tx === undefined
     ? getAllListings()
-    : listingStateColumns.readAll(
-        resultRows(await tx.execute(listingStateColumns.statement())),
-      );
+    : resultRows(await tx.execute(from(tables.listings).pick("id", "active")));
 
 /** The listing set a guard judges, with the reads behind it: every
  * listing with its pending groups, the non-standalone child ids, and the
@@ -279,12 +275,10 @@ const isFlaggedChild = async ({
   existingId,
   tx,
 }: ListingSave): Promise<boolean> =>
-  (
-    await bookableAloneColumn.readAll(
-      resultRows(
-        await tx.execute(bookableAloneColumn.statement({ id: existingId })),
-      ),
-    )
+  resultRows(
+    await tx.execute(
+      from(tables.listings).where({ id: existingId }).pick("bookable_alone"),
+    ),
   ).some((row) => row.bookable_alone) &&
   (await listingParents.getIds(existingId, tx)).length > 0;
 

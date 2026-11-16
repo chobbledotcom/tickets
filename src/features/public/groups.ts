@@ -90,7 +90,7 @@ export const loadCartPackagesBySlugs = async (
   const noPackages = slugs.map(() => null);
   if (slugs.length === 0) return noPackages;
   const slugIndices = await Promise.all(slugs.map(hmacHash));
-  const bySlug = await groups.cache.getByKeys(slugIndices);
+  const bySlug = await groups.getByKeys(slugIndices);
   const packages = uniqueBy((group: Group) => group.id)(
     compact(bySlug).filter((group) => group.is_package),
   );

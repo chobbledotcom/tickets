@@ -129,8 +129,10 @@ export type BenchmarkCatalogueIds = {
  * Dynamic imports: nothing may read the environment before main sets it. */
 export const seedBenchmarkCatalogue =
   async (): Promise<BenchmarkCatalogueIds> => {
-    const { groups, setListingGroups } = await import("#db/groups.ts");
-    const { listingsTable } = await import("#db/listings/records.ts");
+    const { newGroupValues, setListingGroups } = await import("#db/groups.ts");
+    const { createListing } = await import("#db/listings/records.ts");
+    const { insertRow } = await import("#db/record-table.ts");
+    const { tables } = await import("#db/select/tables.ts");
     const { hmacHash } = await import("#crypto/hashing.ts");
 
     const groupIds = new Map<number, number>();
@@ -141,14 +143,17 @@ export const seedBenchmarkCatalogue =
     ): Promise<void> => {
       const kind = isPackage ? "package" : "group";
       const slug = `benchmark-${kind}-${number}`;
-      const group = await groups.table.insert({
-        isPackage,
-        name: benchmarkGroupName(number, isPackage),
-        slug,
-        slugIndex: await hmacHash(slug),
-      });
+      const group = await insertRow(
+        tables.groups,
+        newGroupValues({
+          isPackage,
+          name: benchmarkGroupName(number, isPackage),
+          slug,
+          slugIndex: await hmacHash(slug),
+        }),
+      );
       const listingSlug = `benchmark-listing-${number}`;
-      const listing = await listingsTable.insert({
+      const listing = await createListing({
         maxAttendees: 100,
         maxPrice: 0,
         name: benchmarkListingName(number),

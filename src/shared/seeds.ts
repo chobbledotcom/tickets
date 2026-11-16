@@ -5,6 +5,7 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { buildAttendeeInsert } from "#db/attendees/create.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
@@ -47,8 +48,10 @@ const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
 /** Generate slugs that are unique within the batch. The slugs made so far are
  * the only "already taken" list — nothing is in the database yet. */
-const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
-  const results: SlugWithIndex[] = [];
+const generateUniqueSlugs = async (
+  count: number,
+): Promise<SlugWithIndex<BlindIndex>[]> => {
+  const results: SlugWithIndex<BlindIndex>[] = [];
   for (const _slot of range(0, count)) {
     results.push(
       await generateUniqueSlug(hmacHash, (slug) =>
@@ -73,7 +76,7 @@ const prepareListing = async (
   maxAttendees: number,
   unitPrice: number,
   slug: string,
-  slugIndex: string,
+  slugIndex: BlindIndex,
   customisable: boolean,
 ) => {
   const name = DEMO_LISTING_NAMES[index % DEMO_LISTING_NAMES.length]!;

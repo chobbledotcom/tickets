@@ -20,11 +20,8 @@ import {
 import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import {
-  getListingWithCount,
-  isSlugTaken,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { getListingWithCount, isSlugTaken } from "#db/listings/records.ts";
+import { updateRowStatement } from "#db/record-table.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
@@ -47,7 +44,11 @@ import {
   planInGroupError,
   planRuleError,
 } from "#shared/package-membership.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
+import { transferValues } from "#shared/rest/field-reads.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
@@ -378,8 +379,7 @@ export const performListingDelete = async (
 /**
  * Build an `ListingInput` from an existing listing, with optional overrides.
  *
- * Uses the table's `rowToInput` to carry every column across — no manual
- * snake_case→camelCase translation. A fresh unique slug is generated so
+ * Carries every declared field across under its input name. A fresh unique slug is generated so
  * the returned input is safe to insert. Attachment URLs are cleared because
  * they reference files owned by the source listing.
  * Callers can override any field (e.g. `name`, `date`, `groupId`) via
@@ -389,11 +389,13 @@ export const buildDuplicateListingInput = async (
   source: Listing,
   overrides: Partial<ListingInput> = {},
 ): Promise<ListingInput> => ({
-  ...(listingsTable.rowToInput(source, ["created"]) as ListingInput),
-  // `day_prices` isn't a physical column (it projects from listing_prices), so
-  // rowToInput can't carry it — pass the source's day prices through explicitly
-  // so a duplicate keeps its per-day-count pricing (the write path persists it as
-  // day_count rows). An override may still replace it.
+  // The declared fields of a stored listing are the fields of its input.
+  ...(transferValues(LISTING_FIELDS, source) as Partial<ListingInput>),
+  maxAttendees: source.max_attendees,
+  maxPrice: source.max_price,
+  name: source.name,
+  // An empty day-price map is left out of the transfer values, so the source's
+  // day prices pass through here. An override may still replace them.
   dayPrices: source.day_prices,
   ...(await generateUniqueListingSlug()),
   attachmentName: "",
@@ -456,12 +458,10 @@ export const toggleListingActive = async (
         );
         if (refusal !== null) return { error: refusal };
       }
-      // Every table on the transactional write path carries updateStatement
-      // (see the record's write path), so the toggle's row write joins the
-      // guard's tx. The price mirror and the activity log join it too: a
+      // The toggle's row write joins the guard's tx. The price mirror and the activity log join it too: a
       // failure in either rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
-        await listingsTable.updateStatement!(listingId, { active }),
+        await updateRowStatement(tables.listings, listingId, { active }),
       );
       await syncListingPrices(listingId, tx);
       const verb = active ? "reactivated" : "deactivated";

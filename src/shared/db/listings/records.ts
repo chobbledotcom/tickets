@@ -1,31 +1,46 @@
 /** Cache-aware listing records, CRUD, and basic reads. */
 
 import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { executeBatch, queryOnePrimary } from "#db/client.ts";
-import { cachedEntityTable } from "#db/common-schema.ts";
-import { getImageFilenamesForItem } from "#db/images.ts";
+import { getImageFilenamesForItem, openItemImages } from "#db/images.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
 import {
   dayCountPriceStatements,
   getListingDayPrices,
 } from "#db/listing-prices.ts";
-import { LISTINGS_IN_ID_ORDER } from "#db/listings/table.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
-import { envNameSource } from "#db/query.ts";
+import { readRows } from "#db/read.ts";
+import {
+  insertRow,
+  type NewRecord,
+  newRowValuesOf,
+  rowValuesOf,
+  updateRow,
+} from "#db/record-table.ts";
+import { from } from "#db/select/query.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import { byId, mapParallel } from "#fp";
+import { tableCache } from "#db/table-cache.ts";
+import { byId, fieldById, mapParallel } from "#fp";
 import {
   resolveListingDate,
   resolveListingDefaults,
 } from "#shared/listing-defaults.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type {
-  DayPrices,
-  ItemImageColumns,
-  Listing,
-  ListingWithCount,
+import { defineStoredJson } from "#shared/validation/stored-json.ts";
+import {
+  type DayPrices,
+  DayPricesSchema,
+  type ItemImageColumns,
+  type Listing,
+  type ListingWithCount,
 } from "#types";
 import {
   getListingRows,
@@ -33,21 +48,32 @@ import {
   type ListingWhere,
   listingReader,
 } from "./select.ts";
-import { listingOptionColumns, rawListingsTable } from "./table.ts";
 
-const decryptStoredListingWithCount = async (
-  row: ListingRecordRow,
-): Promise<ListingWithCount> => {
-  const listing = await rawListingsTable.fromDb(row);
-  const income = Number(row.income);
-  const cost = Number(row.cost);
+const dayPricesJson = defineStoredJson(DayPricesSchema);
+
+/** Open the projected values of a listing read and work out its profit. */
+const decryptStoredListingWithCount = async ({
+  cost,
+  day_prices,
+  image_alt_text,
+  image_thumb_url,
+  image_url,
+  income,
+  ...stored
+}: ListingRecordRow): Promise<ListingWithCount> => {
+  const incomeAmount = Number(income);
+  const costAmount = Number(cost);
   return {
-    ...listing,
-    attendee_count: row.attendee_count,
-    cost,
-    income,
-    profit: income - cost,
-    tickets_count: Number(row.tickets_count),
+    ...stored,
+    ...(await openItemImages(
+      { image_alt_text, image_thumb_url, image_url },
+      `listing ${stored.id}`,
+    )),
+    cost: costAmount,
+    day_prices: dayPricesJson.read(day_prices, "listings.day_prices"),
+    income: incomeAmount,
+    profit: incomeAmount - costAmount,
+    tickets_count: Number(stored.tickets_count),
   };
 };
 
@@ -86,22 +112,18 @@ const getListingsWithCounts = async (
 };
 
 const LISTINGS_CACHE_TTL_MS = 30_000;
-const listingsEntity = cachedEntityTable<
-  Listing,
-  ListingInput,
-  ListingWithCount
->(
-  "listings",
-  rawListingsTable,
-  {
+const listingsCache = tableCache(
+  tables.listings,
+  createKeyedCache<ListingWithCount>({
     fetchAll: () => getListingsWithCounts({}),
     fetchByIds: (ids) => getListingsWithCounts({ ids: [...ids] }),
+    // The cache keys each listing by its slug index.
     fetchByKeys: (slugIndexes) =>
-      getListingsWithCounts({ slugIndexes: [...slugIndexes] }),
+      getListingsWithCounts({ slugIndexes: slugIndexes as BlindIndex[] }),
     idOf: (listing) => listing.id,
     keyOf: (listing) => listing.slug_index,
     ttlMs: LISTINGS_CACHE_TTL_MS,
-  },
+  }),
   [
     {
       table: "listing_attendees",
@@ -113,8 +135,6 @@ const listingsEntity = cachedEntityTable<
     { table: "images" },
   ],
 );
-const listingsCache = listingsEntity.cache;
-const rawTable = listingsEntity.table;
 const EMPTY_LISTING_IMAGE: ItemImageColumns = {
   image_alt_text: "",
   image_thumb_url: "",
@@ -122,7 +142,7 @@ const EMPTY_LISTING_IMAGE: ItemImageColumns = {
 };
 
 const withDayPrices = async (
-  row: Listing,
+  row: DecodedRowOf<"listings">,
   provided: DayPrices | undefined,
   projectedImage?: ItemImageColumns,
 ): Promise<Listing> => {
@@ -133,24 +153,37 @@ const withDayPrices = async (
   return { ...row, ...imageFilenames, day_prices };
 };
 
-/** Listing CRUD with cache invalidation and listing-price synchronization. */
-export const listingsTable: typeof rawTable = {
-  ...rawTable,
-  insert: async (input) => {
-    const row = await rawTable.insert(input);
-    await syncListingPrices(row.id);
+/** The values of a new listing from the form input: each field the input
+ * leaves out takes its declared default. */
+export const newListingValues = (input: ListingInput): NewRecord<"listings"> =>
+  // The listing rule checked that the input names every required field.
+  newRowValuesOf(tables.listings, input, LISTING_FIELDS) as NewRecord<"listings">;
+
+/** Store a new listing, then sync its prices. */
+export const createListing = async (input: ListingInput): Promise<Listing> => {
+  const row = await insertRow(tables.listings, newListingValues(input));
+  await syncListingPrices(row.id);
+  await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
+  return withDayPrices(row, input.dayPrices, EMPTY_LISTING_IMAGE);
+};
+
+/** Change the fields of a listing that `input` names, then sync its prices.
+ * Null when there is no such listing. */
+export const updateListing = async (
+  id: number,
+  input: Partial<ListingInput>,
+): Promise<Listing | null> => {
+  const row = await updateRow(
+    tables.listings,
+    id,
+    rowValuesOf(tables.listings, input),
+  );
+  if (!row) return null;
+  await syncListingPrices(row.id);
+  if (input.dayPrices !== undefined) {
     await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
-    return withDayPrices(row, input.dayPrices, EMPTY_LISTING_IMAGE);
-  },
-  update: async (id, input) => {
-    const row = await rawTable.update(id, input);
-    if (!row) return null;
-    await syncListingPrices(row.id);
-    if (input.dayPrices !== undefined) {
-      await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
-    }
-    return withDayPrices(row, input.dayPrices);
-  },
+  }
+  return withDayPrices(row, input.dayPrices);
 };
 
 /** Check whether a slug is already used, optionally excluding one listing. */
@@ -168,12 +201,18 @@ export const getListingsById = async (): Promise<
   Map<number, ListingWithCount>
 > => byId(await getAllListings());
 
-/** Read the narrow listing option projection used by item pickers. */
-export const getAllListingOptions =
-  listingOptionColumns.every(LISTINGS_IN_ID_ORDER);
-
-/** Read and decrypt listing names without loading full records. */
-export const listingNames = envNameSource("listings", "listing");
+/** Read and decrypt the names of these listings without loading full
+ * records. */
+export const listingNamesByIds = async (
+  ids: readonly number[],
+): Promise<Map<number, string>> =>
+  fieldById("name")(
+    await readRows(
+      from(tables.listings)
+        .where({ id: [...ids] })
+        .pick("id", "name"),
+    ),
+  );
 
 /** Read required listings in input order through the shared cache path. */
 export const requireListingsWithCountsByIds = async (

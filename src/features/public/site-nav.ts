@@ -56,7 +56,7 @@ const resolveTargets = async (
     getListingsWithCountsByIds(listingIds),
     // No group leaf renders, no group row is read: the all-groups read exists
     // only to answer the group leaves' liveness.
-    groupIds.length > 0 ? groups.cache.getAll() : Promise.resolve([]),
+    groupIds.length > 0 ? groups.getAll() : Promise.resolve([]),
   ]);
   const referenced = compact(referencedRows);
   const referencedGroups = allGroups.filter((group) =>

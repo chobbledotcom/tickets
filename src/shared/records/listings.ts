@@ -9,14 +9,17 @@ import {
   getAllListings,
   getListingWithCount,
   getListingWithCountPrimary,
-  listingsTable,
 } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   refuseUndatedListingSwitch,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordRule, RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
@@ -58,5 +61,6 @@ export const listingRecord = defineNamedRowRecord<
   logAfterCommit: true,
   rule: listingRule,
   surface: { deleteDestination: "listingDelete", list: "listings" },
-  table: listingsTable,
+  fieldDefaults: LISTING_FIELDS,
+  table: tables.listings,
 });
