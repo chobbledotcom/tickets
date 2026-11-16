@@ -152,8 +152,11 @@ Each booking path refuses an order with a subscription ticket that cannot
 start a Stripe subscription:
 
 - a site with no payment provider, or with a provider other than Stripe
-- a deposit
 - an order with nothing to pay today
+
+A deposit applies to the first payment only. The buyer pays the deposit today
+and owes the balance of the first payment, as with an ordinary ticket. The
+recurring charge is always the full recurring price.
 
 The public form, direct QR checkout, API booking, and folded API booking all
 use `subscriptionOrderError`.
