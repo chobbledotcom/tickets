@@ -28,6 +28,7 @@ import {
   type StripeCheckoutSession,
   StripeCheckoutSessionSchema,
 } from "#shared/stripe/schemas.ts";
+import { subscriptionStartOf } from "#shared/stripe/subscription.ts";
 import { verifyWebhookSignature } from "#shared/stripe/webhook.ts";
 import {
   isoFromUnixSeconds,
@@ -40,18 +41,49 @@ type StripeCheckoutCompletedEvent = Pick<
   "data" | "id" | "type"
 >;
 
-const toValidatedSession = (
+/** The resource of a read the completion cannot go without. A refused read
+ * stops the callback, so the provider asks again. */
+const foundOrThrow = <Resource>(
+  read: ProviderRead<Resource>,
+  name: string,
+): Resource => {
+  if (read.status === "found") return read.resource;
+  throw new Error(`Stripe ${name} could not be read: ${JSON.stringify(read)}`);
+};
+
+/** The charge a session paid with. A subscription-mode session names no
+ * payment intent of its own. The intent that paid the session's own first
+ * invoice is the charge, so a later renewal can never stand in for it. */
+const sessionCharge = async (
   session: StripeCheckoutSession,
-): RetrieveSessionResult => {
-  const {
-    amount_total,
-    currency,
-    id,
-    metadata,
-    payment_intent,
-    payment_status,
-    status,
-  } = session;
+): Promise<
+  Pick<ValidatedSessionFields, "paymentReference" | "subscription">
+> => {
+  if (session.mode !== "subscription" || session.subscription === null) {
+    return { paymentReference: session.payment_intent ?? "" };
+  }
+  const invoiceId = session.invoice;
+  if (invoiceId === null) {
+    throw new Error(`Stripe session ${session.id} names no first invoice`);
+  }
+  const [subscription, invoice] = await Promise.all([
+    stripeApi.readSubscription(session.subscription),
+    stripeApi.readInvoicePayments(invoiceId),
+  ]);
+  const { paymentReference, start } = subscriptionStartOf(
+    foundOrThrow(subscription, `subscription ${session.subscription}`),
+    foundOrThrow(invoice, `invoice ${invoiceId}`),
+  );
+  return { paymentReference, subscription: start };
+};
+
+type ValidatedSessionFields = Parameters<typeof validatedPaymentSession>[0];
+
+const toValidatedSession = async (
+  session: StripeCheckoutSession,
+): Promise<RetrieveSessionResult> => {
+  const { amount_total, currency, id, metadata, payment_status, status } =
+    session;
   if (!hasRequiredSessionMetadata(metadata)) return null;
   return validatedPaymentSession({
     amountTotal: amount_total,
@@ -59,7 +91,7 @@ const toValidatedSession = (
     currency,
     id,
     metadata,
-    paymentReference: payment_intent ?? "",
+    ...(await sessionCharge(session)),
     // An expired session cannot take payment again, so a buyer returning to
     // one gets the cancel page with its try-again link, not the waiting page.
     paymentStatus: status === "expired" ? "failed" : payment_status,
@@ -126,7 +158,7 @@ export const stripePaymentProvider: PaymentProvider = {
     if (typeof id !== "string" || id.length === 0) return null;
 
     const session = v.parse(StripeCheckoutSessionSchema, obj);
-    const validated = toValidatedSession(session);
+    const validated = await toValidatedSession(session);
     return validated === null ? await this.retrieveSession(id) : validated;
   },
 

@@ -1,102 +1,130 @@
 /**
- * Admin JSON API routes for the image library. The dashboard's image pages
- * admit every content admin (owner, manager, editor), so the JSON API matches
- * (CONTENT_API).
+ * Admin JSON API routes for the image library. The audience and the write
+ * path come from the image record. This module translates the wire body: a
+ * base64 create and an item-link update. It also preserves the manager
+ * refusals that depend on the actor.
  *
  * The create carries the picture itself as base64 text, because the admin API
- * has one body mode. The upload runs the form's own validation, transcode, and
- * record write through the shared helpers.
+ * has one body mode. The record's upload boundary stores the files and writes
+ * the row.
  */
 
-import { type TxScope, withTransaction } from "#db/client.ts";
 import {
-  deleteImageRecord,
-  getAllImages,
-  getImageById,
-  getImageUsesForImage,
   getImageUsesForImageOnPrimary,
   getImageUsesForImages,
   type ImageUseTarget,
   imageUseTargets,
-  missingImageUseTargets,
-  setItemsForImage,
-  updateImageRecord,
 } from "#db/images.ts";
-import { refuseTheWriteOn } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
-import { CONTENT_API, withAuth } from "#routes/auth.ts";
+import type { AuthPolicy } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
-import {
-  CreateImageBodySchema,
-  UpdateImageBodySchema,
-} from "#shared/admin-api-images.ts";
+import { UpdateImageBodySchema } from "#shared/admin-api-images.ts";
 import {
   ADMIN_API_RESOURCES,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { logImageAction } from "#shared/images/activity.ts";
 import {
-  byNameThenUpload,
   isSiteContentImageType,
-  siteContentBlocksManager,
+  whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
-import { sortByName } from "#shared/name-order.ts";
 import {
-  apiEntityGate,
-  type EntityHandler,
+  type ImageMetadata,
+  type ImageWriteInput,
+  imageMetadataOrError,
+  imageRecord,
+  uploadImageFiles,
+} from "#shared/records/images.ts";
+import type {
+  HydratedRows,
+  WriteBody,
+  WriteMapper,
+} from "#shared/rest/crud-api-types.ts";
+import {
+  answerParsed,
   parseApiBody,
   withApiEntity,
 } from "#shared/rest/crud-parsers.ts";
-import { transactionValidationMessageOrRethrow } from "#shared/rest/write-error.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
+import {
+  recordApi,
+  recordJsonDeletePolicy,
+  recordJsonPolicy,
+} from "#shared/rest/record-api.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import { deleteImageStorageFilesStrict } from "#shared/storage-cleanup.ts";
 import {
   type AdminLevel,
+  type AdminSession,
   type Image,
   type ImageUse,
   type ImageUseItemType,
   isSiteRole,
 } from "#types";
-import {
-  type ImageFile,
-  type ImageMetadata,
-  imageMetadata,
-  storeImage,
-} from "./image-upload.ts";
 
 const ENTRY = ADMIN_API_RESOURCES.images;
-const RESPONSE_KEY = "image";
-const ROOT = `/api/admin/${ENTRY.path}`;
-const BY_ID = `${ROOT}/:${adminApiIdParam(ENTRY.label)}`;
+const ID_PARAM = adminApiIdParam(ENTRY.label);
 
-/** One link as an update body spells it, after the schema proves its shape. */
-type SubmittedLink = {
-  item_id: number;
-  item_type: ImageUseItemType;
-};
+type ImageEntry = typeof ADMIN_API_RESOURCES.images;
 
-/** One image as every image endpoint answers with it. */
-const toImageRow = (
-  image: Image,
-  uses: readonly ImageUse[],
-): Record<string, unknown> => ({
-  alt_text: image.alt_text,
-  id: image.id,
-  items: uses.map((use) => ({
-    item_id: use.item_id,
-    item_type: use.item_type,
-  })),
-  name: image.name,
+/** The links a row carries, as every image endpoint answers with them. */
+const imageItems = (uses: readonly ImageUse[]) =>
+  uses.map(({ item_id: itemId, item_type: itemType }) => ({
+    item_id: itemId,
+    item_type: itemType,
+  }));
+
+/** The two proxy URLs a row carries. */
+const imageUrls = (image: Image) => ({
   thumb_url: getImageProxyUrl(image.filename_thumb),
   url: getImageProxyUrl(image.filename),
 });
 
-// ─── Body parsing ───────────────────────────────────────────────
+/** The row an image endpoint answers with. */
+type ImageResponseRow = (
+  image: Image,
+  uses: readonly ImageUse[],
+) => Record<string, unknown>;
+
+/** One image as every image endpoint answers with it. */
+const toImageRow: ImageResponseRow = (image, uses) => ({
+  alt_text: image.alt_text,
+  id: image.id,
+  items: imageItems(uses),
+  name: image.name,
+  ...imageUrls(image),
+});
+
+/** The row's hydrated fields: the links and the two proxy URLs. */
+const imageExtras: ImageResponseRow = (image, uses) => ({
+  items: imageItems(uses),
+  ...imageUrls(image),
+});
+
+const hydrateImages = async (rows: Image[]): Promise<HydratedRows> => {
+  const usesById = await getImageUsesForImages(rows.map(({ id }) => id));
+  return new Map(
+    rows.map((row) => [row.id, imageExtras(row, usesById.get(row.id) ?? [])]),
+  );
+};
+
+/** The rows a write answered, hydrated from the primary: a write's answer must
+ *  show the links it just stored, not a lagging replica's. */
+const hydrateImageAfterWrite = async (rows: Image[]): Promise<HydratedRows> => {
+  const extras = await Promise.all(
+    rows.map(async (row) => {
+      const uses = await getImageUsesForImageOnPrimary(row.id);
+      return [row.id, imageExtras(row, uses)] as const;
+    }),
+  );
+  return new Map(extras);
+};
+
+// ─── Body mapping ──────────────────────────────────────────────
 
 /** The bytes a base64 body names. A value that is not base64 text is a bad
  *  request, so the decoder's throw becomes a refusal here. */
@@ -108,76 +136,56 @@ const base64Bytes = (text: string): Result<Uint8Array> => {
   }
 };
 
-/** The metadata and file one create body names. */
-const createImageInput = (
-  body: Record<string, unknown>,
-): Result<{ file: ImageFile; metadata: ImageMetadata }> => {
-  const parsed = parseApiBody(CreateImageBodySchema, body);
-  if (!parsed.ok) return parsed;
-  const name = parsed.value.name;
-  const altText = parsed.value.alt_text ?? "";
-  const metadata = imageMetadata(name, altText);
+/** The upload and the record one create body names. The files go up at the
+ *  door because the wire carries bytes, not a form. The record then inserts
+ *  the row and logs it. */
+const toCreateInput: WriteMapper<
+  ImageWriteInput,
+  WriteBody<ImageEntry["createBodySchema"]>,
+  null
+> = async (body) => {
+  const metadata = imageMetadataOrError(body.name, body.alt_text ?? "");
   if (!metadata.ok) return metadata;
-  const bytes = base64Bytes(parsed.value.file);
+  const bytes = base64Bytes(body.file);
   if (!bytes.ok) return bytes;
+  const filenames = await uploadImageFiles({
+    bytes: bytes.value,
+    contentType: body.content_type,
+  });
+  if (!filenames.ok) return filenames;
+  return okResult({ ...metadata.value, ...filenames.value });
+};
+
+/** The input an update maps: its metadata is always complete, because the
+ *  metadata check fills the alt text it read. */
+type ImageUpdateInput = ImageWriteInput & { altText: string };
+
+/** One update's metadata and links. An absent field keeps the stored value,
+ *  and an absent `items` leaves the stored links alone (null). */
+const toUpdateInput: WriteMapper<
+  ImageUpdateInput,
+  WriteBody<ImageEntry["updateBodySchema"]>,
+  Image
+> = (body, existing) => {
+  const metadata = imageMetadataOrError(
+    body.name ?? existing.name,
+    body.alt_text ?? existing.alt_text,
+  );
+  if (!metadata.ok) return metadata;
   return okResult({
-    file: { bytes: bytes.value, contentType: parsed.value.content_type },
-    metadata: metadata.value,
+    ...metadata.value,
+    filename: existing.filename,
+    filenameThumb: existing.filename_thumb,
+    items:
+      body.items === undefined
+        ? null
+        : body.items.map(({ item_id: itemId, item_type: itemType }) =>
+            imageUseTargets.of(itemType)(itemId),
+          ),
   });
 };
 
-/** The links one update body names. A manager never links an image to a news
- *  post or a page, because those surfaces belong to the Site roles. That
- *  refusal answers a forbidden one. */
-const submittedLinks = (
-  items: readonly SubmittedLink[],
-  adminLevel: AdminLevel,
-): { links: ImageUseTarget[] } | { refusal: Response } => {
-  const links: ImageUseTarget[] = [];
-  for (const { item_id: itemId, item_type: itemType } of items) {
-    if (!isSiteRole(adminLevel) && isSiteContentImageType(itemType)) {
-      return {
-        refusal: apiErrorResponse(t("images.news_target_gated"), 403),
-      };
-    }
-    links.push(imageUseTargets.of(itemType)(itemId));
-  }
-  return { links };
-};
-
-/** The fields one update body writes: its metadata and the links that replace
- *  the stored ones (null leaves them alone). */
-type ImageUpdate = {
-  items: ImageUseTarget[] | null;
-  metadata: ImageMetadata;
-};
-
-/** What one update's body parsing answers: the fields to write, or the
- *  response that refuses the body. */
-type UpdateParse = { refusal: Response } | { update: ImageUpdate };
-
-/** One update's metadata and links. An absent field keeps the stored value,
- *  and an absent `items` leaves the stored links alone. */
-const updateImageInput = (
-  image: Image,
-  body: Record<string, unknown>,
-  adminLevel: AdminLevel,
-): UpdateParse => {
-  const parsed = parseApiBody(UpdateImageBodySchema, body);
-  if (!parsed.ok) return { refusal: apiErrorResponse(parsed.error) };
-  const { alt_text: altText, items, name } = parsed.value;
-  const metadata = imageMetadata(name ?? image.name, altText ?? image.alt_text);
-  if (!metadata.ok) return { refusal: apiErrorResponse(metadata.error) };
-  if (items === undefined) {
-    return { update: { items: null, metadata: metadata.value } };
-  }
-  const links = submittedLinks(items, adminLevel);
-  return "refusal" in links
-    ? links
-    : { update: { items: links.links, metadata: metadata.value } };
-};
-
-// ─── Handlers ──────────────────────────────────────────────────
+// ─── Manager refusals ──────────────────────────────────────────
 
 /** A manager cannot change or remove an image that a news post or a page
  *  shows. Its name, its alt text, and its presence all render there. */
@@ -185,130 +193,89 @@ const siteContentRefusal = async (
   adminLevel: AdminLevel,
   imageId: number,
 ): Promise<Response | null> =>
-  (await siteContentBlocksManager(adminLevel, imageId))
-    ? apiErrorResponse(t("images.news_gated"), 403)
+  whenSiteContentBlocksManager(
+    adminLevel,
+    imageId,
+    apiErrorResponse(t("images.news_gated"), 403),
+  );
+
+/** A manager never links an image to a news post or a page, because those
+ *  surfaces belong to the Site roles. */
+const submittedLinkRefusal = (
+  items: readonly { item_type: ImageUseItemType }[] | undefined,
+  adminLevel: AdminLevel,
+): Response | null =>
+  items !== undefined &&
+  !isSiteRole(adminLevel) &&
+  items.some(({ item_type: itemType }) => isSiteContentImageType(itemType))
+    ? apiErrorResponse(t("images.news_target_gated"), 403)
     : null;
 
-const handleList: RouteHandlerFn = (request) =>
-  withAuth(request, CONTENT_API, async () => {
-    const images = sortByName(await getAllImages(), byNameThenUpload);
-    const usesById = await getImageUsesForImages(images.map(({ id }) => id));
-    return jsonResponse({
-      [ENTRY.path]: images.map((image) =>
-        toImageRow(image, usesById.get(image.id) ?? []),
-      ),
-    });
-  });
+// ─── Handlers ──────────────────────────────────────────────────
 
-const imageGate = apiEntityGate(getImageById, ENTRY.label, CONTENT_API);
+/** The update page's audience, and the roles its JSON route admits. */
+const updatePolicy = recordJsonPolicy(imageRecord);
 
-const handleGet: RouteHandlerFn = (request, params) =>
-  imageGate(request, params.imageId as number, async (image) =>
-    jsonResponse({
-      [RESPONSE_KEY]: toImageRow(image, await getImageUsesForImage(image.id)),
-    }),
-  );
+/** The delete page's destination gives the delete route its audience. */
+const deletePolicy = recordJsonDeletePolicy(imageRecord);
 
-const handleCreate: RouteHandlerFn = (request) =>
-  withAuth(request, CONTENT_API, async (_session, body) => {
-    const input = createImageInput(body);
-    if (!input.ok) return apiErrorResponse(input.error);
-    const stored = await storeImage(input.value.metadata, input.value.file);
-    if (!stored.ok) return apiErrorResponse(stored.error);
-    await logImageAction("uploaded", stored.value.name);
-    return jsonResponse({ [RESPONSE_KEY]: toImageRow(stored.value, []) }, 201);
-  });
-
-/** What one update's transaction answers: the row it wrote, a row deleted
- *  before the commit, or the link refusal. */
-type UpdateTxOutcome =
-  | { conflict: string }
-  | { notFound: true }
-  | { row: Image };
-
-/** The row write and its links commit together. A link that names no stored
- *  record refuses the whole write, so the image keeps the fields and links it
- *  had. */
-const updateInTransaction = async (
-  tx: TxScope,
-  image: Image,
-  input: ImageUpdate,
-): Promise<UpdateTxOutcome> => {
-  const missing = await missingImageUseTargets(tx, input.items ?? []);
-  refuseTheWriteOn(
-    missing.length === 0
-      ? null
-      : `items must name existing records: ${missing
-          .map(imageUseTargets.key)
-          .join(", ")}`,
-  );
-  const row = await updateImageRecord(
-    image.id,
-    { altText: input.metadata.altText, name: input.metadata.name },
-    tx,
-  );
-  if (row === null) return { notFound: true };
-  if (input.items !== null) await setItemsForImage(image.id, input.items, tx);
-  return { row };
-};
-
-/** What one update answers: the row it wrote, or the response that refuses
- *  it. */
-type UpdateOutcome = { refusal: Response } | { row: Image };
-
-export const writeImageUpdate = async (
-  image: Image,
-  input: ImageUpdate,
-): Promise<UpdateOutcome> => {
-  const outcome = await withTransaction((tx) =>
-    updateInTransaction(tx, image, input),
-  ).catch((error) => ({
-    conflict: transactionValidationMessageOrRethrow(error),
-  }));
-  if ("conflict" in outcome) {
-    return { refusal: apiErrorResponse(outcome.conflict) };
-  }
-  if ("notFound" in outcome) {
-    return { refusal: apiErrorResponse(`${ENTRY.label} not found`, 404) };
-  }
-  return { row: outcome.row };
-};
-
-/** One id-addressed write: load the image, then refuse it to a manager when a
- *  news post or a page shows it. */
-const withWritableImage =
-  (handler: EntityHandler<Image>): RouteHandlerFn =>
+/** The shared gate for one image write: load the row, then refuse a Site
+ *  content image to a role that cannot edit the Site surfaces. */
+const withImageWrite =
+  (
+    handler: (
+      image: Image,
+      session: AdminSession,
+      body: Record<string, unknown>,
+    ) => Promise<Response>,
+    policy: AuthPolicy<"json">,
+  ): RouteHandlerFn =>
   (request, params) =>
     withApiEntity(
       request,
-      getImageById,
-      params.imageId as number,
+      (id, session) => imageRecord.load(id, { session }),
+      params[ID_PARAM] as number,
       ENTRY.label,
       async (image, session, body) => {
         const blocked = await siteContentRefusal(session.adminLevel, image.id);
         return blocked ?? handler(image, session, body);
       },
-      CONTENT_API,
+      policy,
     );
 
-const handleUpdate: RouteHandlerFn = withWritableImage(
-  async (image, session, body) => {
-    const input = updateImageInput(image, body, session.adminLevel);
-    if ("refusal" in input) return input.refusal;
-    const outcome = await writeImageUpdate(image, input.update);
-    if ("refusal" in outcome) return outcome.refusal;
-    await logImageAction("updated", outcome.row.name);
-    return jsonResponse({
-      [RESPONSE_KEY]: toImageRow(
-        outcome.row,
-        await getImageUsesForImageOnPrimary(outcome.row.id),
-      ),
-    });
-  },
+const handleUpdate: RouteHandlerFn = withImageWrite(
+  async (existing, session, body) =>
+    answerParsed(
+      parseApiBody(UpdateImageBodySchema, body),
+      async (parsedValue) => {
+        const input = await toUpdateInput(parsedValue, existing);
+        if (!input.ok) return apiErrorResponse(input.error);
+        const linkRefusal = submittedLinkRefusal(
+          parsedValue.items,
+          session.adminLevel,
+        );
+        if (linkRefusal !== null) return linkRefusal;
+        const outcome = await writeImageUpdate(existing, {
+          items: input.value.items ?? null,
+          metadata: {
+            altText: input.value.altText,
+            name: input.value.name,
+          },
+        });
+        if ("refusal" in outcome) return outcome.refusal;
+        return jsonResponse({
+          image: toImageRow(
+            outcome.row,
+            await getImageUsesForImageOnPrimary(outcome.row.id),
+          ),
+        });
+      },
+    ),
+  updatePolicy,
 );
 
-const handleDelete: RouteHandlerFn = withWritableImage(
-  async (image, _s, body) => {
+const handleDelete: RouteHandlerFn = withImageWrite(
+  async (image, _session, body) => {
     const mismatch = verifyIdentifierOrJsonError(
       image.name,
       body.confirm_identifier,
@@ -325,16 +292,49 @@ const handleDelete: RouteHandlerFn = withWritableImage(
     } catch {
       return apiErrorResponse(t("images.delete.storage_failed"), 500);
     }
-    await deleteImageRecord(image.id);
-    await logImageAction("deleted", image.name);
-    return jsonResponse({ status: "ok" });
+    const verdict = await imageRecord.remove(image.id);
+    if (verdict.kind === "deleted") return jsonResponse({ status: "ok" });
+    return apiErrorResponse(`${ENTRY.label} not found`, 404);
   },
+  deletePolicy,
 );
 
-export const imageApiRoutes: Record<string, RouteHandlerFn> = {
-  [`DELETE ${BY_ID}`]: handleDelete,
-  [`GET ${ROOT}`]: handleList,
-  [`GET ${BY_ID}`]: handleGet,
-  [`POST ${ROOT}`]: handleCreate,
-  [`PUT ${BY_ID}`]: handleUpdate,
+/** What the update transaction module answers the page's direct callers:
+ *  the row it wrote, or the response that refuses it. */
+type ImageUpdate = {
+  items: ImageUseTarget[] | null;
+  metadata: ImageMetadata;
 };
+
+type UpdateOutcome = { refusal: Response } | { row: Image };
+
+export const writeImageUpdate = async (
+  image: Image,
+  input: ImageUpdate,
+): Promise<UpdateOutcome> => {
+  const verdict = await imageRecord.update(image.id, {
+    ...input.metadata,
+    filename: image.filename,
+    filenameThumb: image.filename_thumb,
+    items: input.items,
+  });
+  if (verdict.kind === "refused") {
+    return { refusal: apiErrorResponse(verdict.message) };
+  }
+  if (verdict.kind === "not-found") {
+    return { refusal: apiErrorResponse(`${ENTRY.label} not found`, 404) };
+  }
+  return { row: verdict.row };
+};
+
+export const imageApiRoutes: Record<string, RouteHandlerFn> = recordApi<
+  typeof ADMIN_API_RESOURCES.images,
+  RecordShapeOf<Image, ImageWriteInput>
+>(imageRecord, {
+  hydrate: hydrateImages,
+  hydrateAfterWrite: hydrateImageAfterWrite,
+  overrides: { delete: handleDelete, update: handleUpdate },
+  stripKeys: ["filename", "filename_thumb"],
+  toCreateInput,
+  toUpdateInput,
+});

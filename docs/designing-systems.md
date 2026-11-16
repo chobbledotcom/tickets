@@ -38,12 +38,14 @@ mechanisms to copy:
   config built from the `col.*` builders (`col.boolean`, `col.encrypted`,
   `col.generated`, …) drives serialization, encryption, and the derived `Input`
   type. Never hand-write row mapping.
-- **Config-driven CRUD.** `defineCrudApi` (`src/shared/rest/crud-api.ts`) turns
-  one config object into the five standard admin API routes. `defineResource`
-  (`src/shared/rest/resource.ts`) turns `{table, fields, toInput, validate}`
-  into typed operations that `writeEntity` (`src/shared/rest/write-entity.ts`)
-  persists. The callers to copy are `src/features/admin/modifiers.ts` and
-  `src/features/admin/settings-logistics.ts`.
+- **Config-driven CRUD.** `defineRecord` (`src/shared/rest/record.ts`) declares
+  one admin record: its table, its read set, its one write rule, its commands,
+  and the page route that gives both doors their audience. `recordPages`
+  (`src/shared/rest/record-pages.ts`) builds the six HTML routes, and
+  `recordApi` (`src/shared/rest/record-api.ts`) builds the five JSON routes.
+  Both doors call the same generated write and read the actor from the same
+  declaration. The callers to copy are `src/shared/records/holidays.ts` and
+  `src/shared/records/statuses.ts`.
 - **Schema-driven forms.** `defineForm` + a `Field[]`
   (`src/shared/forms/definition.ts`): one field list drives the HTML rendering,
   the parsing/validation, and the `FormValuesFor<>` value types;

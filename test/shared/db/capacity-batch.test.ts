@@ -9,6 +9,7 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
+import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testDate } from "#test-utils/dates.ts";
@@ -56,16 +57,15 @@ describe("buildCartCapacitySql", () => {
   });
 
   test("no demand at all trivially fits", () => {
-    expect(buildCartCapacitySql(demandWith(new Map()))).toEqual({
-      args: [],
-      sql: "SELECT 1 AS fits",
-    });
+    expect(buildCartCapacitySql(demandWith(new Map()))).toEqual(
+      sql`SELECT 1 AS fits`,
+    );
   });
 
   test("an empty bucket produces no clause", () => {
     expect(
       buildCartCapacitySql(demandWith(new Map([[LISTING, bucket([], 0)]]))),
-    ).toEqual({ args: [], sql: "SELECT 1 AS fits" });
+    ).toEqual(sql`SELECT 1 AS fits`);
   });
 
   test("date-less listing demand checks the running total against the cap", () => {
@@ -159,7 +159,7 @@ describe("buildCartCapacitySql", () => {
         ]),
       ),
     );
-    expect(args).toEqual([LISTING, startAt, endAt, other.startAt, other.endAt]);
+    expect(args).toEqual([startAt, endAt, other.startAt, other.endAt, LISTING]);
     expect(occurrences(flatSql(sql), "dayDemand.column3")).toBe(1);
     expect(occurrences(flatSql(sql), "VALUES")).toBe(1);
     expect(occurrences(flatSql(sql), ") AND (")).toBe(0);
@@ -220,10 +220,10 @@ describe("buildCartCapacitySql", () => {
     // counts the whole 5-unit bucket against the group's running total.
     expectIncludesAll(sql, [
       "+ 5 <=",
-      "(SELECT max_attendees FROM groups WHERE id = ?1)",
+      "(SELECT max_attendees FROM groups WHERE id = ?3)",
       "= 0 OR",
     ]);
-    expect(args).toEqual([9, startAt, endAt]);
+    expect(args).toEqual([startAt, endAt, 9]);
   });
 
   test("several group days share one VALUES table and one group id slot", () => {
@@ -244,8 +244,8 @@ describe("buildCartCapacitySql", () => {
       listingDemand: new Map(),
     });
 
-    expect(args).toEqual([9, startAt, endAt, other.startAt, other.endAt]);
-    expect(sql.match(/group_id = \?1/gu)).toHaveLength(2);
+    expect(args).toEqual([startAt, endAt, other.startAt, other.endAt, 9]);
+    expect(sql.match(/group_id = \?5/gu)).toHaveLength(2);
     expect(sql.match(/VALUES/gu)).toHaveLength(1);
   });
 
@@ -285,7 +285,7 @@ describe("buildCartCapacitySql", () => {
         ]),
       ),
     );
-    expect(args).toEqual([1, startAt, endAt, 2, other.startAt, other.endAt]);
+    expect(args).toEqual([startAt, endAt, 1, other.startAt, other.endAt, 2]);
   });
 
   test("date-less-only group demand emits a single total clause", () => {

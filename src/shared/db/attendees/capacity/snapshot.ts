@@ -8,8 +8,10 @@
  * subrequest budget.
  */
 
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { requiredMapValue } from "#fp";
 import { countsPerDate } from "#shared/capacity-rules.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -19,12 +21,7 @@ import {
   getGroupRemainingByGroupId,
 } from "./groups.ts";
 import { getListingGroupMembership } from "./listing.ts";
-import {
-  daySpan,
-  expandDailyRange,
-  type IntervalRow,
-  perDayLoads,
-} from "./range.ts";
+import { expandDailyRange, perDayLoads, spanLoadsOf } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
 /** Booked units per day for each listing, in one query. */
@@ -33,16 +30,16 @@ const loadsByListing = async (
   days: string[],
 ): Promise<Map<number, Map<string, number>>> => {
   if (listingIds.length === 0) return new Map();
-  const { startAt, endAt } = daySpan(days);
-  const rows = await queryAll<IntervalRow & { listing_id: number }>(
-    `SELECT attendee.listing_id, attendee.start_at, attendee.end_at, attendee.quantity
-       FROM listing_attendees AS attendee
-      WHERE attendee.listing_id IN (${inPlaceholders(
-        listingIds,
-      )}) AND attendee.start_at < ? AND attendee.end_at > ?`,
-    [...listingIds, endAt, startAt],
+  const rows = await queryAll(
+    spanLoadsOf(
+      from(tables.listing_attendees)
+        .as("attendee")
+        .where({ listing_id: listingIds }),
+      days,
+      (line) => line.listing_id,
+    ),
   );
-  const byListing = Map.groupBy(rows, (row) => row.listing_id);
+  const byListing = Map.groupBy(rows, (row) => row.owner_id);
   return new Map(
     listingIds.map((id) => [id, perDayLoads(byListing.get(id) ?? [], days)]),
   );

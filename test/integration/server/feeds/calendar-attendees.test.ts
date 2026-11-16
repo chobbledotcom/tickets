@@ -10,6 +10,7 @@ import { expectHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { enableFeature } from "#test-utils/settings.ts";
 
 const expectCalendarFeed = async (
   request: Request,
@@ -174,6 +175,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const user = await createUser("feed-agent", "", null, "agent");
     const agent = await logisticsAgents.table.insert({ name: "Van 1" });
     await userAgents.setIds(user.id, [agent.id]);
+    await enableFeature("logistics");
     const { apiKey } = await createApiKey(
       user.id,
       "Agent Calendar",

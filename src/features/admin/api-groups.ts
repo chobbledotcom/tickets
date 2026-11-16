@@ -3,47 +3,33 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import {
-  type PackageFlags,
-  readPackageFlagsTxOrNull,
-  writePackageMembersTx,
-} from "#db/groups/membership/package-writes.ts";
+import type { PackageFlags } from "#db/groups/membership/package-writes.ts";
 import {
   generateUniqueGroupSlug,
-  groups,
   loadPackageMemberPricingByGroupIds,
 } from "#db/groups.ts";
 import { requiredMapValue } from "#fp";
-import {
-  deleteGroup,
-  soldHiddenPackageError,
-  validateGroupWithPackage,
-} from "#routes/admin/groups.ts";
-import { ADMIN_API, CONTENT_API } from "#routes/auth.ts";
-import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import {
-  type CatalogApiBody,
-  invalidApiValueField,
-  projectCatalogFields,
-} from "#shared/catalog-fields/definition.ts";
-import {
-  type GroupInput,
-  groupCatalogFields,
-  type PackageMemberInput,
-} from "#shared/catalog-fields/fields.ts";
+import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   isValidMemberPrice,
   isValidMemberQuantity,
   memberDayPricesFault,
 } from "#shared/groups/package-member-values.ts";
 import { packageGroups } from "#shared/package-membership.ts";
-import { defineCrudApi } from "#shared/rest/crud-api.ts";
+import {
+  GROUP_FIELDS,
+  type GroupInput,
+  type PackageMemberInput,
+} from "#shared/records/group-fields.ts";
+import { groupRecord } from "#shared/records/groups.ts";
 import {
   parseOptionalArray,
   parseUpdateSlug,
-  requireEntityField,
-  requireStrings,
 } from "#shared/rest/crud-parsers.ts";
+import { readOpenBody } from "#shared/rest/field-reads.ts";
+import type { FieldsBody } from "#shared/rest/field-specs.ts";
+import type { RecordShapeOf } from "#shared/rest/record.ts";
+import { recordApi } from "#shared/rest/record-api.ts";
 import {
   errorResult,
   okResult,
@@ -70,7 +56,7 @@ export type PackageMemberBody = {
 export type CreateGroupBody = {
   name: string;
   package_members?: PackageMemberBody[];
-} & CatalogApiBody<typeof groupCatalogFields>;
+} & FieldsBody<typeof GROUP_FIELDS>;
 
 /** JSON body accepted by PUT /api/admin/groups/:groupId */
 export type UpdateGroupBody = Partial<CreateGroupBody> & { slug?: string };
@@ -191,13 +177,8 @@ const toGroupInput = async (
   body: Record<string, unknown>,
   existing: Group | null,
 ): Promise<Result<GroupInput>> => {
-  const name = existing
-    ? requireEntityField(body, "name", existing.name)
-    : requireStrings(body, ["name"]);
-  if (!name.ok) return name;
-  const invalid = invalidApiValueField(groupCatalogFields, body);
-  if (invalid) return errorResult(`${invalid} has an invalid value`);
-  const fields = projectCatalogFields(groupCatalogFields, "api", body);
+  const fields = readOpenBody(GROUP_FIELDS, body, existing);
+  if (!fields.ok) return fields;
 
   const members = parsePackageMembers(body);
   if (!members.ok) return members;
@@ -211,39 +192,16 @@ const toGroupInput = async (
     ? await parseUpdateSlug(body, existing.slug, normalizeSlug, hmacHash)
     : await generateUniqueGroupSlug();
   return okResult({
-    ...(existing
-      ? projectCatalogFields(groupCatalogFields, "storedApi", existing)
-      : {}),
-    ...fields,
+    ...fields.value,
     ...slug,
-    maxAttendees: fields.maxAttendees ?? existing?.max_attendees ?? 0,
-    name: typeof name.value === "string" ? name.value : name.value.name,
     packageMembers: members.value,
   });
 };
 
-export const groupApiRoutes = defineCrudApi<
+export const groupApiRoutes = recordApi<
   typeof ADMIN_API_RESOURCES.groups,
-  Group,
-  GroupInput,
-  Group,
-  Group,
-  PackageFlags | null
->(ADMIN_API_RESOURCES.groups, {
-  afterWrite: (tx, id, input, flags) =>
-    writePackageMembersTx(
-      tx,
-      id,
-      flags,
-      input,
-      input.isPackage === false ? [] : input.packageMembers,
-    ),
-  // Role parity with the group pages: the list and edit pages admit content
-  // admins (owner, manager, editor — areas-a-l.ts "groups"). The delete page
-  // is staff-only ("groupDelete"), so an editor edits through the API
-  // exactly as far as the dashboard allows.
-  deletePolicy: ADMIN_API,
-  getAll: () => groups.cache.getAll(),
+  RecordShapeOf<Group, GroupInput, Group, PackageFlags | null>
+>(groupRecord, {
   // Only package groups appear in the map. Non-package groups hydrate to no
   // extra fields. Single-row responses use this same batch path with one row.
   hydrate: async (rows) => {
@@ -269,15 +227,7 @@ export const groupApiRoutes = defineCrudApi<
       }),
     );
   },
-  nameField: "name",
-  onDelete: deleteGroup,
-  policy: CONTENT_API,
-  readState: readPackageFlagsTxOrNull,
   stripKeys: ["slug_index"],
-  table: groups.table,
-
   toCreateInput: (body) => toGroupInput(body, null),
   toUpdateInput: toGroupInput,
-  validate: validateGroupWithPackage,
-  validateDelete: soldHiddenPackageError,
 });

@@ -9,7 +9,6 @@
  * on the site. A name is therefore an unambiguous key.
  */
 
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import {
@@ -17,6 +16,7 @@ import {
   packageMemberMessage,
   packageMemberQuantityError,
 } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { DayPricedListing, DayPrices, ListingWithCount } from "#types";
 import { siteIdsOfRefs } from "./bundle-refs.ts";
 import { memberDayPriceError } from "./import-listing.ts";

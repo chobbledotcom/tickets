@@ -4,6 +4,7 @@ import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getNewestAttendeesRaw } from "#db/attendees/queries.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { expectBookingRowsForListings } from "#test-utils/db-helpers/attendee-rows.ts";
 import {
   createMultiBookingAttendee,
   createTestAttendee,
@@ -75,9 +76,7 @@ describeWithEnv("db > attendees > getNewestAttendeesRaw", { db: true }, () => {
     // Limit 1 = the newest attendee — BOTH of their lines, nothing of "Old".
     const raw = await getNewestAttendeesRaw(1);
     expect(raw.map((row) => row.id)).toEqual([multi.id, multi.id]);
-    expect(raw.map((row) => row.listing_id).toSorted()).toEqual(
-      [listing1.id, listing2.id].toSorted(),
-    );
+    expectBookingRowsForListings(raw, [listing1.id, listing2.id]);
   });
 
   test("returns empty array when no attendees", async () => {

@@ -1,11 +1,11 @@
 /**
- * A minimal `{ id, name }` table for exercising the REST factories
- * (`writeEntity`, `defineCrudApi`) without a real domain table. Kept here so the
- * REST test suites share one fixture rather than each re-declaring the table and
- * its DDL.
+ * A minimal `{ id, name }` table for exercising the REST write steps without a
+ * real domain table. Kept here so the REST test suites share one fixture rather
+ * than each re-declaring the table and its DDL.
  */
 
 import { getDb } from "#db/client.ts";
+import { sql, sqlName } from "#db/sql.ts";
 import { col, defineTable, type Table } from "#db/table.ts";
 
 export type IdNameRow = { id: number; name: string };
@@ -22,6 +22,6 @@ export const makeIdNameTable = (name: string): Table<IdNameRow, IdNameInput> =>
 /** Create the backing table for {@link makeIdNameTable} in the current test DB. */
 export const createIdNameTable = async (name: string): Promise<void> => {
   await getDb().execute(
-    `CREATE TABLE IF NOT EXISTS ${name} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
+    sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
   );
 };

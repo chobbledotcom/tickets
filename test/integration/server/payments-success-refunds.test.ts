@@ -9,11 +9,9 @@ import { stripeApi } from "#shared/stripe.ts";
 import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  fillSoleCapacityListing,
-} from "#test-utils/db-helpers/attendee-payments.ts";
+import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createSoldOutListingPair } from "#test-utils/db-helpers/listing-pairs.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -298,23 +296,11 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
     test("ticket payment capacity failure is kept as a placeholder and refunded", async () => {
       await setupStripe();
 
-      const listing1 = await createTestListing({
-        maxAttendees: 50,
-        name: "Multi Rollback 1",
-        unitPrice: 500,
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 1,
-        name: "Multi Rollback 2",
-        unitPrice: 1000,
-      });
-
-      // Fill listing2
-      await bookAttendee(listing2, {
-        email: "first@example.com",
-        name: "First",
-        paymentId: "pi_first",
-      });
+      // listing2 holds a single slot, so its line cannot be seated.
+      const { listing1, listing2 } = await createSoldOutListingPair(
+        ["Multi Rollback 1", "Multi Rollback 2"],
+        [500, 1000],
+      );
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve(

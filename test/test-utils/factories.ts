@@ -8,12 +8,14 @@ import type {
 } from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import type { WebhookAttendee } from "#shared/webhook.ts";
 import { generateTestListingName } from "#test-utils/internal.ts";
+import { blankMetadata } from "#test-utils/session-metadata.ts";
 import type {
   Attendee,
   Group,
@@ -28,15 +30,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   attachment_name: "",
   attachment_url: "",
   bookable_alone: false,
-  bookable_days: [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ],
+  bookable_days: [...VALID_DAY_NAMES],
   can_pay_more: false,
   closes_at: null,
   created: "2024-01-01T00:00:00Z",
@@ -64,6 +58,8 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   name: "Test Listing",
   non_transferable: false,
   purchase_only: false,
+  recurring_interval: "",
+  recurring_price: 0,
   slug: "ab12c",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slug_index: "test-listing-index" as BlindIndex,
@@ -101,8 +97,13 @@ export const bookingRow = (
   parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,
+  recurring_interval: "",
+  recurring_price: 0,
+  recurring_tax: 0,
   refunded: 0,
   start_at: null,
+  subscription_id: "",
+  subscription_status: "",
   ...overrides,
 });
 
@@ -273,7 +274,7 @@ export const testBuiltSite = (
  * `{ groupIds }`. Membership is written via setListingGroups by the factory. */
 export type TestListingOverrides = Partial<
   Omit<ListingInput, "slug" | "slugIndex" | "groupIds">
-> & { groupId?: number; groupIds?: number[] };
+> & { groupId?: number; groupIds?: number[] | undefined };
 
 /** Resolve the group-id list a test override describes: explicit `groupIds`
  * wins; otherwise a positive `groupId` becomes a single-group list; `groupId: 0`
@@ -304,29 +305,14 @@ export const baseListingForm: Record<string, string> = {
   max_quantity: "1",
   name: "My Listing",
   thank_you_url: "https://example.com",
+  unit_price: "0",
 };
 
 export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },
 ): SessionMetadata => ({
+  ...blankMetadata,
   _origin: "localhost",
-  address: "",
-  allocations: "",
-  answer_ids: "",
-  balance_attendee_id: "",
-  date: "",
-  day_count: "",
-  email: "",
-  items: "",
-  modifiers: "",
-  phone: "",
-  price_proof: "",
-  reservation_amount: "",
-  site_token_index: "",
-  special_instructions: "",
-  tax_policy: "",
-  text_answer_ids: "",
-  thank_you_url: "",
   ...metadata,
 });
 

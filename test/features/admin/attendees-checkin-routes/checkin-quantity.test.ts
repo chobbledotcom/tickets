@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -40,8 +41,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       Number(
         (
           await getDb().execute(
-            "SELECT checked_in FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
-            [listingId, attendeeId],
+            sql`SELECT checked_in FROM listing_attendees WHERE listing_id = ${listingId} AND attendee_id = ${attendeeId}`,
           )
         ).rows[0]!.checked_in,
       );

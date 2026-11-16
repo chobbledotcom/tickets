@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { configurableTableLayouts } from "#shared/tables/configurable.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -62,8 +63,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
 
     test("rejects a malformed template loaded from settings", async () => {
       await execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        [CONFIG_KEYS.LISTING_COLUMN_ORDER, "{{not_a_column}}"],
+        sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.LISTING_COLUMN_ORDER}, ${"{{not_a_column}}"})`,
       );
       settings.invalidateCache();
       await settings.loadKeys([CONFIG_KEYS.LISTING_COLUMN_ORDER]);

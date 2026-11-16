@@ -3,6 +3,8 @@
   "error.csrf_invalid": "Invalid or expired form. Please try again.",
   "error.name_required": "Name is required",
   "fields.validation.price_min": "Price must be 0 or greater",
+  "fields.validation.unit_price_required": "Enter a ticket price. Type 0 for free.",
+  "fields.validation.unshown_field": "This form sent a field it does not show. Reload the page and try again.",
   "fields.validation.email": "Please enter a valid email address",
   "fields.validation.phone": "Please enter a valid phone number",
   "fields.validation.username_min": "Username must be at least 1 character",

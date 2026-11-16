@@ -1,11 +1,3 @@
-/**
- * Attendee merge service — single orchestration point for merge rules.
- *
- * Two-step flow:
- * 1. buildAttendeeMergeDiff: compute a diff between target and source
- * 2. applyAttendeeMerge: apply explicit decisions from the admin
- */
-
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -17,8 +9,7 @@ import {
   checkoutStageDeleteStatements,
   repointAttendeeDependents,
 } from "#db/attendees/delete.ts";
-import { insert, type SqlStatement, withTransaction } from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { insert, withTransaction } from "#db/client.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import {
@@ -29,6 +20,7 @@ import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -46,6 +38,8 @@ import type {
   BuildAttendeeMergeDiffInput,
   MergeBookingChoice,
 } from "#shared/merge/attendee-merge-types.ts";
+import { copiedBookingColumns } from "#shared/merge/booking-copy.ts";
+import { droppedSubscriptionErrors } from "#shared/merge/subscription-rows.ts";
 import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
@@ -445,6 +439,9 @@ export const validateAttendeeMergeDecision = (
     ...answerDecisionErrors(diff, decision),
     ...bookingDecisionErrors(diff, decision),
     ...strandedPaymentErrors(diff, decision),
+    ...droppedSubscriptionErrors(diff.bookingItems, (item) =>
+      copiesSourceBooking(item, decision),
+    ),
   ];
 
   return errors.length > 0 ? { errors, valid: false } : { valid: true };
@@ -495,8 +492,6 @@ const strandedPaymentErrors = (
 // ---------------------------------------------------------------------------
 // applyAttendeeMerge
 // ---------------------------------------------------------------------------
-
-type BatchStatement = { sql: string; args: (number | string | null)[] };
 
 /** Apply PII decisions — mutates mergedPii and returns fields taken from source */
 const applyPiiDecisions = (
@@ -594,36 +589,18 @@ const applyAnswerDecisions = async (
   return { answersCleared, answersKept, answersTakenFromSource, finalAnswers };
 };
 
-/** Build an INSERT statement to copy a source booking to the target.
- *  `refunded` is not written — the column is gone; refund status follows the
- *  attendee through the merge's ledger repoint (the source's `refund_cash` legs
- *  are re-sourced onto the target), so the projection still reports it. The
- *  source's `ledger_event_group` IS carried: the repoint re-sources that booking's
- *  legs onto the target without changing their event group, so the copied row must
- *  keep the link or the per-row amount-paid projection loses it. */
+/** Build an INSERT that copies a source booking to the target. `refunded` is
+ *  projected from the ledger, whose repoint moves the refund legs. */
 const bookingInsertStatement = (
   targetId: number,
   booking: ListingAttendeeRow,
-): BatchStatement =>
+): SqlStatement =>
   insert("listing_attendees", {
-    attachment_downloads: booking.attachment_downloads,
+    ...copiedBookingColumns(booking),
     attendee_id: targetId,
-    // A no-quantity sentinel line (quantity 0) carries no check-in: clear it on
-    // copy so a ghost can't arrive checked-in (the roster/stats read check-in
-    // off this flag with no quantity predicate). Real lines keep their flag.
+    // A quantity-0 line carries no check-in, so a ghost cannot arrive checked in.
     checked_in: booking.quantity > 0 ? booking.checked_in : 0,
-    end_at: booking.end_at,
-    ledger_event_group: booking.ledger_event_group,
-    listing_id: booking.listing_id,
-    order_token: booking.order_token,
-    // Carry the package group so a moved package booking keeps its package
-    // display/privacy on the merged attendee's tickets/emails (without it the
-    // column defaults to 0 and the booking stops being treated as a package).
-    package_group_id: booking.package_group_id,
-    parent_listing_id: booking.parent_listing_id,
-    quantity: booking.quantity,
-    start_at: booking.start_at,
-  }) as BatchStatement;
+  });
 
 /** Apply all booking decisions — returns pending SQL statements and counts */
 const applyBookingDecisions = (
@@ -631,14 +608,14 @@ const applyBookingDecisions = (
   diff: AttendeeMergeDiff,
   decision: AttendeeMergeDecisionInput,
 ): {
-  insertStatements: BatchStatement[];
-  deleteTargetBookingStatements: BatchStatement[];
+  insertStatements: SqlStatement[];
+  deleteTargetBookingStatements: SqlStatement[];
   bookingsMoved: number;
   bookingsSkipped: number;
   bookingsReplacedTarget: number;
 } => {
-  const insertStatements: BatchStatement[] = [];
-  const deleteTargetBookingStatements: BatchStatement[] = [];
+  const insertStatements: SqlStatement[] = [];
+  const deleteTargetBookingStatements: SqlStatement[] = [];
   let bookingsMoved = 0;
   let bookingsSkipped = 0;
   let bookingsReplacedTarget = 0;
@@ -657,14 +634,11 @@ const applyBookingDecisions = (
       // slot the decision names: a listing booked through several paths keeps
       // its other package/standalone rows.
       deleteTargetBookingStatements.push(
-        numberedStatement((bind) => {
-          const startAt = bind(item.startAt);
-          return `DELETE FROM listing_attendees
-              WHERE attendee_id = ${bind(targetId)} AND listing_id = ${bind(item.listingId)}
-              AND (start_at IS ${startAt} OR start_at = ${startAt})
-              AND parent_listing_id = ${bind(item.parentListingId)}
-              AND package_group_id = ${bind(item.packageGroupId)}`;
-        }) as BatchStatement,
+        sql`DELETE FROM listing_attendees
+              WHERE attendee_id = ${targetId} AND listing_id = ${item.listingId}
+              AND (start_at IS ${item.startAt} OR start_at = ${item.startAt})
+              AND parent_listing_id = ${item.parentListingId}
+              AND package_group_id = ${item.packageGroupId}`,
       );
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),
@@ -807,34 +781,28 @@ export const applyAttendeeMerge = async (
     ...deleteTargetBookingStatements,
     // Insert moved/replaced source bookings
     ...insertStatements,
-    ...checkoutStageDeleteStatements({ args: [targetId], sql: "?" }),
+    ...checkoutStageDeleteStatements(sql`${targetId}`),
     // An old source without payment provenance makes the merged history
     // unqualified too; carry that fact before deleting its attendee row.
-    {
-      args: [targetId, sourceId],
-      sql: `UPDATE attendees
+    sql`UPDATE attendees
                SET pii_payment_session_id = NULL
-             WHERE id = ?
+             WHERE id = ${targetId}
                AND EXISTS (
                  SELECT 1
                    FROM attendees AS sourceAttendee
-                  WHERE sourceAttendee.id = ?
+                  WHERE sourceAttendee.id = ${sourceId}
                     AND sourceAttendee.pii_payment_session_id IS NULL
                )`,
-    },
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
-    {
-      args: [targetId, sourceId],
-      sql: "UPDATE processed_payments SET attendee_id = ? WHERE attendee_id = ?",
-    },
+    sql`UPDATE processed_payments SET attendee_id = ${targetId} WHERE attendee_id = ${sourceId}`,
     ...repointAttendeeDependents(sourceId, targetId),
     // The source is going away, so clear every row whose identity belongs to
     // it through the same schema as ordinary deletion. Payment rows survive:
     // the statement above has already moved them to the target.
-    ...attendeeRemovalStatements({ args: [sourceId], sql: "?" }),
-    { args: [sourceId], sql: "DELETE FROM attendees WHERE id = ?" },
+    ...attendeeRemovalStatements(sql`${sourceId}`),
+    sql`DELETE FROM attendees WHERE id = ${sourceId}`,
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person
     // rather than stranding on the deleted source (plan §5.17).

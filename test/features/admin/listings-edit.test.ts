@@ -17,16 +17,21 @@ import {
 } from "#test-utils/db-helpers/listing-forms.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { testListingInput } from "#test-utils/factories.ts";
-import { awaitTestRequest, mockMultipartRequest } from "#test-utils/mocks.ts";
+import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import {
   adminGet,
   adminMultipartPost,
   createTestEditorSession,
+  editorGetStatus,
   testCsrfToken,
 } from "#test-utils/session.ts";
+import type { AdminLevel } from "#types";
 
-const listingForm = (name: string) =>
-  buildCreateListingForm(testListingInput({ listingType: "standard", name }));
+const listingForm = (name: string, adminLevel: AdminLevel = "owner") =>
+  buildCreateListingForm(
+    testListingInput({ listingType: "standard", name }),
+    adminLevel,
+  );
 
 describeWithEnv("creating a listing", { db: true }, () => {
   test("sends staff to their own landing page", async () => {
@@ -56,7 +61,10 @@ describeWithEnv("creating a listing", { db: true }, () => {
     const response = await handleRequest(
       mockMultipartRequest(
         "/admin/listing",
-        { ...listingForm("Made By Editor"), csrf_token: await testCsrfToken() },
+        {
+          ...listingForm("Made By Editor", "editor"),
+          csrf_token: await testCsrfToken(),
+        },
         cookie,
       ),
     );
@@ -125,10 +133,6 @@ describeWithEnv("duplicating a listing", { db: true }, () => {
 
 describeWithEnv("the new listing form", { db: true }, () => {
   test("opens for an editor, who may create listings", async () => {
-    const { cookie } = await createTestEditorSession();
-
-    const response = await awaitTestRequest("/admin/listing/new", { cookie });
-
-    expect(response.status).toBe(200);
+    expect(await editorGetStatus("/admin/listing/new")).toBe(200);
   });
 });

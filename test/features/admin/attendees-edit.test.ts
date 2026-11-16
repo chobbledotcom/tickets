@@ -10,6 +10,7 @@ import { balanceEventGroup } from "#db/attendees/balance.ts";
 import { execute } from "#db/client.ts";
 import { loadPaymentMoveSnapshot } from "#db/payment-admit-move.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { filter, map, pipe } from "#fp";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
 import { expectErrorFlash, expectFlash } from "#test-utils/assertions.ts";
@@ -173,11 +174,10 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
         "pi_refresh_incomplete_balance",
       );
       await execute(
-        `UPDATE processed_payments
+        sql`UPDATE processed_payments
             SET payment_reference_index = ''
-          WHERE attendee_id = ?
-            AND payment_session_id != ?`,
-        [attendee.id, "refresh-incomplete-balance-session"],
+          WHERE attendee_id = ${attendee.id}
+            AND payment_session_id != ${"refresh-incomplete-balance-session"}`,
       );
 
       await expectIncompleteRefreshRefused(attendee);

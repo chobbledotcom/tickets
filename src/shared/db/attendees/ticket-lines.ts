@@ -8,29 +8,28 @@ import {
   type TicketPair,
 } from "#booking/ticket-moves.ts";
 import {
-  LISTING_ATTENDEE_REFUNDED_ROW,
+  BOOKING_ROW,
   refundedForBooking,
+  refundedRowOf,
 } from "#db/attendees/select.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import { queryAll } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { unique } from "#fp";
 
 /** Read the pairs' ticket lines. A no-quantity (quantity 0) line and a
  * refunded line are not tickets, so they never appear. */
 export const ticketLinesQuery = (
   pairs: readonly TicketPair[],
-): { args: number[]; sql: string } => {
+): SqlStatement => {
   const attendeeIds = unique(pairs.map((pair) => pair.attendeeId));
   const listingIds = unique(pairs.map((pair) => pair.listingId));
-  return {
-    args: [...attendeeIds, ...listingIds],
-    sql: `SELECT id, attendee_id, listing_id, quantity, checked_in
+  return sql`SELECT id, attendee_id, listing_id, quantity, checked_in
           FROM listing_attendees AS listingAttendee
-          WHERE listingAttendee.attendee_id IN (${inPlaceholders(attendeeIds)})
-            AND listingAttendee.listing_id IN (${inPlaceholders(listingIds)})
+          WHERE listingAttendee.attendee_id IN (${sqlList(attendeeIds)})
+            AND listingAttendee.listing_id IN (${sqlList(listingIds)})
             AND listingAttendee.quantity > 0
-            AND NOT (${refundedForBooking(LISTING_ATTENDEE_REFUNDED_ROW)})
-          ORDER BY listingAttendee.start_at, listingAttendee.id`,
-  };
+            AND NOT (${refundedForBooking(refundedRowOf(BOOKING_ROW))})
+          ORDER BY listingAttendee.start_at, listingAttendee.id`;
 };
 
 /** Each pair's whole booking, keyed by `pairKey`. A page that shows only
@@ -40,6 +39,8 @@ export const getPairBookings = async (
   pairs: readonly TicketPair[],
 ): Promise<PairBookings> => {
   if (pairs.length === 0) return new Map();
-  const { args, sql } = ticketLinesQuery(pairs);
-  return pairBookingsOf(pairs, await queryAll<StoredTicketLine>(sql, args));
+  return pairBookingsOf(
+    pairs,
+    await queryAll<StoredTicketLine>(ticketLinesQuery(pairs)),
+  );
 };

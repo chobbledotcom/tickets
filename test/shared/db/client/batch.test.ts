@@ -4,6 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { returnsNext, stub } from "@std/testing/mock";
 import {
   deleteWithChildren,
+  executeScript,
   getDb,
   queryAll,
   queryAllPrimary,
@@ -17,6 +18,7 @@ import {
   getQueryLog,
   N_PLUS_ONE_THRESHOLD,
 } from "#db/query-log.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -32,7 +34,7 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 describeWithEnv("db > client batch", { db: true }, () => {
   /** Run `batch` with a stubbed client and return the modes it was given. */
   const captureBatchModes = async (
-    batch: (stmts: { sql: string; args: never[] }[]) => Promise<unknown>,
+    batch: (stmts: SqlStatement[]) => Promise<unknown>,
   ): Promise<string[]> => {
     const modes: string[] = [];
     const batchStub = stub(
@@ -44,7 +46,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
       },
     );
     try {
-      await batch([{ args: [], sql: "SELECT 1" }]);
+      await batch([sql`SELECT 1`]);
     } finally {
       batchStub.restore();
     }
@@ -61,7 +63,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
     await withRequestContext(async () => {
       const statements = Array.from(
         { length: N_PLUS_ONE_THRESHOLD + 1 },
-        () => ({ args: [], sql: "SELECT 1" }),
+        () => sql`SELECT 1`,
       );
       expect(await queryBatch(statements)).toHaveLength(statements.length);
     });
@@ -70,13 +72,13 @@ describeWithEnv("db > client batch", { db: true }, () => {
   test("transaction batches commit string statements together", async () => {
     await withTransaction(async (tx) => {
       await tx.batch([
-        "CREATE TABLE transaction_batch_test (value TEXT NOT NULL)",
-        "INSERT INTO transaction_batch_test (value) VALUES ('saved')",
+        sql`CREATE TABLE transaction_batch_test (value TEXT NOT NULL)`,
+        sql`INSERT INTO transaction_batch_test (value) VALUES ('saved')`,
       ]);
     });
 
     const result = await getDb().execute(
-      "SELECT value FROM transaction_batch_test",
+      sql`SELECT value FROM transaction_batch_test`,
     );
     expect(result.rows.map(({ value }) => String(value))).toEqual(["saved"]);
   });
@@ -86,8 +88,8 @@ describeWithEnv("db > client batch", { db: true }, () => {
       enableQueryLog();
       await withTransaction(async (tx) => {
         await tx.batch([
-          "CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)",
-          "INSERT INTO tracked_transaction_batch (value) VALUES ('saved')",
+          sql`CREATE TABLE tracked_transaction_batch (value TEXT NOT NULL)`,
+          sql`INSERT INTO tracked_transaction_batch (value) VALUES ('saved')`,
         ]);
       });
 
@@ -139,7 +141,7 @@ describeWithEnv("db > client batch", { db: true }, () => {
         returnsNext([1000, 1007, 9999, 9999, 9999, 9999]),
       );
       try {
-        await queryBatch([{ args: [], sql: "SELECT 1" }]);
+        await queryBatch([sql`SELECT 1`]);
       } finally {
         nowStub.restore();
         batchStub.restore();
@@ -149,6 +151,14 @@ describeWithEnv("db > client batch", { db: true }, () => {
       expect(entry!.startedAtMs).toBe(1000);
       expect(entry!.durationMs).toBe(7);
     });
+  });
+
+  test("executeScript refuses a statement that binds values", async () => {
+    // A script carries its statements as one text, so a bound value has no
+    // slot to land in. The refusal must arrive before any script runs.
+    await expect(
+      executeScript([sql`SELECT 1`, sql`SELECT ${2}`]),
+    ).rejects.toThrow("A script statement cannot bind values: SELECT ?1");
   });
 
   test("deleteWithChildren removes the children and the parent row itself", async () => {
@@ -168,9 +178,9 @@ describeWithEnv("db > client batch", { db: true }, () => {
 
     expect(
       await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attribute_options",
+        sql`SELECT listing_id FROM listing_attribute_options`,
       ),
     ).toEqual([]);
-    expect(await queryAll("SELECT id FROM attribute_options")).toEqual([]);
+    expect(await queryAll(sql`SELECT id FROM attribute_options`)).toEqual([]);
   });
 });

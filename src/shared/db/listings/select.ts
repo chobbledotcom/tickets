@@ -11,43 +11,49 @@
  */
 
 import {
+  type AccountId,
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
-import { defineReader } from "#db/read.ts";
-import { inList, type WhereClause } from "#db/where-clauses.ts";
+import { readRows } from "#db/read.ts";
+import {
+  among,
+  type Condition,
+  equal,
+  given,
+  literal,
+} from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import type { ListingWithCount } from "#types";
+
+/** The listing row of a statement that names the table
+ *  `listings AS listing`. */
+export const LISTING_ROW = tableNode(tables.listings, "listing");
 
 /** A listing's recognised income and servicing cost, worked out from the ledger
  * rather than stored columns. */
-const listingMoneyProjections = (idExpression: string): string =>
-  [
-    `${creditsLessWriteoffDebits("revenue", idExpression)} AS income`,
-    `-${accountBalanceSubquery("cost", idExpression)} AS cost`,
-  ].join(", ");
-
-/** The listing's day-count prices, collapsed into one JSON object so a listing
- * read does not need a second query per row. */
-const listingDayPriceColumn = (idExpression: string): string =>
-  `COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
-      FROM listing_prices AS listingPrice
-      WHERE listingPrice.listing_id = ${idExpression}
-        AND listingPrice.price_type = 'day_count'), '{}') AS day_prices`;
+const listingMoneyProjections = (idExpression: AccountId): SqlStatement =>
+  sql`${creditsLessWriteoffDebits("revenue", idExpression)} AS income, -${accountBalanceSubquery("cost", idExpression)} AS cost`;
 
 /** A complete stored listing row plus its ledger, day-price, and image values. */
-const storedListingColumns = (alias: string): string => {
-  const idExpression = `${alias}.id`;
-  return `${alias}.*,
+const storedListingColumns = (): SqlStatement => {
+  const idExpression = LISTING_ROW.id;
+  return sql`listing.*,
        ${listingMoneyProjections(idExpression)},
-       ${listingDayPriceColumn(idExpression)},
+       COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
+         FROM listing_prices AS listingPrice
+         WHERE listingPrice.listing_id = ${idExpression}
+           AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
        ${imageFilenameSubqueries("listing", idExpression)}`;
 };
 
 /** The SELECT column list for a listing record read: every stored column, the
  * worked-out values, and the trigger-maintained booking count. */
-const listingColumns = (): string =>
-  `${storedListingColumns("listing")},
+const listingColumns = (): SqlStatement =>
+  sql`${storedListingColumns()},
        listing.booked_quantity AS attendee_count`;
 
 /**
@@ -79,15 +85,19 @@ export type ListingWhere = {
  * order as the full reads. */
 export type ListingOrder = "created_desc";
 
-export const LISTING_ORDER_SQL: Record<ListingOrder, string> = {
-  created_desc: "listing.created DESC, listing.id DESC",
+export const LISTING_ORDER_SQL: Record<ListingOrder, SqlStatement> = {
+  created_desc: sql`listing.created DESC, listing.id DESC`,
 };
 
-const whereClauses = (where: ListingWhere): WhereClause[] => [
-  ...inList("listing.id", where.ids),
-  ...inList("listing.slug_index", where.slugIndexes),
-  ...inList("groupListing.group_id", where.inGroups),
-  ...(where.activeOnly ? [{ args: [], clause: "listing.active = 1" }] : []),
+/** The membership row of a read by group, which names the table
+ *  `group_listings AS groupListing`. */
+const MEMBERSHIP_ROW = tableNode(tables.group_listings, "groupListing");
+
+const whereConditions = (where: ListingWhere): Condition[] => [
+  given(where.ids, (ids) => among(LISTING_ROW.id, ids)),
+  given(where.slugIndexes, (indexes) => among(LISTING_ROW.slug_index, indexes)),
+  given(where.inGroups, (groups) => among(MEMBERSHIP_ROW.group_id, groups)),
+  where.activeOnly ? equal(LISTING_ROW.active, literal(1)) : true,
 ];
 
 /** Everything a caller declares to read listing records: which rows to keep and
@@ -104,22 +114,32 @@ export type GetListingsQuery = {
  * folds a listing's several memberships back into one row, naming which groups
  * it matched; every other read starts from the listings themselves.
  */
-export const listingReader = defineReader<ListingOrder, GetListingsQuery>(
-  LISTING_ORDER_SQL,
-  (query) => {
-    const byGroup = query.where.inGroups !== undefined;
-    return {
-      columns: byGroup
-        ? `json_group_array(groupListing.group_id) AS group_ids, ${listingColumns()}`
-        : listingColumns(),
-      from: byGroup
-        ? "group_listings AS groupListing JOIN listings AS listing ON listing.id = groupListing.listing_id"
-        : "listings AS listing",
-      groupBy: byGroup ? "listing.id" : undefined,
-      where: whereClauses(query.where),
-    };
-  },
-);
+const listingStatement = (query: GetListingsQuery): SqlStatement => {
+  const conditions = whereConditions(query.where);
+  const order =
+    query.order === undefined ? [] : [LISTING_ORDER_SQL[query.order]];
+  return query.where.inGroups === undefined
+    ? from(tables.listings)
+        .where(() => conditions)
+        .orderBy(() => order)
+        .columns(listingColumns)
+    : from(tables.group_listings, { listing: {} })
+        .where(() => conditions)
+        .groupBy((member) => [member.listing.id])
+        .orderBy(() => order)
+        .columns(
+          (member) =>
+            sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
+        );
+};
+
+/** The statement, for a caller that must embed the read in a batch, and the
+ *  rows, for everyone else. The row shape is the caller's to name. */
+export const listingReader = {
+  rows: <Row>(query: GetListingsQuery): Promise<Row[]> =>
+    readRows<Row>(listingStatement(query)),
+  statement: listingStatement,
+};
 
 /** The raw shape a listing read returns: the stored columns plus the worked-out
  * values, before decryption and before any inherited defaults are overlaid. */

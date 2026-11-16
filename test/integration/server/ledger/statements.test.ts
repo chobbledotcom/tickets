@@ -17,6 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postAttendeeRefund, postModifierLeg, tx } from "#test-utils/ledger.ts";
 import { createServicingHold } from "#test-utils/servicing.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv(
   "server (admin ledger account statements)",
@@ -149,14 +150,11 @@ describeWithEnv(
       ]);
     });
 
-    test("404s on an unknown account type", async () => {
-      const response = await adminGet("/admin/ledger/nonsense/1");
-      expect(response.status).toBe(404);
-    });
-
-    test("404s on a non-positive row id", async () => {
-      const response = await adminGet("/admin/ledger/attendee/0");
-      expect(response.status).toBe(404);
+    testStatus(404, {
+      "404s on a non-positive row id": () =>
+        adminGet("/admin/ledger/attendee/0"),
+      "404s on an unknown account type": () =>
+        adminGet("/admin/ledger/nonsense/1"),
     });
   },
 );

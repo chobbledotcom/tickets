@@ -1,14 +1,12 @@
 /**
- * SQL-fragment builders for projecting figures off the `transfers` ledger at
- * read time (income, amount paid, refund status, …). These centralise the
- * transfers-table column names and the integer-id → TEXT cast in one place.
- * Every projection then filters accounts identically, and a typo in `source_id`
- * / `dest_type` / the `CAST(… AS TEXT)` cannot silently skew a single read.
+ * Reads that project figures off the `transfers` ledger at read time: income,
+ * amount paid, refund status, and the rest. One place holds the names of the
+ * ledger columns and the cast of an integer id to TEXT. Every projection then
+ * filters accounts the same way.
  *
- * They build raw SQL by interpolating caller-supplied column *expressions*
- * (for example `listingAttendee.attendee_id`), not bound values — to bind a
- * known account use
- * the parameterised `transfersByAccount` in `./queries.ts` instead.
+ * A test of one ledger row takes the row as a node. A figure is a read of its
+ * own. The reads call the ledger `leg`, a word that no other read uses, so a
+ * figure inside another statement hides no table of that statement.
  */
 
 import {
@@ -20,157 +18,267 @@ import {
 } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { MANUAL_ATTENDEE_CHARGE } from "#accounting/manual-entries.ts";
+import {
+  amongConstants,
+  and,
+  type Condition,
+  type Counted,
+  type Expr,
+  equal,
+  inQuery,
+  literal,
+  not,
+  type Operand,
+  or,
+  orZero,
+  sum,
+  valued,
+  when,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 
-/** Account type/id columns for one leg side of a `transfers` row — the single
- *  home for these names. Every projection (the interpolated subqueries here
- *  AND the parameterised balance reads in `./queries.ts`) refers to them once. */
-export const LEG_COLUMNS = {
-  dest: { id: "dest_id", type: "dest_type" },
-  source: { id: "source_id", type: "source_type" },
-} as const;
+/** One row of the ledger, as a test or a figure reads it. */
+export type Leg = Node<"transfers">;
+
+/** A test of one ledger row. */
+export type LegTest = (leg: Leg) => Expr<boolean>;
+
+/** The ledger rows, under the word every ledger read uses. */
+export const ledgerLegs = () => from(tables.transfers).as("leg");
+
+/** An account id in SQL: a column or a value of the surrounding statement, or
+ *  text to bind. A bound number is refused. libsql binds a number as a float,
+ *  and the CAST of a float gives `5.0`, which matches no account. */
+export type AccountId = Expr<number | string | null> | string;
+
+/** The side of a ledger row that an account sits on. */
+type Role = "source" | "dest";
+
+/** Ledger ids are TEXT, so an integer column is CAST to match. */
+const asText = (id: AccountId): Expr<string> =>
+  valued(sql`CAST(${id} AS TEXT)`);
+
+/** The row has this account type and this account id on its `role` side. */
+export const onSide =
+  (role: Role, type: Operand<string>, id: Operand<string>): LegTest =>
+  (leg) =>
+    and(equal(leg[`${role}_type`], type), equal(leg[`${role}_id`], id));
+
+/** The row has the account on its `role` side. The type is a constant of the
+ *  code, written into the SQL text. */
+export const onAccount = (role: Role, type: string, id: AccountId): LegTest =>
+  onSide(role, literal(type), asText(id));
+
+const ofKind =
+  (kind: string): LegTest =>
+  (leg) =>
+    equal(leg.kind, literal(kind));
+
+const inEventGroup =
+  (eventGroup: Operand<string>): LegTest =>
+  (leg) =>
+    equal(leg.event_group, eventGroup);
+
+/** The row passes every test. */
+const every =
+  (...tests: readonly LegTest[]): LegTest =>
+  (leg) =>
+    and(...tests.map((test) => test(leg)));
+
+/** The row passes some test. */
+const some =
+  (...tests: readonly LegTest[]): LegTest =>
+  (leg) =>
+    or(...tests.map((test) => test(leg)));
+
+/** A value keyed by the three ledger facts a booking's legs carry: the
+ * attendee, the listing's revenue account, and the booking's event group. */
+type OfBooking<Value> = (
+  attendeeId: AccountId,
+  listingId: AccountId,
+  eventGroup: Operand<string>,
+) => Value;
+
+/** A value of one account. */
+type OfAccount<Value> = (type: string, id: AccountId) => Value;
+
+/** The row bills the attendee for the listing. */
+const billedForListing = (attendeeId: AccountId, listingId: AccountId) =>
+  every(
+    onAccount("source", ATTENDEE, attendeeId),
+    onAccount("dest", REVENUE, listingId),
+  );
 
 /**
- * A `transfers` account-match predicate for one leg side: `<role>_type = '<type>'
- * AND <role>_id = CAST(<idExpr> AS TEXT)`. `role` picks the source or destination
- * side. `type` is the account type (`'attendee'`, `'revenue'`, …). `idExpr` is
- * the SQL for the account id in the surrounding query. Ledger ids are stored as
- * TEXT, so the id expression is CAST so an integer column still matches.
+ * The gross `sale` leg of a booking row: billed from the attendee to the
+ * revenue account of the listing, in the `ledger_event_group` of the row. The
+ * amount-paid projection and the paid-line check share it, so the two cannot
+ * drift.
  */
-export const accountPredicate = (
-  role: "source" | "dest",
-  type: string,
-  idExpr: string,
-): string => {
-  const col = LEG_COLUMNS[role];
-  return `${col.type} = '${type}' AND ${col.id} = CAST(${idExpr} AS TEXT)`;
-};
-
-/**
- * Predicate matching a booking row's gross `sale` leg: `kind='sale'`, billed from
- * the attendee to the listing's revenue account, scoped to the row's
- * `ledger_event_group`. The single home for "this row's sale leg" — shared by the
- * per-row amount-paid projection (`pricePaidFromLedger`) and the paid-line
- * existence check, so the two cannot drift. No leading `WHERE`.
- */
-/** A SQL fragment keyed by the three ledger columns a booking's legs carry:
- * the attendee, the listing's revenue account, and the booking's event group.
- * Every argument is a SQL column expression in the surrounding query. */
-export type BookingLegSql = (
-  attendeeIdExpr: string,
-  listingIdExpr: string,
-  eventGroupExpr: string,
-) => string;
-
-export const saleLegPredicate: BookingLegSql = (
-  attendeeIdExpr,
-  listingIdExpr,
-  eventGroupExpr,
+export const saleLeg: OfBooking<LegTest> = (
+  attendeeId,
+  listingId,
+  eventGroup,
 ) =>
-  `kind = '${KIND.sale}'` +
-  ` AND ${accountPredicate("source", ATTENDEE, attendeeIdExpr)}` +
-  ` AND ${accountPredicate("dest", REVENUE, listingIdExpr)}` +
-  ` AND event_group = ${eventGroupExpr}`;
+  every(
+    ofKind(KIND.sale),
+    billedForListing(attendeeId, listingId),
+    inEventGroup(eventGroup),
+  );
+
+/** Whether a booking has a payment leg: money that the attendee received for
+ * the booking's event group. */
+export const paymentLegExists = (
+  attendeeId: AccountId,
+  eventGroup: Operand<string>,
+): Expr<boolean> =>
+  ledgerLegs()
+    .where(
+      every(
+        ofKind(KIND.payment),
+        onAccount("dest", ATTENDEE, attendeeId),
+        inEventGroup(eventGroup),
+      ),
+    )
+    .exists();
+
+/**
+ * The signed sum every net-balance read shares. Amounts on rows that pass
+ * `adds` add, and amounts on rows that pass `subtracts` subtract. The sum is
+ * zero when no row passes. The one home for the sign convention of the ledger
+ * in SQL, so no two balance reads can disagree on which side credits.
+ */
+export const signedSum =
+  (adds: LegTest, subtracts: LegTest) =>
+  (leg: Leg): Expr<Counted> =>
+    orZero(
+      sum(
+        when<number>(
+          [
+            [adds(leg), leg.amount],
+            [subtracts(leg), valued<number>(sql`-${leg.amount}`)],
+          ],
+          literal(0),
+        ),
+      ),
+    );
+
+/** A figure of its own: the rows that add, less the rows that subtract. It
+ * reads only those rows, so an index backs it. `scope` narrows the rows. */
+const signedLegSum = (
+  adds: LegTest,
+  subtracts: LegTest,
+  scope: (leg: Leg) => Condition = () => true,
+): Expr<Counted> =>
+  ledgerLegs()
+    .where((leg) => [scope(leg), some(adds, subtracts)(leg)])
+    .aggregate(signedSum(adds, subtracts));
 
 /** One booking's recognised ticket price, including signed tax corrections. */
-export const bookingSaleTotalSubquery: BookingLegSql = (
-  attendeeIdExpr,
-  listingIdExpr,
-  eventGroupExpr,
+export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
+  attendeeId,
+  listingId,
+  eventGroup,
 ) => {
-  const credit = `${accountPredicate("source", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("dest", REVENUE, listingIdExpr)}`;
-  const debit = `${accountPredicate("dest", ATTENDEE, attendeeIdExpr)} AND ${accountPredicate("source", REVENUE, listingIdExpr)}`;
-  const original = `(${saleLegPredicate(attendeeIdExpr, listingIdExpr, eventGroupExpr)})`;
-  const correction = `(kind = '${KIND.taxSale}' AND event_group IN (SELECT assessment.event_group FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = ${eventGroupExpr}) AND ((${credit}) OR (${debit})))`;
-  return `(SELECT ${signedSumCase(credit, debit)} FROM transfers WHERE ${original} OR ${correction})`;
+  const credit = billedForListing(attendeeId, listingId);
+  const debit = every(
+    onAccount("dest", ATTENDEE, attendeeId),
+    onAccount("source", REVENUE, listingId),
+  );
+  const correctedGroups = from(tables.booking_tax_assessments)
+    .where((assessment) => equal(assessment.booking_group, eventGroup))
+    .values((assessment) => assessment.event_group);
+  const correction: LegTest = (leg) =>
+    and(
+      ofKind(KIND.taxSale)(leg),
+      inQuery(leg.event_group, correctedGroups),
+      some(credit, debit)(leg),
+    );
+  return ledgerLegs()
+    .where(some(saleLeg(attendeeId, listingId, eventGroup), correction))
+    .aggregate(signedSum(credit, debit));
 };
 
 /** Recognised income includes signed tax reclassifications and write-offs.
  * Refunds leave that historical earned amount unchanged. */
-export const creditsLessWriteoffDebits = (
-  type: string,
-  idExpr: string,
-): string => {
-  const credited = `${accountPredicate("dest", type, idExpr)} AND (kind IS NULL OR kind NOT IN ('${KIND.refundTaxSale}', '${KIND.refundTaxModifier}'))`;
-  const writtenOff = `${accountPredicate("source", type, idExpr)} AND (dest_type = '${WRITEOFF_TYPE}' OR kind IN ('${KIND.taxSale}', '${KIND.taxModifier}'))`;
-  return (
-    "(SELECT COALESCE(SUM(" +
-    `CASE WHEN ${credited} THEN amount WHEN ${writtenOff} THEN -amount ELSE 0 END` +
-    `), 0) FROM transfers WHERE ${credited} OR ${writtenOff})`
-  );
+export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
+  type,
+  id,
+) => {
+  const credited: LegTest = (leg) =>
+    and(
+      onAccount("dest", type, id)(leg),
+      not(
+        amongConstants(leg.kind, [KIND.refundTaxSale, KIND.refundTaxModifier]),
+      ),
+    );
+  const writtenOff: LegTest = (leg) =>
+    and(
+      onAccount("source", type, id)(leg),
+      or(
+        equal(leg.dest_type, literal(WRITEOFF_TYPE)),
+        amongConstants(leg.kind, [KIND.taxSale, KIND.taxModifier]),
+      ),
+    );
+  return signedLegSum(credited, writtenOff);
 };
 
-/**
- * The bare signed-sum aggregate every net-balance read shares:
- * amounts matching `plus` add, amounts matching `minus` subtract, zero when no
- * leg matches either. The single home for the ledger's sign convention in SQL.
- * {@link accountBalanceSubquery}, the parameterised `accountBalance`, and the
- * `ledgerTotals` due/fees columns all render from it, so no two balance reads
- * can disagree on which side credits. Predicates are SQL fragment bodies and can
- * carry `?` placeholders bound by the caller.
- */
-export const signedSumCase = (plus: string, minus: string): string =>
-  `COALESCE(SUM(CASE WHEN ${plus} THEN amount` +
-  ` WHEN ${minus} THEN -amount ELSE 0 END), 0)`;
-
-/** A booking order's `modifier` legs, as fragments over one `transfers` row.
- *  A surcharge credits the modifier's account, which is the destination side.
- *  A discount debits it, which is the source side. `accountId` reads whichever
- *  side holds the modifier, and `signedAmount` reads the effect on the price:
- *  positive for a surcharge and negative for a discount. Both use
- *  {@link LEG_COLUMNS} and {@link signedSumCase}, so a read cannot disagree
- *  with the legs the booking mapper posts. */
-const surchargeSide = `${LEG_COLUMNS.dest.type} = '${MODIFIER}'`;
-const discountSide = `${LEG_COLUMNS.source.type} = '${MODIFIER}'`;
+/** A booking order's `modifier` legs, as tests and values over one ledger
+ *  row. A surcharge credits the modifier's account, which is the destination
+ *  side. A discount debits it, which is the source side. `accountId` reads
+ *  whichever side holds the modifier, and `signedAmount` reads the effect on
+ *  the price: positive for a surcharge and negative for a discount. */
+const surchargeSide: LegTest = (leg) => equal(leg.dest_type, literal(MODIFIER));
+const discountSide: LegTest = (leg) =>
+  equal(leg.source_type, literal(MODIFIER));
 
 export const modifierLeg = {
-  accountId: `CASE WHEN ${surchargeSide} THEN ${LEG_COLUMNS.dest.id} ELSE ${LEG_COLUMNS.source.id} END`,
-  filter: `kind = '${KIND.modifier}'`,
-  signedAmount: signedSumCase(surchargeSide, discountSide),
+  accountId: (leg: Leg): Expr<string> =>
+    when<string>([[surchargeSide(leg), leg.dest_id]], leg.source_id),
+  filter: ofKind(KIND.modifier),
+  signedAmount: signedSum(surchargeSide, discountSide),
 } as const;
 
 /**
- * A *bare* scalar subquery (no alias) for an account's net ledger balance: money
- * in as the destination minus money out as the source. It is the same signed
- * sum the TS-side `balanceOf` computes. The caller names it and chooses the sign: a
- * revenue/modifier account reads it directly (`balance AS income`), while an
- * "owed" figure negates it (outstanding = `-balance`). Scanning only the
- * account's own legs (`<dest> OR <source>`) keeps it index-backed.
+ * The net ledger balance of an account: money in as the destination less money
+ * out as the source. It is the same signed sum that the TS-side `balanceOf`
+ * computes. The caller names it and chooses the sign: a revenue or modifier
+ * account reads it as it is, and an "owed" figure negates it. It reads only
+ * the account's own legs, so an index backs it.
  */
-export const accountBalanceSubquery = (
-  type: string,
-  idExpr: string,
-): string => {
-  const asDest = accountPredicate("dest", type, idExpr);
-  const asSource = accountPredicate("source", type, idExpr);
-  return `(SELECT ${signedSumCase(asDest, asSource)} FROM transfers WHERE ${asDest} OR ${asSource})`;
-};
+export const accountBalanceSubquery: OfAccount<Expr<Counted>> = (type, id) =>
+  signedLegSum(onAccount("dest", type, id), onAccount("source", type, id));
+
+/** The row has the outside world on its `role` side. */
+const onWorld = (role: Role): LegTest =>
+  onSide(role, literal(WORLD.type), literal(WORLD.id));
 
 /** Net cash received from the outside world by one account. Payments into the
  * account add. Refunds and reversals back to the world subtract. Other ledger
  * legs do not represent cash and are ignored. */
-export const externalCashBalanceSubquery = (
-  type: string,
-  idExpr: string,
-): string => {
-  const accountIn = accountPredicate("dest", type, idExpr);
-  const accountOut = accountPredicate("source", type, idExpr);
-  const worldOut = `source_type = '${WORLD.type}' AND source_id = '${WORLD.id}'`;
-  const worldIn = `dest_type = '${WORLD.type}' AND dest_id = '${WORLD.id}'`;
-  const received = `${accountIn} AND ${worldOut}`;
-  const returned = `${accountOut} AND ${worldIn}`;
-  return `(SELECT ${signedSumCase(received, returned)} FROM transfers WHERE ${received} OR ${returned})`;
-};
+export const externalCashBalanceSubquery: OfAccount<Expr<Counted>> = (
+  type,
+  id,
+) =>
+  signedLegSum(
+    every(onAccount("dest", type, id), onWorld("source")),
+    every(onAccount("source", type, id), onWorld("dest")),
+  );
 
 const billedTotalSubquery = (
-  type: string,
-  idExpr: string,
   kinds: readonly string[],
-): string => {
-  const billed = accountPredicate("source", type, idExpr);
-  const discounted = accountPredicate("dest", type, idExpr);
-  const kindList = kinds.map((kind) => `'${kind}'`).join(", ");
-  return `(SELECT ${signedSumCase(billed, discounted)} FROM transfers WHERE kind IN (${kindList}) AND (${billed} OR ${discounted}))`;
-};
+  type: string,
+  id: AccountId,
+): Expr<Counted> =>
+  signedLegSum(
+    onAccount("source", type, id),
+    onAccount("dest", type, id),
+    (leg) => amongConstants(leg.kind, kinds),
+  );
 
 /** The kinds that bill the customer for the booking itself, in the order the
  * subtotal reads them. Booking fees and later manual charges extend it. */
@@ -184,26 +292,21 @@ const TAXED_SALE_KINDS = [
 
 /** Customer subtotal including tax, before booking fees. This is the base used
  * to calculate a reservation deposit. */
-export const reservationSubtotalSubquery = (
-  type: string,
-  idExpr: string,
-): string => billedTotalSubquery(type, idExpr, TAXED_SALE_KINDS);
+export const reservationSubtotalSubquery =
+  bindFirst(billedTotalSubquery)(TAXED_SALE_KINDS);
 
 /** Total amount billed to one attendee. Booking fees and later manual charges
  * add to the saved ticket subtotal. Payments, refunds and write-offs do not. */
-export const orderTotalSubquery = (type: string, idExpr: string): string =>
-  billedTotalSubquery(type, idExpr, [
-    ...TAXED_SALE_KINDS,
-    KIND.fee,
-    MANUAL_ATTENDEE_CHARGE,
-  ]);
+export const orderTotalSubquery = bindFirst(billedTotalSubquery)([
+  ...TAXED_SALE_KINDS,
+  KIND.fee,
+  MANUAL_ATTENDEE_CHARGE,
+]);
 
 /**
- * The bare subquery for what an attendee still owes: the negation of their net
- * account balance (outstanding = −balance). The single place the "owed equals
- * negative balance" sign convention lives, so the read column, the settle guard,
- * and the finalize guard cannot drift apart. Callers alias it
- * (`… AS remaining_balance`) or compare it in a guard (`… = ?`).
+ * What an attendee still owes: the negation of their net account balance. The
+ * one place the "owed equals negative balance" sign convention lives, so the
+ * read column, the settle guard, and the finalize guard cannot drift apart.
  */
-export const attendeeOwedSubquery = (idExpr: string): string =>
-  `-${accountBalanceSubquery(ATTENDEE, idExpr)}`;
+export const attendeeOwedSubquery = (id: AccountId): Expr<Counted> =>
+  valued(sql`-${accountBalanceSubquery(ATTENDEE, id)}`);

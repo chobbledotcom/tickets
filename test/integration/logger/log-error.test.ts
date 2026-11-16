@@ -13,6 +13,7 @@ import {
   trackSql,
 } from "#db/query-log.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql, sqlList } from "#db/sql.ts";
 import { sendEmail } from "#shared/email.ts";
 import {
   bestEffort,
@@ -116,11 +117,11 @@ describe("log-error", () => {
         await flushPendingWork();
       });
 
-      const ntfyCall = fetchStub.calls.find(
-        (c) => c.args[0] === "https://ntfy.sh/test-topic",
-      );
-      expect(ntfyCall).toBeDefined();
-      expect((ntfyCall!.args[1] as RequestInit).body).toBe("E_DB_QUERY");
+      expect(
+        fetchStub.calls
+          .filter((call) => call.args[0] === "https://ntfy.sh/test-topic")
+          .map((call) => (call.args[1] as RequestInit).body),
+      ).toEqual(["E_DB_QUERY"]);
     });
 
     test("skips ntfy and activity log outside pending work scope", () => {
@@ -174,6 +175,14 @@ describe("log-error", () => {
         resetDb();
       });
 
+      /** The listing ids the activity log recorded for one exact message. */
+      const listingIdsFor = async (
+        message: string,
+      ): Promise<(number | null)[]> =>
+        (await getAllActivityLog())
+          .filter((entry) => entry.message === message)
+          .map(({ listing_id }) => listing_id);
+
       test("persists error to activity log", async () => {
         await withRequestContext(async () => {
           logError({
@@ -183,14 +192,11 @@ describe("log-error", () => {
           await flushPendingWork();
         });
 
-        const entries = await getAllActivityLog();
-        const match = entries.find(
-          (e) =>
-            e.message ===
+        expect(
+          await listingIdsFor(
             "Error: Stripe checkout failed (session creation failed)",
-        );
-        expect(match).toBeDefined();
-        expect(match!.listing_id).toBeNull();
+          ),
+        ).toEqual([null]);
       });
 
       test("persists error with listing ID to activity log", async () => {
@@ -204,12 +210,9 @@ describe("log-error", () => {
           await flushPendingWork();
         });
 
-        const entries = await getAllActivityLog();
-        const match = entries.find(
-          (e) => e.message === "Error: Payment refund failed (refund declined)",
-        );
-        expect(match).toBeDefined();
-        expect(match!.listing_id).toBe(listing.id);
+        expect(
+          await listingIdsFor("Error: Payment refund failed (refund declined)"),
+        ).toEqual([listing.id]);
       });
 
       test("persists error without detail to activity log", async () => {
@@ -219,10 +222,9 @@ describe("log-error", () => {
         });
 
         const entries = await getAllActivityLog();
-        const match = entries.find(
-          (e) => e.message === "Error: Database connection failed",
-        );
-        expect(match).toBeDefined();
+        expect(entries.map(({ message }) => message)).toEqual([
+          "Error: Database connection failed",
+        ]);
       });
 
       test("persists a failed email provider reason", async () => {
@@ -252,18 +254,16 @@ describe("log-error", () => {
         });
 
         const entries = await getAllActivityLog();
-        const connError = entries.find(
-          (e) => e.message === "Error: Database connection failed",
-        );
-        const queryError = entries.find(
-          (e) => e.message === "Error: Database query failed",
-        );
-        expect(connError).toBeDefined();
-        expect(queryError).toBeDefined();
+        expect(entries.map(({ message }) => message).toSorted()).toEqual([
+          "Error: Database connection failed",
+          "Error: Database query failed",
+        ]);
       });
 
       test("does not persist an error raised by error persistence", async () => {
-        const settingsRead = "SELECT key, value FROM settings WHERE key IN (?)";
+        const settingsRead =
+          sql`SELECT key, value FROM settings WHERE key IN (${sqlList([CONFIG_KEYS.WRAPPED_PRIVATE_KEY])})`
+            .sql;
         setN1GuardNotifyOnly(true);
         try {
           await withRequestContext(() =>

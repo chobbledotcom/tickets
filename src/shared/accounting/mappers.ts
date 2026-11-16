@@ -31,6 +31,7 @@ import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
 
 const BOOKING = "booking";
 const REFUND = "refund";
+const RENEWAL = "renewal";
 
 /** The shared event group for one ledger leg: a tag and the id it refers to. */
 const eventGroupFor =
@@ -100,12 +101,16 @@ type LegSpec = {
   refParts: RefPart[];
 };
 
-/** A single fixed-direction leg, dropped when its amount is zero (a free booking
- *  posts no fee, and a deposit-free reservation posts no payment). */
+/** A single fixed-direction leg, referenced by its kind alone. It is dropped
+ * when its amount is zero: a free booking posts no fee, and a deposit-free
+ * reservation posts no payment. */
 const optionalLeg = (
+  kind: string,
+  source: AccountRef,
+  destination: AccountRef,
   amount: number,
-  spec: Omit<LegSpec, "amount">,
-): LegSpec[] => (amount > 0 ? [{ ...spec, amount }] : []);
+): LegSpec[] =>
+  amount > 0 ? [{ amount, destination, kind, refParts: [kind], source }] : [];
 
 const modifierLeg = (
   attendee: AccountRef,
@@ -131,20 +136,6 @@ const modifierLeg = (
         source: modAccount,
       };
 };
-
-/** The single attendee→`tax:vat` leg, dropped when the tax is zero. */
-const vatLegSpec = (vatAmount: number, attendee: AccountRef): LegSpec[] =>
-  vatAmount > 0
-    ? [
-        {
-          amount: vatAmount,
-          destination: TAX_VAT,
-          kind: KIND.vat,
-          refParts: [KIND.vat],
-          source: attendee,
-        },
-      ]
-    : [];
 
 const bookingLegSpecs = (
   facts: BookingFacts,
@@ -185,24 +176,17 @@ const bookingLegSpecs = (
   const modifiers = (assessment?.modifiers ?? facts.modifiers)
     .filter((modifier) => modifier.delta !== 0)
     .map((modifier) => modifierLeg(attendee, modifier));
-  const fee = optionalLeg(facts.bookingFee, {
-    destination: BOOKING_FEE_INCOME,
-    kind: KIND.fee,
-    refParts: [KIND.fee],
-    source: attendee,
-  });
-  const payment = optionalLeg(facts.amountPaid, {
-    destination: attendee,
-    kind: KIND.payment,
-    refParts: [KIND.payment],
-    source: WORLD,
-  });
   return [
     ...sales,
     ...modifiers,
-    ...fee,
-    ...payment,
-    ...vatLegSpec(assessment ? assessment.taxAmount : 0, attendee),
+    ...optionalLeg(KIND.fee, attendee, BOOKING_FEE_INCOME, facts.bookingFee),
+    ...optionalLeg(KIND.payment, WORLD, attendee, facts.amountPaid),
+    ...optionalLeg(
+      KIND.vat,
+      attendee,
+      TAX_VAT,
+      assessment ? assessment.taxAmount : 0,
+    ),
   ];
 };
 
@@ -260,19 +244,59 @@ export const mapBooking = async (
   facts: BookingFacts,
 ): Promise<TransferInput[]> => {
   assertValidFacts(facts);
-  const group = await bookingEventGroup(facts.eventId);
-  const attendee = attendeeAccount(facts.attendeeId);
+  return eventLegs(
+    [BOOKING, facts.eventId],
+    facts.occurredAt,
+    bookingLegSpecs(facts, attendeeAccount(facts.attendeeId)),
+  );
+};
+
+/** Post one event's legs: `event` names the event group and prefixes each
+ * leg's reference, so a replay of the same event posts nothing new. */
+const eventLegs = async (
+  event: [string, string],
+  occurredAt: string,
+  specs: LegSpec[],
+): Promise<TransferInput[]> => {
+  const group = await eventGroup(event);
   return Promise.all(
-    bookingLegSpecs(facts, attendee).map(async (spec) => ({
+    specs.map(async (spec) => ({
       amount: spec.amount,
       destination: spec.destination,
       eventGroup: group,
       kind: spec.kind,
-      occurredAt: facts.occurredAt,
-      reference: await legReference([BOOKING, facts.eventId, ...spec.refParts]),
+      occurredAt,
+      reference: await legReference([...event, ...spec.refParts]),
       source: spec.source,
     })),
   );
+};
+
+/** The money facts of one paid subscription renewal. `invoiceId` is hashed
+ * into the references, never stored. `tax` is the VAT inside `paid`. */
+export type RenewalFacts = {
+  readonly attendeeId: number;
+  readonly invoiceId: string;
+  readonly listingId: number;
+  readonly occurredAt: string;
+  readonly paid: number;
+  readonly tax: number;
+};
+
+/** Map one paid renewal to its legs: the cash in, the ticket income without
+ * VAT, and the VAT. */
+export const mapRenewal = (facts: RenewalFacts): Promise<TransferInput[]> => {
+  const attendee = attendeeAccount(facts.attendeeId);
+  return eventLegs([RENEWAL, facts.invoiceId], facts.occurredAt, [
+    ...optionalLeg(KIND.payment, WORLD, attendee, facts.paid),
+    ...optionalLeg(
+      KIND.sale,
+      attendee,
+      revenueAccount(facts.listingId),
+      facts.paid - facts.tax,
+    ),
+    ...optionalLeg(KIND.vat, attendee, TAX_VAT, facts.tax),
+  ]);
 };
 
 /**

@@ -5,6 +5,7 @@ import { getAttendeesByTokens } from "#db/attendees/tokens.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { queryOne } from "#db/client.ts";
 import { contactHash, forgetContact } from "#db/contact-preferences.ts";
+import { sql } from "#db/sql.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { mergePair, submitMerge } from "#test-utils/attendees/merge.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -30,8 +31,7 @@ const piiOfToken = async (token: string) => {
 /** The number of contact records stored for one contact hash. */
 const contactRows = async (hash: string): Promise<number> => {
   const row = await queryOne<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM contact_preferences WHERE contact_hash = ?",
-    [hash],
+    sql`SELECT COUNT(*) AS n FROM contact_preferences WHERE contact_hash = ${hash}`,
   );
   return row!.n;
 };
@@ -141,8 +141,7 @@ describeWithEnv(
       const blob = async (): Promise<string | null> =>
         (
           await queryOne<{ b: string | null }>(
-            "SELECT attendee_tokens_blob AS b FROM contact_preferences WHERE contact_hash = ?",
-            [hash],
+            sql`SELECT attendee_tokens_blob AS b FROM contact_preferences WHERE contact_hash = ${hash}`,
           )
         )?.b ?? null;
       const before = await blob();

@@ -5,6 +5,7 @@ import {
   registerListingTemplateHooks,
   renderListingDetail,
 } from "#test/ui/templates/admin/listings/helpers.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
@@ -146,9 +147,11 @@ describe("listing details table copy rows", () => {
       suppressedChild,
       "offered as a child of another listing",
     );
-    assert(!suppressedChild.includes('id="embed-toggle-12"'));
-    assert(!suppressedChild.includes('id="embed-script-12"'));
-    assert(!suppressedChild.includes('id="embed-iframe-12"'));
+    expectExcludesAll(suppressedChild, [
+      'id="embed-toggle-12"',
+      'id="embed-script-12"',
+      'id="embed-iframe-12"',
+    ]);
   });
 
   test("an inactive listing names its switched-off page instead of the links", () => {
@@ -159,9 +162,11 @@ describe("listing details table copy rows", () => {
       publicPage: "inactive",
     });
     assertStringIncludes(inactive, "This listing is inactive");
-    assert(!inactive.includes('id="embed-toggle-12"'));
-    assert(!inactive.includes('id="embed-script-12"'));
-    assert(!inactive.includes('id="embed-iframe-12"'));
+    expectExcludesAll(inactive, [
+      'id="embed-toggle-12"',
+      'id="embed-script-12"',
+      'id="embed-iframe-12"',
+    ]);
   });
 
   test("the public url row toggles the embed inputs beside the link", () => {
@@ -194,11 +199,13 @@ describe("listing details table copy rows", () => {
 
   test("omitted thank-you and webhook urls leave no empty rows", () => {
     const rows = detailRows({ date: "", thank_you_url: "", webhook_url: "" });
-    assert(!rows.includes("Thank You URL"));
-    assert(!rows.includes("Webhook URL"));
     // With no date and no location, neither conditional row renders.
-    assert(!rows.includes("<th>Listing Date</th>"));
-    assert(!rows.includes("<th>Location</th>"));
+    expectExcludesAll(rows, [
+      "Thank You URL",
+      "Webhook URL",
+      "<th>Listing Date</th>",
+      "<th>Location</th>",
+    ]);
   });
 
   test("the header row spans both columns with the listing name", () => {

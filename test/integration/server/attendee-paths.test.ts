@@ -8,6 +8,7 @@ import { loadExistingLines } from "#db/attendees/atomic-update.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { sql } from "#db/sql.ts";
 import {
   attendeeLineIndex,
   expectIncludesAll,
@@ -18,7 +19,10 @@ import {
   attendeeLineFields,
   buildAttendeeEditForm,
 } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createPackageWithMember,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   deactivateTestListing,
@@ -37,9 +41,7 @@ import type { Group, Listing } from "#types";
 const packageAndMember = async (
   name: string,
 ): Promise<{ group: Group; listing: Listing }> => {
-  const group = await createTestGroup({ isPackage: true, name });
-  const listing = await createTestListing({
-    groupId: group.id,
+  const { group, member: listing } = await createPackageWithMember(name, {
     maxAttendees: 10,
     maxQuantity: 5,
     name: `${name} Tent`,
@@ -84,10 +86,9 @@ const pathRows = (
   listingId: number,
 ): Promise<{ package_group_id: number; quantity: number }[]> =>
   queryAll(
-    `SELECT package_group_id, quantity FROM listing_attendees
-      WHERE attendee_id = ? AND listing_id = ?
+    sql`SELECT package_group_id, quantity FROM listing_attendees
+      WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}
       ORDER BY package_group_id ASC`,
-    [attendeeId, listingId],
   );
 
 /** Assert the attendee's stored [package path, quantity] pairs. */
@@ -290,7 +291,7 @@ describeWithEnv(
       );
       // Deleting the group leaves the booked row tagged with its id — the
       // label falls back to the id rather than hiding the path.
-      const { deleteGroup } = await import("#routes/admin/groups.ts");
+      const { deleteGroup } = await import("#shared/records/groups.ts");
       await deleteGroup(group.id);
 
       const html = await (

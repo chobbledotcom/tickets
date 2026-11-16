@@ -4,24 +4,23 @@
  * only when its tab is opened.
  */
 
-import { logisticsAgents } from "#db/logistics-agents.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import {
   decryptAdminLevel,
   decryptUsername,
   getUserDisplayFields,
 } from "#db/users.ts";
-import {
-  defineEditEntityPage,
-  type EditEntityPage,
-} from "#routes/admin/entity-write-tab.ts";
+import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
+import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
 import { selectedIdsFromForm } from "#shared/selected-ids.ts";
 import {
   type AgentUserOption,
   LogisticsAgentEditPanel,
 } from "#templates/admin/logistics.tsx";
 import { isDeliveryRole, type LogisticsAgent } from "#types";
+
+import { recordEditPage } from "./record-edit-page.ts";
 
 /** Users that can drive a logistics agent, decrypted as assignable options. */
 export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
@@ -38,10 +37,8 @@ export const loadAgentUserOptions = async (): Promise<AgentUserOption[]> => {
 
 /** The tabbed logistics-agent page. */
 export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
-  defineEditEntityPage({
-    deleteDestination: "logisticsDelete",
+  recordEditPage(logisticsAgentRecord, {
     deleteLabelKey: "logistics.delete_agent",
-    destination: "logisticsAgent",
     edit: async (agent, _ctx, rejected) => {
       const users = await loadAgentUserOptions();
       const selectedIds = rejected
@@ -60,7 +57,5 @@ export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
       });
     },
     editSlug: "",
-    load: (id) => logisticsAgents.table.read.one({ id }),
     navActive: { section: adminPattern("logistics") },
-    recordId: (agent) => agent.id,
   });

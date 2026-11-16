@@ -11,7 +11,6 @@
  * attendee an orphan row.
  */
 
-import type { InValue } from "@libsql/client";
 import type {
   DesiredListingLine,
   ListingAttendeeRow,
@@ -26,13 +25,13 @@ import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
 import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
-import {
-  executeBatchWithResults,
-  queryAll,
-  type SqlStatement,
-} from "#db/client.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { executeBatchWithResults, queryAll } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
+import {
+  CANCELLABLE_STATUSES,
+  isCancellable,
+} from "#payment/subscription-machine-spec.ts";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -45,11 +44,8 @@ import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
  * `batch()` — a zero-row capacity statement is not itself an error and would
  * otherwise commit alongside the unconditional PII/DELETE writes.
  */
-export const CAPACITY_GUARD = {
-  args: [] as [],
-  sql: `INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-        SELECT NULL, NULL, 1 WHERE changes() = 0`,
-};
+export const CAPACITY_GUARD: SqlStatement = sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+        SELECT NULL, NULL, 1 WHERE changes() = 0`;
 
 /** A desired final-state line for the atomic update path — the shared
  * DesiredListingLine the listings types module exports. */
@@ -63,11 +59,10 @@ export const CAPACITY_GUARD = {
  * line is later re-activated. Real lines (quantity ≥ 1) keep their state. The
  * fragment carries no bind args, so it slots into both update branches.
  */
-const noQuantityResetColumns = (quantity: number): string =>
+const noQuantityResetColumns = (quantity: number): SqlStatement =>
   quantity === 0
-    ? ", start_agent_id = NULL, end_agent_id = NULL," +
-      " start_time = '', end_time = '', start_done = 0, end_done = 0"
-    : "";
+    ? sql`, start_agent_id = NULL, end_agent_id = NULL, start_time = '', end_time = '', start_done = 0, end_done = 0`
+    : sql``;
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
@@ -115,10 +110,9 @@ export const loadExistingLines = async (
   attendeeId: number,
 ): Promise<ExistingLine[]> => {
   const rows = await queryAll<ListingAttendeeRow>(
-    `SELECT ${LISTING_ATTENDEE_ROW_COLS}
-     FROM listing_attendees WHERE attendee_id = ?
+    sql`SELECT ${LISTING_ATTENDEE_ROW_COLS}
+     FROM listing_attendees WHERE attendee_id = ${attendeeId}
      ORDER BY start_at, listing_id`,
-    [attendeeId],
   );
   return rows.map((booking) => ({
     booking,
@@ -232,27 +226,16 @@ export const updateStatementFor = (
     packageGroupId: number;
   },
   skipCapacityGuard: boolean,
-): SqlStatement =>
-  numberedStatement((bind) => {
-    const quantitySql = bind(line.quantity);
-    const attendeeIdSql = bind(attendeeId);
-    const listingIdSql = bind(line.listingId);
-    const { startAt, endAt } = lineRange(line);
-    // A smaller quantity also lowers the admitted count, so it never exceeds it.
-    const setClause =
-      `UPDATE listing_attendees SET quantity = ${quantitySql}, checked_in = MIN(checked_in, ${quantitySql}), start_at = ${bind(startAt)}, end_at = ${bind(endAt)}${noQuantityResetColumns(
-        line.quantity,
-      )}` +
-      ` WHERE attendee_id = ${attendeeIdSql} AND listing_id = ${listingIdSql} AND start_at IS ${bind(oldPin.startAt)} AND parent_listing_id = ${bind(oldPin.parentListingId)} AND package_group_id = ${bind(oldPin.packageGroupId)}`;
-    if (skipCapacityGuard) return setClause;
-
-    const condition = capacityConditionFor(line, attendeeId)(bind, {
-      excludeAttendeeId: attendeeIdSql,
-      listingId: listingIdSql,
-      quantity: quantitySql,
-    });
-    return `${setClause}\n              AND ${condition}`;
-  });
+): SqlStatement => {
+  const { startAt, endAt } = lineRange(line);
+  // A smaller quantity also lowers the admitted count, so it never exceeds it.
+  const setClause = sql`UPDATE listing_attendees SET quantity = ${line.quantity}, checked_in = MIN(checked_in, ${line.quantity}), start_at = ${startAt}, end_at = ${endAt}${noQuantityResetColumns(
+    line.quantity,
+  )} WHERE attendee_id = ${attendeeId} AND listing_id = ${line.listingId} AND start_at IS ${oldPin.startAt} AND parent_listing_id = ${oldPin.parentListingId} AND package_group_id = ${oldPin.packageGroupId}`;
+  return skipCapacityGuard
+    ? setClause
+    : sql`${setClause} AND ${capacityConditionFor(line, attendeeId)}`;
+};
 
 /** One desired line's write statement, and whether the batch must follow it
  * with CAPACITY_GUARD: a capacity-checked write can affect zero rows, an
@@ -261,14 +244,14 @@ export const lineStatementFor = (
   line: DesiredListingLine,
   attendeeId: number,
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): { guarded: boolean; statement: SqlStatement } => {
   if (!line.exists) {
     return {
       guarded: !allowOverbook,
       statement: buildCapacityCheckedInsert(
         lineBooking(line),
-        (bind) => bind(attendeeId),
+        attendeeId,
         allowOverbook,
       ),
     };
@@ -285,34 +268,41 @@ export const lineStatementFor = (
   };
 };
 
-/** The write statements for one attendee edit: a delete per removed line, then
- * the update and insert statements in line order, each capacity-checked write
- * followed by CAPACITY_GUARD. The caller runs them as one batch, so a refused
- * write rolls the whole edit back. */
+/** The stored rows the desired line set no longer names. */
+const removedLines = (
+  desired: readonly DesiredListingLine[],
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
+): ListingAttendeeRow[] => {
+  const desiredKeys = new Set(desired.map((line) => line.key));
+  return [...existingByKey.values()].filter(
+    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
+  );
+};
+
+/** Each removed line has a live-plan guard before its delete. Capacity-checked
+ * writes have CAPACITY_GUARD after them. The caller runs all statements as one
+ * batch, so a refused write rolls the whole edit back. */
 export const buildAttendeeEditBatch = (
   attendeeId: number,
   desired: readonly DesiredListingLine[],
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): SqlStatement[] => {
-  const desiredKeys = new Set(desired.map((line) => line.key));
-  const removed = [...existingByKey.values()].filter(
-    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
+  const statements = removedLines(desired, existingByKey).flatMap(
+    (booking): SqlStatement[] => {
+      // The booking-slot identity both statements pin.
+      const slot = sql`attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`;
+      // Test the current plan, not changes(): an absent ordinary row stays a no-op.
+      return [
+        sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+                SELECT NULL, NULL, 1 FROM listing_attendees
+                WHERE ${slot}
+                  AND subscription_status IN (${sqlList(CANCELLABLE_STATUSES)})`,
+        sql`DELETE FROM listing_attendees
+            WHERE ${slot}`,
+      ];
+    },
   );
-  const statements: SqlStatement[] = [];
-  for (const booking of removed) {
-    statements.push({
-      args: [
-        attendeeId,
-        booking.listing_id,
-        booking.start_at ?? null,
-        booking.parent_listing_id,
-        booking.package_group_id,
-      ],
-      sql: `DELETE FROM listing_attendees
-            WHERE attendee_id = ? AND listing_id = ? AND start_at IS ? AND parent_listing_id = ? AND package_group_id = ?`,
-    });
-  }
   for (const line of [
     ...desired.filter((line) => line.exists),
     ...desired.filter((line) => !line.exists),
@@ -359,6 +349,19 @@ export const applyAttendeeAtomicEdit = async (
   const existing = await loadExistingLines(attendeeId);
   const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
 
+  // A removed line loses its row, and a row with a running subscription must
+  // stay until the owner cancels it.
+  const lostPlans = removedLines(desired, existingByKey).filter((booking) =>
+    isCancellable(booking.subscription_status),
+  );
+  if (lostPlans.length > 0) {
+    return {
+      listingIds: lostPlans.map((booking) => booking.listing_id),
+      reason: "subscription_live",
+      success: false,
+    };
+  }
+
   // Preflight: reject (without writing anything) when any changed line can't
   // fit, before any write happens.
   const preflightFailure = await preflightCapacityFailure(
@@ -372,7 +375,7 @@ export const applyAttendeeAtomicEdit = async (
   // Build one batch that runs as a single ACID transaction. Each
   // capacity-checked write is immediately followed by CAPACITY_GUARD, which
   // aborts (and rolls back) the whole batch if that write affected no rows.
-  const statements: Array<{ args: InValue[]; sql: string }> = [
+  const statements: SqlStatement[] = [
     ...work.before,
     ...(await attendeePiiWriteStatements(attendeeId, pii)),
     ...buildAttendeeEditBatch(
@@ -384,10 +387,9 @@ export const applyAttendeeAtomicEdit = async (
     ...work.after,
   ];
 
-  // The batch runs as one ACID transaction. After the preflight above this
-  // only fails if a concurrent booking consumed the capacity in the meantime —
-  // a CAPACITY_GUARD then aborts and rolls the whole batch back, surfacing as a
-  // thrown error (the caller retries), never a partial write.
+  // A concurrent capacity change or live plan can refuse the batch after
+  // preflight. Its guard throws a database error and rolls back every write.
+  // A retry reads the current bookings and repeats the preflight.
   await executeBatchWithResults(statements);
 
   return { success: true };

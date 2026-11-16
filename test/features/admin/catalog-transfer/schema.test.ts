@@ -11,9 +11,23 @@ import {
 } from "#routes/admin/catalog-transfer/schema.ts";
 import { MAX_DURATION_DAYS } from "#types";
 
+/** Parse a minimal listing with the fields under test added. */
+const parseListing = (extra: Record<string, unknown>) =>
+  v.safeParse(ListingDataSchema, { maxAttendees: 1, name: "Thing", ...extra });
+
+/** Assert a parse failed and its formatted issues carry the fragment. */
+const expectIssueMessage = <T extends v.GenericSchema>(
+  result: v.SafeParseResult<T>,
+  fragment: string,
+): void => {
+  expect(result.success).toBe(false);
+  if (!result.success) {
+    expect(formatTransferIssues(result.issues)).toContain(fragment);
+  }
+};
+
 /** Parse a minimal listing whose `fields` is the value under test. */
-const parseFields = (fields: string) =>
-  v.safeParse(ListingDataSchema, { fields, maxAttendees: 1, name: "Thing" });
+const parseFields = (fields: string) => parseListing({ fields });
 
 describe("ListingDataSchema fields", () => {
   test("trims whitespace around each field name", () => {
@@ -144,91 +158,68 @@ describe("formatBundleIssues", () => {
 });
 
 describe("ListingDataSchema datetime", () => {
-  const parseDate = (date: string) =>
-    v.safeParse(ListingDataSchema, { date, maxAttendees: 1, name: "Thing" });
+  const parseDate = (date: string) => parseListing({ date });
 
-  test("accepts an empty value", () => {
-    expect(parseDate("").success).toBe(true);
-  });
+  /** Each group of dates the schema accepts or refuses, named by the label. */
+  const dateCases: { label: string; dates: string[]; accepted: boolean }[] = [
+    { accepted: true, dates: [""], label: "accepts an empty value" },
+    {
+      accepted: true,
+      dates: ["2026-06-05T10:30Z", "2026-06-05T10:30:00.123Z"],
+      label: "accepts a UTC instant",
+    },
+    {
+      accepted: false,
+      dates: [
+        "2026-06-05T10:30",
+        "2026-06-05T10:30:15",
+        "2026-06-05T10:30:00+02:30",
+        "2026-06-05T10:30:00-05:00",
+      ],
+      label:
+        "refuses a naive datetime or an offset instant: a transfer names UTC times",
+    },
+    {
+      accepted: false,
+      dates: ["2026-02-30T10:30Z", "2025-13-01T10:30Z", "2026-00-10T10:30Z"],
+      label: "rejects impossible calendar dates",
+    },
+    {
+      accepted: false,
+      dates: ["2026-06-05T24:00Z", "2026-06-05T10:60Z", "2026-06-05T10:30:60Z"],
+      label: "rejects out-of-range time parts",
+    },
+    {
+      accepted: false,
+      dates: [
+        "2026-06-05T10:30not-a-zone",
+        "2026-06-05",
+        "2026-06-05T10:30.123",
+        "garbage",
+      ],
+      label:
+        "rejects trailing junk, date-only values, and bare fractional seconds",
+    },
+  ];
 
-  test("accepts a naive datetime with or without seconds", () => {
-    for (const date of [
-      "2026-06-05T10:30",
-      "2026-06-05T10:30:00",
-      "2026-06-05T10:30:15",
-    ]) {
-      expect(parseDate(date).success).toBe(true);
-    }
-  });
+  for (const { accepted, dates, label } of dateCases) {
+    test(label, () => {
+      expect(dates.map((date) => parseDate(date).success)).toEqual(
+        dates.map(() => accepted),
+      );
+    });
+  }
 
-  test("accepts a UTC or offset instant", () => {
-    for (const date of [
-      "2026-06-05T10:30Z",
-      "2026-06-05T10:30:00.123Z",
-      "2026-06-05T10:30:00+02:30",
-      "2026-06-05T10:30:00-05:00",
-    ]) {
-      expect(parseDate(date).success).toBe(true);
-    }
-  });
-
-  test("rejects impossible calendar dates", () => {
-    for (const date of [
-      "2026-02-30T10:30",
-      "2025-13-01T10:30",
-      "2026-00-10T10:30",
-    ]) {
-      expect(parseDate(date).success).toBe(false);
-    }
-  });
-
-  test("rejects a year below 100", () => {
-    // Date.UTC maps the years 0 to 99 onto 1900 to 1999. The rolled date keeps
-    // its month and day, so only the year comparison rejects these.
-    for (const date of ["0000-01-01T00:00", "0099-06-05T10:30"]) {
-      expect(parseDate(date).success).toBe(false);
-    }
-  });
-
-  test("rejects out-of-range time parts", () => {
-    for (const date of [
-      "2026-06-05T24:00",
-      "2026-06-05T10:60",
-      "2026-06-05T10:30:60",
-    ]) {
-      expect(parseDate(date).success).toBe(false);
-    }
-  });
-
-  test("rejects an out-of-range UTC offset", () => {
-    for (const date of [
-      "2026-06-05T10:30+24:00",
-      "2026-06-05T10:30+99:99",
-      "2026-06-05T10:30-23:61",
-    ]) {
-      expect(parseDate(date).success).toBe(false);
-    }
-  });
-
-  test("rejects trailing junk, date-only values, and bare fractional seconds", () => {
-    for (const date of [
-      "2026-06-05T10:30not-a-zone",
-      "2026-06-05",
-      "2026-06-05T10:30.123",
-      "garbage",
-    ]) {
-      expect(parseDate(date).success).toBe(false);
-    }
+  test("keeps a year below 100 as written", () => {
+    const result = parseDate("0099-06-05T10:30Z");
+    expect(result.success && result.output.date).toBe("0099-06-05T10:30Z");
   });
 
   test("names the datetime error in the issue message", () => {
-    const result = parseDate("garbage");
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(formatTransferIssues(result.issues)).toContain(
-        "must be a valid datetime",
-      );
-    }
+    expectIssueMessage(
+      parseDate("garbage"),
+      "must be a UTC instant of a real calendar day",
+    );
   });
 });
 
@@ -236,13 +227,7 @@ describe("ListingDataSchema day prices", () => {
   const parseDayPrices = (
     dayPrices: Record<string, number>,
     durationDays?: number,
-  ) =>
-    v.safeParse(ListingDataSchema, {
-      dayPrices,
-      durationDays,
-      maxAttendees: 1,
-      name: "Thing",
-    });
+  ) => parseListing({ dayPrices, durationDays });
 
   test("drops keys beyond the listing's own duration", () => {
     const result = parseDayPrices({ 1: 100, 2: 200, 5: 500 }, 2);
@@ -261,10 +246,7 @@ describe("ListingDataSchema day prices", () => {
   });
 
   test("passes a listing without day prices through unchanged", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      maxAttendees: 1,
-      name: "Thing",
-    });
+    const result = parseListing({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect("dayPrices" in result.output).toBe(false);
@@ -272,13 +254,10 @@ describe("ListingDataSchema day prices", () => {
   });
 
   test("rejects a non-numeric day-count key", () => {
-    const result = parseDayPrices({ weekday: 100 });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(formatTransferIssues(result.issues)).toContain(
-        "day count must be a positive whole number",
-      );
-    }
+    expectIssueMessage(
+      parseDayPrices({ weekday: 100 }),
+      "day count must be a positive whole number",
+    );
   });
 
   test("joins a field's repeated messages with a semicolon", () => {
@@ -298,114 +277,76 @@ describe("ListingDataSchema day prices", () => {
   });
 
   test("rejects a day-count key beyond the bookable range", () => {
-    const result = parseDayPrices({ 91: 100 });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(formatTransferIssues(result.issues)).toContain(
-        `day count must be between 1 and ${MAX_DURATION_DAYS}`,
-      );
-    }
+    expectIssueMessage(
+      parseDayPrices({ 91: 100 }),
+      `day count must be between 1 and ${MAX_DURATION_DAYS}`,
+    );
   });
 
-  test("accepts a zero max price", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      maxAttendees: 1,
-      maxPrice: 0,
-      name: "Thing",
+  const zeroFields = [
+    ["max price", "maxPrice"],
+    ["minimum days before", "minimumDaysBefore"],
+  ] as const;
+  for (const [label, field] of zeroFields) {
+    test(`accepts a zero ${label}`, () => {
+      const result = parseListing({ [field]: 0 });
+      expect(result.success).toBe(true);
+      expect(result.success && result.output[field]).toBe(0);
     });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.output.maxPrice).toBe(0);
-  });
+  }
 
-  test("accepts a zero minimum days before", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      maxAttendees: 1,
-      minimumDaysBefore: 0,
-      name: "Thing",
-    });
+  test("leaves an omitted max price to the column default", () => {
+    const result = parseListing({});
     expect(result.success).toBe(true);
-    if (result.success) expect(result.output.minimumDaysBefore).toBe(0);
-  });
-
-  test("defaults an omitted max price to zero", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      maxAttendees: 1,
-      name: "Thing",
-    });
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.output.maxPrice).toBe(0);
+    expect(result.success && Object.hasOwn(result.output, "maxPrice")).toBe(
+      false,
+    );
   });
 });
 
 describe("ListingDataSchema duration", () => {
   test("accepts a duration within the bookable range", () => {
     for (const durationDays of [1, MAX_DURATION_DAYS]) {
-      const result = v.safeParse(ListingDataSchema, {
-        durationDays,
-        maxAttendees: 1,
-        name: "Thing",
-      });
-      expect(result.success).toBe(true);
+      expect(parseListing({ durationDays }).success).toBe(true);
     }
   });
 
   test("rejects a zero duration", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      durationDays: 0,
-      maxAttendees: 1,
-      name: "Thing",
-    });
-    expect(result.success).toBe(false);
+    expect(parseListing({ durationDays: 0 }).success).toBe(false);
   });
 
   test("rejects a duration beyond the cap with a message", () => {
-    const result = v.safeParse(ListingDataSchema, {
-      durationDays: MAX_DURATION_DAYS + 1,
-      maxAttendees: 1,
-      name: "Thing",
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(formatTransferIssues(result.issues)).toContain(
-        `must be at most ${MAX_DURATION_DAYS} days`,
-      );
-    }
+    expectIssueMessage(
+      parseListing({ durationDays: MAX_DURATION_DAYS + 1 }),
+      `must be at most ${MAX_DURATION_DAYS} days`,
+    );
   });
 });
 
 describe("ListingTransferSchema version", () => {
-  test("accepts the current version", () => {
-    const result = v.safeParse(ListingTransferSchema, {
+  /** Parse a minimal listing export written at the given version. */
+  const parseVersion = (version: number) =>
+    v.safeParse(ListingTransferSchema, {
       kind: "listing",
       listing: { maxAttendees: 1, name: "Thing" },
-      version: CATALOG_TRANSFER_VERSION,
+      version,
     });
-    expect(result.success).toBe(true);
+
+  test("accepts the current version", () => {
+    expect(parseVersion(CATALOG_TRANSFER_VERSION).success).toBe(true);
   });
 
   test("accepts a blob written at version 1", () => {
     // The version is a wire contract with saved files: pin its literal, so a
     // changed constant cannot pass its own self-referential check.
-    const result = v.safeParse(ListingTransferSchema, {
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Thing" },
-      version: 1,
-    });
-    expect(result.success).toBe(true);
+    expect(parseVersion(1).success).toBe(true);
   });
 
   test("rejects another version with an intelligible message", () => {
-    const result = v.safeParse(ListingTransferSchema, {
-      kind: "listing",
-      listing: { maxAttendees: 1, name: "Thing" },
-      version: CATALOG_TRANSFER_VERSION + 1,
-    });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(formatTransferIssues(result.issues)).toContain(
-        `Unsupported export version (expected ${CATALOG_TRANSFER_VERSION})`,
-      );
-    }
+    expectIssueMessage(
+      parseVersion(CATALOG_TRANSFER_VERSION + 1),
+      `Unsupported export version (expected ${CATALOG_TRANSFER_VERSION})`,
+    );
   });
 });
 

@@ -1,13 +1,29 @@
-import { dateToRange } from "#db/capacity.ts";
-import { inPlaceholders, queryAll } from "#db/client.ts";
+import {
+  buildGroupCountSql,
+  dateToRange,
+  groupRunningTotal,
+} from "#db/capacity.ts";
+import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { columnMapByIds } from "#db/query.ts";
-import { mapBy, mapById, requiredMapValue, unique } from "#fp";
+import {
+  among,
+  type Counted,
+  type Expr,
+  equal,
+  greaterThan,
+  literal,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
+import { mapById, requiredMapValue, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#types";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
-import { daySpan, type IntervalRow, perDayLoads } from "./range.ts";
+import { perDayLoads, spanLoadsOf } from "./range.ts";
 import type { ListingForGroupLookup, PerIdDayLoader } from "./types.ts";
 
 type RemainingMap = Map<number, number>;
@@ -30,6 +46,27 @@ const cappedGroupQuery = async <T>(
   return ids.length === 0 ? new Map() : queryFor(ids);
 };
 
+/** The groups among `ids` that carry a cap, each with its cap and the total
+ *  that already counts against it. */
+const cappedGroupTotals = (
+  ids: readonly number[],
+  total: (group: Node<"groups">) => Expr<Counted>,
+) =>
+  queryAll(
+    from(tables.groups)
+      .where((group) => [
+        among(group.id, ids),
+        greaterThan(group.max_attendees, literal(0)),
+      ])
+      .select((group) => ({
+        id: group.id,
+        max_attendees: group.max_attendees,
+        total: total(group),
+      })),
+  );
+
+type CappedGroupTotal = Awaited<ReturnType<typeof cappedGroupTotals>>[number];
+
 /** Remaining capacity for each capped group. */
 export const getGroupRemainingByGroupId: RemainingLookup<number> = (
   groupIds,
@@ -37,47 +74,12 @@ export const getGroupRemainingByGroupId: RemainingLookup<number> = (
 ) =>
   cappedGroupQuery(groupIds, async (ids) => {
     const range = date ? dateToRange(date) : null;
-    const datedCount = date
-      ? `COALESCE((
-        SELECT SUM(listing.booked_quantity)
-          FROM listings AS listing
-          JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-         WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
-           "dateLessCap",
-           "listing.listing_type",
-         )}
-      ), 0) + COALESCE((
-        SELECT SUM(attendee.quantity)
-          FROM listing_attendees AS attendee
-          JOIN listings AS listing ON listing.id = attendee.listing_id
-          JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
-         WHERE groupListing.group_id = groupRow.id
-           AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
-           AND attendee.start_at < ? AND attendee.end_at > ?
-      ), 0)`
-      : `COALESCE((
-         SELECT SUM(listing.booked_quantity)
-           FROM listings AS listing
-           JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-          WHERE groupListing.group_id = groupRow.id
-       ), 0)`;
-    const countArgs = range ? [range.endAt, range.startAt] : [];
-    const rows = await queryAll<{
-      group_id: number;
-      max_attendees: number;
-      count: number;
-    }>(
-      `SELECT groupRow.id as group_id, groupRow.max_attendees,
-            ${datedCount} as count
-       FROM groups AS groupRow
-      WHERE groupRow.id IN (${inPlaceholders(
-        ids,
-      )}) AND groupRow.max_attendees > 0
-      GROUP BY groupRow.id`,
-      [...countArgs, ...ids],
+    const dayRange = range && { end: range.endAt, start: range.startAt };
+    const rows = await cappedGroupTotals(ids, (group) =>
+      buildGroupCountSql(dayRange, null, group.id),
     );
-    return mapBy("group_id", (row: (typeof rows)[number]) =>
-      Math.max(0, row.max_attendees - row.count),
+    return mapById((row: CappedGroupTotal) =>
+      Math.max(0, row.max_attendees - Number(row.total)),
     )(rows);
   });
 
@@ -87,49 +89,34 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
 > = async (groupIds, days) => {
   const ids = uniquePositiveGroupIds(groupIds);
   if (ids.length === 0) return new Map();
-  const caps = await queryAll<{
-    id: number;
-    max_attendees: number;
-    base: number;
-  }>(
-    `SELECT groupRow.id, groupRow.max_attendees,
-            COALESCE((
-              SELECT SUM(listing.booked_quantity)
-                FROM listings AS listing
-                JOIN group_listings AS groupListing ON groupListing.listing_id = listing.id
-               WHERE groupListing.group_id = groupRow.id AND ${capacityRuleTypeSql(
-                 "dateLessCap",
-                 "listing.listing_type",
-               )}
-            ), 0) AS base
-       FROM groups AS groupRow
-      WHERE groupRow.id IN (${inPlaceholders(
-        ids,
-      )}) AND groupRow.max_attendees > 0`,
-    ids,
+  const caps = await cappedGroupTotals(ids, (group) =>
+    groupRunningTotal(group.id, "dateLessCap"),
   );
   if (caps.length === 0) return new Map();
   const cappedIds = caps.map((cap) => cap.id);
-  const { startAt, endAt } = daySpan(days);
-  type GroupRow = IntervalRow & { group_id: number };
-  const rows = await queryAll<GroupRow>(
-    `SELECT groupListing.group_id, attendee.start_at, attendee.end_at, attendee.quantity
-       FROM listing_attendees AS attendee
-       JOIN listings AS listing ON listing.id = attendee.listing_id
-       JOIN group_listings AS groupListing ON groupListing.listing_id = attendee.listing_id
-      WHERE groupListing.group_id IN (${inPlaceholders(cappedIds)})
-        AND ${capacityRuleTypeSql("perDateCap", "listing.listing_type")}
-        AND attendee.start_at < ? AND attendee.end_at > ?`,
-    [...cappedIds, endAt, startAt],
+  const rows = await queryAll(
+    spanLoadsOf(
+      from(tables.listing_attendees, { listing: {} })
+        .as("attendee")
+        .join("membership", tables.group_listings, (line) =>
+          equal(line.membership.listing_id, line.listing_id),
+        )
+        .where((line) => [
+          among(line.membership.group_id, cappedIds),
+          capacityRuleTypeSql("perDateCap", line.listing.listing_type),
+        ]),
+      days,
+      (line) => line.membership.group_id,
+    ),
   );
-  const rowsByGroup = Map.groupBy(rows, (row) => row.group_id);
-  return mapById(({ id, max_attendees, base }: (typeof caps)[number]) => {
+  const rowsByGroup = Map.groupBy(rows, (row) => row.owner_id);
+  return mapById(({ id, max_attendees, total }: CappedGroupTotal) => {
     const loads = perDayLoads(rowsByGroup.get(id) ?? [], days);
     return new Map(
       days.map((day) => [
         day,
         max_attendees -
-          base -
+          Number(total) -
           requiredMapValue(loads, day, `Day ${day} missing`),
       ]),
     );
@@ -200,7 +187,7 @@ export const getGroupStaticCapByGroupId = (
       "groupRow",
       "max_attendees",
       ids,
-      " AND groupRow.max_attendees > 0",
+      sql` AND groupRow.max_attendees > 0`,
     ),
   );
 

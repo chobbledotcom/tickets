@@ -31,6 +31,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       name: listing.name,
       slug: listing.slug,
       thank_you_url: "https://example.com",
+      unit_price: "0",
     });
 
     /**

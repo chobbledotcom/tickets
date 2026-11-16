@@ -9,6 +9,7 @@ import { listingChildren, listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   exportGroup,
@@ -20,9 +21,15 @@ import {
   requireEntityImport,
   unwrapExport,
 } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  featureSetting,
+  setupStripe,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("catalog-transfer", { db: true }, () => {
   describe("listing round-trip", () => {
@@ -71,6 +78,31 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(
         await listingParents.getIds(requireEntityImport(result).id),
       ).toEqual([parent.id]);
+    });
+
+    test("carries an ordinary listing and a plan while subscriptions are on", async () => {
+      await setupStripe();
+      await withSetting(featureSetting("subscriptions"), async () => {
+        const ordinary = await createTestListing({ name: "Ordinary" });
+        const plain = unwrapExport(await exportListing(ordinary.id));
+        expect([
+          plain.listing.recurringInterval,
+          plain.listing.recurringPrice,
+        ]).toEqual(["", 0]);
+
+        Object.assign(plain.listing, {
+          name: "Monthly",
+          recurringInterval: "month",
+          recurringPrice: 500,
+          unitPrice: 1000,
+        });
+        const monthly = requireEntityImport(await importCatalog(plain));
+        const copy = unwrapExport(await exportListing(monthly.id));
+        expect([
+          copy.listing.recurringInterval,
+          copy.listing.recurringPrice,
+        ]).toEqual(["month", 500]);
+      });
     });
 
     test("preserves a child's bookable-alone standalone page", async () => {
@@ -137,9 +169,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
           },
           version: 1,
         });
-        expect(result.ok).toBe(false);
-        if (result.ok) throw new Error("unreachable");
-        assertStringIncludes(result.error, `listing.${field}`);
+        assertStringIncludes(importRefusal(result), `listing.${field}`);
       }
     });
 
@@ -163,8 +193,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
       const priceRows = await execute(
-        "SELECT unit_price FROM listing_prices WHERE listing_id = ? AND price_type = 'base'",
-        [requireEntityImport(result).id],
+        sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${requireEntityImport(result).id} AND price_type = 'base'`,
       );
       expect(priceRows.rows.map((r) => Number(r.unit_price))).toEqual([2500]);
     });
@@ -284,9 +313,10 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const listing = await createTestListing({ name: "Existing" });
       const blob = unwrapExport(await exportListing(listing.id));
       const result = await importCatalog(blob);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, 'named "Existing" already exists');
+      assertStringIncludes(
+        importRefusal(result),
+        'named "Existing" already exists',
+      );
     });
 
     test("rejects a listing whose parent does not exist", async () => {
@@ -296,9 +326,10 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         parents: ["Missing Parent"],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, 'No listing named "Missing Parent"');
+      assertStringIncludes(
+        importRefusal(result),
+        'No listing named "Missing Parent"',
+      );
     });
 
     test("rejects a listing whose group does not exist", async () => {
@@ -308,9 +339,10 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         listing: { maxAttendees: 10, name: "Joiner" },
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, 'No group named "Ghost Group"');
+      assertStringIncludes(
+        importRefusal(result),
+        'No group named "Ghost Group"',
+      );
     });
 
     test("rejects a package join whose pick count passes the listing's cap", async () => {
@@ -326,9 +358,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         listing: { maxAttendees: 2, maxQuantity: 2, name: "Overpicky" },
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expect(result.error).toBe(
+      expect(importRefusal(result)).toBe(
         t("error.package_member_cap", {
           max_quantity: 2,
           name: "Overpicky",
@@ -343,9 +373,10 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         listing: {},
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expectIncludesAll(result.error, ["listing.name", "listing.maxAttendees"]);
+      expectIncludesAll(importRefusal(result), [
+        "listing.name",
+        "listing.maxAttendees",
+      ]);
     });
 
     test("rejects an unsupported version", async () => {
@@ -354,23 +385,17 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         listing: { maxAttendees: 1, name: "V2" },
         version: 2,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "Unsupported export version");
+      assertStringIncludes(importRefusal(result), "Unsupported export version");
     });
 
     test("rejects a blob with an unknown kind (nested field message)", async () => {
       const result = await importCatalog({ kind: "widget" });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expectIncludesAll(result.error, ["kind:", "listing"]);
+      expectIncludesAll(importRefusal(result), ["kind:", "listing"]);
     });
 
     test("rejects a blob that is not an object (root type message)", async () => {
       const result = await importCatalog(42);
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      expectIncludesAll(result.error, [
+      expectIncludesAll(importRefusal(result), [
         "Invalid catalog file — Invalid type",
         "Object",
       ]);
@@ -386,9 +411,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         parent: ["Whatever"],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "parent");
+      assertStringIncludes(importRefusal(result), "parent");
     });
 
     test("rejects a group whose member listing does not exist", async () => {
@@ -398,9 +421,10 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         members: [{ listing: "No Such Listing" }],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, 'No listing named "No Such Listing"');
+      assertStringIncludes(
+        importRefusal(result),
+        'No listing named "No Such Listing"',
+      );
     });
 
     test("rejects a listing whose parent edge is incompatible", async () => {
@@ -414,9 +438,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         parents: ["Std Parent"],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error.toLowerCase(), "daily");
+      assertStringIncludes(importRefusal(result).toLowerCase(), "daily");
     });
 
     test("rejects a group whose members are not the same type", async () => {
@@ -428,9 +450,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         members: [{ listing: "Std" }, { listing: "Daily" }],
         version: 1,
       });
-      expect(result.ok).toBe(false);
-      if (result.ok) throw new Error("unreachable");
-      assertStringIncludes(result.error, "must be the same type");
+      assertStringIncludes(importRefusal(result), "must be the same type");
     });
   });
 

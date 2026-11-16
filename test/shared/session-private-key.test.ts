@@ -5,6 +5,7 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import {
   getRequestPrivateKey,
   getSessionPrivateKey,
@@ -23,7 +24,7 @@ describeWithEnv("shared > session private key", { db: true }, () => {
 
   test("returns null when the stored private key is missing", async () => {
     await getDb().execute(
-      "DELETE FROM settings WHERE key = 'wrapped_private_key'",
+      sql`DELETE FROM settings WHERE key = 'wrapped_private_key'`,
     );
     settings.invalidateCache();
     expect(

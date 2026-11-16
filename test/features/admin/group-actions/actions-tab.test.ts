@@ -8,21 +8,20 @@ import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import { adminGet } from "#test-utils/session.ts";
+import { testStatus } from "#test-utils/status-tests.ts";
 
 describeWithEnv("the group Actions tab", { db: true }, () => {
   describe("GET /admin/groups/:id/actions", () => {
-    test("returns 404 for a non-existent group", async () => {
-      // Not-found boundary — a story cannot reach this path (it sets up a
-      // real group first), so it stays as a direct technical contract.
-      const response = await adminGet("/admin/groups/999999/actions");
-      expect(response.status).toBe(404);
+    // Not-found boundary — a story cannot reach this path (it sets up a real
+    // group first), so it stays as a direct technical contract.
+    testStatus(404, {
+      "returns 404 for a non-existent group": () =>
+        adminGet("/admin/groups/999999/actions"),
     });
 
-    test("redirects to login when unauthenticated", async () => {
-      const response = await handleRequest(
-        mockRequest("/admin/groups/1/actions"),
-      );
-      expect(response.status).toBe(302);
+    testStatus(302, {
+      "redirects to login when unauthenticated": () =>
+        handleRequest(mockRequest("/admin/groups/1/actions")),
     });
   });
 

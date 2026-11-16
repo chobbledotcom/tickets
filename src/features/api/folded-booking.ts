@@ -28,14 +28,15 @@ import type { TicketCtx } from "#routes/public/types.ts";
 import { getBaseUrl } from "#routes/url.ts";
 import { owedOrderForLedger } from "#shared/checkout-ledger.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
+import { isPaymentsEnabled, saleProviderOrNull } from "#shared/config.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import {
   type CheckoutIntent,
   type CheckoutItem,
-  getActivePaymentProvider,
+  createActiveCheckout,
 } from "#shared/payments.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
 import { queueRegistrationSends } from "#shared/webhook/delivery.ts";
 import {
@@ -239,6 +240,8 @@ const completeFoldedBooking = async (
   const intent = foldedIntent(input);
   const order = priceCheckout(intent);
   const total = order.total;
+  const refusal = subscriptionOrderError(saleProviderOrNull(), intent, total);
+  if (refusal) return checkoutFailedResponse(refusal);
   if (isPaymentsEnabled() && total > 0) {
     // Reject a folded order whose parent or any child already exhausted
     // capacity before creating a checkout session. The web paid path runs the same
@@ -251,9 +254,7 @@ const completeFoldedBooking = async (
       fold.dayCount,
     );
     if (!available) return soldOutResponse();
-    const provider = (await getActivePaymentProvider())!;
-    const baseUrl = getBaseUrl(request);
-    const result = await provider.createCheckoutSession(intent, baseUrl);
+    const result = await createActiveCheckout(intent, getBaseUrl(request));
     if (!result) return checkoutFailedResponse();
     return "error" in result
       ? checkoutFailedResponse(result.error)

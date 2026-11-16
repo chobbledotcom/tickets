@@ -6,7 +6,6 @@
  * This module wires them to the new/edit/duplicate pages.
  */
 
-import { logActivity } from "#db/activity-log.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
@@ -40,17 +39,18 @@ import {
   type ListingTemplate,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
+import { operationResponse } from "#shared/rest/operation-response.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
   adminListingPickerPage,
 } from "#templates/admin/listings/form-pages.tsx";
+import { listingFormView } from "#templates/fields/listing.ts";
 import {
   type AdminSession,
   isListingType,
   type ListingWithCount,
 } from "#types";
-import { operationResponse } from "./crud-handlers.ts";
 import { withEntityFromParam } from "./entity-handlers.ts";
 import { getListingAndGroups } from "./listing-page-data.ts";
 import {
@@ -61,6 +61,7 @@ import {
 import {
   buildCreateListingResource,
   buildUpdateListingResource,
+  type ListingUpdateResult,
   parseListingForm,
 } from "./listings-form.ts";
 import { copyDuplicatedChildEdges } from "./listings-parents.ts";
@@ -204,10 +205,7 @@ const renderCreateListingError = async (
 
 export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
-    const form = parseListingForm(session, formData, {
-      useDefaults: false,
-      webhookUrl: "",
-    });
+    const form = parseListingForm(formData);
 
     // Mirror the GET gate: reject logistics templates when the feature is off.
     const chosenTemplateId = form.getString("template_id") || null;
@@ -229,7 +227,10 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       );
     }
 
-    const result = await buildCreateListingResource(form).create(form);
+    const result = await buildCreateListingResource(
+      form,
+      listingFormView(session.adminLevel),
+    ).create(form);
     if (!result.ok) {
       return renderCreateListingError(
         session,
@@ -238,7 +239,6 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
         resolveErrorTemplateId(form),
       );
     }
-    await logActivity(`Listing '${result.row.name}' created`, result.row);
     const childWarning = await copyEdgesFromDuplicateSource(
       form,
       result.row.id,
@@ -296,13 +296,9 @@ export const handleAdminListingEditPost: TypedRouteHandler<
 > = (request, { id }) =>
   withAuth(request, CONTENT_MULTIPART, (session, formData) =>
     withEntityFromParam(id, getStoredListingWithCount, async (existing) => {
-      // `existing` holds the listing's *stored* values (defaults not overlaid).
-      // A save preserves the listing's own columns, and the editor field locks
-      // re-apply the real stored webhook URL and use_defaults flag.
-      const form = parseListingForm(session, formData, {
-        useDefaults: existing.use_defaults,
-        webhookUrl: existing.webhook_url,
-      });
+      // `existing` holds the listing's *stored* values (defaults not
+      // overlaid), so a save preserves the listing's own columns.
+      const form = parseListingForm(formData);
       // The group checkboxes the operator submitted, so a rejected edit
       // re-renders their selection rather than the saved membership.
       const aggregates = parseAggregatesForRole(session, form);
@@ -326,7 +322,8 @@ const saveListingEdit = async (
   // A switch to booked-by-the-day that leaves bookings without a day
   // cannot save. The POST serves the assign page (nothing written), or
   // carries the organiser's confirmed move into the save below.
-  const step = await planListingTypeSwitch(existing, form);
+  const view = listingFormView(session.adminLevel);
+  const step = await planListingTypeSwitch(existing, form, view);
   if (step.kind === "invalid") {
     return renderListingEditError(id, session, form, step.error);
   }
@@ -343,15 +340,15 @@ const saveListingEdit = async (
   const confirmed = step.kind === "assign" ? step : null;
 
   // Build a resource that includes the slug field. Uniqueness is enforced
-  // by validateListingInput when existingId is set.
+  // by the record's rule when the row exists.
   const result = await buildUpdateListingResource(
-    form,
     existing,
+    view,
     confirmed?.plan,
   ).update(id, form);
   return operationResponse(
     result,
-    (saved) =>
+    (saved: ListingUpdateResult & { ok: true }) =>
       handleListingEditSuccess(
         saved.row,
         existing,

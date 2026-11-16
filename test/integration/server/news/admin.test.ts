@@ -3,13 +3,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
   expectHtmlResponse,
   expectIncludesAll,
-  expectRedirect,
   expectRedirectWithFlash,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
@@ -110,14 +110,16 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("stores omitted optional content fields as empty text", async () => {
       await create("No optional fields");
       const post = await findPost("No optional fields");
-      expect(post.content).toBe("");
-      expect(post.meta_title).toBe("");
-      expect(post.meta_description).toBe("");
-      expect(post.snippet).toBe("");
+      expect(post).toMatchObject({
+        content: "",
+        meta_description: "",
+        meta_title: "",
+        snippet: "",
+      });
     });
 
     test("rolls back the post when activity logging fails", async () => {
-      await getDb().execute(`
+      await getDb().execute(sql`
         CREATE TRIGGER fail_news_activity_log
         BEFORE INSERT ON activity_log
         BEGIN
@@ -234,17 +236,32 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect(await wasLogged("News post 'After update' updated")).toBe(true);
     });
 
+    /** Post a news edit that the form refuses. The answer is the edit page
+     *  again, and the stored post stays. */
+    const refusedEdit = async (
+      post: NewsPost,
+      fields: Record<string, string>,
+    ): Promise<string> => {
+      const { response } = await adminFormPost(
+        `${BASE}/${post.id}/edit`,
+        fields,
+      );
+      expect(response.status).toBe(400);
+      const unchanged = await getNewsPostById(post.id);
+      expect([unchanged?.name, unchanged?.slug]).toEqual([
+        post.name,
+        post.slug,
+      ]);
+      return response.text();
+    };
+
     test("update rejects a slug already used by another post", async () => {
       const taken = await createTestNewsPost("Has the slug");
       const post = await createTestNewsPost("Wants the slug");
-      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
-        name: "Wants the slug",
-        slug: taken.slug,
-      });
-      expectErrorFlash(response, "already used by another news post");
-      // Nothing changed — the original slug is intact.
-      const unchanged = await getNewsPostById(post.id);
-      expect(unchanged?.slug).toBe(post.slug);
+      assertStringIncludes(
+        await refusedEdit(post, { name: "Wants the slug", slug: taken.slug }),
+        "already used by another news post",
+      );
     });
 
     test("update lets a post keep its own slug", async () => {
@@ -261,24 +278,23 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       expect((await getNewsPostById(post.id))?.name).toBe("Keeps slug renamed");
     });
 
-    test("update rejects a missing name and changes nothing", async () => {
+    test("update rejects a missing name and keeps the submitted slug", async () => {
       const post = await createTestNewsPost("Unchanged");
-      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
-        name: "",
-        slug: "whatever",
-      });
-      expectRedirect(response, new RegExp(`^${BASE}/${post.id}/edit\\?`));
-      expect((await getNewsPostById(post.id))?.name).toBe("Unchanged");
+      assertStringIncludes(
+        await refusedEdit(post, { name: "", slug: "whatever" }),
+        'value="whatever"',
+      );
     });
 
-    test("update rejects an invalid slug and changes nothing", async () => {
+    test("update rejects an invalid slug and keeps the submitted name", async () => {
       const post = await createTestNewsPost("Slug guard");
-      const { response } = await adminFormPost(`${BASE}/${post.id}/edit`, {
-        name: "Slug guard",
-        slug: "Not A Valid Slug!",
-      });
-      expectRedirect(response, new RegExp(`^${BASE}/${post.id}/edit\\?`));
-      expect((await getNewsPostById(post.id))?.name).toBe("Slug guard");
+      assertStringIncludes(
+        await refusedEdit(post, {
+          name: "Slug guard renamed",
+          slug: "Not A Valid Slug!",
+        }),
+        'value="Slug guard renamed"',
+      );
     });
   });
 

@@ -1,22 +1,23 @@
 /** Bounded, PII-free candidate admission for a listing-wide refund. */
 
 import type { ResultSet } from "@libsql/client";
-import { ATTENDEE } from "#accounting/accounts.ts";
-import { KIND } from "#accounting/kinds.ts";
 import {
-  accountPredicate,
-  saleLegPredicate,
+  ledgerLegs,
+  paymentLegExists,
+  saleLeg,
 } from "#accounting/projection-sql.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import { refundedForBooking } from "#db/attendees/select.ts";
 import {
-  queryAllPrimary,
-  queryBatchPrimary,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+  ATTENDEE_ROW,
+  BOOKING_ROW,
+  refundedForBooking,
+  refundedRowOf,
+} from "#db/attendees/select.ts";
+import { queryAllPrimary, queryBatchPrimary, resultRows } from "#db/client.ts";
 import { paymentAnchorSessionCondition } from "#db/payment-anchor/session.ts";
+import { and } from "#db/select/expression.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { rowWorkMirrorSql } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -60,29 +61,32 @@ type RefundAllCandidateRow = {
   refunded: number;
 };
 
+// The read keeps rows with a quantity, so no row is a placeholder.
 const refundStatus = refundedForBooking({
-  attendeeId: "attendee.id",
-  eventGroup: "listingAttendee.ledger_event_group",
-  listingId: "listingAttendee.listing_id",
-  placeholderWhen: "0",
+  ...refundedRowOf(BOOKING_ROW),
+  attendeeId: ATTENDEE_ROW.id,
+  placeholderWhen: false,
 });
 
 const anchorSession = paymentAnchorSessionCondition(
-  "payment.payment_session_id",
+  sql`payment.payment_session_id`,
 );
 const providerRefundWork = refundAuthorityWorkSql("charge.");
-const paidBooking =
-  `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
-    "listingAttendee.attendee_id",
-    "listingAttendee.listing_id",
-    "listingAttendee.ledger_event_group",
-  )})` +
-  ` AND EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-  ` AND ${accountPredicate("dest", ATTENDEE, "listingAttendee.attendee_id")}` +
-  " AND event_group = listingAttendee.ledger_event_group)";
+const paidBooking = and(
+  ledgerLegs()
+    .where(
+      saleLeg(
+        BOOKING_ROW.attendee_id,
+        BOOKING_ROW.listing_id,
+        BOOKING_ROW.ledger_event_group,
+      ),
+    )
+    .exists(),
+  paymentLegExists(BOOKING_ROW.attendee_id, BOOKING_ROW.ledger_event_group),
+);
 
 /** Payment facts for real ticket holders on one listing. */
-const refundCandidateCtes = (): string => `
+const refundCandidateCtes = (listingId: number): SqlStatement => sql`
   WITH bookingAttendee AS (
     SELECT attendee.id,
            MIN(${refundStatus}) AS refunded,
@@ -93,8 +97,8 @@ const refundCandidateCtes = (): string => `
       FROM attendees AS attendee
       JOIN listing_attendees AS listingAttendee
         ON listingAttendee.attendee_id = attendee.id
-     WHERE attendee.kind = '${ATTENDEE_KIND}'
-       AND listingAttendee.listing_id = ?
+     WHERE attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}
+       AND listingAttendee.listing_id = ${listingId}
        AND listingAttendee.quantity > 0
      GROUP BY attendee.id
   ),
@@ -177,9 +181,8 @@ const refundCandidateCtes = (): string => `
             AND COALESCE(payment.has_unknown, 0) = 1)
   )`;
 
-const summaryStatement = (listingId: number): SqlStatement => ({
-  args: [listingId],
-  sql: `${refundCandidateCtes()}
+const summaryStatement = (listingId: number): SqlStatement =>
+  sql`${refundCandidateCtes(listingId)}
     SELECT COUNT(*) AS total,
            COALESCE(MAX(refundable.legacy_unindexed), 0)
              AS legacy_unindexed,
@@ -187,23 +190,20 @@ const summaryStatement = (listingId: number): SqlStatement => ({
            COALESCE(MAX(refundable.provider_refund), 0) AS provider_refund,
            COALESCE(MAX(refundable.needs_money_record), 0)
              AS unrecorded_money
-      FROM refundable`,
-});
+      FROM refundable`;
 
-const batchStatement = (listingId: number): SqlStatement => ({
-  args: [listingId, REFUND_ALL_BATCH_SIZE],
-  sql: `${refundCandidateCtes()}
+const batchStatement = (listingId: number): SqlStatement =>
+  sql`${refundCandidateCtes(listingId)}
     , selectedAttendee AS (
       SELECT refundable.id, refundable.refunded, refundable.has_claim
         FROM refundable
        ORDER BY refundable.has_claim DESC, refundable.id ASC
-       LIMIT ?
+       LIMIT ${REFUND_ALL_BATCH_SIZE}
     )
     SELECT attendee.id, attendee.pii_blob, selectedAttendee.refunded
       FROM selectedAttendee
       JOIN attendees AS attendee ON attendee.id = selectedAttendee.id
-     ORDER BY selectedAttendee.has_claim DESC, selectedAttendee.id ASC`,
-});
+     ORDER BY selectedAttendee.has_claim DESC, selectedAttendee.id ASC`;
 
 const readSummary = (rows: RefundAllSummaryRow[]): RefundAllSummary => {
   const row = requireValue(rows[0], "Refund All admission returned no summary");

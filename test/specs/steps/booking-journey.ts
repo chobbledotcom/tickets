@@ -51,6 +51,7 @@ const createListingThroughChooser = async (
       max_attendees: "100",
       max_quantity: "5",
       name: LISTING,
+      unit_price: "0",
     },
     "Create Listing",
   );

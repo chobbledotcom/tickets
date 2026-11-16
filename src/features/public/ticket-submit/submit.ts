@@ -15,7 +15,7 @@ import {
   priceCheckout,
   ticketPaymentBreakdown,
 } from "#shared/checkout-pricing.ts";
-import { isPaymentsEnabled } from "#shared/config.ts";
+import { isPaymentsEnabled, saleProviderOrNull } from "#shared/config.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   ATTENDEE_DEMO_FIELDS,
@@ -23,6 +23,7 @@ import {
 } from "#shared/demo/overrides.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
+import { subscriptionOrderError } from "#shared/subscriptions/checkout-rules.ts";
 import {
   orderSummary,
   orderSummaryMessage,
@@ -135,6 +136,13 @@ const processSubmission = async (
   // reported sold out.
   const soldOut = await checkSoldOutTiers(pricingParams, visits);
   if (soldOut) return errorResponse(soldOut);
+
+  const subscriptionRefusal = subscriptionOrderError(
+    saleProviderOrNull(),
+    intent,
+    finalPricedOrder.total,
+  );
+  if (subscriptionRefusal) return errorResponse(subscriptionRefusal);
 
   const finalRequiresPaidFields = finalPricedOrder.total > 0;
   const finalRequiresPayment = paymentsEnabled && finalRequiresPaidFields;

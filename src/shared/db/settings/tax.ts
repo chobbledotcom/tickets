@@ -5,6 +5,7 @@ import {
   publishStoredSetting,
   settingUpsert,
 } from "#db/settings/raw-writes.ts";
+import { sql } from "#db/sql.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { sameTaxPolicy } from "#shared/tax/transitions.ts";
 import { NO_TAX, type TaxPolicy, TaxPolicySchema } from "#shared/tax/types.ts";
@@ -34,10 +35,9 @@ export const updateTaxPolicy = async (
   if (expectedPolicy !== undefined) v.parse(TaxPolicySchema, expectedPolicy);
   const committed = await withTransaction(
     async (tx) => {
-      const result = await tx.execute({
-        args: [CONFIG_KEYS.TAX],
-        sql: "SELECT value FROM settings WHERE key = ?",
-      });
+      const result = await tx.execute(
+        sql`SELECT value FROM settings WHERE key = ${CONFIG_KEYS.TAX}`,
+      );
       const [row] = resultRows<{ value: string }>(result);
       const current = parseTaxPolicy(row?.value ?? "");
       if (

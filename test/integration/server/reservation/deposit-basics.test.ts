@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { pricePaidFromLedger } from "#db/attendees/select.ts";
+import { bookingRow, pricePaidFromLedger } from "#db/attendees/select.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { bookPaidReservation } from "#test/integration/server/_shared-setup.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -83,15 +84,9 @@ describeWithEnv(
       // Per-row price_paid projects each listing's gross sale leg (£10 / £20),
       // not the distributed £1 / £2 deposit — the gross-sale divergence. The
       // £27 owed stays accurate; concern 5 restores the deposit distribution.
-      const paidRows = await getDb().execute({
-        args: [attendee.id],
-        sql: `SELECT listing_id, ${pricePaidFromLedger(
-          "listing_attendees.attendee_id",
-          "listing_attendees.listing_id",
-          "listing_attendees.ledger_event_group",
-          "listing_attendees.id",
-        )} FROM listing_attendees WHERE attendee_id = ?`,
-      });
+      const paidRows = await getDb().execute(
+        sql`SELECT listing_id, ${pricePaidFromLedger(bookingRow("listing_attendees"))} FROM listing_attendees WHERE attendee_id = ${attendee.id}`,
+      );
       const paidByListing = new Map(
         paidRows.rows.map((row) => [
           Number(row.listing_id),
@@ -159,7 +154,7 @@ describeWithEnv(
         // dropped.
         expect(response.status).toBe(200);
         const { rows } = await getDb().execute(
-          "SELECT COUNT(*) AS c FROM attendees",
+          sql`SELECT COUNT(*) AS c FROM attendees`,
         );
         expect(Number(rows[0]!.c)).toBe(1);
       } finally {

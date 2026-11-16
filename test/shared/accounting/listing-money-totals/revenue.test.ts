@@ -12,7 +12,7 @@ import { postTransfers } from "#accounting/store.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { account } from "#shared/ledger/account.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   postAttendeeRefund,
@@ -43,10 +43,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     };
 
     test("derives gross sales, a manual write-down, and refunds, and reconciles", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const buyer = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee: buyer, listing } = await listingWithAttendee(
+        50,
         "Ada",
         "ada@example.com",
       );
@@ -102,10 +100,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     });
 
     test("counts a manual write-up as a positive adjustment", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const buyer = await createTestAttendee(
-        listing.id,
-        listing.slug,
+      const { attendee: buyer, listing } = await listingWithAttendee(
+        50,
         "Grace",
         "grace@example.com",
       );

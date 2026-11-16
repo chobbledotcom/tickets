@@ -7,6 +7,7 @@ import { transfersByAccount } from "#accounting/queries.ts";
 import { getServicingCosts } from "#db/attendees/servicing.ts";
 import { queryAll } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -136,7 +137,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
       servicingId: id,
     });
     const rows = await queryAll<{ memo: string | null }>(
-      `SELECT memo FROM transfers WHERE kind = '${KIND.serviceCost}'`,
+      sql`SELECT memo FROM transfers WHERE kind = ${sqlLiteral(KIND.serviceCost)}`,
     );
     expect(rows).toHaveLength(1);
     const memo = rows[0]?.memo;

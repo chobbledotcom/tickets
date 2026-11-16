@@ -29,14 +29,15 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type ListingCheck, liveListingRefusal } from "#db/subscriptions.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
   deactivationOrphanedAddOnError,
   listingSaveOrphanedAddOnTx,
 } from "#shared/add-on-reachability.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
-import { optionalFieldsSchema } from "#shared/catalog-fields/fields-schema.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
   dayPriceFieldsFromInput,
@@ -47,10 +48,12 @@ import {
   planInGroupError,
   planRuleError,
 } from "#shared/package-membership.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
+import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
-
+import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
@@ -67,16 +70,13 @@ export const generateUniqueListingSlug = (excludeListingId?: number) =>
  * The date a save writes. The date box hides whenever the listing is daily,
  * before or after this save. A hidden box submits an empty value. That empty
  * value must not wipe the stored date: the owner can still switch the type
- * back to standard and get the date back. A typed date always writes. An
- * absent submitted date means "the stored value stands", as the API's stored
- * fallback has always written.
+ * back to standard and get the date back. A typed date always writes.
  */
 export const keepDailyListingDate = (
-  submitted: string | undefined,
+  submitted: string,
   stored: Pick<Listing, "date" | "listing_type">,
   wouldBeType: Listing["listing_type"] | undefined,
 ): string => {
-  if (submitted === undefined) return stored.date;
   if (submitted !== "") return submitted;
   return stored.listing_type === "daily" || wouldBeType === "daily"
     ? stored.date
@@ -321,19 +321,16 @@ export const validateListingInput = async (
       input.webhookUrl,
       "Webhook URL must be a public https:// domain",
     ) ??
-    validateRenewalConfig(input)
+    validateRenewalConfig(input) ??
+    recurringPlanError(input)
   );
 };
 
-/**
- * A deleted listing no longer serves a page, exactly like a deactivated one,
- * so this reuses {@link deactivationOrphanedAddOnError} with the deleted id in
- * the would-be-removed set.
- */
-export const deleteOrphanedAddOnError = (
-  listingId: number,
-  tx?: TxScope,
-): Promise<string | null> =>
+/** Why the listing cannot be deleted, or null. Its bookings go with it, so a
+ * booking whose subscription still charges refuses. A deleted listing serves
+ * no page, so the deactivation add-on rule applies too. */
+export const listingDeleteError: ListingCheck = async (listingId, tx) =>
+  (await liveListingRefusal(listingId, tx)) ??
   deactivationOrphanedAddOnError(new Set([listingId]), tx);
 
 /**
@@ -364,7 +361,7 @@ export const performListingDelete = async (
   listing: ListingWithCount,
 ): Promise<string | null> => {
   const refusal = await guardedListingWrite(
-    (tx) => deleteOrphanedAddOnError(listing.id, tx),
+    (tx) => listingDeleteError(listing.id, tx),
     (tx) => deleteListing(listing.id, tx),
   );
   if (refusal !== null) return refusal;
@@ -440,10 +437,9 @@ export const toggleListingActive = async (
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
       const [row] = resultRows<{ active: number }>(
-        await tx.execute({
-          args: [listingId],
-          sql: "SELECT listing.active FROM listings AS listing WHERE listing.id = ?",
-        }),
+        await tx.execute(
+          from(tables.listings).where({ id: listingId }).pick("active"),
+        ),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
@@ -461,9 +457,9 @@ export const toggleListingActive = async (
         if (refusal !== null) return { error: refusal };
       }
       // Every table on the transactional write path carries updateStatement
-      // (see crud-api.ts), so the toggle's row write joins the guard's tx. The
-      // price mirror and the activity log join it too: a failure in either
-      // rolls the toggle back, so a retry re-runs all three.
+      // (see the record's write path), so the toggle's row write joins the
+      // guard's tx. The price mirror and the activity log join it too: a
+      // failure in either rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
       );

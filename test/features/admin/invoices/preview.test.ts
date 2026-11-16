@@ -6,6 +6,7 @@ import { it as test } from "@std/testing/bdd";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { INVOICE_BODY_TEMPLATE } from "#templates/invoice/defaults.ts";
@@ -138,10 +139,9 @@ describeWithEnv("server (admin invoice preview)", { db: true }, () => {
   });
 
   test("refuses a servicing attendee", async () => {
-    const inserted = await getDb().execute({
-      args: [new Date().toISOString()],
-      sql: "INSERT INTO attendees (created, pii_blob, status_id, kind) VALUES (?, '', NULL, 'servicing')",
-    });
+    const inserted = await getDb().execute(
+      sql`INSERT INTO attendees (created, pii_blob, status_id, kind) VALUES (${new Date().toISOString()}, '', NULL, 'servicing')`,
+    );
     const response = await previewInvoice(Number(inserted.lastInsertRowid), 1);
     await expectFlashRedirect(
       "/admin/invoices/new",

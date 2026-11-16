@@ -13,6 +13,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
+import { sql } from "#db/sql.ts";
 import { invalidateUsersCache } from "#db/users.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -178,10 +179,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("returns error when password update fails", async () => {
       // Corrupt the wrapped_data_key so updateUserPassword fails to unwrap it
       const { getDb } = await import("#db/client.ts");
-      await getDb().execute({
-        args: ["corrupted-key-data"],
-        sql: "UPDATE users SET wrapped_data_key = ?",
-      });
+      await getDb().execute(
+        sql`UPDATE users SET wrapped_data_key = ${"corrupted-key-data"}`,
+      );
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {

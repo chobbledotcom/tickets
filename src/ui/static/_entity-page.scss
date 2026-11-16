@@ -1,5 +1,7 @@
 /** Entity pages: the tabbed admin "edit X" framework. */
 
+@use "mixins" as *;
+
 /* The page header above the tab strip — the entity's `<h1>` title and any
    prose extra (e.g. the attendee page's "Add a note" link). Its content is the
    same on every one of an entity's tabs, so pin it: switching Edit → Attendees
@@ -13,9 +15,7 @@
    navigation announces the record's name alone. */
 .title-nav {
   align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-s);
+  @include wrap-row-tight;
 
   h1 {
     margin: 0;

@@ -33,6 +33,7 @@ import {
 } from "#test-utils/api/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import { createListingWithStoredQuantities } from "#test-utils/db-helpers/listing-quantities.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -168,15 +169,9 @@ describeWithEnv("Quantity refusal table", { db: true }, () => {
 
   test("the payment webhook refuses min-1 and max+1, and leaves capacity to booking creation", async () => {
     await setupStripe();
-    const listing = await createTestListing({
-      maxAttendees: 10,
-      name: "Last Stop",
-      unitPrice: 500,
-    });
-    const { execute } = await import("#db/client.ts");
-    await execute(
-      "UPDATE listings SET min_quantity = 3, max_quantity = 2 WHERE id = ?",
-      [listing.id],
+    const listing = await createListingWithStoredQuantities(
+      { maxAttendees: 10, name: "Last Stop", unitPrice: 500 },
+      { maxQuantity: 2, minQuantity: 3 },
     );
     const belowIntent = bookingIntent([{ e: listing.id, p: 500, q: 1 }]);
     const aboveIntent = bookingIntent([{ e: listing.id, p: 500, q: 3 }]);

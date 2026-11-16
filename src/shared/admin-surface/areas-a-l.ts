@@ -4,7 +4,16 @@
  * and join a new area to the half its name sorts into.
  */
 
-import { OWNER_AUDIENCE } from "#shared/admin-surface/definitions.ts";
+import {
+  OWNER_AUDIENCE,
+  onePageAreas,
+} from "#shared/admin-surface/definitions.ts";
+import {
+  childWrites,
+  imageWrites,
+  moveWrites,
+  recordArea,
+} from "#shared/admin-surface/record-area.ts";
 import {
   ALL_ADMIN_LEVELS,
   CONTENT_ADMIN_LEVELS,
@@ -73,26 +82,21 @@ export const AREAS_A_L = {
         "/admin/listing/:listingId/attendee/:attendeeId/delete-incomplete",
     },
   },
-  attributes: {
+  attributes: recordArea({
     audience: OWNER_AUDIENCE,
+    extraWrites: {
+      ...moveWrites("attribute", "/admin/attributes/:id"),
+      ...childWrites(
+        "attributeOption",
+        "/admin/attributes/:id/options",
+        "optionId",
+      ),
+    },
+    name: "attributes",
+    newPage: false,
     segments: ["listing"],
-    view: {
-      attribute: "/admin/attributes/:id",
-      attributes: "/admin/attributes",
-    },
-    write: {
-      attributeDelete: "/admin/attributes/:id/delete",
-      attributeEdit: "/admin/attributes/:id/edit",
-      attributeMoveDown: "/admin/attributes/:id/move-down",
-      attributeMoveUp: "/admin/attributes/:id/move-up",
-      attributeOptionAdd: "/admin/attributes/:id/options",
-      attributeOptionDelete: "/admin/attributes/:id/options/:optionId/delete",
-      attributeOptionEdit: "/admin/attributes/:id/options/:optionId/edit",
-      attributeOptionMoveDown:
-        "/admin/attributes/:id/options/:optionId/move-down",
-      attributeOptionMoveUp: "/admin/attributes/:id/options/:optionId/move-up",
-    },
-  },
+    singular: "attribute",
+  }),
   auth: {
     // Signing in and out is how every role reaches, or leaves, the rest.
     audience: ALL_ADMIN_LEVELS,
@@ -114,17 +118,10 @@ export const AREAS_A_L = {
       },
     },
   },
-  builder: {
+  builtSites: recordArea({
     audience: OWNER_AUDIENCE,
-    view: { builder: "/admin/builder" },
-  },
-  builtSites: {
-    audience: OWNER_AUDIENCE,
-    view: {
-      builtSite: "/admin/built-sites/:id",
-      builtSites: { afterSave: "builtSite", pattern: "/admin/built-sites" },
-    },
-    write: {
+    basePath: "/admin/built-sites",
+    extraWrites: {
       builtSiteAddSecrets: "/admin/built-sites/:id/add-secrets",
       builtSiteAddUptimeMonitor: "/admin/built-sites/:id/add-uptime-monitor",
       builtSiteBumpDeadline: "/admin/built-sites/:id/bump-deadline",
@@ -134,12 +131,6 @@ export const AREAS_A_L = {
         pattern: "/admin/built-sites/:id/rotate-database-key/complete",
         readOnlyGet: true,
       },
-      builtSiteDelete: "/admin/built-sites/:id/delete",
-      builtSiteEdit: {
-        afterSave: "builtSite",
-        pattern: "/admin/built-sites/:id/edit",
-      },
-      builtSiteNew: "/admin/built-sites/new",
       builtSiteOverrideDeadline: "/admin/built-sites/:id/override-deadline",
       builtSiteProvisionRenewal: "/admin/built-sites/:id/provision-renewal",
       builtSiteProvisionScheduler: "/admin/built-sites/:id/provision-scheduler",
@@ -160,7 +151,10 @@ export const AREAS_A_L = {
       },
       builtSiteUpdate: "/admin/built-sites/:id/update",
     },
-  },
+    name: "builtSites",
+    saveToRecord: true,
+    singular: "builtSite",
+  }),
   bulkEmail: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -188,12 +182,6 @@ export const AREAS_A_L = {
     },
     write: {
       catalogImport: "/admin/catalog/import",
-    },
-  },
-  contactHistory: {
-    audience: STAFF_ADMIN_LEVELS,
-    view: {
-      contactHistory: "/admin/history/:hmac",
     },
   },
   dashboard: {
@@ -240,14 +228,6 @@ export const AREAS_A_L = {
       },
     },
   },
-  // The owner's read-only view of where their records also appear. The admin
-  // API writes this directory. The page only shows what the database holds.
-  externalSources: {
-    audience: OWNER_AUDIENCE,
-    view: {
-      externalSources: "/admin/external-sources",
-    },
-  },
   // The group-wide actions the group page's Actions tab links to. Each writes
   // the group's member listings, so each stays staff-only.
   groupActions: {
@@ -258,24 +238,12 @@ export const AREAS_A_L = {
       groupReactivate: "/admin/groups/:id/reactivate",
     },
   },
-  groups: {
+  groups: recordArea({
     audience: CONTENT_ADMIN_LEVELS,
-    view: {
-      // A record page opens on the first tab its viewer can see, so an editor
-      // reaches it and lands on Edit. The staff-only tabs stay shut.
-      group: "/admin/groups/:id",
-      groups: { afterSave: "group", pattern: "/admin/groups" },
-    },
-    write: {
+    deleteAudience: STAFF_ADMIN_LEVELS,
+    extraWrites: {
       groupAddListings: "/admin/groups/:id/add-listings",
-      groupDelete: {
-        audience: STAFF_ADMIN_LEVELS,
-        pattern: "/admin/groups/:id/delete",
-      },
-      groupEdit: { afterSave: "group", pattern: "/admin/groups/:id/edit" },
-      groupImages: "/admin/groups/:id/images",
-      groupImagesUpload: "/admin/groups/:id/images/upload",
-      groupNew: "/admin/groups/new",
+      ...imageWrites("group", "/admin/groups/:id"),
       groupNote: {
         audience: STAFF_ADMIN_LEVELS,
         pattern: "/admin/groups/:id/note",
@@ -286,7 +254,10 @@ export const AREAS_A_L = {
       },
       groupRemoveListings: "/admin/groups/:id/remove-listings",
     },
-  },
+    name: "groups",
+    saveToRecord: true,
+    singular: "group",
+  }),
   guide: {
     audience: STAFF_ADMIN_LEVELS,
     view: {
@@ -297,47 +268,30 @@ export const AREAS_A_L = {
       guide: "/admin/guide",
     },
   },
-  holidays: {
+  holidays: recordArea({
     audience: OWNER_AUDIENCE,
-    view: {
-      holiday: "/admin/holidays/:id",
-      holidays: { afterSave: "holiday", pattern: "/admin/holidays" },
-    },
-    write: {
-      holidayDelete: "/admin/holidays/:id/delete",
-      holidayEdit: {
-        afterSave: "holiday",
-        pattern: "/admin/holidays/:id/edit",
-      },
-      holidayNew: "/admin/holidays/new",
-    },
-  },
-  images: {
+    name: "holidays",
+    saveToRecord: true,
+    singular: "holiday",
+  }),
+  images: recordArea({
     audience: CONTENT_ADMIN_LEVELS,
-    view: {
-      imageOptions: "/admin/images/options",
-      images: "/admin/images",
-    },
-    write: {
-      imageDelete: "/admin/images/:id/delete",
-      imageEdit: "/admin/images/:id/edit",
-      imageNew: "/admin/images/new",
-    },
-  },
+    detailPage: false,
+    extraViews: { imageOptions: "/admin/images/options" },
+    name: "images",
+    singular: "image",
+  }),
   // Staff only: an invoice can be created only by an owner or a manager.
-  invoices: {
+  invoices: recordArea({
     audience: STAFF_ADMIN_LEVELS,
-    view: {
-      invoice: "/admin/invoices/:id",
-      invoices: "/admin/invoices",
-    },
-    write: {
+    editPage: false,
+    extraWrites: {
       invoiceCancel: "/admin/invoices/:id/cancel",
-      invoiceDelete: "/admin/invoices/:id/delete",
-      invoiceNew: "/admin/invoices/new",
       invoicePreview: "/admin/invoices/preview",
     },
-  },
+    name: "invoices",
+    singular: "invoice",
+  }),
   ledger: {
     audience: OWNER_AUDIENCE,
     view: {
@@ -345,9 +299,11 @@ export const AREAS_A_L = {
       ledgerAccount: "/admin/ledger/:type/:ref",
     },
     write: {
+      /* jscpd:ignore-start -- a list of strings, not code */
       ledgerAdd: "/admin/ledger/:type/:ref/add",
       ledgerEdit: "/admin/ledger/entries/:id/edit",
       ledgerEntryDelete: "/admin/ledger/entries/:id/delete",
+      /* jscpd:ignore-end */
     },
   },
   listingQr: {
@@ -422,4 +378,14 @@ export const AREAS_A_L = {
       listingRecalculate: "/admin/listings/recalculate/:listingId",
     },
   },
+  ...onePageAreas(OWNER_AUDIENCE, {
+    builder: "/admin/builder",
+    // The owner's read-only view of where their records also appear. The
+    // admin API writes this directory. The page only shows what the database
+    // holds.
+    externalSources: "/admin/external-sources",
+  }),
+  ...onePageAreas(STAFF_ADMIN_LEVELS, {
+    contactHistory: "/admin/history/:hmac",
+  }),
 } as const;

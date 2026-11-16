@@ -17,7 +17,8 @@ import { withEnv } from "#test-utils/env.ts";
  */
 const cachedGuide = cachedAdminPage("/admin/guide");
 
-export const guide = async (
+/** The guide page as the owner sees it, asserting every expected text in it. */
+export const expectGuidePage = async (
   ...expected: Parameters<typeof cachedGuide>
 ): Promise<string> => {
   using _env = withEnv({ CAN_BUILD_SITES: undefined });

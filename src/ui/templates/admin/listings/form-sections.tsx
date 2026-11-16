@@ -1,11 +1,10 @@
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
-import { isBuilderEnabled } from "#shared/config.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import { isStorageEnabled } from "#shared/storage.ts";
+import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -16,12 +15,10 @@ import {
   getListingEditForm,
   getListingForm,
   type ListingFormView,
+  listingFormView,
 } from "#templates/fields/listing.ts";
 import type { AdminSession, Group, ListingWithCount } from "#types";
-import {
-  renderDayPricesFieldset,
-  showUseDefaultsToggle,
-} from "./form-values.tsx";
+import { renderDayPricesFieldset } from "./form-values.tsx";
 
 type ListingFieldsOptions = { includeSlug?: boolean; nameAutofocus?: boolean };
 
@@ -228,10 +225,6 @@ export const ListingFormSections = ({
         </fieldset>
       )}
 
-      {!showUseDefaults && useDefaultsChecked && (
-        <input name="use_defaults" type="hidden" value="1" />
-      )}
-
       <FormSections sections={sections} />
 
       <StackDetails
@@ -266,14 +259,11 @@ export const listingFormPageState = (
   showUseDefaults: boolean;
 } => {
   const defaults = settings.listingDefaults;
-  const showUseDefaults = showUseDefaultsToggle(session, defaults);
   const view: ListingFormView = {
-    builder: isBuilderEnabled(),
-    logistics: settings.features.logistics,
+    ...listingFormView(session.adminLevel),
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
-    storage: isStorageEnabled(),
-    webhook: session.adminLevel !== "editor",
   };
+  const showUseDefaults = showUseDefaultsToggle(view.closed, defaults);
   const renderSection: ListingSectionRenderer = fields.includeSlug
     ? (id, values) => getListingEditForm(view).section(id, values)
     : (id, values) => getListingForm(view).section(id, values);

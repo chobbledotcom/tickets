@@ -5,6 +5,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { requireAttendee } from "#test-utils/db-helpers/attendee-creation.ts";
@@ -53,13 +54,12 @@ describeWithEnv("db > attendees > create result", { db: true }, () => {
     });
     expect(
       await queryOne<{ kind: string }>(
-        "SELECT kind FROM attendees WHERE id = ?",
-        [attendee.id],
+        sql`SELECT kind FROM attendees WHERE id = ${attendee.id}`,
       ),
     ).toEqual({ kind: "attendee" });
     expect(
       await queryOne<{ public_booking_count: number }>(
-        "SELECT public_booking_count FROM contact_preferences",
+        sql`SELECT public_booking_count FROM contact_preferences`,
       ),
     ).toEqual({ public_booking_count: 1 });
     expect(

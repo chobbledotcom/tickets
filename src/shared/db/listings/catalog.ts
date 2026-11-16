@@ -1,5 +1,18 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
+import { LISTING_ROW } from "#db/listings/select.ts";
+import { LISTINGS_IN_ID_ORDER } from "#db/listings/table.ts";
+import {
+  and,
+  type Expr,
+  equal,
+  literal,
+  not,
+  notInQuery,
+  or,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import type { CatalogSourceListing } from "#shared/external-order.ts";
 import type { Listing } from "#types";
@@ -52,20 +65,18 @@ export const getListingOfferFlags = async (
 export const getListingPickerNames = async (): Promise<
   Map<number, ListingPickerRow>
 > => {
-  const rows = await listingPickerColumns.many(
-    {},
-    { alias: "listing", order: "listing.id ASC" },
-  );
+  const rows = await listingPickerColumns.many({}, LISTINGS_IN_ID_ORDER);
   return new Map(rows.map(({ id, ...listing }) => [id, listing] as const));
 };
 
-const catalogVisibleSql = (hiddenDefault: boolean | undefined): string => {
-  const inheriting =
-    "(listing.use_defaults = 1 AND listing.months_per_unit = 0)";
-  if (hiddenDefault === undefined) return "listing.hidden = 0";
-  return hiddenDefault
-    ? `listing.hidden = 0 AND NOT ${inheriting}`
-    : `(${inheriting} OR listing.hidden = 0)`;
+const catalogVisible = (hiddenDefault: boolean | undefined): Expr<boolean> => {
+  const shown = equal(LISTING_ROW.hidden, literal(0));
+  if (hiddenDefault === undefined) return shown;
+  const inheriting = and(
+    equal(LISTING_ROW.use_defaults, literal(1)),
+    equal(LISTING_ROW.months_per_unit, literal(0)),
+  );
+  return hiddenDefault ? and(shown, not(inheriting)) : or(inheriting, shown);
 };
 
 /** Read only active, effectively visible listings for the public catalog. */
@@ -75,20 +86,21 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
     {
       alias: "listing",
       where: [
-        { args: [], clause: "listing.active = 1" },
+        equal(LISTING_ROW.active, literal(1)),
         // A built-site plan is booked on its own checkout page, so the external
         // order widget — which cannot carry the site-setup flow — never lists it.
-        { args: [], clause: "listing.assign_built_site = 0" },
-        {
-          args: [],
-          clause: catalogVisibleSql(settings.listingDefaults.hidden),
-        },
+        equal(LISTING_ROW.assign_built_site, literal(0)),
+        catalogVisible(settings.listingDefaults.hidden),
         // A child listing is only offered on its own when it says it can be.
-        {
-          args: [],
-          clause: `(listing.bookable_alone = 1 OR listing.id NOT IN (
-          SELECT listingParent.child_listing_id FROM listing_parents AS listingParent))`,
-        },
+        or(
+          equal(LISTING_ROW.bookable_alone, literal(1)),
+          notInQuery(
+            LISTING_ROW.id,
+            from(tables.listing_parents).values(
+              (edge) => edge.child_listing_id,
+            ),
+          ),
+        ),
       ],
     },
   );

@@ -1,8 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, queryAll } from "#db/client.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { formatDateLabel } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -15,10 +15,12 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { testDate } from "#test-utils/dates.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import { setupTwoDailyBookingAttendees } from "#test-utils/db-helpers/daily-booking-pairs.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { makeVan } from "#test-utils/deliveries.ts";
 import { assignBookingToAgent } from "#test-utils/logistics.ts";
 import { featureSetting, withSetting } from "#test-utils/settings.ts";
 import {
@@ -339,10 +341,9 @@ describeWithEnv(
         });
         // A cancelled/interested booking is a quantity-0 line: the operational
         // calendar counts real attendees only.
-        await getDb().execute({
-          args: [listing.id],
-          sql: "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ?",
-        });
+        await getDb().execute(
+          sql`UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ${listing.id}`,
+        );
 
         const html = await fetchCalendarHtml("/admin/calendar?date=2026-06-15");
         assert(!html.includes("Ghost Fan"));
@@ -350,7 +351,7 @@ describeWithEnv(
 
       test("lists logistics agents in the calendar filter bar", async () => {
         await withSetting(featureSetting("logistics"), async () => {
-          await logisticsAgents.table.insert({ name: "Van One" });
+          await makeVan("Van One");
           const { date } = await setupDailyBooking();
 
           const html = await fetchCalendarHtml(`/admin/calendar?date=${date}`);
@@ -360,28 +361,18 @@ describeWithEnv(
 
       test("filters attendees by agent parameter", async () => {
         await withSetting(featureSetting("logistics"), async () => {
-          const vanOne = (
-            await logisticsAgents.table.insert({ name: "Van One" })
-          ).id;
-          const vanTwo = (
-            await logisticsAgents.table.insert({ name: "Van Two" })
-          ).id;
-          const { date, listing1, listing2 } = await setupTwoDailyBookings();
-          const rows = await queryAll<{
-            listing_id: number;
-            attendee_id: number;
-          }>(
-            "SELECT listing_id, attendee_id FROM listing_attendees WHERE listing_id IN (?, ?)",
-            [listing1.id, listing2.id],
-          );
+          const vanOne = await makeVan("Van One");
+          const vanTwo = await makeVan("Van Two");
+          const { attendeeOn, date, listing1, listing2 } =
+            await setupTwoDailyBookingAttendees();
           await assignBookingToAgent(
-            rows.find((row) => row.listing_id === listing1.id)!.attendee_id,
+            attendeeOn(listing1.id),
             listing1.id,
             vanOne,
             date,
           );
           await assignBookingToAgent(
-            rows.find((row) => row.listing_id === listing2.id)!.attendee_id,
+            attendeeOn(listing2.id),
             listing2.id,
             vanTwo,
             date,

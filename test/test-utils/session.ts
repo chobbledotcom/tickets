@@ -239,6 +239,12 @@ export const createTestEditorSession = async (
   return { cookie: `${getSessionCookieName()}=${token}`, userId };
 };
 
+/** The status a signed-in editor gets for a GET of `path`. */
+export const editorGetStatus = async (path: string): Promise<number> => {
+  const { cookie } = await createTestEditorSession();
+  return (await awaitTestRequest(path, { cookie })).status;
+};
+
 export const createTestApiKeyToken = async (): Promise<string> => {
   const dataKey = await getTestDataKeyForApiKey();
   const { apiKey } = await createApiKey(

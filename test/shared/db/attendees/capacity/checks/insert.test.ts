@@ -3,7 +3,19 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { dateToStartEnd } from "#db/attendees/capacity/range.ts";
+import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+
+/** The exact argument list `buildCapacityCheckedInsert` receives. */
+type InsertCall = Parameters<typeof buildCapacityCheckedInsert>;
+
+/** A statement whose clause the caller's flags decide, and the clause it must
+ *  carry: null means the statement has no WHERE at all. */
+type ClauseCase = {
+  title: string;
+  call: InsertCall;
+  where: string | null;
+};
 
 describe("buildCapacityCheckedInsert", () => {
   test("binds every default booking fact in statement order", () => {
@@ -34,7 +46,7 @@ describe("buildCapacityCheckedInsert", () => {
         parentListingId: 19,
         quantity: 3,
       },
-      (bind) => bind(41),
+      41,
       true,
     );
 
@@ -54,71 +66,63 @@ describe("buildCapacityCheckedInsert", () => {
     );
   });
 
-  test("omits the capacity clause when overbooking is allowed", () => {
-    const statement = buildCapacityCheckedInsert(
-      { date: "2026-06-24", listingId: 17 },
-      (bind) => bind(41),
-      true,
-    );
+  // A line that books no places cannot make any capacity state worse, so it
+  // can land on a full or inactive listing too; its clause only asks that the
+  // listing row still exists. An overbook caller always lands its row — the
+  // payment ghost store's documented contract, even against a listing deleted
+  // since checkout.
+  const existsClause =
+    "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1)";
+  const cases: ClauseCase[] = [
+    {
+      call: [{ date: "2026-06-24", listingId: 17 }, 41, true],
+      title: "omits the capacity clause when overbooking is allowed",
+      where: null,
+    },
+    {
+      call: [{ date: "2026-06-24", listingId: 17, quantity: 0 }],
+      title: "a zero-quantity booking carries no capacity or active condition",
+      where: existsClause,
+    },
+    {
+      call: [{ date: "2026-06-24", listingId: 17, quantity: 0 }, 41, true],
+      title: "an overbook caller writes a zero-quantity ghost unconditionally",
+      where: null,
+    },
+    {
+      call: [
+        { date: "2026-06-24", listingId: 17, quantity: 2 },
+        41,
+        true,
+        sql`order_not_yet_recorded`,
+      ],
+      title: "an overbook caller keeps an extra condition the caller passed",
+      where: "WHERE order_not_yet_recorded",
+    },
+    {
+      call: [
+        { date: "2026-06-24", listingId: 17, quantity: 0 },
+        41,
+        false,
+        sql`order_not_yet_recorded`,
+      ],
+      title:
+        "a zero-quantity booking keeps an extra condition the caller passed",
+      where: `${existsClause} AND (order_not_yet_recorded)`,
+    },
+  ];
 
-    assert(!statement.sql.includes("WHERE"));
-  });
+  for (const { call, title, where } of cases) {
+    test(title, () => {
+      const statement = buildCapacityCheckedInsert(...call);
 
-  test("a zero-quantity booking carries no capacity or active condition", () => {
-    // A line that books no places cannot make any capacity state worse, so
-    // it can land on a full or inactive listing too. Its clause only asks
-    // that the listing row still exists.
-    const statement = buildCapacityCheckedInsert({
-      date: "2026-06-24",
-      listingId: 17,
-      quantity: 0,
+      if (where === null) {
+        assert(!statement.sql.includes("WHERE"));
+        return;
+      }
+      assertStringIncludes(statement.sql, where);
+      assert(!statement.sql.includes("max_attendees"));
+      assert(!statement.sql.includes("active = 1"));
     });
-
-    assertStringIncludes(
-      statement.sql,
-      "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1)",
-    );
-    assert(!statement.sql.includes("max_attendees"));
-    assert(!statement.sql.includes("active = 1"));
-  });
-
-  test("an overbook caller writes a zero-quantity ghost unconditionally", () => {
-    // The payment ghost store passes allowOverbook and must always land its
-    // row, even against a listing deleted since checkout — its documented
-    // contract is that the row always writes.
-    const statement = buildCapacityCheckedInsert(
-      { date: "2026-06-24", listingId: 17, quantity: 0 },
-      (bind) => bind(41),
-      true,
-    );
-
-    assert(!statement.sql.includes("WHERE"));
-  });
-
-  test("an overbook caller keeps an extra condition the caller passed", () => {
-    const statement = buildCapacityCheckedInsert(
-      { date: "2026-06-24", listingId: 17, quantity: 2 },
-      (bind) => bind(41),
-      true,
-      () => "order_not_yet_recorded",
-    );
-
-    assertStringIncludes(statement.sql, "WHERE order_not_yet_recorded");
-    assert(!statement.sql.includes("max_attendees"));
-  });
-
-  test("a zero-quantity booking keeps an extra condition the caller passed", () => {
-    const statement = buildCapacityCheckedInsert(
-      { date: "2026-06-24", listingId: 17, quantity: 0 },
-      (bind) => bind(41),
-      false,
-      () => "order_not_yet_recorded",
-    );
-
-    assertStringIncludes(
-      statement.sql,
-      "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1) AND (order_not_yet_recorded)",
-    );
-    assert(!statement.sql.includes("max_attendees"));
-  });
+  }
 });

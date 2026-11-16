@@ -2,12 +2,12 @@ import type { Row } from "@libsql/client";
 import {
   queryBatch,
   resultRows,
-  type SqlStatement,
   type TxScope,
   withReadSnapshot,
 } from "#db/client.ts";
 import { SCHEMA_TABLE_NAMES } from "#db/migrations.ts";
 import { stringColumnSet } from "#db/query.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { chunk, sumOf } from "#fp";
 import { readLimit } from "#shared/limits.ts";
 
@@ -21,8 +21,7 @@ export type TableBackup = {
 /** Double-quote a SQL identifier (table or column name) */
 const quoteId = (name: string): string => `"${name}"`;
 
-const EXISTING_TABLES_SQL =
-  "SELECT name FROM sqlite_master WHERE type = 'table'";
+const EXISTING_TABLES_SQL = sql`SELECT name FROM sqlite_master WHERE type = 'table'`;
 
 /**
  * The schema's tables that currently exist, in SCHEMA (FK-dependency) order.
@@ -31,9 +30,7 @@ const EXISTING_TABLES_SQL =
  */
 const existingSchemaTables = async (snapshot: TxScope): Promise<string[]> => {
   const existing = stringColumnSet(
-    resultRows<Row>(
-      await snapshot.execute({ args: [], sql: EXISTING_TABLES_SQL }),
-    ),
+    resultRows<Row>(await snapshot.execute(EXISTING_TABLES_SQL)),
     "name",
   );
   return SCHEMA_TABLE_NAMES.filter((table) => existing.has(table));
@@ -69,12 +66,8 @@ const tablePageStatement = (
   table: string,
   cursor: number,
   pageSize: number,
-): SqlStatement => ({
-  args: [cursor, pageSize],
-  sql:
-    `SELECT rowid AS ${ROWID_ALIAS}, * FROM ${quoteId(table)} ` +
-    "WHERE rowid > ? ORDER BY rowid LIMIT ?",
-});
+): SqlStatement =>
+  sql`SELECT rowid AS ${sqlName(ROWID_ALIAS)}, * FROM ${sqlName(table)} WHERE rowid > ${cursor} ORDER BY rowid LIMIT ${pageSize}`;
 
 /** The snapshot-scoped page reader a dump's keyset loop reads through. */
 export type SnapshotReader = (statement: SqlStatement) => Promise<BackupRow[]>;
@@ -134,10 +127,9 @@ export const exportTable = async (
 /** Row counts for every schema table, in SCHEMA order, in one round trip. */
 export const countSchemaTableRows = async (): Promise<number[]> => {
   const results = await queryBatch(
-    SCHEMA_TABLE_NAMES.map((table) => ({
-      args: [],
-      sql: `SELECT count(*) AS rowCount FROM ${quoteId(table)}`,
-    })),
+    SCHEMA_TABLE_NAMES.map(
+      (table) => sql`SELECT count(*) AS rowCount FROM ${sqlName(table)}`,
+    ),
   );
   // count(*) always returns exactly one row per statement.
   return results.map(

@@ -13,8 +13,7 @@ import { runWithSiteBuildScope } from "#shared/builder-dry-run.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import {
   type EmailEntry,
-  getEmailConfig,
-  hostEmail,
+  getActiveEmailConfig,
   sendEmail,
 } from "#shared/email.ts";
 import { pickTierListing } from "#shared/renewal-tier.ts";
@@ -196,7 +195,7 @@ const sendSiteAssignmentEmail = async (
   to: ValidEmail,
   assignments: SiteAssignment[],
 ): Promise<void> => {
-  const config = getEmailConfig() ?? hostEmail.getHostConfig();
+  const config = getActiveEmailConfig();
   if (!config) return;
 
   const plural = assignments.length > 1;

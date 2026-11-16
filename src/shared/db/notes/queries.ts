@@ -10,12 +10,15 @@ import {
   execute,
   executeBatch,
   insert,
-  orIgnore,
-  type SqlStatement,
+  insertOrIgnore,
   type TxScope,
 } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import { deleteWhere, type WhereClause } from "#db/where-clauses.ts";
+import type { Condition } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { deleteWhere } from "#db/where-clauses.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
@@ -25,9 +28,6 @@ import type {
   SystemNoteRow,
   SystemNoteType,
 } from "./types.ts";
-
-const NOTE_COLUMNS =
-  "id, entity_type, entity_id, type, note, system_name, created";
 
 const storedSystemNoteName = ({ key, purpose }: SystemNoteName): string =>
   `system-note:1:${JSON.stringify([purpose, key])}`;
@@ -40,7 +40,9 @@ const writeNote = async (
   transaction?: TxScope,
 ): Promise<void> => {
   if (name?.key === "") throw new Error("A named system note needs a key");
-  const inserted = insert("system_notes", {
+  // A named note is unique by its name: a replayed write is a no-op, so a
+  // resumable flow can re-run its note step without a second copy landing.
+  const statement = (name === null ? insert : insertOrIgnore)("system_notes", {
     created: nowIso(),
     entity_id: target.id,
     entity_type: target.kind,
@@ -48,11 +50,8 @@ const writeNote = async (
     system_name: name === null ? null : storedSystemNoteName(name),
     type,
   });
-  // A named note is unique by its name: a replayed write is a no-op, so a
-  // resumable flow can re-run its note step without a second copy landing.
-  const statement = name === null ? inserted : orIgnore(inserted);
   if (transaction === undefined) {
-    await execute(statement.sql, statement.args);
+    await execute(statement);
   } else {
     await transaction.execute(statement);
   }
@@ -80,15 +79,30 @@ export const createOwnerNote = (
   transaction?: TxScope,
 ): Promise<void> => writeNote("owner", target, note, null, transaction);
 
+/** The notes, under the name of their table. The conditions of a note target
+ *  name their columns bare. */
+const notes = () => from(tables.system_notes).as("system_notes");
+
+/** The columns of a note that is still sealed. */
+const SEALED_NOTE = [
+  "id",
+  "entity_type",
+  "entity_id",
+  "type",
+  "note",
+  "system_name",
+  "created",
+] as const;
+
 /** The still-sealed rows matching a WHERE body, oldest first per record. Shared
  *  by every read so the column list and the ordering live in one place. */
-const noteRowsWhere = (where: WhereClause[]): Promise<SystemNoteRow[]> =>
-  readRows<SystemNoteRow>({
-    columns: NOTE_COLUMNS,
-    from: "system_notes",
-    order: "entity_id, id",
-    where,
-  });
+const noteRowsWhere = (where: readonly Condition[]): Promise<SystemNoteRow[]> =>
+  readRows<SystemNoteRow>(
+    notes()
+      .where(() => where)
+      .orderBy((note) => [note.entity_id, note.id])
+      .pick(...SEALED_NOTE),
+  );
 
 /**
  * The still-sealed rows for several records of one kind, oldest first. Cheap
@@ -111,13 +125,13 @@ export const getNoteRowsForListing = (
   listingId: number,
 ): Promise<SystemNoteRow[]> =>
   noteRowsWhere(
-    noteTargets.whereChosenBy("attendee", {
-      args: [listingId],
-      sql: `SELECT listingAttendee.attendee_id
+    noteTargets.whereChosenBy(
+      "attendee",
+      sql`SELECT listingAttendee.attendee_id
               FROM listing_attendees AS listingAttendee
               JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-             WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    }),
+             WHERE listingAttendee.listing_id = ${listingId} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
+    ),
   );
 
 /** All of one record's notes, opened up, oldest first. One record is a list of
@@ -166,7 +180,7 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
 
 /** One note, tied to the record it has to belong to, so a stray id can't reach
  *  another record's note. */
-const noteOfTarget = (target: NoteTarget, noteId: number): WhereClause[] =>
+const noteOfTarget = (target: NoteTarget, noteId: number): Condition[] =>
   noteTargets.whereAlso(target, "id", noteId);
 
 /** A delete over the notes the clauses select. */
@@ -178,11 +192,12 @@ export const getNote = async (
   noteId: number,
   privateKey: CryptoKey,
 ): Promise<SystemNote | null> => {
-  const row = await readOneRow<SystemNoteRow>({
-    columns: NOTE_COLUMNS,
-    from: "system_notes",
-    where: noteOfTarget(target, noteId),
-  });
+  const row = await readOneRow<SystemNoteRow>(
+    notes()
+      .where(() => noteOfTarget(target, noteId))
+      .limit(1)
+      .pick(...SEALED_NOTE),
+  );
   return row ? openNote(row, privateKey) : null;
 };
 

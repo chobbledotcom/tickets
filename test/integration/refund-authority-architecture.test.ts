@@ -152,10 +152,8 @@ describe("provider-refund architecture", () => {
   test("ambient and raw provider selectors stay at reviewed boundaries", async () => {
     const files = await sourceFiles();
     expect(pathsContaining(files, /\bgetActivePaymentProvider\b/)).toEqual([
-      "features/api/folded-booking.ts",
       "features/public/balance.ts",
       "features/public/ticket-payment.ts",
-      "shared/booking.ts",
       "shared/payments.ts",
     ]);
     expect(pathsContaining(files, /\bexistingPaymentProviderState\b/)).toEqual([

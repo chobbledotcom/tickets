@@ -54,6 +54,8 @@ export const API_EXAMPLE_LISTING: ListingWithCount = {
   non_transferable: false,
   profit: 7500,
   purchase_only: false,
+  recurring_interval: "",
+  recurring_price: 0,
   slug: EXAMPLE_LISTING.slug,
   // Documentation fixture, never queried — a hand-crafted stand-in for the
   // stored blind index (same boundary as test fixtures).

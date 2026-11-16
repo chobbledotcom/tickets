@@ -9,20 +9,39 @@
  * leg exists, and would otherwise read as a bare sale.
  */
 
-import { ATTENDEE, REVENUE } from "#accounting/accounts.ts";
+import { REVENUE } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import {
-  accountPredicate,
   attendeeOwedSubquery,
-  saleLegPredicate,
+  ledgerLegs,
+  onAccount,
+  paymentLegExists,
+  saleLeg,
 } from "#accounting/projection-sql.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import {
-  LISTING_ATTENDEE_REFUNDED_ROW,
+  BOOKING_ROW,
   type RefundedRowExprs,
   refundedForBooking,
+  refundedRowOf,
 } from "#db/attendees/select.ts";
 import { requireOne } from "#db/client.ts";
+import type { WholeNumberRow } from "#db/query.ts";
+import {
+  and,
+  atMost,
+  type Expr,
+  equal,
+  literal,
+  not,
+  notEqual,
+  orZero,
+  sum,
+  valued,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { isPaidListing, type Listing } from "#types";
 
 /**
@@ -54,90 +73,83 @@ export type ListingOverviewStats = {
   incompleteSales: number;
 };
 
-/** SQL predicate: this booking has NOT come back, asked through the same
- * `refundedForBooking` the row projection uses so the two cannot drift. It is
- * here so a refunded booking whose processed reference was later pruned is not
- * mistaken for a bare sale. */
-const notRefunded = (row: RefundedRowExprs): string =>
-  `NOT ${refundedForBooking(row)}`;
+/** A provider reference stands for the attendee's payment. */
+const hasProviderReference = (attendeeId: Expr<number>): Expr<boolean> =>
+  from(tables.processed_payments)
+    .where((payment) => [
+      equal(payment.attendee_id, attendeeId),
+      notEqual(payment.payment_reference, literal("")),
+    ])
+    .exists();
 
-/** SQL boolean (0/1) marking a `listing_attendees` row `listingAttendee` as an
- *  incomplete payment: a recognised `sale` leg for the booking with no
- *  `payment` leg ever received into the attendee for that same ledger event
- *  group, nothing still owed, and no refund. Only paid listings can carry one,
- *  so `false` collapses the CASE arms for a free listing to their confirmed
- *  side. */
-const incompleteRowPredicate = (paid: boolean): string => {
-  if (!paid) return "0";
-  const hasSale = `EXISTS (SELECT 1 FROM transfers WHERE ${saleLegPredicate(
-    "listingAttendee.attendee_id",
-    "listingAttendee.listing_id",
-    "listingAttendee.ledger_event_group",
-  )})`;
-  const hasPayment =
-    `EXISTS (SELECT 1 FROM transfers WHERE kind = '${KIND.payment}'` +
-    ` AND ${accountPredicate(
-      "dest",
-      ATTENDEE,
-      "listingAttendee.attendee_id",
-    )}` +
-    " AND event_group = listingAttendee.ledger_event_group)";
-  const hasProviderReference =
-    "EXISTS (SELECT 1 FROM processed_payments AS payment" +
-    " WHERE payment.attendee_id = listingAttendee.attendee_id" +
-    " AND payment.payment_reference != '')";
-  const nothingOwed = `${attendeeOwedSubquery(
-    "listingAttendee.attendee_id",
-  )} <= 0`;
-  return (
-    `(${hasSale} AND NOT ${hasPayment} AND NOT ${hasProviderReference}` +
-    ` AND ${nothingOwed} AND ${notRefunded(LISTING_ATTENDEE_REFUNDED_ROW)})`
+/** A sale that looks paid with no payment on record: no payment leg, no
+ *  provider reference, nothing still owed, and no refund. The refund test is
+ *  the `refundedForBooking` of the row projection, so the two cannot drift. A
+ *  refunded booking whose provider reference was pruned must not read as a
+ *  bare sale. */
+const unpaidButSettled = (
+  row: RefundedRowExprs,
+  hasPayment: Expr<boolean>,
+): Expr<boolean> =>
+  and(
+    not(hasPayment),
+    not(hasProviderReference(row.attendeeId)),
+    atMost(attendeeOwedSubquery(row.attendeeId), literal(0)),
+    not(refundedForBooking(row)),
+  );
+
+/** Marks the `listing_attendees` row `listingAttendee` as an incomplete
+ *  payment: a recognised `sale` leg with no `payment` leg in the same ledger
+ *  event group, and {@link unpaidButSettled}. Only a paid listing can carry
+ *  one, so a free listing reads every row as confirmed. */
+const incompleteRowPredicate = (paid: boolean): Expr<boolean> => {
+  if (!paid) return and(false);
+  const row = refundedRowOf(BOOKING_ROW);
+  const hasSale = ledgerLegs()
+    .where(saleLeg(row.attendeeId, row.listingId, row.eventGroup))
+    .exists();
+  return and(
+    hasSale,
+    unpaidButSettled(row, paymentLegExists(row.attendeeId, row.eventGroup)),
   );
 };
 
-type OverviewCountsRow = {
-  incomplete_quantity: number | bigint;
-  complete_quantity_sum: number | bigint;
-  tickets_total: number | bigint;
-  rows_total: number | bigint;
-  tickets_checked_in: number | bigint;
-  rows_checked_in: number | bigint;
-};
+type OverviewCountsRow = WholeNumberRow<
+  | "incomplete_quantity"
+  | "complete_quantity_sum"
+  | "tickets_total"
+  | "rows_total"
+  | "tickets_checked_in"
+  | "rows_checked_in"
+>;
 
 /** Σ of the `sale` legs recognised into the listing's revenue account for
  *  bookings that never received a payment — the revenue to exclude from the
  *  confirmed total. Zero for a free listing (queried only when paid). */
 const incompleteSales = async (listingId: number): Promise<number> => {
-  const saleToRevenue = `saleLeg.kind = '${KIND.sale}' AND ${accountPredicate(
-    "dest",
-    REVENUE,
-    "?",
-  )}`;
-  const noPayment =
-    `NOT EXISTS (SELECT 1 FROM transfers AS paymentLeg WHERE paymentLeg.kind = '${KIND.payment}'` +
-    " AND paymentLeg.dest_type = 'attendee' AND paymentLeg.dest_id = saleLeg.source_id" +
-    " AND paymentLeg.event_group = saleLeg.event_group)";
-  const noProviderReference =
-    "NOT EXISTS (SELECT 1 FROM processed_payments AS payment" +
-    " WHERE payment.attendee_id = CAST(saleLeg.source_id AS INTEGER)" +
-    " AND payment.payment_reference != '')";
-  const nothingOwed = `${attendeeOwedSubquery(
-    "CAST(saleLeg.source_id AS INTEGER)",
-  )} <= 0`;
-  // Every row here HAS a sale leg — the query reads from them — so the
-  // placeholder arm is unreachable and says so rather than guessing a quantity.
-  const notRefundedSale = notRefunded({
-    attendeeId: "CAST(saleLeg.source_id AS INTEGER)",
-    eventGroup: "saleLeg.event_group",
-    listingId: "CAST(saleLeg.dest_id AS INTEGER)",
-    placeholderWhen: "0",
-  });
-  const row = await requireOne<{ incomplete_sales: number | bigint }>(
-    `SELECT COALESCE(SUM(saleLeg.amount), 0) AS incomplete_sales
-       FROM transfers AS saleLeg
-      WHERE ${saleToRevenue} AND ${noPayment} AND ${noProviderReference}
-        AND ${nothingOwed} AND ${notRefundedSale}`,
-    [String(listingId)],
+  const row = await requireOne(
+    ledgerLegs()
+      .as("saleLeg")
+      .where((sale) => {
+        const attendeeId = valued<number>(
+          sql`CAST(${sale.source_id} AS INTEGER)`,
+        );
+        return [
+          equal(sale.kind, literal(KIND.sale)),
+          onAccount("dest", REVENUE, String(listingId))(sale),
+          // Every row here has a sale leg, so no row is a placeholder.
+          unpaidButSettled(
+            {
+              attendeeId,
+              eventGroup: sale.event_group,
+              listingId: valued<number>(sql`CAST(${sale.dest_id} AS INTEGER)`),
+              placeholderWhen: false,
+            },
+            paymentLegExists(sale.source_id, sale.event_group),
+          ),
+        ];
+      })
+      .select((sale) => ({ incomplete_sales: orZero(sum(sale.amount)) })),
   );
   return Number(row.incomplete_sales);
 };
@@ -156,19 +168,18 @@ export const getListingOverviewStats = async (
 ): Promise<ListingOverviewStats> => {
   const paid = isPaidListing(listing);
   const incomplete = incompleteRowPredicate(paid);
-  const confirmed = `NOT ${incomplete} AND listingAttendee.quantity > 0`;
+  const confirmed = sql`NOT (${incomplete}) AND listingAttendee.quantity > 0`;
   const countsPromise = requireOne<OverviewCountsRow>(
-    `SELECT
+    sql`SELECT
        COALESCE(SUM(CASE WHEN ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS incomplete_quantity,
-       COALESCE(SUM(CASE WHEN NOT ${incomplete} THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,
+       COALESCE(SUM(CASE WHEN NOT (${incomplete}) THEN listingAttendee.quantity ELSE 0 END), 0) AS complete_quantity_sum,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.quantity ELSE 0 END), 0) AS tickets_total,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN 1 ELSE 0 END), 0) AS rows_total,
        COALESCE(SUM(CASE WHEN ${confirmed} THEN listingAttendee.checked_in ELSE 0 END), 0) AS tickets_checked_in,
        COALESCE(SUM(CASE WHEN ${confirmed} AND listingAttendee.checked_in = listingAttendee.quantity THEN 1 ELSE 0 END), 0) AS rows_checked_in
      FROM listing_attendees AS listingAttendee
      JOIN attendees AS attendee ON attendee.id = listingAttendee.attendee_id
-     WHERE listingAttendee.listing_id = ? AND attendee.kind = '${ATTENDEE_KIND}'`,
-    [listing.id],
+     WHERE listingAttendee.listing_id = ${listing.id} AND attendee.kind = ${sqlLiteral(ATTENDEE_KIND)}`,
   );
   // Only a paid listing can carry never-paid sales, so a free listing skips the
   // ledger scan entirely.

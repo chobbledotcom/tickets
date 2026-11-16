@@ -13,9 +13,12 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { wrapKeyWithToken } from "#crypto/keys.ts";
 import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
-import { execute, executeUpdate } from "#db/client.ts";
+import { executeUpdate } from "#db/client.ts";
 import { idAndCreatedSchema } from "#db/common-schema.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { deleteFrom } from "#db/delete-row.ts";
+import { executeChangedRow } from "#db/guarded-writes.ts";
+import { sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readerFor } from "#db/table-reader.ts";
 import { nowIso } from "#shared/now.ts";
@@ -117,7 +120,7 @@ export const getApiKeysForUser = async (
 > => {
   const decrypted = await apiKeyListColumns.many(
     { user_id: userId },
-    { order: "id ASC" },
+    { order: sql`id ASC` },
   );
   return decrypted.map((row) => ({
     created: row.created,
@@ -127,17 +130,16 @@ export const getApiKeysForUser = async (
   }));
 };
 
+/** The key's display facts: its id and its decrypted name. */
+export type ApiKeyName = { id: number; name: string };
+
 /**
- * Get a single API key by ID and user, with decrypted name.
+ * Find one API key by ID and user, with its decrypted name, or null.
  */
-export const getApiKeyForUser = async (
+export const findApiKeyForUser = async (
   id: number,
   userId: number,
-): Promise<{ id: number; name: string }> => {
-  const decrypted = await apiKeyNameColumns.one({ id, user_id: userId });
-  if (!decrypted) throw new Error(`API key ${id} not found for user ${userId}`);
-  return { id: decrypted.id, name: decrypted.name };
-};
+): Promise<ApiKeyName | null> => apiKeyNameColumns.one({ id, user_id: userId });
 
 /**
  * Delete an API key by ID (must belong to the given user).
@@ -145,13 +147,8 @@ export const getApiKeyForUser = async (
 export const deleteApiKey = async (
   id: number,
   userId: number,
-): Promise<boolean> => {
-  const result = await execute(
-    "DELETE FROM api_keys WHERE id = ? AND user_id = ?",
-    [id, userId],
-  );
-  return result.rowsAffected > 0;
-};
+): Promise<boolean> =>
+  executeChangedRow(deleteFrom("api_keys", { id, user_id: userId }));
 
 /**
  * Update last_used timestamp for an API key.

@@ -3,11 +3,8 @@
  * literals are blanked. Split from detectors.ts so the scanner and its
  * preprocessing each hold one concern. */
 
-import {
-  interpolationEnd,
-  type LexicalSpan,
-  lexicalSpans,
-} from "#scripts/typescript-lex.ts";
+import { type LexicalSpan, lexicalSpans } from "#scripts/typescript-lex.ts";
+import { templateHoles } from "#test-utils/template-holes.ts";
 
 /**
  * One loader clause, anchored where the walk stands. The pass copies a match
@@ -41,24 +38,10 @@ const templateCodeOnly = (content: string, span: LexicalSpan): string => {
   for (let k = span.start; k < span.end; k++) {
     out.push(content[k] === "\n" ? "\n" : " ");
   }
-  let j = span.start + 1;
-  const last = span.end - 1;
-  while (j < last) {
-    if (content[j] === "\\") {
-      // Template text escapes one character: `\${` is text, `\\` is one
-      // backslash. The walk reads the literal the way the lexer's own run
-      // does.
-      j += 2;
-      continue;
-    }
-    if (content[j] === "$" && content[j + 1] === "{") {
-      const close = interpolationEnd(content, j + 2);
-      const code = codeOnlyWalk(content.slice(j, close + 1), true);
-      out.splice(j - span.start, code.length, ...code.split(""));
-      j = close + 1;
-      continue;
-    }
-    j++;
+  for (const hole of templateHoles(content, span.start, span.end)) {
+    const opening = hole.start - 2;
+    const code = codeOnlyWalk(content.slice(opening, hole.end + 1), true);
+    out.splice(opening - span.start, code.length, ...code.split(""));
   }
   return out.join("");
 };

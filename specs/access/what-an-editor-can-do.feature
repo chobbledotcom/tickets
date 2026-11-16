@@ -97,6 +97,7 @@ Feature: An owner gives someone the run of the listings, and nothing else
       Given Sam is signed in as an editor
       And the site sells a Pottery, forwarding its bookings to the owner's address
       When Sam saves Pottery with somewhere else to forward bookings to
-      Then Pottery still forwards its bookings to the owner's address
+      Then Sam is told the form sent a field it does not show
+      And Pottery still forwards its bookings to the owner's address
       When the owner saves Pottery with somewhere else to forward bookings to
       Then Pottery forwards its bookings somewhere else

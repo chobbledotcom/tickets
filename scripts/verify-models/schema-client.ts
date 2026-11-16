@@ -3,8 +3,9 @@
  *  never reads or writes another fact's rows. */
 
 import { type Client, createClient } from "@libsql/client";
-import type { SqlStatement } from "#db/client.ts";
+
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
+import type { SqlStatement } from "#db/sql.ts";
 
 export const schemaClientWith = async (
   writes: readonly (SqlStatement | string)[],

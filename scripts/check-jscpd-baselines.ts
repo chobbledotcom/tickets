@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read=. --allow-run=git
+#!/usr/bin/env -S deno run -A
 
 /**
  * The jscpd baseline ratchet: fail when this branch accepts a clone that the

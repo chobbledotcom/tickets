@@ -12,7 +12,6 @@ import { accountBalanceSubquery } from "#accounting/projection-sql.ts";
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import {
   executeBatch,
-  inPlaceholders,
   queryAll,
   queryIdColumn,
   queryOne,
@@ -35,13 +34,11 @@ import {
   type ListsByIds,
   queryAndMap,
 } from "#db/query.ts";
+import { type Condition, equal, whereTail } from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
-import {
-  clauseArgs,
-  equals,
-  type WhereClause,
-  whereSql,
-} from "#db/where-clauses.ts";
 import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
 import type {
   CalcKind,
@@ -104,6 +101,9 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
   },
 );
 
+/** The modifier row of a statement that names the table `modifiers` bare. */
+const MODIFIER_ROW = tableNode(tables.modifiers, "modifiers");
+
 /**
  * Subquery projecting a modifier's revenue from the ledger: the modifier
  * account's NET balance (`balanceOf(modifier:M)`), read directly — never
@@ -116,9 +116,8 @@ export const modifiersTable = defineIdTable<ModifierRow, ModifierInput>(
  * never off the now-dropped column. The trailing `AS total_revenue` names the
  * projected column.
  */
-export const modifierRevenueSubquery = (idExpr: string): string =>
-  `${accountBalanceSubquery("modifier", idExpr)} AS total_revenue`;
-const MODIFIER_COLUMNS = modifiersTable.columns.join(", ");
+const modifierRevenueSubquery = (): SqlStatement =>
+  sql`${accountBalanceSubquery("modifier", MODIFIER_ROW.id)} AS total_revenue`;
 
 /** Decrypt a modifier row and merge the ledger-projected total_revenue its
  * loader selected alongside the stored modifier columns. The row carries
@@ -134,12 +133,13 @@ const mapModifierRow = async (row: Modifier): Promise<Modifier> => ({
  * ledger-projected total_revenue every loader selects. */
 const queryModifiers = queryAndMap<Modifier, Modifier>(mapModifierRow);
 
-const modifierSelect = (parts: WhereClause[] = []): string =>
-  `SELECT ${MODIFIER_COLUMNS}, ${modifierRevenueSubquery("modifiers.id")} FROM modifiers${whereSql(parts)}`;
+const modifierSelect = (parts: readonly Condition[]): SqlStatement =>
+  sql`SELECT ${sqlNames(modifiersTable.columns)}, ${modifierRevenueSubquery()} FROM modifiers${whereTail(parts)} ORDER BY id ASC`;
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
-const queryModifiersWhere = (parts: WhereClause[]): Promise<Modifier[]> =>
-  queryModifiers(`${modifierSelect(parts)} ORDER BY id ASC`, clauseArgs(parts));
+const queryModifiersWhere = (
+  parts: readonly Condition[],
+): Promise<Modifier[]> => queryModifiers(modifierSelect(parts));
 
 /** Get all modifiers, decrypted, ordered by id. */
 export const getAllModifiers = (): Promise<Modifier[]> =>
@@ -155,13 +155,11 @@ export const getModifierNamesByIds = envNameSource(
  * reads the same rows through it, so a reachability guard inside a write
  * transaction sees that transaction's own earlier writes. */
 export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
-  const parts = equals("active", 1);
-  const sql = `${modifierSelect(parts)} ORDER BY id ASC`;
-  const args = clauseArgs(parts);
+  const parts = [equal(MODIFIER_ROW.active, 1)];
   return tx === undefined
     ? queryModifiersWhere(parts)
     : mapParallel(mapModifierRow)(
-        resultRows<Modifier>(await tx.execute({ args, sql })),
+        resultRows<Modifier>(await tx.execute(modifierSelect(parts))),
       );
 };
 
@@ -170,10 +168,8 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
  * they see the projected figure rather than the dropped column (the bare
  * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
-  const parts = equals("id", id);
   const row = await queryOne<Modifier>(
-    modifierSelect(parts),
-    clauseArgs(parts),
+    modifierSelect([equal(MODIFIER_ROW.id, id)]),
   );
   return row ? mapModifierRow(row) : null;
 };
@@ -195,12 +191,11 @@ export const getModifierAggregateRecalculation = async (
   modifier: ModifierRow,
 ): Promise<ModifierAggregateRecalculation> => {
   const row = await requireOne<ModifierAggregateValues>(
-    `SELECT
+    sql`SELECT
        COALESCE(SUM(quantity), 0) AS total_uses,
        COUNT(*) AS usage_count
      FROM modifier_usages
-     WHERE modifier_id = ?`,
-    [modifier.id],
+     WHERE modifier_id = ${modifier.id}`,
   );
   return {
     total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
@@ -227,10 +222,8 @@ export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 export const modifierAggregates = aggregateRepairs<ModifierAggregateField>(
   "modifiers",
   {
-    total_uses:
-      "total_uses = COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = ?), 0)",
-    usage_count:
-      "usage_count = (SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = ?)",
+    total_uses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+    usage_count: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
   },
 );
 
@@ -268,22 +261,20 @@ const appendModifierListingLinks = (
 };
 
 /** Build a batched modifier->listing scope lookup: the returned function runs
- * `buildSql` (given the bound `IN (...)` placeholders) and buckets the rows by
+ * `buildSql` (given the bound id list) and buckets the rows by
  * modifier id. */
 const modifierScopeListingIdsLookup =
-  (buildSql: (placeholders: string) => string) =>
+  (buildSql: (modifierIds: SqlStatement) => SqlStatement) =>
   async (
     modifierIds: number[],
     tx?: TxScope,
   ): Promise<Map<number, number[]>> => {
     if (modifierIds.length === 0) return new Map();
-    const sql = buildSql(inPlaceholders(modifierIds));
+    const statement = buildSql(sqlList(modifierIds));
     const rows =
       tx === undefined
-        ? await queryAll<ModifierListingLinkRow>(sql, modifierIds)
-        : resultRows<ModifierListingLinkRow>(
-            await tx.execute({ args: modifierIds, sql }),
-          );
+        ? await queryAll<ModifierListingLinkRow>(statement)
+        : resultRows<ModifierListingLinkRow>(await tx.execute(statement));
     return appendModifierListingLinks(
       emptyListsFor<number, number>(modifierIds),
       rows,
@@ -293,17 +284,19 @@ const modifierScopeListingIdsLookup =
 /** Listing ids belonging to linked groups for each group-scoped modifier id. */
 export const getModifierGroupListingIdsByModifierId =
   modifierScopeListingIdsLookup(
-    (placeholders) =>
-      `SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
+    (modifierIds) =>
+      sql`SELECT modifierGroup.modifier_id, groupListing.listing_id AS listing_id
        FROM modifier_groups AS modifierGroup
          JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
-       WHERE modifierGroup.modifier_id IN (${placeholders})`,
+       WHERE modifierGroup.modifier_id IN (${modifierIds})`,
   );
 
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn("SELECT id FROM answers WHERE modifier_id = ?", [modifierId]);
+  queryIdColumn(
+    from(tables.answers).where({ modifier_id: modifierId }).pick("id"),
+  );
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and
@@ -333,7 +326,7 @@ export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
         "answer",
         "modifier_id",
         answerIds,
-        " AND answer.modifier_id IS NOT NULL",
+        sql` AND answer.modifier_id IS NOT NULL`,
       )),
     ].map(([id, modifierId]) => [id, [modifierId]]),
   );

@@ -163,7 +163,7 @@ describe("adminApiDocsPage", () => {
       "Admin API endpoints require authentication via API key or session cookie:",
       "<h3>Public API</h3>",
       "<h3>Admin API</h3>",
-      "Requires <code>Authorization",
+      "Requires <code>Authorization: Bearer YOUR_API_KEY</code> header. Each endpoint allows the same roles",
       // The whole page keeps the shell's active tab and title.
       "<title>API Documentation",
     ]);
@@ -174,6 +174,19 @@ describe("adminApiDocsPage", () => {
     expectIncludesAll(html, [
       "<pre><code>Authorization: Bearer YOUR_API_KEY</code></pre>",
       "Public API endpoints require no authentication.",
+    ]);
+  });
+});
+
+describeWithEnv("adminApiDocsPage with API keys on", { db: true }, () => {
+  beforeAll(setupAdminPageTest);
+
+  test("the docs page sits in the Users section, beside the key list", async () => {
+    await enableFeature("apiKeys");
+    const html = adminApiDocsPage(OWNER_SESSION, [ENDPOINT], []);
+
+    expectIncludesAll(html, [
+      '<a class="active" href="/admin/users">Users</a>',
     ]);
   });
 });

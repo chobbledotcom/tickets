@@ -9,24 +9,11 @@ import type {
 } from "#shared/merge/attendee-merge-types.ts";
 import { MergeDecisionTables } from "#templates/admin/attendees/merge-tables.tsx";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
+import { bookingRow as storedBookingRow } from "#test-utils/factories.ts";
 
 const bookingRow = (
   overrides: Partial<ListingAttendeeRow> = {},
-): ListingAttendeeRow => ({
-  attachment_downloads: 0,
-  checked_in: 0,
-  end_at: null,
-  ledger_event_group: "",
-  listing_id: 7,
-  order_token: "",
-  package_group_id: 0,
-  parent_listing_id: 0,
-  price_paid: 0,
-  quantity: 1,
-  refunded: 0,
-  start_at: null,
-  ...overrides,
-});
+): ListingAttendeeRow => storedBookingRow({ listing_id: 7, ...overrides });
 
 const bookingItem = (
   overrides: Partial<AttendeeMergeDiffBookingItem> = {},

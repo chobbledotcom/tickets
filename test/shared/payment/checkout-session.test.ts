@@ -4,12 +4,14 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { readCheckoutAnswers } from "#db/checkout-pending-answers.ts";
 import { execute } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
+import { t } from "#i18n";
 import { makeCreateCheckoutSession } from "#payment/checkout-session.ts";
 import { WEBHOOK_RETRY_WINDOW_DAYS } from "#shared/limits.ts";
 import { DAY_MS, isoBefore } from "#shared/now.ts";
@@ -61,6 +63,29 @@ describeWithEnv(
       );
     });
 
+    test("refuses a subscription order that the provider cannot take, before any request", async () => {
+      const create = spy(() =>
+        Promise.resolve({ id: "cs_never", url: "https://pay.example" }),
+      );
+      const square = makeCreateCheckoutSession("square", create, (result) => ({
+        id: result.id,
+        url: result.url,
+      }));
+      const order = intent();
+      const subscribed = {
+        ...order,
+        items: order.items.map((item) => ({
+          ...item,
+          recurring: { interval: "month" as const, price: 500 },
+        })),
+      };
+
+      expect(await square(subscribed, "https://site")).toEqual({
+        error: t("payment.error.subscription_needs_stripe"),
+      });
+      expect(create.calls.length).toBe(0);
+    });
+
     test("spends no database call when the buyer typed no free text", async () => {
       const calls = await countDatabaseCalls(0, () =>
         acceptingProvider(intent(), "https://site"),
@@ -96,12 +121,10 @@ describeWithEnv(
         squareLinkEndsAt(createdAt),
       );
       await execute(
-        "UPDATE checkout_pending_answers SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE checkout_pending_answers SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
       await execute(
-        "UPDATE square_link_ends SET created_at = ? WHERE session_index = ?",
-        [createdAt, await hmacHash(sessionId)],
+        sql`UPDATE square_link_ends SET created_at = ${createdAt} WHERE session_index = ${await hmacHash(sessionId)}`,
       );
       await runDatabasePruning();
     };

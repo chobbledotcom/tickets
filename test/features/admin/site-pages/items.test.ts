@@ -91,7 +91,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect((await getItemsForPage(page.id)).length).toBe(2);
 
       const { deleteListing } = await import("#db/listings/delete.ts");
-      const { deleteGroup } = await import("#routes/admin/groups.ts");
+      const { deleteGroup } = await import("#shared/records/groups.ts");
       await deleteListing(listing.id);
       await deleteGroup(group.id);
       // No dangling edges remain pointing at the deleted targets.
