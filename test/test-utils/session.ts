@@ -1,6 +1,8 @@
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
+import { tables } from "#db/select/tables.ts";
 import { getSession } from "#db/sessions.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -63,8 +65,8 @@ export const getTestSession = async (): Promise<{
 
   const cached = getSetupState()?.session;
   if (cached) {
-    const { getDb, insert } = await import("#db/client.ts");
-    await getDb().execute(insert("sessions", cached.sessionRow));
+    const { getDb } = await import("#db/client.ts");
+    await getDb().execute(insertInto(tables.sessions, cached.sessionRow));
     const csrfToken = await signCsrfToken();
     const session = { cookie: cached.cookie, csrfToken };
     setTestSession(session);

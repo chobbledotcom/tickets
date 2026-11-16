@@ -6,8 +6,10 @@ import {
   attendeeStatusWrites,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-import { getDb, update, withTransaction } from "#db/client.ts";
+import { getDb, withTransaction } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
@@ -65,7 +67,9 @@ const setUpAssignmentRace = async (): Promise<{
 const assignStatus = (attendeeId: number, statusId: number): Promise<void> =>
   withTransaction(async (tx) => {
     await tx.execute(
-      update("attendees", { status_id: statusId }, { id: attendeeId }),
+      update(tables.attendees, { status_id: statusId }).where({
+        id: attendeeId,
+      }),
     );
   });
 

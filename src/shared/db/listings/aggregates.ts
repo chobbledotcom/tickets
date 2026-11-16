@@ -58,13 +58,10 @@ export const adjustListingIncome = (
 
 /** Write the operator's typed listing aggregates, or rebuild chosen ones from
  * the booking rows they count. */
-export const listingAggregates = aggregateRepairs(
-  tables.listings,
-  {
-    booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
-    tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
-      sql`listingAttendee.quantity`,
-      sql`listingAttendee.attendee_id`,
-    )})`,
-  },
-);
+export const listingAggregates = aggregateRepairs(tables.listings, {
+  booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
+  tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
+    sql`listingAttendee.quantity`,
+    sql`listingAttendee.attendee_id`,
+  )})`,
+});

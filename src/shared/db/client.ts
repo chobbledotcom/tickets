@@ -26,12 +26,7 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
-import {
-  type Read,
-  type SqlStatement,
-  sql,
-  sqlName,
-} from "#db/sql.ts";
+import { type Read, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
@@ -407,7 +402,6 @@ export const countRows = async (table: string): Promise<number> => {
   );
   return row.n;
 };
-
 
 /**
  * Execute a batch with optional query logging, then invalidate caches for every

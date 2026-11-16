@@ -6,12 +6,14 @@ import {
   unwrapKey,
   wrapKey,
 } from "#crypto/keys.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   getUserByUsername,
   invalidateUsersCache,
   verifyUserPassword,
 } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -47,7 +49,7 @@ export const seedV1User = async (
   const passwordHash = await hashPassword(password);
   const wrapped = await wrapKey(dataKey, await deriveKEK(passwordHash));
   await getDb().execute(
-    insert("users", {
+    insertInto(tables.users, {
       admin_level: await encrypt("manager"),
       kek_version: 1,
       password_hash: await encrypt(passwordHash),

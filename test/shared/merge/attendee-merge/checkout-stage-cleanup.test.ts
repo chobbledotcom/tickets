@@ -1,7 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeBatch, insert, queryAll } from "#db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import {
   createMergePair,
   runMerge,
@@ -15,12 +17,12 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     await insertCheckoutStage(target.id, "stage-merge-target");
     await insertCheckoutStage(source.id, "stage-merge-source");
     await executeBatch([
-      insert("processed_payments", {
+      insertInto(tables.processed_payments, {
         attendee_id: target.id,
         payment_session_id: "payment-merge-target",
         processed_at: "2026-07-15T12:00:00.000Z",
       }),
-      insert("processed_payments", {
+      insertInto(tables.processed_payments, {
         attendee_id: source.id,
         payment_session_id: "payment-merge-source",
         processed_at: "2026-07-15T12:00:00.000Z",

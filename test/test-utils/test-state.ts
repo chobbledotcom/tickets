@@ -1,4 +1,6 @@
 import { loadMigrations } from "#db/migrations/context.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 /**
  * Run-scoped test state: the golden schema database plus the completed
  * site-setup rows (settings, users, admin session) that DB tests start from.
@@ -23,11 +25,12 @@ import { loadMigrations } from "#db/migrations/context.ts";
 
 import { join } from "node:path";
 import * as v from "valibot";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import {
   attendeeStatuses,
   ensureDefaultAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-import { executeScript, getDb, insert, setDb } from "#db/client.ts";
+import { executeScript, getDb, setDb } from "#db/client.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "#db/migrations/schema/version.ts";
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
@@ -61,17 +64,22 @@ const STATE_JSON_FILE = "state.json";
 // as they come off the ceremony's database, types the replay (no casts), and
 // validates state.json — a file written by one process and read by another,
 // so a real boundary.
+
+/** A column value that `encrypt()` wrote. */
+const EncryptedSchema = v.custom<EnvKeyEncrypted>(
+  (value) => typeof value === "string" && value.startsWith("enc:1:"),
+);
 const SettingsRowSchema = v.object({ key: v.string(), value: v.string() });
 
 const UserRowSchema = v.object({
-  admin_level: v.string(),
+  admin_level: EncryptedSchema,
   id: v.number(),
   invite_code_hash: v.nullable(v.string()),
   invite_expiry: v.nullable(v.string()),
   invite_wrapped_data_key: v.nullable(v.string()),
   kek_version: v.number(),
   password_hash: v.string(),
-  username_hash: v.string(),
+  username_hash: EncryptedSchema,
   username_index: v.string(),
   wrapped_data_key: v.nullable(v.string()),
 });
@@ -210,8 +218,8 @@ export const replaySetupState = async (state: SetupState): Promise<void> => {
   await getDb().batch(
     [
       sql`DELETE FROM settings`,
-      ...state.settings.map((row) => insert("settings", row)),
-      ...state.users.map((row) => insert("users", row)),
+      ...state.settings.map((row) => insertInto(tables.settings, row)),
+      ...state.users.map((row) => insertInto(tables.users, row)),
     ],
     "write",
   );

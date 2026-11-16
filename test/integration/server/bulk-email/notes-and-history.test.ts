@@ -2,18 +2,19 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
-import { execute, executeUpdate, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
 import {
   getContactRecord,
   hashEmail,
   hashPhone,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import {
   seedDraft,
   seedListingWithAttendees,
@@ -230,10 +231,10 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       );
       // Give the first booking a status so its name shows in the table.
       const status = await attendeeStatuses.table.insert({ name: "Confirmed" });
-      await executeUpdate(
-        "attendees",
-        { status_id: status.id },
-        { id: first.id },
+      await execute(
+        update(tables.attendees, { status_id: status.id }).where({
+          id: first.id,
+        }),
       );
 
       const html = await (

@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { defineRecordTarget, ITEM_TARGET_COLUMNS } from "#db/record-target.ts";
 import { and, matchesNothing, whereTail } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 
 /** A make-believe domain: notes-style columns, two kinds, tables listed. */
@@ -132,7 +133,7 @@ describe("asking for a record's rows", () => {
 describe("deleting a record's rows", () => {
   test("deletes the rows of one record", () => {
     expect(
-      targets.deleteFrom("system_notes")({ id: 4, kind: "attendee" }),
+      targets.deleteFrom(tables.system_notes)({ id: 4, kind: "attendee" }),
     ).toEqual(
       sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id = ${4}`,
     );
@@ -140,7 +141,7 @@ describe("deleting a record's rows", () => {
 
   test("deletes the rows of the records another query names", () => {
     expect(
-      targets.deleteChosenBy("system_notes")(
+      targets.deleteChosenBy(tables.system_notes)(
         "attendee",
         sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`,
       ),

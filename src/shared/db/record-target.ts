@@ -17,8 +17,8 @@ import {
   inStatement,
   named,
 } from "#db/select/expression.ts";
-import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import type { TableHandle, TableName } from "#db/select/tables.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 
 /** One record: what kind of thing it is, and which one of that kind. */

@@ -104,7 +104,6 @@ describeWithEnv("db > client", { db: true }, () => {
   const seedSetting = (key: string, value: string): Promise<ResultSet> =>
     execute(sql`INSERT INTO settings (key, value) VALUES (${key}, ${value})`);
 
-
   /** The transaction modes the client is asked for while `read` runs. An empty
    *  list means the read never went out as a batch at all. */
   const batchModesWhile = async <T>(

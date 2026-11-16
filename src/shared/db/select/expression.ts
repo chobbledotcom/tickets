@@ -143,7 +143,7 @@ export const not = (condition: Condition): Expr<boolean> =>
 /** A test of a value against an expression of its type, or a value to bind. */
 type Comparison = <Value extends Comparable | null>(
   left: Expr<Value>,
-  right: Operand<NoInfer<Value>>,
+  right: Operand<NoInfer<Value>> | Expr<NoInfer<Value> | null>,
 ) => Expr<boolean>;
 
 const comparison =
@@ -263,7 +263,7 @@ export const sum = (value: Expr<number | null>): Expr<Counted | null> =>
 
 /** A total that reads zero where no row adds to it. */
 export const orZero = (value: Expr<Counted | null>): Expr<Counted> =>
-  valued(sql`COALESCE(${value}, 0)`);
+  coalesce(value, literal(0));
 
 const arithmetic =
   (operator: SqlStatement) =>
@@ -283,7 +283,7 @@ export const minus = arithmetic(sql`-`);
 type Branch<Value> = readonly [Condition, Operand<Value>];
 
 /** The value of the first branch whose condition holds, else `otherwise`. */
-export const when = <Value extends Comparable>(
+export const when = <Value extends Comparable | null>(
   branches: readonly Branch<Value>[],
   otherwise: Operand<NoInfer<Value>>,
 ): Expr<Value> =>
@@ -298,3 +298,16 @@ export const when = <Value extends Comparable>(
 
 /** The order of a value, largest first. */
 export const desc = (value: Expr<unknown>): SqlStatement => sql`${value} DESC`;
+
+/** The value, or `fallback` where the value is null. */
+export const coalesce = <Value extends InValue>(
+  value: Expr<Value | null>,
+  fallback: Operand<NoInfer<Value>>,
+): Expr<Value> => valued(sql`COALESCE(${value}, ${fallback})`);
+
+/** The text matches the LIKE pattern. `%` stands for any run of letters and
+ *  `_` for one letter. */
+export const like = (
+  value: Expr<string | null>,
+  pattern: Operand<string>,
+): Expr<boolean> => wholeCondition(sql`${value} LIKE ${pattern}`);

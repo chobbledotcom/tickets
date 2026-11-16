@@ -2,8 +2,10 @@ import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { executeBatch, getDb, insert } from "#db/client.ts";
+import { executeBatch, getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { nowMs } from "#shared/now.ts";
 import { CLAIM_MIRROR } from "#test-utils/payment-claim.ts";
 
@@ -13,7 +15,7 @@ export const insertFinalizedPayment = async (
   opts: { attendeeId?: number; paymentReference?: string } = {},
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
+    insertInto(tables.processed_payments, {
       attendee_id: opts.attendeeId ?? 1,
       payment_reference: opts.paymentReference ?? "",
       payment_session_id: sessionId,
@@ -28,7 +30,7 @@ export const insertUnfinalizedPayment = async (
   processedAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
+    insertInto(tables.processed_payments, {
       attendee_id: null,
       payment_session_id: sessionId,
       processed_at: processedAtIso,
@@ -41,7 +43,7 @@ export const insertFailedPayment = async (
   processedAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
+    insertInto(tables.processed_payments, {
       attendee_id: null,
       failure_data: '{"error":"sold out","status":409,"refunded":true}',
       payment_session_id: sessionId,
@@ -58,7 +60,7 @@ export const insertClaimedPayment = async (
   attendeeId: number | null = null,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
+    insertInto(tables.processed_payments, {
       attendee_id: attendeeId,
       failure_data: '{"error":"sold out","status":409,"refunded":true}',
       payment_session_id: sessionId,
@@ -94,7 +96,7 @@ export const insertSumupCheckout = async (
   createdAtIso: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("sumup_checkouts", {
+    insertInto(tables.sumup_checkouts, {
       created_at: createdAtIso,
       metadata: "ciphertext",
       reference_index: referenceIndex,
@@ -118,7 +120,7 @@ export const insertString = async (
   usedCount: number,
 ): Promise<void> => {
   await getDb().execute(
-    insert("strings", {
+    insertInto(tables.strings, {
       created,
       encrypted_text: "ciphertext",
       text_index: textIndex,
@@ -134,7 +136,7 @@ export const insertStrings = (
 ): Promise<void> =>
   executeBatch(
     Array.from({ length: count }, (_, index) =>
-      insert("strings", {
+      insertInto(tables.strings, {
         created,
         encrypted_text: "ciphertext",
         text_index: `${prefix}-${index}`,
@@ -212,7 +214,7 @@ export const insertOrphanAttendee = async (
   createdIso: string,
 ): Promise<number> => {
   const result = await getDb().execute(
-    insert("attendees", {
+    insertInto(tables.attendees, {
       created: createdIso,
       pii_blob: "",
       ticket_token_index: `prune-orphan-${crypto.randomUUID()}`,

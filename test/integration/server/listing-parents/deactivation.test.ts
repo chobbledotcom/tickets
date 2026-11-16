@@ -2,8 +2,10 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { executeWithoutCacheInvalidation, update } from "#db/client.ts";
+import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
 import { toggleListingActive } from "#shared/listings-actions.ts";
 import { expectApiDeactivation } from "#test-utils/admin-listing-status.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
@@ -222,7 +224,9 @@ describeWithEnv(
       const { pageOne, pageTwo } = await twoRescuerSetup();
       // The cross-isolate write: the row goes dark on the database while this
       // isolate's cache still shows it active.
-      const stmt = update("listings", { active: 0 }, { id: pageTwo.id });
+      const stmt = update(tables.listings, { active: 0 }).where({
+        id: pageTwo.id,
+      });
       await executeWithoutCacheInvalidation(stmt);
       await expectDirectDeleteRefused(pageOne.id);
     });

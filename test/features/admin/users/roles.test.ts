@@ -3,10 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername, invalidateUsersCache } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
@@ -37,7 +39,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("manager"),
           password_hash: encHash,
           username_hash: await encrypt("manager"),
@@ -168,7 +170,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("manager"),
           password_hash: "",
           username_hash: await encrypt("formmanager"),

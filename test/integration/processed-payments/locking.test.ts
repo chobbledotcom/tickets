@@ -2,13 +2,15 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import {
   clearSessionTokens,
   decryptSessionTokens,
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { useProcessedPaymentsAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -102,7 +104,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         Date.now() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute(
-        insert("processed_payments", {
+        insertInto(tables.processed_payments, {
           attendee_id: null,
           payment_session_id: "cs_stale_recovery",
           processed_at: staleTime,
@@ -137,7 +139,7 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
         Date.now() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute(
-        insert("processed_payments", {
+        insertInto(tables.processed_payments, {
           attendee_id: null,
           payment_session_id: sessionId,
           processed_at: staleTime,

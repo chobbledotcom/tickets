@@ -3,8 +3,10 @@ import { describe, test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { apiKeyLimiter } from "#db/api-key-attempts.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import { MAX_APIKEY_ATTEMPTS } from "#shared/limits.ts";
 import { assertJson, expectStatus } from "#test-utils/assertions.ts";
@@ -130,7 +132,7 @@ describeWithEnv("API key authentication", { db: true }, () => {
       // Disable FK checks to insert an orphaned API key row
       await getDb().execute(sql`PRAGMA foreign_keys = OFF`);
       await getDb().execute(
-        insert("api_keys", {
+        insertInto(tables.api_keys, {
           created: new Date().toISOString(),
           key_index: keyIndex,
           last_used: "",

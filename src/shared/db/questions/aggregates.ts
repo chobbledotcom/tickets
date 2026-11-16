@@ -78,12 +78,9 @@ export const getAnswerAggregateRecalculation = async (
 
 /** Write the operator's typed selection total, or rebuild it from the actual
  * attendee_answers rows. */
-export const answerAggregates = aggregateRepairs(
-  tables.answers,
-  {
-    times_selected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
-  },
-);
+export const answerAggregates = aggregateRepairs(tables.answers, {
+  times_selected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
+});
 
 /** Get the price-modifier id a single answer triggers, or null when it has
  * none. The modifier_id column isn't part of the decrypted Answer shape, so the

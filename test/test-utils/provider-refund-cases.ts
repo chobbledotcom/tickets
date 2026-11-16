@@ -1,5 +1,7 @@
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto } from "#db/write.ts";
 import { armRefundSend } from "#payment/refund-authority.ts";
 import { markRefundOwnerChoiceNeeded } from "#payment/refund-authority-choice.ts";
 import {
@@ -42,7 +44,7 @@ export const addProviderRefundTestCase = async (
   const stored = await storePaymentReference(paymentReference);
   const stamp = 1_700_000_000_000;
   const result = await getDb().execute(
-    insert("payment_charges", {
+    insertInto(tables.payment_charges, {
       callback_replay_index: null,
       capability: state.request.capability,
       captured_amount: 2_500,

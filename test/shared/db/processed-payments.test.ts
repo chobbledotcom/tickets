@@ -4,7 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { encrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { SCHEMA } from "#db/migrations/schema/index.ts";
 import { createTableSql } from "#db/migrations/schema-sync.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
@@ -18,7 +18,9 @@ import {
   reserveSession,
   STALE_RESERVATION_MS,
 } from "#db/processed-payments.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import {
   type StoredPaymentFailure,
   writeRowState,
@@ -97,7 +99,7 @@ describeWithEnv("db > processed payments", { db: true }, () => {
         nowMs() - STALE_RESERVATION_MS - 1000,
       ).toISOString();
       await getDb().execute(
-        insert("processed_payments", {
+        insertInto(tables.processed_payments, {
           attendee_id: null,
           payment_session_id: "sess_stale",
           processed_at: oldTimestamp,

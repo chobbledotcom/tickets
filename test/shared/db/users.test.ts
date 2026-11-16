@@ -2,7 +2,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword, hmacHash } from "#crypto/hashing.ts";
-import { execute, getDb, insert } from "#db/client.ts";
+import { execute, getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   createInvitedUser,
@@ -16,6 +17,7 @@ import {
   isInviteValid,
   verifyUserPassword,
 } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   assertAdminPasswordRejects,
@@ -203,7 +205,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry is null", async () => {
       const usernameIdx = await hmacHash("no-expiry-user");
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("manager"),
           invite_code_hash: await encrypt("somehash"),
           invite_expiry: null,
@@ -223,7 +225,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("decryptAdminLevel throws when admin_level decrypts to invalid value", async () => {
       const usernameIdx = await hmacHash("badlevel-user");
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("superadmin"),
           invite_code_hash: null,
           invite_expiry: null,
@@ -244,7 +246,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("isInviteValid returns false when invite_expiry decrypts to empty string", async () => {
       const usernameIdx = await hmacHash("empty-expiry-user");
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("manager"),
           invite_code_hash: await encrypt("somehash"),
           invite_expiry: await encrypt(""),

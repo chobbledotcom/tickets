@@ -10,7 +10,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
-import { getDb, insert, setDb } from "#db/client.ts";
+import { getDb, setDb } from "#db/client.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { MissingSettingsTableError } from "#db/migrations/errors.ts";
@@ -22,7 +22,9 @@ import {
   resetDatabase,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { parseEnabledFeatures } from "#shared/admin-features.ts";
 import { insertBrokenImage } from "#test-utils/admin-images.ts";
 import {
@@ -321,7 +323,7 @@ describeWithEnv("db > migrations", { db: true }, () => {
     test("recovers when the system errors partway through the pending migrations", async () => {
       // Seed a row that must survive a crash mid-upgrade and the recovery boot.
       const seeded = await getDb().execute(
-        insert("listings", {
+        insertInto(tables.listings, {
           created: "2024-01-01T00:00:00Z",
           max_attendees: 5,
           name: "crash-survivor",

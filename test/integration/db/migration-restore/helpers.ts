@@ -15,9 +15,10 @@
  * keeps the shards balanced as migrations are added — each shard gets an even
  * mix of long (old boundary) and short (recent boundary) chains.
  */
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import type { Trigger } from "#db/migrations/schema/types.ts";
@@ -33,7 +34,9 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#db/migrations.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
@@ -145,7 +148,7 @@ export const dropOwnedObjects = async (
 
 export const seedSentinelListing = (): Promise<unknown> =>
   getDb().execute(
-    insert("listings", {
+    insertInto(tables.listings, {
       created: "2024-01-01T00:00:00Z",
       max_attendees: 10,
       name: "sentinel-listing",

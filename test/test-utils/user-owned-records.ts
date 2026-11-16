@@ -1,9 +1,11 @@
 import { encrypt } from "#crypto/encryption.ts";
-import { getDb, insert, queryAll } from "#db/client.ts";
+import { getDb, queryAll } from "#db/client.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { userAgents } from "#db/user-agents.ts";
+import { insertInto } from "#db/write.ts";
 
 export const addUserOwnedAccessRecords = async (
   userId: number,
@@ -19,7 +21,7 @@ export const addUserOwnedAccessRecords = async (
     userId,
   );
   await getDb().execute(
-    insert("api_keys", {
+    insertInto(tables.api_keys, {
       created: "2026-07-19T00:00:00.000Z",
       key_index: `${label}-key-index`,
       last_used: "",

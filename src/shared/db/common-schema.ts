@@ -8,12 +8,7 @@ import {
 import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { type ColumnDef, col, type Table } from "#db/table.ts";
-import {
-  type Changes,
-  type ColumnName,
-  rowsWith,
-  update,
-} from "#db/write.ts";
+import { type Changes, type ColumnName, rowsWith, update } from "#db/write.ts";
 import {
   type DependsOnEntry,
   registerCache,
@@ -90,7 +85,9 @@ export const aggregateRepairs = <
     changes: Readonly<Record<string, number | SqlStatement>>,
   ): Promise<void> => {
     await execute(
-      update(table, changes as Changes<Name>).where(rowsWith(table, "id", entityId)),
+      update(table, changes as Changes<Name>).where(
+        rowsWith(table, "id", entityId),
+      ),
     );
   };
   return {

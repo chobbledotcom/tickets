@@ -219,13 +219,10 @@ export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 
 /** Write the operator's typed modifier aggregates, or rebuild chosen ones from
  * the usage rows they count. */
-export const modifierAggregates = aggregateRepairs(
-  tables.modifiers,
-  {
-    total_uses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
-    usage_count: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
-  },
-);
+export const modifierAggregates = aggregateRepairs(tables.modifiers, {
+  total_uses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+  usage_count: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
+});
 
 /** The listings a "listings"-scoped modifier is charged on, keyed by modifier
  * id: `getIds` reads them (the admin scope editor), `setIds` replaces the set

@@ -4,8 +4,10 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { recomputeListingBookingRanges } from "#db/attendees/update.ts";
-import { executeUpdate } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
 import {
   earliestGroupCapOverflow,
   parseAggregatesForRole,
@@ -86,19 +88,15 @@ describeWithEnv("db > edit save path duration warnings", { db: true }, () => {
     await bookAttendee(siblingEarlier, { date: DAY_1, quantity: 10 });
     // createTestGroup's maxAttendees override does not survive the create
     // form, so the caps are set the way the edit path itself sets them.
-    await executeUpdate(
-      "groups",
-      { max_attendees: 10 },
-      {
+    await execute(
+      update(tables.groups, { max_attendees: 10 }).where({
         id: dayLaterOverflow.id,
-      },
+      }),
     );
-    await executeUpdate(
-      "groups",
-      { max_attendees: 10 },
-      {
+    await execute(
+      update(tables.groups, { max_attendees: 10 }).where({
         id: dayEarlierOverflow.id,
-      },
+      }),
     );
 
     expect(await earliestGroupCapOverflow(target.id)).toBe(DAY_1);

@@ -5,11 +5,13 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getDb, insert, queryOne } from "#db/client.ts";
+import { getDb, queryOne } from "#db/client.ts";
 import { hashEmail } from "#db/contact-preferences.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { nowMs } from "#shared/now.ts";
 import {
@@ -55,7 +57,7 @@ const insertOrphan = async (createdIso: string): Promise<number> => {
 const insertPaymentWorkOrphan = async (): Promise<number> => {
   const attendeeId = await insertOrphan(oldIso());
   await getDb().execute(
-    insert("processed_payments", {
+    insertInto(tables.processed_payments, {
       attendee_id: attendeeId,
       payment_session_id: `privacy-page-${attendeeId}`,
       processed_at: oldIso(),
@@ -131,7 +133,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       );
       const paymentSessionId = `privacy-recovery-${attendee.id}`;
       await getDb().execute(
-        insert("processed_payments", {
+        insertInto(tables.processed_payments, {
           attendee_id: attendee.id,
           payment_session_id: paymentSessionId,
           processed_at: oldIso(),

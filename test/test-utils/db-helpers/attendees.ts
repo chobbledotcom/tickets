@@ -5,7 +5,9 @@ import type { ExistingLine } from "#db/attendees/atomic-update.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute, requireOnePrimary } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import { parseFlashValue } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -165,11 +167,11 @@ export const insertOrphanAttendee = async (
   daysAgo: number,
   tokenPrefix: string,
 ): Promise<number> => {
-  const { getDb, insert } = await import("#db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   const { nowMs } = await import("#shared/now.ts");
   const created = new Date(nowMs() - daysAgo * 86_400_000).toISOString();
   const result = await getDb().execute(
-    insert("attendees", {
+    insertInto(tables.attendees, {
       created,
       pii_blob: "",
       ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,

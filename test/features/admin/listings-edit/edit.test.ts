@@ -6,12 +6,14 @@
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { executeUpdate } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   getListingWithCount,
   getStoredListingWithCount,
 } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
+import { update } from "#db/write.ts";
 import { t } from "#i18n";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
@@ -269,7 +271,9 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     });
     await bookAttendee(stretched, { date: "2026-09-01", quantity: 6 });
     await bookAttendee(neighbour, { date: "2026-09-02", quantity: 6 });
-    await executeUpdate("groups", { max_attendees: 10 }, { id: group.id });
+    await execute(
+      update(tables.groups, { max_attendees: 10 }).where({ id: group.id }),
+    );
 
     const { response } = await adminMultipartPost(
       `/admin/listing/${stretched.id}/edit`,

@@ -18,7 +18,6 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { queryAndMap } from "#db/query.ts";
 import {
   type SqlStatement,
@@ -29,7 +28,6 @@ import {
   sqlNames,
 } from "#db/sql.ts";
 import { byPrimaryKey, readerFor, type TableReader } from "#db/table-reader.ts";
-import { equalityClauses } from "#db/where-clauses.ts";
 import { compact, filter, mapParallel, reduce } from "#fp";
 import {
   type DependsOnEntry,
@@ -251,7 +249,11 @@ const buildInsertSql = (
 
 /** One `column = value` per written column, joined by commas. */
 const setClauses = (values: Record<string, InValue>): SqlStatement =>
-  sqlCommas(equalityClauses(values));
+  sqlCommas(
+    Object.entries(values).map(
+      ([column, value]) => sql`${sqlName(column)} = ${value}`,
+    ),
+  );
 
 /** The shape that defines a table: its name, primary key, and column schema. */
 export type TableDefinition<Row> = {
@@ -442,7 +444,9 @@ export const defineTable = <Row, Input = Row>(
 
   // Delete by ID implementation
   const deleteById = async (id: InValue): Promise<void> => {
-    await execute(deleteFrom(name, { [primaryKey]: id }));
+    await execute(
+      sql`DELETE FROM ${sqlName(name)} WHERE ${sqlName(primaryKey)} = ${id}`,
+    );
   };
 
   // Row → Input: copy input-eligible columns from a row, translating

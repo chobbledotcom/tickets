@@ -9,8 +9,9 @@ import {
   unwrapKey,
   wrapKeyWithToken,
 } from "#crypto/keys.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import {
@@ -22,6 +23,7 @@ import {
   migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -195,7 +197,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       // expired invite_expiry and a handoff. The password guard must keep it —
       // the prune must never touch an account that has been set up.
       await getDb().execute(
-        insert("users", {
+        insertInto(tables.users, {
           admin_level: await encrypt("manager"),
           invite_expiry: await encrypt(
             new Date(Date.now() - 1000).toISOString(),
