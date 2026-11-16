@@ -164,7 +164,7 @@ const deleteSquareLinkEnd = async (
     deleteFrom(tables.square_link_ends).where({
       sessionIndex,
       state,
-      ...(claimedAt === undefined ? {} : { next_attempt_at: claimedAt }),
+      ...(claimedAt === undefined ? {} : { nextAttemptAt: claimedAt }),
     }),
   );
 
