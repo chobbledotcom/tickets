@@ -4,6 +4,34 @@
  * schema tests instead of moving the expectation along with it.
  */
 
+/** The text input of a ticket money field, with a 10.00 example. */
+const MONEY_TEXT = {
+  inputmode: "decimal",
+  pattern: "\\d+(\\.\\d{1,2})?",
+  placeholder: "e.g. 10.00",
+  title: "A non-negative number (e.g. 10.00)",
+  type: "text",
+} as const;
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const WEEKDAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+] as const;
+
+const INTERVAL_CHOICES = [
+  ["Never", ""],
+  ["Week", "week"],
+  ["Month", "month"],
+  ["Year", "year"],
+] as const;
+/* jscpd:ignore-end */
+
 // The expected fields are written out literally so a changed name, label,
 // hint, bound, flag, or choice fails here instead of moving along with it.
 /* jscpd:ignore-start -- a list of field records, not code */
@@ -88,36 +116,7 @@ export const LISTING_FIELDS = [
     hint: "Select which days of the week are available for booking",
     label: "Bookable days (for daily listings)",
     name: "bookable_days",
-    options: [
-      {
-        label: "Monday",
-        value: "Monday",
-      },
-      {
-        label: "Tuesday",
-        value: "Tuesday",
-      },
-      {
-        label: "Wednesday",
-        value: "Wednesday",
-      },
-      {
-        label: "Thursday",
-        value: "Thursday",
-      },
-      {
-        label: "Friday",
-        value: "Friday",
-      },
-      {
-        label: "Saturday",
-        value: "Saturday",
-      },
-      {
-        label: "Sunday",
-        value: "Sunday",
-      },
-    ],
+    options: WEEKDAYS.map((day) => ({ label: day, value: day })),
     section: "daily",
     type: "checkbox-group",
   },
@@ -208,6 +207,23 @@ export const LISTING_FIELDS = [
     ],
     section: "tickets",
     type: "checkbox-group",
+  },
+  {
+    ...MONEY_TEXT,
+    hint: "Stripe charges this again each period, from one period after the first payment. VAT follows your tax settings. The first payment is the ticket price.",
+    label: "Recurring price (leave empty for an ordinary ticket)",
+    name: "recurring_price",
+    section: "tickets",
+    visible: false,
+  },
+  {
+    hint: "How often Stripe charges the recurring price.",
+    label: "Charge again every",
+    name: "recurring_interval",
+    options: INTERVAL_CHOICES.map(([label, value]) => ({ label, value })),
+    section: "tickets",
+    type: "select",
+    visible: false,
   },
   {
     defaultValue: "100.00",

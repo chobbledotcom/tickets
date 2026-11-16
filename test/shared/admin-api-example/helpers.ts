@@ -19,7 +19,12 @@ import type { WriteAccess } from "#shared/rest/field-specs.ts";
 
 /** An owner on a site with every field feature on, outside the demo. */
 export const OPEN_ACCESS: WriteAccess = {
-  features: { attributes: true, builder: true, logistics: true },
+  features: {
+    attributes: true,
+    builder: true,
+    logistics: true,
+    subscriptions: true,
+  },
   locks: { demo: false, editor: false, nonOwner: false },
 };
 

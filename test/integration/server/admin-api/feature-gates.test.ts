@@ -27,6 +27,8 @@ const FEATURE_KEYS = [
   "attribute_option_ids",
   "initial_site_months",
   "months_per_unit",
+  "recurring_interval",
+  "recurring_price",
   "uses_logistics",
 ];
 
@@ -227,13 +229,14 @@ describeWithEnv("Admin API - features that are off", { db: true }, () => {
         attributes: false,
         builder: false,
         logistics: true,
+        subscriptions: false,
       });
     });
 
     test("holds the keys of each feature that is on", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: "true" });
       const listing = await createTestListing();
-      setFeatures("attributes", "logistics");
+      setFeatures("attributes", "logistics", "subscriptions");
 
       const read = await assertJson(
         apiRequest(`/api/admin/listings/${listing.id}`),
@@ -305,6 +308,8 @@ describeWithEnv("Admin API - features that are off", { db: true }, () => {
       "assign_built_site",
       "initial_site_months",
       "months_per_unit",
+      "recurring_interval",
+      "recurring_price",
       "uses_logistics",
       "split_logistics_agents",
     ];
@@ -329,6 +334,7 @@ describeWithEnv("Admin API - features that are off", { db: true }, () => {
         "logistics",
         "questions",
         "site",
+        "subscriptions",
       );
       const html = await docsPage();
 

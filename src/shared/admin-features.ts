@@ -7,6 +7,7 @@ import { defineStoredJson } from "#shared/validation/stored-json.ts";
  * stored JSON shape, settings table, detail routes, copy, usage checks, and nav
  * visibility. Adding a feature means adding one complete entry here.
  */
+/* jscpd:ignore-start -- a list of strings, not code */
 export const ADMIN_FEATURES = [
   {
     descriptionKey: "features.site.description",
@@ -78,7 +79,15 @@ export const ADMIN_FEATURES = [
     labelKey: "features.invoices.name",
     slug: "invoices",
   },
+  {
+    descriptionKey: "features.subscriptions.description",
+    inUseSql: sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.recurring_price > 0) OR EXISTS (SELECT 1 FROM listing_attendees AS listingAttendee WHERE listingAttendee.subscription_id != '')`,
+    key: "subscriptions",
+    labelKey: "features.subscriptions.name",
+    slug: "subscriptions",
+  },
 ] as const;
+/* jscpd:ignore-end */
 
 export type AdminFeatureDefinition = (typeof ADMIN_FEATURES)[number];
 export type AdminFeatureKey = AdminFeatureDefinition["key"];

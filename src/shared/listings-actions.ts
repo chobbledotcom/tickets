@@ -29,7 +29,8 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-import { sql } from "#db/sql.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -51,6 +52,7 @@ import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
+import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
@@ -318,7 +320,8 @@ export const validateListingInput = async (
       input.webhookUrl,
       "Webhook URL must be a public https:// domain",
     ) ??
-    validateRenewalConfig(input)
+    validateRenewalConfig(input) ??
+    recurringPlanError(input)
   );
 };
 
@@ -438,7 +441,7 @@ export const toggleListingActive = async (
       // write the operator asked for.
       const [row] = resultRows<{ active: number }>(
         await tx.execute(
-          sql`SELECT listing.active FROM listings AS listing WHERE listing.id = ${listingId}`,
+          from(tables.listings).where({ id: listingId }).pick("active"),
         ),
       );
       // The listing vanished under a concurrent delete. There is nothing to
@@ -458,9 +461,8 @@ export const toggleListingActive = async (
       }
       // Every table on the transactional write path carries updateStatement
       // (see the record's write path), so the toggle's row write joins the
-      // guard's tx. The
-      // price mirror and the activity log join it too: a failure in either
-      // rolls the toggle back, so a retry re-runs all three.
+      // guard's tx. The price mirror and the activity log join it too: a
+      // failure in either rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
       );

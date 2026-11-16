@@ -14,6 +14,14 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { featureSetting } from "#test-utils/settings.ts";
 
+/** The field features of a bare site. */
+const NONE = {
+  attributes: false,
+  builder: false,
+  logistics: false,
+  subscriptions: false,
+};
+
 /** A listing answer that holds a key of each feature and two of none. */
 const ROW = {
   assign_built_site: false,
@@ -22,6 +30,7 @@ const ROW = {
   initial_site_months: 0,
   months_per_unit: 0,
   name: "Walk",
+  recurring_price: 0,
   uses_logistics: false,
 };
 
@@ -33,10 +42,17 @@ describeWithEnv("write access", { db: true }, () => {
 
   test("a site with every field feature on closes no feature", () => {
     using _env = withEnv({ CAN_BUILD_SITES: "true" });
-    settings.setForTest(featureSetting("attributes", "logistics"));
+    settings.setForTest(
+      featureSetting("attributes", "logistics", "subscriptions"),
+    );
 
     expect(writeAccessFor("owner")).toEqual({
-      features: { attributes: true, builder: true, logistics: true },
+      features: {
+        attributes: true,
+        builder: true,
+        logistics: true,
+        subscriptions: true,
+      },
       locks: { demo: false, editor: false, nonOwner: false },
     });
     expect(withoutHiddenKeys(LISTING_WRITE_KEYS, ROW)).toEqual(ROW);
@@ -45,7 +61,9 @@ describeWithEnv("write access", { db: true }, () => {
 
   test("each field feature follows its own switch", () => {
     using _env = withEnv({ CAN_BUILD_SITES: undefined });
-    const featuresWith = (...on: ("attributes" | "logistics")[]) => {
+    const featuresWith = (
+      ...on: ("attributes" | "logistics" | "subscriptions")[]
+    ) => {
       settings.setForTest(featureSetting(...on));
       return writeAccessFor("owner").features;
     };
@@ -54,10 +72,12 @@ describeWithEnv("write access", { db: true }, () => {
       featuresWith(),
       featuresWith("attributes"),
       featuresWith("logistics"),
+      featuresWith("subscriptions"),
     ]).toEqual([
-      { attributes: false, builder: false, logistics: false },
-      { attributes: true, builder: false, logistics: false },
-      { attributes: false, builder: false, logistics: true },
+      { ...NONE },
+      { ...NONE, attributes: true },
+      { ...NONE, logistics: true },
+      { ...NONE, subscriptions: true },
     ]);
   });
 
@@ -105,6 +125,8 @@ describeWithEnv("write access", { db: true }, () => {
       ["assign_built_site", "builder"],
       ["initial_site_months", "builder"],
       ["months_per_unit", "builder"],
+      ["recurring_interval", "subscriptions"],
+      ["recurring_price", "subscriptions"],
       ["uses_logistics", "logistics"],
       ["attribute_option_ids", "nonOwner"],
     ]);

@@ -8,7 +8,7 @@ import {
 } from "#shared/admin-features.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 import { schemaMigration } from "./define.ts";
-import { ADMIN_FEATURE_TRIGGER_NAMES } from "./schema/admin-feature-triggers.ts";
+import { FIRST_FEATURE_TRIGGER_NAMES } from "./schema/admin-feature-triggers.ts";
 
 const StoredBooleanSchema = v.union([v.literal(0), v.literal(1)]);
 const ExistingFeatureUsageSchema = v.object({
@@ -42,7 +42,7 @@ const asBoolean = (value: 0 | 1): boolean => value === 1;
 export default schemaMigration(
   "2026-07-15_enabled_features",
   "Move admin feature visibility into one plain enabled-features setting and keep it in step with saved feature data.",
-  { triggers: ADMIN_FEATURE_TRIGGER_NAMES },
+  { triggers: FIRST_FEATURE_TRIGGER_NAMES },
   async ({ getDb }) => {
     const result = await getDb().execute(sql`
       SELECT
@@ -99,6 +99,7 @@ export default schemaMigration(
       questions: configured.questions || asBoolean(row.questions),
       servicing: configured.servicing || asBoolean(row.servicing),
       site: configured.site || asBoolean(row.site),
+      subscriptions: configured.subscriptions,
     };
     await getDb().batch([
       sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CONFIG_KEYS.ENABLED_FEATURES}, ${serializeEnabledFeatures(features)})`,

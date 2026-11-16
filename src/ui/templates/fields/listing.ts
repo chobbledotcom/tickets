@@ -14,6 +14,7 @@ import {
   type FormValues,
 } from "#shared/forms/definition.ts";
 import {
+  type ChoiceOptions,
   type Field,
   type InputField,
   requireChoiceOptions,
@@ -24,11 +25,15 @@ import { closedFieldsFor } from "#shared/records/write-access.ts";
 import { type ClosedFields, fieldOfKey } from "#shared/rest/field-specs.ts";
 import { isWholeNumberField } from "#shared/rest/field-values.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
+import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { parseSignedInt } from "#shared/validation/number.ts";
 import { formattingHint } from "#templates/components/formatting-hint.ts";
 import { moneyPattern } from "#templates/components/price-input.tsx";
 import { checkboxField } from "#templates/fields/checkbox-field.ts";
-import { picklistOptions } from "#templates/fields/picklist-options.ts";
+import {
+  blankThenPicklistOptions,
+  picklistOptions,
+} from "#templates/fields/picklist-options.ts";
 import {
   buildDescriptionField,
   buildHiddenField,
@@ -95,6 +100,11 @@ type ListingNumberField<
   type: "number";
 };
 
+/** The label and hint of a listing box, read from its `copy` keys. */
+const fieldCopy = (copy: string): { hint: string; label: string } => ({
+  hint: t(`fields.listing.${copy}_hint`),
+  label: t(`fields.listing.${copy}`),
+});
 const listingNumberField = <
   TName extends ListingNumberFieldName,
   TSection extends string,
@@ -104,18 +114,16 @@ const listingNumberField = <
   section: TSection,
   options: TOptions,
 ): ListingNumberField<TName, TSection> & TOptions => {
-  const copy = LISTING_NUMBER_COPY[name];
-  const label = t(`fields.listing.${copy}`);
+  const copy = fieldCopy(LISTING_NUMBER_COPY[name]);
   return {
-    hint: t(`fields.listing.${copy}_hint`),
-    label,
+    ...copy,
     ...options,
     // A whole-number kind refuses a fraction on the form, the same rule the
     // API check enforces on the body value. The field's declared bounds stay
     // responsible for the range, and its message.
     ...(isWholeNumberField(fieldOfKey(LISTING_FIELDS, name)) &&
     options.validate === undefined
-      ? { validate: validateWholeNumber(label) }
+      ? { validate: validateWholeNumber(copy.label) }
       : {}),
     name,
     // Every listing number column is an integer, so the parser refuses a
@@ -126,6 +134,74 @@ const listingNumberField = <
     type: "number",
   };
 };
+
+/** A money box in the tickets section. `copy` names its label, placeholder
+ *  and title keys. */
+const ticketMoneyField = <TName extends string>(
+  name: TName,
+  copy: "max_price" | "price",
+) => ({
+  inputmode: "decimal" as const,
+  label: t(`fields.listing.${copy}`),
+  name,
+  pattern: moneyPattern(),
+  placeholder: t(`fields.listing.${copy}_placeholder`),
+  section: "tickets" as const,
+  title: t(`fields.listing.${copy}_title`),
+  type: "text" as const,
+  validate: validateNonNegativePrice,
+});
+
+/** A date and time box. `copy` names its label and hint keys. */
+const datetimeField = <TName extends string, TSection extends string>(
+  name: TName,
+  copy: "date" | "registration_closes",
+  section: TSection,
+) => ({
+  ...fieldCopy(copy),
+  name,
+  section,
+  type: "datetime" as const,
+  validate: validateDatetime,
+});
+
+/** A box of choices. `copy` names its label and hint keys. */
+const choiceField = <
+  TName extends string,
+  TSection extends string,
+  TType extends "checkbox-group" | "select",
+  TOptions extends ChoiceOptions,
+>(
+  name: TName,
+  copy: string,
+  options: TOptions,
+  section: TSection,
+  type: TType,
+) => ({
+  ...fieldCopy(copy),
+  name,
+  options,
+  section,
+  type,
+});
+
+/** Customisable days and pay-more pricing cannot both be on, so each tick
+ *  names the other. `copy` names its label, hint and tick label keys. */
+const payMoreOrDaysTick = <TName extends string, TSection extends string>(
+  name: TName,
+  copy: "allow_pay_more" | "customisable_days",
+  other: "can_pay_more" | "customisable_days",
+  section: TSection,
+) => ({
+  ...choiceField(
+    name,
+    copy,
+    [{ label: t(`fields.listing.${copy}_label`), value: "1" }],
+    section,
+    "checkbox-group",
+  ),
+  exclusive: { other, why: t("error.customisable_days_with_pay_more") },
+});
 
 /** Listing fields and their sections, rebuilt per request for translated copy. */
 const listingFields = (view: ListingFormView = OPEN_VIEW) =>
@@ -141,13 +217,14 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       type: "text",
     },
     {
-      hint: t("fields.listing.type_hint"),
+      ...choiceField(
+        "listing_type",
+        "type",
+        picklistOptions(ListingTypeSchema, "fields.listing.type"),
+        "basics",
+        "select",
+      ),
       invalidMessage: t("fields.validation.listing_type"),
-      label: t("fields.listing.type"),
-      name: "listing_type",
-      options: picklistOptions(ListingTypeSchema, "fields.listing.type"),
-      section: "basics",
-      type: "select",
     },
     {
       ...buildDescriptionField(
@@ -156,14 +233,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       ),
       section: "basics",
     },
-    {
-      hint: t("fields.listing.date_hint"),
-      label: t("fields.listing.date"),
-      name: "date",
-      section: "basics",
-      type: "datetime",
-      validate: validateDatetime,
-    },
+    datetimeField("date", "date", "basics"),
     {
       hint: t("fields.listing.location_hint"),
       label: t("fields.listing.location"),
@@ -203,80 +273,62 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       parse: parseSignedInt,
       validate: wholeNumberCheck(() => t("fields.validation.duration_whole")),
     }),
+    payMoreOrDaysTick(
+      "customisable_days",
+      "customisable_days",
+      "can_pay_more",
+      "customisable",
+    ),
     {
-      exclusive: {
-        other: "can_pay_more",
-        why: t("error.customisable_days_with_pay_more"),
-      },
-      hint: t("fields.listing.customisable_days_hint"),
-      label: t("fields.listing.customisable_days"),
-      name: "customisable_days",
-      options: [
-        { label: t("fields.listing.customisable_days_label"), value: "1" },
-      ],
-      section: "customisable",
-      type: "checkbox-group",
-    },
-    {
-      hint: t("fields.listing.contact_fields_hint"),
+      ...choiceField(
+        "fields",
+        "contact_fields",
+        picklistOptions(ContactFieldSchema, "fields.listing.contact"),
+        "options",
+        "checkbox-group",
+      ),
       hintHtml: t("fields.listing.contact_fields_hint_html"),
-      label: t("fields.listing.contact_fields"),
-      name: "fields",
-      options: picklistOptions(ContactFieldSchema, "fields.listing.contact"),
-      section: "options",
-      type: "checkbox-group",
       validate: validateListingFields,
     },
     {
-      inputmode: "decimal",
-      label: t("fields.listing.price"),
-      name: "unit_price",
-      pattern: moneyPattern(),
-      placeholder: t("fields.listing.price_placeholder"),
+      ...ticketMoneyField("unit_price", "price"),
       required: true,
       requiredMessage: t("fields.validation.unit_price_required"),
-      section: "tickets",
-      title: t("fields.listing.price_title"),
-      type: "text",
-      validate: validateNonNegativePrice,
+    },
+    payMoreOrDaysTick(
+      "can_pay_more",
+      "allow_pay_more",
+      "customisable_days",
+      "tickets",
+    ),
+    {
+      ...ticketMoneyField("recurring_price", "price"),
+      hint: t("fields.listing.recurring_price_hint"),
+      label: t("fields.listing.recurring_price"),
+      visible: shows(view, "recurring_price"),
     },
     {
-      exclusive: {
-        other: "customisable_days",
-        why: t("error.customisable_days_with_pay_more"),
-      },
-      hint: t("fields.listing.allow_pay_more_hint"),
-      label: t("fields.listing.allow_pay_more"),
-      name: "can_pay_more",
-      options: [
-        { label: t("fields.listing.allow_pay_more_label"), value: "1" },
-      ],
-      section: "tickets",
-      type: "checkbox-group",
+      ...choiceField(
+        "recurring_interval",
+        "recurring_interval",
+        blankThenPicklistOptions(
+          t("fields.listing.recurring_interval_none"),
+          RecurringIntervalSchema,
+          "fields.listing.recurring_interval",
+        ),
+        "tickets",
+        "select",
+      ),
+      visible: shows(view, "recurring_interval"),
     },
     {
+      ...ticketMoneyField("max_price", "max_price"),
       // 100 currency units, formatted to the currency's decimals so the default
       // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
       defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
       hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
-      inputmode: "decimal",
-      label: t("fields.listing.max_price"),
-      name: "max_price",
-      pattern: moneyPattern(),
-      placeholder: t("fields.listing.max_price_placeholder"),
-      section: "tickets",
-      title: t("fields.listing.max_price_title"),
-      type: "text",
-      validate: validateNonNegativePrice,
     },
-    {
-      hint: t("fields.listing.registration_closes_hint"),
-      label: t("fields.listing.registration_closes"),
-      name: "closes_at",
-      section: "tickets",
-      type: "datetime",
-      validate: validateDatetime,
-    },
+    datetimeField("closes_at", "registration_closes", "tickets"),
     {
       hint: t("fields.listing.thank_you_url_hint"),
       label: t("fields.listing.thank_you_url"),

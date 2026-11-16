@@ -13,6 +13,7 @@ import type {
   FieldSpec,
   FieldSpecs,
 } from "#shared/rest/field-specs.ts";
+import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
 import { ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 
 /** The form of one field's value. The docs page has one text for each form. */
@@ -70,6 +71,10 @@ const KIND_FORMS: Record<FieldKind, (field: FieldSpec) => ValueForm> = {
   optionalDatetime: () => ({ form: "or_null", of: TIME }),
   price: () => ({ form: "price" }),
   privateText: () => TEXT,
+  recurringInterval: () => ({
+    form: "or_empty",
+    of: { form: "one_of", names: RecurringIntervalSchema.options },
+  }),
   switch: () => ({ form: "switch" }),
   text: () => TEXT,
   weekdays: () => ({

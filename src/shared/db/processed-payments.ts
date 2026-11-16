@@ -25,6 +25,8 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
@@ -137,7 +139,16 @@ export const reserveSession = async (
             WHERE ${UNRESOLVED_RESERVATION}
               AND processed_payments.processed_at < ${staleBefore}
             RETURNING payment_session_id`,
-    sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+    from(tables.processed_payments)
+      .where({ payment_session_id: sessionId })
+      .pick(
+        "payment_session_id",
+        "attendee_id",
+        "processed_at",
+        "ticket_tokens",
+        "failure_data",
+        "payment_reference",
+      ),
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
   const existing = resultRows<ProcessedPayment>(lookupResult!)[0];

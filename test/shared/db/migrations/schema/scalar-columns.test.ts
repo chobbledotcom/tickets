@@ -23,6 +23,7 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "#db/migrations/schema/scalar-columns.ts";
+import type { ColumnKind } from "#db/migrations/schema/types.ts";
 import { sql } from "#db/sql.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
@@ -110,6 +111,15 @@ describe("schema column types", () => {
     ).toBe(
       "TEXT NOT NULL DEFAULT 'release' CHECK (updates IN ('alpha', 'beta', 'release'))",
     );
+  });
+
+  test("names the words of a fixed set as the stored value", () => {
+    const state = oneOf("state", ["active", "refunded"])(textOrNull);
+    const stored: ColumnKind<"active" | "refunded" | null> = state;
+    // @ts-expect-error the column can hold a word, so it is not always empty
+    const refused: ColumnKind<null> = state;
+    expect(columnFacts(stored)).toEqual({ canBeNull: true });
+    expect(refused).toBe(state);
   });
 
   test("hangs a rule about the whole row on its last column", () => {

@@ -73,7 +73,7 @@ src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~185m0u5  ?
 src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → || audited:1jw7c26 # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → || audited:0zfjs24 # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → && audited:1o7wako # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
-src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:0myn61p # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:0baf1yb # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → || audited:14jncpb # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
 src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → || audited:14jncpb # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
 src/shared/admin-surface/definitions.ts::groupDestinations.audience~1c9r0s3  ?? → || audited:14jncpb # `object.audience ?? areaAudience`: a declared audience is a readonly array, and an array (even empty) is always truthy, so only undefined reaches the fallback
@@ -329,7 +329,7 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → || audite
 # is the only absent value, so ?? and || read identically over the type.
 src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0epxqlj  ?? → || audited:0r6kgt7 # newRecordDefaults is undefined or a truthy record object
 src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0lfuyxn  ?? → || audited:0r6kgt7 # freshRecord is undefined or a truthy record object
-src/shared/admin-api-example/field-docs.ts::KIND_FORMS.count.min~16n3kul  ??→|| audited:0qkuiaf # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
+src/shared/admin-api-example/field-docs.ts::KIND_FORMS.count.min~16n3kul  ??→|| audited:0r3xi46 # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
 

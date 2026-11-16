@@ -5,6 +5,7 @@ import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   attendeeIdColumn,
   datedRowColumns,
+  recurringOfferColumns,
   sortOrderColumn,
   statefulColumns,
 } from "./columns.ts";
@@ -24,7 +25,16 @@ import {
   wholeNumberStartingAtOne,
   wholeNumberStartingAtZero,
 } from "./scalar-columns.ts";
-import { declaredTables } from "./types.ts";
+import { type Column, declaredTables } from "./types.ts";
+
+/** The plan Stripe reported at subscription time, with the VAT inside each
+ * payment. A later listing edit never changes it. */
+const subscriptionPlanColumns = [
+  ...recurringOfferColumns,
+  ["recurring_tax", wholeNumberStartingAtZero],
+  ["subscription_id", textStartingBlank],
+  ["subscription_status", textStartingBlank],
+] as const satisfies readonly Column[];
 
 export const attendeeTables = declaredTables([
   [
@@ -147,6 +157,7 @@ export const attendeeTables = declaredTables([
         // persisted id, so a standalone order of the same listings is not
         // mistaken for the package by membership equality.
         ["package_group_id", wholeNumberStartingAtZero],
+        ...subscriptionPlanColumns,
       ],
       // FKs omitted — libsql's FK enforcement causes issues during table
       // recreation migrations. Referential integrity is enforced by application

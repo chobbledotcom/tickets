@@ -42,12 +42,9 @@ export interface SystemNote {
   type: SystemNoteType;
 }
 
-/** The row as stored, its `note` still sealed. Which sealing was used follows
- *  the note's kind, so a row is a choice between the two rather than a shape
- *  where either ciphertext might turn up under either kind. */
-export type SystemNoteRow = Omit<SystemNote, "note" | "type"> & {
+/** The row as stored, its `note` still sealed. The kind of the note says
+ *  which key sealed it: the owner key for "owner", the env key for "system". */
+export type SystemNoteRow = Omit<SystemNote, "note"> & {
   system_name: string | null;
-} & (
-    | { type: "owner"; note: OwnerKeyEncrypted }
-    | { type: "system"; note: EnvKeyEncrypted }
-  );
+  note: OwnerKeyEncrypted | EnvKeyEncrypted;
+};

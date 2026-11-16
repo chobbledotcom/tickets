@@ -22,7 +22,8 @@ import {
   type RecordTargets,
 } from "#db/record-target.ts";
 import { among, and, equal } from "#db/select/expression.ts";
-import { from, type Node } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
@@ -221,7 +222,7 @@ export const getImageUsesForImages = async (
   imageIds: readonly number[],
 ): Promise<Map<number, ImageUse[]>> => {
   if (imageIds.length === 0) return new Map();
-  const rows = await readRows<ImageUse>(
+  const rows = await readRows(
     from(tables.image_uses)
       .where((use) => among(use.image_id, imageIds))
       .orderBy((use) => [use.image_id, use.item_type, use.item_id])

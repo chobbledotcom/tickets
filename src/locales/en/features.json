@@ -42,5 +42,7 @@
   "features.external_sources.no_links": "No links yet.",
   "features.external_sources.not_named": "Not named yet",
   "features.invoices.name": "Invoices",
-  "features.invoices.description": "Show the invoices menu and the tools that invoice a booking."
+  "features.invoices.description": "Show the invoices menu and the tools that invoice a booking.",
+  "features.subscriptions.name": "Subscriptions",
+  "features.subscriptions.description": "Let a ticket charge again every week, month, or year. This needs Stripe."
 }

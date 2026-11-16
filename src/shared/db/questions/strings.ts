@@ -9,9 +9,10 @@
 import type { ResultSet } from "@libsql/client";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatchWithResults, resultRows } from "#db/client.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
 import { nowIso } from "#shared/now.ts";
@@ -132,7 +133,9 @@ export const internStringRows = async (
   const indexes = textIndexes(rows);
   const selectResult = await runInternStatements([
     ...internWriteStatements(rows),
-    sql`SELECT id, text_index FROM strings WHERE text_index IN (${sqlList(indexes)})`,
+    from(tables.strings)
+      .where({ text_index: indexes })
+      .pick("id", "text_index"),
   ]);
   const found = resultRows<{ id: number; text_index: string }>(selectResult);
   return pairStringIds(rows, found);

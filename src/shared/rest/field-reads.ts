@@ -49,6 +49,7 @@ const nameRead: BodyRead = (field, body, stored) => {
  *  default at insert. */
 const CREATE_VALUES: Partial<Record<FieldKind, (field: FieldSpec) => unknown>> =
   {
+    recurringInterval: () => "",
     switch: (field) => field.default ?? false,
     text: () => "",
   };
@@ -62,6 +63,7 @@ const NULL_VALUES: Partial<Record<FieldKind, unknown>> = {
   listingType: "",
   optionalDatetime: "",
   privateText: "",
+  recurringInterval: "",
   text: "",
 };
 
@@ -97,6 +99,7 @@ const BODY_READS: Record<FieldKind, BodyRead> = {
   optionalDatetime: checkedRead,
   price: checkedRead,
   privateText: checkedRead,
+  recurringInterval: checkedRead,
   switch: checkedRead,
   text: checkedRead,
   weekdays: checkedRead,
@@ -128,13 +131,15 @@ const FORM_READS: Record<
   name: (value) => value,
   optionalDatetime: (value, field) => formTime(value, field) || null,
   price: (value, field) => {
-    const amount = parseOptionalMinorUnits(value as string);
-    if (amount === null) {
+    const amount =
+      value === "" ? field.default : parseOptionalMinorUnits(value as string);
+    if (amount === null || amount === undefined) {
       throw new Error(`The ${field.key} form box holds no price`);
     }
     return amount;
   },
   privateText: orDefault,
+  recurringInterval: orDefault,
   switch: (value) => value === "1",
   text: orDefault,
   weekdays: (value) => commaParts(value as string),

@@ -1,11 +1,12 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { queryBatchPrimary, resultRows } from "#db/client.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import {
   releaseReservation,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
-import { sql } from "#db/sql.ts";
+import { readBatchPrimary } from "#db/read.ts";
+import { type RowsStatement, sql, typedSql } from "#db/sql.ts";
 import { sessionSuccess } from "#routes/api/payment-processing/create.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
 import { decideUnexpectedCreate } from "#routes/api/payment-processing/recovery-decision.ts";
@@ -32,25 +33,24 @@ const loadRecoveryFacts = async (
   sessionId: string,
   ticketTokenIndex: BlindIndex,
 ) => {
-  const [paymentResult, unresolvedResult, attendeeResult] =
-    await queryBatchPrimary([
+  const [[payment], unresolved, [attendee]] = await readBatchPrimary([
+    typedSql<RowsStatement<{ attendee_id: number }>>(
       sql`SELECT processedPayment.attendee_id
               FROM processed_payments AS processedPayment
               JOIN attendees AS attendee
                 ON attendee.id = processedPayment.attendee_id
               WHERE processedPayment.payment_session_id = ${sessionId}
                 AND attendee.ticket_token_index = ${ticketTokenIndex}`,
-      sql`SELECT 1 AS present FROM processed_payments
+    ),
+    sql`SELECT 1 AS present FROM processed_payments
               WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
-      sql`SELECT id FROM attendees WHERE ticket_token_index = ${ticketTokenIndex}`,
-    ]);
-  const payment = resultRows<{ attendee_id: number }>(paymentResult!)[0];
-  const attendee = resultRows<{ id: number }>(attendeeResult!)[0];
+    attendeeIdOfToken(ticketTokenIndex),
+  ]);
   return {
     finalizedAttendeeId:
       payment === undefined ? null : Number(payment.attendee_id),
     tokenAttendeeId: attendee === undefined ? null : Number(attendee.id),
-    unresolved: resultRows<{ present: number }>(unresolvedResult!).length === 1,
+    unresolved: unresolved.length === 1,
   };
 };
 

@@ -29,6 +29,7 @@ const balanceSession = (
   currency: "gbp",
   expires_at: 1_782_003_600,
   id: sessionId,
+  invoice: null,
   metadata: signedMeta(
     {
       balance_attendee_id: String(attendeeId),
@@ -38,9 +39,11 @@ const balanceSession = (
     },
     amount,
   ),
+  mode: "payment",
   payment_intent: `pi_${sessionId}`,
   payment_status: "paid",
   status: "complete",
+  subscription: null,
   url: null,
 });
 

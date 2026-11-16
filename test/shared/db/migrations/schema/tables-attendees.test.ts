@@ -9,7 +9,7 @@ import { sqlText } from "#test-utils/sql-text.ts";
 
 test("keeps the complete attendee schema declaration exact", async () => {
   expect(await jsonHash(sqlText(attendeeTables))).toBe(
-    "7cf8a6c93eccf79b5a9ec47f1079ec805150ec9d86a683a0aa2878b0af159767",
+    "bb80bd5f9a5577a688a34a5fd17bb10ac7bf4bf44182597f6ecef5e9be3a9d41",
   );
 });
 

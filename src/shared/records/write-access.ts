@@ -20,6 +20,7 @@ export const siteFeatures = (): WriteAccess["features"] => ({
   attributes: settings.features.attributes,
   builder: isBuilderEnabled(),
   logistics: settings.features.logistics,
+  subscriptions: settings.features.subscriptions,
 });
 
 /** What a writer of this level can set on this site now. */

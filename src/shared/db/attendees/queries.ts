@@ -5,8 +5,10 @@
 import { ledgerLegs, saleLeg } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { SUBSCRIPTION_PLAN_COLUMNS } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeKindFilter,
@@ -18,9 +20,10 @@ import {
   refundedFromLedger,
   refundedRowOf,
 } from "#db/attendees/select.ts";
-import { queryOne, rowExists } from "#db/client.ts";
+import { queryOne } from "#db/client.ts";
 import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
-import { among, equal, literal } from "#db/select/expression.ts";
+import { readExists } from "#db/read.ts";
+import { greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
@@ -57,6 +60,7 @@ export const listingAttendeeRowColumnsFrom = (
     column("order_token"),
     column("parent_listing_id"),
     column("package_group_id"),
+    ...SUBSCRIPTION_PLAN_COLUMNS.map(column),
   ]);
 };
 
@@ -218,6 +222,19 @@ export const getAttendeesPage = async ({
   return trimAttendeePage(rows);
 };
 
+/** A question about the booking rows of an attendee on some listings. */
+type LineTest<Listings> = (
+  attendeeId: number,
+  listings: Listings,
+) => Promise<boolean>;
+
+/** The booking rows of an attendee on one listing, or on one of several. */
+const linesOf = (attendeeId: number, listings: number | number[]) =>
+  from(tables.listing_attendees).where({
+    attendee_id: attendeeId,
+    listing_id: listings,
+  });
+
 /**
  * True when the attendee has a real (quantity > 0) booking on the exact listing.
  * Authorizes per-(attendee, listing) actions — e.g. the signed attachment
@@ -226,13 +243,11 @@ export const getAttendeesPage = async ({
  * row, or wrongly reject a valid real-line download). A no-quantity sentinel
  * line is excluded, so a line later marked no-quantity stops authorizing.
  */
-export const hasActiveBookingLine = (
-  attendeeId: number,
-  listingId: number,
-): Promise<boolean> =>
-  rowExists(
-    sql`SELECT 1 FROM listing_attendees
-     WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId} AND quantity > 0 LIMIT 1`,
+export const hasActiveBookingLine: LineTest<number> = (attendeeId, listingId) =>
+  readExists(
+    linesOf(attendeeId, listingId).where((line) =>
+      greaterThan(line.quantity, 0),
+    ),
   );
 
 export type FirstBooking = {
@@ -275,23 +290,15 @@ export const getFirstBooking = async (
  * stale/missing key can leave it null), so a recorded payment is never dropped
  * onto a fresh quantity-0 row. Callers pass a non-empty list.
  */
-export const hasPaidLine = (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> =>
-  rowExists(
-    from(tables.listing_attendees)
-      .where((line) => [
-        equal(line.attendee_id, attendeeId),
-        among(line.listing_id, listingIds),
-        ledgerLegs()
-          .where(
-            saleLeg(line.attendee_id, line.listing_id, line.ledger_event_group),
-          )
-          .exists(),
-      ])
-      .limit(1)
-      .select(() => ({ found: literal(1) })),
+export const hasPaidLine: LineTest<number[]> = (attendeeId, listingIds) =>
+  readExists(
+    linesOf(attendeeId, listingIds).where((line) =>
+      ledgerLegs()
+        .where(
+          saleLeg(line.attendee_id, line.listing_id, line.ledger_event_group),
+        )
+        .exists(),
+    ),
   );
 
 /**
@@ -334,7 +341,7 @@ export const getAttendeeRawByToken = async (
       await loadAttendeeRows({
         join: "left",
         where: {
-          attendeeIdsSubquery: sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`,
+          attendeeIdsSubquery: attendeeIdOfToken(tokenIndex),
         },
       })
     )[0] ?? null
