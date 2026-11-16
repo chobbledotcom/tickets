@@ -49,7 +49,7 @@ describeWithEnv("subscription orders", { db: true, triggers: true }, () => {
     await setPublicReservation("0");
     await expectRefusedOrder(
       await monthlyListing(),
-      "payment.error.subscription_no_deposit",
+      "payment.error.subscription_free",
     );
   });
 

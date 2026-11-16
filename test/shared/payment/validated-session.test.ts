@@ -92,32 +92,44 @@ describe("validatedPaymentSession", () => {
     expect(isSessionRejection("skip")).toBe(false);
   });
 
-  for (const reason of ["malformed_charge", "blank_reference"]) {
-    it(`keeps observed subscription facts and ownership metadata on ${reason}`, () => {
-      const subscription = {
-        amount: 1200,
-        id: "sub_rejected",
-        interval: "month" as const,
-        listingId: 1,
-        status: "trialing" as const,
-      };
-      const build = validatedPaymentSession({
-        ...basePaid,
-        amountTotal: reason === "malformed_charge" ? null : 1000,
+  const subscription = {
+    amount: 1200,
+    id: "sub_rejected",
+    interval: "month" as const,
+    listingId: 1,
+    status: "trialing" as const,
+  };
+
+  it("keeps observed subscription facts and ownership metadata on malformed_charge", () => {
+    const build = validatedPaymentSession({
+      ...basePaid,
+      amountTotal: null,
+      createdAt: "2026-07-19T12:00:00.000Z",
+      currency: "GBP",
+      paymentReference: "pi_123",
+      subscription,
+    });
+    expect(build).toEqual(
+      expect.objectContaining({
         createdAt: "2026-07-19T12:00:00.000Z",
-        currency: "GBP",
-        paymentReference: reason === "blank_reference" ? "" : "pi_123",
+        metadata: unpackedMeta,
+        reason: "malformed_charge",
         subscription,
-      });
-      expect(isSessionRejection(build)).toBe(true);
-      expect(build).toEqual(
-        expect.objectContaining({
-          createdAt: "2026-07-19T12:00:00.000Z",
-          metadata: unpackedMeta,
-          reason,
+      }),
+    );
+  });
+
+  for (const amountTotal of [1000, null]) {
+    it(`throws for a paid subscription session with no charge and amount ${amountTotal}`, () => {
+      expect(() =>
+        validatedPaymentSession({
+          ...basePaid,
+          amountTotal,
+          currency: "GBP",
+          paymentReference: "",
           subscription,
         }),
-      );
+      ).toThrow("Paid subscription session sess-1 names no charge");
     });
   }
 

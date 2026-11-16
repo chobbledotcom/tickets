@@ -79,13 +79,9 @@ describe("subscription checkout rules", () => {
     ).toBe(onItsOwn);
   });
 
-  test("refuses a subscription paid as a deposit or a balance", () => {
-    const noDeposit = t("payment.error.subscription_no_deposit");
+  test("lets a deposit pay the first payment of a subscription", () => {
     expect(stripeError({ items: [monthly], reservationAmount: "100" })).toBe(
-      noDeposit,
-    );
-    expect(stripeError({ balanceAttendeeId: 4, items: [monthly] })).toBe(
-      noDeposit,
+      null,
     );
   });
 

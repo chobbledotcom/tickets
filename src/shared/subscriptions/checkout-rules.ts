@@ -20,7 +20,8 @@ export const subscriptionItemOrNull = (
  * Why the order cannot start a subscription, or null when it can. Stripe is
  * the only provider that charges again for this site. One booking row keeps
  * the plan, so the order holds one subscription line, booked on its own. A
- * package, an add-on, a deposit and a balance cannot carry it.
+ * package and an add-on cannot carry it. A deposit changes the first payment
+ * only: the recurring charge stays the full recurring price.
  */
 export const subscriptionCheckoutError = (
   provider: PaymentProviderType | null,
@@ -38,11 +39,7 @@ export const subscriptionCheckoutError = (
     items.length > 1 ||
     item.packageGroupId !== undefined ||
     childIds.has(item.listingId);
-  if (sharedLine) return t("payment.error.subscription_on_its_own");
-  const partPayment =
-    intent.reservationAmount !== undefined ||
-    intent.balanceAttendeeId !== undefined;
-  return partPayment ? t("payment.error.subscription_no_deposit") : null;
+  return sharedLine ? t("payment.error.subscription_on_its_own") : null;
 };
 
 /**

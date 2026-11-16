@@ -31,10 +31,7 @@ import { mockRequest } from "#test-utils/mocks.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { withRefundAnswering } from "#test-utils/rejected-charge.ts";
 import { setupStripe } from "#test-utils/settings.ts";
-import {
-  completedStripeRefund,
-  stripeFirstInvoice,
-} from "#test-utils/stripe/fixtures.ts";
+import { completedStripeRefund } from "#test-utils/stripe/fixtures.ts";
 import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
@@ -143,8 +140,8 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
         },
         2000,
       );
-      started.invoice = stripeFirstInvoice();
-      started.invoice.payments.data = [];
+      started.session.amount_total = null;
+      started.session.payment_status = "unpaid";
       const attendeesBefore = await queryAll(
         sql`SELECT id FROM attendees ORDER BY id`,
       );

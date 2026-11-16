@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { followRedirect } from "#test-utils/assertions.ts";
@@ -8,6 +9,10 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import {
+  latestAttendee,
+  setPublicReservation,
+} from "#test-utils/reservation/helpers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { subscriptionItems } from "#test-utils/stripe/fixtures.ts";
 import { withSubscriptionStarted } from "#test-utils/stripe/subscription-checkout.ts";
@@ -19,11 +24,15 @@ const INCLUDED_VAT = JSON.stringify({
 
 /** Complete a paid subscription checkout for two tickets of `listingId`
  * through the success redirect, with Stripe reporting the started plan. */
-const completeSubscriptionCheckout = (listingId: number) =>
+const completeSubscriptionCheckout = (
+  listingId: number,
+  paidToday = 2000,
+  deposit: { reservation_amount?: string } = {},
+) =>
   withSubscriptionStarted(
     {
       session: {
-        amount_total: 2000,
+        amount_total: paidToday,
         id: "cs_sub_booking",
         metadata: signedMeta(
           {
@@ -31,8 +40,9 @@ const completeSubscriptionCheckout = (listingId: number) =>
             items: singleItem(listingId, 2, 2000),
             name: "Member",
             tax_policy: INCLUDED_VAT,
+            ...deposit,
           },
-          2000,
+          paidToday,
         ),
       },
       subscription: {
@@ -51,6 +61,31 @@ const completeSubscriptionCheckout = (listingId: number) =>
   );
 
 describeWithEnv("subscription booking", { db: true }, () => {
+  test("takes a deposit for the first payment and keeps the full plan", async () => {
+    await setupStripe();
+    await settings.update.bookingFee("0");
+    await setPublicReservation("10%");
+    const listing = await createTestListing({
+      maxAttendees: 10,
+      maxQuantity: 2,
+      unitPrice: 1000,
+    });
+
+    await completeSubscriptionCheckout(listing.id, 200, {
+      reservation_amount: "10%",
+    });
+
+    expect((await latestAttendee()).remainingBalance).toBe(1800);
+    expect(
+      await queryAll(
+        sql`SELECT quantity, recurring_price, subscription_id
+           FROM listing_attendees WHERE listing_id = ${listing.id}`,
+      ),
+    ).toEqual([
+      { quantity: 2, recurring_price: 1200, subscription_id: "sub_booking" },
+    ]);
+  });
+
   test("keeps the plan Stripe started on the booking row", async () => {
     await setupStripe();
     const listing = await createTestListing({
