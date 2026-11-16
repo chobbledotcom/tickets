@@ -8,7 +8,8 @@ import {
   getAllExternalSources,
   getExternalSource,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
+import { findRowPrimary } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type ExternalSource,
   type ExternalSourceInput,
@@ -62,9 +63,9 @@ export const externalSourceRecord = defineNamedRowRecord<
   load: getExternalSource,
   // Read-your-writes: the create and update answers re-read the row from the
   // primary, so a lagging replica cannot miss the row the write just made.
-  loadAfterWrite: externalSourcesTable.findByIdPrimary,
+  loadAfterWrite: (id) => findRowPrimary(tables.external_sources, id),
   onDelete: (id) => deleteExternalSource(id),
   rule: sourceRule,
   surface: { deleteDestination: "externalSources", list: "externalSources" },
-  table: externalSourcesTable,
+  table: tables.external_sources,
 });

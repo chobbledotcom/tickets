@@ -22,6 +22,7 @@ import type { TableHandle, TableName, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
 import { toCamelCase } from "#shared/column-names.ts";
+import { nowIso } from "#shared/now.ts";
 import {
   type AdminRecord,
   type AnswersOf,
@@ -67,6 +68,15 @@ export const rowValuesOf = <Name extends TableName>(
     }),
   ) as RecordChanges<Name>;
 };
+
+/** The values that every new row starts with: the time it was created, where
+ * its table records that. */
+const newRowStart = (
+  table: TableHandle<TableName>,
+): Readonly<Record<string, unknown>> =>
+  table.columns.some(([column]) => column === "created")
+    ? { created: nowIso() }
+    : {};
 
 /** Read one row by its key, from the replica for a page read and from the
  * primary when a write must see its own row. The record's row holds every
@@ -346,9 +356,13 @@ const buildRecord = <Shape extends RecordShape>(
       statementFor: (value) =>
         insertRowStatement(
           table,
-          // The rule checked the input of a new row, so it names every column
-          // that the table cannot fill.
-          rowValuesOf(table, value as object) as NewRecord<RecordTable["name"]>,
+          // The rule checked the input of a new row. With the starting values,
+          // it names every column that the table cannot fill.
+          {
+            ...newRowStart(table),
+            ...spec.newRowDefaults?.(),
+            ...rowValuesOf(table, value as object),
+          } as NewRecord<RecordTable["name"]>,
         ),
       verb: "created",
     });

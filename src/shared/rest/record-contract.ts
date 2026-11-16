@@ -334,6 +334,9 @@ export interface RecordSpec<Shape extends RecordShape>
   /** Where the record lives: the record area that declares its routes and
    * its audience, or the route ids of a record outside a record area. */
   readonly surface: RecordAreaId | RecordSurface;
+  /** The values that a generated create starts from, for the fields that its
+   * input leaves out. */
+  readonly newRowDefaults?: () => Readonly<Record<string, unknown>>;
   /** The table that the generated writes change. */
   readonly table?: TableHandle<RecordTableOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table

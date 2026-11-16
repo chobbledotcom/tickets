@@ -11,18 +11,22 @@ import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   executeBatch,
-  queryAll,
   resultRows,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import { encoded } from "#db/codecs/decode.ts";
+import { readOneRow, readRows } from "#db/read.ts";
+import { deleteRow, updateRowStatement } from "#db/record-table.ts";
+import { among } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
-import type { RowFilter } from "#db/table-reader.ts";
-import { deleteFrom } from "#db/write.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
+import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
-import { externalSourceLinksTable, externalSourcesTable } from "./tables.ts";
 import { type ExternalLinkTarget, externalLinkTargets } from "./target.ts";
 import type {
   ExternalLinkFilter,
@@ -45,10 +49,10 @@ export const externalLinkIndex = (
 
 /** Every source, in the order they were added. */
 export const getAllExternalSources = (): Promise<ExternalSource[]> =>
-  externalSourcesTable.read.many({}, { order: sql`id ASC` });
+  readRows(from(tables.external_sources).sortedBy("id").everyColumn());
 
 export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
-  externalSourcesTable.read.one({ id });
+  readOneRow(from(tables.external_sources).where({ id }).everyColumn());
 
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */
@@ -58,11 +62,15 @@ export const deleteExternalSource = (id: number): Promise<void> =>
     deleteFrom(tables.external_sources).where({ id }),
   ]);
 
+/** The links that `where` keeps, oldest first. */
+const linksIdOrder = (where: Matching<Node<"external_source_links">>) =>
+  from(tables.external_source_links).where(where).sortedBy("id").everyColumn();
+
 /** The filter one links read keeps, written as the row's own shape. */
 const linkFilter = async (
   sourceId: number,
   filter: ExternalLinkFilter,
-): Promise<RowFilter<ExternalSourceLink>> => {
+): Promise<Matching<Node<"external_source_links">>> => {
   if (filter.kind === "external") {
     return {
       external_id_index: await externalLinkIndex(sourceId, filter.externalId),
@@ -84,27 +92,20 @@ export const listExternalSourceLinks = async (
   sourceId: number,
   filter: ExternalLinkFilter,
 ): Promise<ExternalSourceLink[]> =>
-  externalSourceLinksTable.read.many(await linkFilter(sourceId, filter), {
-    order: sql`id ASC`,
-  });
+  readRows(linksIdOrder(await linkFilter(sourceId, filter)));
 
 /** Every source's links that name one record, oldest first. The record page
  *  reads this once instead of asking each source in turn. */
 export const listExternalLinksForTarget = (
   target: ExternalLinkTarget,
 ): Promise<ExternalSourceLink[]> =>
-  externalSourceLinksTable.read.many(
-    { link_id: target.id, link_type: target.kind },
-    { order: sql`id ASC` },
-  );
+  readRows(linksIdOrder({ link_id: target.id, link_type: target.kind }));
 
 /** One link found by its external id, with the source that holds it. */
 export type ExternalLinkMatch = {
   link: ExternalSourceLink;
   source: ExternalSource;
 };
-
-const LINK_COLUMNS = sqlNames(externalSourceLinksTable.columns);
 
 /** The sources under their ids, for pairing a row with the source that holds
  *  it. */
@@ -124,28 +125,31 @@ export const lookupExternalLinks = async (
   const indexes = await Promise.all(
     sources.map((source) => externalLinkIndex(source.id, externalId)),
   );
-  const stored = await queryAll<ExternalSourceLink>(
-    sql`SELECT ${LINK_COLUMNS} FROM external_source_links
-      WHERE external_id_index IN (${sqlList(indexes)})
-      ORDER BY id ASC`,
+  const stored = await readRows(
+    from(tables.external_source_links)
+      .where((link) => among(link.external_id_index, indexes))
+      .sortedBy("id")
+      .everyColumn(),
   );
   const byId = sourcesById(sources);
-  return Promise.all(
-    stored.map(async (row) => ({
-      link: await externalSourceLinksTable.fromDb(row),
-      source: requireValue(
-        byId.get(row.source_id),
-        `External source ${row.source_id} is missing`,
-      ),
-    })),
-  );
+  return stored.map((link) => ({
+    link,
+    source: requireValue(
+      byId.get(link.source_id),
+      `External source ${link.source_id} is missing`,
+    ),
+  }));
 };
 
 export const getExternalSourceLink = (
   sourceId: number,
   linkId: number,
 ): Promise<ExternalSourceLink | null> =>
-  externalSourceLinksTable.read.one({ id: linkId, source_id: sourceId });
+  readOneRow(
+    from(tables.external_source_links)
+      .where({ id: linkId, source_id: sourceId })
+      .everyColumn(),
+  );
 
 /** One link a caller just asked to read or write. Its absence is a broken
  *  read-your-writes path, so the caller fails loudly. */
@@ -219,16 +223,10 @@ const prepareLinkWrite = async (
   return okResult(input);
 };
 
-/** The row one create stored: the sealed input, plus the keys SQLite made.
- *  A write needs no session, so it must not open the value it just sealed. */
-const createdLink = (
-  input: ExternalLinkInput,
-  row: { created: string; id: number },
-): ExternalSourceLink => ({
-  created: row.created,
+/** The columns that one link write stores. */
+const linkColumns = (input: ExternalLinkInput) => ({
   external_id: input.externalId,
   external_id_index: input.externalIdIndex,
-  id: row.id,
   link_id: input.linkId,
   link_type: input.linkType,
   source_id: input.sourceId,
@@ -253,18 +251,20 @@ export const createExternalSourceLink = (
   write: ExternalLinkWrite,
 ): Promise<Result<ExternalSourceLink>> =>
   withPreparedLinkWrite(sourceId, write, 0, async (tx, input) => {
-    const statement = await externalSourceLinksTable.insertStatement(
-      input,
-      undefined,
-      ["created", "id"],
-    );
+    // A write needs no session, so it must not open the value it just
+    // sealed: the row is the input, plus the keys that SQLite made.
+    const statement = insertInto(
+      tables.external_source_links,
+      await encoded(tables.external_source_links, {
+        ...linkColumns(input),
+        created: nowIso(),
+      }),
+    ).returning("created", "id");
     const row = requireValue(
-      resultRows<{ created: string; id: number }>(
-        await tx.execute(statement),
-      )[0],
+      resultRows(await tx.execute(statement))[0],
       "The external source link insert returned no row",
     );
-    return createdLink(input, row);
+    return { ...linkColumns(input), ...row };
   });
 
 /** Store a changed link. The caller re-reads the row it answers with. */
@@ -278,7 +278,11 @@ export const updateExternalSourceLink = (
     link.id,
     async (tx, input) => {
       await tx.execute(
-        await externalSourceLinksTable.updateStatement(link.id, input),
+        await updateRowStatement(
+          tables.external_source_links,
+          link.id,
+          linkColumns(input),
+        ),
       );
       return true;
     },
@@ -286,4 +290,4 @@ export const updateExternalSourceLink = (
 
 export const deleteExternalSourceLink = (
   link: ExternalSourceLink,
-): Promise<void> => externalSourceLinksTable.deleteById(link.id);
+): Promise<void> => deleteRow(tables.external_source_links, link.id);

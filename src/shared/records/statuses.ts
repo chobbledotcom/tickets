@@ -14,6 +14,7 @@ import {
   attendeeStatusWrites,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
@@ -111,6 +112,6 @@ export const statusRecord = defineNamedRowRecord<
   nameLabel: "statuses.name_label",
   rule: statusRule,
   surface: "settingsStatuses",
-  table: attendeeStatuses.table,
+  table: tables.attendee_statuses,
   write: statusWrites,
 });
