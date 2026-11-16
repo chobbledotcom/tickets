@@ -69,8 +69,12 @@ Coverage ==
   /\ \A snapshot \in LiveStatuses, before \in Statuses, target \in Statuses :
        \E w \in Writes :
          w.snapshot = snapshot /\ w.before = before /\ w.target = target
-  /\ \E o \in Owners : o.returned /\ o.after \in EndedStatuses /\ o.cash = 1200
-  /\ \E o \in Owners : o.returned /\ o.after \in LiveStatuses /\ ~o.invoicesRead
+  /\ \E o \in Owners :
+       o.answer = "cancelled" /\ o.after \in EndedStatuses /\ o.cash = 1200
+  /\ \E o \in Owners :
+       o.answer = "behind" /\ o.after \in LiveStatuses /\ ~o.invoicesRead
+  /\ \E o \in Owners : o.answer = "not_cancelled"
+  /\ \E o \in Owners : o.answer = "threw"
   /\ \A affected \in {0, 1} : \E w \in Writes : w.affected = affected
   /\ \E c \in Checkouts : c.entrypoint = "placeholder" /\ c.refunded
   /\ \E c \in Checkouts : c.threw /\ c.held = 1 /\ c.refunds = 0
@@ -98,8 +102,10 @@ TypeOK ==
   /\ attempt \in Nat
   /\ allAttemptsSafe \in BOOLEAN
 
-\* An owner result confirms the external end, not local invoice completion.
-\* Refused invoice reads leave the row live even when the return is TRUE.
+\* An owner answer states both facts: whether the provider ended the
+\* subscription, and whether the row holds that end. "cancelled" requires an
+\* ended row. "behind" is an external end with a refused invoice read, which
+\* leaves the row live. "not_cancelled" is every other answer without a throw.
 \* Every fallback and invoice read must target the original subscription id,
 \* including refusals. The cumulative identity flag remembers any wrong read.
 \* Each final invoice has its own id, event group, cash and leg count. The
@@ -115,7 +121,12 @@ SafeOwner(o) ==
   /\ (o.invoiceReads > 0 =>
        (o.invoiceRequestId = o.subscriptionId /\ o.invoiceIdentityKept))
   /\ o.planKept /\ o.quantity = 1
-  /\ o.returned = (~o.threw /\ o.observed \in EndedStatuses)
+  /\ o.answer =
+       IF o.threw THEN "threw"
+       ELSE IF o.observed \notin EndedStatuses THEN "not_cancelled"
+       ELSE IF o.invoicesRead THEN "cancelled"
+       ELSE "behind"
+  /\ (o.answer = "cancelled" => o.after \in EndedStatuses)
   /\ o.firstInvoice # o.secondInvoice /\ o.firstGroup # o.secondGroup
   /\ o.cash = o.firstCash + o.secondCash
   /\ o.legs = o.firstLegs + o.secondLegs

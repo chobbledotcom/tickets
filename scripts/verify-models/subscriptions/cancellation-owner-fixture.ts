@@ -23,7 +23,10 @@ import {
 import { requireValue } from "#shared/required-value.ts";
 import type { StripeSubscription } from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
-import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
+import {
+  cancelOwnerSubscription,
+  type OwnerCancel,
+} from "#shared/subscriptions/cancellation.ts";
 import type { SubscriptionStatus } from "#shared/subscriptions/plan.ts";
 import { outcomeOf } from "./environment.ts";
 
@@ -209,7 +212,24 @@ const tamperOwnerStatus = async (
     );
 };
 
-export type OwnerAttemptResult = { returned: boolean; threw: boolean };
+/** The control makes the stored row disagree with a cancelled answer. */
+const tamperCancelledRow = async (
+  sample: OwnerCase,
+  fault: CancellationFault,
+): Promise<void> => {
+  if (
+    fault === "cancelled-answer-on-live-row" &&
+    sample.scenario === "owner-final"
+  )
+    await execute(
+      sql`UPDATE listing_attendees SET subscription_status = 'active' WHERE id = 1`,
+    );
+};
+
+export type OwnerAttemptResult = {
+  answer: OwnerCancel | "threw";
+  threw: boolean;
+};
 
 /** The wrong-identity control changes the input before the actual provider call. */
 export const invokeOwnerCancellation = async (
@@ -221,18 +241,19 @@ export const invokeOwnerCancellation = async (
     fault === "wrong-cancellation-identity" &&
     sample.scenario === "owner-final";
   const command = wrongCommand ? { ...row, subscription_id: "sub_wrong" } : row;
-  const result = await outcomeOf(
+  const result = await outcomeOf<OwnerAttemptResult>(
     async () => ({
-      returned: await cancelOwnerSubscription(command),
+      answer: await cancelOwnerSubscription(command),
       threw: false,
     }),
     [
       [
         (error) => expectedOwnerFailure(error, sample, fault),
-        { returned: false, threw: true },
+        { answer: "threw", threw: true },
       ],
     ],
   );
   if (result.threw) await tamperOwnerStatus(sample, fault);
+  else await tamperCancelledRow(sample, fault);
   return result;
 };

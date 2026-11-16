@@ -81,6 +81,7 @@ const moduleFor = (facts: CancellationFacts): string =>
 const boundaryControls = [
   ["refund before confirmed external end", "refund-before-confirmed-end"],
   ["local end without final returned money", "local-end-without-money"],
+  ["cancelled answer on a live row", "cancelled-answer-on-live-row"],
   ["ended status overwritten by a stale live write", "stale-overwrite"],
   ["cancellation sent to another subscription", "wrong-cancellation-identity"],
   [

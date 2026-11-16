@@ -57,6 +57,7 @@ export const CANCELLATION_TABLES = {
     "Owners",
     {
       after: "Str",
+      answer: "Str",
       attempt: "Int",
       attendeeId: "Int",
       before: "Str",
@@ -81,7 +82,6 @@ export const CANCELLATION_TABLES = {
       readRequestId: "Str",
       reads: "Int",
       requestId: "Str",
-      returned: "Bool",
       scenario: "Str",
       secondCash: "Int",
       secondGroup: "Str",
@@ -112,6 +112,7 @@ export type CancellationFacts = FactsOf<typeof CANCELLATION_TABLES>;
 export type CancellationFault =
   | "none"
   | "local-end-without-money"
+  | "cancelled-answer-on-live-row"
   | "stale-overwrite"
   | "wrong-cancellation-identity"
   | "wrong-owner-subscription-read"

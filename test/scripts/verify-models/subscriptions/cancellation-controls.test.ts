@@ -42,7 +42,14 @@ const STEP_CASES: readonly (readonly [
     "local end without final returned money",
     "Owners",
     '{"scenario":"owner-ledger-fault"}',
-    '{"after":"canceled","before":"active","cash":0,"legs":0,"returned":false,"threw":true}',
+    '{"after":"canceled","answer":"threw","before":"active","cash":0,"legs":0,"threw":true}',
+  ],
+  [
+    "registers the control that leaves a live row behind a cancelled answer",
+    "cancelled answer on a live row",
+    "Owners",
+    '{"scenario":"owner-final"}',
+    '{"after":"active","answer":"cancelled","cash":1200,"invoicesRead":true,"threw":false}',
   ],
   [
     "registers the identity control on the actual cancellation request",
@@ -143,8 +150,8 @@ describe("SubscriptionCancellation negative controls", () => {
       clean.owners.find((fact) => fact.scenario === "owner-final"),
     ).toMatchObject({
       after: "canceled",
+      answer: "cancelled",
       cash: 1200,
-      returned: true,
     });
   });
 });

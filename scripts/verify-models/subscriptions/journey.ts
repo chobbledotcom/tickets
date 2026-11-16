@@ -193,7 +193,7 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
     }),
   );
   await observePass(facts, scenario, active, lastPass, 1, async () => {
-    cancelled = await cancelOwnerSubscription(active);
+    cancelled = (await cancelOwnerSubscription(active)) === "cancelled";
   });
   await capture("cancelled", cancelled);
 };

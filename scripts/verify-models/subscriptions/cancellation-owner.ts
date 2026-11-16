@@ -56,7 +56,7 @@ const ownerReadback = async (
 ): Promise<CancellationFacts["owners"][number]> => {
   const { row, before, storedId } = snapshot;
   const { observed, invoicesRead } = probe;
-  const { returned, threw } = result;
+  const { answer, threw } = result;
   const after = requireValue(
     await getSubscribedRowOrNull(storedId),
     "Owner after row missing",
@@ -72,6 +72,7 @@ const ownerReadback = async (
   return {
     ...cancellationProbeFacts(probe),
     after: after.subscription_status,
+    answer,
     attempt: 1,
     attendeeId: after.attendee_id,
     before: before.subscription_status,
@@ -92,7 +93,6 @@ const ownerReadback = async (
       after.subscription_id === before.subscription_id &&
       after.recurring_interval === before.recurring_interval,
     quantity: after.quantity,
-    returned,
     scenario: sample.scenario,
     secondCash: second.cash,
     secondGroup: second.group,

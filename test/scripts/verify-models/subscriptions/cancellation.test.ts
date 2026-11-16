@@ -86,13 +86,16 @@ describe("SubscriptionCancellation production evidence", () => {
     for (const status of SubscriptionStatusSchema.options) {
       expect(owner(`owner-observed-${status}`)).toMatchObject({
         after: status,
+        answer:
+          status === "canceled" || status === "incomplete_expired"
+            ? "cancelled"
+            : "not_cancelled",
         cash: 1200,
         firstCash: 600,
         firstInvoice: "in_final_a",
         firstLegs: 2,
         legs: 4,
         observed: status,
-        returned: status === "canceled" || status === "incomplete_expired",
         secondCash: 600,
         secondInvoice: "in_final_b",
         secondLegs: 2,
@@ -107,8 +110,8 @@ describe("SubscriptionCancellation production evidence", () => {
       cancels: 1,
       cash: 1200,
       reads: 1,
-      returned: true,
     });
+    expect(owner("owner-read-ended").answer).toBe("cancelled");
   });
 
   it("captures the true subscription target at every provider read boundary", () => {
@@ -157,11 +160,11 @@ describe("SubscriptionCancellation production evidence", () => {
     ]) {
       expect(owner(scenario)).toMatchObject({
         after: "active",
+        answer: "behind",
         cash: 0,
         invoicesRead: false,
         legs: 0,
         observed: "canceled",
-        returned: true,
       });
     }
     for (const scenario of [
@@ -171,19 +174,19 @@ describe("SubscriptionCancellation production evidence", () => {
     ]) {
       expect(owner(scenario)).toMatchObject({
         after: "active",
+        answer: "not_cancelled",
         cancels: 1,
         cash: 0,
         invoicesRead: false,
         observed: "unread",
         reads: 1,
-        returned: false,
       });
     }
     expect(owner("owner-ledger-fault")).toMatchObject({
       after: "active",
+      answer: "threw",
       cash: 0,
       legs: 0,
-      returned: false,
       threw: true,
     });
   });
@@ -199,10 +202,10 @@ describe("SubscriptionCancellation production evidence", () => {
     for (const field of ["attendee", "listing", "subscription", "id"]) {
       expect(owner(`owner-replaced-${field}`)).toMatchObject({
         after: "active",
+        answer: "threw",
         cash: 0,
         identityCurrent: false,
         legs: 0,
-        returned: false,
         threw: true,
       });
     }

@@ -161,6 +161,7 @@ const RENEWAL_CONTEXT = [
 const CANCELLATION_CONTROLS = {
   "anchorless retry lost its retained plan": "step",
   "cancellation sent to another subscription": "step",
+  "cancelled answer on a live row": "step",
   "duplicate failed checkout refund on replay": "step",
   "ended status overwritten by a stale live write": "step",
   "failed checkout fallback read sent to another subscription": "step",

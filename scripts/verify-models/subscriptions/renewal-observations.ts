@@ -211,7 +211,9 @@ export const observePass = async (
   row: CheckedRow,
   pass: RenewalPass,
   index: number,
-  write: () => Promise<void> = () => recordObserved(row, pass.observed),
+  write: () => Promise<void> = async () => {
+    await recordObserved(row, pass.observed);
+  },
 ): Promise<void> => {
   const attempt = `${scenario.name}:${index}`;
   const expectedInvoices = pass.invoices.map((invoice) => ({
