@@ -13,6 +13,7 @@ import type {
   TableHandle,
   TableName,
 } from "#db/select/tables.ts";
+import type { Changes } from "#db/write.ts";
 
 /** A codec as the runner holds it, whatever its types. */
 type Converter = Readonly<{
@@ -92,7 +93,7 @@ export const encoded = async <
 >(
   table: TableHandle<Name>,
   values: Values,
-): Promise<Encoded<Name, Values>> =>
+): Promise<Encoded<Name, Values> & Changes<Name>> =>
   Object.fromEntries(
     await Promise.all(
       Object.entries(values).map(async ([column, value]) => {
@@ -105,4 +106,4 @@ export const encoded = async <
         ];
       }),
     ),
-  ) as Encoded<Name, Values>;
+  ) as Encoded<Name, Values> & Changes<Name>;

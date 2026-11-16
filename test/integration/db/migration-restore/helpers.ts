@@ -15,10 +15,8 @@
  * keeps the shards balanced as migrations are added — each shard gets an even
  * mix of long (old boundary) and short (recent boundary) chains.
  */
-
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { encrypt } from "#crypto/encryption.ts";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
@@ -35,11 +33,10 @@ import {
   SCHEMA_HASH,
   type SchemaRequirement,
 } from "#db/migrations.ts";
-import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -148,13 +145,7 @@ export const dropOwnedObjects = async (
 };
 
 export const seedSentinelListing = async (): Promise<unknown> =>
-  getDb().execute(
-    insertInto(tables.listings, {
-      created: "2024-01-01T00:00:00Z",
-      max_attendees: 10,
-      name: await encrypt("sentinel-listing"),
-    }),
-  );
+  getDb().execute(await listingRowStatement("sentinel-listing"));
 
 export const scalar = async (statement: SqlStatement): Promise<unknown> => {
   const result = await getDb().execute(statement);

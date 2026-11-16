@@ -1,13 +1,11 @@
 import { createClient, type InStatement, type ResultSet } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { stub } from "@std/testing/mock";
-import { encrypt } from "#crypto/encryption.ts";
 import { setDb } from "#db/client.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { sqlOf } from "#db/sql-text.ts";
-import { insertInto } from "#db/write.ts";
 import { resetDb } from "#test-utils/db.ts";
+import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 import {
   cleanupTestDbPath,
@@ -301,14 +299,7 @@ export const createLegacyMigrationHarness = (): LegacyMigrationHarness => {
   const createLegacyDbWithListing = async (): Promise<Client> => {
     const client = await createLegacyDb();
     await client.execute(sql`PRAGMA foreign_keys = ON`);
-    await client.execute(
-      insertInto(tables.listings, {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: await encrypt("Test Listing"),
-      }),
-    );
+    await client.execute(await listingRowStatement("Test Listing", { id: 1 }));
     return client;
   };
 
