@@ -1,10 +1,10 @@
 /**
- * Browser contract for the image dropdown at its real surface: the served
- * page-editor form, the app's own image-options route, and a real Chromium.
- * The direct tests in `markdown-editor-images.test.ts` mount an isolated
- * editor against a stubbed fetch; this file proves what only a real page
- * shows — the dropdown on the admin form, the choice stored through the real
- * form submit, and the preview's rendered image.
+ * Browser contract for the image picker dialog at its real surface: the
+ * served page-editor form, the app's own image-options route, and a real
+ * Chromium. The direct tests in `markdown-editor-images.test.ts` mount an
+ * isolated editor against a stubbed fetch; this file proves what only a real
+ * page shows — the dialog on the admin form, a thumbnail inserted through
+ * the real form submit, and the preview's rendered image.
  *
  * Runs under `deno task test:screenshot-contract`. The harness builds the
  * static assets before the served page loads them.
@@ -12,6 +12,7 @@
  * (it needs Chromium and the built bundles).
  */
 
+import { Buffer } from "node:buffer";
 import { assertExists, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -23,22 +24,26 @@ import {
   describeWithBrowser,
   withSignedInPage,
 } from "#test-utils/browser-contract.ts";
+import { makeTestPng } from "#test-utils/test-image.ts";
 
 // The page editor renders catalog copy, so the contract needs the full
 // message catalog whether or not the shared preload ran first.
 await ensureMessageGroups(MESSAGE_GROUPS);
 
 const EDITOR_BUTTON = ".md-toolbar-image";
-const PANEL = ".md-image-dropdown";
+const DIALOG = ".md-image-dialog";
 const OPTION = ".md-image-option";
-const NOTE = ".md-image-dropdown-note";
+const NOTE = ".md-image-note";
+const THUMBNAIL = ".md-image-option img";
 const CONTENT_BOX = 'textarea[name="content"]';
 const EMPTY_MESSAGE = "No images uploaded yet.";
 const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 
 describeWithBrowser(
-  "the image dropdown at the served page editor",
-  { db: true, storage: "cdn" },
+  "the image picker dialog at the served page editor",
+  // The local backend, not the test CDN: the upload path PUTs real bytes,
+  // and the test zone's fake credentials would fail every upload.
+  { db: true, storage: "local" },
   (contract) => {
     /** The shared signed-in page, bound to the contract's browser and
      * address. */
@@ -55,39 +60,108 @@ describeWithBrowser(
     const contentValue = (page: Page): Promise<string> =>
       page.locator(CONTENT_BOX).inputValue();
 
-    /** Opens the dropdown and hands the panel over. */
-    const openDropdown = async (page: Page): Promise<Locator> => {
+    /** Opens the dialog and hands it over. */
+    const openDialog = async (page: Page): Promise<Locator> => {
       await page.locator(EDITOR_BUTTON).click();
-      const panel = page.locator(PANEL);
-      await panel.waitFor();
-      return panel;
+      const dialog = page.locator(DIALOG);
+      await dialog.waitFor();
+      return dialog;
     };
 
-    /** Chooses one image by the exact name the panel shows. */
+    /** Waits for the image dialog to be closed, whatever closed it. */
+    const waitForDialogClosed = async (page: Page): Promise<void> => {
+      await page.waitForFunction(
+        () =>
+          (document.querySelector(".md-image-dialog") as HTMLDialogElement)
+            ?.open === false,
+      );
+    };
+
+    /** Chooses one image by the exact name its thumbnail shows. */
     const chooseImage = async (page: Page, name: string): Promise<void> => {
       await page.locator(EDITOR_BUTTON).click();
       await page.locator(OPTION).getByText(name, { exact: true }).click();
     };
 
-    test("offers the library's images by name, in name order", async () => {
+    /** Focuses the editor body and types `text`. Start a new line with an
+     * explicit Enter where the insertion point must sit below the typed
+     * words. */
+    const typeIntoEditorBody = async (
+      page: Page,
+      text: string,
+    ): Promise<void> => {
+      const body = page.locator(".ProseMirror");
+      await body.click();
+      await page.keyboard.type(text);
+    };
+
+    /** Opens the page editor and types `text` into it: the first step of
+     * every flow that starts from a fresh new-page form. */
+    const openEditorAndType = async (
+      page: Page,
+      text: string,
+    ): Promise<void> => {
+      await openPageEditor(page);
+      await typeIntoEditorBody(page, text);
+    };
+
+    /** Asserts the editor body holds focus again, the way the native
+     * dialog close hands it back. */
+    const expectFocusBackInEditor = async (page: Page): Promise<void> => {
+      expect(
+        await page.evaluate(
+          () =>
+            document.activeElement === document.querySelector(".ProseMirror"),
+        ),
+      ).toBe(true);
+    };
+
+    /** The grid's and the last option's page boxes, failing loudly when
+     * either is missing from the page. */
+    const gridAndLastOptionBoxes = async (page: Page, grid: Locator) => {
+      const gridBox = await grid.boundingBox();
+      const optionBox = await page.locator(OPTION).last().boundingBox();
+      if (gridBox === null || optionBox === null) {
+        throw new Error("the grid or its last option is not on the page");
+      }
+      return { gridBox, optionBox };
+    };
+
+    /** Dismisses the open dialog with `dismiss` and waits for it to shut. */
+    const expectDialogClosesWhen = async (
+      page: Page,
+      dismiss: (page: Page) => Promise<void>,
+    ): Promise<void> => {
+      await dismiss(page);
+      await waitForDialogClosed(page);
+    };
+
+    test("shows the library's thumbnails, in name order", async () => {
       // Lighthouse is made first, so id order differs from name order and the
       // assert proves the names, not the row order.
       await makeImage("Lighthouse");
       await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
-        const panel = await openDropdown(page);
+        const dialog = await openDialog(page);
 
         await page.locator(OPTION).first().waitFor();
-        expect(await panel.locator(OPTION).allTextContents()).toEqual([
+        expect(await dialog.locator(OPTION).allTextContents()).toEqual([
           "Harbour",
           "Lighthouse",
         ]);
-        expect(await panel.locator("img").count()).toBe(0);
+        const sources = await dialog
+          .locator(THUMBNAIL)
+          .evaluateAll((imgs) => imgs.map((img) => img.getAttribute("src")));
+        expect(sources).toEqual([
+          "/image/harbour-thumb.webp",
+          "/image/lighthouse-thumb.webp",
+        ]);
       });
     });
 
-    test("caps a long library's panel and reaches the lower names by scrolling", async () => {
+    test("reaches a long library's lower rows by scrolling the grid", async () => {
+      /* jscpd:ignore-start -- a list of strings, not code */
       const names = [
         "Alder",
         "Birch",
@@ -104,39 +178,46 @@ describeWithBrowser(
         "Moss",
         "Nettle",
         "Oak",
+        "Pine",
+        "Quince",
+        "Rowan",
+        "Spruce",
+        "Teak",
+        "Ulmus",
+        "Viburnum",
+        "Willow",
+        "Yew",
       ];
+      /* jscpd:ignore-end */
       for (const name of names) await makeImage(name);
       await withPage(async (page) => {
         await openPageEditor(page);
-        const panel = await openDropdown(page);
+        await openDialog(page);
+        const grid = page.locator(".md-image-grid");
         await page.locator(OPTION).first().waitFor();
 
-        // The panel is a scroller of its own: the library is taller than
-        // the panel, and the lower names wait below its visible box.
+        // The grid is a scroller of its own: the library is taller than the
+        // grid, and the lower names wait below its visible box.
         expect(
-          await panel.evaluate((el) => el.scrollHeight > el.clientHeight),
+          await grid.evaluate((el) => el.scrollHeight > el.clientHeight),
         ).toBe(true);
         expect(
-          await panel.evaluate((el) => getComputedStyle(el).overflowY),
+          await grid.evaluate((el) => getComputedStyle(el).overflowY),
         ).toBe("auto");
 
-        const box = await panel.boundingBox();
-        const below = await page.locator(OPTION).last().boundingBox();
-        if (box === null || below === null) {
-          throw new Error("the panel or its last option is not on the page");
-        }
-        expect(below.y).toBeGreaterThanOrEqual(box.y + box.height);
+        const { gridBox, optionBox: below } = await gridAndLastOptionBoxes(
+          page,
+          grid,
+        );
+        expect(below.y).toBeGreaterThanOrEqual(gridBox.y + gridBox.height);
 
-        // Scrolling inside the panel brings the lower names into it, so the
+        // Scrolling inside the grid brings the lower names into it, so the
         // owner reaches every image without the page's own scroll.
-        await panel.evaluate((el) => {
+        await grid.evaluate((el) => {
           el.scrollTop = el.scrollHeight;
         });
-        const scrolled = await panel.boundingBox();
-        const reached = await page.locator(OPTION).last().boundingBox();
-        if (scrolled === null || reached === null) {
-          throw new Error("the panel or its last option is not on the page");
-        }
+        const { gridBox: scrolled, optionBox: reached } =
+          await gridAndLastOptionBoxes(page, grid);
         expect(reached.y).toBeLessThan(scrolled.y + scrolled.height);
       });
     });
@@ -144,16 +225,44 @@ describeWithBrowser(
     test("inserts the chosen image at the caret and keeps the surrounding words", async () => {
       const harbour = await makeImage("Harbour");
       await withPage(async (page) => {
-        await openPageEditor(page);
-        const body = page.locator(".ProseMirror");
-        await body.click();
-        await page.keyboard.type("Where to find us");
+        await openEditorAndType(page, "Where to find us");
         await page.keyboard.press("Enter");
         await chooseImage(page, "Harbour");
 
         expect(await contentValue(page)).toBe(
           `Where to find us\n\n![Harbour](img#${harbour.id})`,
         );
+        // The insert closes the dialog and hands focus back to the editor.
+        expect(await page.locator(DIALOG).isVisible()).toBe(false);
+        await expectFocusBackInEditor(page);
+      });
+    });
+
+    test("uploads a new image and inserts it at the caret", async () => {
+      await withPage(async (page) => {
+        await openEditorAndType(page, "Fresh from the camera.");
+        await page.keyboard.press("Enter");
+
+        const dialog = await openDialog(page);
+        await dialog.locator('input[name="name"]').fill("Harbour Haze");
+        // The server validates the upload as a real image, so the file must
+        // be a decodable PNG, not arbitrary bytes.
+        await dialog.locator('input[name="image"]').setInputFiles({
+          buffer: Buffer.from(await makeTestPng(2, 2)),
+          mimeType: "image/png",
+          name: "harbour-haze.png",
+        });
+        await dialog.getByRole("button", { name: "Upload" }).click();
+        // The insert and the close land once the stubbed-less upload answers;
+        // wait for the dialog to shut before reading the editor.
+        await waitForDialogClosed(page);
+
+        // The upload inserted the new image at the caret and closed the
+        // dialog; the library keeps the upload the way the images area does.
+        const saved = await contentValue(page);
+        assertStringIncludes(saved, "![Harbour Haze](img#");
+        assertStringIncludes(saved, "Fresh from the camera.");
+        expect(await page.locator(DIALOG).isVisible()).toBe(false);
       });
     });
 
@@ -161,10 +270,13 @@ describeWithBrowser(
       const harbour = await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
-        await page.locator('input[name="name"]').fill("How to find us");
+        // The dialog's own upload form nests inside the page form, so the
+        // page's Name field is the one the roles distinguish.
+        await page
+          .getByRole("textbox", { name: t("site.pages.field.name") })
+          .fill("How to find us");
         await page.locator('input[name="slug"]').fill("how-to-find-us");
-        await page.locator(".ProseMirror").click();
-        await page.keyboard.type("Take the coast road.");
+        await typeIntoEditorBody(page, "Take the coast road.");
         await page.keyboard.press("Enter");
         await chooseImage(page, "Harbour");
         await page
@@ -194,9 +306,7 @@ describeWithBrowser(
     test("the preview renders the chosen image's address and its alt text", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
-        await openPageEditor(page);
-        await page.locator(".ProseMirror").click();
-        await page.keyboard.type("The harbour from the sea.");
+        await openEditorAndType(page, "The harbour from the sea.");
         await chooseImage(page, "Harbour");
         // The editor's mode toggle shares the preview link's class, so the
         // button is picked by its own name.
@@ -214,9 +324,7 @@ describeWithBrowser(
     test("a plain-text edit and a visual/markdown switch keep the content", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
-        await openPageEditor(page);
-        await page.locator(".ProseMirror").click();
-        await page.keyboard.type("Written in the visual editor.");
+        await openEditorAndType(page, "Written in the visual editor.");
 
         // The switch to markdown reveals the textarea; the plain edit lands
         // there, and the switch back rebuilds the visual editor from it.
@@ -236,50 +344,55 @@ describeWithBrowser(
       });
     });
 
-    /** The page's own words typed first, then the dropdown opened and the
-     * note it settles on read back — the shape the empty and unreachable
+    /** The page's own words typed first, then the dialog opened and the note
+     * it settles on read back — the shape the empty and unreachable
      * libraries share. The expected message pins the wait: the loading
      * state shows the same note element with different words. */
-    const openDropdownOverUnchangedWords = async (
+    const openDialogOverUnchangedWords = async (
       page: Page,
       message: string,
-    ): Promise<{ content: string; note: string; panel: Locator }> => {
-      await openPageEditor(page);
-      await page.locator(".ProseMirror").click();
-      await page.keyboard.type("Unchanged words.");
-      const panel = await openDropdown(page);
-      await panel.locator(NOTE).filter({ hasText: message }).waitFor();
+    ): Promise<{ content: string; note: string; dialog: Locator }> => {
+      await openEditorAndType(page, "Unchanged words.");
+      const dialog = await openDialog(page);
+      await dialog.locator(NOTE).filter({ hasText: message }).waitFor();
       return {
         content: await contentValue(page),
-        note: (await panel.textContent()) ?? "",
-        panel,
+        dialog,
+        note: (await dialog.textContent()) ?? "",
       };
+    };
+
+    /** Asserts the dialog's note carries `message`, the grid offers no
+     * option, and the page content is untouched. */
+    const expectNoteWithoutOptions = async (
+      answered: { content: string; dialog: Locator; note: string },
+      message: string,
+    ): Promise<void> => {
+      assertStringIncludes(answered.note, message);
+      expect(await answered.dialog.locator(OPTION).count()).toBe(0);
+      expect(answered.content).toBe("Unchanged words.");
     };
 
     test("says the library is empty and offers nothing to choose", async () => {
       await withPage(async (page) => {
-        const { content, note, panel } = await openDropdownOverUnchangedWords(
+        const answered = await openDialogOverUnchangedWords(
           page,
           EMPTY_MESSAGE,
         );
 
-        assertStringIncludes(note, EMPTY_MESSAGE);
-        expect(await panel.locator(OPTION).count()).toBe(0);
-        expect(content).toBe("Unchanged words.");
+        await expectNoteWithoutOptions(answered, EMPTY_MESSAGE);
       });
     });
 
     test("says the images are unavailable when the library cannot be reached", async () => {
       await withPage(async (page) => {
         await page.route("**/admin/images/options", (route) => route.abort());
-        const { content, note, panel } = await openDropdownOverUnchangedWords(
+        const answered = await openDialogOverUnchangedWords(
           page,
           UNAVAILABLE_MESSAGE,
         );
 
-        assertStringIncludes(note, UNAVAILABLE_MESSAGE);
-        expect(await panel.locator(OPTION).count()).toBe(0);
-        expect(content).toBe("Unchanged words.");
+        await expectNoteWithoutOptions(answered, UNAVAILABLE_MESSAGE);
       });
     });
 
@@ -294,20 +407,22 @@ describeWithBrowser(
         });
         await openPageEditor(page);
 
-        const panel = await openDropdown(page);
-        await panel
+        const dialog = await openDialog(page);
+        await dialog
           .locator(NOTE)
           .filter({ hasText: UNAVAILABLE_MESSAGE })
           .waitFor();
-        const panelText = await panel.textContent();
-        assertExists(panelText);
-        assertStringIncludes(panelText, UNAVAILABLE_MESSAGE);
+        const dialogText = await dialog.textContent();
+        assertExists(dialogText);
+        assertStringIncludes(dialogText, UNAVAILABLE_MESSAGE);
 
         // Shut and reopen: a failed load is never cached, so the second open
-        // asks the route again and the real answer arrives.
-        await page.locator(EDITOR_BUTTON).click();
-        await page.locator(EDITOR_BUTTON).click();
-        await page
+        // asks the route again and the real answer arrives. The modal
+        // backdrop swallows toolbar clicks, so Escape is the way shut.
+        await page.keyboard.press("Escape");
+        await waitForDialogClosed(page);
+        const reopened = await openDialog(page);
+        await reopened
           .locator(OPTION)
           .getByText("Harbour", { exact: true })
           .click();
@@ -315,49 +430,32 @@ describeWithBrowser(
       });
     });
 
-    test("closes when the Image button is clicked again", async () => {
+    test("modal backdrop swallows toolbar clicks while the dialog is open", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
-        await openDropdown(page);
-        expect(
-          await page.locator(EDITOR_BUTTON).getAttribute("aria-expanded"),
-        ).toBe("true");
+        await openDialog(page);
+        await page.locator(OPTION).first().waitFor();
 
-        await page.locator(EDITOR_BUTTON).click();
-        expect(await page.locator(PANEL).isVisible()).toBe(false);
-        expect(
-          await page.locator(EDITOR_BUTTON).getAttribute("aria-expanded"),
-        ).toBe("false");
+        // The modal dialog's backdrop intercepts every pointer event, so a
+        // click aimed at the toolbar button lands on the backdrop and the
+        // dialog stays open. Force it: the click happens, the dialog ignores
+        // it.
+        await page.locator(EDITOR_BUTTON).click({ force: true });
+        await page.waitForTimeout(100);
+        expect(await page.locator(DIALOG).getAttribute("open")).not.toBeNull();
       });
     });
 
-    test("closes when the click lands outside the control", async () => {
+    test("closes on Escape and puts focus back in the editor", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
         await openPageEditor(page);
-        await openDropdown(page);
+        await openDialog(page);
 
-        await page.locator("h1").click();
-        expect(await page.locator(PANEL).isVisible()).toBe(false);
-      });
-    });
-
-    test("closes on Escape and puts focus back on the Image button", async () => {
-      await makeImage("Harbour");
-      await withPage(async (page) => {
-        await openPageEditor(page);
-        await openDropdown(page);
-
-        await page.keyboard.press("Escape");
-        expect(await page.locator(PANEL).isVisible()).toBe(false);
-        expect(
-          await page.evaluate(
-            () =>
-              document.activeElement ===
-              document.querySelector(".md-toolbar-image"),
-          ),
-        ).toBe(true);
+        await expectDialogClosesWhen(page, (p) => p.keyboard.press("Escape"));
+        // The native dialog hands focus back to the element that held it.
+        await expectFocusBackInEditor(page);
       });
     });
 
@@ -365,25 +463,31 @@ describeWithBrowser(
       await makeImage("Harbour");
       await withPage(async (page) => {
         // The gate holds the answer until the click has dismissed the
-        // panel, so the test observes the answer arriving after dismissal.
+        // dialog, so the test observes the answer arriving after dismissal.
         const responseGate = Promise.withResolvers<void>();
         await page.route("**/admin/images/options", async (route) => {
           await responseGate.promise;
           await route.fulfill({
-            body: JSON.stringify({ images: [{ id: 2, name: "Harbour" }] }),
+            body: JSON.stringify({
+              images: [
+                { id: 2, name: "Harbour", thumb: "/image/harbour-thumb.webp" },
+              ],
+            }),
             contentType: "application/json",
           });
         });
         await openPageEditor(page);
 
-        const panel = await openDropdown(page);
-        await page.locator("h1").click();
+        const dialog = await openDialog(page);
+        // The modal backdrop swallows toolbar clicks, so Escape dismisses.
+        await page.keyboard.press("Escape");
+        await waitForDialogClosed(page);
         responseGate.resolve();
         await page.waitForTimeout(500);
 
-        expect(await panel.isVisible()).toBe(false);
-        expect(await panel.locator(OPTION).count()).toBe(0);
-        expect(await panel.getAttribute("data-state")).toBe("loading");
+        // The late answer must not reopen the dismissed dialog.
+        expect(await dialog.getAttribute("open")).toBeNull();
+        expect(await dialog.locator(OPTION).count()).toBe(0);
       });
     });
   },

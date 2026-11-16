@@ -12,6 +12,7 @@
  */
 
 import { ICONS_PATH } from "#shared/asset-paths.ts";
+import { csrfTokenFor } from "#src/ui/client/dom.ts";
 
 /** Lazily-built shared dialog, reused by every editor on the page. */
 type PreviewDialog = {
@@ -51,12 +52,6 @@ const createDialog = (): PreviewDialog => {
     },
   };
 };
-
-/** Find the CSRF token for the form a textarea belongs to. */
-const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
-  textarea
-    .closest("form")
-    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value ?? "";
 
 /**
  * The character counter (added earlier by initCharCounters) sits immediately

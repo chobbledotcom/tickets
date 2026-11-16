@@ -9,7 +9,7 @@ describeWithEnv(
   "GET /admin/images/options",
   { db: true, storage: "cdn" },
   () => {
-    test("serves every image's id and name in name order", async () => {
+    test("serves every image's id, name, and thumbnail in name order", async () => {
       const zebra = await makeImage("Zebra");
       const alpha = await makeImage("alpha");
 
@@ -21,8 +21,16 @@ describeWithEnv(
       assertStringIncludes(contentType, "application/json");
       expect(await response.json()).toEqual({
         images: [
-          { id: alpha.id, name: "alpha" },
-          { id: zebra.id, name: "Zebra" },
+          {
+            id: alpha.id,
+            name: "alpha",
+            thumb: "/image/alpha-thumb.webp",
+          },
+          {
+            id: zebra.id,
+            name: "Zebra",
+            thumb: "/image/zebra-thumb.webp",
+          },
         ],
       });
     });

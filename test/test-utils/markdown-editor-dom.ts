@@ -27,19 +27,28 @@ const FOOTER =
   '<div class="md-editor-footer"><button type="button">Preview</button></div>';
 
 /** Install a lone markdown textarea (optionally followed by a footer strip,
- * as the preview module lays out, or a stylesheet the editor's styles are
- * asserted against) and enhance it. */
+ * as the preview module lays out, a stylesheet the editor's styles are
+ * asserted against, or a wrapping form with a CSRF token the upload flow
+ * reads) and enhance it. */
 export const enhanced = (
   value: string,
-  options: { footer?: boolean; stylesheet?: string } = {},
+  options: {
+    footer?: boolean;
+    stylesheet?: string;
+    form?: boolean;
+  } = {},
 ): {
   handle: MarkdownEditorHandle;
   textarea: HTMLTextAreaElement;
   window: Window;
 } => {
+  const textareaHtml = TEXTAREA.replace("%s", value);
   const window = installDom(
     (options.stylesheet ? `<style>${options.stylesheet}</style>` : "") +
-      TEXTAREA.replace("%s", value) +
+      (options.form
+        ? `<form action="/admin/pages/1/edit" method="post">` +
+          `<input type="hidden" name="csrf_token" value="token-1">${textareaHtml}</form>`
+        : textareaHtml) +
       (options.footer ? FOOTER : ""),
   );
   const textarea = requireElement<HTMLTextAreaElement>(

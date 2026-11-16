@@ -72,10 +72,15 @@ describeWithEnv(
         ].map((match) => Number(match[1]));
         expect(shown).toEqual(libraryOrder.map((image) => image.id));
 
-        // The editor's image dropdown offers the same order.
+        // The editor's image dialog offers the same order, with each
+        // image's thumbnail URL for the dialog's grid.
         const options = await (await adminGet("/admin/images/options")).json();
         expect(options).toEqual({
-          images: libraryOrder.map(({ id, name }) => ({ id, name })),
+          images: libraryOrder.map(({ id, name, filename_thumb }) => ({
+            id,
+            name,
+            thumb: `/image/${filename_thumb}`,
+          })),
         });
       });
 
@@ -266,8 +271,8 @@ describeWithEnv(
       });
     });
 
-    describe("GET /admin/images/options (editor dropdown list)", () => {
-      test("lists every image as id and name in name order", async () => {
+    describe("GET /admin/images/options (editor image dialog list)", () => {
+      test("lists every image as id, name, and thumb in name order", async () => {
         await makeImage("Zebra");
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
@@ -278,8 +283,16 @@ describeWithEnv(
         const body = await response.json();
         expect(body).toEqual({
           images: [
-            { id: await idOf("Alpha"), name: "Alpha" },
-            { id: await idOf("Zebra"), name: "Zebra" },
+            {
+              id: await idOf("Alpha"),
+              name: "Alpha",
+              thumb: "/image/alpha-thumb.webp",
+            },
+            {
+              id: await idOf("Zebra"),
+              name: "Zebra",
+              thumb: "/image/zebra-thumb.webp",
+            },
           ],
         });
       });
@@ -291,7 +304,7 @@ describeWithEnv(
 
       test("serves an empty list when storage is disabled", async () => {
         await makeImage("Hero");
-        const response = await withStorageDisabled(async () =>
+        const response = await withStorageDisabled(() =>
           adminGet("/admin/images/options"),
         );
         expect(response.status).toBe(200);

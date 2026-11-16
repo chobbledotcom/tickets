@@ -24,6 +24,12 @@ export const createButton = (className: string): HTMLButtonElement => {
   return button;
 };
 
+/** Find the CSRF token for the form an element belongs to. */
+export const csrfTokenFor = (element: Element): string =>
+  element
+    .closest("form")
+    ?.querySelector<HTMLInputElement>('input[name="csrf_token"]')?.value ?? "";
+
 /** Run `setUp` for every element in the document that matches `selector`.
  *  Every widget on a page starts this way: find the marked elements, then
  *  enhance each one. */

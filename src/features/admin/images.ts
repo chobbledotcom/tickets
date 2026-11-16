@@ -39,6 +39,7 @@ import {
 } from "#routes/response.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
 import { logImageAction } from "#shared/images/activity.ts";
 import {
   byNameThenUpload,
@@ -298,14 +299,18 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     return adminRedirect("images", {}, t("images.deleted"), true);
   });
 
-/** The image list the editor's image dropdown offers: every image's id and
- * name, in the library's name order. No URLs or thumbnails — the client needs
- * nothing more to insert the short-form reference. */
+/** The image list the editor's image dialog offers: every image's id, name,
+ * and thumbnail URL, in the library's name order. The dialog shows the
+ * thumbnails and stores the short-form img#id reference. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
     const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name }) => ({ id, name }),
+      ({ id, name, filename_thumb }) => ({
+        id,
+        name,
+        thumb: getImageProxyUrl(filename_thumb),
+      }),
     );
     return jsonResponse({ images: options });
   });

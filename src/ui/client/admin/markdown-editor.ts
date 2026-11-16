@@ -51,8 +51,8 @@ export const enhanceMarkdownTextarea = (
   // is exactly what the server validates.
   const maxLength = textarea.maxLength;
 
-  // The image dropdown. Its plugin tears it down with the editor view.
-  const imageItem = createImageToolbarItem();
+  // The image dialog. It lives inside the mount, so it dies with the editor.
+  const imageItem = createImageToolbarItem(textarea, mount);
   const view: EditorView = new EditorView(mount, {
     dispatchTransaction: (tr) => {
       const nextMarkdown = tr.docChanged ? serializeMarkdown(tr.doc) : null;

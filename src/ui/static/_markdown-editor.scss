@@ -49,37 +49,39 @@
   font-style: italic;
 }
 
-.md-image-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 10;
-  /* The caps keep the panel inside the editor box when a long image name
-   * would widen it, or a long library would grow it past the page. */
-  min-width: min(12rem, 100%);
-  max-width: 100%;
-  max-height: 16rem;
+/* The image picker dialog: a thumbnail grid over an upload form, styled on
+ * the preview dialog's shell. */
+.md-image-dialog {
+  width: min(100% - 2 * var(--space-lg), 40rem);
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  padding: var(--space-m);
+}
+
+.md-image-dialog h2 {
+  margin-top: 0;
+}
+
+.md-image-grid {
+  display: grid;
+  gap: var(--space-s);
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  max-height: 50dvh;
   overflow-y: auto;
-  padding: var(--space-s);
-  background: var(--color-bg);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  box-shadow: 0 0.2rem 0.5rem var(--color-shadow);
 }
 
 .md-image-option {
-  display: block;
-  width: 100%;
-  padding: 0.2rem 0.5rem;
-  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  padding: var(--space-s);
+  border: 1px solid var(--color-bg-secondary);
   border-radius: var(--border-radius);
   background: none;
   /* The unified button rule sets text to var(--color-bg): invisible here. */
   color: var(--color-text);
   font: inherit;
-  font-size: 0.85rem;
   text-align: left;
-  /* A name can be 250 characters with no spaces. The panel caps its width,
+  /* A name can be 250 characters with no spaces. The cell caps its width,
    * so without wrapping here the name overflows the viewport. */
   overflow-wrap: anywhere;
   cursor: pointer;
@@ -89,9 +91,34 @@
   background: var(--color-bg-secondary);
 }
 
-.md-image-dropdown-note {
+.md-image-option img {
+  aspect-ratio: 1;
+  border-radius: var(--border-radius);
+  object-fit: cover;
+  width: 100%;
+}
+
+.md-image-note {
   margin: 0;
-  padding: 0.2rem 0.5rem;
   color: var(--color-text-secondary);
   font-size: 0.85rem;
+}
+
+/* The upload form mirrors the images area's stacked label-over-input fields. */
+.md-image-upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  margin-top: var(--space-m);
+  max-width: none;
+  min-width: 0;
+  padding: 0;
+}
+
+.md-image-upload h3 {
+  margin: 0;
+}
+
+.md-image-upload label {
+  width: 100%;
 }
