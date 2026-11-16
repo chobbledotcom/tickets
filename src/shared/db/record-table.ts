@@ -42,7 +42,6 @@ import {
   type InsertOptions,
   insertInto,
   type NewValues,
-  rowsWith,
   update,
   type Write,
 } from "#db/write.ts";

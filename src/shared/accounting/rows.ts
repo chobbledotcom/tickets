@@ -10,7 +10,12 @@
 import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
-import { among, named, type Operand, valued } from "#db/select/expression.ts";
+import {
+  among,
+  type Expr,
+  type Operand,
+  valued,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node, Query } from "#db/select/shape.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
@@ -202,7 +207,8 @@ export const byColumnIn =
     values: readonly (string | number)[],
   ): TransferRead =>
   (ledger) =>
-    ledger.where(() => among(named(column), values));
+    // The column is a text or a number column, as `values` is.
+    ledger.where((leg) => among(leg[column] as Expr<string | number>, values));
 
 const transferStatement = (read: LedgerRead): SqlStatement =>
   read.columns(() => COLUMNS);
