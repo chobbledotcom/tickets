@@ -8,6 +8,7 @@ import type {
 } from "#db/question-types.ts";
 import type { AttendeeQuestionData } from "#db/questions/attendee-answers/reads.ts";
 import type { TokenEntry } from "#routes/tickets/token-utils.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { EmailEntry, EmailListing } from "#shared/email.ts";
 import { signPrice } from "#shared/payment-signature.ts";
 import type { SessionMetadata } from "#shared/payments.ts";
@@ -29,15 +30,7 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   attachment_name: "",
   attachment_url: "",
   bookable_alone: false,
-  bookable_days: [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-  ],
+  bookable_days: [...VALID_DAY_NAMES],
   can_pay_more: false,
   closes_at: null,
   created: "2024-01-01T00:00:00Z",
@@ -65,6 +58,8 @@ export const testListing = (overrides: Partial<Listing> = {}): Listing => ({
   name: "Test Listing",
   non_transferable: false,
   purchase_only: false,
+  recurring_interval: "",
+  recurring_price: 0,
   slug: "ab12c",
   // Hand-crafted fixture stand-in for the stored blind index — test cast.
   slug_index: "test-listing-index" as BlindIndex,
@@ -102,8 +97,13 @@ export const bookingRow = (
   parent_listing_id: 0,
   price_paid: 0,
   quantity: 1,
+  recurring_interval: "",
+  recurring_price: 0,
+  recurring_tax: 0,
   refunded: 0,
   start_at: null,
+  subscription_id: "",
+  subscription_status: "",
   ...overrides,
 });
 

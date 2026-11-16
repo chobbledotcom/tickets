@@ -5,6 +5,7 @@
 import { ledgerLegs, saleLeg } from "#accounting/projection-sql.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import { SUBSCRIPTION_PLAN_COLUMNS } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
 import { attendeeIdOfToken } from "#db/attendees/reads.ts";
@@ -59,6 +60,7 @@ export const listingAttendeeRowColumnsFrom = (
     column("order_token"),
     column("parent_listing_id"),
     column("package_group_id"),
+    ...SUBSCRIPTION_PLAN_COLUMNS.map(column),
   ]);
 };
 

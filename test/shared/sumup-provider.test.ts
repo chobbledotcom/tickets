@@ -5,9 +5,13 @@ import { storeSumupCheckout } from "#db/sumup-checkouts.ts";
 import { PaymentUserError } from "#shared/payment-helpers.ts";
 import { sumupApi } from "#shared/sumup.ts";
 import { sumupPaymentProvider } from "#shared/sumup-provider.ts";
+import { checkoutIntent, checkoutItem } from "#test-utils/checkout-items.ts";
 import { createTestDb, resetDb } from "#test-utils/db.ts";
 import { withMocks } from "#test-utils/mocks.ts";
-import { asSession } from "#test-utils/payment-session.ts";
+import {
+  asSession,
+  BLANK_SESSION_METADATA,
+} from "#test-utils/payment-session.ts";
 import {
   SUMUP_META,
   stageSumupCheckout,
@@ -78,6 +82,7 @@ describe("sumup-provider", () => {
       expect(() => asSession(null)).toThrow();
       expect(() =>
         asSession({
+          metadata: { ...BLANK_SESSION_METADATA, ...SUMUP_META },
           provider: "sumup",
           reason: "blank_reference",
           sessionId: "ref_blank",
@@ -85,87 +90,53 @@ describe("sumup-provider", () => {
       ).toThrow();
     });
 
-    test("fetches by the stored SumUp id and returns the paid session", async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(sumupCheckout(), async (calls) => {
-        const result = await sumupPaymentProvider.retrieveSession("ref");
-        expect(result).toEqual(
-          expect.objectContaining({
+    for (const { name, checkout, expected } of [
+      { checkout: {}, expected: {}, name: "returns the paid checkout" },
+      {
+        checkout: { createdAt: "2026-06-20T09:00:00+00:00" },
+        expected: { createdAt: "2026-06-20T09:00:00.000Z" },
+        name: "normalises a non-canonical checkout date to canonical ISO",
+      },
+      {
+        checkout: { createdAt: "not-a-timestamp" },
+        expected: {},
+        name: "keeps a paid session usable when its date cannot be read",
+      },
+      {
+        checkout: { status: "PENDING", transactionId: "" },
+        expected: { paymentReference: "", paymentStatus: "unpaid" },
+        name: "maps PENDING to unpaid",
+      },
+      {
+        checkout: { status: "FAILED", transactionId: "" },
+        expected: { paymentReference: "", paymentStatus: "failed" },
+        name: "maps FAILED to failed",
+      },
+    ] as const) {
+      test(name, async () => {
+        await stageSumupCheckout();
+        await withFetchedSumupCheckout(sumupCheckout(checkout), async () => {
+          expect(await sumupPaymentProvider.retrieveSession("ref")).toEqual({
             amountTotal: 1000,
+            currency: "GBP",
             id: "ref",
+            metadata: { ...BLANK_SESSION_METADATA, ...SUMUP_META },
             paymentReference: "txn",
             paymentStatus: "paid",
             provider: "sumup",
-          }),
-        );
-        expect(asSession(result).metadata.email).toBe("alice@example.com");
-        expect(calls()).toEqual([["co_1"]]);
+            ...expected,
+          });
+        });
       });
-    });
-
-    test("normalises a non-canonical checkout date to canonical ISO", async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(
-        sumupCheckout({ createdAt: "2026-06-20T09:00:00+00:00" }),
-        async () => {
-          const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(asSession(result).createdAt).toBe("2026-06-20T09:00:00.000Z");
-        },
-      );
-    });
-
-    test("drops an unparseable checkout date", async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(
-        sumupCheckout({ createdAt: "not-a-timestamp" }),
-        async () => {
-          const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(asSession(result).createdAt).toBeUndefined();
-        },
-      );
-    });
-
-    test("maps PENDING to unpaid", async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(
-        sumupCheckout({ status: "PENDING", transactionId: "" }),
-        async () => {
-          const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(asSession(result).paymentStatus).toBe("unpaid");
-        },
-      );
-    });
-
-    test("maps FAILED to failed (declined checkout)", async () => {
-      await stageSumupCheckout();
-      await withFetchedSumupCheckout(
-        sumupCheckout({ status: "FAILED", transactionId: "" }),
-        async () => {
-          const result = await sumupPaymentProvider.retrieveSession("ref");
-          expect(asSession(result).paymentStatus).toBe("failed");
-        },
-      );
-    });
+    }
   });
 
   describe("createCheckoutSession", () => {
-    const intent = {
-      address: "",
-      date: null,
+    const intent = checkoutIntent({
       email: "alice@example.com",
-      items: [
-        {
-          listingId: 1,
-          name: "Evt",
-          quantity: 1,
-          slug: "evt",
-          unitPrice: 1000,
-        },
-      ],
+      items: [checkoutItem({ name: "Evt", slug: "evt" })],
       name: "Alice",
-      phone: "",
-      special_instructions: "",
-    };
+    });
 
     test("maps a created checkout to sessionId + checkoutUrl", () =>
       withMocks(

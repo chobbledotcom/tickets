@@ -61,6 +61,20 @@ export const LISTING_FIELDS = [
   { key: "name", kind: "name", required: true },
   { key: "non_transferable", kind: "switch" },
   { key: "purchase_only", kind: "switch" },
+  // A subscription offer: the recurring price each period, and its interval.
+  // A price of 0 with no interval means the listing takes no subscriptions.
+  {
+    default: "",
+    feature: "subscriptions",
+    key: "recurring_interval",
+    kind: "recurringInterval",
+  },
+  {
+    default: 0,
+    feature: "subscriptions",
+    key: "recurring_price",
+    kind: "price",
+  },
   { key: "thank_you_url", kind: "privateText" },
   { default: 0, key: "unit_price", kind: "price" },
   // On, the fields the operator's listing defaults cover follow the settings

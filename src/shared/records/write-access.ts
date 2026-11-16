@@ -21,6 +21,7 @@ export const closedFieldsFor = (
     features: {
       builder: isBuilderEnabled(),
       logistics: settings.features.logistics,
+      subscriptions: settings.features.subscriptions,
     },
     locks: { demo: isDemoMode(), editor: adminLevel === "editor" },
   });

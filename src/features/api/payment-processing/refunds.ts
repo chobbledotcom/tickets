@@ -23,6 +23,7 @@ import {
 } from "#payment/provider-reference.ts";
 import { refundCallbackReplayIndex } from "#payment/refund-request-identity.ts";
 import {
+  type MalformedRejection,
   paidPaymentReferenceOf,
   type SessionRejection,
 } from "#payment/validated-session.ts";
@@ -34,7 +35,7 @@ import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import { nowMs } from "#shared/now.ts";
 import { sendNtfyError } from "#shared/ntfy.ts";
 import { reportWithheldRefund } from "#shared/payment-review.ts";
-import { parsePriceProof, verifyPrice } from "#shared/payment-signature.ts";
+import { verifiedPriceTotalOrNull } from "#shared/payment-signature.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { addPendingWork } from "#shared/pending-work.ts";
 import { initialRefundState } from "#shared/provider-refunds/state.ts";
@@ -69,55 +70,64 @@ export type RejectionOutcome = {
   returned: ReturnedRejectionReceipt | null;
 };
 
+export type RejectionHandler<
+  Rejection extends SessionRejection = SessionRejection,
+> = (rejection: Rejection) => Promise<RejectionOutcome>;
+
 /** Nothing of ours was captured, so there is nothing to return. */
-const NOTHING_TO_REFUND: RejectionOutcome = {
+export const NOTHING_TO_REFUND: RejectionOutcome = {
   refunded: false,
   returned: null,
   settled: true,
 };
 
+/** A shared Stripe account is not proof that this site owns the checkout. */
+export const ownedRejection =
+  <Rejection extends SessionRejection>(
+    run: RejectionHandler<Rejection>,
+  ): RejectionHandler<Rejection> =>
+  async (rejection) => {
+    if ((await verifiedPriceTotalOrNull(rejection.metadata)) === null) {
+      return NOTHING_TO_REFUND;
+    }
+    return run(rejection);
+  };
+
 /**
  * Refund a paid charge the provider boundary could not read, when its
  * reference is usable. A blank-reference rejection names no charge to refund.
  */
-export const refundRejectedCharge = async (
-  rejection: SessionRejection,
-): Promise<RejectionOutcome> => {
+export const refundRejectedCharge: RejectionHandler = (rejection) => {
   if (rejection.reason === "blank_reference" || !rejection.refundable) {
-    return NOTHING_TO_REFUND;
+    return Promise.resolve(NOTHING_TO_REFUND);
   }
-  // Refund only a charge we can prove is ours: the price proof in the metadata
-  // is signed with this instance's key, so a session belonging to another
-  // instance sharing the provider account verifies false and its charge is
-  // left alone.
-  const parsed = parsePriceProof(rejection.metadata.price_proof);
-  if (
-    parsed === null ||
-    !(await verifyPrice(rejection.metadata, parsed.total, parsed.sig))
-  ) {
-    return NOTHING_TO_REFUND;
-  }
-  // The verified proof establishes ownership, but the refund amount comes from a
-  // fresh provider read: malformed charges may have captured a different sum.
-  const result = await requestProviderRefund({
-    callbackSessionId: rejection.sessionId,
-    evidence: { kind: "read_provider" },
-    mode: "send",
-    reference: taggedPaymentReference(
-      rejection.provider,
-      rejection.paymentReference,
-    ),
-  });
-  const refunded = providerRefundReturned(result);
-  return {
-    refunded,
-    returned:
-      result.kind === "returned"
-        ? { authority: result.authority, local: result.local }
-        : null,
-    settled: refunded,
-  };
+  return refundOwnedCharge(rejection);
 };
+
+const refundOwnedCharge = ownedRejection(
+  async (rejection: MalformedRejection) => {
+    // The verified proof establishes ownership, but the refund amount comes from a
+    // fresh provider read: malformed charges may have captured a different sum.
+    const result = await requestProviderRefund({
+      callbackSessionId: rejection.sessionId,
+      evidence: { kind: "read_provider" },
+      mode: "send",
+      reference: taggedPaymentReference(
+        rejection.provider,
+        rejection.paymentReference,
+      ),
+    });
+    const refunded = providerRefundReturned(result);
+    return {
+      refunded,
+      returned:
+        result.kind === "returned"
+          ? { authority: result.authority, local: result.local }
+          : null,
+      settled: refunded,
+    };
+  },
+);
 
 type RefundLogContext = {
   listingId?: number | undefined;
@@ -266,17 +276,22 @@ export const refundAndFail = async (
  * since the webhook may be intended for a different instance sharing the same
  * payment provider account. For known-listing failures (inactive, closed),
  * refund so the customer gets their money back.
+ * Subscription failures defer their refund to the stored-placeholder path,
+ * which must keep the plan and stop future charges first.
  */
 export const validationFailure = (
   session: ValidatedPaymentSession,
   validation: { error: string; status?: number },
   listingId: number,
 ): Promise<PaymentFailureResult> | PaymentFailureResult => {
-  if (validation.status === 404) {
+  if (validation.status === 404 || session.subscription !== undefined) {
     return {
-      detail: `Post-payment listing not found (session=${session.id})`,
+      detail:
+        validation.status === 404
+          ? `Post-payment listing not found (session=${session.id})`
+          : `Post-payment listing refused (session=${session.id}): ${validation.error}`,
       error: validation.error,
-      status: 404,
+      status: validation.status,
       success: false,
     };
   }

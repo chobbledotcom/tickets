@@ -71,13 +71,20 @@ describe("listingToFieldValues", () => {
     expect(values.hidden).toBe("");
   });
 
-  test("a free or one-penny price still fills the box, since a blank box is refused", () => {
+  test("a money box types its price, and a free recurring price stays empty", () => {
     expect(
-      [0, 1].map(
+      [0, 1, 500].map(
         (unit_price) =>
           listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
       ),
-    ).toEqual(["0.00", "0.01"]);
+    ).toEqual(["0.00", "0.01", "5.00"]);
+    expect(
+      [0, 1, 500].map(
+        (recurring_price) =>
+          listingToFieldValues(testListingWithCount({ recurring_price }))
+            .recurring_price,
+      ),
+    ).toEqual(["", "0.01", "5.00"]);
   });
 
   test("carries a dated listing's own day in the datetime box's shape", () => {

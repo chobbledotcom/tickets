@@ -37,6 +37,11 @@ export const isPaymentsEnabled = (): boolean => {
   return provider !== null && paymentProviderHasCredentials(provider);
 };
 
+/** The provider that takes payment for a sale, or null when the site takes no
+ * payment. Null is the documented answer for a provider-less site. */
+export const saleProviderOrNull = (): PaymentProviderType | null =>
+  isPaymentsEnabled() ? settings.paymentProvider : null;
+
 /**
  * Get booking fee percentage from database.
  * Returns 0 if not set.

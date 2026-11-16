@@ -8,6 +8,7 @@
  */
 
 import { requiredMapValue } from "#fp";
+import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 import type { DayPrices, ListingFields, ListingType } from "#types";
 
@@ -24,13 +25,14 @@ export type FieldKind =
   | "optionalDatetime"
   | "price"
   | "privateText"
+  | "recurringInterval"
   | "switch"
   | "text"
   | "weekdays";
 
 /** The site features that a field can need. With the feature off, every
  *  write refuses the field. */
-export type Feature = "builder" | "logistics";
+export type Feature = "builder" | "logistics" | "subscriptions";
 
 /** The writers that a field can be locked against. */
 export type Lock = "demo" | "editor";
@@ -90,6 +92,7 @@ export type StoredValue = {
   optionalDatetime: string | null;
   price: number;
   privateText: string;
+  recurringInterval: RecurringIntervalChoice;
   switch: boolean;
   text: string;
   weekdays: string[];
@@ -176,6 +179,7 @@ const CLOSED_REFUSALS: Record<ClosedReason, (key: string) => string> = {
   demo: (key) => `${key} cannot be set in the demo`,
   editor: (key) => `editors cannot set ${key}`,
   logistics: (key) => `${key} needs logistics turned on`,
+  subscriptions: (key) => `${key} needs subscriptions turned on`,
 };
 
 /** The refusal for the first closed field that the values supply. Null

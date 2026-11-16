@@ -1,7 +1,11 @@
 /** Core schema tables: system config, auth, listings, assets, rate limits. */
 
 import { sql } from "#db/sql.ts";
-import { datedRowColumns, itemLinkColumns } from "./columns.ts";
+import {
+  datedRowColumns,
+  itemLinkColumns,
+  recurringOfferColumns,
+} from "./columns.ts";
 import {
   checked,
   defaulted,
@@ -75,6 +79,7 @@ export const coreTables = declaredTables([
         ["max_attendees", wholeNumber],
         ["thank_you_url", textOrNull],
         ["unit_price", wholeNumberOrNull],
+        ...recurringOfferColumns,
         ["max_quantity", wholeNumberStartingAtOne],
         ["min_quantity", wholeNumberStartingAtOne],
         ["webhook_url", textOrNull],

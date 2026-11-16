@@ -15,6 +15,7 @@ import {
   type FieldSpecs,
   type StoredValue,
 } from "#shared/rest/field-specs.ts";
+import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import { clampDurationDays, DayPricesSchema, type ListingType } from "#types";
 
 /** What a kind's column builder reads: the field, its table's name for
@@ -129,6 +130,8 @@ const KIND_COLUMNS: {
   ),
   price: ({ field }) => declaredDefault<number>(field),
   privateText: ({ decrypt, encrypt }) => col.encryptedText(encrypt, decrypt),
+  recurringInterval: ({ field }) =>
+    declaredDefault<RecurringIntervalChoice>(field),
   switch: ({ field }) => col.boolean(field.default === true),
   text: () => col.simple<string>(),
   weekdays: (context) =>

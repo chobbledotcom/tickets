@@ -52,6 +52,7 @@ import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
 import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
+import { recurringPlanError } from "#shared/subscriptions/listing-rules.ts";
 import { validateSafeServerFetchUrl } from "#shared/url-safety.ts";
 import {
   availableDayCounts,
@@ -319,7 +320,8 @@ export const validateListingInput = async (
       input.webhookUrl,
       "Webhook URL must be a public https:// domain",
     ) ??
-    validateRenewalConfig(input)
+    validateRenewalConfig(input) ??
+    recurringPlanError(input)
   );
 };
 
@@ -459,9 +461,8 @@ export const toggleListingActive = async (
       }
       // Every table on the transactional write path carries updateStatement
       // (see the record's write path), so the toggle's row write joins the
-      // guard's tx. The
-      // price mirror and the activity log join it too: a failure in either
-      // rolls the toggle back, so a retry re-runs all three.
+      // guard's tx. The price mirror and the activity log join it too: a
+      // failure in either rolls the toggle back, so a retry re-runs all three.
       await tx.execute(
         await listingsTable.updateStatement!(listingId, { active }),
       );

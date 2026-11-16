@@ -40,6 +40,7 @@ const FIELD_KINDS: Record<FieldKind, true> = {
   optionalDatetime: true,
   price: true,
   privateText: true,
+  recurringInterval: true,
   switch: true,
   text: true,
   weekdays: true,

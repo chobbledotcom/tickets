@@ -11,6 +11,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
+import { featureSetting, withSetting } from "#test-utils/settings.ts";
 
 describeWithEnv("Admin API - Listings", { db: true }, () => {
   describe("bodyToCreateInput", () => {
@@ -189,12 +190,23 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           // The fields the body left out read as their declared defaults.
           assignBuiltSite: false,
           purchaseOnly: false,
+          recurringInterval: "",
           usesLogistics: false,
         });
         expect(slug).toMatch(/^[0-9a-h]{5}$/);
         expect(slugIndex).toHaveLength(44);
       }
     });
+
+    test("accepts the stored blank frequency while subscriptions are on", () =>
+      withSetting(featureSetting("subscriptions"), async () => {
+        const value = requireSuccess(
+          await bodyToCreateInput(
+            listingBody("Ordinary", { recurring_interval: "" }),
+          ),
+        );
+        expect(value.recurringInterval).toBe("");
+      }));
 
     test("defaults max_price to zero", async () => {
       const value = requireSuccess(

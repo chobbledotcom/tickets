@@ -1,3 +1,4 @@
+import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -28,6 +29,21 @@ import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
 import type { ListingCapacityRow } from "./types.ts";
 
+/** The plan columns a subscription row writes. An ordinary row writes none
+ * and keeps the column defaults. */
+const subscriptionPlanColumns = (
+  plan: ListingBooking["subscription"],
+): [column: string, value: InValue][] =>
+  plan === undefined
+    ? []
+    : [
+        ["recurring_price", plan.amount],
+        ["recurring_tax", plan.tax],
+        ["recurring_interval", plan.interval],
+        ["subscription_id", plan.id],
+        ["subscription_status", plan.status],
+      ];
+
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
  * no places, so it can land on a full or inactive listing too. By default it
@@ -51,8 +67,15 @@ export const buildCapacityCheckedInsert = (
     packageGroupId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const insertSelect = sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id)
-          SELECT ${listingId}, ${attendeeId}, ${startAt}, ${endAt}, ${quantity}, ${orderToken}, ${parentListingId}, ${packageGroupId}`;
+  const plan = subscriptionPlanColumns(booking.subscription);
+  /** The SQL that follows the base column list or value list when the row
+   * carries a plan. */
+  const planSuffix = (parts: readonly SqlStatement[]): SqlStatement =>
+    parts.length === 0 ? sql`` : sql`, ${sqlCommas(parts)}`;
+  const planColumns = planSuffix(plan.map(([column]) => sqlName(column)));
+  const planValues = planSuffix(plan.map(([, value]) => sql`${value}`));
+  const insertSelect = sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id${planColumns})
+          SELECT ${listingId}, ${attendeeId}, ${startAt}, ${endAt}, ${quantity}, ${orderToken}, ${parentListingId}, ${packageGroupId}${planValues}`;
   const guardedBy = (condition: SqlStatement): SqlStatement =>
     sql`${insertSelect}\n          WHERE ${
       extraCondition === undefined

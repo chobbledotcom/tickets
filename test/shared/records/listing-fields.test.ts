@@ -12,12 +12,13 @@ import {
 
 /** A writer on a site with the given features off and the given locks on. */
 const accessOf = (
-  off: readonly ("builder" | "logistics")[],
+  off: readonly ("builder" | "logistics" | "subscriptions")[],
   on: readonly ("demo" | "editor")[],
 ): WriteAccess => ({
   features: {
     builder: !off.includes("builder"),
     logistics: !off.includes("logistics"),
+    subscriptions: !off.includes("subscriptions"),
   },
   locks: { demo: on.includes("demo"), editor: on.includes("editor") },
 });
@@ -53,6 +54,14 @@ const LISTING_CASES: [string, WriteAccess, [string, ClosedReason][]][] = [
     "logistics off closes the logistics switch",
     accessOf(["logistics"], []),
     [["uses_logistics", "logistics"]],
+  ],
+  [
+    "subscriptions off closes the recurring offer fields",
+    accessOf(["subscriptions"], []),
+    [
+      ["recurring_interval", "subscriptions"],
+      ["recurring_price", "subscriptions"],
+    ],
   ],
   [
     "an editor cannot set the bookable state, the defaults switch, or the webhook",

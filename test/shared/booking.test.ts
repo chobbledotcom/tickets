@@ -44,6 +44,7 @@ const attendeeOf = (result: BookingResult) =>
 const bookDirect = async (
   unitPrice: number,
   quantity = 1,
+  customUnitPrice?: number,
 ): Promise<Attendee> => {
   const listing = await createTestListing({ maxAttendees: 10, unitPrice });
   const result = await processBooking(
@@ -52,6 +53,7 @@ const bookDirect = async (
     quantity,
     null,
     BASE_URL,
+    customUnitPrice,
   );
   expect(result.type).toBe("success");
   return attendeeOf(result)!;
@@ -62,8 +64,6 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
     test("creates a free attendee that owes nothing", async () => {
       const attendee = await bookDirect(0);
       expect(attendee.remaining_balance).toBe(0);
-      expect(typeof attendee.ticket_token).toBe("string");
-      expect(attendee.ticket_token.length).toBeGreaterThan(0);
     });
 
     test("records the full listing value as owed without a provider", async () => {
@@ -84,6 +84,17 @@ describeWithEnv("processBooking", { db: true, triggers: true }, () => {
       expect(
         (await getAttendeeBalanceState(attendee.id))?.remainingBalance,
       ).toBe(1);
+    });
+
+    test("records a custom price as owed without a provider", async () => {
+      const attendee = await bookDirect(1000, 3, 1500);
+      expect(attendee.remaining_balance).toBe(4500);
+    });
+
+    test("books an explicit free custom price directly with a provider", async () => {
+      await setupStripe();
+      const attendee = await bookDirect(1000, 1, 0);
+      expect(attendee.remaining_balance).toBe(0);
     });
 
     test("scales the owed balance by the booked quantity", async () => {

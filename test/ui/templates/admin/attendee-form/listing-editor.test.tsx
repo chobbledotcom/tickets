@@ -1,7 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { beforeAll, describe, it as test } from "@std/testing/bdd";
-import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import type {
   AttendeeFormLine,
   ParsedAttendeeForm,
@@ -12,26 +11,8 @@ import type { AttendeeFormTemplateData } from "#templates/admin/attendee-form/ty
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { attendeeFormLine } from "#test-utils/attendee-form-factories.ts";
-import { testListingWithCount } from "#test-utils/factories.ts";
+import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
 import { formData } from "./fixtures.ts";
-
-const booking = (
-  overrides: Partial<ListingAttendeeRow> = {},
-): ListingAttendeeRow => ({
-  attachment_downloads: 0,
-  checked_in: 0,
-  end_at: null,
-  ledger_event_group: "",
-  listing_id: 1,
-  order_token: "",
-  package_group_id: 0,
-  parent_listing_id: 0,
-  price_paid: 0,
-  quantity: 1,
-  refunded: 0,
-  start_at: null,
-  ...overrides,
-});
 
 const parsed = (lines: AttendeeFormLine[]): ParsedAttendeeForm => ({
   address: "",
@@ -182,7 +163,7 @@ describe("ListingEditor", () => {
   });
 
   test("keeps a paid daily booking visible with its notices", () => {
-    const existingBooking = booking({
+    const existingBooking = bookingRow({
       checked_in: 1,
       end_at: "2026-07-03T00:00:00Z",
       price_paid: 1500,
@@ -210,7 +191,7 @@ describe("ListingEditor", () => {
             bookedLine,
             attendeeFormLine({ key: "s", quantity: 1 }),
             attendeeFormLine({
-              existingBooking: booking(),
+              existingBooking: bookingRow(),
               key: "p",
               packageGroupId: 10,
               quantity: 1,

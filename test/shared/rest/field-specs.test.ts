@@ -32,28 +32,16 @@ describe("field specs", () => {
   });
 
   test("byFieldKind builds one value per field from its kind", () => {
-    const lengths = {
-      contactFields: 13,
-      count: 5,
-      date: 10,
-      datetime: 8,
-      dayPrices: 9,
-      durationDays: 12,
-      listingType: 11,
-      name: 1,
-      optionalDatetime: 16,
-      price: 5,
-      privateText: 11,
-      switch: 0,
-      text: 2,
-      weekdays: 8,
-    } as const satisfies Record<FieldKind, number>;
     expect(
-      byFieldKind<typeof FIELDS, typeof lengths>(
-        FIELDS,
-        (field) => lengths[field.kind],
+      byFieldKind<typeof FIELDS, Record<FieldKind, string>>(FIELDS, (field) =>
+        field.kind.toUpperCase(),
       ),
-    ).toEqual({ is_public: 0, name: 1, note: 2, start_date: 10 });
+    ).toEqual({
+      is_public: "SWITCH",
+      name: "NAME",
+      note: "TEXT",
+      start_date: "DATE",
+    });
   });
 
   test("a field closes for its feature turned off and for each writer it locks out", () => {
@@ -63,7 +51,7 @@ describe("field specs", () => {
       logistics: boolean,
     ): [string, string][] => [
       ...closedFields(FIELDS, {
-        features: { builder: true, logistics },
+        features: { builder: true, logistics, subscriptions: true },
         locks: { demo, editor },
       }),
     ];
@@ -87,6 +75,7 @@ describe("field specs", () => {
       ["webhook_url", "demo"],
       ["active", "editor"],
       ["uses_logistics", "logistics"],
+      ["recurring_price", "subscriptions"],
     ] as const);
     const refusal = (key: string) => closedFieldErrorOrNull(closed, [key]);
 
@@ -95,6 +84,7 @@ describe("field specs", () => {
       refusal("webhook_url"),
       refusal("active"),
       refusal("uses_logistics"),
+      refusal("recurring_price"),
       refusal("name"),
       closedFieldErrorOrNull(closed, ["name", "active", "webhook_url"]),
     ]).toEqual([
@@ -102,6 +92,7 @@ describe("field specs", () => {
       "webhook_url cannot be set in the demo",
       "editors cannot set active",
       "uses_logistics needs logistics turned on",
+      "recurring_price needs subscriptions turned on",
       null,
       "editors cannot set active",
     ]);
