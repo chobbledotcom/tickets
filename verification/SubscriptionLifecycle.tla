@@ -43,7 +43,7 @@ VARIABLES
 
 \* The producer lists each expected move before it runs that command, and
 \* each move keeps its position in that list. The count here and the position
-\* law in InspectStep mean that no move is absent and none has two results.
+\* law in CommandStep mean that no move is absent and none has two results.
 \* The witness lines require that the important results exist at all.
 Coverage ==
   /\ Statuses = LiveStatuses \cup EndedStatuses
@@ -125,30 +125,30 @@ ProviderStep ==
   /\ paid' \in {paid, 1}
   /\ UNCHANGED <<stored, recorded, movesSafe>>
 
-\* One real command runs against the current state. The fact must start from
-\* that state, and its stored result becomes the next state. The integer
-\* choice permits every fact. Paged row lookup bounds the symbolic choices.
-CommandStep ==
-  \E index \in MovesIndices :
-    LET m == MovesAt(index) IN
-    /\ m.stored = stored /\ m.provider = provider
-    /\ m.paid = paid /\ m.recorded = recorded
-    /\ stored' = m.storedAfter /\ provider' = m.providerAfter
-    /\ recorded' = m.recordedAfter /\ paid' = paid
-    /\ UNCHANGED movesSafe
+\* The fact starts from the current state.
+\* @type: ($movesFact) => Bool;
+StartsHere(m) ==
+  /\ m.stored = stored /\ m.provider = provider
+  /\ m.paid = paid /\ m.recorded = recorded
 
-\* Any fact can be read, from any state, so no start state hides a bad
-\* result. The fact must sit at its own position in the expected list.
-InspectStep ==
+\* The checker reads one fact. Any fact can be read from any state, so no
+\* start state hides a bad result. The fact must sit at its own position in
+\* the expected list. When the fact starts from the current state, its real
+\* command runs: the stored result becomes the next state. The integer choice
+\* permits every fact. Paged row lookup bounds the symbolic choices.
+CommandStep ==
   \E index \in MovesIndices :
     LET m == MovesAt(index) IN
     /\ movesSafe' =
          ChecksStillPass(movesSafe, m.position = index /\ MoveLaw(m))
-    /\ UNCHANGED <<stored, provider, paid, recorded>>
+    /\ stored' = (IF StartsHere(m) THEN m.storedAfter ELSE stored)
+    /\ provider' = (IF StartsHere(m) THEN m.providerAfter ELSE provider)
+    /\ recorded' = (IF StartsHere(m) THEN m.recordedAfter ELSE recorded)
+    /\ paid' = paid
 
-\* Next permits a Stripe change, a command, a read of one fact, or a pause.
-\* No fairness rule requires a check to run. This is safety, not completion.
-Next == ProviderStep \/ CommandStep \/ InspectStep \/
+\* Next permits a Stripe change, a command, or a pause. No fairness rule
+\* requires a check to run. This is safety, not completion.
+Next == ProviderStep \/ CommandStep \/
         UNCHANGED <<stored, provider, paid, recorded, movesSafe>>
 
 \* Limits: one row, one month plan of 600 with no tax, at most one renewal,
