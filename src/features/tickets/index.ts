@@ -41,7 +41,7 @@ const buildTicketCard = async (
   token: string,
   modifiers: readonly ModifierLine[],
 ): Promise<TicketCard> => {
-  const attachmentUrl = entry.listing.attachment_url
+  const attachmentUrl = entry.listing.attachmentUrl
     ? await signAttachmentUrl(entry.listing.id, entry.attendee.id)
     : undefined;
   return {

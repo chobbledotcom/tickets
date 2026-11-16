@@ -76,7 +76,7 @@ export const addAnswerWithLog = async (
 ): Promise<void> => {
   await addAnswerRow(
     questionId,
-    { question_id: questionId, sort_order: 0, text },
+    { questionId, sortOrder: 0, text },
     (transaction) =>
       logActivity(
         `Answer '${text}' added to question ${questionId}`,

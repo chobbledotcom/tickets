@@ -29,7 +29,7 @@ export type ServicingCreateInput = {
 
 export type ServicingListingForForm = Pick<
   ListingWithCount,
-  "id" | "listing_type" | "max_quantity"
+  "id" | "listingType" | "maxQuantity"
 > &
   Partial<ListingWithCount>;
 
@@ -87,7 +87,7 @@ export const normalizeServicingForSave = (
   parsed: ParsedAttendeeForm,
 ): ServicingCreateInput => {
   const hasDailyBooking = parsed.lines.some(
-    (line) => isBookedLine(line) && line.listing?.listing_type === "daily",
+    (line) => isBookedLine(line) && line.listing?.listingType === "daily",
   );
   if (hasDailyBooking && !isIsoDate(parsed.startDate)) {
     throw new Error(t("servicing.error.daily_start_date"));

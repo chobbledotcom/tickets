@@ -16,7 +16,7 @@ export const attendeeTaxSaveWork = async (
 ): Promise<AttendeeEditWork> => ({
   after: [
     ...plan.after,
-    update(tables.attendees, { status_id: statusId }).where({ id: attendeeId }),
+    update(tables.attendees, { statusId }).where({ id: attendeeId }),
     ...(!hasRealLine
       ? await writeoffAdjustmentInserts(
           [

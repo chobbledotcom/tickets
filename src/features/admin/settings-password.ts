@@ -78,10 +78,10 @@ export const handleAdminSettingsPost = settingsRoute(
 
     const success = await settings.updateUserPassword(session.userId, {
       newPassword: validation.newPassword,
-      oldKekVersion: user.kek_version,
+      oldKekVersion: user.kekVersion,
       oldPassword: validation.currentPassword,
       oldPasswordHash: passwordHash,
-      oldWrappedDataKey: user.wrapped_data_key!,
+      oldWrappedDataKey: user.wrappedDataKey!,
     });
     if (!success) {
       return errorPage(t("error.password_update_failed"), "settings-password");

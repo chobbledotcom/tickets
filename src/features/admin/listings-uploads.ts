@@ -173,6 +173,6 @@ const handleFileDelete = (
 /** Handle POST /admin/listing/:id/attachment/delete (delete listing attachment) */
 export const handleAttachmentDelete = handleFileDelete(
   "Attachment",
-  (e) => e.attachment_url,
+  (e) => e.attachmentUrl,
   { attachmentName: "", attachmentUrl: "" },
 );

@@ -53,8 +53,8 @@ const storedText = (
   existing: SitePage | null,
 ): Record<keyof typeof FIELD_LABELS, string> => ({
   content: existing?.content ?? "",
-  meta_description: existing?.meta_description ?? "",
-  meta_title: existing?.meta_title ?? "",
+  meta_description: existing?.metaDescription ?? "",
+  meta_title: existing?.metaTitle ?? "",
 });
 
 /** One writable text field, cleaned the way the form cleans it. A value past
@@ -193,7 +193,7 @@ const dropCurrentEdgeThen =
     next: (tx: TxScope) => Promise<boolean>,
   ) =>
   async (tx: TxScope): Promise<boolean> => {
-    if (edge) await removePageItem(edge.page_id, "page", pageId, tx);
+    if (edge) await removePageItem(edge.pageId, "page", pageId, tx);
     return next(tx);
   };
 
@@ -210,7 +210,7 @@ export const planParentChange = async (
   raw: unknown,
 ): Promise<Result<(tx: TxScope) => Promise<boolean>>> => {
   const currentEdge = (await getAllPageItems()).find(
-    (item) => item.item_type === "page" && item.item_id === page.id,
+    (item) => item.itemType === "page" && item.itemId === page.id,
   );
   if (raw === null) {
     return okResult(

@@ -151,7 +151,7 @@ export const addAttributeOptionWithLog = async (
 ): Promise<void> => {
   await addOptionRow(
     attribute.id,
-    { attribute_id: attribute.id, sort_order: 0, text },
+    { attributeId: attribute.id, sortOrder: 0, text },
     (transaction) =>
       logAttributeOptionActivity(text, "added to", attribute, transaction),
   );

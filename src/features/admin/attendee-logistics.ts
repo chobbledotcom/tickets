@@ -125,7 +125,7 @@ const deliveredBookedLines = (lines: AttendeeFormLine[]): AttendeeFormLine[] =>
       (line) =>
         !isNoQuantityLine(line) &&
         (isBookedLine(line) || Boolean(line.existingBooking)) &&
-        Boolean(line.listing?.uses_logistics),
+        Boolean(line.listing?.usesLogistics),
     ),
   );
 

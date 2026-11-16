@@ -98,18 +98,18 @@ const optInAddOnsByGroupId = async (
         equal(link.modifier.active, 1),
         equal(link.modifier.trigger, "optional"),
         equal(link.modifier.scope, "groups"),
-        among(link.group_id, groupIds),
+        among(link.groupId, groupIds),
       ])
       .select((link) => ({
-        group_id: link.group_id,
-        modifier_id: link.modifier.id,
+        groupId: link.groupId,
+        modifierId: link.modifier.id,
         name: link.modifier.name,
       })),
   );
   for (const row of rows) {
-    const optIns = groupOptIns(byGroup, row.group_id);
-    optIns.addOns.push({ id: row.modifier_id, name: row.name });
-    optIns.addOnIds.add(row.modifier_id);
+    const optIns = groupOptIns(byGroup, row.groupId);
+    optIns.addOns.push({ id: row.modifierId, name: row.name });
+    optIns.addOnIds.add(row.modifierId);
   }
   return byGroup;
 };
@@ -253,8 +253,8 @@ export const groupViewOf = (
       "Referenced group missing",
     );
     return {
-      hidePackageListings: row.hide_package_listings,
-      isPackage: row.is_package,
+      hidePackageListings: row.hidePackageListings,
+      isPackage: row.isPackage,
     };
   }
   const body = bundleGroupOf(ref, context).group;

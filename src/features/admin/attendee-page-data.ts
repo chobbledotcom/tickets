@@ -132,7 +132,7 @@ export type PackagePath = {
  * order. Members are the package's CURRENT listings. A package with no
  * members offers nothing. */
 export const loadPackagePaths = async (): Promise<PackagePath[]> => {
-  const packages = (await groups.getAll()).filter((group) => group.is_package);
+  const packages = (await groups.getAll()).filter((group) => group.isPackage);
   const { members: membersByGroupId, more: priceRowsByGroupId } =
     await readGroupMembersWith(
       packages,
@@ -443,7 +443,7 @@ const assembleTemplateData = (
     // lines cover every active listing plus any inactive one this attendee
     // already books. A daily line here is exactly when the dates matter.
     hasDailyListings: parsed.lines.some(
-      (l) => l.listing?.listing_type === "daily",
+      (l) => l.listing?.listingType === "daily",
     ),
     hasMixedTimings: opts.hasMixedTimings ?? false,
     lineWarnings: warnings.byListing,

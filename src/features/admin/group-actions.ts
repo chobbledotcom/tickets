@@ -244,7 +244,7 @@ const handleDuplicateGroupPost = groupFormPost(
         );
         return {
           input: await buildDuplicateListingInput(stored, {
-            closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+            closesAt: shiftUtcIsoByDays(stored.closesAt ?? "", dayOffset),
             date: shiftUtcIsoByDays(stored.date, dayOffset),
             name: applyNameReplacement(stored.name, nameFind, nameReplace),
           }),
@@ -271,7 +271,7 @@ const handleDuplicateGroupPost = groupFormPost(
 
     const memberBySource = new Map(
       (await getGroupPackagePrices(group.id)).map((row) => [
-        row.listing_id,
+        row.listingId,
         row,
       ]),
     );
@@ -287,14 +287,14 @@ const handleDuplicateGroupPost = groupFormPost(
     const groupInsert = await records.groups.insertStatement({
       description: group.description,
       hidden: group.hidden,
-      hide_package_listings: group.hide_package_listings,
-      is_package: group.is_package,
-      max_attendees: group.max_attendees,
+      hidePackageListings: group.hidePackageListings,
+      isPackage: group.isPackage,
+      maxAttendees: group.maxAttendees,
       name: newName,
-      show_hidden_listings: group.show_hidden_listings,
+      showHiddenListings: group.showHiddenListings,
       slug,
-      slug_index: slugIndex,
-      terms_and_conditions: group.terms_and_conditions,
+      slugIndex,
+      termsAndConditions: group.termsAndConditions,
     });
     const cloneInserts = await Promise.all(
       cloneInputs.map(({ input }) =>
@@ -326,7 +326,7 @@ const handleDuplicateGroupPost = groupFormPost(
     );
     const newGroupId = duplicated.id;
     const idBySlugIndex = new Map(
-      (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
+      (await getListingsByGroupId(newGroupId)).map((l) => [l.slugIndex, l.id]),
     );
     // The batch wrote the clones, not createListing. Sync their `base` price
     // rows here, or a priced clone has no base row until an edit.
@@ -372,7 +372,7 @@ const handleDuplicateGroupPost = groupFormPost(
             sourceId,
             `Cloned listing ${sourceId} missing`,
           ),
-          price: row.package_price,
+          price: row.packagePrice,
         })),
       ),
       ...groupDayPriceStatements(

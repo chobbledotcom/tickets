@@ -29,10 +29,8 @@ const listingPriceLabel = (l: ListingWithCount): string => {
   if (dayPrices.length > 0) {
     return priceRange(Math.min(...dayPrices), Math.max(...dayPrices));
   }
-  if (l.can_pay_more) return priceRange(l.unit_price, l.max_price);
-  return l.unit_price > 0
-    ? toMajorUnits(l.unit_price)
-    : t("listings_table.free");
+  if (l.canPayMore) return priceRange(l.unitPrice, l.maxPrice);
+  return l.unitPrice > 0 ? toMajorUnits(l.unitPrice) : t("listings_table.free");
 };
 
 /** Ordered listing CSV columns. Built per call so the active locale applies. */
@@ -46,9 +44,9 @@ const listingColumns = (tz: string): Column<ListingWithCount>[] => [
     header: t("csv.col.type"),
     value: (l) => listingFilterLabel(listingCategory(l)),
   },
-  { header: t("csv.col.attendees"), value: (l) => String(l.attendee_count) },
-  { header: t("csv.col.capacity"), value: (l) => String(l.max_attendees) },
-  { header: t("csv.col.tickets"), value: (l) => String(l.tickets_count) },
+  { header: t("csv.col.attendees"), value: (l) => String(l.attendeeCount) },
+  { header: t("csv.col.capacity"), value: (l) => String(l.maxAttendees) },
+  { header: t("csv.col.tickets"), value: (l) => String(l.ticketsCount) },
   { header: t("csv.col.revenue"), value: (l) => toMajorUnits(l.income) },
   { header: t("csv.col.price"), value: listingPriceLabel },
   {

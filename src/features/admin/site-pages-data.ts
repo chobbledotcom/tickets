@@ -79,7 +79,7 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
   ]);
   // The page's own items are a filter over the already-loaded edge set (same
   // (sort_order, item_id) ordering as the per-page query) — not a fifth read.
-  const pageItems = allItems.filter((i) => i.page_id === page.id);
+  const pageItems = allItems.filter((i) => i.pageId === page.id);
   const forest = buildForest(navRows, allItems);
   const pageById = fieldById("name")(navRows);
   const label = (type: SitePageItemType, id: number): string => {
@@ -91,9 +91,9 @@ export const buildEditModel = async (page: SitePage): Promise<EditModel> => {
     return lookup[type] ?? t("site.pages.item_missing");
   };
   const items: ResolvedItem[] = pageItems.map((i) => ({
-    id: i.item_id,
-    label: label(i.item_type, i.item_id),
-    type: i.item_type,
+    id: i.itemId,
+    label: label(i.itemType, i.itemId),
+    type: i.itemType,
   }));
   const opt = (id: number, name: string): PickerOption => ({
     label: name,

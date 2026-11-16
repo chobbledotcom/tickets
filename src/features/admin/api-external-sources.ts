@@ -47,6 +47,7 @@ import { withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { externalSourceRecord } from "#shared/records/external-sources.ts";
 import {
@@ -142,15 +143,17 @@ const parseLinkFilter = (
     : errorResult(target.error);
 };
 
-/** One link as a response carries it: its sealed index stays in the database,
- *  and its address is filled from the source's pattern. */
+/** One link as a response carries it, under its column names: its sealed
+ *  index stays in the database, and its address is filled from the source's
+ *  pattern. */
 const toLinkResponse = (
-  { external_id_index: _index, ...link }: ExternalSourceLink,
+  { externalIdIndex: _index, ...link }: ExternalSourceLink,
   pattern: string,
-): Omit<ExternalSourceLink, "external_id_index"> & { url: string | null } => ({
-  ...link,
-  url: externalLinkUrl(pattern, link.external_id),
-});
+) =>
+  snakeCaseKeys({
+    ...link,
+    url: externalLinkUrl(pattern, link.externalId),
+  });
 
 /** The parent gate every link route runs. The read pins to the primary, so a
  *  link created right after its source can always see the source. */
@@ -200,7 +203,7 @@ const handleLinkList = underSource(async ({ request, source }) => {
   if (!filter.ok) return apiErrorResponse(filter.error);
   const links = await listExternalSourceLinks(source.id, filter.value);
   return jsonResponse({
-    links: links.map((link) => toLinkResponse(link, source.url_pattern)),
+    links: links.map((link) => toLinkResponse(link, source.urlPattern)),
   });
 });
 
@@ -218,7 +221,7 @@ const toSourceLinkResponse = (
   link: ExternalSourceLink,
   source: ExternalSource,
 ) => ({
-  ...toLinkResponse(link, source.url_pattern),
+  ...toLinkResponse(link, source.urlPattern),
   source_name: source.name,
 });
 
@@ -239,7 +242,7 @@ const handleLinkSearch = ownerRead(async (params) => {
         link,
         requiredMapValue(
           byId,
-          link.source_id,
+          link.sourceId,
           "Every link names a source in the directory",
         ),
       ),
@@ -262,15 +265,20 @@ const handleLinkLookup: RouteHandlerFn = ownerRead(async (params) => {
   });
 });
 
+/** The text an admin types to confirm one link's delete: its external id, or
+ *  the record it names before the other system named it. */
+const linkConfirmText = (link: ExternalSourceLink): string =>
+  link.externalId ?? `${link.linkType} ${link.linkId}`;
+
 /** The activity line one link write records, naming the record and the source
  *  it belongs to. A link with no external id yet names the record instead. */
 const logLink = (
   action: string,
-  link: { external_id: string | null; link_id: number; link_type: string },
+  link: ExternalSourceLink,
   source: ExternalSource,
 ): Promise<unknown> =>
   logActivity(
-    `External link '${link.external_id ?? `${link.link_type} ${link.link_id}`}' ${action} '${source.name}'`,
+    `External link '${linkConfirmText(link)}' ${action} '${source.name}'`,
   );
 
 /** Run one link write with its parsed input, or answer the parse refusal. */
@@ -288,7 +296,7 @@ const handleLinkCreate = underSource(({ body, source }) =>
     if (!created.ok) return apiErrorResponse(created.error);
     await logLink("added to", created.value, source);
     return jsonResponse(
-      { link: toLinkResponse(created.value, source.url_pattern) },
+      { link: toLinkResponse(created.value, source.urlPattern) },
       201,
     );
   }),
@@ -300,14 +308,9 @@ const handleLinkUpdate = withExistingLink(({ body, link, source }) =>
     if (!updated.ok) return apiErrorResponse(updated.error);
     const stored = await requireExternalSourceLink(source.id, link.id);
     await logLink("updated in", stored, source);
-    return jsonResponse({ link: toLinkResponse(stored, source.url_pattern) });
+    return jsonResponse({ link: toLinkResponse(stored, source.urlPattern) });
   }),
 );
-
-/** The text an admin types to confirm one link's delete: its external id, or
- *  the record it names before the other system named it. */
-const linkConfirmText = (link: ExternalSourceLink): string =>
-  link.external_id ?? `${link.link_type} ${link.link_id}`;
 
 const handleLinkDelete = withExistingLink(async ({ body, link, source }) => {
   const error = verifyIdentifierOrJsonError(
@@ -342,6 +345,6 @@ export const externalSourceApiRoutes = recordApi<
   toUpdateInput: (body, existing) =>
     okResult({
       name: body.name ?? existing.name,
-      urlPattern: body.url_pattern ?? existing.url_pattern,
+      urlPattern: body.url_pattern ?? existing.urlPattern,
     }),
 });

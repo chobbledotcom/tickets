@@ -145,7 +145,7 @@ const packageMembershipError = async (
           listingParents.getIds(existingId),
         ]);
   return packageMemberError(
-    { can_pay_more: canPayMore, name },
+    { canPayMore: canPayMore, name },
     { childIds, parentIds },
     group.hidePackageListings,
   );

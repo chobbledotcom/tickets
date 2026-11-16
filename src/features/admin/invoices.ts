@@ -106,7 +106,7 @@ const handleInvoicesGet = authPageAt("invoices")(
     const privateKey = await requireRequestPrivateKey();
     const invoices = await getInvoices();
     const attendeeNames = await getAttendeeNamesByIds(
-      unique(map((invoice: InvoiceSummary) => invoice.attendee_id)(invoices)),
+      unique(map((invoice: InvoiceSummary) => invoice.attendeeId)(invoices)),
       privateKey,
     );
     return adminInvoicesPage({ attendeeNames, flash, invoices, session });
@@ -295,10 +295,10 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
   invoicePageFor(async (invoice, session, request) => {
     const privateKey = await requireRequestPrivateKey();
     const shareToken = await decryptWithOwnerKey(
-      invoice.share_token,
+      invoice.shareToken,
       privateKey,
     );
-    return orNotFound(getAttendeeRaw(invoice.attendee_id), async (raw) => {
+    return orNotFound(getAttendeeRaw(invoice.attendeeId), async (raw) => {
       const [attendee, bodyHtml] = await Promise.all([
         decryptAttendeeFields(raw, privateKey),
         openInvoiceBody(invoice.body, shareToken),

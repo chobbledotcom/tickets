@@ -91,7 +91,7 @@ const storedPlanJoinError = (
       siblingsByGroup,
       groupId,
       "Missing group listing membership",
-    ).find((listing) => listing.assign_built_site);
+    ).find((listing) => listing.assignBuiltSite);
     if (plan !== undefined) return sitePlanMemberError(plan.name);
   }
   return null;
@@ -116,7 +116,7 @@ const checkSitePackageJoins = (
       pair.group.siteId,
       "Referenced group missing",
     );
-    if (!group.is_package) continue;
+    if (!group.isPackage) continue;
     const refusals = packageMemberRefusals(
       item,
       {
@@ -182,7 +182,7 @@ export const parentIsHiddenPackageMember = (
         groupId,
         "Referenced group missing",
       );
-      if (group.is_package && group.hide_package_listings) return true;
+      if (group.isPackage && group.hidePackageListings) return true;
     }
     return false;
   }

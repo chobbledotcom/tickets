@@ -73,13 +73,13 @@ const homogeneityErrorOf = (facts: readonly MemberFact[]): string | null =>
     facts.map((fact) =>
       fact.site
         ? {
-            customisable_days: fact.row.customisable_days,
-            listing_type: fact.row.listing_type,
+            customisableDays: fact.row.customisableDays,
+            listingType: fact.row.listingType,
             name: fact.name,
           }
         : {
-            customisable_days: fact.plan.input.customisableDays ?? false,
-            listing_type: fact.plan.input.listingType ?? "standard",
+            customisableDays: fact.plan.input.customisableDays ?? false,
+            listingType: fact.plan.input.listingType ?? "standard",
             name: fact.name,
           },
     ),
@@ -99,7 +99,7 @@ const checkPackageMembers = async (
     memberFacts
       .filter((fact) => fact.site)
       .map((fact) => ({
-        can_pay_more: fact.row.can_pay_more,
+        can_pay_more: fact.row.canPayMore,
         id: fact.row.id,
         name: fact.name,
       })),
@@ -116,8 +116,8 @@ const checkPackageMembers = async (
     const spec = specOfPair(pairs, fact.name, item);
     const quantities = fact.site
       ? {
-          max_quantity: fact.row.max_quantity,
-          min_quantity: fact.row.min_quantity,
+          max_quantity: fact.row.maxQuantity,
+          min_quantity: fact.row.minQuantity,
         }
       : {
           max_quantity: fact.plan.input.maxQuantity ?? 1,
@@ -153,7 +153,7 @@ export const validateGroups = async (
     // A stored built-site plan books its own site and joins no group — the
     // same refusal a direct membership write raises.
     const planMember = memberFacts.find(
-      (fact) => fact.site && fact.row.assign_built_site,
+      (fact) => fact.site && fact.row.assignBuiltSite,
     );
     fail.failIf(
       item,

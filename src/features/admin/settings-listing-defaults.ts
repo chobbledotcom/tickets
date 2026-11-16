@@ -70,7 +70,7 @@ const parseUrlField = (
   // Demo mode blanks per-listing webhook URLs so demo users cannot configure
   // outbound callbacks. Refuse the webhook default the same way. Otherwise a
   // Use-defaults listing can resolve it and fire registration webhooks.
-  if (field.field === "webhook_url" && isDemoMode()) return {};
+  if (field.field === "webhookUrl" && isDemoMode()) return {};
   const raw = submitted(field, form);
   if (raw === "") return {};
   const error = validateSafeServerFetchUrl(
@@ -130,7 +130,7 @@ export const parseListingDefaultsForm = (
 ): ParseResult => {
   const value: Record<string, unknown> = {};
   for (const field of LISTING_DEFAULT_FIELDS) {
-    if (field.field === "uses_logistics" && !hasLogistics) continue;
+    if (field.field === "usesLogistics" && !hasLogistics) continue;
     const { value: parsed, error } = parseField(field, form);
     if (error) return { error, value: value as ListingDefaults };
     if (parsed !== undefined) value[field.key] = parsed;

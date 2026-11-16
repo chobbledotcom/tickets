@@ -277,7 +277,7 @@ const isFlaggedChild = async ({
   tx,
 }: ListingSave): Promise<boolean> =>
   resultRows(
-    await tx.execute(records.listings.byId(existingId).pick("bookable_alone")),
+    await tx.execute(records.listings.byId(existingId).pick("bookableAlone")),
   ).some((row) => row.bookableAlone) &&
   (await listingParents.getIds(existingId, tx)).length > 0;
 

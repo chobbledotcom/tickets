@@ -163,7 +163,7 @@ const imageItemOptions = async (
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
   new Set(
     (await getImageUsesForImage(imageId)).map(
-      (use) => `${use.item_type}:${use.item_id}`,
+      (use) => `${use.itemType}:${use.itemId}`,
     ),
   );
 
@@ -241,7 +241,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     const verdict = await imageRecord.update(image.id, {
       ...metadata.value,
       filename: image.filename,
-      filenameThumb: image.filename_thumb,
+      filenameThumb: image.filenameThumb,
       items: allowedImageTargets(adminLevel, parseImageTargets(form)),
       skipMissingItems: true,
     });

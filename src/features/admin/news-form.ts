@@ -30,11 +30,11 @@ export const { createForm: newsPostForm, editForm: newsPostEditForm } =
     publicLinkPath: (slug) => `/news/${slug}`,
   });
 
-/** Snake-case field values for pre-filling the edit form (slug included). */
+/** Field values for pre-filling the edit form (slug included). */
 export const newsPostToValues = (
   post: Pick<
     NewsPost,
-    "content" | "meta_description" | "meta_title" | "name" | "slug" | "snippet"
+    "content" | "metaDescription" | "metaTitle" | "name" | "slug" | "snippet"
   >,
 ): Record<string, string> => ({
   ...contentFieldValues(post),

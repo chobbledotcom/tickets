@@ -195,10 +195,10 @@ const parseLine = (
   const line = parsed.output;
   const listing = listingsById.get(line.listingId);
   if (!listing) return errorResult(`${at} references an unknown listing`);
-  if (quantityOverCap(line.quantity, listing.max_quantity)) {
+  if (quantityOverCap(line.quantity, listing.maxQuantity)) {
     return errorResult(`${at}.quantity is more than the listing allows`);
   }
-  const isDaily = countsPerDate(listing.listing_type);
+  const isDaily = countsPerDate(listing.listingType);
   if (!isDaily) {
     const refusal = standardLineRefusal(line, at);
     if (refusal !== null) return errorResult(refusal);

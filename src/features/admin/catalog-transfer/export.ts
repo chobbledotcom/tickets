@@ -117,7 +117,7 @@ export const exportListing = async (
     listingParents.getIds(id),
   ]);
   const groupDayPrices = await getGroupDayPricesByGroupIds(
-    memberships.map((m) => m.group_id),
+    memberships.map((m) => m.groupId),
   );
 
   // Every membership row references an existing group (FK), and `groupNames`
@@ -125,13 +125,13 @@ export const exportListing = async (
   const groupMemberships: ListingMembership[] = memberships.map((m) => ({
     group: requiredMapValue(
       groupNames,
-      m.group_id,
-      `Group ${m.group_id} missing`,
+      m.groupId,
+      `Group ${m.groupId} missing`,
     ),
     ...overrideFields(
-      m.package_price,
+      m.packagePrice,
       m.quantity,
-      groupDayPrices.get(m.group_id)?.get(id),
+      groupDayPrices.get(m.groupId)?.get(id),
     ),
   }));
 
@@ -167,7 +167,7 @@ export const exportGroup = (
 
     const rows = await getGroupPackagePrices(id);
     const [namesByListing, dayPrices] = await Promise.all([
-      listingNamesByIds(rows.map((r) => r.listing_id)),
+      listingNamesByIds(rows.map((r) => r.listingId)),
       getGroupDayPrices(id),
     ]);
 
@@ -176,13 +176,13 @@ export const exportGroup = (
     const members: GroupMember[] = rows.map((row) => ({
       listing: requiredMapValue(
         namesByListing,
-        row.listing_id,
-        `Listing ${row.listing_id} missing`,
+        row.listingId,
+        `Listing ${row.listingId} missing`,
       ),
       ...overrideFields(
-        row.package_price,
+        row.packagePrice,
         row.quantity,
-        dayPrices.get(row.listing_id),
+        dayPrices.get(row.listingId),
       ),
     }));
 

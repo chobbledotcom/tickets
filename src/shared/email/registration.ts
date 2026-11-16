@@ -84,7 +84,7 @@ const buildSvgTicketData = (
   listingLocation: entry.listing.location,
   listingName: entry.listing.name,
   pricePaid: entry.attendee.price_paid,
-  purchaseOnly: entry.listing.purchase_only,
+  purchaseOnly: entry.listing.purchaseOnly,
   quantity: entry.attendee.quantity,
 });
 
@@ -102,7 +102,7 @@ const collapsedSvgTicketData = (
     listingLocation: "",
     listingName: packageName,
     pricePaid: summary.pricePaid,
-    purchaseOnly: entries.every((entry) => entry.listing.purchase_only),
+    purchaseOnly: entries.every((entry) => entry.listing.purchaseOnly),
     quantity: summary.quantity,
   };
 };

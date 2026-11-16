@@ -44,10 +44,10 @@ const packageListingError = async (
   group: Group,
   listings: ListingWithCount[],
 ): Promise<string | null> => {
-  if (group.is_package) {
+  if (group.isPackage) {
     const packageError = await packageMembersError(
       listings,
-      group.hide_package_listings,
+      group.hidePackageListings,
     );
     if (packageError) return packageError;
   }

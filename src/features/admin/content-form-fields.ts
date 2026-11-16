@@ -6,7 +6,11 @@
 
 import { pick } from "@std/collections";
 import { t } from "#i18n";
-import { type CamelCased, camelCaseKeys } from "#shared/column-names.ts";
+import {
+  type CamelCased,
+  camelCaseKeys,
+  snakeCaseKeys,
+} from "#shared/column-names.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -153,15 +157,17 @@ export const defineContentForms = <
   };
 };
 
-/** Snake-case values for pre-filling a content editor's edit form. */
+/** Values for pre-filling a content editor's edit form, keyed by box name. */
 export const contentFieldValues = (row: {
   content: string;
-  meta_description: string;
-  meta_title: string;
+  metaDescription: string;
+  metaTitle: string;
   name: string;
   slug: string;
 }): Record<string, string> =>
-  pick(row, ["content", "meta_description", "meta_title", "name", "slug"]);
+  snakeCaseKeys(
+    pick(row, ["content", "metaDescription", "metaTitle", "name", "slug"]),
+  );
 
 type SeoContentValues = {
   content: string;

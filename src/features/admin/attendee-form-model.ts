@@ -217,7 +217,7 @@ export const parseAttendeeForm = (
 /** Booking date/duration for a line: the shared range for daily listings, none
  * for standard listings. */
 const lineDate = (line: AttendeeFormLine, parsed: ParsedAttendeeForm) =>
-  countsPerDate(line.listing!.listing_type)
+  countsPerDate(line.listing!.listingType)
     ? { date: parsed.startDate, durationDays: parsed.dayCount }
     : { date: null, durationDays: 1 };
 

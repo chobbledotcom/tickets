@@ -22,12 +22,12 @@ const overDurationWarning = (
   dayCount: number,
 ): string | null => {
   const listing = line.listing!;
-  if (listing.listing_type !== "daily" || dayCount <= listing.duration_days) {
+  if (listing.listingType !== "daily" || dayCount <= listing.durationDays) {
     return null;
   }
   return t("attendee_form.warn_over_duration", {
     count: dayCount,
-    max: listing.duration_days,
+    max: listing.durationDays,
     title: listing.name,
   });
 };
@@ -41,7 +41,7 @@ const listingBookingFor = (
   quantity: number,
   parsed: ParsedAttendeeForm,
 ) => {
-  const isDaily = line.listing!.listing_type === "daily";
+  const isDaily = line.listing!.listingType === "daily";
   return {
     date: isDaily ? parsed.startDate : null,
     durationDays: isDaily ? parsed.dayCount : 1,
@@ -61,7 +61,7 @@ const overbookedListingIds = async (
 ): Promise<Set<number>> => {
   const checkable = booked.filter(
     (line) =>
-      line.listing!.listing_type !== "daily" || isIsoDate(parsed.startDate),
+      line.listing!.listingType !== "daily" || isIsoDate(parsed.startDate),
   );
   const firstLineByListing = new Map<number, AttendeeFormLine>();
   const totalByListing = new Map<number, number>();

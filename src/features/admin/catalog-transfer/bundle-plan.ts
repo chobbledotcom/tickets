@@ -106,14 +106,14 @@ export const siteGroupIdsOfPairs = (pairs: Iterable<PlannedPair>): number[] =>
 
 /** The fields of a listing that the edge rules read. */
 const EDGE_LISTING_FIELDS = [
-  "assign_built_site",
-  "customisable_days",
-  "day_prices",
-  "duration_days",
+  "assignBuiltSite",
+  "customisableDays",
+  "dayPrices",
+  "durationDays",
   "id",
-  "listing_type",
-  "min_quantity",
-  "months_per_unit",
+  "listingType",
+  "minQuantity",
+  "monthsPerUnit",
   "name",
 ] as const satisfies readonly (keyof EdgeListing)[];
 
@@ -137,7 +137,7 @@ export const bundlePackageMemberError = (
   // A planned listing's parent references carry no id yet. The rule reads
   // only whether the list is empty, so one placeholder stands in for them.
   const key = memberBlockKey(
-    { can_pay_more: plan.input.canPayMore ?? false },
+    { canPayMore: plan.input.canPayMore ?? false },
     { childIds: [], parentIds: plan.parentKeys.length === 0 ? [] : [0] },
     hideListings,
   );

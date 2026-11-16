@@ -108,8 +108,8 @@ const parentEdgeStatements = (
   return insertingAll(
     tables.listing_parents,
     uniqueEdges.map((edge) => ({
-      child_listing_id: edge.childId,
-      parent_listing_id: edge.parentId,
+      childListingId: edge.childId,
+      parentListingId: edge.parentId,
     })),
   );
 };

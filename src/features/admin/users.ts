@@ -139,7 +139,7 @@ const toDisplayUser = async (
   // It holds for keyed roles (owner/manager/agent, who also gain a data key)
   // and for the keyless editor (who never gets one). Status does not hinge on
   // the data key the editor deliberately lacks.
-  const activated = user.password_hash !== "";
+  const activated = user.passwordHash !== "";
   return {
     activated,
     adminLevel,

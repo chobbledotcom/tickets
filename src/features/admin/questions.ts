@@ -96,7 +96,7 @@ const handleQuestionListings = entityFormById(
     const assignAll = form.get("assign_all") === "on";
     const listingIds = form.getNumberArray("listing_ids");
     await writeRowInTransaction(
-      await records.questions.updateStatement(id, { assign_all: assignAll }),
+      await records.questions.updateStatement(id, { assignAll }),
       id,
       (tx) => questionListings.setIdsTx(tx, id, listingIds),
     );

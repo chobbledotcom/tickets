@@ -160,7 +160,7 @@ const childEdgeError = async (
     // still reachable and the edge must not be blocked. This mirrors the
     // modifier/listing save reachability, which count a flagged child among
     // the live pages.
-    if (listing.bookable_alone) continue;
+    if (listing.bookableAlone) continue;
     const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
     if (addOn) return childAddOnError(addOn, listing.name);
   }

@@ -39,6 +39,7 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiSitePage,
 } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { sitePageRecord } from "#shared/records/site-pages.ts";
 import type { CrudApiHandlers } from "#shared/rest/crud-api-types.ts";
 import {
@@ -67,7 +68,7 @@ const RESPONSE_KEY = "page";
 /** The API's collection read: a client manages whole pages, so the list
  *  answers the full stored row. This is the resource's one whole-table read. */
 const allPages = (): Promise<SitePage[]> =>
-  readRows(from(tables.site_pages).sortedBy("sort_order", "id").everyColumn());
+  readRows(from(tables.site_pages).sortedBy("sortOrder", "id").everyColumn());
 
 /** The page-write audience: the roles the Site → Pages page declares, with
  *  API-key auth. The surface table is the one place the roles are written. */
@@ -91,22 +92,23 @@ const pageParents = (
 ): ReadonlyMap<number, number> =>
   new Map(
     pipe(
-      filter((item: SitePageItem) => item.item_type === "page"),
-      map((item: SitePageItem) => [item.item_id, item.page_id] as const),
+      filter((item: SitePageItem) => item.itemType === "page"),
+      map((item: SitePageItem) => [item.itemId, item.pageId] as const),
     )(items),
   );
 
 const parentsNow = async (): Promise<ReadonlyMap<number, number>> =>
   pageParents(await getAllPageItems());
 
-/** The API row for one stored page: the stored record without its slug HMAC,
- *  plus the page it nests under (null at the top level). */
+/** The API row for one stored page, under its column names: the stored
+ *  record without its slug HMAC, plus the page it nests under (null at the
+ *  top level). */
 const toRow = (
   page: SitePage,
   parents: ReadonlyMap<number, number>,
 ): AdminApiSitePage => {
-  const { slug_index: _slugIndex, ...row } = page;
-  return { ...row, parent: parents.get(page.id) ?? null };
+  const { slugIndex: _slugIndex, ...row } = page;
+  return snakeCaseKeys({ ...row, parent: parents.get(page.id) ?? null });
 };
 
 /** The not-found answer the shared gate and the write path both use. */

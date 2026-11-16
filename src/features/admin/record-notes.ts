@@ -261,7 +261,7 @@ export const recordNoteFeature = <Record extends { id: number }>(
           error: applyFlash(request).error,
           note,
           noteAction: (note) =>
-            `${noteBasePath(note.entity_id)}/${note.id}/delete`,
+            `${noteBasePath(note.entityId)}/${note.id}/delete`,
           returnUrl: recordReturn(id, getSearchParam(request, "return_url")),
           session,
         }),
@@ -270,9 +270,9 @@ export const recordNoteFeature = <Record extends { id: number }>(
 
   const deletePost: RecordNoteHandlers["deletePost"] = (request, id, noteId) =>
     noteHandlers.post(async (note, _session, form) => {
-      await deleteNotes(targetOf(note.entity_id), [note.id]);
+      await deleteNotes(targetOf(note.entityId), [note.id]);
       return redirect(
-        recordReturn(note.entity_id, form.getString("return_url")),
+        recordReturn(note.entityId, form.getString("return_url")),
         t("notes.deleted"),
         true,
       );
@@ -281,8 +281,8 @@ export const recordNoteFeature = <Record extends { id: number }>(
   /** One note's are-you-sure delete URL, returning to the record page. */
   const noteDeleteUrl = (note: SystemNote): string =>
     withReturnUrl(
-      `${config.noteBasePath(note.entity_id)}/${note.id}/delete`,
-      config.recordPagePath(note.entity_id),
+      `${config.noteBasePath(note.entityId)}/${note.id}/delete`,
+      config.recordPagePath(note.entityId),
     );
 
   /** One record's notes, decrypted, with image references resolved. A session

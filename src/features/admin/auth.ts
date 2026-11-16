@@ -143,7 +143,7 @@ const handleAdminLogin = async (
   // other role a missing wrap means the account was never activated. Password
   // verification has already passed, so an editor reaching here has set a
   // password and is genuinely active.
-  if (!user.wrapped_data_key) {
+  if (!user.wrappedDataKey) {
     if (adminLevel === "editor") {
       return createLoginSession(null, user.id, adminLevel, returnPath);
     }
@@ -160,12 +160,12 @@ const handleAdminLogin = async (
   let dataKey: CryptoKey;
   try {
     dataKey =
-      user.kek_version >= 2
+      user.kekVersion >= 2
         ? await unwrapKey(
-            user.wrapped_data_key,
+            user.wrappedDataKey,
             await deriveKEKFromPassword(password, passwordHash),
           )
-        : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
+        : await unwrapKey(user.wrappedDataKey, await deriveKEK(passwordHash));
   } catch {
     // KEK mismatch. This cannot happen when password verification passed.
     return failedCredentialsRedirect();
@@ -173,7 +173,7 @@ const handleAdminLogin = async (
 
   // Upgrade a legacy wrap to the password-bound scheme now that we hold the raw
   // password — closes the DB-dump-recoverable path for this user going forward.
-  if (user.kek_version < 2) {
+  if (user.kekVersion < 2) {
     await migrateUserToV2Kek(user.id, dataKey, password, passwordHash);
   }
 

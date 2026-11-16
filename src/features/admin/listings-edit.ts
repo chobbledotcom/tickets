@@ -122,11 +122,11 @@ const renderNewListingPage = async (
 
 const formToDimensionSource = (form: FormParams) => ({
   date: form.getString("date_date") || "",
-  listing_type: isListingType(form.getString("listing_type"))
+  listingType: isListingType(form.getString("listing_type"))
     ? (form.getString("listing_type") as "standard" | "daily")
     : ("standard" as const),
-  purchase_only: form.getFlag("purchase_only"),
-  uses_logistics: form.getFlag("uses_logistics"),
+  purchaseOnly: form.getFlag("purchase_only"),
+  usesLogistics: form.getFlag("uses_logistics"),
 });
 
 /**
