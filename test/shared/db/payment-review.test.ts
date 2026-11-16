@@ -159,8 +159,8 @@ describeWithEnv(
       expect(await protectedStateOf("sess-review")).toBe(REVIEW_MIRROR);
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([
         expect.objectContaining({
-          attendee_id: attendeeId,
-          listing_id: LISTING_ID,
+          attendeeId: attendeeId,
+          listingId: LISTING_ID,
           message: REVIEW_ACTIVITY,
         }),
       ]);

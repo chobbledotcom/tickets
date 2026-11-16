@@ -85,9 +85,9 @@ describeWithEnv(
       const stored = (await records.modifiers.find(m.id))!;
       expect(stored).toMatchObject({
         active: true,
-        code_index: null,
-        min_subtotal: 0,
-        min_visits: 0,
+        codeIndex: null,
+        minSubtotal: 0,
+        minVisits: 0,
         scope: "all",
         stock: null,
         trigger: "automatic",
@@ -101,7 +101,7 @@ describeWithEnv(
       expect(read).toMatchObject({
         id: m.id,
         name: "Add-on",
-        total_revenue: 1200,
+        totalRevenue: 1200,
       });
       // A missing id reads back as null, never a phantom row.
       expect(await getModifier(m.id + 999)).toBeNull();
@@ -112,8 +112,8 @@ describeWithEnv(
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
       const reread = await records.modifiers.find(m.id);
       expect(reread).toMatchObject({
-        total_uses: 3,
-        usage_count: 1,
+        totalUses: 3,
+        usageCount: 1,
       });
     });
 

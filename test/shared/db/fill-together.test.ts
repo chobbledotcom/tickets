@@ -54,7 +54,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
           id: page.id,
           name: "About us",
           slug: "about-us",
-          sort_order: 3,
+          sortOrder: 3,
         },
       ]);
       expect(await hasNewsPosts()).toBe(false);

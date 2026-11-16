@@ -243,8 +243,8 @@ describeWithEnv("Question parity pins", { db: true }, () => {
 
     const pageKept = await getQuestionWithAnswers(id)!;
     expect(pageKept).toMatchObject({
-      assign_all: true,
-      display_type: "select",
+      assignAll: true,
+      displayType: "select",
     });
 
     await expectPutKeeps(

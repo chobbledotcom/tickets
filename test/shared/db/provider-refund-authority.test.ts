@@ -101,11 +101,11 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       "provider",
       "provider_reference",
       "reference_index",
+      "refunded_amount",
       "refund_local_state",
       "refund_revision",
       "refund_state",
       "refund_state_name",
-      "refunded_amount",
       "updated_at",
     ]);
     expectIncludesAll(insert, [

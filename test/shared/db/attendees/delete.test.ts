@@ -120,8 +120,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const updated = await getListingWithCount(listing.id);
     expect(updated).toMatchObject({
-      attendee_count: 0,
-      tickets_count: 0,
+      attendeeCount: 0,
+      ticketsCount: 0,
     });
     // Income is the ledger projection: releasing the booking frees capacity but
     // does not reverse the recognised revenue (a hard delete posts no reversal).
@@ -146,9 +146,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const updated = await getListingWithCount(listing.id);
     expect(fetched).toBeNull();
     expect(updated).toMatchObject({
-      attendee_count: 3,
+      attendeeCount: 3,
       income: 1200,
-      tickets_count: 1,
+      ticketsCount: 1,
     });
   });
 
@@ -165,16 +165,16 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     // The raw UPDATE bypasses the wrapped client's cache invalidation.
     invalidateListingsCache();
     expect(await getListingWithCount(listing.id)).toMatchObject({
-      attendee_count: 0,
-      tickets_count: 0,
+      attendeeCount: 0,
+      ticketsCount: 0,
     });
 
     await deleteAttendee(attendee.id, { releaseBookings: false });
 
     expect(await getListingWithCount(listing.id)).toMatchObject({
-      attendee_count: 0,
+      attendeeCount: 0,
       income: 0,
-      tickets_count: 0,
+      ticketsCount: 0,
     });
   });
 
@@ -207,9 +207,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     // modifier legs, so it reads 0.
     const reread = (await getAllModifiers()).find((m) => m.id === modifier.id);
     expect(reread).toMatchObject({
-      total_revenue: 0,
-      total_uses: 3,
-      usage_count: 1,
+      totalRevenue: 0,
+      totalUses: 3,
+      usageCount: 1,
     });
   });
 

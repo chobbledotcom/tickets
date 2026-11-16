@@ -99,7 +99,7 @@ const listingWithSpareImage = async (name: string) => {
 /** A stored image whose filename or thumbnail decrypts empty falls back to the
  * marker and reports the column it could not read. */
 const brokenImageCases: readonly {
-  expected: { filename: string; filename_thumb: string; name: string };
+  expected: { filename: string; filenameThumb: string; name: string };
   insertImage: () => Promise<number>;
   report: (id: number) => string;
   title: string;
@@ -107,7 +107,7 @@ const brokenImageCases: readonly {
   {
     expected: {
       filename: BROKEN_IMAGE_FILENAME,
-      filename_thumb: "broken-thumb.webp",
+      filenameThumb: "broken-thumb.webp",
       name: "Broken",
     },
     insertImage: insertBrokenImageWithGoodThumb,
@@ -117,7 +117,7 @@ const brokenImageCases: readonly {
   {
     expected: {
       filename: BROKEN_IMAGE_FILENAME,
-      filename_thumb: BROKEN_IMAGE_FILENAME,
+      filenameThumb: BROKEN_IMAGE_FILENAME,
       name: "Broken",
     },
     insertImage: insertBrokenImage,
@@ -205,9 +205,9 @@ describeWithEnv("db > images", { db: true }, () => {
 
     test("returns empty image fields for an item without an image", async () => {
       expect(await getImageFilenamesForItem("listing", 9999)).toEqual({
-        image_alt_text: "",
-        image_thumb_url: "",
-        image_url: "",
+        imageAltText: "",
+        imageThumbUrl: "",
+        imageUrl: "",
       });
     });
 
@@ -294,16 +294,16 @@ describeWithEnv("db > images", { db: true }, () => {
       );
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
-          image_id: image.id,
-          item_id: group.id,
-          item_type: "group",
-          sort_order: 0,
+          imageId: image.id,
+          itemId: group.id,
+          itemType: "group",
+          sortOrder: 0,
         },
         {
-          image_id: image.id,
-          item_id: listing.id,
-          item_type: "listing",
-          sort_order: 1,
+          imageId: image.id,
+          itemId: listing.id,
+          itemType: "listing",
+          sortOrder: 1,
         },
       ]);
 

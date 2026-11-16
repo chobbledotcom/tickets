@@ -52,10 +52,10 @@ describeWithEnv("db > api keys", { db: true }, () => {
       expect(found).toEqual({
         created: found?.created,
         id: id + 1,
-        key_index: await hmacHash("fixed-token"),
-        last_used: "",
-        user_id: 1,
-        wrapped_data_key: found?.wrappedDataKey,
+        keyIndex: await hmacHash("fixed-token"),
+        lastUsed: "",
+        userId: 1,
+        wrappedDataKey: found?.wrappedDataKey,
       });
       expect(Number.isNaN(Date.parse(found?.created ?? ""))).toBe(false);
     });
@@ -117,8 +117,8 @@ describeWithEnv("db > api keys", { db: true }, () => {
         await getApiKeysForUser(1);
         await findApiKeyForUser(id, 1);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
-          "SELECT id, name, created, last_used FROM api_keys WHERE user_id = ?1 ORDER BY id ASC",
-          "SELECT id, name FROM api_keys WHERE id = ?1 AND user_id = ?1 LIMIT ?1",
+          "SELECT apiKey.id AS id, apiKey.name AS name, apiKey.created AS created, apiKey.last_used AS lastUsed FROM api_keys AS apiKey WHERE apiKey.user_id = ?1 ORDER BY apiKey.id",
+          "SELECT apiKey.id AS id, apiKey.name AS name FROM api_keys AS apiKey WHERE apiKey.id = ?1 AND apiKey.user_id = ?1 LIMIT ?1",
         ]);
       });
     });
