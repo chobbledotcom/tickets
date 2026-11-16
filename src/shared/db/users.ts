@@ -3,13 +3,7 @@
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import {
-  hashPassword,
-  hashSessionToken,
-  hmacHash,
-  verifyPassword,
-} from "#crypto/hashing.ts";
-import { unwrapKeyWithToken, wrapDataKeyForPassword } from "#crypto/keys.ts";
+import { hashSessionToken, hmacHash, verifyPassword } from "#crypto/hashing.ts";
 import type {
   EnvKeyEncrypted,
   PasswordHash,
@@ -17,14 +11,12 @@ import type {
 } from "#crypto/sealed.ts";
 import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
 import { execute, insertedRowId, queryAll } from "#db/client.ts";
-import { executeChangedRow } from "#db/guarded-writes.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
-import { equal, lessThan, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { tableCache } from "#db/table-cache.ts";
-import { insertInto, update } from "#db/write.ts";
+import { insertInto } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -306,121 +298,6 @@ export const decryptAdminLevel = async (
 export const decryptUsername = (
   user: Pick<User, "username_hash">,
 ): Promise<string> => decrypt(user.username_hash);
-
-/**
- * Complete an invite by self-activating the user: unwrap the DATA_KEY handoff
- * with the single-use invite code, re-wrap it under the new password's v2 KEK,
- * and clear the invite (code, expiry, and the handoff blob). The caller has
- * already verified the invite is valid and carries a handoff, so every current
- * invite reaches here — there is no separate admin activation step.
- *
- * Single-use: the UPDATE is guarded on `invite_wrapped_data_key IS NOT NULL`, so
- * if two submissions for the same code race (or one is replayed), only the first
- * affects a row — the rest no-op and return false rather than overwriting the
- * password/key that the first accept already set.
- */
-/** Hash a new password and pre-encrypt the values both activation paths write:
- * the encrypted hash and an encrypted empty string (used to clear invite
- * fields). Shared by {@link acceptInvite} and {@link activateKeylessUser}. */
-const buildActivationSecrets = async (
-  password: string,
-): Promise<{
-  passwordHash: PasswordHash;
-  encryptedHash: EnvKeyEncrypted<PasswordHash>;
-  encryptedEmpty: EnvKeyEncrypted;
-}> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-  ]);
-  return { encryptedEmpty, encryptedHash, passwordHash };
-};
-
-export const acceptInvite = async (
-  userId: number,
-  inviteWrappedDataKey: WrappedKey,
-  inviteCode: string,
-  password: string,
-): Promise<boolean> => {
-  const { passwordHash, encryptedHash, encryptedEmpty } =
-    await buildActivationSecrets(password);
-  const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
-  const wrappedDataKey = await wrapDataKeyForPassword(
-    dataKey,
-    password,
-    passwordHash,
-  );
-  return executeChangedRow(
-    update(tables.users, {
-      invite_code_hash: encryptedEmpty,
-      invite_expiry: encryptedEmpty,
-      invite_wrapped_data_key: null,
-      kek_version: 2,
-      password_hash: encryptedHash,
-      wrapped_data_key: wrappedDataKey,
-    }).where((user) => [
-      equal(user.id, userId),
-      notEqual(user.invite_wrapped_data_key, null),
-    ]),
-  );
-};
-
-/**
- * A **keyless** invite leaves `wrapped_data_key` NULL. An editor holds no
- * DATA_KEY, so unlike {@link acceptInvite} there is no handoff to unwrap or
- * re-wrap. The password only authenticates, and protects no key.
- *
- * Single-use: the UPDATE is guarded on the `password_hash = ''` unactivated
- * marker, which database pruning also uses. A replay or a race therefore no-ops
- * and never overwrites the password the first submit set.
- */
-export const activateKeylessUser = async (
-  userId: number,
-  password: string,
-): Promise<boolean> => {
-  const { encryptedHash, encryptedEmpty } =
-    await buildActivationSecrets(password);
-  return executeChangedRow(
-    update(tables.users, {
-      invite_code_hash: encryptedEmpty,
-      invite_expiry: encryptedEmpty,
-      kek_version: 2,
-      password_hash: encryptedHash,
-    }).where({ id: userId, password_hash: "" }),
-  );
-};
-
-/**
- * Re-wrap a user's DATA_KEY under the password-bound (v2) KEK. Called at login —
- * the one place both the raw password and the freshly-unwrapped DATA_KEY are in
- * hand — for users still on the legacy v1 wrap, replacing the DB-recoverable
- * wrap in place without touching any encrypted data.
- */
-export const migrateUserToV2Kek = async (
-  userId: number,
-  dataKey: CryptoKey,
-  password: string,
-  passwordHash: PasswordHash,
-): Promise<void> => {
-  const wrappedDataKey = await wrapDataKeyForPassword(
-    dataKey,
-    password,
-    passwordHash,
-  );
-  // Guard on the row still being v1. A login can reach here off a stale cached
-  // user row whose password was changed in another isolate — that change already
-  // wrote a v2 wrap bound to the *new* password. Overwriting it with a wrap
-  // derived from this (old) password would leave password_hash and
-  // wrapped_data_key bound to different passwords and lock the account out. A
-  // no-op is safe: the login already holds the DATA_KEY for its own session.
-  await execute(
-    update(tables.users, {
-      kek_version: 2,
-      wrapped_data_key: wrappedDataKey,
-    }).where((user) => [equal(user.id, userId), lessThan(user.kek_version, 2)]),
-  );
-};
 
 /** The deletes that remove users with their sessions, API keys, and logistics
  *  agent links. */

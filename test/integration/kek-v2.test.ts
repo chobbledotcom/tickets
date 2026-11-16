@@ -14,13 +14,12 @@ import { runDatabasePruning } from "#db/prune.ts";
 import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
+import { acceptInvite, migrateUserToV2Kek } from "#db/user-activation.ts";
 import {
-  acceptInvite,
   createInvitedUser,
   getUserByUsername,
   hashInviteCode,
   invalidateUsersCache,
-  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
 import { insertInto } from "#db/write.ts";

@@ -921,8 +921,8 @@
     "contraction": 1
   },
   "src/shared/db/users.ts": {
-    "long-sentence": 11,
-    "banned-modal": 5,
+    "long-sentence": 6,
+    "banned-modal": 4,
     "wordy": 2,
     "semicolon": 2,
     "present-perfect": 3

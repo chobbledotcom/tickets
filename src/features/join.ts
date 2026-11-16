@@ -2,9 +2,8 @@
  * Join routes - public invite acceptance flow
  */
 
+import { acceptInvite, activateKeylessUser } from "#db/user-activation.ts";
 import {
-  acceptInvite,
-  activateKeylessUser,
   decryptAdminLevel,
   decryptUsername,
   getUserByInviteCode,

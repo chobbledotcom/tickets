@@ -17,7 +17,13 @@ import {
   contactHash,
   preferenceOf,
 } from "#db/contact-preferences.ts";
-import { type Expr, equal, plus, valued } from "#db/select/expression.ts";
+import {
+  type Condition,
+  type Expr,
+  equal,
+  plus,
+  valued,
+} from "#db/select/expression.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
@@ -138,33 +144,18 @@ const preparedTokenEntry = async ({
 const bookingActivityStatement = async (
   input: TokenEntryInput,
 ): Promise<SqlStatement> => {
-  const column = BOOKING_COLUMN[input.source];
   const entry = await preparedTokenEntry(input);
   const marker = `${entry.marker}${TOKEN_LINE_SEPARATOR}`;
-  return insertInto(
-    tables.contact_preferences,
+  return tokenAppend(
+    input.hash,
+    entry.encrypted,
+    ["visits", BOOKING_COLUMN[input.source]],
     {
-      attendee_tokens_blob: entry.encrypted,
-      contact_hash: input.hash,
-      last_activity: nowMs(),
-      visits: 1,
-      [column]: 1,
-    },
-    {
-      onConflict: {
-        on: ["contact_hash"],
-        set: (row, excluded) => ({
-          attendee_tokens_blob: appendedTokens(row, excluded),
-          visits: plus(row.visits, 1),
-          [column]: plus(row[column], 1),
-        }),
-        take: ["last_activity"],
-        where: (row) =>
-          equal(
-            valued<number>(sql`INSTR(${row.attendee_tokens_blob}, ${marker})`),
-            0,
-          ),
-      },
+      where: (row) =>
+        equal(
+          valued<number>(sql`INSTR(${row.attendee_tokens_blob}, ${marker})`),
+          0,
+        ),
     },
   );
 };
@@ -175,6 +166,42 @@ const appendedTokens = (
   excluded: Node<"contact_preferences">,
 ): Expr<string> =>
   valued(sql`${row.attendee_tokens_blob} || ${excluded.attendee_tokens_blob}`);
+
+/** The counters of a contact row that one booking adds to. */
+type CountedColumn = "visits" | BookingCountColumn;
+
+/** The write of one contact row with a token entry. A stored row keeps its
+ *  tokens and gets the new entry after them. Each column in `counted` starts
+ *  at 1, or adds 1 to the stored count. A stored row changes only where the
+ *  `where` of `guard` holds. */
+const tokenAppend = (
+  hash: string,
+  encrypted: string,
+  counted: readonly CountedColumn[],
+  guard: { where?: (row: Node<"contact_preferences">) => Condition } = {},
+): SqlStatement =>
+  insertInto(
+    tables.contact_preferences,
+    {
+      attendee_tokens_blob: encrypted,
+      contact_hash: hash,
+      last_activity: nowMs(),
+      ...Object.fromEntries(counted.map((column) => [column, 1])),
+    },
+    {
+      onConflict: {
+        on: ["contact_hash"],
+        set: (row, excluded) => ({
+          attendee_tokens_blob: appendedTokens(row, excluded),
+          ...Object.fromEntries(
+            counted.map((column) => [column, plus(row[column], 1)]),
+          ),
+        }),
+        take: ["last_activity"],
+        ...guard,
+      },
+    },
+  );
 
 /** Run one token write on the caller's transaction, or as its own write when
  *  no caller transaction is open. */
@@ -194,23 +221,7 @@ const appendBookingToken = async (
   const entry = await preparedTokenEntry(input);
   await writeTokenStatement(
     transaction,
-    insertInto(
-      tables.contact_preferences,
-      {
-        attendee_tokens_blob: entry.encrypted,
-        contact_hash: input.hash,
-        last_activity: nowMs(),
-      },
-      {
-        onConflict: {
-          on: ["contact_hash"],
-          set: (row, excluded) => ({
-            attendee_tokens_blob: appendedTokens(row, excluded),
-          }),
-          take: ["last_activity"],
-        },
-      },
-    ),
+    tokenAppend(input.hash, entry.encrypted, []),
   );
 };
 

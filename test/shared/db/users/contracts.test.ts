@@ -8,6 +8,9 @@ import { sql } from "#db/sql.ts";
 import {
   acceptInvite,
   activateKeylessUser,
+  migrateUserToV2Kek,
+} from "#db/user-activation.ts";
+import {
   createInvitedUser,
   createUser,
   decryptAdminLevel,
@@ -23,7 +26,6 @@ import {
   isInviteExpired,
   isInviteValid,
   isUsernameTaken,
-  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";

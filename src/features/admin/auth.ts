@@ -7,10 +7,10 @@ import {
 import { generateSecureToken } from "#crypto/utils.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
 import { createSession, deleteSession } from "#db/sessions.ts";
+import { migrateUserToV2Kek } from "#db/user-activation.ts";
 import {
   decryptAdminLevel,
   getUserByUsername,
-  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
 import { t } from "#i18n";

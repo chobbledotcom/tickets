@@ -639,8 +639,7 @@ const applyBookingDecisions = (
       );
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
-      // Replace the target booking with the source booking, in the one slot
-      // that the decision names.
+      // Swap in the source booking, in the one slot that the decision names.
       deleteTargetBookingStatements.push(
         bookingRowDelete(targetId, item.sourceBooking),
       );
@@ -804,9 +803,8 @@ export const applyAttendeeMerge = async (
       attendee_id: sourceId,
     }),
     ...repointAttendeeDependents(sourceId, targetId),
-    // The source is going away, so clear every row whose identity belongs to
-    // it through the same schema as ordinary deletion. Payment rows survive:
-    // the statement above has already moved them to the target.
+    // Clear each row that belongs to the source, the way an ordinary delete
+    // does. Its payment rows stay, because the update above moved them.
     ...attendeeRemovalStatements(sql`${sourceId}`),
     deleteFrom(tables.attendees).where({ id: sourceId }),
     // Move the source's ledger rows onto the target — the sole sanctioned
