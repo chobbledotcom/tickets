@@ -15,14 +15,13 @@ import {
 import {
   cancelInvoice,
   createInvoice,
-  deleteInvoice,
-  getInvoice,
   getInvoices,
   getOpenInvoice,
   type InvoiceRow,
   type InvoiceSummary,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { map, unique } from "#fp";
 import { t } from "#i18n";
@@ -165,7 +164,7 @@ const loadInvoiceDraft = async (
       t("invoices.error.open_invoice_exists"),
     );
   }
-  if ((await getInvoice(number)) !== null) {
+  if ((await records.invoices.find(number)) !== null) {
     return errorRedirect(newInvoicePath, t("invoices.error.number_taken"));
   }
   return {
@@ -288,7 +287,7 @@ const handleInvoiceNewPost: TypedRouteHandler<"POST /admin/invoices/new"> = (
   );
 
 /** One invoice page, loaded and gated by the shared record-page factory. */
-const invoicePageFor = createIdEntityHandler(getInvoice)(
+const invoicePageFor = createIdEntityHandler(records.invoices.find)(
   pageGuardAt("invoice"),
 );
 
@@ -320,7 +319,7 @@ const handleInvoiceGet: TypedRouteHandler<"GET /admin/invoices/:id"> =
 
 /** A command route on one stored invoice, gated by its route declaration. */
 const invoiceCommand = (pattern: AdminDestinationId) =>
-  createIdEntityHandler(getInvoice)(formGuardAt(pattern));
+  createIdEntityHandler(records.invoices.find)(formGuardAt(pattern));
 
 /** A command on one stored invoice answers 404 when its row is gone. */
 const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cancel"> =
@@ -341,7 +340,7 @@ const handleInvoiceCancelPost: TypedRouteHandler<"POST /admin/invoices/:id/cance
 
 const handleInvoiceDeletePost: TypedRouteHandler<"POST /admin/invoices/:id/delete"> =
   invoiceCommand("invoiceDelete")(async (invoice) => {
-    await deleteInvoice(invoice.id);
+    await records.invoices.delete(invoice.id);
     return adminRedirect(
       "invoices",
       {},

@@ -4,15 +4,14 @@ import {
   attributesOrder,
   listingAttributeOptions,
 } from "#db/attributes.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 
 export const createTestAttribute = async (
   name = "Test attribute",
 ): Promise<AttributeWithOptions> => {
-  const attribute = await insertRow(tables.attributes, { name });
+  const attribute = await records.attributes.insert({ name });
   await attributesOrder.append({ key: attribute.id });
   return { ...attribute, options: [] };
 };
@@ -22,7 +21,7 @@ export const createTestAttributeOption = (
   text: string,
   sortOrder = 0,
 ): Promise<AttributeOption> =>
-  insertRow(tables.attribute_options, {
+  records.attribute_options.insert({
     attribute_id: attributeId,
     sort_order: sortOrder,
     text,

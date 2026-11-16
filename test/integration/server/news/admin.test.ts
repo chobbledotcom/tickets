@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { getNewsPostCards } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
@@ -30,7 +31,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
   const findPost = async (name: string): Promise<NewsPost> => {
     const card = (await getNewsPostCards()).find((c) => c.name === name);
     if (!card) throw new Error(`post ${name} not found`);
-    return (await getNewsPostById(card.id))!;
+    return (await records.news_posts.find(card.id))!;
   };
 
   describe("list + new", () => {
@@ -227,7 +228,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         "News post updated",
         true,
       )(response);
-      const updated = await getNewsPostById(post.id);
+      const updated = await records.news_posts.find(post.id);
       expect(updated?.name).toBe("After update");
       expect(updated?.snippet).toBe("new snippet");
       expect(updated?.content).toBe("new body");
@@ -247,7 +248,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         fields,
       );
       expect(response.status).toBe(400);
-      const unchanged = await getNewsPostById(post.id);
+      const unchanged = await records.news_posts.find(post.id);
       expect([unchanged?.name, unchanged?.slug]).toEqual([
         post.name,
         post.slug,
@@ -275,7 +276,9 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         "News post updated",
         true,
       )(response);
-      expect((await getNewsPostById(post.id))?.name).toBe("Keeps slug renamed");
+      expect((await records.news_posts.find(post.id))?.name).toBe(
+        "Keeps slug renamed",
+      );
     });
 
     test("update rejects a missing name and keeps the submitted slug", async () => {
@@ -318,7 +321,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         confirm_identifier: "wrong name",
       });
       expectErrorFlash(response, "does not match");
-      expect(await getNewsPostById(post.id)).not.toBeNull();
+      expect(await records.news_posts.find(post.id)).not.toBeNull();
     });
 
     test("deletes on a matching confirmation and logs", async () => {
@@ -327,7 +330,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         confirm_identifier: "Delete me",
       });
       expectRedirectWithFlash(BASE, "News post deleted", true)(response);
-      expect(await getNewsPostById(post.id)).toBeNull();
+      expect(await records.news_posts.find(post.id)).toBeNull();
       expect(await wasLogged("News post 'Delete me' deleted")).toBe(true);
     });
   });

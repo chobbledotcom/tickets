@@ -4,8 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { sql } from "#db/sql.ts";
@@ -23,7 +22,7 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const addPage = async (name: string, slug: string, sortOrder: number) =>
-  insertRow(tables.site_pages, {
+  records.site_pages.insert({
     name,
     slug,
     slug_index: await hmacHash(slug),

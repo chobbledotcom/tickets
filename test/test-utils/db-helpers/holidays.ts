@@ -48,9 +48,8 @@ export const createTestHoliday = (
  * edit form re-sends the fields it does not change, and the delete form
  * confirms by name. */
 const storedHoliday = async (holidayId: number): Promise<Holiday> => {
-  const { findRow } = await import("#db/record-table.ts");
-  const { tables } = await import("#db/select/tables.ts");
-  return (await findRow(tables.holidays, holidayId)) as Holiday;
+  const { records } = await import("#db/record-table.ts");
+  return (await records.holidays.find(holidayId)) as Holiday;
 };
 
 export const updateTestHoliday = async (

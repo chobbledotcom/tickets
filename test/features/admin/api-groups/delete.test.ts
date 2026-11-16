@@ -7,8 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
@@ -69,7 +68,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      const row = await findRow(tables.groups, group.id);
+      const row = await records.groups.find(group.id);
       expect(row?.id).toBe(group.id);
     });
 

@@ -3,8 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { fillTogether } from "#db/fill-together.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages, sitePagesNavRead } from "#db/site-pages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -38,7 +37,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
   });
 
   test("serves the rows a later reader expects, with sealed columns opened", async () => {
-    const page = await insertRow(tables.site_pages, {
+    const page = await records.site_pages.insert({
       hidden: true,
       name: "About us",
       slug: "about-us",

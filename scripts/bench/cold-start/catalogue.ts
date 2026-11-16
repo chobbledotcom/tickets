@@ -7,8 +7,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import { newGroupValues, setListingGroups } from "#db/groups.ts";
 import { createListing } from "#db/listings/records.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 
 /** One group of the benchmark catalogue and the one listing in it. */
 export type CatalogueEntry = {
@@ -23,8 +22,7 @@ export type CatalogueEntry = {
 export const addGroupWithListing = async (
   entry: CatalogueEntry,
 ): Promise<{ groupId: number; listingId: number }> => {
-  const group = await insertRow(
-    tables.groups,
+  const group = await records.groups.insert(
     newGroupValues({
       isPackage: entry.isPackage,
       name: entry.groupName,

@@ -7,8 +7,7 @@ import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute } from "#db/client.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -55,7 +54,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 1500,
   });
-  const status = await insertRow(tables.attendee_statuses, {
+  const status = await records.attendee_statuses.insert({
     is_reservation: false,
     name: "Confirmed",
     reservation_amount: "0",
@@ -94,7 +93,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 10000,
   });
-  const status = await insertRow(tables.attendee_statuses, {
+  const status = await records.attendee_statuses.insert({
     is_reservation: true,
     name: "Reserved",
     reservation_amount: "20%",

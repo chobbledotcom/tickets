@@ -8,11 +8,11 @@ import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import {
   builtSites,
   createBuiltSite,
-  deleteBuiltSite,
   findBuiltSiteById,
   findBuiltSiteByIdPrimary,
   updateBuiltSite,
 } from "#db/built-sites.ts";
+import { records } from "#db/record-table.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import {
   answerWrite,
@@ -49,7 +49,7 @@ const builtSiteWrites = {
   create: (input: BuiltSiteFormInput) => saveBuiltSite(null, input, "created"),
   remove: deleteCommand(
     findBuiltSiteById,
-    (site) => deleteBuiltSite(site.id),
+    (site) => records.built_sites.delete(site.id),
     (site) => logBuiltSite(site.name, "deleted"),
   ),
   update: (id: number, input: BuiltSiteFormInput) =>

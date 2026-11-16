@@ -14,14 +14,8 @@ import {
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { columnsNamed, pickedColumns } from "#db/picked-columns.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import {
-  allRowsNewestFirst,
-  findRow,
-  insertRowStatement,
-  rowsById,
-  rowValuesOf,
-  updateRowStatement,
-} from "#db/record-table.ts";
+
+import { allRowsNewestFirst, records, rowValuesOf } from "#db/record-table.ts";
 import {
   defineRecordTarget,
   ITEM_TARGET_COLUMNS,
@@ -46,7 +40,6 @@ import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
-import { bindFirst } from "#shared/fp-bind.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -88,8 +81,6 @@ export type OrderedImage = Image & { sort_order: number };
 
 /** Every image, newest first. */
 export const getAllImages = allRowsNewestFirst(tables.images);
-
-export const getImageById = bindFirst(findRow)(tables.images);
 
 /** The first image of an item as a read projects it: sealed, or "" when the
  *  item has no image. */
@@ -279,7 +270,7 @@ const linkImageStatement = (
     {
       or: "IGNORE",
       when: and(
-        rowsById(tables.images, imageId).exists(),
+        records.images.byId(imageId).exists(),
         wholeCondition(imageUseTargets.existsSql(target.kind, target.id)),
       ),
     },
@@ -375,7 +366,7 @@ const insertImage = async (
 ): Promise<Image> => {
   const [image] = resultRows(
     await transaction.execute(
-      await insertRowStatement(tables.images, {
+      await records.images.insertStatement({
         alt_text: input.altText ?? "",
         filename: input.filename,
         filename_thumb: input.filenameThumb,
@@ -409,8 +400,7 @@ export const updateImageRecord = async (
     async (tx) =>
       resultRows(
         await tx.execute(
-          await updateRowStatement(
-            tables.images,
+          await records.images.updateStatement(
             id,
             rowValuesOf(tables.images, input),
           ),

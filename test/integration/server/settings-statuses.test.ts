@@ -16,8 +16,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
@@ -113,7 +112,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     // story tells it too, in the organiser's own words.
     test("refuses to delete the public default", async () => {
       const seed = await seedStatus();
-      await insertRow(tables.attendee_statuses, { name: "Spare" });
+      await records.attendee_statuses.insert({ name: "Spare" });
       const { response } = await adminFormPost(`${PATH}/${seed.id}/delete`, {
         confirm_identifier: seed.name,
       });
@@ -125,7 +124,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("refuses to delete a status that is in use", async () => {
-      const inUse = await insertRow(tables.attendee_statuses, {
+      const inUse = await records.attendee_statuses.insert({
         name: "Active",
       });
       // A current `created` keeps this booking-less attendee out of the
@@ -144,7 +143,7 @@ describeWithEnv("server (admin attendee statuses)", { db: true }, () => {
     });
 
     test("deletes a spare, unused status", async () => {
-      const spare = await insertRow(tables.attendee_statuses, {
+      const spare = await records.attendee_statuses.insert({
         name: "Disposable",
       });
       const { response } = await adminFormPost(`${PATH}/${spare.id}/delete`, {

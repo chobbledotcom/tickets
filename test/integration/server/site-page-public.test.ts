@@ -3,8 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { appendImageToItem, insertImageRecord } from "#db/images.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { addPageItem } from "#db/site-page-items.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -314,7 +313,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
     test("a concealing package member keeps its listing item link", async () => {
       const page = await makePage("hidden-member");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
-      await updateRow(tables.groups, group.id, {
+      await records.groups.update(group.id, {
         hide_package_listings: true,
         is_package: true,
       });

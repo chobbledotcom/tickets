@@ -21,7 +21,7 @@ import { deleteAnswer } from "#db/questions/delete.ts";
 import { findAnswerById } from "#db/questions/parsing.ts";
 import { getQuestionWithAnswers } from "#db/questions/queries.ts";
 import { answersOrder } from "#db/questions/tables.ts";
-import { updateRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
@@ -94,7 +94,7 @@ export const updateAnswerWithLog = async (
   answer: Answer,
   patch: { active?: boolean; text: string },
 ): Promise<void> => {
-  await updateRow(tables.answers, answer.id, patch);
+  await records.answers.update(answer.id, patch);
   await logActivity(
     `Answer '${patch.text}' updated in question ${question.id}`,
   );

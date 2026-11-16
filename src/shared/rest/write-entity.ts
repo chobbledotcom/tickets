@@ -49,7 +49,7 @@ export interface EntityWrite<Row extends { id: number }, State = never> {
   joinWrites: readonly JoinWrite<State>[];
   /** Read the just-committed row back — this MUST be pinned to the primary. A
    *  "read"-mode lookup can hit a replica that still lags the commit and return
-   *  null for the row just written. Use `findRowPrimary` or a primary-pinned
+   *  null for the row just written. Use `findPrimary` or a primary-pinned
    *  join lookup. */
   readBack: (id: number) => Promise<Row | null>;
   /** Read narrow pre-update state through the open transaction. Creates and

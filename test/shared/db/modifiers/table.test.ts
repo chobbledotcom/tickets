@@ -12,8 +12,7 @@ import {
   MODIFIER_AGGREGATE_FIELDS,
   modifierAggregates,
 } from "#db/modifiers.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifierWithUsages } from "#test-utils/db-helpers/modifier-usages.ts";
@@ -34,7 +33,7 @@ describeWithEnv("db modifiers table", { db: true }, () => {
 
     test("update writes behavioural columns", async () => {
       const row = await insertModifier({ name: "Capped" });
-      await updateRow(tables.modifiers, row.id, {
+      await records.modifiers.update(row.id, {
         max_per_order: 1,
         trigger: "answer",
       });
@@ -61,7 +60,7 @@ describeWithEnv("db modifiers table", { db: true }, () => {
     test("getActiveModifiers returns only the active ones", async () => {
       const active = await insertModifier({ name: "Live" });
       const inactive = await insertModifier({ name: "Off" });
-      await updateRow(tables.modifiers, inactive.id, { active: false });
+      await records.modifiers.update(inactive.id, { active: false });
 
       const names = (await getActiveModifiers()).map((m) => m.name);
       assertArrayIncludes(names, ["Live"]);

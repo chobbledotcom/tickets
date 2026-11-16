@@ -2,8 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
@@ -34,11 +33,11 @@ const createStatus = async (
   name: string,
   flags: { is_public_default?: boolean; is_paid_default?: boolean } = {},
 ): Promise<{ id: number; name: string }> =>
-  insertRow(tables.attendee_statuses, { name, ...flags });
+  records.attendee_statuses.insert({ name, ...flags });
 
 /** A reservation status that holds a quarter of the price. */
 const createQuarterHold = () =>
-  insertRow(tables.attendee_statuses, {
+  records.attendee_statuses.insert({
     is_reservation: true,
     name: "Reserved",
     reservation_amount: "25%",

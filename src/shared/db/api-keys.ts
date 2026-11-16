@@ -14,7 +14,7 @@ import { wrapKeyWithToken } from "#crypto/keys.ts";
 import { execute } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import { insertRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
@@ -41,7 +41,7 @@ export const createApiKey = async (
   const apiKey = generateToken();
   const keyIndex = await hmacHash(apiKey);
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
-  const row = await insertRow(tables.api_keys, {
+  const row = await records.api_keys.insert({
     created: nowIso(),
     key_index: keyIndex,
     name,

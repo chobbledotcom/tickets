@@ -8,7 +8,6 @@ import { type TxScope, withTransaction } from "#db/client.ts";
 import {
   deleteImageRecord,
   getAllImages,
-  getImageById,
   type ImageInput,
   type ImageUseTarget,
   imageUseTargets,
@@ -17,6 +16,7 @@ import {
   setItemsForImage,
   updateImageRecord,
 } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { refuseTheWriteOn } from "#db/transaction.ts";
 import { t } from "#i18n";
@@ -231,7 +231,7 @@ const imageWrites = {
       null,
     ),
   remove: deleteCommand(
-    getImageById,
+    records.images.find,
     (image) => deleteImageRecord(image.id),
     (image) => logImageAction("deleted", image.name),
   ),
@@ -239,7 +239,7 @@ const imageWrites = {
     id: number,
     input: ImageWriteInput,
   ): Promise<WriteVerdict<Image>> => {
-    const stored = await getImageById(id);
+    const stored = await records.images.find(id);
     if (stored === null) return { kind: "not-found" };
     return imageWrite(
       input,
@@ -267,7 +267,7 @@ export const imageRecord = defineNamedRowRecord<
   activityName: "Image",
   api: ADMIN_API_RESOURCES.images,
   getAll: async () => sortByName(await getAllImages(), byNameThenUpload),
-  load: getImageById,
+  load: records.images.find,
   nameLabel: "images.delete.confirm_label",
   rule: imageRule,
   surface: { deleteDestination: "imageDelete", list: "images" },

@@ -9,11 +9,10 @@
  */
 
 import { execute, queryOne } from "#db/client.ts";
-import { deleteRow, pruneRowsBefore } from "#db/record-table.ts";
+import { pruneRowsBefore } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -53,7 +52,6 @@ export const getSmsMessageByProviderId = (
       );
 
 /** Delete a row once its message reaches a terminal state. */
-export const deleteSmsMessage = bindFirst(deleteRow)(tables.sms_messages);
 
 /** Prune rows older than the given ISO cutoff (backstop for missed webhooks). */
 export const pruneSmsMessagesBefore = pruneRowsBefore(tables.sms_messages);

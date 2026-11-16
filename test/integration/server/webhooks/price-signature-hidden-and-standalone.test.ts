@@ -2,8 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   expectProcessed,
   expectStoredRefund,
@@ -71,7 +70,7 @@ describeWithEnv(
 
     test("a hidden package booking completes (member name never leaks in the flow)", async () => {
       const { group, listing } = await setupPackage();
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      await records.groups.update(group.id, { hide_package_listings: true });
       // A normal hidden-package session: it processes, exercising the path that
       // suppresses member names in any failure message for hidden packages.
       await runWebhook(
@@ -86,7 +85,7 @@ describeWithEnv(
 
     test("a standalone session completes after its listing joins a concealing package", async () => {
       const { group, listing } = await setupPackage();
-      await updateRow(tables.groups, group.id, { hide_package_listings: true });
+      await records.groups.update(group.id, { hide_package_listings: true });
       await runWebhook(
         {
           amount_total: 5000,

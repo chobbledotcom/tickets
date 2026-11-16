@@ -10,13 +10,12 @@ import { fromBase64Url, generateSecureToken } from "#crypto/utils.ts";
 import {
   cancelInvoice,
   createInvoice,
-  deleteInvoice,
-  getInvoice,
   getInvoiceByShareToken,
   getInvoices,
   getOpenInvoice,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
+import { records } from "#db/record-table.ts";
 import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { createReservedAttendee } from "#test-utils/balance.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -102,7 +101,7 @@ describeWithEnv("db > invoices", { db: true }, () => {
     const { invoice } = await storeInvoice(second.attendeeId, 2);
 
     expect(invoice.id).toBe(2);
-    expect((await getInvoice(2))?.id).toBe(2);
+    expect((await records.invoices.find(2))?.id).toBe(2);
     expect((await getInvoices()).map((row) => row.id)).toEqual([7, 2]);
   });
 
@@ -114,7 +113,7 @@ describeWithEnv("db > invoices", { db: true }, () => {
     expect(await getOpenInvoice(attendeeId + 1000)).toBe(null);
 
     expect(await cancelInvoice(1)).toBe(true);
-    expect((await getInvoice(1))?.status).toBe("cancelled");
+    expect((await records.invoices.find(1))?.status).toBe("cancelled");
     expect(await getOpenInvoice(attendeeId)).toBe(null);
     expect(await cancelInvoice(1)).toBe(false);
   });
@@ -135,8 +134,8 @@ describeWithEnv("db > invoices", { db: true }, () => {
     const { attendeeId } = await createReservedAttendee(1500);
     await storeInvoice(attendeeId, 3);
 
-    await deleteInvoice(3);
-    expect(await getInvoice(3)).toBe(null);
+    await records.invoices.delete(3);
+    expect(await records.invoices.find(3)).toBe(null);
     expect(await getInvoices()).toEqual([]);
   });
 });

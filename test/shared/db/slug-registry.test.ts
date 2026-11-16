@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { createSitePage, updateSitePage } from "#db/site-pages.ts";
 import { isSlugTakenAnywhere, takenSlugIndexes } from "#db/slug-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -19,7 +18,7 @@ const pageInput = (name: string, slug: string) => ({
 });
 
 const makePage = async (slug: string) =>
-  insertRow(tables.site_pages, {
+  records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
     slug_index: await hmacHash(slug),

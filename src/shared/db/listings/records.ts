@@ -12,13 +12,13 @@ import {
   getListingDayPrices,
 } from "#db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
+
 import {
-  insertRow,
   type NewRecord,
   namesByIds,
   newRecordOf,
+  records,
   rowValuesOf,
-  updateRow,
 } from "#db/record-table.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
@@ -164,7 +164,7 @@ export const newListingValues: (input: ListingInput) => NewRecord<"listings"> =
 
 /** Store a new listing, then sync its prices. */
 export const createListing = async (input: ListingInput): Promise<Listing> => {
-  const row = await insertRow(tables.listings, newListingValues(input));
+  const row = await records.listings.insert(newListingValues(input));
   await syncListingPrices(row.id);
   await executeBatch(dayCountPriceStatements(row.id, input.dayPrices));
   return withDayPrices(row, input.dayPrices, EMPTY_LISTING_IMAGE);
@@ -176,8 +176,7 @@ export const updateListing = async (
   id: number,
   input: Partial<ListingInput>,
 ): Promise<Listing | null> => {
-  const row = await updateRow(
-    tables.listings,
+  const row = await records.listings.update(
     id,
     rowValuesOf(tables.listings, input),
   );

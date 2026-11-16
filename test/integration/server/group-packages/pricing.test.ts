@@ -11,8 +11,7 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -64,7 +63,7 @@ describeWithEnv(
         true,
       )(response);
 
-      const saved = (await findRow(tables.groups, group.id))!;
+      const saved = (await records.groups.find(group.id))!;
       expect(saved.is_package).toBe(true);
       const prices = await getTestPackagePrices(group.id);
       expect(prices.get(a.id)).toBe(1250);
@@ -161,9 +160,9 @@ describeWithEnv(
         hide_package_listings: "1",
         is_package: "1",
       });
-      expect(
-        (await findRow(tables.groups, group.id))!.hide_package_listings,
-      ).toBe(true);
+      expect((await records.groups.find(group.id))!.hide_package_listings).toBe(
+        true,
+      );
     });
 
     test("edit POST treats a negative or non-numeric package price as no override", async () => {
@@ -232,14 +231,14 @@ describeWithEnv(
         is_package: "1",
         [`package_price_${a.id}`]: "9.00",
       });
-      expect((await findRow(tables.groups, group.id))!.is_package).toBe(true);
+      expect((await records.groups.find(group.id))!.is_package).toBe(true);
 
       // Re-submit without the checkbox: flag clears and overrides reset to 0.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Clr", "clr"),
         [`package_price_${a.id}`]: "9.00",
       });
-      const saved = (await findRow(tables.groups, group.id))!;
+      const saved = (await records.groups.find(group.id))!;
       expect(saved.is_package).toBe(false);
       expect((await getTestPackagePrices(group.id)).size).toBe(0);
     });

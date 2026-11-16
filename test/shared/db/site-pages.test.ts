@@ -5,10 +5,8 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { isGroupSlugTaken } from "#db/groups.ts";
 import { isSlugTaken, listingNamesByIds } from "#db/listings/records.ts";
-import { insertRow, type NewRecord } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { type NewRecord, records } from "#db/record-table.ts";
 import {
-  getSitePageById,
   getSitePageBySlugIndex,
   sitePageOrder,
   sitePages,
@@ -27,7 +25,7 @@ const makePage = async (
   slug: string,
   extra: Partial<NewRecord<"site_pages">> = {},
 ): Promise<SitePage> =>
-  insertRow(tables.site_pages, {
+  records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
     slug_index: await hmacHash(slug),
@@ -53,15 +51,15 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expectEncryptedAtRest(raw[0]?.name, raw[0]?.slug, raw[0]?.content);
       assert(!raw[0]?.name.includes("Name about"));
 
-      const back = await getSitePageById(created.id);
+      const back = await records.site_pages.find(created.id);
       expect(back?.name).toBe("Name about");
       expect(back?.slug).toBe("about");
       expect(back?.content).toBe("Hello **world**");
       expect(back?.meta_title).toBe("About us");
     });
 
-    test("getSitePageById returns null for a missing id", async () => {
-      expect(await getSitePageById(9999)).toBeNull();
+    test("records.site_pages.find returns null for a missing id", async () => {
+      expect(await records.site_pages.find(9999)).toBeNull();
     });
 
     test("nav rows are decrypted, ordered, and carry no content", async () => {
@@ -116,7 +114,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
         expect(created.meta_title).toBe("Meta");
-        expect(await getSitePageById(created.id)).toEqual(created);
+        expect(await records.site_pages.find(created.id)).toEqual(created);
       }));
 
     test("updateSitePage rewrites the fields and moves the blind index with the slug", async () => {

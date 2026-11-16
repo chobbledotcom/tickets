@@ -1,7 +1,7 @@
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { DayPriceRow } from "#db/listing-prices.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
@@ -97,17 +97,19 @@ const relationshipErrorTx = async (
   );
   const ids = sqlList(listingIds);
   const [listingResult, priceResult, scopeResult] = await tx.batch([
-    rowsById(tables.listings, listingIds).pick(
-      "id",
-      "name",
-      "listing_type",
-      "months_per_unit",
-      "customisable_days",
-      "duration_days",
-      "bookable_alone",
-      "assign_built_site",
-      "min_quantity",
-    ),
+    records.listings
+      .byId(listingIds)
+      .pick(
+        "id",
+        "name",
+        "listing_type",
+        "months_per_unit",
+        "customisable_days",
+        "duration_days",
+        "bookable_alone",
+        "assign_built_site",
+        "min_quantity",
+      ),
     sql`SELECT listingPrice.listing_id, listingPrice.price_id,
                    listingPrice.unit_price
               FROM listing_prices AS listingPrice

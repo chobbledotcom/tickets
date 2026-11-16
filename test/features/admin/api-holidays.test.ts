@@ -2,8 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import {
   deleteJson,
@@ -307,7 +306,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
 
       // Holiday should still exist
-      const row = await findRow(tables.holidays, holiday.id);
+      const row = await records.holidays.find(holiday.id);
       expect(row?.name).toBe("Protected");
     });
 
@@ -348,7 +347,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       });
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
-      expect((await findRow(tables.holidays, holiday.id))?.name).toBe("Locked");
+      expect((await records.holidays.find(holiday.id))?.name).toBe("Locked");
     });
   });
 });

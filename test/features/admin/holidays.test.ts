@@ -7,7 +7,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { findRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
 import { holidayRule } from "#shared/records/holidays.ts";
@@ -45,7 +45,7 @@ describeWithEnv("holidays", { db: true }, () => {
       `/admin/holidays/${holiday.id}`,
       "Holiday updated",
     )(response);
-    expect((await findRow(tables.holidays, holiday.id))?.name).toBe("Renamed");
+    expect((await records.holidays.find(holiday.id))?.name).toBe("Renamed");
   });
 
   test("keeps the submitted dates when a save is rejected", async () => {
@@ -69,7 +69,7 @@ describeWithEnv("holidays", { db: true }, () => {
     );
 
     await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-    expect(await findRow(tables.holidays, holiday.id)).toBe(null);
+    expect(await records.holidays.find(holiday.id)).toBe(null);
   });
 });
 
@@ -82,7 +82,7 @@ describeDemoNameSaves({
       name,
       start_date: "2026-12-25",
     });
-    return (await findRow(tables.holidays, holiday.id))?.name;
+    return (await records.holidays.find(holiday.id))?.name;
   },
   fields: (name) => ({
     end_date: "2027-01-02",

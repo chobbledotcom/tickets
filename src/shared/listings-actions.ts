@@ -25,8 +25,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-import { rowsById, updateRowStatement } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -441,7 +440,7 @@ export const toggleListingActive = async (
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
       const [row] = resultRows(
-        await tx.execute(rowsById(tables.listings, listingId).pick("active")),
+        await tx.execute(records.listings.byId(listingId).pick("active")),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
@@ -458,7 +457,7 @@ export const toggleListingActive = async (
       // The row write, the price mirror and the activity log all join the tx of
       // the guard. A failure in one rolls all three back, so a retry runs all.
       await tx.execute(
-        await updateRowStatement(tables.listings, listingId, { active }),
+        await records.listings.updateStatement(listingId, { active }),
       );
       await syncListingPrices(listingId, tx);
       const verb = active ? "reactivated" : "deactivated";

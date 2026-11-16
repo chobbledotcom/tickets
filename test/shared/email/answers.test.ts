@@ -7,8 +7,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { questionListings } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   eachAnswerOnce,
   entryAnswerLines,
@@ -36,11 +35,11 @@ const seedChoiceQuestion = async (
   assignedTo: number[],
   text = "Any allergies?",
 ): Promise<SeededQuestion> => {
-  const question = await insertRow(tables.questions, {
+  const question = await records.questions.insert({
     display_type: "radio",
     text,
   });
-  const chosen = await insertRow(tables.answers, {
+  const chosen = await records.answers.insert({
     question_id: question.id,
     sort_order: 0,
     text: "Shellfish",

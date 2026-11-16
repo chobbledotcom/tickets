@@ -9,8 +9,7 @@ import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   applyAttendeeMerge,
@@ -79,7 +78,7 @@ export const saveChoice = (attendeeId: number, answerId: number) =>
 
 /** Insert a free-text question (not yet assigned to any listing). */
 export const createFreeTextQuestion = (text = "Dietary needs?") =>
-  insertRow(tables.questions, { display_type: "free_text", text });
+  records.questions.insert({ display_type: "free_text", text });
 
 /** Create an Alice → Bob merge pair. By default the target is on one listing
  *  and the source on a second ("E2"); pass `sameListing` to put both on one so

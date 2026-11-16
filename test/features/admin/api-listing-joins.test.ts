@@ -13,7 +13,7 @@ import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { rowValuesOf, updateRowStatement } from "#db/record-table.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -233,8 +233,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await expect(
       withTransaction(async (tx) => {
         await tx.execute(
-          await updateRowStatement(
-            tables.listings,
+          await records.listings.updateStatement(
             listing.id,
             rowValuesOf(tables.listings, result.value),
           ),
@@ -279,8 +278,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await expect(
       withTransaction(async (tx) => {
         await tx.execute(
-          await updateRowStatement(
-            tables.listings,
+          await records.listings.updateStatement(
             listing.id,
             rowValuesOf(tables.listings, result.value),
           ),

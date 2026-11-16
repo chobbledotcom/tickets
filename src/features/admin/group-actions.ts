@@ -37,8 +37,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-import { insertRowStatement } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -285,7 +284,7 @@ const handleDuplicateGroupPost = groupFormPost(
     // clone by the slug_index each was just inserted with, so no per-row id
     // read is needed. Parent/child edges are remapped after the batch commits,
     // since they read the new clone rows.
-    const groupInsert = await insertRowStatement(tables.groups, {
+    const groupInsert = await records.groups.insertStatement({
       description: group.description,
       hidden: group.hidden,
       hide_package_listings: group.hide_package_listings,
@@ -299,7 +298,7 @@ const handleDuplicateGroupPost = groupFormPost(
     });
     const cloneInserts = await Promise.all(
       cloneInputs.map(({ input }) =>
-        insertRowStatement(tables.listings, newListingValues(input)),
+        records.listings.insertStatement(newListingValues(input)),
       ),
     );
     const membershipInserts = cloneInputs.map(({ sourceId, input }) => {

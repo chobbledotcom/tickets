@@ -16,14 +16,12 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+
 import {
   existsOn,
-  findRowWhere,
-  insertRowStatement,
   type NewRecord,
   type RecordChanges,
-  rowsById,
-  updateRowStatement,
+  recordsOf,
 } from "#db/record-table.ts";
 import { equal, named, wholeCondition } from "#db/select/expression.ts";
 import type { DecodedRowOf, TableHandle } from "#db/select/tables.ts";
@@ -110,7 +108,7 @@ export type SluggedTable = "news_posts" | "site_pages";
 export const rowBySlugIndex =
   <Name extends SluggedTable>(table: TableHandle<Name>) =>
   (slugIndex: BlindIndex): Promise<DecodedRowOf<Name> | null> =>
-    findRowWhere(table, () =>
+    recordsOf(table).findWhere(() =>
       equal(named<string>(`${table.singular}.slug_index`), slugIndex),
     );
 
@@ -181,8 +179,7 @@ export const freshSlugIndexWrites = <
         input,
         transaction,
         async (tx, values, slugIndex) =>
-          insertRowStatement(
-            table,
+          recordsOf(table).insertStatement(
             // The values name every column but the index, which is added here.
             {
               ...values,
@@ -198,8 +195,7 @@ export const freshSlugIndexWrites = <
         input,
         transaction,
         (_tx, values, slugIndex) =>
-          updateRowStatement(
-            table,
+          recordsOf(table).updateStatement(
             id,
             { ...values, slug_index: slugIndex } as RecordChanges<Name>,
             () => wholeCondition(unclaimed(slugIndex, id)),
@@ -210,7 +206,7 @@ export const freshSlugIndexWrites = <
           row
             ? okResult(row)
             : errorResult(
-                (await existsOn(tx, rowsById(table, id)))
+                (await existsOn(tx, recordsOf(table).byId(id)))
                   ? "slugTaken"
                   : "notFound",
               ),

@@ -10,8 +10,7 @@ const FIELD = "bookable_alone";
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { setListingGroups } from "#db/groups.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import {
   type OpensASalesPage,
@@ -75,7 +74,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
   part,
 ) => {
   const group = await publicSiteGroup({ isPackage: true, name: bundle });
-  await updateRow(tables.groups, group.id, {
+  await records.groups.update(group.id, {
     hide_package_listings: true,
     is_package: true,
   });

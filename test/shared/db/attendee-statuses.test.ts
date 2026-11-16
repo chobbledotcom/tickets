@@ -14,8 +14,7 @@ import {
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
-import { deleteRow, insertRow, updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -43,7 +42,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("saving a status that is not a default leaves it alone", async () => {
-    const other = await insertRow(tables.attendee_statuses, {
+    const other = await records.attendee_statuses.insert({
       name: "Waitlist",
       sort_order: 1,
     });
@@ -130,13 +129,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("inserting statuses returns them ordered by sort_order then id", async () => {
-    const reserved = await insertRow(tables.attendee_statuses, {
+    const reserved = await records.attendee_statuses.insert({
       is_reservation: true,
       name: "Reserved",
       reservation_amount: "10%",
       sort_order: 2,
     });
-    const waitlist = await insertRow(tables.attendee_statuses, {
+    const waitlist = await records.attendee_statuses.insert({
       name: "Waitlist",
       sort_order: 1,
     });
@@ -157,11 +156,11 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("ordered rows swap two statuses' sort_order", async () => {
-    const a = await insertRow(tables.attendee_statuses, {
+    const a = await records.attendee_statuses.insert({
       name: "A",
       sort_order: 5,
     });
-    const b = await insertRow(tables.attendee_statuses, {
+    const b = await records.attendee_statuses.insert({
       name: "B",
       sort_order: 6,
     });
@@ -171,10 +170,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("update changes fields and invalidates the cache", async () => {
-    const created = await insertRow(tables.attendee_statuses, {
+    const created = await records.attendee_statuses.insert({
       name: "Pending",
     });
-    await updateRow(tables.attendee_statuses, created.id, {
+    await records.attendee_statuses.update(created.id, {
       is_reservation: true,
       reservation_amount: "25",
     });
@@ -184,13 +183,13 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("deleteById removes a status", async () => {
-    const created = await insertRow(tables.attendee_statuses, { name: "Temp" });
-    await deleteRow(tables.attendee_statuses, created.id);
+    const created = await records.attendee_statuses.insert({ name: "Temp" });
+    await records.attendee_statuses.delete(created.id);
     expect(await getAttendeeStatus(created.id)).toBeNull();
   });
 
   test("status name is encrypted at rest", async () => {
-    const created = await insertRow(tables.attendee_statuses, {
+    const created = await records.attendee_statuses.insert({
       name: "VIP Guest",
     });
     const raw = await getDb().execute(
@@ -233,8 +232,8 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("concurrent default changes leave one public and paid default", async () => {
-    const first = await insertRow(tables.attendee_statuses, { name: "First" });
-    const second = await insertRow(tables.attendee_statuses, {
+    const first = await records.attendee_statuses.insert({ name: "First" });
+    const second = await records.attendee_statuses.insert({
       name: "Second",
     });
 
@@ -296,7 +295,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("a failed default change restores the previous defaults", async () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
-    const candidate = await insertRow(tables.attendee_statuses, {
+    const candidate = await records.attendee_statuses.insert({
       name: "Candidate",
     });
     await getDb().execute(
@@ -330,7 +329,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("a stale edit cannot clear a newly selected default", async () => {
-    const candidate = await insertRow(tables.attendee_statuses, {
+    const candidate = await records.attendee_statuses.insert({
       name: "Candidate",
     });
 

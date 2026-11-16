@@ -13,8 +13,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -49,7 +48,7 @@ const postChildrenForm = async (
 /** Hide the members' names inside `groupId`, so a member that gates children
  *  would leak them. */
 const hidePackageNames = async (groupId: number): Promise<void> => {
-  await updateRow(tables.groups, groupId, { hide_package_listings: true });
+  await records.groups.update(groupId, { hide_package_listings: true });
 };
 
 /** Write a listing through the JSON API and assert the 400 error it names.

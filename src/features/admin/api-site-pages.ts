@@ -14,6 +14,7 @@
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
 import { readRows } from "#db/read.ts";
+import { records } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
@@ -23,7 +24,6 @@ import {
 } from "#db/site-page-items.ts";
 import {
   createSitePage,
-  getSitePageById,
   type SitePageWriteInput,
   updateSitePage,
 } from "#db/site-pages.ts";
@@ -116,7 +116,7 @@ const pageNotFound = (): Response =>
 /** The gate every id-addressed route loads its page through. Its not-found is
  *  the same answer the write path gives a page that vanished mid-update. */
 const pageGate = apiEntityGate(
-  getSitePageById,
+  records.site_pages.find,
   ENTRY.label,
   SITE_API,
   pageNotFound,

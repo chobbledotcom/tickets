@@ -1,4 +1,4 @@
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 /**
@@ -16,18 +16,13 @@ import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
 import { readExists } from "#db/read.ts";
-import { tables } from "#db/select/tables.ts";
 import {
   addPageItem,
   getItemsForPage,
   removePageItem,
   sitePageItemOrder,
 } from "#db/site-page-items.ts";
-import {
-  getSitePageById,
-  type SitePageWriteInput,
-  sitePageOrder,
-} from "#db/site-pages.ts";
+import { type SitePageWriteInput, sitePageOrder } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
@@ -111,7 +106,7 @@ const pages = recordPages(sitePageRecord, {
 
 const images = contentImageHandlers({
   itemType: "page",
-  load: getSitePageById,
+  load: records.site_pages.find,
   nameOf: (page) => page.name,
   record: sitePageRecord,
 });
@@ -128,9 +123,9 @@ const itemSaved = (page: SitePage, flashKey: string, logMessage: string) => ({
 });
 
 const pageTarget = sitePageItemTargets.of("page");
-const pageFormHandler = createIdEntityHandler<SitePage>(getSitePageById)(
-  formGuard(SITE_FORM),
-);
+const pageFormHandler = createIdEntityHandler<SitePage>(
+  records.site_pages.find,
+)(formGuard(SITE_FORM));
 
 // ─── Root reorder ───────────────────────────────────────────────
 
@@ -173,7 +168,7 @@ const isEligibleTarget = async (
   }
   if (type === "group") {
     // Single-row check: no name decryption, never the whole table.
-    return readExists(rowsById(tables.groups, itemId));
+    return readExists(records.groups.byId(itemId));
   }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,
@@ -214,7 +209,7 @@ const handleAddItem = pageFormHandler(async (page, _session, form) => {
 type ItemRouteParams = { id: number; itemId: number; itemType: string };
 type PageItem = { page: SitePage; ref: SitePageItemTarget };
 const loadPageItem = ({ id, itemId, itemType }: ItemRouteParams) =>
-  throughParent(getSitePageById(id), (page) =>
+  throughParent(records.site_pages.find(id), (page) =>
     isSitePageItemType(itemType)
       ? { page, ref: { id: itemId, kind: itemType } }
       : null,

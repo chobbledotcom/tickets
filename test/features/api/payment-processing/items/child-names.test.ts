@@ -3,8 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -57,7 +56,7 @@ const childOrder = async (
   const [parent, child] = intent.items;
   const allocation = intent.allocations?.[0];
   assert(parent?.r !== undefined && child && allocation);
-  await updateRow(tables.groups, parent.r, { hide_package_listings: true });
+  await records.groups.update(parent.r, { hide_package_listings: true });
 
   if (path === "offered" || path === "named-parent") {
     const named = await createTestGroup({ isPackage: true });

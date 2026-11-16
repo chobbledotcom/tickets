@@ -1,8 +1,7 @@
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import type { BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import { createBuiltSite } from "#db/built-sites.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 
 export const builtSiteFormInput = (
   overrides: Partial<BuiltSiteFormInput> = {},
@@ -22,7 +21,7 @@ export const storedSiteRow = async (
   input: Parameters<typeof createBuiltSite>[0],
 ) => {
   const { id } = await createBuiltSite(input);
-  const row = await findRow(tables.built_sites, id);
+  const row = await records.built_sites.find(id);
   if (row === null) throw new Error(`Built site ${id} was not stored`);
   return { ...row, blob: parseSiteDataBlob(row.site_data) };
 };

@@ -13,8 +13,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { execute, getDb } from "#db/client.ts";
-import { findRow, updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -60,7 +59,7 @@ describeWithEnv(
         },
       );
       expect(response.status).toBe(302);
-      const kept = (await findRow(tables.groups, group.id))!;
+      const kept = (await records.groups.find(group.id))!;
       expect(kept.is_package).toBe(true);
       expect(kept.hide_package_listings).toBe(true);
     });
@@ -114,7 +113,7 @@ describeWithEnv(
             error: t("error.sold_hidden_package"),
           });
         }
-        const kept = await findRow(tables.groups, group.id);
+        const kept = await records.groups.find(group.id);
         expect(kept?.is_package).toBe(true);
         expect(kept?.hide_package_listings).toBe(true);
       }
@@ -130,7 +129,7 @@ describeWithEnv(
         { confirm_identifier: "Empty Kit" },
       );
       expect(response.status).toBe(302);
-      expect(await findRow(tables.groups, group.id)).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
     });
 
     test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {
@@ -151,10 +150,10 @@ describeWithEnv(
           );
         },
       );
-      expect(await findRow(tables.groups, group.id)).not.toBeNull();
+      expect(await records.groups.find(group.id)).not.toBeNull();
 
       // After the explicit reveal, the API delete un-groups as before.
-      await updateRow(tables.groups, group.id, {
+      await records.groups.update(group.id, {
         hide_package_listings: false,
       });
       await assertJson(
@@ -167,7 +166,7 @@ describeWithEnv(
           expect(body.status).toBe("ok");
         },
       );
-      expect(await findRow(tables.groups, group.id)).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
       expect(await loadListing(memberListing.id)).not.toBeNull();
     });
 

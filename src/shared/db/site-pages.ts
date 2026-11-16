@@ -12,7 +12,7 @@
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { findRow, rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
@@ -24,7 +24,6 @@ import {
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { requestCachedRows } from "#db/table-cache.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 import type { Result } from "#shared/result.ts";
 import type { SitePage } from "#types";
 
@@ -57,13 +56,12 @@ export const sitePageOrder = defineOrderedCollection({
  * for the writes it makes next. */
 export const existingSitePageIdsStatement = (
   ids: readonly number[],
-): SqlStatement => rowsById(tables.site_pages, ids).pick("id");
+): SqlStatement => records.site_pages.byId(ids).pick("id");
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = rowBySlugIndex(tables.site_pages);
 
 /** One full page by id (the admin edit read). */
-export const getSitePageById = bindFirst(findRow)(tables.site_pages);
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move

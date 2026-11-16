@@ -8,8 +8,7 @@ import {
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -184,7 +183,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
   });
 
   test("legacy empty renewal tokens remain empty strings", async () => {
-    const row = await insertRow(tables.built_sites, {
+    const row = await records.built_sites.insert({
       created: "2026-01-01T00:00:00Z",
       site_data: JSON.stringify({
         n: "Legacy renewal",

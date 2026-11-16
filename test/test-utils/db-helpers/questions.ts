@@ -2,8 +2,7 @@
 
 import { queryAll } from "#db/client.ts";
 import { questionListings } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 
 /** A radio question with one chosen answer, optionally assigned to listings —
@@ -11,11 +10,11 @@ import { sql } from "#db/sql.ts";
 export const createQuestionWithAnswer = async (
   assignedTo: number[] = [],
 ): Promise<{ answerId: number; questionId: number }> => {
-  const question = await insertRow(tables.questions, {
+  const question = await records.questions.insert({
     display_type: "radio",
     text: "Choose one",
   });
-  const answer = await insertRow(tables.answers, {
+  const answer = await records.answers.insert({
     question_id: question.id,
     sort_order: 0,
     text: "Chosen",
@@ -31,7 +30,7 @@ export const createQuestionWithAnswer = async (
 export const createFreeTextQuestion = async (
   assignedTo: number[] = [],
 ): Promise<number> => {
-  const question = await insertRow(tables.questions, {
+  const question = await records.questions.insert({
     display_type: "free_text",
     text: "Anything else?",
   });

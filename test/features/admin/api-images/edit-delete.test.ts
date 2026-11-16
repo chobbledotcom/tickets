@@ -1,6 +1,7 @@
 // Contract tests for the image library's admin JSON API writes: the metadata
 // and link update, the roles that may change a Site image, and the delete.
 // Technical surface — direct Deno tests (docs/e2e-tests.md).
+
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
@@ -8,10 +9,10 @@ import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
 import {
   deleteImageRecord,
-  getImageById,
   getImagesForItem,
   getImageUsesForImage,
 } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { writeImageUpdate } from "#routes/admin/api-images.ts";
 import { imageRecord } from "#shared/records/images.ts";
@@ -72,7 +73,7 @@ describeWithEnv(
             });
           },
         );
-        expect(await getImageById(image.id)).toMatchObject({
+        expect(await records.images.find(image.id)).toMatchObject({
           alt_text: "A poster",
           name: "After",
         });
@@ -273,7 +274,7 @@ describeWithEnv(
             fetchCalls.some((url) => url.includes("discard-thumb.webp")),
           ).toBe(true);
         });
-        expect(await getImageById(image.id)).toBeNull();
+        expect(await records.images.find(image.id)).toBeNull();
         expect(await getImageUsesForImage(image.id)).toEqual([]);
         assertArrayIncludes(await loggedMessages(), [
           "Image 'Discard' deleted",

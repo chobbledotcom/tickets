@@ -28,7 +28,6 @@ import {
 } from "#db/images.ts";
 import { columnsNamed } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
-import { findRow } from "#db/record-table.ts";
 import { desc } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -42,7 +41,6 @@ import { type SqlStatement, sql } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
@@ -146,7 +144,6 @@ export const getNewsPostNames = async (): Promise<Map<number, string>> => {
 
 /** One full post (fully decrypted) by id — the admin single-post views.
  * Null when absent. */
-export const getNewsPostById = bindFirst(findRow)(tables.news_posts);
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */

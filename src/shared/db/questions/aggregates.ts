@@ -12,7 +12,7 @@ import {
   type AggregateValues,
   aggregateRepairs,
 } from "#db/common-schema.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -77,7 +77,7 @@ export const getAnswerModifierId = async (
   answerId: number,
 ): Promise<number | null> => {
   const row = await queryOne(
-    rowsById(tables.answers, answerId).pick("modifier_id"),
+    records.answers.byId(answerId).pick("modifier_id"),
   );
   return row?.modifier_id ?? null;
 };

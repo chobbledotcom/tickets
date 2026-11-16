@@ -2,8 +2,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -87,7 +86,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { getQuestionWithAnswers } = await import(
         "#db/questions/queries.ts"
       );
-      const q = await insertRow(tables.questions, {
+      const q = await records.questions.insert({
         display_type: "free_text",
         text: "Notes?",
       });

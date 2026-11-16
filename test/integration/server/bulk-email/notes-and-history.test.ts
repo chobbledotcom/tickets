@@ -10,7 +10,7 @@ import {
   hashPhone,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
-import { insertRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
@@ -230,7 +230,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         "repeat@example.com",
       );
       // Give the first booking a status so its name shows in the table.
-      const status = await insertRow(tables.attendee_statuses, {
+      const status = await records.attendee_statuses.insert({
         name: "Confirmed",
       });
       await execute(

@@ -18,7 +18,7 @@ import {
   insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
-import { updateRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
@@ -164,7 +164,7 @@ export const renameAttributeOptionWithLog = async (
   option: AttributeOption,
   text: string,
 ): Promise<void> => {
-  await updateRow(tables.attribute_options, option.id, { text });
+  await records.attribute_options.update(option.id, { text });
   await logAttributeOptionActivity(text, "updated in", attribute);
 };
 

@@ -21,12 +21,12 @@ import { getDb } from "#db/client.ts";
 import {
   cancelInvoice,
   createInvoice,
-  getInvoice,
   nextInvoiceNumber,
 } from "#db/invoices.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
 import { getAttendeeActivityLog } from "#test-utils/activity-log.ts";
@@ -441,7 +441,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const result = await settleAttendeeBalance(attendeeId, 1500, settle());
 
     expect(result.settled).toBe(true);
-    expect((await getInvoice(number))?.status).toBe("paid");
+    expect((await records.invoices.find(number))?.status).toBe("paid");
   });
 
   test("leaves a cancelled invoice cancelled when the balance settles", async () => {
@@ -458,6 +458,6 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     const result = await settleAttendeeBalance(attendeeId, 1500, settle());
 
     expect(result.settled).toBe(true);
-    expect((await getInvoice(number))?.status).toBe("cancelled");
+    expect((await records.invoices.find(number))?.status).toBe("cancelled");
   });
 });

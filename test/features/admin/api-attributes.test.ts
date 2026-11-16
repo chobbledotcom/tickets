@@ -6,8 +6,7 @@ import {
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
@@ -202,7 +201,7 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
       // path must still treat such a row as existing: an absent name falls back
       // to the stored value (and fails as "cannot be empty"), not to the
       // create path's "is required".
-      const row = await insertRow(tables.attributes, { name: "" });
+      const row = await records.attributes.insert({ name: "" });
       await assertJson(
         apiRequest(`/api/admin/attributes/${row.id}`, {
           body: {},

@@ -4,8 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -178,7 +177,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
       "stale@example.com",
       "Stale Buyer",
     );
-    await updateRow(tables.groups, group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hide_package_listings: true });
 
     try {
       await assertJson(

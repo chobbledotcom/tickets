@@ -2,8 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
 import { modifierGroups, modifierListings } from "#db/modifiers.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -144,7 +143,7 @@ describeWithEnv(
         'value="optional" selected',
         'value="Becomes add-on"',
       );
-      expect((await findRow(tables.modifiers, modifier.id))!.trigger).toBe(
+      expect((await records.modifiers.find(modifier.id))!.trigger).toBe(
         "automatic",
       );
     });
@@ -175,7 +174,7 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await findRow(tables.modifiers, modifier.id))!.name).toBe(
+      expect((await records.modifiers.find(modifier.id))!.name).toBe(
         "Auto child surcharge renamed",
       );
     });
@@ -204,7 +203,7 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await findRow(tables.modifiers, modifier.id))!.trigger).toBe(
+      expect((await records.modifiers.find(modifier.id))!.trigger).toBe(
         "optional",
       );
     });

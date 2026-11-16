@@ -3,8 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
 import { createListing } from "#db/listings/records.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import { updateBuildTagMeta } from "#shared/update-guard.ts";
@@ -208,7 +207,7 @@ describeWithEnv(
       const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
       const slugIndex = await hmacHash("ro-group");
-      const group = await insertRow(tables.groups, {
+      const group = await records.groups.insert({
         hidden: false,
         max_attendees: 0,
         name: "Read Only Group",

@@ -8,8 +8,7 @@ import {
   setListingChildrenWithPackageCheckTx,
 } from "#db/listing-parents.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { deleteRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -74,7 +73,7 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
 
   test("rolls back when a child endpoint was deleted before the tx", async () => {
     const { parent, child } = await parentAndChild();
-    await deleteRow(tables.listings, child.id);
+    await records.listings.delete(child.id);
 
     await expect(
       writeCheckedEdge(parent.id, [child.id]),
@@ -85,7 +84,7 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   test("rejects when the parent endpoint was deleted before the tx", async () => {
     const child = await createTestListing({ name: "Orphaned child" });
     const parent = await createTestListing({ name: "Vanished parent" });
-    await deleteRow(tables.listings, parent.id);
+    await records.listings.delete(parent.id);
 
     await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
       t("error.listing_deleted"),

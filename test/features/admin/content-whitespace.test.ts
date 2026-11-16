@@ -1,8 +1,9 @@
 // A Markdown box stores the indentation of its text, because four spaces
 // start a code block. The page form and the page API both keep it.
+
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getSitePageById } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
@@ -31,7 +32,9 @@ describeWithEnv("Markdown content whitespace", { db: true }, () => {
       }),
       201,
     );
-    expect((await getSitePageById(created.page.id))!.content).toBe(CODE);
+    expect((await records.site_pages.find(created.page.id))!.content).toBe(
+      CODE,
+    );
   });
 
   test("a box with only spaces stores no text", async () => {

@@ -1,8 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -111,7 +110,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         `/admin/holidays/${holiday.id}`,
         "Holiday updated",
       )(response);
-      expect(await findRow(tables.holidays, holiday.id)).toEqual({
+      expect(await records.holidays.find(holiday.id)).toEqual({
         ...holiday,
         end_date: "2026-12-27",
       });
@@ -215,7 +214,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
     test("deletes holiday with correct name confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
       await deleteTestHoliday(holiday.id);
-      expect(await findRow(tables.holidays, holiday.id)).toBeNull();
+      expect(await records.holidays.find(holiday.id)).toBeNull();
     });
 
     test("rejects deletion with wrong name", async () => {
@@ -230,7 +229,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         expect.stringContaining("Holiday name does not match"),
         false,
       );
-      expect(await findRow(tables.holidays, holiday.id)).not.toBeNull();
+      expect(await records.holidays.find(holiday.id)).not.toBeNull();
     });
 
     test("name confirmation is case-insensitive", async () => {
@@ -240,7 +239,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         { confirm_identifier: "christmas day" },
       );
       await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-      expect(await findRow(tables.holidays, holiday.id)).toBeNull();
+      expect(await records.holidays.find(holiday.id)).toBeNull();
     });
 
     test("returns 404 for non-existent holiday", async () => {

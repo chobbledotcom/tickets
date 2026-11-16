@@ -15,8 +15,7 @@ import {
   setLegDone,
 } from "#db/logistics-run-sheet.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -65,7 +64,7 @@ const makeBooking = async (opts: {
 };
 
 const insertAgent = async (name: string): Promise<number> =>
-  (await insertRow(tables.logistics_agents, { name })).id;
+  (await records.logistics_agents.insert({ name })).id;
 const insertVanAndOther = async () => ({
   other: await insertAgent("Other"),
   van: await insertAgent("Van"),

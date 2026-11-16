@@ -1,11 +1,8 @@
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  appendImageToItem,
-  getImageById,
-  getImageUsesForImage,
-} from "#db/images.ts";
+import { appendImageToItem, getImageUsesForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -142,7 +139,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         managerCookie,
       )(saveResponse);
       // Metadata unchanged and the news use survives.
-      expect((await getImageById(image.id))?.name).toBe("Managed image");
+      expect((await records.images.find(image.id))?.name).toBe("Managed image");
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
           image_id: image.id,
@@ -177,7 +174,9 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         true,
         managerCookie,
       )(response);
-      expect((await getImageById(image.id))?.name).toBe("Renamed freely");
+      expect((await records.images.find(image.id))?.name).toBe(
+        "Renamed freely",
+      );
       // …but the smuggled news link was never applied.
       expect(await imageNamesForItem("news", post.id)).toEqual([]);
     });

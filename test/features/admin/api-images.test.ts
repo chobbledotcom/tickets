@@ -1,11 +1,13 @@
 // Contract tests for the image library's admin JSON API reads and upload: the
 // list order, one image with the records that show it, and the create body's
 // validation. Technical surface — direct Deno tests (docs/e2e-tests.md).
+
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { toBase64 } from "#crypto/utils.ts";
-import { getImageById, setItemsForImage } from "#db/images.ts";
+import { setItemsForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { loggedMessages } from "#test-utils/activity-log.ts";
@@ -124,7 +126,7 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
         expect(fetchCalls.filter((url) => url.endsWith(".webp")).length).toBe(
           2,
         );
-        expect(await getImageById(answered.image.id)).toMatchObject({
+        expect(await records.images.find(answered.image.id)).toMatchObject({
           alt_text: "Alt Summer poster",
           name: "Summer poster",
         });

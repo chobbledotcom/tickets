@@ -10,8 +10,7 @@ import {
 } from "#db/groups.ts";
 import { newListingValues } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
-import { insertRowStatement } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -47,7 +46,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
         name: `Strided member ${index}`,
       });
       clones.push(
-        await insertRowStatement(tables.listings, newListingValues(clone)),
+        await records.listings.insertStatement(newListingValues(clone)),
         cloneGroupMembershipStatement({
           groupSlugIndex: shared.slug_index,
           listingSlugIndex: clone.slugIndex,

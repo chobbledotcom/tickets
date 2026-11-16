@@ -1,11 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  appendImageToItem,
-  getImageById,
-  getImageUsesForImage,
-} from "#db/images.ts";
+import { appendImageToItem, getImageUsesForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -207,7 +204,9 @@ describeWithEnv(
           managerCookie,
         )(saveResponse);
         // Metadata unchanged and the page use survives.
-        expect((await getImageById(image.id))?.name).toBe("Guarded image");
+        expect((await records.images.find(image.id))?.name).toBe(
+          "Guarded image",
+        );
         expect(await getImageUsesForImage(image.id)).toEqual([
           {
             image_id: image.id,

@@ -12,15 +12,13 @@ import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
 import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
 import { readRows } from "#db/read.ts";
-import { deleteRow, findRow, findRowWhere } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { among } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
-/* jscpd:ignore-start -- imports */
-import { bindFirst } from "#shared/fp-bind.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -47,8 +45,6 @@ export const externalLinkIndex = (
 /** Every source, in the order they were added. */
 export const getAllExternalSources = (): Promise<ExternalSource[]> =>
   readRows(from(tables.external_sources).sortedBy("id").everyColumn());
-
-export const getExternalSource = bindFirst(findRow)(tables.external_sources);
 
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */
@@ -141,7 +137,7 @@ export const getExternalSourceLink = (
   sourceId: number,
   linkId: number,
 ): Promise<ExternalSourceLink | null> =>
-  findRowWhere(tables.external_source_links, {
+  records.external_source_links.findWhere({
     id: linkId,
     source_id: sourceId,
   });
@@ -285,4 +281,4 @@ export const updateExternalSourceLink = (
 
 export const deleteExternalSourceLink = (
   link: ExternalSourceLink,
-): Promise<void> => deleteRow(tables.external_source_links, link.id);
+): Promise<void> => records.external_source_links.delete(link.id);

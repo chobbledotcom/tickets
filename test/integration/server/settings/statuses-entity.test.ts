@@ -2,8 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
   expectFlashRedirect,
@@ -60,7 +59,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   });
 
   test("renames a status", async () => {
-    const created = await insertRow(tables.attendee_statuses, { name: "Old" });
+    const created = await records.attendee_statuses.insert({ name: "Old" });
     const { response } = await adminFormPost(`${PATH}/${created.id}/edit`, {
       name: "Renamed",
     });
@@ -86,7 +85,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   });
 
   test("pre-fills a reservation status's fields when editing", async () => {
-    const reserved = await insertRow(tables.attendee_statuses, {
+    const reserved = await records.attendee_statuses.insert({
       is_reservation: true,
       name: "Reserved",
       reservation_amount: "25%",

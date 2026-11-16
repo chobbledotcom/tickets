@@ -1,11 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
-import {
-  appendImageToItem,
-  getImageById,
-  getImagesForItem,
-} from "#db/images.ts";
+import { appendImageToItem, getImagesForItem } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import {
   addPageItem,
   clearItemEdgesStatement,
@@ -16,7 +13,6 @@ import {
   removePageItem,
   sitePageItemOrder,
 } from "#db/site-page-items.ts";
-import { getSitePageById } from "#db/site-pages.ts";
 
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -141,7 +137,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await deleteSitePageWithEdges(child.id);
       invalidatePageItemsCache();
 
-      expect(await getSitePageById(child.id)).toBeNull();
+      expect(await records.site_pages.find(child.id)).toBeNull();
       const edges = await getAllPageItems();
       // No edge references the deleted child (as parent OR as page item).
       expect(edges.some((e) => e.page_id === child.id)).toBe(false);
@@ -160,7 +156,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
 
       // The link is gone, but the image itself stays in the library.
       expect(await getImagesForItem("page", page.id)).toEqual([]);
-      expect(await getImageById(image.id)).not.toBeNull();
+      expect(await records.images.find(image.id)).not.toBeNull();
     });
 
     test("a page-item write clears the request-scoped edge cache", async () => {

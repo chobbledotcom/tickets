@@ -3,8 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
@@ -382,7 +381,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");
     const { group } = await createFlexPackage("Hush Kit", "hush-kit");
-    await updateRow(tables.groups, group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hide_package_listings: true });
 
     // Neither member offers a 5-day span, so the submit bounces with the
     // day-count error — which must name the PACKAGE, never a hidden member.

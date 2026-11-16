@@ -2,8 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectPackageRefund,
@@ -194,7 +193,7 @@ describeWithEnv(
       const metadata = packageMetadata(group.id, listing.id, 1500);
       // The package flag is cleared, so the member revalidates at its 5000 base
       // price and the 1500 the buyer signed no longer matches.
-      await updateRow(tables.groups, group.id, { is_package: false });
+      await records.groups.update(group.id, { is_package: false });
       await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
     });
 

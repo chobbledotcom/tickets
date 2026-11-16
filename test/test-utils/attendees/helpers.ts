@@ -3,8 +3,7 @@ import type { Answer, Question } from "#db/question-types.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
@@ -164,16 +163,16 @@ export const setupListingWithQuestion = async (
     "John Doe",
     "john@example.com",
   );
-  const q = await insertRow(tables.questions, {
+  const q = await records.questions.insert({
     display_type: "radio",
     text: questionText,
   });
-  const a1 = await insertRow(tables.answers, {
+  const a1 = await records.answers.insert({
     question_id: q.id,
     sort_order: 0,
     text: a1Text,
   });
-  const a2 = await insertRow(tables.answers, {
+  const a2 = await records.answers.insert({
     question_id: q.id,
     sort_order: 1,
     text: a2Text,

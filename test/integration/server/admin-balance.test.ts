@@ -4,8 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectHtml,
@@ -60,7 +59,7 @@ const reservedAttendee = async () => {
     name: "Gala Ticket",
     thankYouUrl: "https://example.com",
   });
-  const reservation = await insertRow(tables.attendee_statuses, {
+  const reservation = await records.attendee_statuses.insert({
     is_reservation: true,
     name: "Reserved",
     reservation_amount: "10%",
@@ -198,7 +197,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const confirmed = await insertRow(tables.attendee_statuses, {
+    const confirmed = await records.attendee_statuses.insert({
       is_reservation: false,
       name: "Confirmed",
       reservation_amount: "0",

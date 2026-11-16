@@ -2,8 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -22,7 +21,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
-    const reservation = await insertRow(tables.attendee_statuses, {
+    const reservation = await records.attendee_statuses.insert({
       is_reservation: true,
       name: "Reserved",
       reservation_amount: "10%",

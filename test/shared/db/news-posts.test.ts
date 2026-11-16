@@ -6,7 +6,6 @@ import { queryAll } from "#db/client.ts";
 import { appendImageToItem, getImagesForItem } from "#db/images.ts";
 import {
   deleteNewsPostWithImages,
-  getNewsPostById,
   getNewsPostBySlugIndex,
   getNewsPostCards,
   getNewsPostNames,
@@ -14,6 +13,7 @@ import {
   hasNewsPosts,
   updateNewsPost,
 } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
@@ -55,7 +55,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       // `created` stays plaintext ISO so SQL can order newest-first.
       expect(raw[0]?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-      const back = await getNewsPostById(created.id);
+      const back = await records.news_posts.find(created.id);
       expect(back?.name).toBe("Launch day");
       expect(back?.meta_title).toBe("Launch | Acme");
       expect(back?.meta_description).toBe("Launch description");
@@ -64,8 +64,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(back?.created).toBe(created.created);
     });
 
-    test("getNewsPostById returns null for a missing id", async () => {
-      expect(await getNewsPostById(9999)).toBeNull();
+    test("records.news_posts.find returns null for a missing id", async () => {
+      expect(await records.news_posts.find(9999)).toBeNull();
     });
 
     test("empty optional fields stay empty strings, never ciphertext", async () => {
@@ -75,7 +75,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       );
       expect(raw[0]?.snippet).toBe("");
       expect(raw[0]?.content).toBe("");
-      const back = await getNewsPostById(created.id);
+      const back = await records.news_posts.find(created.id);
       expect(back?.snippet).toBe("");
       expect(back?.content).toBe("");
     });
@@ -227,7 +227,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         slug: post.slug,
         snippet: "",
       });
-      const reloaded = await getNewsPostById(post.id);
+      const reloaded = await records.news_posts.find(post.id);
       expect(reloaded?.name).toBe("Renamed");
       expect(reloaded?.slug).toBe("2026-07-06-original-name");
     });
@@ -303,7 +303,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(await getImagesForItem("news", post.id)).toHaveLength(1);
 
       await deleteNewsPostWithImages(post.id);
-      expect(await getNewsPostById(post.id)).toBeNull();
+      expect(await records.news_posts.find(post.id)).toBeNull();
       expect(await getImagesForItem("news", post.id)).toHaveLength(0);
       const kept = await queryAll<{ id: number }>(
         sql`SELECT id FROM images WHERE id = ${image.id}`,

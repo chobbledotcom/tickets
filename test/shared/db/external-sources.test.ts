@@ -13,7 +13,6 @@ import {
   deleteExternalSourceLink,
   externalLinkIndex,
   getAllExternalSources,
-  getExternalSource,
   getExternalSourceLink,
   listExternalSourceLinks,
   requireExternalSourceLink,
@@ -21,6 +20,7 @@ import {
 } from "#db/external-sources/queries.ts";
 import type { ExternalSourceLink } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -71,7 +71,9 @@ describeWithEnv("db > external sources", { db: true }, () => {
     expect(stored.url_pattern.startsWith(HYBRID_PREFIX)).toBe(true);
     expect(stored.name).not.toContain("Stripe");
 
-    const opened = await withTestSession(() => getExternalSource(source.id));
+    const opened = await withTestSession(() =>
+      records.external_sources.find(source.id),
+    );
     expect(opened).toEqual({
       created: source.created,
       id: source.id,
@@ -294,7 +296,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
     expect(await getExternalSourceLink(source.id, first.id)).toBeNull();
 
     await deleteExternalSource(source.id);
-    expect(await getExternalSource(source.id)).toBeNull();
+    expect(await records.external_sources.find(source.id)).toBeNull();
     const remaining = await withTestSession(() =>
       listExternalSourceLinks(source.id, { kind: "all" }),
     );

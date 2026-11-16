@@ -6,8 +6,7 @@ import type {
   QuestionDisplayType,
 } from "#db/question-types.ts";
 import { questionListings } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 
 /** What a seeded question asks, how, and on which listings. */
 export interface QuestionSeed<Texts extends readonly string[]> {
@@ -31,14 +30,14 @@ export const seedQuestion = async <const Texts extends readonly string[] = []>({
   listingIds = [],
   text,
 }: QuestionSeed<Texts>): Promise<SeededQuestion<Texts>> => {
-  const question = await insertRow(tables.questions, {
+  const question = await records.questions.insert({
     display_type: displayType,
     text,
   });
   const rows: Answer[] = [];
   for (const [sortOrder, answerText] of (answers ?? []).entries()) {
     rows.push(
-      await insertRow(tables.answers, {
+      await records.answers.insert({
         question_id: question.id,
         sort_order: sortOrder,
         text: answerText,

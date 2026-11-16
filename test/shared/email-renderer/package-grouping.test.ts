@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   createHiddenPackageGroup,
   createTestGroup,
@@ -18,7 +17,7 @@ describeEmailRenderer(() => {
         name: "Camp Kit",
       });
       if (hide) {
-        await updateRow(tables.groups, group.id, {
+        await records.groups.update(group.id, {
           hide_package_listings: true,
         });
       }

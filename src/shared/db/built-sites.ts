@@ -5,20 +5,13 @@
 
 import { execute, resultRows } from "#db/client.ts";
 import { readRows } from "#db/read.ts";
-import {
-  deleteRow,
-  findRow,
-  findRowPrimary,
-  findRowWhere,
-  insertRow,
-  updateRowStatement,
-} from "#db/record-table.ts";
+
+import { records } from "#db/record-table.ts";
 import { retryWrite } from "#db/retry-write.ts";
 import { desc, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { tableCache } from "#db/table-cache.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 import { compareByName } from "#shared/name-order.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -93,13 +86,13 @@ export const builtSites = tableCache(
 
 /** The built site with this id, or null. */
 export const findBuiltSiteById = (id: number): Promise<BuiltSite | null> =>
-  builtSiteOrNull(findRow(tables.built_sites, id));
+  builtSiteOrNull(records.built_sites.find(id));
 
 /** The built site with this id, read from the primary, or null. */
 export const findBuiltSiteByIdPrimary = (
   id: number,
 ): Promise<BuiltSite | null> =>
-  builtSiteOrNull(findRowPrimary(tables.built_sites, id));
+  builtSiteOrNull(records.built_sites.findPrimary(id));
 
 /** The built site with this id, read from the primary. Throws when the row
  * is gone, because every caller holds an id it just read or wrote. */
@@ -120,8 +113,7 @@ const storeBuiltSiteChanges = async (
 ): Promise<BuiltSiteRow | null> => {
   const [row] = resultRows(
     await execute(
-      await updateRowStatement(
-        tables.built_sites,
+      await records.built_sites.updateStatement(
         id,
         siteColumns({
           ...existing,
@@ -170,14 +162,13 @@ export const createBuiltSite = async (
   input: Partial<BuiltSitePlainFields> & Partial<BuiltSiteBlobInput>,
 ): Promise<BuiltSite> =>
   rowToBuiltSite(
-    await insertRow(tables.built_sites, {
+    await records.built_sites.insert({
       ...siteColumns(input),
       created: nowIso(),
     }),
   );
 
 /** Remove one built site. */
-export const deleteBuiltSite = bindFirst(deleteRow)(tables.built_sites);
 
 /** Insert a new built site record */
 export const insertBuiltSite = (
@@ -216,7 +207,7 @@ export const getBuiltSiteByRenewalTokenIndex = (
   tokenIndex: string,
 ): Promise<BuiltSite | null> =>
   builtSiteOrNull(
-    findRowWhere(tables.built_sites, { renewal_token_index: tokenIndex }),
+    records.built_sites.findWhere({ renewal_token_index: tokenIndex }),
   );
 
 /** Update built site renewal state: token index, deadline, and renewal blob together */

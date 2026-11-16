@@ -12,7 +12,6 @@ import {
   clearImageUsesForItemStatement,
   deleteImageRecord,
   getAllImages,
-  getImageById,
   getImageFilenamesForItem,
   getImagesForItem,
   getImageUsesForImage,
@@ -21,6 +20,7 @@ import {
   setImagesForItem,
   setItemsForImage,
 } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
@@ -154,9 +154,9 @@ describeWithEnv("db > images", { db: true }, () => {
       );
       assert(!raw!.name.includes("Hero"));
 
-      expect(await getImageById(image.id)).toEqual(image);
+      expect(await records.images.find(image.id)).toEqual(image);
       expect(await getAllImages()).toEqual([image]);
-      expect(await getImageById(9999)).toBeNull();
+      expect(await records.images.find(9999)).toBeNull();
     });
 
     for (const brokenImage of brokenImageCases) {
@@ -308,7 +308,7 @@ describeWithEnv("db > images", { db: true }, () => {
       ]);
 
       await deleteImageRecord(image.id);
-      expect(await getImageById(image.id)).toBeNull();
+      expect(await records.images.find(image.id)).toBeNull();
       expect(await linkedImageIds("listing", listing.id)).toEqual([
         existing.id,
       ]);

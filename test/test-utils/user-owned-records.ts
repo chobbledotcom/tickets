@@ -1,7 +1,7 @@
 import { encrypt } from "#crypto/encryption.ts";
 import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
 import { getDb, queryAll } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { sql } from "#db/sql.ts";
@@ -12,7 +12,7 @@ export const addUserOwnedAccessRecords = async (
   userId: number,
   label: string,
 ): Promise<void> => {
-  const agent = await insertRow(tables.logistics_agents, {
+  const agent = await records.logistics_agents.insert({
     name: `${label} agent`,
   });
   await userAgents.setIds(userId, [agent.id]);

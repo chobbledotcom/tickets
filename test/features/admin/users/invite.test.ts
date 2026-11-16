@@ -11,8 +11,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername } from "#db/users.ts";
 import { t } from "#i18n";
@@ -261,7 +260,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
   const agentUserWithVan = async (username: string) => {
     const { enableFeature } = await import("#test-utils/settings.ts");
     await enableFeature("logistics");
-    const van = await insertRow(tables.logistics_agents, { name: "Van 1" });
+    const van = await records.logistics_agents.insert({ name: "Van 1" });
     await adminFormPost(LIST_PATH, {
       admin_level: "agent",
       username,

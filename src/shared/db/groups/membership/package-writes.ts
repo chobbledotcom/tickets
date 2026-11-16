@@ -22,7 +22,7 @@ import { hasPackageBookingsTx } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -107,7 +107,7 @@ export const readPackageFlagsTxOrNull = async (
 ): Promise<PackageFlags | null> =>
   resultRows(
     await tx.execute(
-      rowsById(tables.groups, id).pick("is_package", "hide_package_listings"),
+      records.groups.byId(id).pick("is_package", "hide_package_listings"),
     ),
   )[0] ?? null;
 
@@ -173,7 +173,7 @@ const groupListingAssignmentStatements = (
       { group_id: groupId, listing_id: listingId },
       {
         or: "IGNORE",
-        when: rowsById(tables.listings, listingId).exists(),
+        when: records.listings.byId(listingId).exists(),
       },
     ),
   );

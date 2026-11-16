@@ -4,19 +4,12 @@ import { stub } from "@std/testing/mock";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, getDb, queryAll, withTransaction } from "#db/client.ts";
+
 import {
-  deleteRow,
   existsOn,
-  findRow,
-  findRowPrimary,
-  hasRow,
-  insertRow,
-  insertRowStatement,
   newRecordOf,
-  rowsById,
+  records,
   rowValuesOf,
-  updateRow,
-  updateRowStatement,
 } from "#db/record-table.ts";
 import { equal } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
@@ -39,10 +32,10 @@ const openedAgents = async (): Promise<{ id: number; name: string }[]> =>
     })),
   );
 
-const addAgent = (name: string) => insertRow(tables.logistics_agents, { name });
+const addAgent = (name: string) => records.logistics_agents.insert({ name });
 
 describeWithEnv("db > record table", { db: true }, () => {
-  test("insertRow seals each value and gives back the decoded row", async () => {
+  test("insert seals each value and gives back the decoded row", async () => {
     const row = await addAgent("Van one");
 
     expect(row).toEqual({ id: 1, name: "Van one" });
@@ -53,7 +46,7 @@ describeWithEnv("db > record table", { db: true }, () => {
 
   // The id comes back from the row that the INSERT wrote, so it needs no
   // help from the optional lastInsertRowid, which some drivers leave out.
-  test("insertRow takes the id from the row that the insert gave back", async () => {
+  test("insert takes the id from the row that the insert gave back", async () => {
     await addAgent("First");
     const realExecute = getDb().execute.bind(getDb());
     using _execute = stub(getDb(), "execute", async (...args) => {
@@ -66,7 +59,7 @@ describeWithEnv("db > record table", { db: true }, () => {
     expect(await addAgent("Second")).toEqual({ id: 2, name: "Second" });
   });
 
-  test("insertRow throws when the insert gives back no row", async () => {
+  test("insert throws when the insert gives back no row", async () => {
     using _execute = stub(getDb(), "execute", () =>
       Promise.resolve(emptyResultSet()),
     );
@@ -78,8 +71,7 @@ describeWithEnv("db > record table", { db: true }, () => {
 
   test("an insert statement with a false condition writes no row", async () => {
     const result = await execute(
-      await insertRowStatement(
-        tables.logistics_agents,
+      await records.logistics_agents.insertStatement(
         { name: "Skipped" },
         { when: false },
       ),
@@ -89,12 +81,12 @@ describeWithEnv("db > record table", { db: true }, () => {
     expect(await storedNames()).toEqual([]);
   });
 
-  test("updateRow seals the change and gives back the decoded row", async () => {
+  test("update seals the change and gives back the decoded row", async () => {
     const first = await addAgent("Before");
     const other = await addAgent("Other");
 
     expect(
-      await updateRow(tables.logistics_agents, first.id, { name: "After" }),
+      await records.logistics_agents.update(first.id, { name: "After" }),
     ).toEqual({ id: first.id, name: "After" });
     expect(await openedAgents()).toEqual([
       { id: first.id, name: "After" },
@@ -102,24 +94,23 @@ describeWithEnv("db > record table", { db: true }, () => {
     ]);
   });
 
-  test("updateRow gives null when no row has the id", async () => {
+  test("update gives null when no row has the id", async () => {
     expect(
-      await updateRow(tables.logistics_agents, 99, { name: "Ghost" }),
+      await records.logistics_agents.update(99, { name: "Ghost" }),
     ).toBeNull();
   });
 
-  test("updateRow with no named change reads the row as it is", async () => {
+  test("update with no named change reads the row as it is", async () => {
     const row = await addAgent("Kept");
 
-    expect(await updateRow(tables.logistics_agents, row.id, {})).toEqual(row);
+    expect(await records.logistics_agents.update(row.id, {})).toEqual(row);
     expect(await openedAgents()).toEqual([row]);
   });
 
   test("an update statement with a false guard changes no row", async () => {
     const row = await addAgent("Guarded");
     const result = await execute(
-      await updateRowStatement(
-        tables.logistics_agents,
+      await records.logistics_agents.updateStatement(
         row.id,
         { name: "Changed" },
         (agent) => equal(agent.id, 0),
@@ -130,22 +121,20 @@ describeWithEnv("db > record table", { db: true }, () => {
     expect(await openedAgents()).toEqual([{ id: row.id, name: "Guarded" }]);
   });
 
-  test("findRow and findRowPrimary give the decoded row, or null", async () => {
+  test("find and findPrimary give the decoded row, or null", async () => {
     const row = await addAgent("Found");
 
-    expect(await findRow(tables.logistics_agents, row.id)).toEqual(row);
-    expect(await findRowPrimary(tables.logistics_agents, row.id)).toEqual(row);
-    expect(await findRow(tables.logistics_agents, row.id + 1)).toBeNull();
-    expect(
-      await findRowPrimary(tables.logistics_agents, row.id + 1),
-    ).toBeNull();
+    expect(await records.logistics_agents.find(row.id)).toEqual(row);
+    expect(await records.logistics_agents.findPrimary(row.id)).toEqual(row);
+    expect(await records.logistics_agents.find(row.id + 1)).toBeNull();
+    expect(await records.logistics_agents.findPrimary(row.id + 1)).toBeNull();
   });
 
-  test("hasRow tells whether a row has the id", async () => {
+  test("has tells whether a row has the id", async () => {
     const row = await addAgent("Here");
 
-    expect(await hasRow(tables.logistics_agents, row.id)).toBe(true);
-    expect(await hasRow(tables.logistics_agents, row.id + 1)).toBe(false);
+    expect(await records.logistics_agents.has(row.id)).toBe(true);
+    expect(await records.logistics_agents.has(row.id + 1)).toBe(false);
   });
 
   test("existsOn tells whether a read on an open transaction has a row", async () => {
@@ -153,17 +142,17 @@ describeWithEnv("db > record table", { db: true }, () => {
 
     expect(
       await withTransaction(async (tx) => [
-        await existsOn(tx, rowsById(tables.logistics_agents, row.id)),
-        await existsOn(tx, rowsById(tables.logistics_agents, row.id + 1)),
+        await existsOn(tx, records.logistics_agents.byId(row.id)),
+        await existsOn(tx, records.logistics_agents.byId(row.id + 1)),
       ]),
     ).toEqual([true, false]);
   });
 
-  test("deleteRow removes only the row with the id", async () => {
+  test("delete removes only the row with the id", async () => {
     const gone = await addAgent("Gone");
     const kept = await addAgent("Kept");
 
-    await deleteRow(tables.logistics_agents, gone.id);
+    await records.logistics_agents.delete(gone.id);
 
     expect(await openedAgents()).toEqual([{ id: kept.id, name: "Kept" }]);
   });

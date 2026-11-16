@@ -39,8 +39,7 @@ import {
   type ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
-import { findRowPrimary } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { requiredMapValue } from "#fp";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
@@ -48,8 +47,6 @@ import { withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-/* jscpd:ignore-start -- imports */
-import { bindFirst } from "#shared/fp-bind.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { externalSourceRecord } from "#shared/records/external-sources.ts";
 import {
@@ -158,7 +155,7 @@ const toLinkResponse = (
 /** The parent gate every link route runs. The read pins to the primary, so a
  *  link created right after its source can always see the source. */
 const sourceGate = apiEntityGate(
-  bindFirst(findRowPrimary)(tables.external_sources),
+  records.external_sources.findPrimary,
   "Source",
   recordJsonPolicy(externalSourceRecord),
 );

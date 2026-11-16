@@ -1,8 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
-import { findRow, insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { agentUsers, userAgents } from "#db/user-agents.ts";
 import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
@@ -32,7 +31,7 @@ describeRecord(
     });
 
     test("deletes an agent and clears every booking and user link to it", async () => {
-      const agent = await insertRow(tables.logistics_agents, { name: "Van 2" });
+      const agent = await records.logistics_agents.insert({ name: "Van 2" });
       const listing = await createTestListing({ name: "Delivery" });
       await createAttendeeOn(listing, "Ann", "ann@example.com");
       await execute(
@@ -44,7 +43,7 @@ describeRecord(
         kind: "deleted",
       });
       expect([
-        await findRow(tables.logistics_agents, agent.id),
+        await records.logistics_agents.find(agent.id),
         await agentUsers.getIds(agent.id),
         await queryAll<AgentColumns>(
           sql`SELECT start_agent_id, end_agent_id FROM listing_attendees`,

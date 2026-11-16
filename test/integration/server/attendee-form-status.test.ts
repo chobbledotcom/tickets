@@ -12,8 +12,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
@@ -71,7 +70,7 @@ describeWithEnv(
       };
 
       const newReservation = () =>
-        insertRow(tables.attendee_statuses, {
+        records.attendee_statuses.insert({
           is_reservation: true,
           name: "Reserved",
           reservation_amount: "10%",

@@ -18,7 +18,7 @@ import type { ListingOption } from "#db/listings/catalog.ts";
 import { listWithChildOrders } from "#db/ordered-collection.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import { readForIds, rowsForIds } from "#db/rows-for-ids.ts";
 import { equal } from "#db/select/expression.ts";
@@ -209,8 +209,7 @@ export const {
 } = onReplicaAndPrimary(attributeJoinedSql, attributeFromRows);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
-  (await queryOne(rowsById(tables.attributes, id).limit(1).pick("id")))?.id ??
-  null;
+  (await queryOne(records.attributes.byId(id).limit(1).pick("id")))?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn(
@@ -225,7 +224,7 @@ export const attributeOptionIdsIn = async (
   const unique = [...new Set(submitted)];
   const found = new Set(
     await readForIds(unique, () =>
-      queryIdColumn(rowsById(tables.attribute_options, unique).pick("id")),
+      queryIdColumn(records.attribute_options.byId(unique).pick("id")),
     ),
   );
   return filter((id: number) => found.has(id))(submitted);

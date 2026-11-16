@@ -1,8 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   apiBookPackage,
   bookingRows,
@@ -16,7 +15,7 @@ describePackageBooking(() => {
     test(`POST shapes a child-total error by the package's visibility (${concealed})`, async () => {
       const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
       const { child } = await twoChildAddons(a, "Mix Kit");
-      await updateRow(tables.groups, group.id, {
+      await records.groups.update(group.id, {
         hide_package_listings: concealed,
       });
 

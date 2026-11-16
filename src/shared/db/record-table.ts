@@ -25,13 +25,14 @@ import {
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node, Query, Where } from "#db/select/shape.ts";
-import type {
-  DecodedRowOf,
-  NewRowOf,
-  RowOf,
-  TableHandle,
-  TableName,
-  TableWithId,
+import {
+  type DecodedRowOf,
+  type NewRowOf,
+  type RowOf,
+  type TableHandle,
+  type TableName,
+  type TableWithId,
+  tables,
 } from "#db/select/tables.ts";
 import type { Read, RowsStatement } from "#db/sql.ts";
 import {
@@ -96,7 +97,7 @@ const wholeRows = <Name extends TableName>(
   query.everyColumn() as RowsStatement<DecodedRowOf<Name>>;
 
 /** The read of the row with this id, or of the rows with these ids. */
-export const rowsById = <Name extends TableWithId>(
+const rowsById = <Name extends TableWithId>(
   table: TableHandle<Name>,
   ids: Ids,
 ) => from(table).where(withId(table.singular, ids));
@@ -123,11 +124,11 @@ const findRowWith =
     readOne(wholeRows(rowsById(table, id)));
 
 /** The row with this id, or null when there is none. */
-export const findRow = findRowWith(readOneRow);
+const findRow = findRowWith(readOneRow);
 
 /** The row with this id, read on the primary. A write that reads its own
  *  row back uses this, because a replica can lag behind the write. */
-export const findRowPrimary = findRowWith(queryOnePrimary);
+const findRowPrimary = findRowWith(queryOnePrimary);
 
 /** The tables among `Among` whose rows have the column `Column`. */
 type TableWith<Column extends string, Among extends TableName = TableName> = {
@@ -154,14 +155,14 @@ export const allRowsNewestFirst =
     );
 
 /** The first whole row that `where` keeps, or null when it keeps none. */
-export const findRowWhere = <Name extends TableName>(
+const findRowWhere = <Name extends TableName>(
   table: TableHandle<Name>,
   where: Where<Node<Name>>,
 ): Promise<DecodedRowOf<Name> | null> =>
   readOneRow(wholeRows(from(table).where(where).limit(1)));
 
 /** Whether the table has a row with this id. */
-export const hasRow: ByRowId<"exists"> = (table, id) =>
+const hasRow: ByRowId<"exists"> = (table, id) =>
   readExists(rowsById(table, id));
 
 /** Remove every row of the table made before `cutoffIso`. */
@@ -191,7 +192,7 @@ const storedValues = <Name extends TableName, Stored>(
   encoded(table, values as RecordChanges<Name>) as Promise<Stored>;
 
 /** The insert of one row that gives back the row it wrote. */
-export const insertRowStatement = async <Name extends TableWithId>(
+const insertRowStatement = async <Name extends TableWithId>(
   table: TableHandle<Name>,
   values: NewRecord<Name>,
   options: InsertOptions<Name> = {},
@@ -208,7 +209,7 @@ export const insertRowStatement = async <Name extends TableWithId>(
 /** The update of the row with this id that gives back the row it wrote.
  *  `guard` must hold too, or the update changes no row. Changes that name no
  *  column change nothing, so the statement reads the row as it is. */
-export const updateRowStatement = async <Name extends TableWithId>(
+const updateRowStatement = async <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
   changes: RecordChanges<Name>,
@@ -236,16 +237,16 @@ const firstRowOf =
 
 /** Add one row and give back the row that the table holds. An insert that
  *  writes no row throws. */
-export const insertRow = firstRowOf(insertRowStatement, (table): never => {
+const insertRow = firstRowOf(insertRowStatement, (table): never => {
   throw new Error(`The insert into ${table.name} gave back no row`);
 });
 
 /** Change the row with this id, and give back the row that the table now
  *  holds. Null when there is no such row. */
-export const updateRow = firstRowOf(updateRowStatement, () => null);
+const updateRow = firstRowOf(updateRowStatement, () => null);
 
 /** Remove the row with this id. */
-export const deleteRow: ByRowId<"removed"> = async (table, id) => {
+const deleteRow: ByRowId<"removed"> = async (table, id) => {
   await execute(deleteFrom(table).where(rowsWith(table, "id", id)));
 };
 
@@ -280,3 +281,67 @@ export const newRecordOf =
       ...newRowDefaults(fields),
       ...rowValuesOf(table, input),
     }) as NewRecord<Name>;
+
+/** The reads and writes of one row of a table with an `id`, by its id. */
+export type Records<Name extends TableWithId> = Readonly<{
+  /** The read of the row with this id, or of the rows with these ids. */
+  byId: (ids: Ids) => Query<Node<Name>>;
+  delete: (id: number) => Promise<void>;
+  /** The row with this id, or null when there is none. */
+  find: (id: number) => Promise<DecodedRowOf<Name> | null>;
+  /** The row with this id, read on the primary. A write that reads its own
+   *  row back uses this, because a replica can lag behind the write. */
+  findPrimary: (id: number) => Promise<DecodedRowOf<Name> | null>;
+  /** The first whole row that `where` keeps, or null when it keeps none. */
+  findWhere: (where: Where<Node<Name>>) => Promise<DecodedRowOf<Name> | null>;
+  has: (id: number) => Promise<boolean>;
+  /** Add one row and give back the row that the table holds. */
+  insert: (
+    values: NewRecord<Name>,
+    options?: InsertOptions<Name>,
+  ) => Promise<DecodedRowOf<Name>>;
+  /** The insert of one row that gives back the row it wrote. */
+  insertStatement: (
+    values: NewRecord<Name>,
+    options?: InsertOptions<Name>,
+  ) => Promise<RowsStatement<DecodedRowOf<Name>>>;
+  /** Change the row with this id, and give back the row that the table now
+   *  holds. Null when there is no such row. `guard` must hold too. */
+  update: (
+    id: number,
+    changes: RecordChanges<Name>,
+    guard?: (row: Node<Name>) => Condition,
+  ) => Promise<DecodedRowOf<Name> | null>;
+  /** The update of the row with this id that gives back the row it wrote. */
+  updateStatement: (
+    id: number,
+    changes: RecordChanges<Name>,
+    guard?: (row: Node<Name>) => Condition,
+  ) => Promise<RowsStatement<DecodedRowOf<Name>>>;
+}>;
+
+/** The one-row reads and writes of `table`. Code over any table holds the
+ *  table as a handle, and reaches its rows through this. */
+export const recordsOf = <Name extends TableWithId>(
+  table: TableHandle<Name>,
+): Records<Name> => ({
+  byId: (ids) => rowsById(table, ids),
+  delete: (id) => deleteRow(table, id),
+  find: (id) => findRow(table, id),
+  findPrimary: (id) => findRowPrimary(table, id),
+  findWhere: (where) => findRowWhere(table, where),
+  has: (id) => hasRow(table, id),
+  insert: (values, options) => insertRow(table, values, options),
+  insertStatement: (values, options) =>
+    insertRowStatement(table, values, options),
+  update: (id, changes, guard) => updateRow(table, id, changes, guard),
+  updateStatement: (id, changes, guard) =>
+    updateRowStatement(table, id, changes, guard),
+});
+
+/** The one-row reads and writes of each table with an `id`. */
+export const records = Object.fromEntries(
+  Object.values(tables)
+    .filter((table) => table.columns.some(([column]) => column === "id"))
+    .map((table) => [table.name, recordsOf(table as TableHandle<TableWithId>)]),
+) as unknown as { readonly [Name in TableWithId]: Records<Name> };

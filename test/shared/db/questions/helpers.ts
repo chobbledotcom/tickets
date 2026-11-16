@@ -3,7 +3,7 @@ import type { Answer, Question, TextAnswer } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { type QuestionInput, questionsOrder } from "#db/questions/tables.ts";
-import { insertRow, rowValuesOf } from "#db/record-table.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -22,7 +22,7 @@ export const createQuestion = (
   text: string,
   overrides: Partial<QuestionInput> = {},
 ): Promise<Question> =>
-  insertRow(tables.questions, {
+  records.questions.insert({
     display_type: "radio",
     text,
     ...rowValuesOf(tables.questions, overrides),
@@ -38,7 +38,7 @@ export const addAnswer = (
   text: string,
   overrides: { active?: boolean } = {},
 ) =>
-  insertRow(tables.answers, {
+  records.answers.insert({
     question_id: questionId,
     sort_order: sortOrder,
     text,

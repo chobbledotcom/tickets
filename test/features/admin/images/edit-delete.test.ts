@@ -2,11 +2,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  getImageById,
-  getImageUsesForImage,
-  setImagesForItem,
-} from "#db/images.ts";
+import { getImageUsesForImage, setImagesForItem } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { imageRecord } from "#shared/records/images.ts";
 import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
@@ -247,7 +244,7 @@ describeWithEnv(
           true,
           cookie,
         )(response);
-        expect(await getImageById(image.id)).toMatchObject({
+        expect(await records.images.find(image.id)).toMatchObject({
           alt_text: "Updated alt",
           name: "Updated",
         });
@@ -368,7 +365,7 @@ describeWithEnv(
             fetchCalls.some((url) => url.includes("discard-thumb.webp")),
           ).toBe(true);
         });
-        expect(await getImageById(image.id)).toBeNull();
+        expect(await records.images.find(image.id)).toBeNull();
         assertArrayIncludes(await activityMessages(), [
           "Image 'Discard' deleted",
         ]);

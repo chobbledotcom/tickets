@@ -17,8 +17,7 @@ import {
   updateStatementFor,
 } from "#db/attendees/atomic-update.ts";
 import { queryAllPrimary, resultRows, type TxScope } from "#db/client.ts";
-import { rowsById } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
@@ -59,7 +58,7 @@ const storedTypeTx = async (
   listingId: number,
 ): Promise<string> => {
   const results = await tx.batch([
-    rowsById(tables.listings, listingId).pick("listing_type"),
+    records.listings.byId(listingId).pick("listing_type"),
   ]);
   return resultRows<{ listing_type: string }>(results[0]!)[0]!.listing_type;
 };

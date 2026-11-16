@@ -3,8 +3,7 @@
  */
 
 import { readRows } from "#db/read.ts";
-import { rowsById } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { getCurrentSettingsVersion } from "#db/settings.ts";
 import { lazyRef, mapById } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
@@ -78,7 +77,7 @@ export const imageUrlsFor = async (
   if (missing.length === 0) return table;
   const fetched = mapById((row: { id: number; filename: string }) =>
     getImageProxyUrl(row.filename),
-  )(await readRows(rowsById(tables.images, missing).pick("id", "filename")));
+  )(await readRows(records.images.byId(missing).pick("id", "filename")));
   for (const [id, url] of fetched) table.set(id, url);
   const warm = cached ?? new Map<number, string>();
   for (const [id, url] of fetched) warm.set(id, url);

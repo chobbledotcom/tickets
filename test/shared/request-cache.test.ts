@@ -2,8 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { getAllCacheStats, registerCache } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -199,7 +198,7 @@ describe("requestCache", () => {
 
 describeWithEnv("caching integration", { db: true }, () => {
   test("caches holidays within a request and serves fresh data across requests", async () => {
-    await insertRow(tables.holidays, {
+    await records.holidays.insert({
       end_date: parseDateStringOrThrow(
         "2026-07-31",
         "the request-cache holiday end date",
@@ -225,7 +224,7 @@ describeWithEnv("caching integration", { db: true }, () => {
     const first = await withRequestContext(() => holidays.getAll());
     expect(first).toHaveLength(0);
 
-    await insertRow(tables.holidays, {
+    await records.holidays.insert({
       end_date: parseDateStringOrThrow(
         "2026-12-31",
         "the request-cache holiday end date",

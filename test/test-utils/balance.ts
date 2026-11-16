@@ -1,6 +1,5 @@
 import { attendeesApi } from "#db/attendees/api.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
@@ -69,7 +68,7 @@ const makeOwingAttendee =
       ...(options.listingName ? { name: options.listingName } : {}),
       thankYouUrl: "https://example.com",
     });
-    const status = await insertRow(tables.attendee_statuses, {
+    const status = await records.attendee_statuses.insert({
       is_reservation: isReservation,
       name: statusName,
       reservation_amount: reservationAmount,

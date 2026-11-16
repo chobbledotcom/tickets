@@ -26,7 +26,7 @@ import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { newListingValues } from "#db/listings/records.ts";
-import { insertRowStatement } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { takenSlugIndexes } from "#db/slug-registry.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
@@ -146,8 +146,7 @@ const writeBundle = async (
   return withTransaction(async (tx) => {
     const listingStatements = await Promise.all(
       listingPlans.map((listingPlan, index) =>
-        insertRowStatement(
-          tables.listings,
+        records.listings.insertStatement(
           newListingValues({
             ...listingPlan.input,
             slug: slugs[index]!.slug,
@@ -158,8 +157,7 @@ const writeBundle = async (
     );
     const groupStatements = await Promise.all(
       groupPlans.map((groupPlan, index) =>
-        insertRowStatement(
-          tables.groups,
+        records.groups.insertStatement(
           newGroupValues(
             groupDataToInput(
               groupPlan.body.group,

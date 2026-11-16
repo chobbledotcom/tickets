@@ -7,12 +7,8 @@ import { generateSecureToken } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { readRows } from "#db/read.ts";
-import {
-  deleteRow,
-  findRow,
-  findRowWhere,
-  insertRow,
-} from "#db/record-table.ts";
+
+import { records } from "#db/record-table.ts";
 import { type Counted, desc, type Expr, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
@@ -20,7 +16,6 @@ import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { update } from "#db/write.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 
 /** A stored invoice row. The body is sealed under the share token's derived
@@ -42,7 +37,6 @@ export type NewInvoice = {
 };
 
 /** One row by its invoice number, or null. */
-export const getInvoice = bindFirst(findRow)(tables.invoices);
 
 /** Every invoice the filter keeps, newest first, without its sealed body. */
 const summariesNewestFirst = (
@@ -63,7 +57,7 @@ export const getInvoices = (): Promise<InvoiceSummary[]> =>
 export const getOpenInvoice = (
   attendeeId: number,
 ): Promise<InvoiceRow | null> =>
-  findRowWhere(tables.invoices, { attendee_id: attendeeId, status: "new" });
+  records.invoices.findWhere({ attendee_id: attendeeId, status: "new" });
 
 /** The attendee's invoices, newest first, without their sealed bodies. The
  *  booking's info table reads the newest one. */
@@ -76,7 +70,7 @@ export const getAttendeeInvoices = (
 export const getInvoiceByShareToken = async (
   token: string,
 ): Promise<InvoiceRow | null> =>
-  findRowWhere(tables.invoices, { share_token_index: await hmacHash(token) });
+  records.invoices.findWhere({ share_token_index: await hmacHash(token) });
 
 /** The next free invoice number, which the create form prefills. */
 export const nextInvoiceNumber = async (): Promise<number> => {
@@ -103,7 +97,7 @@ export const createInvoice = async ({
     encryptWithOwnerKey(shareToken, settings.publicKey),
     hmacHash(shareToken),
   ]);
-  const invoice = await insertRow(tables.invoices, {
+  const invoice = await records.invoices.insert({
     attendee_id: attendeeId,
     body,
     created,
@@ -125,7 +119,6 @@ export const cancelInvoice = async (id: number): Promise<boolean> =>
   executeChangedRow(cancelInvoiceStatement(id));
 
 /** Remove one invoice. */
-export const deleteInvoice = bindFirst(deleteRow)(tables.invoices);
 
 /**
  * The statement that marks an attendee's open invoices paid, guarded on the

@@ -19,7 +19,7 @@ import {
   undatedBookingsForListing,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { rowValuesOf, updateRowStatement } from "#db/record-table.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -129,8 +129,7 @@ export const probeAssignDates = async (
   try {
     return await withTransaction(async (tx) => {
       await tx.execute(
-        await updateRowStatement(
-          tables.listings,
+        await records.listings.updateStatement(
           stored.id,
           rowValuesOf(tables.listings, wouldBe),
         ),

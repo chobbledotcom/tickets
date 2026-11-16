@@ -5,14 +5,13 @@ import {
   type ModifierInput,
   setModifierAnswers,
 } from "#db/modifiers.ts";
-import { insertRow, newRecordOf } from "#db/record-table.ts";
+import { newRecordOf, records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
-  insertRow(
-    tables.modifiers,
+  records.modifiers.insert(
     // The defaults name every required column.
     newRecordOf(tables.modifiers)({
       calcKind: "fixed",
@@ -164,11 +163,11 @@ export const setupAnswerTier = async (
   overrides: Partial<ModifierInput> = {},
 ): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
   const { listingQuestions } = await import("#db/questions/queries.ts");
-  const question = await insertRow(tables.questions, {
+  const question = await records.questions.insert({
     display_type: "radio",
     text: "T-shirt size?",
   });
-  const answer = await insertRow(tables.answers, {
+  const answer = await records.answers.insert({
     question_id: question.id,
     sort_order: 0,
     text: "Small",

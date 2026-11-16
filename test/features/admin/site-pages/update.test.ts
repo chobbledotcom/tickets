@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { getSitePageById, getSitePageBySlugIndex } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
+import { getSitePageBySlugIndex } from "#db/site-pages.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -116,7 +117,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       });
       expectRedirect(response);
       expectFlash(response, "Page updated", true);
-      expect((await getSitePageById(page.id))?.name).toBe("Renamed");
+      expect((await records.site_pages.find(page.id))?.name).toBe("Renamed");
       expect(await wasLogged("Page 'Renamed' updated")).toBe(true);
       // The blind index is recomputed, so the new slug is findable and the
       // old one is freed (both key off slug_index).
@@ -140,7 +141,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         { hidden: "1", name: page.name, slug: page.slug },
       );
       expectRedirect(hidden);
-      const stored = await getSitePageById(page.id);
+      const stored = await records.site_pages.find(page.id);
       expect(stored?.hidden).toBe(true);
       const editorHtml = await expectHtmlResponse(
         await adminGet(`${BASE}/${page.id}/edit`),
@@ -154,7 +155,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         { name: page.name, slug: page.slug },
       );
       expectRedirect(shown);
-      expect((await getSitePageById(page.id))?.hidden).toBe(false);
+      expect((await records.site_pages.find(page.id))?.hidden).toBe(false);
     });
 
     /** Post a page edit that the form refuses. The answer is the edit page
@@ -170,7 +171,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         fields,
       );
       expect(response.status).toBe(400);
-      expect((await getSitePageById(page.id))?.slug).toBe(slug);
+      expect((await records.site_pages.find(page.id))?.slug).toBe(slug);
       return response.text();
     };
 

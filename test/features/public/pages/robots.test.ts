@@ -1,8 +1,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -99,7 +98,7 @@ describeWithEnv(
         isPackage: true,
         name: "Robots Hidden Pkg",
       });
-      await updateRow(tables.groups, hiddenPackage.id, {
+      await records.groups.update(hiddenPackage.id, {
         hide_package_listings: true,
       });
       const visiblePackage = await createTestGroup({

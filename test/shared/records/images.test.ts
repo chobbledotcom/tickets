@@ -5,11 +5,8 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import {
-  deleteImageRecord,
-  getImageById,
-  getImagesForItem,
-} from "#db/images.ts";
+import { deleteImageRecord, getImagesForItem } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import {
   imageMetadata,
   imageMetadataOrError,
@@ -357,7 +354,7 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
       }),
       "items must name existing records: listing:98, group:99",
     );
-    expect((await getImageById(image.id))?.name).toBe("Kept");
+    expect((await records.images.find(image.id))?.name).toBe("Kept");
     expect(await loggedMessages()).toEqual(["Listing 'Real' created"]);
   });
 
@@ -376,7 +373,7 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
     });
 
     expect([
-      (await getImageById(image.id))?.name,
+      (await records.images.find(image.id))?.name,
       (await getImagesForItem("listing", listing.id)).map((row) => row.id),
     ]).toEqual(["Changed", [image.id]]);
   });
@@ -413,6 +410,6 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
     const image = await makeImage("Old");
 
     await expectRecordDelete(imageRecord, image.id, ["Image 'Old' deleted"]);
-    expect(await getImageById(image.id)).toBe(null);
+    expect(await records.images.find(image.id)).toBe(null);
   });
 });

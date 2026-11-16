@@ -14,8 +14,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
-import { findRow, insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -29,7 +28,7 @@ import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
-  return await insertRow(tables.groups, {
+  return await records.groups.insert({
     name,
     slug,
     slug_index: await hmacHash(slug),
@@ -39,7 +38,7 @@ const insertMinimalGroup = async (name: string) => {
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    expect(await findRow(tables.groups, inserted.id)).toMatchObject({
+    expect(await records.groups.find(inserted.id)).toMatchObject({
       hidden: false,
       hide_package_listings: false,
       is_package: false,

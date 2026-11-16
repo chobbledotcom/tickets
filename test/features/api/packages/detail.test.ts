@@ -4,8 +4,7 @@ import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { updateListing } from "#db/listings/records.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -152,7 +151,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    await updateRow(tables.groups, group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hide_package_listings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -227,7 +226,7 @@ describeWithEnv("API package detail", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    await updateRow(tables.groups, group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hide_package_listings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)

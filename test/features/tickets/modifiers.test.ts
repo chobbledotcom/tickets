@@ -2,8 +2,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import {
   formatCurrency,
@@ -116,7 +115,7 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       eventId: "evt_ticket_deleted",
       name: "Gone offer",
     });
-    await deleteRow(tables.modifiers, modifierId);
+    await records.modifiers.delete(modifierId);
     const html = await ticketPageHtml(attendee);
     expectIncludesAll(html, [
       "Price change",

@@ -24,8 +24,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
-import { deleteRow, findRow, updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -53,20 +52,20 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         slug: "db-group",
       });
 
-      const fetched = await findRow(tables.groups, created.id);
+      const fetched = await records.groups.find(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
 
-      const updated = await updateRow(tables.groups, created.id, {
+      const updated = await records.groups.update(created.id, {
         name: "DB Group Updated",
         terms_and_conditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
       expect(updated?.terms_and_conditions).toBe("Terms");
 
-      await deleteRow(tables.groups, created.id);
-      expect(await findRow(tables.groups, created.id)).toBeNull();
+      await records.groups.delete(created.id);
+      expect(await records.groups.find(created.id)).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
@@ -250,7 +249,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         { maxAttendees: 5, name: "delete-me", slug: "delete-me" },
         "orphan-listing",
       );
-      await deleteRow(tables.groups, group.id);
+      await records.groups.delete(group.id);
 
       expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
     });
@@ -598,7 +597,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Changed Bundle",
       });
 
-      await updateRow(tables.groups, pkg.id, { hide_package_listings: true });
+      await records.groups.update(pkg.id, { hide_package_listings: true });
 
       expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
         hideListings: true,

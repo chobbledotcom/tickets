@@ -4,8 +4,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { findRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
 import {
@@ -85,7 +84,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       const response = await renameAs(agent.cookie, group.id, "Agent Renamed");
       expect(response.status).toBe(403);
-      const row = await findRow(tables.groups, group.id);
+      const row = await records.groups.find(group.id);
       expect(row?.name).toBe("Agent Edit");
     });
 
@@ -173,7 +172,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         "max_attendees has an invalid value",
       );
 
-      expect((await findRow(tables.groups, group.id))?.max_attendees).toBe(12);
+      expect((await records.groups.find(group.id))?.max_attendees).toBe(12);
     });
 
     test("returns 404 for non-existent group", async () => {

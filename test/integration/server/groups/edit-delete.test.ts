@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { findRow } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
@@ -254,7 +254,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       const { getListingWithCount } = await import("#db/listings/records.ts");
 
-      expect(await findRow(tables.groups, group.id)).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
       const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
@@ -296,7 +296,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
           ),
         );
         expect(response.status).toBe(404);
-        expect(await findRow(tables.groups, group.id)).toBeNull();
+        expect(await records.groups.find(group.id)).toBeNull();
         expect(await wasActivityLogged("Group 'Race Group' deleted")).toBe(
           false,
         );

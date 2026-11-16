@@ -8,16 +8,8 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import type { TxScope } from "#db/client.ts";
-import {
-  deleteRow,
-  findRow,
-  findRowPrimary,
-  hasRow,
-  insertRowStatement,
-  newRecordOf,
-  rowValuesOf,
-  updateRowStatement,
-} from "#db/record-table.ts";
+
+import { newRecordOf, recordsOf, rowValuesOf } from "#db/record-table.ts";
 import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
@@ -57,7 +49,9 @@ const defaultLoad =
   (primary: boolean) =>
   <FullRow>(table: TableHandle<TableWithId>) =>
   async (id: number, _actor?: RecordActor): Promise<FullRow | null> =>
-    (await (primary ? findRowPrimary : findRow)(table, id)) as FullRow | null;
+    (await (primary ? recordsOf(table).findPrimary : recordsOf(table).find)(
+      id,
+    )) as FullRow | null;
 
 /** The activity line for one named row change. */
 export const logNameActivity =
@@ -326,8 +320,7 @@ const buildRecord = <Shape extends RecordShape>(
     return runWrite(input, null, {
       plan,
       statementFor: (value) =>
-        insertRowStatement(
-          table,
+        recordsOf(table).insertStatement(
           newRecordOf(table, spec.fieldDefaults)(value as object),
         ),
       verb: "created",
@@ -339,7 +332,10 @@ const buildRecord = <Shape extends RecordShape>(
       runWrite(input, existing, {
         plan,
         statementFor: (value) =>
-          updateRowStatement(table, id, rowValuesOf(table, value as object)),
+          recordsOf(table).updateStatement(
+            id,
+            rowValuesOf(table, value as object),
+          ),
         verb: "updated",
       }),
     );
@@ -354,7 +350,7 @@ const buildRecord = <Shape extends RecordShape>(
   ): Promise<DeleteVerdict> => {
     // The confirmation page loaded the row earlier. Re-check it here so a
     // row deleted between that page and this request answers not-found.
-    if (!(await hasRow(table, id))) {
+    if (!(await recordsOf(table).has(id))) {
       return { kind: "not-found" };
     }
     const refusal = spec.deleteRefusal
@@ -364,7 +360,7 @@ const buildRecord = <Shape extends RecordShape>(
     if (spec.onDelete) {
       await spec.onDelete(id, input, actor);
     } else {
-      await deleteRow(table, id);
+      await recordsOf(table).delete(id);
     }
     await logActivity(
       `${spec.activityName} '${spec.nameOf(existing)}' deleted`,

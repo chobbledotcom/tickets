@@ -2,8 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { updateListing } from "#db/listings/records.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -40,10 +39,10 @@ describeWithEnv(
         email: "a@test.com",
         name: "Agent User",
       });
-      const assigned = await insertRow(tables.logistics_agents, {
+      const assigned = await records.logistics_agents.insert({
         name: "Mine",
       });
-      const other = await insertRow(tables.logistics_agents, { name: "Other" });
+      const other = await records.logistics_agents.insert({ name: "Other" });
       const attendees = await getAttendeesRaw(listing.id);
       await setLogisticsAssignments(
         attendees[0]!.id,

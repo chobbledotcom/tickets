@@ -9,9 +9,8 @@ import {
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
 import { getListingWithCount, newListingValues } from "#db/listings/records.ts";
-import { insertRowStatement } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
@@ -150,10 +149,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
         version: 1,
       }),
       writeRowInTransaction(
-        await insertRowStatement(
-          tables.listings,
-          newListingValues(standardInput),
-        ),
+        await records.listings.insertStatement(newListingValues(standardInput)),
         null,
         (tx, id) => setListingGroupsTx(tx, id, standardInput.groupIds),
       ),

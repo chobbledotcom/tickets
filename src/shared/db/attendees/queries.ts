@@ -23,7 +23,7 @@ import {
 import { queryOne } from "#db/client.ts";
 import { columnFrom } from "#db/query.ts";
 import { readExists, readRows } from "#db/read.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { readForIds } from "#db/rows-for-ids.ts";
 import { greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
@@ -406,7 +406,7 @@ export const getAttendeeKindsByIds = async (
   ids: number[],
 ): Promise<Map<number, string>> =>
   fieldById("kind")(
-    await readRows(rowsById(tables.attendees, ids).pick("id", "kind")),
+    await readRows(records.attendees.byId(ids).pick("id", "kind")),
   );
 
 /**

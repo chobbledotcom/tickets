@@ -1,7 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getSitePageById, sitePages } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
+import { sitePages } from "#db/site-pages.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -27,13 +28,13 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         confirm_identifier: "nope",
       });
       expectRedirect(wrong.response);
-      expect(await getSitePageById(page.id)).toBeTruthy();
+      expect(await records.site_pages.find(page.id)).toBeTruthy();
 
       const right = await adminFormPost(`${BASE}/${page.id}/delete`, {
         confirm_identifier: page.name,
       });
       expectRedirect(right.response);
-      expect(await getSitePageById(page.id)).toBeNull();
+      expect(await records.site_pages.find(page.id)).toBeNull();
       expect(await wasLogged(`Page '${page.name}' deleted`)).toBe(true);
     });
   });

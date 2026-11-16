@@ -24,7 +24,7 @@ import {
   toListingGroupMembership,
 } from "#db/modifier-resolve.ts";
 import { modifierGroups } from "#db/modifiers.ts";
-import { rowsById } from "#db/record-table.ts";
+import { records } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { once, requiredMapValue } from "#fp";
@@ -277,9 +277,7 @@ const isFlaggedChild = async ({
   tx,
 }: ListingSave): Promise<boolean> =>
   resultRows(
-    await tx.execute(
-      rowsById(tables.listings, existingId).pick("bookable_alone"),
-    ),
+    await tx.execute(records.listings.byId(existingId).pick("bookable_alone")),
   ).some((row) => row.bookable_alone) &&
   (await listingParents.getIds(existingId, tx)).length > 0;
 

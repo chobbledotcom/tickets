@@ -17,13 +17,8 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import {
-  insertRow,
-  insertRowStatement,
-  type NewRecord,
-  rowValuesOf,
-  updateRowStatement,
-} from "#db/record-table.ts";
+
+import { type NewRecord, records, rowValuesOf } from "#db/record-table.ts";
 import { among, equal, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { CountRow } from "#db/select/shape.ts";
@@ -278,8 +273,7 @@ const saveStatus = (
       return okResult(
         await writtenStatus(
           tx,
-          await updateRowStatement(
-            tables.attendee_statuses,
+          await records.attendee_statuses.updateStatement(
             id,
             rowValuesOf(tables.attendee_statuses, input),
           ),
@@ -292,7 +286,7 @@ const saveStatus = (
     return okResult(
       await writtenStatus(
         tx,
-        await insertRowStatement(tables.attendee_statuses, {
+        await records.attendee_statuses.insertStatement({
           // The status rule checked that the input names every field.
           ...(rowValuesOf(
             tables.attendee_statuses,
@@ -441,7 +435,7 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     from(tables.attendee_statuses).limit(1).pick("id"),
   );
   if (existing.length > 0) return;
-  const status = await insertRow(tables.attendee_statuses, {
+  const status = await records.attendee_statuses.insert({
     is_paid_default: true,
     is_public_default: true,
     is_reservation: false,

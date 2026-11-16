@@ -3,11 +3,11 @@ import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import {
-  getImageById,
   getImagesForItem,
   insertImageRecord,
   setItemsForImage,
 } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -211,7 +211,7 @@ export const expectImageName = async (
   id: number,
   name: string,
 ): Promise<void> => {
-  expect((await getImageById(id))?.name).toBe(name);
+  expect((await records.images.find(id))?.name).toBe(name);
 };
 
 /** One image row as the JSON API answers with it. */

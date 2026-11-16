@@ -1,3 +1,4 @@
+import { records } from "#db/record-table.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -8,7 +9,6 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { groups } from "#db/groups.ts";
 import {
   getAllImages,
-  getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
@@ -73,7 +73,7 @@ const imagePath = (id: number): string => adminPath("imageEdit", { id });
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
 );
-const imageHandler = createIdEntityHandler<Image>(getImageById);
+const imageHandler = createIdEntityHandler<Image>(records.images.find);
 type ImagePost = (
   image: Image,
   form: FormParams,

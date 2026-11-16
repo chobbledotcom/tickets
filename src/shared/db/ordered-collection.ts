@@ -5,7 +5,7 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { insertRowStatement, type NewRecord } from "#db/record-table.ts";
+import { type NewRecord, recordsOf } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import {
@@ -246,7 +246,7 @@ export const insertScopedOrderedRow =
   ): ScopedOrderedRowInsert<NewRecord<Name>> =>
   async (scope, values, log) =>
     writeRowInTransaction(
-      await insertRowStatement(table, values),
+      await recordsOf(table).insertStatement(values),
       null,
       async (transaction, id) => {
         await order.append({ key: id, scope, transaction });

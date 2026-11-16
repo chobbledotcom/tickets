@@ -8,8 +8,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { getGroupPackagePrices, newGroupValues } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { createListing, getListingWithCount } from "#db/listings/records.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -363,7 +362,7 @@ describeWithEnv(
       // createTestGroup, whose trailing getAllGroups() would itself trip the read
       // guard 30 times over in this one test context.
       const groupNames = await storeThirty("Group", (row) =>
-        insertRow(tables.groups, newGroupValues(row)),
+        records.groups.insert(newGroupValues(row)),
       );
       const result = await importCatalog({
         groups: groupNames.map((group) => ({ group })),

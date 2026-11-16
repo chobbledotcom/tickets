@@ -8,15 +8,9 @@
  */
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  allRowsNewestFirst,
-  deleteRow,
-  findRow,
-  insertRow,
-  updateRow,
-} from "#db/record-table.ts";
+
+import { allRowsNewestFirst, records } from "#db/record-table.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
-import { bindFirst } from "#shared/fp-bind.ts";
 
 export type RawEmailTemplate = DecodedRowOf<"email_templates">;
 
@@ -27,20 +21,18 @@ export const getAllRawEmailTemplates = allRowsNewestFirst(
 
 export const getRawEmailTemplate = (
   id: number,
-): Promise<RawEmailTemplate | null> => findRow(tables.email_templates, id);
+): Promise<RawEmailTemplate | null> => records.email_templates.find(id);
 
 export const insertEmailTemplate = async (
   subject: OwnerKeyEncrypted,
   body: OwnerKeyEncrypted,
 ): Promise<number> =>
-  (await insertRow(tables.email_templates, { body, subject })).id;
+  (await records.email_templates.insert({ body, subject })).id;
 
 export const updateEmailTemplate = async (
   id: number,
   subject: OwnerKeyEncrypted,
   body: OwnerKeyEncrypted,
 ): Promise<void> => {
-  await updateRow(tables.email_templates, id, { body, subject });
+  await records.email_templates.update(id, { body, subject });
 };
-
-export const deleteEmailTemplate = bindFirst(deleteRow)(tables.email_templates);
