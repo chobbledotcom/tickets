@@ -43,6 +43,7 @@ export const CANCELLATION_TABLES = {
       refunded: "Bool",
       refundLegs: "Int",
       refundOrder: "Int",
+      refundReference: "Str",
       refunds: "Int",
       requestId: "Str",
       scenario: "Str",

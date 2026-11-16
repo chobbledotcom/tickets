@@ -38,6 +38,7 @@ export type CheckoutCase = {
   shape?: "valid" | "unreadable" | "foreign";
   start?: SubscriptionStatus;
   observedStart?: SubscriptionStart;
+  observedReference?: string;
   end?: SubscriptionStatus;
   cancelRefused?: boolean;
   readRefused?: boolean;

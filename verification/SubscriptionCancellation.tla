@@ -166,6 +166,7 @@ SafeCheckout(c) ==
   /\ c.confirmed = (c.start \in EndedStatuses \/ c.observed \in EndedStatuses)
   /\ c.refundBeforeEnd = 0
   /\ c.refunds <= 1 /\ c.refundLegs <= 1
+  /\ c.refundReference = (IF c.refunds > 0 THEN c.paymentReference ELSE "")
   /\ (c.cancels > 0 => c.requestId = c.subscriptionId)
   /\ (c.reads > 0 =>
        (c.readRequestId = c.subscriptionId /\ c.readIdentityKept))

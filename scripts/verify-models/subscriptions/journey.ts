@@ -199,7 +199,8 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
 };
 
 /** A real rejected-session retry consumes the plan and charge read from one
- * supplied Stripe subscription and first invoice. The callback reads its rows
+ * supplied Stripe subscription and first invoice. The consumed charge is the
+ * one that the refund request named at the provider boundary. The callback reads its rows
  * before the isolated client closes. It never rebuilds the expected outcome. */
 export const failedJourneyFacts = async (): Promise<
   RenewalFacts["failedJoins"]
@@ -221,7 +222,12 @@ export const failedJourneyFacts = async (): Promise<
   });
   const facts: RenewalFacts["failedJoins"] = [];
   await checkoutCase(
-    { observedStart: observed.start, retry: true, scenario: "retry" },
+    {
+      observedReference: observed.paymentReference,
+      observedStart: observed.start,
+      retry: true,
+      scenario: "retry",
+    },
     await checkoutPublicKey(),
     "none",
     async (attempt) => {
@@ -243,7 +249,7 @@ export const failedJourneyFacts = async (): Promise<
         ...observedPlanFacts(observed.start),
         ...pick(attempt, ATTEMPT_FIELDS),
         amount: price,
-        consumedReference: checkoutReference.reference,
+        consumedReference: attempt.refundReference,
         observedReference: observed.paymentReference,
       });
     },

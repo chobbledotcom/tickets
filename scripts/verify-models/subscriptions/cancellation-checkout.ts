@@ -53,7 +53,9 @@ const checkoutRejection = (
     currency: "GBP",
     id: CHECKOUT_SESSION,
     metadata: checkoutMetadata(sample.shape ?? "valid"),
-    paymentReference: sample.unpaid ? "" : checkoutReference.reference,
+    paymentReference: sample.unpaid
+      ? ""
+      : (sample.observedReference ?? checkoutReference.reference),
     paymentStatus: sample.unpaid ? "unpaid" : "paid",
     provider: "stripe",
     subscription: start,
@@ -164,6 +166,7 @@ const factFor = async (
   refundBeforeEnd: probe.refundBeforeEnd,
   refunded,
   refundOrder: probe.refundOrder,
+  refundReference: probe.refundReference,
   refunds: probe.refunds,
   sessionId: CHECKOUT_SESSION,
   signedOrder: sample.shape !== "unreadable" && sample.shape !== "foreign",

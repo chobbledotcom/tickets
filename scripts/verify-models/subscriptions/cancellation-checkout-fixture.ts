@@ -135,6 +135,7 @@ export type CheckoutProbe = CancellationProbe & {
   refundOrder: number;
   heldAtCancel: number;
   planAtCancel: number;
+  refundReference: string;
 };
 
 /** Provider calls are observed here. The supplied answers are assumptions. */
@@ -155,6 +156,7 @@ export const withCheckoutProvider: CancellationProvider<
     readRefused: false,
     refundBeforeEnd: 0,
     refundOrder: 0,
+    refundReference: "",
     refunds: 0,
     refusal: { reason: "rejected_request", status: "invalid" },
   };
@@ -225,6 +227,7 @@ export const withCheckoutProvider: CancellationProvider<
     });
   stripeApi.refundCharge = (request) => {
     probe.refunds++;
+    probe.refundReference = request.paymentReference;
     probe.refundOrder = ++probe.order;
     if (!probe.confirmed) probe.refundBeforeEnd++;
     return Promise.resolve({

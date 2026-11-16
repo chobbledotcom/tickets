@@ -292,7 +292,8 @@ FailedJoinLaw ==
        /\ item.amount = item.observedAmount
        /\ item.interval = item.observedInterval
        /\ item.status = item.observedStatus
-       /\ item.consumedReference = item.observedReference
+       /\ item.consumedReference =
+            (IF item.refunds > 0 THEN item.observedReference ELSE "")
        /\ item.refundBeforeEnd = 0
        /\ item.refunds = (IF item.attempt = 1 THEN 0 ELSE 1)
        /\ item.confirmed = (item.attempt # 1)
