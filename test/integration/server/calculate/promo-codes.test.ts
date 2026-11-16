@@ -5,14 +5,13 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** Set up a listing at £10.00 with a 10%-off promo code modifier ("SAVE10").
@@ -24,10 +23,10 @@ const setupPromoListing = async () => {
     name: "Workshop",
     unitPrice: 1000,
   });
-  await insertRow(tables.modifiers, {
-    calc_kind: "percent",
-    calc_value: 10,
-    code_index: await hmacHash(matchKey("SAVE10")),
+  await insertModifier({
+    calcKind: "percent",
+    calcValue: 10,
+    codeIndex: await hmacHash(matchKey("SAVE10")),
     direction: "discount",
     name: "10% off",
     trigger: "code",

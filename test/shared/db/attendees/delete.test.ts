@@ -14,8 +14,6 @@ import { getAllModifiers } from "#db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { emptyBookingLine } from "#test-utils/attendees/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
@@ -24,7 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { insertModifierUsage } from "#test-utils/modifiers.ts";
+import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
@@ -185,11 +183,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "Modifier User",
       "modifier@example.com",
     );
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 5,
-      direction: "charge",
-      name: "Add-on",
+    const modifier = await insertModifier({
       stock: null,
     });
 

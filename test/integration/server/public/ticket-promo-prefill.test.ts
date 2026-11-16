@@ -1,8 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
@@ -25,15 +23,16 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** A whole-order 10% discount unlocked by `code`, so the page offers the
  * promo box and the code can be matched at submit. */
 const insertPromoModifier = async (code: string) =>
-  await insertRow(tables.modifiers, {
-    calc_kind: "percent",
-    calc_value: 10,
-    code_index: await hmacHash(matchKey(code)),
+  await insertModifier({
+    calcKind: "percent",
+    calcValue: 10,
+    codeIndex: await hmacHash(matchKey(code)),
     direction: "discount",
     name: code,
     trigger: "code",

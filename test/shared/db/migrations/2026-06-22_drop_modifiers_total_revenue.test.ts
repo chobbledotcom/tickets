@@ -1,6 +1,4 @@
 import { getDb } from "#db/client.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { modifierRevenueDropFixture } from "#test-utils/db/legacy-aggregate-migration.ts";
 import {
@@ -8,16 +6,9 @@ import {
   runAggregateColumnDropTests,
 } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 const { contribution, runMigration } = modifierRevenueDropFixture;
-
-const makeModifier = () =>
-  insertRow(tables.modifiers, {
-    calc_kind: "fixed",
-    calc_value: 5,
-    direction: "charge",
-    name: "Add-on",
-  });
 
 describeWithEnv(
   "db > migrations > 2026-06-22_drop_modifiers_total_revenue",
@@ -25,7 +16,7 @@ describeWithEnv(
   () => {
     runAggregateColumnDropTests({
       contribution,
-      createSubject: makeModifier,
+      createSubject: () => insertModifier(),
       dropColumn: "total_revenue",
       dropColumnPhrase: "a revenue",
       expected: { total_uses: 3, usage_count: 1 },

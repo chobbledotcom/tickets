@@ -11,8 +11,6 @@ import {
   MANUAL_MODIFIER_REDUCTION,
 } from "#accounting/manual-entries.ts";
 import { allTransfers } from "#accounting/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   postAttendeePayment,
@@ -26,6 +24,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { withSetting } from "#test-utils/settings.ts";
 
@@ -75,10 +74,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
   });
 
   test("renders modifier add choices for modifier-specific changes", async () => {
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 500,
-      direction: "charge",
+    const modifier = await insertModifier({
+      calcValue: 500,
       name: "Helmet hire",
     });
     const response = await adminGet(
@@ -137,10 +134,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       name: "Door sales",
       thankYouUrl: "https://example.com",
     });
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 500,
-      direction: "charge",
+    const modifier = await insertModifier({
+      calcValue: 500,
       name: "Damage cover",
     });
     const cases = [
@@ -193,10 +188,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
   });
 
   test("posts modifier income without moving money between item types", async () => {
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 500,
-      direction: "charge",
+    const modifier = await insertModifier({
+      calcValue: 500,
       name: "Insurance",
     });
     const { response } = await adminFormPost(

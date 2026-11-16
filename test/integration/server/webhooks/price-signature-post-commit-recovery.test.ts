@@ -20,8 +20,6 @@ import { decryptSessionTokens } from "#db/processed-payments.ts";
 import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
@@ -42,6 +40,7 @@ import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
@@ -149,9 +148,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       { [String(textQuestion.id)]: "Vegetarian, please" },
       null,
     );
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
+    const modifier = await insertModifier({
+      calcValue: 1,
       direction: "discount",
       name: "RECOVER",
       trigger: "code",

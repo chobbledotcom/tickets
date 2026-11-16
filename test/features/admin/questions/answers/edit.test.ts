@@ -1,8 +1,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -14,6 +12,7 @@ import {
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { addAnswer, createQuestion } from "#test-utils/questions/helpers.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -30,10 +29,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     /** Insert an "answer"-trigger modifier directly and return its id. */
     const createAnswerModifier = async (name: string): Promise<number> => {
-      const m = await insertRow(tables.modifiers, {
-        calc_kind: "fixed",
-        calc_value: 5,
-        direction: "charge",
+      const m = await insertModifier({
         name,
         trigger: "answer",
       });
@@ -194,10 +190,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects linking a modifier that isn't answer-triggered", async () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
-      const automatic = await insertRow(tables.modifiers, {
-        calc_kind: "fixed",
-        calc_value: 5,
-        direction: "charge",
+      const automatic = await insertModifier({
         name: "Automatic fee",
         trigger: "automatic",
       });

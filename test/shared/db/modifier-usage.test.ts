@@ -5,11 +5,10 @@ import {
   anyModifierSoldOut,
   modifierUsedQuantities,
 } from "#db/modifier-usage.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 describeWithEnv("db > modifier-usage", { db: true }, () => {
   test("modifierUsedQuantities returns an empty map for no ids", async () => {
@@ -21,17 +20,13 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   });
 
   test("distinguishes sold-out stock from available stock", async () => {
-    const soldOut = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
+    const soldOut = await insertModifier({
+      calcValue: 1,
       name: "Sold out",
       stock: 0,
     });
-    const available = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
+    const available = await insertModifier({
+      calcValue: 1,
       name: "Available",
       stock: 2,
     });

@@ -1,13 +1,11 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { expectModifierUsage } from "#test-utils/modifiers.ts";
+import { expectModifierUsage, insertModifier } from "#test-utils/modifiers.ts";
 import { bookingIntent, trustedPayment } from "./helpers.ts";
 
 describeWithEnv("payment processing modifiers", { db: true }, () => {
@@ -16,9 +14,8 @@ describeWithEnv("payment processing modifiers", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 1000,
     });
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
+    const modifier = await insertModifier({
+      calcValue: 1,
       direction: "discount",
       name: "DIRECT",
       trigger: "code",

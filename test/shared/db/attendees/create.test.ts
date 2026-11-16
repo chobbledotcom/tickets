@@ -14,8 +14,6 @@ import {
 } from "#db/attendees/create.ts";
 import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,6 +29,7 @@ import {
   surcharge,
 } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   getProcessedPayment,
   taggedPaymentReference,
@@ -42,11 +41,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
-      name: "Add-on",
+    const m = await insertModifier({
+      calcValue: 1,
       stock: 5,
     });
     const { plan } = await buildPlan({
@@ -131,10 +127,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
+    const m = await insertModifier({
+      calcValue: 1,
       name: "Sold out add-on",
       stock: 0,
     });
@@ -265,17 +259,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 0,
       unitPrice: 500,
     });
-    const unlimited = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
+    const unlimited = await insertModifier({
+      calcValue: 1,
       name: "Unlimited",
       stock: null,
     });
-    const plenty = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 1,
-      direction: "charge",
+    const plenty = await insertModifier({
+      calcValue: 1,
       name: "Plenty",
       stock: 5,
     });

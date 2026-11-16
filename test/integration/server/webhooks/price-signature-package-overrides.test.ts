@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
-import { insertRow, updateRow } from "#db/record-table.ts";
+import { updateRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -23,6 +23,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -232,11 +233,8 @@ describeWithEnv(
       ]);
       // An opt-in add-on keeps the order PAID even though every package line is
       // free — this is the case the old `hasPaidItems` guard skipped.
-      const addOn = await insertRow(tables.modifiers, {
-        calc_kind: "fixed",
-        calc_value: 500,
-        direction: "charge",
-        name: "Add-on",
+      const addOn = await insertModifier({
+        calcValue: 500,
       });
       await execute(
         sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,

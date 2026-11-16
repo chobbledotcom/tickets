@@ -2,7 +2,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { deleteRow, insertRow } from "#db/record-table.ts";
+import { deleteRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import {
@@ -16,6 +16,7 @@ import { decryptFirstAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleModifierMeta } from "#test-utils/factories.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -39,9 +40,8 @@ const paidBookingWithModifier = async (opts: {
     maxAttendees: 50,
     unitPrice,
   });
-  const modifier = await insertRow(tables.modifiers, {
-    calc_kind: "fixed",
-    calc_value: opts.calcValue,
+  const modifier = await insertModifier({
+    calcValue: opts.calcValue,
     direction: opts.direction,
     name: opts.name,
     trigger: "automatic",
@@ -134,10 +134,9 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "percent",
-      calc_value: 10,
-      direction: "charge",
+    const modifier = await insertModifier({
+      calcKind: "percent",
+      calcValue: 10,
       name: "Service charge",
       trigger: "automatic",
     });

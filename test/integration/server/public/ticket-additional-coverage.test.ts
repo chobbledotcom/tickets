@@ -3,8 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hashPhone } from "#db/contact-preferences.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -24,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** Add a one-penny returning-customer charge to a free, phone-only listing. */
@@ -35,11 +34,9 @@ const setupReturningCustomerFeeListing = async () => {
     thankYouUrl: "https://example.com/thanks",
     unitPrice: 0,
   });
-  await insertRow(tables.modifiers, {
-    calc_kind: "fixed",
-    calc_value: 0.01,
-    direction: "charge",
-    min_visits: 1,
+  await insertModifier({
+    calcValue: 0.01,
+    minVisits: 1,
     name: "Returning customer fee",
     trigger: "automatic",
   });
@@ -76,11 +73,10 @@ describeWithEnv(
           thankYouUrl: "https://example.com/thanks",
           unitPrice: 1,
         });
-        await insertRow(tables.modifiers, {
-          calc_kind: "fixed",
-          calc_value: 0.01,
+        await insertModifier({
+          calcValue: 0.01,
           direction: "discount",
-          min_visits: 1,
+          minVisits: 1,
           name: "Returning customer discount",
           trigger: "automatic",
         });
@@ -105,10 +101,7 @@ describeWithEnv(
           thankYouUrl: "https://example.com/thanks",
           unitPrice: 0,
         });
-        const addOn = await insertRow(tables.modifiers, {
-          calc_kind: "fixed",
-          calc_value: 5,
-          direction: "charge",
+        const addOn = await insertModifier({
           name: "Workshop kit",
           trigger: "optional",
         });

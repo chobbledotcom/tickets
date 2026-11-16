@@ -8,8 +8,6 @@ import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { modifierGroups, modifierListings } from "#db/modifiers.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -24,6 +22,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const loadStaleScopePricing = async (scope: "groups" | "listings") => {
@@ -37,10 +36,9 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
   });
   const group = await createTestGroup({ name: "Modifier group" });
   await setListingGroups(groupLink.id, [group.id]);
-  const modifier = await insertRow(tables.modifiers, {
-    calc_kind: "percent",
-    calc_value: 10,
-    direction: "charge",
+  const modifier = await insertModifier({
+    calcKind: "percent",
+    calcValue: 10,
     name: "Scoped charge",
     scope,
   });
@@ -228,18 +226,15 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       },
     ]);
 
-    const directModifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 5,
+    const directModifier = await insertModifier({
       direction: "discount",
-      min_visits: 3,
+      minVisits: 3,
       name: "Direct discount",
       scope: "listings",
     });
-    const groupModifier = await insertRow(tables.modifiers, {
-      calc_kind: "percent",
-      calc_value: 10,
-      direction: "charge",
+    const groupModifier = await insertModifier({
+      calcKind: "percent",
+      calcValue: 10,
       name: "Package charge",
       scope: "groups",
     });

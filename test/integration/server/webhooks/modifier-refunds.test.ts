@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { singleModifierMeta } from "#test-utils/factories.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import { expectWebhookKeptAndRefunded } from "#test-utils/webhooks/stripe.ts";
 import {
@@ -54,10 +53,7 @@ describeWithEnv(
         maxAttendees: 50,
         unitPrice: 0,
       });
-      const modifier = await insertRow(tables.modifiers, {
-        calc_kind: "fixed",
-        calc_value: 5,
-        direction: "charge",
+      const modifier = await insertModifier({
         name: "Workshop kit",
       });
 
@@ -92,10 +88,9 @@ describeWithEnv(
         maxAttendees: 50,
         unitPrice: 1000,
       });
-      const modifier = await insertRow(tables.modifiers, {
-        calc_kind: "percent",
-        calc_value: 10,
-        direction: "charge",
+      const modifier = await insertModifier({
+        calcKind: "percent",
+        calcValue: 10,
         name: "Last one",
         stock: 1,
       });

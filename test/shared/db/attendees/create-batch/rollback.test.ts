@@ -21,8 +21,6 @@ import {
   markSessionFailed,
   reserveSession,
 } from "#db/processed-payments.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
@@ -32,6 +30,7 @@ import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
@@ -167,10 +166,8 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const modifier = await insertRow(tables.modifiers, {
-      calc_kind: "fixed",
-      calc_value: 100,
-      direction: "charge",
+    const modifier = await insertModifier({
+      calcValue: 100,
       name: "Atomic add-on",
       stock: 2,
     });
