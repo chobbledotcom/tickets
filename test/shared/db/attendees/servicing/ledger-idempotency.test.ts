@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
-import {
-  COST_REPLAY_MISMATCH,
-  getServicingCosts,
-} from "#db/attendees/servicing.ts";
+import { getServicingCosts } from "#db/attendees/service-cost-legs.ts";
+import { COST_REPLAY_MISMATCH } from "#db/attendees/servicing.ts";
 import {
   expectFlashError,
   expectFlashSuccess,

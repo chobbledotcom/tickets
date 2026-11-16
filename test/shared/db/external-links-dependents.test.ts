@@ -16,25 +16,32 @@ import {
   createExternalSourceLink,
   listExternalSourceLinks,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
 import type {
   ExternalLinkKind,
   ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { deleteListing } from "#db/listings/delete.ts";
+import { externalSourceRecord } from "#shared/records/external-sources.ts";
 import { deleteGroup } from "#shared/records/groups.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { writtenRow } from "#test-utils/record-commands.ts";
 import { withTestSession } from "#test-utils/session.ts";
 
+/** Add a source through its record. The create reads the sealed row back, so
+ * it runs in an admin session. */
 const createSource = (name: string) =>
-  externalSourcesTable.insert({
-    name,
-    urlPattern: "https://example.com/{external_id}",
-  });
+  withTestSession(() =>
+    writtenRow(
+      externalSourceRecord.create({
+        name,
+        urlPattern: "https://example.com/{external_id}",
+      }),
+    ),
+  );
 
 const addLink = async (
   sourceId: number,
