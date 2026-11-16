@@ -1,17 +1,15 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { beforeAll, describe, it } from "@std/testing/bdd";
-import { lazyRef } from "#fp";
 import { cancellationFacts } from "#scripts/verify-models/subscriptions/cancellation.ts";
 import type { CancellationFacts } from "#scripts/verify-models/subscriptions/cancellation-facts.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { SubscriptionStatusSchema } from "#shared/subscriptions/plan.ts";
+import { cleanFacts } from "#test/scripts/verify-models/registered-model.ts";
 import { activeOverEnded } from "./cancellation-fixture.ts";
 
 /** One clean producer run serves every test in this file. */
-const [clean, setClean] = lazyRef<CancellationFacts>(() => {
-  throw new Error("The cancellation facts load before the first test.");
-});
+const [clean, setClean] = cleanFacts<CancellationFacts>("cancellation");
 const owner = (scenario: string) =>
   requireValue(
     clean().owners.find((fact) => fact.scenario === scenario),

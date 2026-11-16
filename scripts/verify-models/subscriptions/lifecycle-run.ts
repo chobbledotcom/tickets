@@ -144,13 +144,16 @@ const runCancel = async (row: number): Promise<string> => {
 
 const COMMAND_RUNNERS = { cancel: runCancel, check: runCheck };
 
-/** Put the row and Stripe in the state of the case. The real writer posts
- * the renewal that the state already holds. */
-const seedState = async (
+/** One step of a case, on the row that the case owns. */
+type CaseStep<Result> = (
   worlds: Map<string, World>,
   sample: LifecycleCase,
   row: number,
-): Promise<World> => {
+) => Promise<Result>;
+
+/** Put the row and Stripe in the state of the case. The real writer posts
+ * the renewal that the state already holds. */
+const seedState: CaseStep<World> = async (worlds, sample, row) => {
   const id = subscriptionOf(row);
   const world: World = {
     cancels: 0,
@@ -186,11 +189,7 @@ const seedState = async (
   return world;
 };
 
-const observeCase = async (
-  worlds: Map<string, World>,
-  sample: LifecycleCase,
-  row: number,
-): Promise<Move> => {
+const observeCase: CaseStep<Move> = async (worlds, sample, row) => {
   const world = await seedState(worlds, sample, row);
   const before = await ledgerOf(row);
   const outcome = await COMMAND_RUNNERS[sample.command](row);
@@ -221,10 +220,10 @@ const observeCase = async (
 
 /** One request of a model subscription reaches its own Stripe state. A
  * request for another id fails. */
-const withLifecycleProvider = async <Result>(
+const withLifecycleProvider = async (
   worlds: Map<string, World>,
-  run: () => Promise<Result>,
-): Promise<Result> => {
+  run: () => Promise<Move[]>,
+): Promise<Move[]> => {
   const answerWith =
     <Answer>(reply: (id: string, world: World) => Answer) =>
     (id: string): Promise<Answer> =>

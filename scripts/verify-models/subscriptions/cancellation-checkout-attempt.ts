@@ -10,7 +10,6 @@ import {
   finishPlaceholderRefund,
   loadRefundResume,
   type PlaceholderFailureResult,
-  unclaimedChargeMessage,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { settleRejectedSubscription } from "#routes/api/payment-processing/rejected-subscription.ts";
 import {
@@ -109,7 +108,9 @@ const expectedCheckoutFailure = (
   if (sample.interruption)
     errors.add(`Money for session ${CHECKOUT_SESSION} could not be recorded`);
   if (sample.protected === "anchorless")
-    errors.add(unclaimedChargeMessage(CHECKOUT_SESSION));
+    errors.add(
+      `Failed subscription checkout ${CHECKOUT_SESSION} names a paid charge that has no refund claim`,
+    );
   return error instanceof Error && errors.has(error.message);
 };
 

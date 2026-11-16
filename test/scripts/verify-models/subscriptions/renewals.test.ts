@@ -256,6 +256,14 @@ test("one stored plan survives listing edits, renewals, and owner cancellation",
 test("failed checkout retries keep the observed subscription and charge on one retained booking", async () => {
   const { failedJoins } = await renewalFacts();
   const first = requireValue(failedJoins[0], "Missing failed checkout join");
+  const refunded = {
+    authorityReturned: 600,
+    confirmed: true,
+    consumedReference: "pi_failed",
+    held: 0,
+    refundCash: 600,
+    refunds: 1,
+  };
   expect(failedJoins).toEqual(
     [
       {
@@ -267,24 +275,8 @@ test("failed checkout retries keep the observed subscription and charge on one r
         refundCash: 0,
         refunds: 0,
       },
-      {
-        attempt: 2,
-        authorityReturned: 600,
-        confirmed: true,
-        consumedReference: "pi_failed",
-        held: 0,
-        refundCash: 600,
-        refunds: 1,
-      },
-      {
-        attempt: 3,
-        authorityReturned: 600,
-        confirmed: true,
-        consumedReference: "pi_failed",
-        held: 0,
-        refundCash: 600,
-        refunds: 1,
-      },
+      { ...refunded, attempt: 2 },
+      { ...refunded, attempt: 3 },
     ].map((attempt) =>
       expect.objectContaining({
         ...attempt,

@@ -202,10 +202,10 @@ const expectedOwnerFailure = (
   return (replaced || wrongCommand) && message.includes(IDENTITY_REFUSAL);
 };
 
-const tamperOwnerStatus = async (
-  sample: OwnerCase,
-  fault: CancellationFault,
-): Promise<void> => {
+/** A control changes the stored row of one case. */
+type Tamper = (sample: OwnerCase, fault: CancellationFault) => Promise<void>;
+
+const tamperOwnerStatus: Tamper = async (sample, fault) => {
   if (fault === "local-end-without-money" && sample.ledgerFault)
     await execute(
       "UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1",
@@ -213,10 +213,7 @@ const tamperOwnerStatus = async (
 };
 
 /** The control makes the stored row disagree with a cancelled answer. */
-const tamperCancelledRow = async (
-  sample: OwnerCase,
-  fault: CancellationFault,
-): Promise<void> => {
+const tamperCancelledRow: Tamper = async (sample, fault) => {
   if (
     fault === "cancelled-answer-on-live-row" &&
     sample.scenario === "owner-final"

@@ -1,7 +1,6 @@
 // test-groups: run-alone
 import { expect } from "@std/expect";
 import { beforeAll, describe, it } from "@std/testing/bdd";
-import { lazyRef } from "#fp";
 import { lifecycleFacts } from "#scripts/verify-models/subscriptions/lifecycle.ts";
 import {
   type LifecycleFacts,
@@ -9,13 +8,14 @@ import {
   lifecycleScenario,
 } from "#scripts/verify-models/subscriptions/lifecycle-facts.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
+import {
+  cleanFacts,
+  registeredModel,
+} from "#test/scripts/verify-models/registered-model.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 /** One clean producer run serves every test in the first group. */
-const [clean, setClean] = lazyRef<LifecycleFacts>(() => {
-  throw new Error("The lifecycle facts load before the first test.");
-});
+const [clean, setClean] = cleanFacts<LifecycleFacts>("lifecycle");
 
 const move = (scenario: string) =>
   requireValue(
