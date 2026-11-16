@@ -173,7 +173,7 @@ const AnswerRunningTotalsSection = ({
     </p>
     <Raw
       html={renderFields(getAnswerAggregateFields(), {
-        times_selected: aggregateRecalculation.times_selected.current,
+        timesSelected: aggregateRecalculation.timesSelected.current,
       })}
     />
     <p>

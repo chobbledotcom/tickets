@@ -185,9 +185,9 @@ const validateListingGroup: ListingUpdateCheck = async (
       // that default rather than passing undefined and reading every standard
       // group as a type mismatch.
       {
-        customisable_days: input.customisableDays ?? false,
+        customisableDays: input.customisableDays ?? false,
         id: existingId ?? 0,
-        listing_type: input.listingType ?? "standard",
+        listingType: input.listingType ?? "standard",
       },
       existingId ?? 0,
     );

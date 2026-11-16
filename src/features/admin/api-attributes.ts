@@ -17,6 +17,7 @@ import {
 } from "#routes/admin/attributes.ts";
 import { reReadResponse } from "#routes/response.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import type { ApiBody } from "#shared/rest/api-body-fields.ts";
@@ -53,11 +54,22 @@ const optionSurface = recordChildSurface<AttributeWithOptions, AttributeOption>(
   (attribute) => attribute.options,
 );
 
+/** The options as the JSON API sends them: under their column names. */
+const wireOptions = (options: readonly AttributeOption[]) =>
+  options.map(snakeCaseKeys);
+
+/** One attribute as the JSON API sends it: the attribute and each of its
+ *  options under their column names. */
+const wireAttribute = (attribute: AttributeWithOptions) => ({
+  ...snakeCaseKeys(attribute),
+  options: wireOptions(attribute.options),
+});
+
 /** The write response: the written attribute re-read from the primary. */
-const attributeResponse = reReadResponse(
-  "attribute",
-  getAttributeWithOptionsOnPrimary,
-);
+const attributeResponse = reReadResponse("attribute", async (id: number) => {
+  const attribute = await getAttributeWithOptionsOnPrimary(id);
+  return attribute === null ? null : wireAttribute(attribute);
+});
 
 const optionHandlers = childTextConfig(
   optionSurface,
@@ -78,4 +90,10 @@ export const attributeApiRoutes = recordApi<
 >(attributeRecord, {
   childHandlers: { options: optionHandlers },
   ...bodyMappers(ATTRIBUTE_FIELDS),
+  // The record API renames only the top-level keys. The row came from an
+  // AttributeWithOptions, so its options are attribute option rows.
+  projectResponse: (row) => ({
+    ...row,
+    options: wireOptions(row.options as AttributeOption[]),
+  }),
 });

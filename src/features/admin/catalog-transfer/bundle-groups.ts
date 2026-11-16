@@ -99,7 +99,7 @@ const checkPackageMembers = async (
     memberFacts
       .filter((fact) => fact.site)
       .map((fact) => ({
-        can_pay_more: fact.row.canPayMore,
+        canPayMore: fact.row.canPayMore,
         id: fact.row.id,
         name: fact.name,
       })),
