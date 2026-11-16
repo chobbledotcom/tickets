@@ -17,7 +17,7 @@ export type { ListingWithCount };
 
 /** Tier assignment: no-date standard=0, dated standard=1, daily=2 */
 const listingTier = (listing: SortableListing): number => {
-  if (listing.listing_type === "daily") return 2;
+  if (listing.listingType === "daily") return 2;
   return listing.date === "" ? 0 : 1;
 };
 
@@ -74,7 +74,7 @@ export const sortListings = <T extends SortableListing>(
 ): T[] => {
   const nextDates = new Map<number, string | null>();
   for (const listing of listings) {
-    if (listing.listing_type === "daily") {
+    if (listing.listingType === "daily") {
       nextDates.set(listing.id, getNextBookableDate(listing, holidays));
     }
   }

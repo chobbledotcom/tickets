@@ -85,7 +85,7 @@ const toTemplateEntry = (
   const dateRangeLabel = bookedRangeLabel(
     attendee.date,
     attendee.end_date,
-    clampDurationDays(listing.duration_days),
+    clampDurationDays(listing.durationDays),
   );
   return {
     attendee: {

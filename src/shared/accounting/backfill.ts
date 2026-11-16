@@ -122,9 +122,9 @@ const stampUpdate = (
   eventGroup: Operand<string>,
   attendeeId: number,
 ): SqlStatement =>
-  update(tables.listing_attendees, { ledger_event_group: eventGroup }).where({
-    attendee_id: attendeeId,
-    ledger_event_group: "",
+  update(tables.listing_attendees, { ledgerEventGroup: eventGroup }).where({
+    attendeeId: attendeeId,
+    ledgerEventGroup: "",
   });
 
 /** Stamp the row→event link with a known event group (a just-built booking's). */
@@ -135,12 +135,12 @@ const stampStatement = (attendeeId: number, eventGroup: string): SqlStatement =>
 const saleEventGroup = (attendeeId: number): Expr<string | null> =>
   from(tables.transfers)
     .where((transfer) => [
-      equal(transfer.source_type, literal(ATTENDEE)),
-      equal(transfer.source_id, String(attendeeId)),
+      equal(transfer.sourceType, literal(ATTENDEE)),
+      equal(transfer.sourceId, String(attendeeId)),
       equal(transfer.kind, literal(KIND.sale)),
     ])
     .limit(1)
-    .scalar((transfer) => transfer.event_group);
+    .scalar((transfer) => transfer.eventGroup);
 
 /** Stamp the row→event link for an already-ledgered attendee from their existing
  *  booking's sale leg, in one statement (so no read-then-write and no re-post).

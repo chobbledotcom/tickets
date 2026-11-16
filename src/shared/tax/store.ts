@@ -8,7 +8,6 @@ import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
-import { camelCaseKeys } from "#shared/column-names.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
 import type { TaxAssessment } from "#shared/tax/types.ts";
 
@@ -27,20 +26,20 @@ export const readTaxAssessments = async (
   if (attendeeIds.length === 0) return [];
   const rows = await queryAllPrimary(
     from(tables.booking_tax_assessments)
-      .where((assessment) => among(assessment.attendee_id, attendeeIds))
-      .sortedBy("booking_group", "revision")
+      .where((assessment) => among(assessment.attendeeId, attendeeIds))
+      .sortedBy("bookingGroup", "revision")
       .pick(
         "assessment",
-        "attendee_id",
-        "booking_group",
-        "event_group",
-        "occurred_at",
+        "attendeeId",
+        "bookingGroup",
+        "eventGroup",
+        "occurredAt",
         "revision",
         "state",
       ),
   );
   return rows.map(({ assessment, revision, state, ...stored }) => ({
-    ...camelCaseKeys(stored),
+    ...stored,
     state: { assessment, kind: state, revision },
   }));
 };
@@ -70,10 +69,10 @@ export const taxStateInsert = async (
     tables.booking_tax_assessments,
     await encoded(tables.booking_tax_assessments, {
       assessment: record.state.assessment,
-      attendee_id: record.attendeeId,
-      booking_group: record.bookingGroup,
-      event_group: record.eventGroup,
-      occurred_at: record.occurredAt,
+      attendeeId: record.attendeeId,
+      bookingGroup: record.bookingGroup,
+      eventGroup: record.eventGroup,
+      occurredAt: record.occurredAt,
       revision: record.state.revision,
       state: record.state.kind,
     }),
@@ -88,13 +87,13 @@ export const initialTaxAssessmentStatement = async (
   insertInto(tables.booking_tax_assessments, {
     ...(await encoded(tables.booking_tax_assessments, {
       assessment,
-      booking_group: bookingGroup,
-      event_group: bookingGroup,
-      occurred_at: occurredAt,
+      bookingGroup: bookingGroup,
+      eventGroup: bookingGroup,
+      occurredAt: occurredAt,
       revision: 0,
       state: "active",
     })),
-    attendee_id: attendeeId,
+    attendeeId: attendeeId,
   });
 
 export const postInitialTaxAssessmentTx = async (

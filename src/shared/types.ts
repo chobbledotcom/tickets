@@ -341,9 +341,10 @@ export interface Settings {
 
 export type Session = Omit<
   DecodedRowOf<"sessions">,
-  "token" | "wrappedDataKey"
+  "token" | "userId" | "wrappedDataKey"
 > & {
   token: TokenHash; // Contains the hashed token for DB storage
+  userId: number;
   wrappedDataKey: WrappedKey | null;
 };
 

@@ -35,6 +35,7 @@ import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import type {
@@ -605,10 +606,10 @@ const bookingInsertStatement = (
   booking: ListingAttendeeRow,
 ): SqlStatement =>
   insertInto(tables.listing_attendees, {
-    ...copiedBookingColumns(booking),
-    attendee_id: targetId,
+    ...camelCaseKeys(copiedBookingColumns(booking)),
+    attendeeId: targetId,
     // A quantity-0 line carries no check-in, so a ghost cannot arrive checked in.
-    checked_in: booking.quantity > 0 ? booking.checked_in : 0,
+    checkedIn: booking.quantity > 0 ? booking.checked_in : 0,
   });
 
 /** Apply all booking decisions — returns pending SQL statements and counts */
@@ -787,20 +788,20 @@ export const applyAttendeeMerge = async (
     ...checkoutStageDeleteStatements(sql`${targetId}`),
     // An old source without payment provenance makes the merged history
     // unqualified too; carry that fact before deleting its attendee row.
-    update(tables.attendees, { pii_payment_session_id: null }).where(
+    update(tables.attendees, { piiPaymentSessionId: null }).where(
       (attendee) => [
         equal(attendee.id, targetId),
         from(tables.attendees)
           .as("sourceAttendee")
-          .where({ id: sourceId, pii_payment_session_id: null })
+          .where({ id: sourceId, piiPaymentSessionId: null })
           .exists(),
       ],
     ),
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
-    update(tables.processed_payments, { attendee_id: targetId }).where({
-      attendee_id: sourceId,
+    update(tables.processed_payments, { attendeeId: targetId }).where({
+      attendeeId: sourceId,
     }),
     ...repointAttendeeDependents(sourceId, targetId),
     // Clear each row that belongs to the source, the way an ordinary delete

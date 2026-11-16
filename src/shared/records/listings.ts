@@ -35,8 +35,8 @@ const savedListingInput = (
     ? input
     : {
         ...input,
-        recurringInterval: input.recurringInterval ?? stored.recurring_interval,
-        recurringPrice: input.recurringPrice ?? stored.recurring_price,
+        recurringInterval: input.recurringInterval ?? stored.recurringInterval,
+        recurringPrice: input.recurringPrice ?? stored.recurringPrice,
       };
 
 /** Judge the row as the save leaves it, and write the input as it came. */

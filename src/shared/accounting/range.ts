@@ -38,8 +38,8 @@ export const emptyRange: LedgerRange = { endMs: null, startMs: null };
 export const occurredAtRange = (range: LedgerRange): Condition[] => [
   ...(range.startMs === null
     ? []
-    : [atLeast(LEDGER_ROW.occurred_at, range.startMs)]),
+    : [atLeast(LEDGER_ROW.occurredAt, range.startMs)]),
   ...(range.endMs === null
     ? []
-    : [lessThan(LEDGER_ROW.occurred_at, range.endMs)]),
+    : [lessThan(LEDGER_ROW.occurredAt, range.endMs)]),
 ];

@@ -40,9 +40,9 @@ type SiteAssignment = {
 /** A listing selection being checked before payment/booking. */
 type SiteAssignmentConfigEntry = {
   listing: {
-    assign_built_site: boolean;
+    assignBuiltSite: boolean;
     id: number;
-    initial_site_months: number;
+    initialSiteMonths: number;
     name: string;
   };
 };
@@ -51,7 +51,7 @@ type SiteAssignmentConfigEntry = {
 export const validateSiteAssignmentConfig = async (
   entries: SiteAssignmentConfigEntry[],
 ): Promise<SiteAssignmentConfigValidation> => {
-  const needsSite = entries.filter((e) => e.listing.assign_built_site);
+  const needsSite = entries.filter((e) => e.listing.assignBuiltSite);
   if (needsSite.length === 0) return { ok: true };
 
   if (!isBuilderEnabled()) {
@@ -64,7 +64,7 @@ export const validateSiteAssignmentConfig = async (
   }
 
   const invalidInitialMonths = needsSite.find(
-    (e) => e.listing.initial_site_months <= 0,
+    (e) => e.listing.initialSiteMonths <= 0,
   );
   if (invalidInitialMonths) {
     return {
@@ -102,7 +102,7 @@ const assignSitesForEntries = async (
 ): Promise<SiteAssignmentOutcome> => {
   const missedBuyers: MissedBuyer[] = [];
   const needsSite = entries.filter(
-    (e: EmailEntry) => e.listing.assign_built_site,
+    (e: EmailEntry) => e.listing.assignBuiltSite,
   );
   if (needsSite.length === 0) return { emails: [], missedBuyers };
 
@@ -140,7 +140,7 @@ const assignSitesForEntries = async (
     // The term is whatever the plan states today; a buyer whose plan was
     // edited after booking is corrected by hand from their payment record.
     const months = sumOf(
-      (e: EmailEntry) => e.listing.initial_site_months * e.attendee.quantity,
+      (e: EmailEntry) => e.listing.initialSiteMonths * e.attendee.quantity,
     )(booked);
 
     // The claim may sit on a listing later refunded, and a refund does not

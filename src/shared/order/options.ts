@@ -98,8 +98,8 @@ export const listingOption = (
   listing: {
     id: number;
     name: string;
-    listing_type: string;
-    min_quantity: number;
+    listingType: string;
+    minQuantity: number;
   },
   bookableAlone: boolean,
 ): OrderOption =>
@@ -108,16 +108,16 @@ export const listingOption = (
       bookableAlone,
       key: listingNodeKey(listing.id),
       name: listing.name,
-      needsDate: listing.listing_type === "daily",
+      needsDate: listing.listingType === "daily",
     },
-    new Map([[listing.id, listing.min_quantity]]),
+    new Map([[listing.id, listing.minQuantity]]),
   );
 
 /** Build a package's order option: one selection books every member at its
  * fixed per-package quantity. */
 export const packageOption = (
   group: { id: number; name: string },
-  members: readonly { id: number; listing_type: string }[],
+  members: readonly { id: number; listingType: string }[],
   quantities: ReadonlyMap<number, number>,
   bookableAlone: boolean,
 ): OrderOption =>
@@ -126,7 +126,7 @@ export const packageOption = (
       bookableAlone,
       key: packageOptionKey(group.id),
       name: group.name,
-      needsDate: members.some((member) => member.listing_type === "daily"),
+      needsDate: members.some((member) => member.listingType === "daily"),
     },
     new Map(
       members.map((member) => [member.id, quantities.get(member.id) ?? 1]),

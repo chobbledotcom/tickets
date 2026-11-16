@@ -259,7 +259,7 @@ export const updateManualLedgerEntry = async (
   await execute(
     update(tables.transfers, {
       amount,
-      occurred_at: instantToEpochMs(occurredAt),
+      occurredAt: instantToEpochMs(occurredAt),
     }).where({ id: transfer.id }),
   );
 };

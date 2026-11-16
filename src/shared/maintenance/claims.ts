@@ -30,7 +30,7 @@ export const syncMaintenanceTaskRows = async (
 ): Promise<void> => {
   const [first, ...rest] = enabledNames.map((name) => ({
     name,
-    next_run_at: DATABASE_NOW_MS,
+    nextRunAt: DATABASE_NOW_MS,
   }));
   if (first !== undefined) {
     await execute(
@@ -40,7 +40,7 @@ export const syncMaintenanceTaskRows = async (
   if (disabledNames.length > 0) {
     await execute(
       deleteFrom(tables.maintenance_tasks).where({
-        lease_token: null,
+        leaseToken: null,
         name: disabledNames,
       }),
     );
@@ -53,14 +53,14 @@ const nextDueTaskName = (allowedNames: readonly string[]) =>
     .as("candidate")
     .where((candidate) => [
       among(candidate.name, allowedNames),
-      equal(candidate.completed_at, null),
-      atMost(candidate.next_run_at, DATABASE_NOW_MS),
+      equal(candidate.completedAt, null),
+      atMost(candidate.nextRunAt, DATABASE_NOW_MS),
       or(
-        equal(candidate.lease_token, null),
-        atMost(candidate.lease_expires_at, DATABASE_NOW_MS),
+        equal(candidate.leaseToken, null),
+        atMost(candidate.leaseExpiresAt, DATABASE_NOW_MS),
       ),
     ])
-    .sortedBy("next_run_at", "name")
+    .sortedBy("nextRunAt", "name")
     .limit(1)
     .values((candidate) => candidate.name);
 
@@ -72,9 +72,9 @@ export const claimNextMaintenanceTask = async (
   const leaseToken = generateSecureToken();
   const row = await queryOne(
     update(tables.maintenance_tasks, {
-      last_started_at: DATABASE_NOW_MS,
-      lease_expires_at: plus(DATABASE_NOW_MS, leaseMs),
-      lease_token: leaseToken,
+      lastStartedAt: DATABASE_NOW_MS,
+      leaseExpiresAt: plus(DATABASE_NOW_MS, leaseMs),
+      leaseToken: leaseToken,
     })
       .where((task) => inQuery(task.name, nextDueTaskName(allowedNames)))
       .returning("name", "checkpoint"),
@@ -91,13 +91,13 @@ export const finishMaintenanceTask = async (
   const row = await queryOne(
     update(tables.maintenance_tasks, {
       checkpoint: result.checkpoint,
-      completed_at: result.completed ? DATABASE_NOW_MS : null,
-      last_finished_at: DATABASE_NOW_MS,
-      lease_expires_at: null,
-      lease_token: null,
-      next_run_at: plus(DATABASE_NOW_MS, result.intervalMs),
+      completedAt: result.completed ? DATABASE_NOW_MS : null,
+      lastFinishedAt: DATABASE_NOW_MS,
+      leaseExpiresAt: null,
+      leaseToken: null,
+      nextRunAt: plus(DATABASE_NOW_MS, result.intervalMs),
     })
-      .where({ lease_token: claim.leaseToken, name: claim.name })
+      .where({ leaseToken: claim.leaseToken, name: claim.name })
       .returning("name"),
   );
   if (!row) throw new Error(`Lost maintenance lease for ${claim.name}`);

@@ -25,7 +25,7 @@ import {
   syncReadOnlyFrom,
 } from "#shared/site-renewal.ts";
 import { buildTicketUrl } from "#shared/ticket-url.ts";
-import { type ContactInfo, type DayPrices, isPaidListing } from "#types";
+import { type ContactInfo, isPaidListing, type ListingWithCount } from "#types";
 
 /** Single ticket in the webhook payload */
 export type WebhookTicket = {
@@ -58,22 +58,21 @@ export type WebhookPayload = ContactInfo & {
 };
 
 /** Listing data needed for webhook notifications */
-export type WebhookListing = {
-  id: number;
-  name: string;
-  slug: string;
-  webhook_url: string;
-  max_attendees: number;
-  attendee_count: number;
-  unit_price: number;
-  can_pay_more: boolean;
-  customisable_days: boolean;
-  day_prices: DayPrices;
-  /** Maximum day count for a customisable listing — the bound the shared price
-   * evaluation validates a booked span against. */
-  duration_days: number;
-  months_per_unit: number;
-};
+export type WebhookListing = Pick<
+  ListingWithCount,
+  | "attendeeCount"
+  | "canPayMore"
+  | "customisableDays"
+  | "dayPrices"
+  | "durationDays"
+  | "id"
+  | "maxAttendees"
+  | "monthsPerUnit"
+  | "name"
+  | "slug"
+  | "unitPrice"
+  | "webhookUrl"
+>;
 
 /** Attendee data needed for webhook notifications */
 export type WebhookAttendee = ContactInfo & {
@@ -131,7 +130,7 @@ const ticketUnitPrice = (
   const rule = packageMemberPriceRule(
     groupPricing?.priceMap.get(listing.id),
     groupPricing?.dayPriceMap.get(listing.id),
-    listing.customisable_days,
+    listing.customisableDays,
   );
   return effectivePrice(
     rule,
@@ -232,7 +231,7 @@ export const applyRenewalsForEntries = async (
   const renewalEntries = entries
     .map((entry) => ({
       entry,
-      months: entry.attendee.quantity * entry.listing.months_per_unit,
+      months: entry.attendee.quantity * entry.listing.monthsPerUnit,
     }))
     .filter(({ months }) => months > 0);
   const totalMonths = sumOf((r: { months: number }) => r.months)(

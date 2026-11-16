@@ -94,8 +94,8 @@ export const postBookingLegsTx = async (
     // merge-moved row) keeps the group it was stamped with.
     await tx.execute(
       update(tables.listing_attendees, {
-        ledger_event_group: legs[0]!.eventGroup,
-      }).where({ attendee_id: attendeeId, ledger_event_group: "" }),
+        ledgerEventGroup: legs[0]!.eventGroup,
+      }).where({ attendeeId: attendeeId, ledgerEventGroup: "" }),
     );
   }
 };
@@ -208,9 +208,9 @@ export const apiCreateLedgerPoster =
     // later refund reconciliation reads.
     if (legs.length === 0) {
       await tx.execute(
-        update(tables.listing_attendees, { ledger_event_group: group }).where({
-          attendee_id: attendeeId,
-          ledger_event_group: "",
+        update(tables.listing_attendees, { ledgerEventGroup: group }).where({
+          attendeeId: attendeeId,
+          ledgerEventGroup: "",
         }),
       );
     }

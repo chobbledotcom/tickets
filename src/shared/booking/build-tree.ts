@@ -75,11 +75,11 @@ const derivePriceRule = (
   // pay-more, but the two never coexist: packages cannot contain
   // pay-what-you-want listings, so an overridden line is never PAY_MORE.
   selectPriceRule({
-    customisableDays: listing.customisable_days,
+    customisableDays: listing.customisableDays,
     dayOverrides,
     overrideMinor,
-    payMore: listing.can_pay_more
-      ? { maxMinor: listing.max_price, minMinor: listing.unit_price }
+    payMore: listing.canPayMore
+      ? { maxMinor: listing.maxPrice, minMinor: listing.unitPrice }
       : undefined,
   });
 
@@ -89,7 +89,7 @@ const derivePriceRule = (
  * a date only for daily listings) so its cumulative add-on capacity is counted
  * once, never re-checked per parent-date. */
 const childDateSpan = (child: ListingWithCount): DateSpan =>
-  child.listing_type === "daily" || child.customisable_days
+  child.listingType === "daily" || child.customisableDays
     ? { kind: "INHERIT" }
     : { kind: "NONE" };
 

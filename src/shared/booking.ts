@@ -40,7 +40,7 @@ export const createdBookingEntries = (
 /** True when the listing still has spots for this quantity on this date (no
  * date for a date-less listing, whose capacity is one running total). */
 export const listingHasSpots = (
-  listing: Pick<ListingWithCount, "id" | "duration_days">,
+  listing: Pick<ListingWithCount, "id" | "durationDays">,
   quantity: number,
   date: string | null | undefined,
 ): Promise<boolean> =>
@@ -48,7 +48,7 @@ export const listingHasSpots = (
     listing.id,
     quantity,
     date,
-    listing.duration_days,
+    listing.durationDays,
   );
 
 /** Booking result — callers map this to their response format */
@@ -75,7 +75,7 @@ export const processBooking = async (
   answerIds?: number[],
 ): Promise<BookingResult> => {
   const paymentsEnabled = isPaymentsEnabled();
-  const unitPrice = customUnitPrice ?? listing.unit_price;
+  const unitPrice = customUnitPrice ?? listing.unitPrice;
   const intent = {
     ...contact,
     date,
@@ -116,7 +116,7 @@ export const processBooking = async (
       bookings: [
         {
           date,
-          durationDays: listing.duration_days,
+          durationDays: listing.durationDays,
           listingId: listing.id,
           quantity,
         },

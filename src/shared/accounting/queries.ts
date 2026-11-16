@@ -70,7 +70,7 @@ import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 
 /** Newest first by business time, ties broken by id so the order is stable. */
 const newestFirst = (leg: Leg): SqlStatement[] => [
-  desc(leg.occurred_at),
+  desc(leg.occurredAt),
   desc(leg.id),
 ];
 
@@ -91,7 +91,7 @@ type Side = "source" | "dest";
 const sideAmong =
   (side: Side, type: Operand<string>, ids: readonly string[]): LegTest =>
   (leg) =>
-    and(equal(leg[`${side}_type`], type), among(leg[`${side}_id`], ids));
+    and(equal(leg[`${side}Type`], type), among(leg[`${side}Id`], ids));
 
 /** The WHERE scope for "every transfer touching any of these accounts".
  *  One group per account type. */
@@ -170,12 +170,12 @@ export const orderModifierLines = async (
     valued(sql`CAST(${modifierLeg.accountId(leg)} AS INTEGER)`);
   const rows = await queryAll(
     ledgerLegs()
-      .where((leg) => [modifierLeg.filter(leg), among(leg.event_group, groups)])
-      .groupBy((leg) => [leg.event_group, modifierId(leg)])
-      .orderBy((leg) => [leg.event_group, modifierId(leg)])
+      .where((leg) => [modifierLeg.filter(leg), among(leg.eventGroup, groups)])
+      .groupBy((leg) => [leg.eventGroup, modifierId(leg)])
+      .orderBy((leg) => [leg.eventGroup, modifierId(leg)])
       .select((leg) => ({
         amount: modifierLeg.signedAmount(leg),
-        event_group: leg.event_group,
+        event_group: leg.eventGroup,
         modifier_id: modifierId(leg),
       })),
   );
@@ -288,7 +288,7 @@ export type LedgerTotals = {
 const sideOfType =
   (side: Side, type: string): LegTest =>
   (leg) =>
-    equal(leg[`${side}_type`], literal(type));
+    equal(leg[`${side}Type`], literal(type));
 
 type LedgerTotalsRow = {
   income: number | bigint;
@@ -349,9 +349,9 @@ const groupedBalances = (
 ): Promise<BalanceRow[]> =>
   queryAll<BalanceRow>(
     sql`SELECT id, COALESCE(SUM(delta), 0) AS balance FROM (
-       SELECT ${LEDGER_ROW.dest_id} AS id, amount AS delta FROM transfers AS transfer WHERE ${whereDest(LEDGER_ROW)}
+       SELECT ${LEDGER_ROW.destId} AS id, amount AS delta FROM transfers AS transfer WHERE ${whereDest(LEDGER_ROW)}
        UNION ALL
-       SELECT ${LEDGER_ROW.source_id} AS id, -amount AS delta FROM transfers AS transfer WHERE ${whereSource(LEDGER_ROW)}
+       SELECT ${LEDGER_ROW.sourceId} AS id, -amount AS delta FROM transfers AS transfer WHERE ${whereSource(LEDGER_ROW)}
      ) GROUP BY id`,
   );
 

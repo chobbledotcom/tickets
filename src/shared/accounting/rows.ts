@@ -96,19 +96,19 @@ const legRow = (
   idOf: AccountIdOf = literalId,
 ): NewValues<"transfers"> => ({
   amount: t.amount,
-  dest_id: idOf(t.destination),
-  dest_type: t.destination.type,
-  event_group: t.eventGroup,
+  destId: idOf(t.destination),
+  destType: t.destination.type,
+  eventGroup: t.eventGroup,
   kind: t.kind ?? "",
   memo: t.memo ?? "",
-  occurred_at: instantToEpochMs(t.occurredAt),
-  posted_by: t.postedBy ?? "system",
-  recorded_at: instantToEpochMs(recordedAt),
+  occurredAt: instantToEpochMs(t.occurredAt),
+  postedBy: t.postedBy ?? "system",
+  recordedAt: instantToEpochMs(recordedAt),
   reference: t.reference,
-  reverses_group: t.reversesGroup ?? "",
-  reverses_id: t.reversesId ?? null,
-  source_id: idOf(t.source),
-  source_type: t.source.type,
+  reversesGroup: t.reversesGroup ?? "",
+  reversesId: t.reversesId ?? null,
+  sourceId: idOf(t.source),
+  sourceType: t.source.type,
 });
 
 /** Insert one leg row. With a guard the values become `SELECT … WHERE
@@ -274,7 +274,7 @@ export const selectByEventGroup = (
   read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, byColumnIn("event_group", [eventGroup]));
+  selectTransfers(read, byColumnIn("eventGroup", [eventGroup]));
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (

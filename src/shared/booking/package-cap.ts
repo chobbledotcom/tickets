@@ -452,7 +452,7 @@ export const treePackageBundleMinimum = (
 ): number =>
   packageBundleMinimum(
     fixedQuantitiesByListingId(tree),
-    new Map(members.map(({ listing }) => [listing.id, listing.min_quantity])),
+    new Map(members.map(({ listing }) => [listing.id, listing.minQuantity])),
   );
 
 /** Whole bundles of ONE page package the buyer may still book, on a page that

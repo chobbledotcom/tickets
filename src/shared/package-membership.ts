@@ -12,8 +12,8 @@
 import { t } from "#i18n";
 
 /** The listing fields the member rules read; the name is for the message. */
-type MemberListing = { name: string; can_pay_more: boolean };
-type MemberRuleListing = Pick<MemberListing, "can_pay_more">;
+type MemberListing = { name: string; canPayMore: boolean };
+type MemberRuleListing = Pick<MemberListing, "canPayMore">;
 
 /** The parent/child edges touching a listing, as the member rules read them. */
 type MemberEdges = {
@@ -36,7 +36,7 @@ const PACKAGE_MEMBER_BLOCKS: ReadonlyArray<{
   key: MemberBlockKey;
   blocks: MemberBlockPredicate;
 }> = [
-  { blocks: (listing) => listing.can_pay_more, key: "pay_more" },
+  { blocks: (listing) => listing.canPayMore, key: "pay_more" },
   {
     blocks: (_listing, edges) => edges.parentIds.length > 0,
     key: "is_addon",
@@ -173,9 +173,9 @@ export type PackageChildEdgeBlock = "gate_in_hidden" | "child_is_member";
 export const hasChildEdges = (childIds: readonly number[]): boolean =>
   childIds.length > 0;
 
-export const packageGroups = <Group extends { is_package: boolean }>(
+export const packageGroups = <Group extends { isPackage: boolean }>(
   groups: readonly Group[],
-): Group[] => groups.filter((group) => group.is_package);
+): Group[] => groups.filter((group) => group.isPackage);
 
 type PackageEdgeCheck = () => boolean | Promise<boolean>;
 

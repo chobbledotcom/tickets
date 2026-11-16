@@ -93,7 +93,7 @@ export const loadRegistrationPackageFacts = async (
         groupId,
         {
           dayPriceMap: facts.dayPrices,
-          memberIds: new Set(facts.rows.map((row) => row.listing_id)),
+          memberIds: new Set(facts.rows.map((row) => row.listingId)),
           priceMap: facts.prices,
           quantityMap: facts.quantities,
         },

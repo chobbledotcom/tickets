@@ -72,11 +72,11 @@ export const generateUniqueListingSlug = (excludeListingId?: number) =>
  */
 export const keepDailyListingDate = (
   submitted: string,
-  stored: Pick<Listing, "date" | "listing_type">,
-  wouldBeType: Listing["listing_type"] | undefined,
+  stored: Pick<Listing, "date" | "listingType">,
+  wouldBeType: Listing["listingType"] | undefined,
 ): string => {
   if (submitted !== "") return submitted;
-  return stored.listing_type === "daily" || wouldBeType === "daily"
+  return stored.listingType === "daily" || wouldBeType === "daily"
     ? stored.date
     : "";
 };
@@ -134,7 +134,7 @@ const packageMembershipError = async (
   canPayMore: boolean,
   existingId: number | undefined,
 ): Promise<string | null> => {
-  if (!group.is_package) return null;
+  if (!group.isPackage) return null;
   // A create has no edges yet, and pay-what-you-want is decided by the listing
   // alone — either way the rules run without an edge read.
   const [childIds, parentIds] =
@@ -147,7 +147,7 @@ const packageMembershipError = async (
   return packageMemberError(
     { can_pay_more: canPayMore, name },
     { childIds, parentIds },
-    group.hide_package_listings,
+    group.hidePackageListings,
   );
 };
 
@@ -369,7 +369,7 @@ export const performListingDelete = async (
   if (refusal !== null) return refusal;
   await deleteListingAttachmentFile(listing, "listing deletion");
   await logActivity(
-    `Listing '${listing.name}' deleted (${listing.attendee_count} attendee(s) removed)`,
+    `Listing '${listing.name}' deleted (${listing.attendeeCount} attendee(s) removed)`,
   );
   return null;
 };
@@ -391,9 +391,9 @@ export const buildDuplicateListingInput = async (
   ...(transferValues(LISTING_FIELDS, source) as Partial<ListingInput>),
   // An empty day-price map is left out of the transfer values, so the source's
   // day prices pass through here. An override may still replace them.
-  dayPrices: source.day_prices,
-  maxAttendees: source.max_attendees,
-  maxPrice: source.max_price,
+  dayPrices: source.dayPrices,
+  maxAttendees: source.maxAttendees,
+  maxPrice: source.maxPrice,
   name: source.name,
   ...(await generateUniqueListingSlug()),
   attachmentName: "",

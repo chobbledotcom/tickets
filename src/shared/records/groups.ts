@@ -77,7 +77,7 @@ export const soldHiddenPackageError = async (
   id: number,
 ): Promise<string | null> => {
   const group = await getGroupById(id);
-  if (!group?.is_package || !group.hide_package_listings) {
+  if (!group?.isPackage || !group.hidePackageListings) {
     return null;
   }
   const sold = await hasPackageBookings(id);

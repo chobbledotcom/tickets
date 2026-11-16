@@ -17,17 +17,20 @@ import {
 } from "#shared/validation/email.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import type { WebhookAttendee, WebhookListing } from "#shared/webhook.ts";
+import type { ListingWithCount } from "#types";
 
-export type EmailListing = WebhookListing & {
-  active: boolean;
-  date: string;
-  hidden: boolean;
-  location: string;
-  purchase_only: boolean;
-  assign_built_site: boolean;
-  initial_site_months: number;
-  listing_type: "standard" | "daily";
-};
+export type EmailListing = WebhookListing &
+  Pick<
+    ListingWithCount,
+    | "active"
+    | "assignBuiltSite"
+    | "date"
+    | "hidden"
+    | "initialSiteMonths"
+    | "listingType"
+    | "location"
+    | "purchaseOnly"
+  >;
 
 export interface EmailEntry {
   attendee: WebhookAttendee;

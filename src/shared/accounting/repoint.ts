@@ -22,16 +22,16 @@ export const repointAttendeeStatements = (
   const from = attendeeAccount(fromAttendeeId);
   const to = attendeeAccount(toAttendeeId);
   return [
-    update(tables.transfers, { source_id: to.id }).where({
-      source_id: from.id,
-      source_type: from.type,
+    update(tables.transfers, { sourceId: to.id }).where({
+      sourceId: from.id,
+      sourceType: from.type,
     }),
-    update(tables.transfers, { dest_id: to.id }).where({
-      dest_id: from.id,
-      dest_type: from.type,
+    update(tables.transfers, { destId: to.id }).where({
+      destId: from.id,
+      destType: from.type,
     }),
     update(tables.booking_tax_assessments, {
-      attendee_id: toAttendeeId,
-    }).where({ attendee_id: fromAttendeeId }),
+      attendeeId: toAttendeeId,
+    }).where({ attendeeId: fromAttendeeId }),
   ];
 };

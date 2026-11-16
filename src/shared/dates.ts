@@ -96,7 +96,7 @@ const getDayName = (dateStr: string): string =>
 
 /** Check if a date falls within any holiday range (inclusive) */
 const isHoliday = (dateStr: string, holidays: Holiday[]): boolean =>
-  holidays.some((h) => dateStr >= h.start_date && dateStr <= h.end_date);
+  holidays.some((h) => dateStr >= h.startDate && dateStr <= h.endDate);
 
 /** Generate a range of YYYY-MM-DD date strings from start to end (inclusive).
  * A start past the end is an empty range: Array.from reads the negative
@@ -119,13 +119,11 @@ const bookableRange = (listing: SortableListing): BookingWindow => {
     todayInTz(settings.timezone),
     "the configured timezone's clock",
   );
-  const start = addDays(today, listing.minimum_days_before);
+  const start = addDays(today, listing.minimumDaysBefore);
   const maxDays =
-    listing.maximum_days_after === 0
-      ? MAX_FUTURE_DAYS
-      : listing.maximum_days_after;
+    listing.maximumDaysAfter === 0 ? MAX_FUTURE_DAYS : listing.maximumDaysAfter;
   const end = addDays(today, maxDays);
-  return { bookableDays: listing.bookable_days, end, start };
+  return { bookableDays: listing.bookableDays, end, start };
 };
 
 /** Check if a date is bookable (matches allowed day and not a holiday) */
@@ -164,7 +162,7 @@ export const getAvailableDates = (
   durationOverride?: number,
 ): DateString[] => {
   const range = bookableRange(listing);
-  const duration = clampDurationDays(durationOverride ?? listing.duration_days);
+  const duration = clampDurationDays(durationOverride ?? listing.durationDays);
   return filter(canStartOn(range, duration, holidays))(
     dateRange(range.start, range.end),
   );
@@ -183,7 +181,7 @@ export const getBookableStartDates = (
   getAvailableDates(
     listing,
     holidays,
-    listing.customisable_days ? 1 : undefined,
+    listing.customisableDays ? 1 : undefined,
   );
 
 /** Parse a user-supplied YYYY-MM-DD value (a `?date=` query param): the string
@@ -223,7 +221,7 @@ export const getNextBookableDate = (
   holidays: Holiday[],
 ): DateString | null => {
   const range = bookableRange(listing);
-  const duration = clampDurationDays(listing.duration_days);
+  const duration = clampDurationDays(listing.durationDays);
   const first = dateRange(range.start, range.end).find(
     canStartOn(range, duration, holidays),
   );

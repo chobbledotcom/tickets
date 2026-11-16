@@ -113,8 +113,8 @@ const factsOf = (
       ),
       `No representative listing ${entry.listing.id}`,
     ).name,
-    nonTransferable: entry.listing.non_transferable,
-    purchaseOnly: entry.listing.purchase_only,
+    nonTransferable: entry.listing.nonTransferable,
+    purchaseOnly: entry.listing.purchaseOnly,
     refunded: entry.attendee.refunded,
   });
   /** The places this booking already holds on one listing, across all the
