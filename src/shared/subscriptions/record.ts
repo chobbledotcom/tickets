@@ -66,17 +66,18 @@ export const readForSubscriptionOrNull = async <Resource>(
  * renewal. Stripe reported `observed` before this reads the invoices, so the
  * list holds each payment made up to that status. A row that ends here leaves
  * the check with all its money in the ledger. A refused invoice read leaves
- * the row for the next pass. A refused write throws to the caller.
+ * the row for the next pass, and the answer is false. A refused write throws
+ * to the caller.
  */
 export const recordObserved = async (
   row: CheckedRow,
   observed: SubscriptionStatus,
-): Promise<void> => {
+): Promise<boolean> => {
   const invoices = await readForSubscriptionOrNull(
     row,
     stripeApi.readPaidInvoices,
   );
-  if (invoices === null) return;
+  if (invoices === null) return false;
   const groups = await Promise.all(
     invoices.filter(isRenewal).map((invoice) => renewalLegs(row, invoice)),
   );
@@ -85,4 +86,5 @@ export const recordObserved = async (
     companion.push(statusWrite(row, observed));
   await postTransferGroups(groups, companion);
   logDebug("Stripe", `Subscription ${row.subscription_id} is ${observed}`);
+  return true;
 };

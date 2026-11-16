@@ -102,6 +102,7 @@ const fitsFor = async (
       row,
       ATTENDEE_ID,
       existingKeyMap(scenario),
+      false,
     );
     const result = await client.execute(statement);
     return result.rowsAffected === 1;
@@ -145,6 +146,7 @@ const batchFactFor = async (scenario: Scenario): Promise<BatchFact> => {
         ATTENDEE_ID,
         scenario.desired,
         existingKeyMap(scenario),
+        false,
       ),
       "write",
     );

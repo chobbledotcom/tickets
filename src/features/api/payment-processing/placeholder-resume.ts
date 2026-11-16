@@ -51,7 +51,7 @@ import type {
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type { ValidatedPaymentSession } from "#shared/payments.ts";
 import { recordPlaceholderRefund } from "#shared/refund-ledger/placeholder.ts";
-import { endFailedCheckoutSubscription } from "#shared/subscriptions/failed-checkout.ts";
+import { endFailedCheckoutSubscription } from "#shared/subscriptions/cancellation.ts";
 
 /**
  * User-facing message when a signed-by-us payment cannot be honoured (price

@@ -148,6 +148,7 @@ const PATHS = {
   statusMoveDown: "/admin/settings/statuses/:id/move-down",
   statusMoveUp: "/admin/settings/statuses/:id/move-up",
   statusNew: "/admin/settings/statuses/new",
+  subscriptionCancel: "/admin/subscriptions/:id/cancel",
   subscriptions: "/admin/subscriptions",
   support: "/admin/support",
   update: "/admin/update",
