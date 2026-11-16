@@ -75,6 +75,7 @@ describe("field specs", () => {
       ["webhook_url", "demo"],
       ["active", "editor"],
       ["uses_logistics", "logistics"],
+      ["recurring_price", "subscriptions"],
     ] as const);
     const refusal = (key: string) => closedFieldErrorOrNull(closed, [key]);
 
@@ -83,6 +84,7 @@ describe("field specs", () => {
       refusal("webhook_url"),
       refusal("active"),
       refusal("uses_logistics"),
+      refusal("recurring_price"),
       refusal("name"),
       closedFieldErrorOrNull(closed, ["name", "active", "webhook_url"]),
     ]).toEqual([
@@ -90,6 +92,7 @@ describe("field specs", () => {
       "webhook_url cannot be set in the demo",
       "editors cannot set active",
       "uses_logistics needs logistics turned on",
+      "recurring_price needs subscriptions turned on",
       null,
       "editors cannot set active",
     ]);

@@ -22,8 +22,8 @@ import type { RecordRule, RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
 import type { Listing, ListingWithCount } from "#types";
 
-/** The prices and the recurring plan that the saved row will hold. A save
- *  that leaves one out keeps the stored value. */
+/** The recurring plan that the saved row will hold. A save with
+ *  Subscriptions off leaves the plan out, and the row keeps the stored one. */
 const savedListingInput = (
   input: ListingInput,
   stored: Listing | null,
@@ -34,7 +34,6 @@ const savedListingInput = (
         ...input,
         recurringInterval: input.recurringInterval ?? stored.recurring_interval,
         recurringPrice: input.recurringPrice ?? stored.recurring_price,
-        unitPrice: input.unitPrice ?? stored.unit_price,
       };
 
 /** Judge the row as the save leaves it, and write the input as it came. */
