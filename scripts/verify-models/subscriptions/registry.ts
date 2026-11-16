@@ -234,42 +234,62 @@ const RECORD_CONTEXT = [
 ] as const;
 /* jscpd:ignore-end */
 
-const LOADERS = {
-  SubscriptionCancellation: () => import("./cancellation.ts"),
-  SubscriptionCheckout: () => import("./checkout.ts"),
-  SubscriptionRecords: () => import("./records.ts"),
-  SubscriptionRenewals: () => import("./renewals.ts"),
-};
-type ModuleName = keyof typeof LOADERS;
+/* jscpd:ignore-start -- a list of strings, not code */
+const LIFECYCLE_CONTROLS = {
+  "cancelled answer without an end": "step",
+  "end before the last renewal": "step",
+  "ended row opened again": "step",
+  "local end before the Stripe end": "step",
+  "missing lifecycle move": "initial",
+  "renewal recorded twice": "step",
+} as const;
+/* jscpd:ignore-end */
 
-const LABELS: Readonly<
-  Record<ModuleName, Readonly<Record<string, CheckPhase>>>
-> = {
+/* jscpd:ignore-start -- a list of strings, not code */
+const LIFECYCLE_CONTEXT = [
+  "scripts/verify-models/subscriptions/lifecycle.ts",
+  "scripts/verify-models/subscriptions/lifecycle-facts.ts",
+  "scripts/verify-models/subscriptions/lifecycle-run.ts",
+  "src/shared/subscriptions/status-check.ts",
+  "src/shared/subscriptions/cancellation.ts",
+  "src/shared/subscriptions/record.ts",
+  "src/shared/subscriptions/plan.ts",
+  "src/shared/db/subscriptions.ts",
+  "src/shared/payment/subscription-machine-spec.ts",
+  "src/features/admin/subscriptions.ts",
+] as const;
+/* jscpd:ignore-end */
+
+/** The producer of a model is the file of its short name:
+ * `SubscriptionRecords` loads `./records.ts`. */
+const producerOf = (module: string) => (): Promise<Producer> =>
+  import(`./${module.replace("Subscription", "").toLowerCase()}.ts`);
+
+const LABELS = {
   SubscriptionCancellation: CANCELLATION_CONTROLS,
   SubscriptionCheckout: CHECKOUT_CONTROLS,
+  SubscriptionLifecycle: LIFECYCLE_CONTROLS,
   SubscriptionRecords: RECORD_CONTROLS,
   SubscriptionRenewals: RENEWAL_CONTROLS,
-};
-const CONTEXTS: Readonly<Record<ModuleName, readonly string[]>> = {
+} as const satisfies Readonly<
+  Record<string, Readonly<Record<string, CheckPhase>>>
+>;
+const CONTEXTS: Readonly<Record<keyof typeof LABELS, readonly string[]>> = {
   SubscriptionCancellation: CANCELLATION_CONTEXT,
   SubscriptionCheckout: CHECKOUT_CONTEXT,
+  SubscriptionLifecycle: LIFECYCLE_CONTEXT,
   SubscriptionRecords: RECORD_CONTEXT,
   SubscriptionRenewals: RENEWAL_CONTEXT,
 };
-const labels: Readonly<Record<string, Readonly<Record<string, CheckPhase>>>> =
-  LABELS;
 const contexts: Readonly<Record<string, readonly string[]>> = CONTEXTS;
 
 export const SUBSCRIPTION_MODULES = [
   { context: [], kind: "helper", module: "SubscriptionRules" },
-  ...Object.entries(LOADERS).map(([module, load]) =>
+  ...Object.entries(LABELS).map(([module, labels]) =>
     subscriptionModel(
       module,
-      load,
-      requireValue(
-        labels[module],
-        `The ${module} model has no control labels.`,
-      ),
+      producerOf(module),
+      labels,
       requireValue(
         contexts[module],
         `The ${module} model has no review context.`,

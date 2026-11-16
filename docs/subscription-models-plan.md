@@ -51,13 +51,14 @@ Keep scenario, attempt, booking, attendee, listing, subscription, invoice, event
 Keep the pass or stage identity when the same event appears more than once.
 TLA sets must not collapse distinct attempts or equal-value invoices.
 
-## Four model boundaries
+## Five model boundaries
 
 | Model | Production evidence | Safety laws |
 | --- | --- | --- |
 | `SubscriptionCheckout` | Checkout admission, Stripe session parameters, `subscriptionStartOf`, `withSubscriptionPlan`, and stored plan columns | Unsupported orders refuse. Ordinary extra tickets remain valid. Exactly the subscribed booking receives the observed plan. Later listing or tax edits do not change it. |
 | `SubscriptionRenewals` | `recordObserved`, `renewalTax`, `mapRenewal`, `postTransferGroups`, `renewalBookingGuard`, and stored transfers | Each eligible invoice posts once to its true attendee and listing. Cash equals the observed amount. Sale plus VAT equals cash. References and paid times remain exact. A changed booking identity cannot post from the old snapshot. |
 | `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | A failed checkout needs an observed ended status before a refund. An already-observed end needs no extra cancel call. Booked or orphaned ledger dispositions never enter that refund path. Stale checks cannot overwrite an ended status. An ended status becomes visible only with its final returned renewals. |
+| `SubscriptionLifecycle` | `runSubscriptionCheck` and the owner cancel request through its real route, from each stored state of one row | The model holds the row status, the Stripe status, and the paid and recorded renewals. In every order of Stripe changes, checks and cancel requests, an ended row needs an ended Stripe subscription and every paid renewal in the ledger. An ended row takes no command. |
 | `SubscriptionRecords` | The production edit, delete, merge, and subscriber-read paths | No permitted operation loses a live plan. Safe moves preserve it. Subscriber reads include live, ended, and quantity-zero plans exactly once per stored booking. |
 
 Each model has its own law, domain explanation, and named controls.
@@ -132,7 +133,8 @@ A refusal label alone is not evidence that earlier writes rolled back.
 | Failed checkout retry after cancellation or refund | The same session and claim resume the remaining work. Do not send a duplicate refund. |
 | A record removal conflicts with a live plan | The complete operation refuses without partial data or money changes. |
 
-Models explore abstract event order over production-derived facts.
+`SubscriptionLifecycle` explores abstract event order over production-derived facts.
+The other four models check each observed result on its own.
 Database tests execute selected interleavings and faults at the real write boundary.
 Neither form proves that the scheduler eventually runs or that an external request eventually returns.
 
@@ -164,6 +166,7 @@ Build the expected event universe separately from returned outcomes.
 Check exact coverage, refused cases, reachable accepted cases, and joins between models.
 One successful fixture must carry the same plan through checkout, subscriber read, renewal, and cancellation.
 A separate failed-checkout fixture must join retained identity, confirmed cancellation, and refund authority.
+Its charge join compares the charge of the first invoice with the charge that the refund request names.
 
 ## Shared design and source budget
 
@@ -172,8 +175,9 @@ Keep the registry free of application IO at import time.
 Declare each producer and relevant production source as review context.
 Use the existing SQLite fault and payment observer patterns. Add no production test hooks.
 Statement producers use `schemaClientWith`. Full-function producers install the isolated client through the existing `setDb` seam and restore it afterwards.
+The lifecycle producer needs a site with an owner for the cancel request, so it uses the test database setup and its owner session.
 
-Expected files are four TLA modules, their producers, focused fixture or schema helpers, direct tests, and four flat registry entries.
+Expected files are five TLA modules, their producers, focused fixture or schema helpers, direct tests, and five flat registry entries.
 Keep each file near 400 lines and below the enforced 500-line limit.
 Production behaviour, schema, environment keys, and provider call budgets remain unchanged.
 Producers use isolated synthetic databases and local provider fixtures only.
@@ -202,7 +206,7 @@ Model registration context excludes environment files, databases, generated fact
 
 ## Acceptance and verification
 
-The fifth PR is complete only when all four models have production-backed facts, effective controls, direct producer tests, and explicit limits.
+The fifth PR is complete only when all five models have production-backed facts, effective controls, direct producer tests, and explicit limits.
 Run `deno task verify:models` for initial safety, unrestricted induction, and every declared control.
 Inspect the proof results and the control violation and trace results.
 
