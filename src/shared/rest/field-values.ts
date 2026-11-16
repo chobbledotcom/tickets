@@ -23,7 +23,7 @@ import {
   type StoredValue,
 } from "#shared/rest/field-specs.ts";
 import { commaParts } from "#shared/split.ts";
-import { RecurringIntervalSchema } from "#shared/subscriptions/plan.ts";
+import { RecurringIntervalChoiceSchema } from "#shared/subscriptions/plan.ts";
 import {
   IsoDateSchema,
   isUtcInstantOfRealDay,
@@ -106,7 +106,7 @@ const KIND_VALUES: {
   optionalDatetime: () => v.nullable(UtcInstantSchema),
   price: () => integerAtLeast(0),
   privateText: () => v.string(),
-  recurringInterval: () => RecurringIntervalSchema,
+  recurringInterval: () => RecurringIntervalChoiceSchema,
   switch: () => v.boolean(),
   text: () => v.string(),
   weekdays: () => v.array(v.picklist(VALID_DAY_NAMES)),
