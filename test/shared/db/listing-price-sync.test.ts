@@ -151,7 +151,7 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
     ).toBe(1);
     for (const listing of listings) {
       expect(await priceRows(listing.id)).toEqual([
-        { price_id: "", price_type: "base", unit_price: listing.unit_price },
+        { price_id: "", price_type: "base", unit_price: listing.unitPrice },
       ]);
     }
   });
