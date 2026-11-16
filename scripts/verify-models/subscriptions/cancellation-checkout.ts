@@ -36,10 +36,16 @@ import {
   MODEL_TIME,
   withSubscriptionDb,
 } from "#scripts/verify-models/subscriptions/environment.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   type SubscriptionStart,
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
+
+const isMalformedCharge = (
+  result: ReturnType<typeof validatedPaymentSession>,
+): result is MalformedRejection =>
+  isSessionRejection(result) && result.reason === "malformed_charge";
 
 /** The real session boundary refuses each synthetic session. An unpaid
  * session names no charge. */
@@ -60,10 +66,10 @@ const checkoutRejection = (
     provider: "stripe",
     subscription: start,
   });
-  if (!isSessionRejection(refused) || refused.reason !== "malformed_charge") {
-    throw new Error("The session boundary did not refuse the model checkout");
-  }
-  return refused;
+  return requireValue(
+    [refused].find(isMalformedCharge),
+    "The session boundary did not refuse the model checkout",
+  );
 };
 
 type CheckoutDelivery = {

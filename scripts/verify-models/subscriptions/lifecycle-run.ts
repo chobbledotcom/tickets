@@ -9,6 +9,7 @@ import {
   denoEnvironment,
   setEnvironmentValue,
 } from "#scripts/environment-values.ts";
+import { maintenanceStartupCalls } from "#shared/maintenance/definition.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
@@ -101,16 +102,20 @@ const ledgerOf = async (row: number) => {
   };
 };
 
+/** The check reports its next checkpoint. The producer reads the row, not
+ * the report. The check never reads the budget: no task gives no calls. */
+const ignoreReport = (): undefined => undefined;
+
 /** The scheduled check, from the row before this one. Earlier rows belong to
  * finished cases, so the pass reads this row only. */
 const runCheck = async (row: number): Promise<string> => {
   await runSubscriptionCheck({
-    budget: { remaining: () => ({ database: 0, external: 0, total: 0 }) },
+    budget: { remaining: maintenanceStartupCalls.bind(null, []) },
     checkpoint: String(row - 1),
-    completeTask: () => undefined,
+    completeTask: ignoreReport,
     deadline: 0,
-    requestFollowUp: () => undefined,
-    setCheckpoint: () => undefined,
+    requestFollowUp: ignoreReport,
+    setCheckpoint: ignoreReport,
   });
   return "returned";
 };
