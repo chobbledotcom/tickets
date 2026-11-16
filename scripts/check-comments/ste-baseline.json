@@ -624,7 +624,7 @@
     "semicolon": 2
   },
   "src/shared/db/listing-prices.ts": {
-    "semicolon": 6,
+    "semicolon": 5,
     "long-sentence": 8,
     "banned-modal": 3,
     "contraction": 4,
@@ -727,7 +727,7 @@
     "wordy": 1
   },
   "src/shared/db/modifier-usage.ts": {
-    "long-sentence": 4
+    "long-sentence": 3
   },
   "src/shared/db/modifiers.ts": {
     "long-sentence": 7,
@@ -855,7 +855,6 @@
     "banned-modal": 5
   },
   "src/shared/db/questions/queries.ts": {
-    "semicolon": 2,
     "participle": 1
   },
   "src/shared/db/questions/strings.ts": {

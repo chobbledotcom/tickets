@@ -4,8 +4,8 @@
  *
  * `insertInto(table, rows)` adds rows. `update(table, changes)` and
  * `deleteFrom(table)` change the rows that their `where` keeps. A value is the
- * stored value of its column, or an expression of the same type, so a column
- * that does not exist or a value of the wrong type is a compile error. Each
+ * stored value of its column, or an expression of the same type. A column
+ * that does not exist, or a value of the wrong type, is a compile error. Each
  * write is a statement that runs alone, in a batch or in a transaction.
  */
 
@@ -244,8 +244,8 @@ export const rowsWith =
   () =>
     equal(named(`${table.name}.${column}`), value);
 
-/** The conditions of a write. An empty match would change every row, which a
- *  write says with `everyRow` instead. */
+/** The conditions of a write. An empty match changes every row, so a
+ *  write that means every row says so with `everyRow`. */
 const conditionsOf = <Name extends TableName>(
   table: TableHandle<Name>,
   where: WriteWhere<Name>,

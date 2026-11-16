@@ -75,7 +75,7 @@ const SEALED_PAGE_TEXT = {
   slug_index: typed<BlindIndex>(),
 } as const;
 
-/** What any table may say about its columns. */
+/** The codecs that a table can give its columns. */
 type CodecMap = {
   readonly [Name in TableName]?: {
     readonly [Column in keyof DeclaredRow<Name>]?: ColumnCodec;

@@ -19,8 +19,8 @@ export type Codec<Stored extends InValue, App> = Readonly<{
   encode: (app: App) => Stored | Promise<Stored>;
 }>;
 
-/** A column whose stored value has a narrower type than its SQL type: a
- *  value from a fixed list, or text sealed under the owner key, which the
+/** A column whose stored value has a narrower type than its SQL type. The
+ *  value comes from a fixed list, or is text sealed under the owner key that
  *  code opens late with the owner's key. Nothing runs on a read or a write. */
 export type Typed<Stored extends InValue> = Readonly<{
   readonly [STORED]: Stored;
