@@ -25,6 +25,7 @@ import { range } from "#fp";
 import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   applyDemoOverrides,
   LISTING_DEMO_FIELDS,
@@ -96,12 +97,12 @@ const parseBookableDays = (
   value: string,
   listingType: ListingType,
   mode: ListingWriteMode,
-): string[] | undefined => {
+): string[] => {
   const days = commaParts(value);
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days
-    : undefined;
+    : [...VALID_DAY_NAMES];
 };
 
 /**
