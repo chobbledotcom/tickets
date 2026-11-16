@@ -2,13 +2,16 @@
 
 import * as v from "valibot";
 import {
-  queryAll,
   queryAllPrimary,
   queryOnePrimary,
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
+import { readRows } from "#db/read.ts";
+import { desc, greaterThan, not, notEqual } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { type RowOf, tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   CANCELLABLE_STATUSES,
@@ -21,43 +24,82 @@ import {
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
 
-/** The columns that each read of a subscribed row needs. */
-const PLAN_ENTRIES = {
-  attendee_id: v.number(),
-  id: v.number(),
-  listing_id: v.number(),
-  recurring_price: v.number(),
-  recurring_tax: v.number(),
+/** The words that a blank column cannot hold on a subscribed row: the booking
+ * path writes the plan, the id and the status together. */
+const CHECKED_WORDS = {
   subscription_id: v.pipe(v.string(), v.minLength(1)),
   subscription_status: SubscriptionStatusSchema,
 };
-
-/** A subscribed row always holds its whole plan: the booking path writes the
- * plan, the id and the status together. */
-const SubscribedRowSchema = v.object({
-  ...PLAN_ENTRIES,
-  quantity: v.number(),
+const CheckedWordsSchema = v.object(CHECKED_WORDS);
+const SubscribedWordsSchema = v.object({
+  ...CHECKED_WORDS,
   recurring_interval: RecurringIntervalSchema,
 });
 
-export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
+/** The columns that each read of a subscribed row needs. */
+const CHECKED_COLUMNS = [
+  "id",
+  "attendee_id",
+  "listing_id",
+  "recurring_price",
+  "recurring_tax",
+  "subscription_id",
+  "subscription_status",
+] as const;
+const SUBSCRIBED_COLUMNS = [
+  ...CHECKED_COLUMNS,
+  "quantity",
+  "recurring_interval",
+] as const;
 
-/** The subscribed columns, each named for its booking alias. */
-const SUBSCRIBED_COLUMNS = Object.keys(SubscribedRowSchema.entries).map(
-  (column) => `booking.${column}`,
-);
+type Booking = RowOf<"listing_attendees">;
+
+/** A row of a read, with the words that its schema proved. */
+type Proved<Column extends keyof Booking, Words> = Omit<
+  Pick<Booking, Column>,
+  keyof Words
+> &
+  Words;
+
+/** A row the scheduled check watches: the plan it read, and where it lives. */
+export type CheckedRow = Proved<
+  (typeof CHECKED_COLUMNS)[number],
+  v.InferOutput<typeof CheckedWordsSchema>
+>;
+
+export type SubscribedRow = Proved<
+  (typeof SUBSCRIBED_COLUMNS)[number],
+  v.InferOutput<typeof SubscribedWordsSchema>
+>;
+
+/** Each row with its plan words checked. A blank word on a subscribed row is
+ * an error. */
+const provedBy =
+  <Words extends Record<string, unknown>>(
+    schema: v.GenericSchema<unknown, Words>,
+  ) =>
+  <Row extends Record<string, unknown>>(
+    row: Row,
+  ): Omit<Row, keyof Words> & Words => ({
+    ...row,
+    ...v.parse(schema, row),
+  });
+
+const bookings = () => from(tables.listing_attendees);
+
+/** The booking rows that started a subscription. */
+const subscribedBookings = () =>
+  bookings().where((booking) => notEqual(booking.subscription_id, ""));
 
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
-  v.parse(
-    v.array(SubscribedRowSchema),
-    await queryAll(
-      sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
-         FROM listing_attendees AS booking
-        WHERE booking.subscription_id != ''
-        ORDER BY booking.id DESC`,
-    ),
-  );
+  (
+    await readRows(
+      subscribedBookings()
+        .orderBy((booking) => [desc(booking.id)])
+        .pick(...SUBSCRIBED_COLUMNS),
+    )
+  ).map(provedBy(SubscribedWordsSchema));
 
 /** The subscribed booking row `id`, or null when no such row started a
  * subscription. A cancel form can name a row that is gone. The read uses the
@@ -66,17 +108,12 @@ export const getSubscribedRowOrNull = async (
   id: number,
 ): Promise<SubscribedRow | null> => {
   const row = await queryOnePrimary(
-    sql`SELECT ${sqlNames(SUBSCRIBED_COLUMNS)}
-       FROM listing_attendees AS booking
-      WHERE booking.id = ${id} AND booking.subscription_id != ''`,
+    subscribedBookings()
+      .where({ id })
+      .pick(...SUBSCRIBED_COLUMNS),
   );
-  return row === null ? null : v.parse(SubscribedRowSchema, row);
+  return row === null ? null : provedBy(SubscribedWordsSchema)(row);
 };
-
-/** A row the scheduled check watches: the plan it read, and where it lives. */
-const CheckedRowSchema = v.object(PLAN_ENTRIES);
-
-export type CheckedRow = v.InferOutput<typeof CheckedRowSchema>;
 
 /** The next rows the scheduled check asks Stripe about, in id order after
  * the row `afterId`. */
@@ -84,30 +121,32 @@ export const getCheckedRows = async (
   afterId: number,
   limit: number,
 ): Promise<CheckedRow[]> =>
-  v.parse(
-    v.array(CheckedRowSchema),
-    await queryAll(
-      sql`SELECT booking.id, booking.attendee_id, booking.listing_id,
-              booking.recurring_price, booking.recurring_tax,
-              booking.subscription_id, booking.subscription_status
-         FROM listing_attendees AS booking
-        WHERE booking.subscription_status IN (${sqlList(CHECKED_STATUSES)})
-          AND booking.id > ${afterId}
-        ORDER BY booking.id
-        LIMIT ${limit}`,
-    ),
-  );
+  (
+    await readRows(
+      bookings()
+        .where({ subscription_status: CHECKED_STATUSES })
+        .where((booking) => greaterThan(booking.id, afterId))
+        .sortedBy("id")
+        .limit(limit)
+        .pick(...CHECKED_COLUMNS),
+    )
+  ).map(provedBy(CheckedWordsSchema));
 
 /** A merge can replace this booking while Stripe answers. Refuse stale money
  * in the same batch as its ledger legs. */
 export const renewalBookingGuard = (row: CheckedRow): SqlStatement =>
   sql`INSERT INTO listing_attendees (listing_id)
         SELECT NULL
-         WHERE NOT EXISTS (
-           SELECT 1 FROM listing_attendees AS booking
-            WHERE booking.id = ${row.id} AND booking.attendee_id = ${row.attendee_id}
-              AND booking.listing_id = ${row.listing_id} AND booking.subscription_id = ${row.subscription_id}
-         )`;
+         WHERE ${not(
+           bookings()
+             .where({
+               attendee_id: row.attendee_id,
+               id: row.id,
+               listing_id: row.listing_id,
+               subscription_id: row.subscription_id,
+             })
+             .exists(),
+         )}`;
 
 /** The stored words that a write of `status` can replace. An ended status is
  * final, so it replaces any live one. A live status needs the row to hold the
@@ -131,22 +170,15 @@ export const statusWrite = (
              replaceableBy(row, status),
            )})`;
 
-/** A read that finds one booking row, among the rows `where` picks, whose
- * subscription still charges. Such a row cannot be deleted. */
-const liveSubscriptionStatement = (where: SqlStatement): SqlStatement =>
-  sql`SELECT booking.id
-          FROM listing_attendees AS booking
-         WHERE ${where}
-           AND booking.subscription_status IN (${sqlList(CANCELLABLE_STATUSES)})
-         LIMIT 1`;
+/** The booking rows whose subscription still charges. Such a row cannot be
+ * deleted. */
+const liveBookings = () =>
+  bookings().where({ subscription_status: CANCELLABLE_STATUSES });
 
 /** The read for a live subscription among the bookings of these attendees. */
 export const liveBookingOfAttendees = (
   attendeeIds: readonly number[],
-): SqlStatement =>
-  liveSubscriptionStatement(
-    sql`booking.attendee_id IN (${sqlList(attendeeIds)})`,
-  );
+): SqlStatement => liveBookings().where({ attendee_id: attendeeIds }).probe();
 
 /** Why one listing cannot be deleted, or null. The read joins the caller's
  * transaction when it runs inside one. */
@@ -158,9 +190,7 @@ export type ListingCheck = (
 /** The refusal while a booking of the listing has a subscription that still
  * charges. */
 export const liveListingRefusal: ListingCheck = async (listingId, tx) => {
-  const read = liveSubscriptionStatement(
-    sql`booking.listing_id = ${listingId}`,
-  );
+  const read = liveBookings().where({ listing_id: listingId }).probe();
   const rows =
     tx === undefined
       ? await queryAllPrimary(read)
