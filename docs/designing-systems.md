@@ -212,8 +212,8 @@ differs from a library's, write a thin adapter; do not re-implement:
 
 - `src/fp.ts` — `unique`, `uniqueBy`, `mapNotNullish`, `sumOf`, `chunk` are
   one-line curried adapters over `@std/collections`.
-- `src/shared/column-names.ts` — `toCamelCase`/`toSnakeCase` delegate to valibot's
-  case actions rather than bespoke regexes.
+- `src/shared/column-names.ts` — `toCamelCase` delegates to the valibot
+  case action rather than a bespoke regex.
 - `src/shared/timezone.ts` — all DST/offset math is `Temporal`;
   `src/shared/currency.ts` gets currency symbols and decimal places from
   `Intl.NumberFormat` instead of a hand-maintained table; `src/shared/slug.ts`
