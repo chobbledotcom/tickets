@@ -145,7 +145,7 @@ describe("insertInto", () => {
         startDate: "a",
       }).returning("id", "name").sql,
     ).toBe(
-      "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id, name",
+      "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id AS id, name AS name",
     );
   });
 });
@@ -191,7 +191,7 @@ describe("deleteFrom", () => {
   test("removes the matched rows and can read them back", () => {
     expect(
       deleteFrom(tables.sessions).where({ token: "t" }).returning("token").sql,
-    ).toBe("DELETE FROM sessions WHERE sessions.token = ?1 RETURNING token");
+    ).toBe("DELETE FROM sessions WHERE sessions.token = ?1 RETURNING token AS token");
   });
 
   test("removes every row when it says so", () => {

@@ -35,17 +35,17 @@ const listingCreate = (body: Record<string, unknown>) =>
   );
 
 /** A stored listing row, for the update reads. */
-const storedListing = { closes_at: null, max_attendees: 5, name: "Listing" };
+const storedListing = { closesAt: null, maxAttendees: 5, name: "Listing" };
 
 const storedGroup = {
   description: "About",
   hidden: false,
-  hide_package_listings: false,
-  is_package: true,
-  max_attendees: 40,
-  scan_checks_in_all_listings: false,
-  show_hidden_listings: true,
-  terms_and_conditions: "Terms",
+  hidePackageListings: false,
+  isPackage: true,
+  maxAttendees: 40,
+  scanChecksInAllListings: false,
+  showHiddenListings: true,
+  termsAndConditions: "Terms",
 };
 
 const storedGroupInput = {
@@ -341,7 +341,7 @@ describe("field reads", () => {
       readOpenBody(
         GROUP_FIELDS,
         {},
-        { ...storedGroup, name: "Stored", show_hidden_listings: false },
+        { ...storedGroup, name: "Stored", showHiddenListings: false },
       ),
     ).toEqual({
       ok: true,
@@ -465,14 +465,14 @@ describe("field reads", () => {
 
   test("a transfer leaves out withheld columns and empty day prices", () => {
     const row = {
-      attachment_name: "private.pdf",
-      day_prices: {},
+      attachmentName: "private.pdf",
+      dayPrices: {},
       name: "Listing",
-      webhook_url: "secret",
+      webhookUrl: "secret",
     };
     expect([
       transferValues(LISTING_FIELDS, row, new Map([["webhook_url", "editor"]])),
-      transferValues(LISTING_FIELDS, { day_prices: { 1: 500 } }),
+      transferValues(LISTING_FIELDS, { dayPrices: { 1: 500 } }),
     ]).toEqual([{ name: "Listing" }, { dayPrices: { 1: 500 } }]);
   });
 
