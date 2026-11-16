@@ -31,8 +31,15 @@ import {
   performListingDelete,
   toggleListingActive,
 } from "#shared/listings-actions.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_WRITE_KEYS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { listingRecord } from "#shared/records/listings.ts";
+import {
+  siteFeatures,
+  withoutHiddenKeys,
+} from "#shared/records/write-access.ts";
 import type {
   CrudSideEffectValidate,
   HydratedRows,
@@ -128,10 +135,11 @@ const hydrateListingJoins = async (
  * plus the ids of its groups, plus its selected attribute options. */
 const toApiListing = async (
   row: ListingWithCount,
-): Promise<Record<string, unknown>> => ({
-  ...toAdminListing(row),
-  ...(await hydrateListingJoins([row])).get(row.id),
-});
+): Promise<Record<string, unknown>> =>
+  withoutHiddenKeys(LISTING_WRITE_KEYS, {
+    ...toAdminListing(row),
+    ...(await hydrateListingJoins([row])).get(row.id),
+  });
 
 /** One of the listing's on/off routes: deactivate turns it off, reactivate
  * turns it back on. */
@@ -190,13 +198,19 @@ const listingApiRoutes = recordApi<
     reactivate: toggleActiveRoute(true),
   },
   hydrate: hydrateListingJoins,
-  listExtras: (session) => ({ admin_level: session.adminLevel }),
+  // The features tell a caller which listing keys this site takes.
+  listExtras: (session) => ({
+    admin_level: session.adminLevel,
+    features: siteFeatures(),
+  }),
   /** The dashboard's editor table is money-free (listing-table.tsx), so the
    *  editor's API answers hide the staff-only money totals too. The editor
    *  form also hides webhook_url and use_defaults. The write parser freezes
    *  both: the stored webhook receives attendee PII, and its URL can carry
-   *  credentials or query tokens. */
-  projectResponse: (row, session) => {
+   *  credentials or query tokens. Every answer leaves out the keys whose
+   *  feature is off. */
+  projectResponse: (full, session) => {
+    const row = withoutHiddenKeys(LISTING_WRITE_KEYS, full);
     if (session.adminLevel !== "editor") return row;
     const {
       cost: _cost,

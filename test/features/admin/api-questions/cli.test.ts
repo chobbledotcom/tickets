@@ -6,7 +6,7 @@ import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
 import { runDeps } from "#test-utils/cli-table.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 
 /** The CLI drives the whole questions flow off the resource table: create a
  *  question, add its answers, read the shape back, then delete the answer and

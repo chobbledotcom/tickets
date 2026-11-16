@@ -6,8 +6,13 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
-import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
+import {
+  ADMIN_API_ENDPOINTS,
+  documented,
+  freshTotals,
+  isBlank,
+  jsonLeaves,
+} from "./helpers.ts";
 
 describe("a value not worth documenting", () => {
   test("empty and whitespace-only text is blank", () => {

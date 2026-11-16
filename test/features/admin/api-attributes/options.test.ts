@@ -18,12 +18,12 @@ import {
   adminApiTestTransport,
   expectTextChildCreateRefusals,
 } from "#test-utils/admin-api-transport.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { describeWithAttributes as describeWithEnv } from "#test-utils/feature-suites.ts";
 
 const { attributes } = ADMIN_API_RESOURCES;
 

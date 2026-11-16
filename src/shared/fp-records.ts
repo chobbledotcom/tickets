@@ -16,3 +16,9 @@ export const withoutKey =
     const { [key]: _dropped, ...rest } = row;
     return rest;
   };
+
+/** A copy of a record with every key of a set left out. */
+export const withoutKeys =
+  (keys: ReadonlySet<string>) =>
+  (row: object): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => !keys.has(key)));
