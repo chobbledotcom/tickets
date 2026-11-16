@@ -129,8 +129,8 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({
         aggregateRecalculation: {
-          booked_quantity: { current: 7, recalculated: 4 },
-          tickets_count: { current: 3, recalculated: 3 },
+          bookedQuantity: { current: 7, recalculated: 4 },
+          ticketsCount: { current: 3, recalculated: 3 },
         },
         groups: [],
         listing,

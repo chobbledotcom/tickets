@@ -231,8 +231,8 @@ describeWithEnv(
 
       const stale = (await records.modifiers.find(m.id))!;
       expect(await getModifierAggregateRecalculation(stale)).toEqual({
-        total_uses: { current: 8, recalculated: 5 },
-        usage_count: { current: 4, recalculated: 2 },
+        totalUses: { current: 8, recalculated: 5 },
+        usageCount: { current: 4, recalculated: 2 },
       });
 
       await modifierAggregates.reset(m.id, ["totalUses"]);

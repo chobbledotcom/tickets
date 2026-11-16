@@ -119,8 +119,8 @@ describe("adminListingPage details table", () => {
   const renderMismatch = (): string =>
     renderListingDetail({
       aggregateRecalculation: {
-        booked_quantity: { current: 2, recalculated: 1 },
-        tickets_count: { current: 0, recalculated: 0 },
+        bookedQuantity: { current: 2, recalculated: 1 },
+        ticketsCount: { current: 0, recalculated: 0 },
       },
       allowedDomain: "localhost",
       attendees: [],

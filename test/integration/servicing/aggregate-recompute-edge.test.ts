@@ -67,8 +67,8 @@ describeWithEnv(
       const listing = await setupListingLWithHoldAndAttendee();
       const reloaded = await reloadAggregates(listing.id);
       expect(reloaded).toMatchObject({
-        attendee_count: 4, // 3 servicing + 1 real
-        tickets_count: 1, // only the real attendee
+        attendeeCount: 4, // 3 servicing + 1 real
+        ticketsCount: 1, // only the real attendee
       });
     });
 
@@ -78,7 +78,7 @@ describeWithEnv(
       // ticket, so the recompute and the triggers must keep that split.
       expectListingAggregateSplit(
         await recalculateListingAggregates(listing.id),
-        { booked_quantity: 4, tickets_count: 1 },
+        { bookedQuantity: 4, ticketsCount: 1 },
       );
     });
 

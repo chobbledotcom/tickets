@@ -74,7 +74,7 @@ describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
     // triggers that carry it back must both keep servicing out of tickets.
     expectListingAggregateSplit(
       await recalculateListingAggregates(listing.id),
-      { booked_quantity: 3, tickets_count: 0 },
+      { bookedQuantity: 3, ticketsCount: 0 },
     );
   });
 });

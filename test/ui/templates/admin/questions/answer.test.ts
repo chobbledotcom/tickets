@@ -17,8 +17,8 @@ describe("adminAnswerEditPage", () => {
     { id: 5, name: "Large surcharge" },
     { id: 6, name: "Tiny discount" },
   ];
-  const aligned = { times_selected: { current: 7, recalculated: 7 } };
-  const drifted = { times_selected: { current: 7, recalculated: 5 } };
+  const aligned = { timesSelected: { current: 7, recalculated: 7 } };
+  const drifted = { timesSelected: { current: 7, recalculated: 5 } };
 
   /** The page for an active answer whose stored total matches the attendee
    *  answers — the default most tests below assert against. Rendered once. */
@@ -160,7 +160,7 @@ describe("adminAnswerRecalculatePage", () => {
     text: "T-shirt size?",
   });
   const answer = question.answers[0]!;
-  const snapshot = { times_selected: { current: 7, recalculated: 5 } };
+  const snapshot = { timesSelected: { current: 7, recalculated: 5 } };
 
   test("renders the recalculate form for the answer", () => {
     const html = adminAnswerRecalculatePage(

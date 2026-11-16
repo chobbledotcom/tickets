@@ -61,7 +61,7 @@ describeWithEnv(
           "Recalculate:",
           "Current",
           "From attendee data",
-          'value="booked_quantity"',
+          'value="bookedQuantity"',
           ">9<",
           ">2<",
         );
@@ -95,7 +95,7 @@ describeWithEnv(
 
         const { response } = await adminFormPost(
           `/admin/listings/recalculate/${listing.id}`,
-          { recalculate_fields: "booked_quantity" },
+          { recalculate_fields: "bookedQuantity" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/edit`,
@@ -117,7 +117,7 @@ describeWithEnv(
         });
 
         await adminFormPost(`/admin/listings/recalculate/${listing.id}`, {
-          recalculate_fields: "booked_quantity",
+          recalculate_fields: "bookedQuantity",
         });
 
         const log = await getAllActivityLog(10);
@@ -137,7 +137,7 @@ describeWithEnv(
 
         const { cookie, response } = await adminFormPost(
           `/admin/listings/recalculate/${listing.id}`,
-          { recalculate_fields: "booked_quantity" },
+          { recalculate_fields: "bookedQuantity" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/edit`,
