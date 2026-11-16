@@ -46,8 +46,8 @@ const openText = (
   privateKey: CryptoKey,
 ): Promise<string> =>
   row.type === "owner"
-    ? decryptWithOwnerKey(row.note, privateKey)
-    : decrypt(row.note);
+    ? decryptWithOwnerKey(row.note as OwnerKeyEncrypted, privateKey)
+    : decrypt(row.note as EnvKeyEncrypted);
 
 /** Open a batch of note rows, keeping their order. */
 export const openNotes = openEach(openNote);

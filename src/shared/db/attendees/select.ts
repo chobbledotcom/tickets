@@ -39,7 +39,8 @@ import {
   when,
   wholeCondition,
 } from "#db/select/expression.ts";
-import { from, type Node, type Query, tableNode } from "#db/select/query.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import type { Node, Query } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import type { Attendee } from "#types";
@@ -405,11 +406,11 @@ const whereConditions = (where: AttendeeWhere): Condition[] => [
 const attendeesWithBookings = (
   join: AttendeeJoin,
   where: AttendeeWhere,
-): Query<unknown> => {
+): Query<unknown, never> => {
   const everyAttendee = from(tables.attendees);
   const withLines =
     join === "left" ? everyAttendee.leftJoin : everyAttendee.join;
-  const booked: Query<unknown> = withLines(
+  const booked: Query<unknown, never> = withLines(
     "listingAttendee",
     tables.listing_attendees,
     (attendee) => equal(attendee.listingAttendee.attendee_id, attendee.id),

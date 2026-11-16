@@ -1,5 +1,6 @@
 /** Taking an all-or-none hold on the exact refund snapshot an admin loaded. */
 
+import { sealedContactsOf } from "#db/attendees/reads.ts";
 import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { claimRequestFor } from "#db/payment-claim/scope.ts";
 import {
@@ -250,10 +251,7 @@ export const claimAttendeeRows = async (
   const writtenAt = nowIso();
   const staleBefore = isoBefore(claimLeaseMs(STALE_RESERVATION_MS));
   return await withTransaction(async (tx) => {
-    const attendeeRead =
-      await tx.execute(sql`SELECT attendee.id, attendee.pii_blob
-              FROM attendees AS attendee
-             WHERE attendee.id IN (${sqlList(attendeeIds)})`);
+    const attendeeRead = await tx.execute(sealedContactsOf(attendeeIds));
     if (!attendeesMatch(attendees, resultRows<StoredAttendee>(attendeeRead))) {
       return { kind: "changed" };
     }

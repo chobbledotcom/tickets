@@ -32,8 +32,17 @@ declare const ROWS: unique symbol;
  * row type from the statement, so the caller does not name it again. */
 export type RowsStatement<Row> = SqlStatement & { readonly [ROWS]: Row };
 
-/** A read: a statement that names its row, or one whose caller names it. */
-export type Read<Row> = SqlStatement | RowsStatement<Row>;
+/** A hand-written statement under the type that the caller names for it: the
+ * row that it gives, or its value. Nothing checks the type against the SQL
+ * text. */
+export const typedSql = <Typed extends SqlStatement>(
+  statement: SqlStatement,
+): Typed => statement as Typed;
+
+/** A read: a statement that names its row, or one whose caller names it. A
+ * row type that the caller names for a statement that names its own must
+ * hold that row. */
+export type Read<Row> = SqlStatement & { readonly [ROWS]?: Row };
 
 /** What a template slot can hold: a value to bind, or SQL to splice in. */
 export type SqlSlot = InValue | SqlStatement;

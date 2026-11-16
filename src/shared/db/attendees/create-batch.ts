@@ -4,6 +4,7 @@ import type {
   EncryptedAttendeeData,
   ListingBooking,
 } from "#db/attendee-types.ts";
+import { attendeeIdOfToken } from "#db/attendees/reads.ts";
 import {
   executeBatchWithResults,
   resultRows,
@@ -70,13 +71,9 @@ const isBookingWriteGuardFailure = notNullGuardFailureAt(
 const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
-/** The newly inserted attendee is always found by its unique stable token. */
-const attendeeIdStatement = (tokenIndex: string): SqlStatement =>
-  sql`SELECT id FROM attendees WHERE ticket_token_index = ${tokenIndex}`;
-
 /** The id of the newly inserted attendee, as a value inside a statement. */
 export const attendeeByToken = (tokenIndex: string): SqlStatement =>
-  sql`(${attendeeIdStatement(tokenIndex)})`;
+  sql`(${attendeeIdOfToken(tokenIndex)})`;
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,
@@ -88,7 +85,7 @@ const runAtomicBatch = async (
       ...guardedBookings(prepared.bookingStatements),
       ...trailing,
       ...prepared.activityStatements,
-      attendeeIdStatement(prepared.enc.ticketTokenIndex),
+      attendeeIdOfToken(prepared.enc.ticketTokenIndex),
     ]);
     const rows = resultRows<{ id: number }>(results[results.length - 1]!);
     return { insertId: Number(rows[0]!.id) };
@@ -114,7 +111,7 @@ export const writeWithCreationWork = (
       }
     }
     const attendeeRows = resultRows<{ id: number }>(
-      await tx.execute(attendeeIdStatement(prepared.enc.ticketTokenIndex)),
+      await tx.execute(attendeeIdOfToken(prepared.enc.ticketTokenIndex)),
     );
     const attendeeId = Number(attendeeRows[0]!.id);
     await creationWork(tx, attendeeId);

@@ -11,7 +11,6 @@ import {
   executeBatch,
   queryAll,
   resultRows,
-  rowExists,
   type TxScope,
 } from "#db/client.ts";
 import {
@@ -33,7 +32,10 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
-import { among, equal } from "#db/select/expression.ts";
+import { readExists } from "#db/read.ts";
+import { among, equal, greaterThan } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import {
   type SqlStatement,
@@ -212,43 +214,32 @@ export const getListingsByGroupId = async (
     "Missing group listing membership",
   );
 
-/** Whether any of the given group ids satisfies the extra SQL `condition`.
- * Empty input → false (no query). */
-const anyGroupMatching = async (
-  groupIds: readonly number[],
-  condition: SqlStatement,
-): Promise<boolean> => {
-  if (groupIds.length === 0) return false;
-  return rowExists(
-    sql`SELECT 1 FROM groups WHERE id IN (${sqlList(groupIds)}) AND ${condition} LIMIT 1`,
-  );
-};
+/** A question about some of these ids. No id gives false, with no query. */
+type AnyOf = (ids: readonly number[]) => Promise<boolean>;
 
 /** Whether any of the given group ids names a HIDDEN package group
  * (`hide_package_listings`). A hidden package collapses its members to the
  * package name on every buyer surface, so a member there can never gate its own
  * add-on children — the selector would name them. */
-export const anyHiddenPackageGroup = (
-  groupIds: readonly number[],
-): Promise<boolean> =>
-  anyGroupMatching(groupIds, sql`is_package = 1 AND hide_package_listings = 1`);
-
-/** Whether any of the given listings is a member of a package group. Empty
- * input → false (no query). Used to keep a package member from being turned into
- * another listing's required child (a package page can't render child edges). */
-export const anyListingInPackageGroup = async (
-  listingIds: readonly number[],
-): Promise<boolean> => {
-  if (listingIds.length === 0) return false;
-  return rowExists(
-    sql`SELECT 1
-       FROM group_listings AS groupListing
-       JOIN groups AS groupRow ON groupRow.id = groupListing.group_id
-      WHERE groupListing.listing_id IN (${sqlList(listingIds)})
-        AND groupRow.is_package = 1
-      LIMIT 1`,
+export const anyHiddenPackageGroup: AnyOf = (groupIds) =>
+  readExists(
+    from(tables.groups).where({
+      hide_package_listings: 1,
+      id: groupIds,
+      is_package: 1,
+    }),
   );
-};
+
+/** Whether any of the given listings is a member of a package group. A
+ *  package member cannot become the required child of another listing, because
+ *  a package page cannot render child edges. */
+export const anyListingInPackageGroup: AnyOf = (listingIds) =>
+  readExists(
+    from(tables.group_listings, { group: {} }).where((member) => [
+      among(member.listing_id, listingIds),
+      equal(member.group.is_package, 1),
+    ]),
+  );
 
 /** The member-naming package error for the first listing in `listings` that
  * can't be a package member (pay-what-you-want, an add-on of another listing,
@@ -292,6 +283,16 @@ export const packageMembersError = async (
  * name on tickets/emails. */
 export type PackageDisplay = { name: string; hideListings: boolean };
 
+/** The sold booking rows that hold the package id of this group. */
+const soldPackageLines = (groupId: number) =>
+  from(tables.listing_attendees)
+    .where({ package_group_id: groupId })
+    .where((line) => greaterThan(line.quantity, 0));
+
+/** Whether any sold booking still holds this group's package id. */
+export const hasPackageBookings = (groupId: number): Promise<boolean> =>
+  readExists(soldPackageLines(groupId));
+
 /** Transaction-local recheck: whether any sold booking still holds this
  *  group's package id. Used inside the group write transaction so a checkout
  *  that commits between a request-level sold-hidden check and the write rolls
@@ -299,13 +300,8 @@ export type PackageDisplay = { name: string; hideListings: boolean };
 export const hasPackageBookingsTx = async (
   tx: TxScope,
   groupId: number,
-): Promise<boolean> => {
-  const rows = resultRows<{ id: number }>(
-    await tx.execute(sql`SELECT 1 AS id FROM listing_attendees
-             WHERE package_group_id = ${groupId} AND quantity > 0 LIMIT 1`),
-  );
-  return rows.length > 0;
-};
+): Promise<boolean> =>
+  resultRows(await tx.execute(soldPackageLines(groupId).probe())).length > 0;
 
 /** The package displays for a set of (possibly repeated or zero)
  * `package_group_id`s — only ids naming a live package appear in the map. Lets

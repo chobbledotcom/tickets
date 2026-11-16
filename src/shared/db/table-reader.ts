@@ -20,13 +20,7 @@ import {
 } from "#db/chosen-columns.ts";
 
 import { readOneRow, readRows } from "#db/read.ts";
-import {
-  among,
-  type Condition,
-  equal,
-  given,
-  named,
-} from "#db/select/expression.ts";
+import { type Condition, matching, named } from "#db/select/expression.ts";
 import { fromNamed } from "#db/select/query.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
@@ -63,6 +57,26 @@ export type RowOptions = {
   limit?: number;
 };
 
+type Filtered<Row> = {
+  columns: readonly string[];
+  name: string;
+  schema: TableSchema<Row>;
+};
+
+/** Refuse a filter column that the table cannot compare. */
+const refuseUnstored = <Row>(table: Filtered<Row>, column: string): void => {
+  if (!table.columns.includes(column)) {
+    throw new Error(
+      `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
+    );
+  }
+  if (table.schema[column as keyof Row]?.write !== undefined) {
+    throw new Error(
+      `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
+    );
+  }
+};
+
 /**
  * Turn a filter written as a row into conditions. A list keeps the rows that
  * hold one of its values. A null keeps the rows that hold nothing.
@@ -76,28 +90,19 @@ export type RowOptions = {
  * which is stored as it is written.
  */
 const filterConditions = <Row>(
-  table: { columns: readonly string[]; name: string; schema: TableSchema<Row> },
+  table: Filtered<Row>,
   filter: RowFilter<Row>,
   alias: string | undefined,
 ): Condition[] =>
-  Object.entries(filter).map(([column, value]) => {
-    if (!table.columns.includes(column)) {
-      throw new Error(
-        `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
-      );
-    }
-    if (table.schema[column as keyof Row]?.write !== undefined) {
-      throw new Error(
-        `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
-      );
-    }
-    const stored = named(alias ? `${alias}.${column}` : column);
-    return given(value, (wanted) =>
-      Array.isArray(wanted)
-        ? among(stored, wanted as readonly Exclude<InValue, null>[])
-        : equal(stored, wanted as InValue),
-    );
-  });
+  matching(
+    (column) => named(alias ? `${alias}.${column}` : column),
+    Object.fromEntries(
+      Object.entries(filter).filter(([column, value]) => {
+        refuseUnstored(table, column);
+        return value !== undefined;
+      }),
+    ),
+  );
 
 /**
  * Reading some rows of one table, or one of them. The filter covers the whole

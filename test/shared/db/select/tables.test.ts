@@ -17,7 +17,7 @@ import {
   tableNamed,
   tables,
 } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
+import { type Read, sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("tables", () => {
@@ -132,5 +132,27 @@ describeWithEnv("the declared schema", { db: true }, () => {
     const id: number = row!.id;
     const name: string = row!.name;
     expect({ id, name }).toEqual({ id: 1, name: "h" });
+  });
+
+  test("refuses a row type that the read does not give", () => {
+    const read = from(tables.holidays).pick("id", "name");
+    const wider: Read<{ id: number }> = read;
+    // @ts-expect-error the read gives a number for `id`
+    const refused: Read<{ id: string }> = read;
+    // @ts-expect-error the read gives no `slug`
+    const missing: Read<{ slug: string }> = read;
+    expect([wider.sql, refused.sql, missing.sql]).toEqual([
+      read.sql,
+      read.sql,
+      read.sql,
+    ]);
+  });
+
+  test("gives a column the values that the schema names for it", () => {
+    const read = from(tables.system_notes).pick("type", "entity_type");
+    const typed: Read<{ type: "system" | "owner" }> = read;
+    // @ts-expect-error a note is of the system or of the owner
+    const refused: Read<{ type: "system" }> = read;
+    expect(typed.sql).toBe(refused.sql);
   });
 });

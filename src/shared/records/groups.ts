@@ -4,7 +4,7 @@
  */
 
 import type { InValue } from "@libsql/client";
-import { executeBatch, rowExists } from "#db/client.ts";
+import { executeBatch } from "#db/client.ts";
 import { deleteById } from "#db/delete-row.ts";
 import {
   clearExternalLinksStatement,
@@ -19,6 +19,7 @@ import {
   getGroupById,
   getListingsByGroupId,
   groups,
+  hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
@@ -78,10 +79,7 @@ export const soldHiddenPackageError = async (
   if (!group?.is_package || !group.hide_package_listings) {
     return null;
   }
-  const sold = await rowExists(
-    sql`SELECT 1 FROM listing_attendees
-      WHERE package_group_id = ${id} AND quantity > 0 LIMIT 1`,
-  );
+  const sold = await hasPackageBookings(id);
   return sold ? t("error.sold_hidden_package") : null;
 };
 

@@ -25,6 +25,8 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
@@ -279,13 +281,15 @@ export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (
-    await queryOne<{ id: number }>(
-      sql`SELECT id FROM attributes WHERE id = ${id} LIMIT 1`,
+    await queryOne(
+      from(tables.attributes).where({ id: id }).limit(1).pick("id"),
     )
   )?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
-  queryIdColumn(sql`SELECT id FROM attributes ORDER BY sort_order, id`);
+  queryIdColumn(
+    from(tables.attributes).sortedBy("sort_order", "id").pick("id"),
+  );
 
 /** The submitted option ids the site has. Unknown ids drop out. The order
  * and any duplicates of the submitted list are kept. */
@@ -297,7 +301,7 @@ export const attributeOptionIdsIn = async (
     unique.length === 0
       ? []
       : await queryIdColumn(
-          sql`SELECT id FROM attribute_options WHERE id IN (${sqlList(unique)})`,
+          from(tables.attribute_options).where({ id: unique }).pick("id"),
         ),
   );
   return filter((id: number) => found.has(id))(submitted);

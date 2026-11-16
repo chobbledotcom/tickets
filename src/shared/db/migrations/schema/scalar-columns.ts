@@ -3,9 +3,9 @@
 Every table names its columns' types through this file, so a spelling lives in
 one place instead of in every table that uses it. A value here is one column's
 type together with the marks that go with it, such as `NOT NULL` or a starting
-value. The table supplies the column's name. A type says only how the database
-stores the value. What the value means belongs to the code that reads the
-column.
+value. The table supplies the column's name. A type says how the database
+stores the value. A type from `oneOf` also names the words that the column
+can hold. `#db/select/tables.ts` names the values that no rule checks.
 
 These spellings are SQLite's, the only database this schema runs on. A second
 database changes the values below. It also changes the rules a table adds with
@@ -126,8 +126,14 @@ export const checked =
 /** A type that must hold one of a fixed set of words, in SQL. Read the words
  *  from the one module that names them, so the column and the form or API that
  *  sends them cannot drift apart. */
-export const oneOf = (column: string, words: readonly string[]): WithRule =>
-  checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`);
+export const oneOf =
+  <const Words extends readonly string[]>(column: string, words: Words) =>
+  <Stored extends string | null>(
+    type: ColumnKind<Stored>,
+  ): ColumnKind<Words[number] | Extract<Stored, null>> =>
+    checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`)(
+      type,
+    ) as ColumnKind<Words[number] | Extract<Stored, null>>;
 
 /** Rules about the whole row. SQLite lets a table say them only on a column.
  *  They hang on the row's last column, one per line, aligned to read inside the
