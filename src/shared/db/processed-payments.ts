@@ -25,8 +25,15 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
-import { and, equal, lessThan, valued } from "#db/select/expression.ts";
+import {
+  and,
+  type Condition,
+  equal,
+  lessThan,
+  valued,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { deleteFrom, insertInto, update } from "#db/write.ts";
@@ -56,6 +63,16 @@ export const UNRESOLVED_RESERVATION = sql`attendee_id IS NULL AND failure_data =
 
 /** {@link UNRESOLVED_RESERVATION} as a condition of a write. */
 const unresolved = valued<boolean>(UNRESOLVED_RESERVATION);
+
+/** The condition that keeps the row of this session while its reservation is
+ *  unresolved and each of `more` holds. */
+export const unresolvedSessionRow =
+  (sessionId: string, ...more: Condition[]) =>
+  (payment: Node<"processed_payments">): Condition[] => [
+    equal(payment.payment_session_id, sessionId),
+    unresolved,
+    ...more,
+  ];
 
 /** Processed payment record */
 export type ProcessedPayment = {
@@ -99,10 +116,7 @@ const sessionIdWrite =
  * refund recovery on a local timer instead of provider redelivery.
  */
 export const releaseReservation = sessionIdWrite((sessionId) =>
-  deleteFrom(tables.processed_payments).where((payment) => [
-    equal(payment.payment_session_id, sessionId),
-    unresolved,
-  ]),
+  deleteFrom(tables.processed_payments).where(unresolvedSessionRow(sessionId)),
 );
 
 /**
@@ -200,7 +214,7 @@ export const finalizeSessionIfUnresolved = async (
   if (paymentReference === null) {
     await execute(
       update(tables.processed_payments, { attendee_id: attendeeId }).where(
-        (payment) => [equal(payment.payment_session_id, sessionId), unresolved],
+        unresolvedSessionRow(sessionId),
       ),
     );
     return;
@@ -216,11 +230,7 @@ export const finalizeSessionIfUnresolved = async (
         attendee_id: attendeeId,
         payment_reference: storedReference.encrypted,
         payment_reference_index: storedReference.index,
-      }).where((payment) => [
-        equal(payment.payment_session_id, sessionId),
-        unresolved,
-        valued(referenceClaim),
-      ]),
+      }).where(unresolvedSessionRow(sessionId, valued(referenceClaim))),
     );
     if (finalized.rowsAffected > 0) return;
     const blocked = await tx.execute(
@@ -256,10 +266,7 @@ export const prepareSessionFailure = async (
 ): Promise<PreparedSessionFailure> => ({
   statement: update(tables.processed_payments, {
     failure_data: await encrypt(storedSessionFailure(failure)),
-  }).where((payment) => [
-    equal(payment.payment_session_id, sessionId),
-    unresolved,
-  ]),
+  }).where(unresolvedSessionRow(sessionId)),
 });
 
 /** The stored outcome bytes a session row currently holds, read from the

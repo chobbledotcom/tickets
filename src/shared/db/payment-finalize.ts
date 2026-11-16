@@ -3,9 +3,9 @@ import { attendeeOwedSubquery } from "#accounting/projection-sql.ts";
 import { preparePaymentReferenceWrite } from "#db/payment-reference-store.ts";
 import {
   encryptTicketTokens,
-  UNRESOLVED_RESERVATION,
+  unresolvedSessionRow,
 } from "#db/processed-payments.ts";
-import { equal, type Operand, valued } from "#db/select/expression.ts";
+import { type Operand, valued } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { update } from "#db/write.ts";
@@ -68,13 +68,14 @@ const buildFinalizeStatements = async ({
       payment_reference: referenceWrite.stored?.encrypted ?? "",
       payment_reference_index: referenceWrite.stored?.index ?? "",
       ticket_tokens: await encryptTicketTokens(ticketTokens),
-    }).where((payment) => [
-      equal(payment.payment_session_id, sessionId),
-      valued(UNRESOLVED_RESERVATION),
-      valued(guard),
-      valued(referenceWrite.claim),
-      valued(standDownWhen),
-    ]),
+    }).where(
+      unresolvedSessionRow(
+        sessionId,
+        valued(guard),
+        valued(referenceWrite.claim),
+        valued(standDownWhen),
+      ),
+    ),
     paymentFinalizeGuard(guard),
   ];
 };
