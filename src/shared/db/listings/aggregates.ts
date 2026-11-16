@@ -16,8 +16,8 @@ import { sql } from "#db/sql.ts";
 import type { ListingWithCount } from "#types";
 
 export const LISTING_AGGREGATE_FIELDS = [
-  "booked_quantity",
-  "tickets_count",
+  "bookedQuantity",
+  "ticketsCount",
 ] as const;
 
 export type ListingAggregateField = (typeof LISTING_AGGREGATE_FIELDS)[number];
@@ -26,8 +26,8 @@ export type ListingAggregateRecalculation =
   AggregateRecalculation<ListingAggregateField>;
 
 const listingAggregateRecalcSql = (listingId: number) => sql`SELECT
-       COALESCE(SUM(listingAttendee.quantity), 0) AS booked_quantity,
-       ${ticketCountSumExpr()} AS tickets_count
+       COALESCE(SUM(listingAttendee.quantity), 0) AS bookedQuantity,
+       ${ticketCountSumExpr()} AS ticketsCount
      FROM listing_attendees AS listingAttendee
      WHERE listingAttendee.listing_id = ${listingId}`;
 
@@ -39,13 +39,13 @@ export const getListingAggregateRecalculation = async (
     listingAggregateRecalcSql(listing.id),
   );
   return {
-    booked_quantity: {
+    bookedQuantity: {
       current: listing.attendeeCount,
-      recalculated: row.booked_quantity,
+      recalculated: row.bookedQuantity,
     },
-    tickets_count: {
+    ticketsCount: {
       current: listing.ticketsCount,
-      recalculated: row.tickets_count,
+      recalculated: row.ticketsCount,
     },
   };
 };

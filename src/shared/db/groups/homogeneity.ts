@@ -4,13 +4,13 @@
 import { filter } from "#fp";
 import { t } from "#i18n";
 import { firstReason } from "#shared/reasons.ts";
+import type { DecodedRowOf } from "#db/select/tables.ts";
 import type { ListingType } from "#types";
 
-export type GroupListingSettings = {
-  id: number;
-  listing_type: ListingType;
-  customisable_days: boolean;
-};
+export type GroupListingSettings = Pick<
+  DecodedRowOf<"listings">,
+  "customisableDays" | "id" | "listingType"
+>;
 
 const groupListingTypeError = (
   allSiblings: readonly GroupListingSettings[],
@@ -33,8 +33,8 @@ export const groupListingSettingsError = (
 ): string | null =>
   groupListingTypeError(
     allSiblings,
-    listing.listing_type,
-    listing.customisable_days,
+    listing.listingType,
+    listing.customisableDays,
     excludeListingId,
   );
 
@@ -48,9 +48,9 @@ const firstMismatchOf =
   ): GroupListingSettings | undefined =>
     members.find((member) => settingOf(member) !== joined);
 
-const typeMismatchOf = firstMismatchOf((member) => member.listing_type);
+const typeMismatchOf = firstMismatchOf((member) => member.listingType);
 
-const daysMismatchOf = firstMismatchOf((member) => member.customisable_days);
+const daysMismatchOf = firstMismatchOf((member) => member.customisableDays);
 
 /**
  * Why a group page must not offer a candidate listing to the operator, or null
@@ -63,16 +63,16 @@ export const groupCandidateBlockedError = (
   members: readonly GroupListingSettings[],
   candidate: GroupListingSettings,
 ): string | null => {
-  const typeMismatch = typeMismatchOf(members, candidate.listing_type);
+  const typeMismatch = typeMismatchOf(members, candidate.listingType);
   if (typeMismatch !== undefined) {
     return t("groups.candidate_type_blocked", {
-      candidate: candidate.listing_type,
-      type: typeMismatch.listing_type,
+      candidate: candidate.listingType,
+      type: typeMismatch.listingType,
     });
   }
-  const daysMismatch = daysMismatchOf(members, candidate.customisable_days);
+  const daysMismatch = daysMismatchOf(members, candidate.customisableDays);
   if (daysMismatch === undefined) return null;
-  return candidate.customisable_days
+  return candidate.customisableDays
     ? t("groups.candidate_days_blocked_fixed")
     : t("groups.candidate_days_blocked_customisable");
 };
@@ -113,13 +113,13 @@ const groupHomogeneityError = firstReason<
   (siblings, listingType) => {
     const mismatch = typeMismatchOf(siblings, listingType);
     return mismatch
-      ? t("error.group_listing_type_mismatch", { type: mismatch.listing_type })
+      ? t("error.group_listing_type_mismatch", { type: mismatch.listingType })
       : null;
   },
   (siblings, _listingType, customisableDays) => {
     const mismatch = daysMismatchOf(siblings, customisableDays);
     return mismatch
-      ? mismatch.customisable_days
+      ? mismatch.customisableDays
         ? t("error.group_customisable_days_expected")
         : t("error.group_customisable_days_unexpected")
       : null;

@@ -73,9 +73,9 @@ export const groupStatesTx = async (
     }
     if (row.listing_id !== null) {
       state.members.push({
-        customisable_days: row.customisable_days === 1,
+        customisableDays: row.customisable_days === 1,
         id: row.listing_id,
-        listing_type: row.listing_type!,
+        listingType: row.listing_type!,
         quantity: row.group_quantity,
       });
     }
@@ -91,7 +91,9 @@ export const packageGroupIdsTx = txIdSetInTable(
   sql` AND is_package = 1`,
 );
 
-type ListingStateRow = Omit<GroupListingSettings, "customisable_days"> & {
+type ListingStateRow = {
+  id: number;
+  listing_type: ListingType;
   name: EnvKeyEncrypted;
   assign_built_site: number;
   customisable_days: number;
@@ -134,11 +136,11 @@ export const listingStatesTx = async (
   const states: ListingState[] = rows.map((row) => ({
     assignsBuiltSite: row.assign_built_site === 1,
     canPayMore: row.can_pay_more === 1,
-    customisable_days: row.customisable_days === 1,
+    customisableDays: row.customisable_days === 1,
     hasChildren: row.has_children === 1,
     hasParents: row.has_parents === 1,
     id: row.id,
-    listing_type: row.listing_type,
+    listingType: row.listing_type,
     maxQuantity: row.max_quantity,
     minQuantity: row.min_quantity,
     name: row.name,

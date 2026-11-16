@@ -21,7 +21,7 @@ import { update } from "#db/write.ts";
 import { fieldById } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
-export const ANSWER_AGGREGATE_FIELDS = ["times_selected"] as const;
+export const ANSWER_AGGREGATE_FIELDS = ["timesSelected"] as const;
 
 export type AnswerAggregateField = (typeof ANSWER_AGGREGATE_FIELDS)[number];
 
@@ -60,7 +60,7 @@ export const getAnswerAggregateRecalculation = async (
      FROM answers WHERE id = ${answerId}`,
   );
   return {
-    times_selected: { current: row.current, recalculated: row.recalculated },
+    timesSelected: { current: row.current, recalculated: row.recalculated },
   };
 };
 
