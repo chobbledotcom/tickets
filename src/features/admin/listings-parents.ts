@@ -8,6 +8,7 @@ import { type TxScope, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   hydrateListingLinks,
+  linkIdsOf,
   listingChildren,
   listingParents,
   setListingChildrenWithPackageCheckTx,
@@ -361,10 +362,10 @@ export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<string[]> => {
   const sourceIds = [...idMap.keys()];
-  const [childrenByParent, parentsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(sourceIds),
-    listingParents.getIdsByKeys(sourceIds),
-  ]);
+  const {
+    childIdsByParent: childrenByParent,
+    parentIdsByChild: parentsByChild,
+  } = await linkIdsOf(sourceIds);
   return copyGroupEdgePlans(idMap, [
     {
       existingMode: "replace",

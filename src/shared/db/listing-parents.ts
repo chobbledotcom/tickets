@@ -196,16 +196,23 @@ export const hydrateListingLinks = async (
   };
 };
 
+/** The child ids by parent and the parent ids by child of these listings, as
+ *  named maps, so a caller cannot swap them. The two sides share one read. */
+export const linkIdsOf = async (keyIds: readonly number[]) => {
+  const [childIdsByParent, parentIdsByChild] = await Promise.all([
+    listingChildren.getIdsByKeys(keyIds),
+    listingParents.getIdsByKeys(keyIds),
+  ]);
+  return { childIdsByParent, parentIdsByChild };
+};
+
 /** Load both directions and return named maps, so a caller cannot swap parent
  * and child results. The two sides share one read (see `selfLinkTableSides`),
  * so this costs one round trip for the edges plus one for the linked rows. */
 export const loadParentAndChildLinks = async (
   keyIds: readonly number[],
 ): Promise<ParentAndChildLinkMaps> => {
-  const [childIdsByParent, parentIdsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(keyIds),
-    listingParents.getIdsByKeys(keyIds),
-  ]);
+  const { childIdsByParent, parentIdsByChild } = await linkIdsOf(keyIds);
   const byId = await listingsByIdFor([childIdsByParent, parentIdsByChild]);
   return {
     childIdsByParent,

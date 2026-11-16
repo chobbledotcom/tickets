@@ -9,7 +9,7 @@ import { execute, executeBatch, queryAll, type TxScope } from "#db/client.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
 import { groupListings, listingGroups } from "#db/groups/table.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
-import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import { linkIdsOf } from "#db/listing-parents.ts";
 import {
   getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
@@ -244,10 +244,10 @@ export const packageMembersError = async (
   hideListings: boolean | undefined,
 ): Promise<string | null> => {
   const listingIds = listings.map((listing) => listing.id);
-  const [childrenByParent, parentsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(listingIds),
-    listingParents.getIdsByKeys(listingIds),
-  ]);
+  const {
+    childIdsByParent: childrenByParent,
+    parentIdsByChild: parentsByChild,
+  } = await linkIdsOf(listingIds);
   const blocked = mapNotNullish((listing: (typeof listings)[number]) =>
     packageMemberError(
       listing,
