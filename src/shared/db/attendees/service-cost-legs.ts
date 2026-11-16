@@ -11,9 +11,9 @@ import { queryAll, queryOne } from "#db/client.ts";
 import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { requiredMapValue, sumByKey, unique } from "#fp";
 
-/** The narrow transfers columns a service-cost read needs: the row's id and
- * amount plus the shared account endpoints (to see which side is the cost
- * account), and the encrypted memo where selected. */
+/** The transfer columns that a service-cost read needs: the id, the amount
+ * and the account ends, which show the side of the cost account. A read
+ * that selects the sealed memo adds it. */
 type CostRow = TransferEndpoints & {
   id: number;
   amount: number;
@@ -35,17 +35,15 @@ export const loadCostRow = async (costId: number): Promise<CostRow> => {
   return row;
 };
 
-/** The listing id a `service_cost` transfer attributes its cost to: the cost
- *  account is `source` for a `cost:L → world` leg and `destination` for a
- *  `world → cost:L` reduction leg, so the listing id is on whichever side is
- *  the `cost` account. */
+/** The listing that a `service_cost` transfer charges. A `cost:L → world`
+ *  leg holds the cost account as its source. A `world → cost:L` reduction
+ *  leg holds it as its destination. */
 export const costListingId = (row: CostRow): number =>
   Number(row.source_type === "cost" ? row.source_id : row.dest_id);
 
-/** A derived, operator-facing service-cost record for `/admin/servicing/:id`'s
- *  cost list: the original cost leg's id (the edit route target), its current
- *  amount (original ± adjustment legs), the service date, the listing it was
- *  attributed to, and the decrypted operator memo. */
+/** One service cost in the cost list of `/admin/servicing/:id`. The id is the
+ *  id of the original cost leg, which the edit route takes. The amount is
+ *  the original amount with each adjustment applied. The memo is opened. */
 export type ServicingCostRecord = {
   amount: number;
   date: string;
@@ -54,16 +52,15 @@ export type ServicingCostRecord = {
   memo: string;
 };
 
-/** Machine-generated memo written into adjustment legs so they can be
- *  attributed back to their original cost. The `\x00` prefix makes it
- *  impossible to collide with a free-text operator memo (form input cannot
- *  contain NUL bytes). */
+/** The start of the memo of an adjustment leg, which names its original
+ *  cost. The `\x00` prefix cannot match a memo that an operator types,
+ *  because form input cannot hold NUL bytes. */
 export const ADJ_MEMO_PREFIX = "\x00svc_adj:";
 const EDIT_COST_MEMO = new RegExp(`^${ADJ_MEMO_PREFIX}(\\d+)$`);
 
-/** A decoded `service_cost` leg: its id and amount, whether it RAISED the cost
- *  (source is the cost account), and — for an adjustment leg — the id of the
- *  original cost it corrects (null for an original cost leg). */
+/** One `service_cost` leg: its id and amount, and whether it raised the
+ *  cost. An adjustment leg also names the original cost that it corrects.
+ *  An original cost leg names null. */
 type DecodedCostLeg = {
   id: number;
   amount: number;
@@ -71,17 +68,14 @@ type DecodedCostLeg = {
   adjustsOriginalId: number | null;
 };
 
-/** Load and decode every `service_cost` leg attributed to any of `listingIds`
- *  in one query, decrypting each memo to classify it as an original cost leg or
- *  an adjustment naming the original it corrects. Shared by {@link editServiceCost}
- *  (current amount of one cost) and {@link getServicingCosts} (current amount of
- *  every cost) so the leg query and the memo classification live in one place. */
+/** Every `service_cost` leg of these listings, read in one query. The memo
+ *  of each leg tells an original cost leg from an adjustment. The edit of a
+ *  cost and the cost list both use this read. */
 export const loadServiceCostLegs = async (
   listingIds: number[],
 ): Promise<DecodedCostLeg[]> => {
-  // Both callers pass a non-empty set (getServicingCosts guards on
-  // records.length; editServiceCost passes the cost's single listing), so no
-  // empty-set guard — an empty `IN ()` would be a caller bug, not a silent [].
+  // Each caller gives at least one listing, so there is no guard for an
+  // empty list. An empty `IN ()` is a bug in the caller.
   const ids = listingIds.map(String);
   const inIds = sqlList(ids);
   const legs = await queryAll<CostRow>(
@@ -104,9 +98,9 @@ export const loadServiceCostLegs = async (
   );
 };
 
-/** Fold decoded legs into (original cost id → net signed adjustment): an
- *  increase leg adds its amount, a reduction leg subtracts it; original
- *  (non-adjustment) legs contribute nothing. */
+/** The net adjustment of each original cost, by its id. An increase leg
+ *  adds its amount, and a reduction leg takes it away. An original cost leg
+ *  adds nothing. */
 export const sumAdjustmentsByOriginal = (
   legs: DecodedCostLeg[],
 ): Map<number, number> =>
@@ -116,12 +110,9 @@ export const sumAdjustmentsByOriginal = (
   )(legs.filter((leg) => leg.adjustsOriginalId !== null));
 
 /**
- * The service-cost records recorded against one service event, each with its
- * CURRENT amount derived from the append-only ledger: the original `cost:L`
- * leg (linked via `service_costs.transfer_id`) plus every `service_cost`
- * adjustment leg whose memo names that original (`edit service cost {id}`).
- * Members are stored PII-free / owner-key-encrypted, so the memo decrypts with
- * the global key here for display.
+ * The service costs of one service event. The ledger only adds rows, so the
+ * current amount of a cost is its original `cost:L` leg plus each adjustment
+ * leg whose memo names that leg. The global key opens each memo for display.
  */
 export const getServicingCosts = async (
   servicingId: number,
@@ -143,9 +134,8 @@ export const getServicingCosts = async (
   const costAmount = (id: number): number =>
     requiredMapValue(baseAmountById, id, `Transfer ${id} missing`) +
     (adjustmentsByOriginal.get(id) ?? 0);
-  // Build the result as a pure map over `records`, already ordered by
-  // (occurred_at, transfer_id): Promise.all keeps that order, so the cost
-  // list cannot shuffle under concurrent decryption.
+  // The records come in date order. Promise.all keeps that order, so the
+  // list does not move while the memos open.
   return Promise.all(
     records.map(
       async (r): Promise<ServicingCostRecord> => ({

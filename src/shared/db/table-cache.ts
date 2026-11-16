@@ -1,7 +1,7 @@
 /**
- * A cache of rows that a table holds. A write to the table, or to a table in
- * `dependsOn` whose triggers feed it, clears the cache at the client, so no
- * write path clears it by hand. The cache stats count its entries.
+ * A cache of rows that a table holds. The client clears the cache on a write
+ * to the table, or to a table in `dependsOn` whose triggers feed it. No write
+ * path clears it by hand. The cache stats count its entries.
  */
 
 import type { TableHandle } from "#db/select/tables.ts";

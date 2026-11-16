@@ -16,8 +16,10 @@ import { readRows } from "#db/read.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
-import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { testCases } from "#test-utils/case-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";

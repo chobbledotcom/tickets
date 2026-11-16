@@ -251,8 +251,8 @@ export const createExternalSourceLink = (
   write: ExternalLinkWrite,
 ): Promise<Result<ExternalSourceLink>> =>
   withPreparedLinkWrite(sourceId, write, 0, async (tx, input) => {
-    // A write needs no session, so it must not open the value it just
-    // sealed: the row is the input, plus the keys that SQLite made.
+    // A write needs no session, so it must not open the value it sealed.
+    // The row is the input, plus the keys that SQLite made.
     const statement = insertInto(
       tables.external_source_links,
       // The values name every column but the id, which SQLite makes.

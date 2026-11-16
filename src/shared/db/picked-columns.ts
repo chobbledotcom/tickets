@@ -1,7 +1,7 @@
 // effects: pure
 /**
- * Columns that a read written by hand picks by name, such as a read with a
- * CTE or a UNION that the builder does not write. The client decodes each
+ * Columns that a read written by hand picks by name. The builder does not
+ * write some reads, for example a read with a CTE or a UNION. The client decodes each
  * picked column through its codec, as it does for a builder read.
  */
 

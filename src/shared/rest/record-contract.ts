@@ -230,9 +230,9 @@ type RequiredKeys<T> = {
   [Key in keyof T]-?: Record<never, never> extends Pick<T, Key> ? never : Key;
 }[keyof T];
 
-/** The tables that a generated write of this record can change: a table
- * whose decoded row agrees with the record's row on every column that both
- * hold, where the record's row holds every column that a new row must give.
+/** The tables that a generated write of this record can change. The decoded
+ * row of such a table agrees with the row of the record on each shared
+ * column. The row of the record holds each column that a new row must give.
  * A record's row can hold values that its reads add, and leave out columns
  * that the table fills. */
 export type RecordTableOf<Shape extends RecordShape> = {

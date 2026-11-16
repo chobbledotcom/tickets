@@ -78,12 +78,11 @@ export type ListingWhere = {
   /** Listings by the blind index of their slug. A single slug is a
    * one-element array. */
   slugIndexes?: BlindIndex[];
-  /** Listings that ARE members of any of these groups. This one also changes
-   * the shape of the read: it joins through `group_listings`, groups the rows
-   * by listing (a listing may be in several of the requested groups), and
-   * projects the extra `group_ids` column naming which of them it belongs to.
-   * That column is meaningless without this filter, which is why the two are
-   * one field rather than a separate opt-in. */
+  /** Listings that are members of any of these groups. This filter also
+   * changes the shape of the read. The read joins through `group_listings` and
+   * groups the rows by listing, because a listing can be in several groups.
+   * It adds the `group_ids` column, which names the groups of the listing.
+   * That column has no meaning without this filter, so the two are one field. */
   inGroups?: number[];
   /** Keep only active listings. */
   activeOnly?: boolean;

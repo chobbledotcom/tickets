@@ -3,15 +3,17 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, getDb, queryAll } from "#db/client.ts";
+import { execute, getDb, queryAll, withTransaction } from "#db/client.ts";
 import {
   deleteRow,
+  existsOn,
   findRow,
   findRowPrimary,
   hasRow,
   insertRow,
   insertRowStatement,
   newRowValuesOf,
+  rowById,
   rowValuesOf,
   updateRow,
   updateRowStatement,
@@ -144,6 +146,17 @@ describeWithEnv("db > record table", { db: true }, () => {
 
     expect(await hasRow(tables.logistics_agents, row.id)).toBe(true);
     expect(await hasRow(tables.logistics_agents, row.id + 1)).toBe(false);
+  });
+
+  test("existsOn tells whether a read on an open transaction has a row", async () => {
+    const row = await addAgent("Here");
+
+    expect(
+      await withTransaction(async (tx) => [
+        await existsOn(tx, rowById(tables.logistics_agents, row.id)),
+        await existsOn(tx, rowById(tables.logistics_agents, row.id + 1)),
+      ]),
+    ).toEqual([true, false]);
   });
 
   test("deleteRow removes only the row with the id", async () => {

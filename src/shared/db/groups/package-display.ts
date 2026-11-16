@@ -3,8 +3,9 @@
  * package, and whether the package hides its members.
  */
 
-import { resultRows, type TxScope } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
 import { readExists, readRows } from "#db/read.ts";
+import { existsOn } from "#db/record-table.ts";
 import { among, equal, greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -23,22 +24,18 @@ const soldPackageLines = (groupId: number) =>
 export const hasPackageBookings = (groupId: number): Promise<boolean> =>
   readExists(soldPackageLines(groupId));
 
-/** Transaction-local recheck: whether any sold booking still holds this
- *  group's package id. Used inside the group write transaction so a checkout
- *  that commits between a request-level sold-hidden check and the write rolls
- *  the un-packaging back rather than revealing concealed member names. */
-export const hasPackageBookingsTx = async (
+/** The same check on the open write transaction of the group. A checkout can
+ *  commit after the first check. This second check then rolls the change
+ *  back, so the hidden member names stay hidden. */
+export const hasPackageBookingsTx = (
   tx: TxScope,
   groupId: number,
-): Promise<boolean> =>
-  resultRows(await tx.execute(soldPackageLines(groupId).probe())).length > 0;
+): Promise<boolean> => existsOn(tx, soldPackageLines(groupId));
 
-/** The package displays for a set of (possibly repeated or zero)
- * `package_group_id`s — only ids naming a live package appear in the map. Lets
- * the ticket view collapse each token's package rows into one card per package,
- * so an attendee holding both a package booking and a standalone one (e.g. after
- * an attendee merge) doesn't fall back to per-row cards that leak a hidden member.
- * Groups are resolved together from their shared cache. */
+/** The package display of each id that names a package. An id can repeat or
+ * be 0. One read gives every display. The ticket view uses them to show the
+ * rows of one package as one card. An attendee with a package booking and a
+ * plain booking, for example after a merge, then shows no hidden member. */
 export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {

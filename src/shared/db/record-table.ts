@@ -7,12 +7,17 @@
  * as a handle and names the row by its id.
  */
 
-import { execute, queryOnePrimary, resultRows } from "#db/client.ts";
+import {
+  execute,
+  queryOnePrimary,
+  resultRows,
+  type TxScope,
+} from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
 import { readExists, readOneRow } from "#db/read.ts";
 import { type Condition, equal, named } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import type { Node } from "#db/select/shape.ts";
+import type { Node, Query } from "#db/select/shape.ts";
 import type {
   DecodedRowOf,
   NewRowOf,
@@ -93,6 +98,12 @@ export const hasRow = <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
 ): Promise<boolean> => readExists(rowById(table, id));
+
+/** Whether the read has a row, read on an open transaction. */
+export const existsOn = async (
+  tx: TxScope,
+  query: Query<unknown, never>,
+): Promise<boolean> => resultRows(await tx.execute(query.probe())).length > 0;
 
 /** The insert of one row that gives back the row it wrote. */
 export const insertRowStatement = async <Name extends TableWithId>(
@@ -178,9 +189,9 @@ export const rowValuesOf = <Name extends TableName>(
   ) as RecordChanges<Name>;
 };
 
-/** The values of a new row from a record input: the time it was created,
- * where its table records that, then the declared default of each field in
- * `fields`, then the values that the input names. */
+/** The values of a new row from a record input. First comes the time of the
+ * write, where the table records it. Then comes the declared default of each
+ * field in `fields`. Last come the values that the input names. */
 export const newRowValuesOf = <Name extends TableName>(
   table: TableHandle<Name>,
   input: object,

@@ -17,6 +17,7 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import {
+  existsOn,
   insertRowStatement,
   type NewRecord,
   type RecordChanges,
@@ -153,9 +154,9 @@ export const freshSlugIndexWrites = <Name extends SluggedTable>(
       if (updated) return okResult(updated);
       // The failed update cannot tell a missing row from a slug conflict,
       // so only this rejection path reads the row.
-      const exists =
-        resultRows(await tx.execute(rowById(table, id).probe())).length > 0;
-      return errorResult(exists ? "slugTaken" : "notFound");
+      return errorResult(
+        (await existsOn(tx, rowById(table, id))) ? "slugTaken" : "notFound",
+      );
     }),
 });
 

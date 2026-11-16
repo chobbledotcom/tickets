@@ -1,8 +1,8 @@
 // effects: pure
 /**
  * The values that a new row takes for the fields that a write leaves out. A
- * write of a new row starts from these, so a field keeps its declared default
- * where the column default of the table differs or is absent.
+ * new row starts from these values. A field then keeps its declared default
+ * where the table has a different default or none.
  */
 
 import type {
@@ -11,8 +11,8 @@ import type {
   FieldSpecs,
 } from "#shared/rest/field-specs.ts";
 
-/** The value one field of each kind starts with, or undefined for a kind
- *  that a new row must give or that the table does not store. */
+/** The first value of a field of each kind. A kind that a new row must give,
+ *  or that the table does not store, gives undefined. */
 const NEW_ROW_VALUES: Record<FieldKind, (field: FieldSpec) => unknown> = {
   contactFields: (field) => field.default,
   count: (field) => field.default,
