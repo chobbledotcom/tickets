@@ -13,6 +13,10 @@ import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
+import type {
+  RecurringIntervalChoice,
+  SubscriptionStatus,
+} from "#shared/subscriptions/plan.ts";
 import type { ImageUseItemType, Modifier, SitePageItemType } from "#types";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
@@ -40,6 +44,11 @@ type StoredValues = {
   contact_preferences: { stats_blob: OwnerKeyEncrypted | "" };
   groups: { name: EnvKeyEncrypted };
   image_uses: { item_type: ImageUseItemType };
+  listing_attendees: {
+    recurring_interval: RecurringIntervalChoice;
+    subscription_status: SubscriptionStatus | "";
+  };
+  listings: { recurring_interval: RecurringIntervalChoice };
   modifiers: Pick<Modifier, "calc_kind" | "direction" | "scope" | "trigger"> & {
     name: EnvKeyEncrypted;
   };

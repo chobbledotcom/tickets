@@ -89,6 +89,7 @@ const EVERY_STORY_ID = [
   "payments.paying-more-than-the-asking-price",
   "payments.provider-choice",
   "payments.recovering-the-money-record",
+  "payments.recurring-payments-reach-the-books",
   "payments.refunding-a-booking",
   "payments.refunding-everyone-at-once",
   "payments.refunding-from-two-windows",
