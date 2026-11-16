@@ -47,7 +47,9 @@ export type AssignmentRow = {
 };
 
 /** Map a DB row to the assignment shape (shared by the read helpers). */
-const rowToAssignment = (row: AssignmentRow): LogisticsAssignment => ({
+const rowToAssignment = (
+  row: Omit<AssignmentRow, "attendee_id" | "listing_id">,
+): LogisticsAssignment => ({
   endAgentId: row.end_agent_id,
   endTime: row.end_time,
   startAgentId: row.start_agent_id,
@@ -113,11 +115,11 @@ export const setLogisticsAssignments = async (
 export const getLogisticsAssignments = async (
   attendeeId: number,
 ): Promise<Map<number, LogisticsAssignment>> =>
-  mapBy<AssignmentRow, "listing_id", LogisticsAssignment>(
+  mapBy<Omit<AssignmentRow, "attendee_id">, "listing_id", LogisticsAssignment>(
     "listing_id",
     rowToAssignment,
   )(
-    await queryAll<AssignmentRow>(
+    await queryAll(
       from(tables.listing_attendees)
         .where({ attendee_id: attendeeId })
         .pick(

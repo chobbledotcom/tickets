@@ -90,7 +90,7 @@ export const deliveredScanOperation = async (
   operationId: string,
   tokenHash: string,
 ): Promise<DeliveredScanOperation | null> => {
-  const row = await queryOne<{ listing_ids: string; quantity: number }>(
+  const row = await queryOne(
     from(tables.processed_scan_operations)
       .where({ operation_id: operationId, token_hash: tokenHash })
       .pick("listing_ids", "quantity"),

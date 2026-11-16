@@ -430,7 +430,7 @@ export const attendeeStatusWrites: AttendeeStatusWrites = {
  * exists. Runs from the schema migration so every environment is seeded.
  */
 export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
-  const existing = await queryAll<{ id: number }>(
+  const existing = await queryAll(
     from(tables.attendee_statuses).limit(1).pick("id"),
   );
   if (existing.length > 0) return;

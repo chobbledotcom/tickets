@@ -281,7 +281,7 @@ export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (
-    await queryOne<{ id: number }>(
+    await queryOne(
       from(tables.attributes).where({ id: id }).limit(1).pick("id"),
     )
   )?.id ?? null;

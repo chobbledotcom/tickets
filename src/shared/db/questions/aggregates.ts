@@ -90,7 +90,7 @@ export const answerAggregates = aggregateRepairs<AnswerAggregateField>(
 export const getAnswerModifierId = async (
   answerId: number,
 ): Promise<number | null> => {
-  const row = await queryOne<{ modifier_id: number | null }>(
+  const row = await queryOne(
     from(tables.answers).where({ id: answerId }).pick("modifier_id"),
   );
   return row?.modifier_id ?? null;
