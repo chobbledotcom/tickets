@@ -572,8 +572,8 @@ A flagged pair is one merge:
 - Import and re-export statements are a sanctioned repeat. This includes a
   destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
-  around imports. The test scan skips no dynamic import: that pattern gives
-  its recorded clones new fingerprints.
+  around imports. The scans of the tests and of their helpers skip no dynamic
+  import: that pattern gives their recorded clones new fingerprints.
 - A declared list of strings is the other sanctioned repeat. The strict scans
   ignore literals, so two long word lists match. Wrap the whole declaration in
   `/* jscpd:ignore-start -- a list of strings, not code */` and
