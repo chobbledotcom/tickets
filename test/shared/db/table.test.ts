@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -397,7 +397,7 @@ describeWithEnv("db > table utilities", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
 
-    const updated = await listingsTable.update(listing.id, {
+    const updated = await updateListing(listing.id, {
       maxAttendees: 10,
       name: "Updated Name",
       slug: "updated-slug",

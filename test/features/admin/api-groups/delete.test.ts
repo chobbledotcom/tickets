@@ -7,6 +7,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { groups } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
@@ -28,7 +30,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
 
       await assertApiDeleteOk(`/api/admin/groups/${group.id}`, "To Delete");
 
-      const all = await groups.cache.getAll();
+      const all = await groups.getAll();
       expect(all.find((g) => g.id === group.id)).toBeUndefined();
     });
 
@@ -67,7 +69,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         },
       );
 
-      const row = await groups.table.read.one({ id: group.id });
+      const row = await findRow(tables.groups, group.id);
       expect(row).toBeDefined();
     });
 
@@ -125,7 +127,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         );
         expect(response.status).toBe(403);
 
-        const all = await groups.cache.getAll();
+        const all = await groups.getAll();
         expect(all.find((g) => g.id === group.id)).toBeDefined();
       }
     });
@@ -141,7 +143,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
       expect(response.status).toBe(200);
 
-      const all = await groups.cache.getAll();
+      const all = await groups.getAll();
       expect(all.find((g) => g.id === group.id)).toBeUndefined();
     });
   });

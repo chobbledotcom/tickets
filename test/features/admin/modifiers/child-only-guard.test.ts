@@ -1,11 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import {
@@ -146,9 +144,9 @@ describeWithEnv(
         'value="optional" selected',
         'value="Becomes add-on"',
       );
-      expect(
-        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
-      ).toBe("automatic");
+      expect((await findRow(tables.modifiers, modifier.id))!.trigger).toBe(
+        "automatic",
+      );
     });
 
     test("allows editing an active NON-opt-in child-scoped modifier (not an add-on)", async () => {
@@ -177,7 +175,7 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect((await modifiersTable.read.one({ id: modifier.id }))!.name).toBe(
+      expect((await findRow(tables.modifiers, modifier.id))!.name).toBe(
         "Auto child surcharge renamed",
       );
     });
@@ -206,9 +204,9 @@ describeWithEnv(
         "Modifier updated",
         true,
       )(response);
-      expect(
-        (await modifiersTable.read.one({ id: modifier.id }))!.trigger,
-      ).toBe("optional");
+      expect((await findRow(tables.modifiers, modifier.id))!.trigger).toBe(
+        "optional",
+      );
     });
 
     test("blocks scoping an opt-in add-on to a group of only children", async () => {

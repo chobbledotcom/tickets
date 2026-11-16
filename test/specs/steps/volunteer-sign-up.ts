@@ -1,6 +1,7 @@
 import { Given, Then, When } from "@cucumber/cucumber";
 import { assert, assertStringIncludes } from "@std/assert";
-import { questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { adminBrowser, scenarioBrowser } from "#test/specs/support/browser.ts";
 import {
@@ -42,9 +43,9 @@ Given(
       });
       rememberListing(this, name, listing);
     }
-    const question = await questionsTable.insert({
-      assignAll: true,
-      displayType: "free_text",
+    const question = await insertRow(tables.questions, {
+      assign_all: true,
+      display_type: "free_text",
       text: ACCESS_QUESTION,
     });
     this.groupSlug = group.slug;

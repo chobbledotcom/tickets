@@ -18,7 +18,7 @@ const expectDuplicateRejected = async (
   body: Record<string, string>,
   refusal: string,
 ): Promise<void> => {
-  const groupsBefore = (await groups.cache.getAll()).length;
+  const groupsBefore = (await groups.getAll()).length;
   const listingsBefore = (await getAllListings()).length;
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/duplicate`,
@@ -30,7 +30,7 @@ const expectDuplicateRejected = async (
     `/admin/groups/${groupId}/duplicate`,
   );
   expectErrorFlash(response, refusal);
-  expect((await groups.cache.getAll()).length).toBe(groupsBefore);
+  expect((await groups.getAll()).length).toBe(groupsBefore);
   expect((await getAllListings()).length).toBe(listingsBefore);
 };
 
@@ -121,7 +121,7 @@ describeWithEnv(
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });
 
-      const groupCountBefore = (await groups.cache.getAll()).length;
+      const groupCountBefore = (await groups.getAll()).length;
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
@@ -136,7 +136,7 @@ describeWithEnv(
       );
       // The refusal names the missing field.
       expectErrorFlash(response, "New group name is required");
-      expect((await groups.cache.getAll()).length).toBe(groupCountBefore);
+      expect((await groups.getAll()).length).toBe(groupCountBefore);
     });
   },
 );

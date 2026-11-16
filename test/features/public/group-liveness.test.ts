@@ -25,7 +25,7 @@ const recordPublicPage = async (
   names: string[],
 ): Promise<string[]> => {
   await enablePublicSite();
-  groups.cache.invalidate();
+  groups.invalidate();
   invalidateListingsCache();
   const seen: string[] = [];
   const restore = recordQueries(seen);

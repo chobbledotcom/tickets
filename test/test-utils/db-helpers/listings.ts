@@ -1,4 +1,7 @@
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -300,6 +303,6 @@ export const listingWithTwoUndatedBookings = async (
 /** The name of every listing now in the database. What a backup or restore test
  * checks to see which listings survived. */
 export const storedListingNames = async (): Promise<string[]> =>
-  (await listingsTable.read.pick(["id", "name"]).many()).map(
+  (await readRows(from(tables.listings).sortedBy("id").pick("name"))).map(
     ({ name }) => name,
   );

@@ -10,7 +10,8 @@ import { queryAll } from "#db/client.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   applyAttendeeMerge,
@@ -55,15 +56,15 @@ export const createQuestionWithAnswers = async (
   questionText: string,
   answerTexts: string[],
 ) => {
-  const q = await questionsTable.insert({
-    displayType: "radio",
+  const q = await insertRow(tables.questions, {
+    display_type: "radio",
     text: questionText,
   });
   const answers = [];
   for (let i = 0; i < answerTexts.length; i++) {
-    const a = await answersTable.insert({
-      questionId: q.id,
-      sortOrder: i,
+    const a = await insertRow(tables.answers, {
+      question_id: q.id,
+      sort_order: i,
       text: answerTexts[i]!,
     });
     answers.push(a);
@@ -87,7 +88,7 @@ export const saveChoice = (attendeeId: number, answerId: number) =>
 
 /** Insert a free-text question (not yet assigned to any listing). */
 export const createFreeTextQuestion = (text = "Dietary needs?") =>
-  questionsTable.insert({ displayType: "free_text", text });
+  insertRow(tables.questions, { display_type: "free_text", text });
 
 /** Create an Alice → Bob merge pair. By default the target is on one listing
  *  and the source on a second ("E2"); pass `sameListing` to put both on one so

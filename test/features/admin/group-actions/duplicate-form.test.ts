@@ -92,9 +92,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
         "Name must be 250 characters or fewer",
         false,
       );
-      expect(
-        (await groups.cache.getAll()).some((g) => g.name === "Short Copy"),
-      ).toBe(false);
+      expect((await groups.getAll()).some((g) => g.name === "Short Copy")).toBe(
+        false,
+      );
     });
 
     test("returns 404 when the source group does not exist", async () => {
@@ -128,7 +128,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       // The whole duplication is rejected: the clone would be a built-site
       // plan inside a group, which no save path may write.
       expectErrorFlash(response, sitePlanMemberError("Cloned Plan"));
-      expect((await groups.cache.getAll()).map((g) => g.name)).not.toContain(
+      expect((await groups.getAll()).map((g) => g.name)).not.toContain(
         "Plan Copy",
       );
     });

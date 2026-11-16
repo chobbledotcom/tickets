@@ -3,7 +3,8 @@ import { it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { withRejectedBookingWrite } from "#test-utils/atomic-booking.ts";
@@ -69,9 +70,9 @@ describeWithEnv("free reservation atomic failures", { db: true }, () => {
     const first = await createTestListing({ maxAttendees: 5 });
     const rejected = await createTestListing({ maxAttendees: 5 });
     const { items, listingRows } = await reservationParts([first, rejected]);
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 100,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 100,
       direction: "charge",
       name: "Available extra",
       stock: 5,

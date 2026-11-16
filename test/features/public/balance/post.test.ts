@@ -2,7 +2,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -21,10 +22,10 @@ import { setupStripe } from "#test-utils/settings.ts";
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
-    const reservation = await attendeeStatuses.table.insert({
-      isReservation: true,
+    const reservation = await insertRow(tables.attendee_statuses, {
+      is_reservation: true,
       name: "Reserved",
-      reservationAmount: "10%",
+      reservation_amount: "10%",
     });
     // No quantity > 0 line means nothing real to pay into, so the balance is not
     // publicly payable — checkout must not start against a phantom listing.

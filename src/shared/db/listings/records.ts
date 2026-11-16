@@ -157,7 +157,11 @@ const withDayPrices = async (
  * leaves out takes its declared default. */
 export const newListingValues = (input: ListingInput): NewRecord<"listings"> =>
   // The listing rule checked that the input names every required field.
-  newRowValuesOf(tables.listings, input, LISTING_FIELDS) as NewRecord<"listings">;
+  newRowValuesOf(
+    tables.listings,
+    input,
+    LISTING_FIELDS,
+  ) as NewRecord<"listings">;
 
 /** Store a new listing, then sync its prices. */
 export const createListing = async (input: ListingInput): Promise<Listing> => {

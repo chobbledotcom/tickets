@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
-import { imagesTable, setImagesForItem } from "#db/images.ts";
+import { insertImageRecord, setImagesForItem } from "#db/images.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -264,7 +264,7 @@ describePublicApi(() => {
 
     test("exposes the primary image filename and alt text", async () => {
       const listing = await createTestListing();
-      const image = await imagesTable.insert({
+      const image = await insertImageRecord({
         altText: "A watercolour workshop",
         filename: nonEmptyString("primary.webp", "test filename"),
         filenameThumb: nonEmptyString("primary-thumb.webp", "test thumb"),

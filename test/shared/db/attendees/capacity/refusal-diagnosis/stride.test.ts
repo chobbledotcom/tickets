@@ -8,7 +8,6 @@ import {
   cloneGroupMembershipStatement,
   getListingsByGroupId,
 } from "#db/groups.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
 import { sql } from "#db/sql.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
@@ -190,7 +189,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // fail loudly when the cache does not hold it.
     const { groups } = await import("#db/groups.ts");
     const fullGroup = requireValue(
-      (await groups.cache.getAll()).find(
+      (await groups.getAll()).find(
         (group) => group.name === "Spare full group",
       ),
       "Spare full group was not found",

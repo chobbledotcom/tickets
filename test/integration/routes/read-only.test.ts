@@ -2,6 +2,9 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
+import { createListing } from "#db/listings/records.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import { updateBuildTagMeta } from "#shared/update-guard.ts";
@@ -207,15 +210,15 @@ describeWithEnv(
       const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
       const slugIndex = await hmacHash("ro-group");
-      const group = await groups.table.insert({
+      const group = await insertRow(tables.groups, {
         hidden: false,
-        maxAttendees: 0,
+        max_attendees: 0,
         name: "Read Only Group",
         slug: "ro-group",
-        slugIndex,
-        termsAndConditions: "",
+        slug_index: slugIndex,
+        terms_and_conditions: "",
       });
-      const roListing = await listingsTable.insert({
+      const roListing = await createListing({
         maxAttendees: 50,
         maxPrice: 0,
         name: "RO Listing",

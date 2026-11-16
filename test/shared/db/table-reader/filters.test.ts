@@ -6,8 +6,9 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attributesTable } from "#db/attributes.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -16,7 +17,7 @@ import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 describeWithEnv("db > table reader > filters", { db: true }, () => {
   const attributes = attributesTable.read;
   const add = (name: string, sortOrder = 0) =>
-    attributesTable.insert({ name, sortOrder });
+    insertRow(tables.attributes, { name, sort_order: sortOrder });
 
   test("reads a whole row, decrypted, without naming its columns", async () => {
     const made = await add("Whole");

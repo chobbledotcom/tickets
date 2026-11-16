@@ -79,7 +79,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         ),
       );
       expect(response.status).toBe(403);
-      const all = await groups.cache.getAll();
+      const all = await groups.getAll();
       expect(all.find((g) => g.name === "Agent Made Group")).toBeUndefined();
     });
 

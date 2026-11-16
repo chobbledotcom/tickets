@@ -404,7 +404,9 @@ export const getAttendeeKindsByIds = async (
   ids: number[],
 ): Promise<Map<number, string>> =>
   fieldById("kind")(
-    await readRows(from(tables.attendees).where({ id: ids }).pick("id", "kind")),
+    await readRows(
+      from(tables.attendees).where({ id: ids }).pick("id", "kind"),
+    ),
   );
 
 /**

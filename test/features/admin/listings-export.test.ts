@@ -4,7 +4,8 @@ import { getAllActivityLog } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -101,21 +102,21 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       "alice@example.com",
     );
     await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
-    const question = await questionsTable.insert({
-      displayType: "free_text",
+    const question = await insertRow(tables.questions, {
+      display_type: "free_text",
       text: "Dietary needs?",
     });
-    const choiceQuestion = await questionsTable.insert({
-      displayType: "radio",
+    const choiceQuestion = await insertRow(tables.questions, {
+      display_type: "radio",
       text: "Seat?",
     });
-    const aisle = await answersTable.insert({
-      questionId: choiceQuestion.id,
-      sortOrder: 0,
+    const aisle = await insertRow(tables.answers, {
+      question_id: choiceQuestion.id,
+      sort_order: 0,
       text: "Aisle",
     });
-    const unanswered = await questionsTable.insert({
-      displayType: "free_text",
+    const unanswered = await insertRow(tables.questions, {
+      display_type: "free_text",
       text: "Allergies?",
     });
     await listingQuestions.setIds(listing.id, [

@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { executeWithoutCacheInvalidation } from "#db/client.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { tables } from "#db/select/tables.ts";
 import { update } from "#db/write.ts";
 import { toggleListingActive } from "#shared/listings-actions.ts";

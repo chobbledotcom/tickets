@@ -7,11 +7,9 @@ import { execute } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -39,9 +37,9 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
   });
   const group = await createTestGroup({ name: "Modifier group" });
   await setListingGroups(groupLink.id, [group.id]);
-  const modifier = await modifiersTable.insert({
-    calcKind: "percent",
-    calcValue: 10,
+  const modifier = await insertRow(tables.modifiers, {
+    calc_kind: "percent",
+    calc_value: 10,
     direction: "charge",
     name: "Scoped charge",
     scope,
@@ -230,17 +228,17 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       },
     ]);
 
-    const directModifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
+    const directModifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 5,
       direction: "discount",
-      minVisits: 3,
+      min_visits: 3,
       name: "Direct discount",
       scope: "listings",
     });
-    const groupModifier = await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
+    const groupModifier = await insertRow(tables.modifiers, {
+      calc_kind: "percent",
+      calc_value: 10,
       direction: "charge",
       name: "Package charge",
       scope: "groups",

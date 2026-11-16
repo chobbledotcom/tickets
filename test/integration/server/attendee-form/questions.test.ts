@@ -5,7 +5,8 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -31,24 +32,24 @@ describeWithEnv(
           name: "QB Event",
         });
 
-        const qA = await questionsTable.insert({
-          displayType: "radio",
+        const qA = await insertRow(tables.questions, {
+          display_type: "radio",
           text: "Shirt size?",
         });
-        const aA = await answersTable.insert({
-          questionId: qA.id,
-          sortOrder: 0,
+        const aA = await insertRow(tables.answers, {
+          question_id: qA.id,
+          sort_order: 0,
           text: "Medium",
         });
         await listingQuestions.setIds(eventA.id, [qA.id]);
 
-        const qB = await questionsTable.insert({
-          displayType: "radio",
+        const qB = await insertRow(tables.questions, {
+          display_type: "radio",
           text: "Meal choice?",
         });
-        const aB = await answersTable.insert({
-          questionId: qB.id,
-          sortOrder: 0,
+        const aB = await insertRow(tables.answers, {
+          question_id: qB.id,
+          sort_order: 0,
           text: "Vegan",
         });
         await listingQuestions.setIds(eventB.id, [qB.id]);
@@ -140,18 +141,18 @@ describeWithEnv(
           maxAttendees: 10,
           name: "Shared",
         });
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const q = await insertRow(tables.questions, {
+          display_type: "radio",
           text: "Size?",
         });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
+        const a1 = await insertRow(tables.answers, {
+          question_id: q.id,
+          sort_order: 0,
           text: "S",
         });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
+        const a2 = await insertRow(tables.answers, {
+          question_id: q.id,
+          sort_order: 1,
           text: "L",
         });
         await listingQuestions.setIds(event.id, [q.id]);
@@ -193,8 +194,8 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Free text listing",
       });
-      const question = await questionsTable.insert({
-        displayType: "free_text",
+      const question = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Access needs?",
       });
       await listingQuestions.setIds(listing.id, [question.id]);

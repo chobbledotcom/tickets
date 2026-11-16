@@ -19,6 +19,7 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { builtSitesTestEnv } from "./env.ts";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 
 describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites", () => {
@@ -358,7 +359,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
       expect(response.status).toBe(302);
       const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const updated = await builtSitesCrudTable.read.one({ id: site.id });
+      const updated = await findBuiltSiteById(site.id);
       expect(updated!.name).toBe("Keep Beta Renamed");
       expect(updated!.updates).toBe("beta");
     });

@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { cancelPageResponse } from "#routes/api/payment-processing/cancel.ts";
 import type {
@@ -182,7 +183,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    await groups.table.update(group.id, { isPackage: false });
+    await updateRow(tables.groups, group.id, { is_package: false });
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 

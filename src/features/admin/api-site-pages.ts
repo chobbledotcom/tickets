@@ -13,6 +13,9 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { type TxScope, withTransaction } from "#db/client.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import {
   deleteSitePageWithEdges,
@@ -24,9 +27,6 @@ import {
   type SitePageWriteInput,
   updateSitePage,
 } from "#db/site-pages.ts";
-import { readRows } from "#db/read.ts";
-import { from } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { filter, map, pipe } from "#fp";
 import { t } from "#i18n";

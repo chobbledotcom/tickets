@@ -9,7 +9,7 @@ import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { bookingRow, pricePaidFromLedger } from "#db/attendees/select.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import type { ModifierInput } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import type { RefundRequest } from "#payment/refund-attempt.ts";
@@ -17,6 +17,7 @@ import { submitTicketForm } from "#test-utils/csrf.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta } from "#test-utils/factories.ts";
 import {
+  insertModifier,
   insertModifierUsage,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
@@ -92,7 +93,7 @@ export const setupSoldOutModifierRace = async (
     thankYouUrl: "https://example.com",
     unitPrice: 1000,
   });
-  const modifier = await modifiersTable.insert({
+  const modifier = await insertModifier({
     calcKind: "fixed",
     calcValue: 10,
     direction: "discount",
@@ -144,7 +145,7 @@ export const submitBuyerOrder = (
 /** A 10%-of-subtotal "Service charge" modifier, folded automatically into
  * every booking (not an opt-in add-on). */
 export const addServiceCharge = () =>
-  modifiersTable.insert({
+  insertModifier({
     calcKind: "percent",
     calcValue: 10,
     direction: "charge",
@@ -154,7 +155,7 @@ export const addServiceCharge = () =>
 /** Create a modifier that only applies when the buyer opts in (an add-on),
  * rather than one folded automatically into every booking. */
 export const createOptionalAddOn = async (calcValue = 5) => {
-  const addOn = await modifiersTable.insert({
+  const addOn = await insertModifier({
     calcKind: "fixed",
     calcValue,
     direction: "charge",
@@ -169,10 +170,8 @@ export const createOptionalAddOn = async (calcValue = 5) => {
 /** A fixed £0.05 "Programme" charge folded automatically into every booking
  * (as opposed to `createOptionalAddOn`'s buyer-selected version). `fields`
  * extends the insert, e.g. to zero out its stock. */
-export const createProgrammeCharge = (
-  fields: Partial<Parameters<typeof modifiersTable.insert>[0]> = {},
-) =>
-  modifiersTable.insert({
+export const createProgrammeCharge = (fields: Partial<ModifierInput> = {}) =>
+  insertModifier({
     calcKind: "fixed",
     calcValue: 5,
     direction: "charge",
@@ -183,7 +182,7 @@ export const createProgrammeCharge = (
 /** The "SAVE10" promo-code discount shared by every test that prices a
  * booking through a 10%-off code rather than an automatic modifier. */
 export const createSave10Promo = () =>
-  modifiersTable.insert({
+  insertModifier({
     calcKind: "percent",
     calcValue: 10,
     direction: "discount",

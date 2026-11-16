@@ -45,4 +45,3 @@ export const notNullGuardFailureAt =
 /** A batch loader: takes a list of ids and returns, for each id, the list of
  * related numbers found for it. Ids with no matches are absent from the map. */
 export type ListsByIds = (ids: number[]) => Promise<Map<number, number[]>>;
-

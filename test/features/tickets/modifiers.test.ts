@@ -2,7 +2,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifiersTable } from "#db/modifiers.ts";
+import { deleteRow, insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import {
   formatCurrency,
@@ -38,9 +39,9 @@ const paidBookingWithModifier = async (opts: {
     maxAttendees: 50,
     unitPrice,
   });
-  const modifier = await modifiersTable.insert({
-    calcKind: "fixed",
-    calcValue: opts.calcValue,
+  const modifier = await insertRow(tables.modifiers, {
+    calc_kind: "fixed",
+    calc_value: opts.calcValue,
     direction: opts.direction,
     name: opts.name,
     trigger: "automatic",
@@ -115,7 +116,7 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       eventId: "evt_ticket_deleted",
       name: "Gone offer",
     });
-    await modifiersTable.deleteById(modifierId);
+    await deleteRow(tables.modifiers, modifierId);
     const html = await ticketPageHtml(attendee);
     expectIncludesAll(html, [
       "Price change",
@@ -133,9 +134,9 @@ describeWithEnv("ticket view > modifiers", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "percent",
-      calcValue: 10,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "percent",
+      calc_value: 10,
       direction: "charge",
       name: "Service charge",
       trigger: "automatic",

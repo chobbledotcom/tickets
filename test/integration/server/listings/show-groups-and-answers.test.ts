@@ -3,7 +3,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -35,13 +36,13 @@ describeWithEnv(
           "Ada Lovelace",
           "ada@example.com",
         );
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const q = await insertRow(tables.questions, {
+          display_type: "radio",
           text: "Size",
         });
-        const small = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
+        const small = await insertRow(tables.answers, {
+          question_id: q.id,
+          sort_order: 0,
           text: "Small",
         });
         await listingQuestions.setIds(listing.id, [q.id]);

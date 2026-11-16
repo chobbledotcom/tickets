@@ -4,7 +4,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   expectCsvDownloadHeaders,
   expectIncludesAll,
@@ -200,18 +201,18 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       // Create question, answers, and assign to listing
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const q = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Shirt Size",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
+      const a1 = await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 0,
         text: "Small",
       });
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
+      await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 1,
         text: "Large",
       });
       await listingQuestions.setIds(listing.id, [q.id]);

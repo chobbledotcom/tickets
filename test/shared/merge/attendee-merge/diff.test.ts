@@ -6,7 +6,8 @@ import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { getDb } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { bookingKey, itemBookingKey } from "#shared/merge/attendee-merge.ts";
@@ -354,13 +355,13 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     const { listing, source, target } = await createMergePair({
       sameListing: true,
     });
-    const q = await questionsTable.insert({
-      displayType: "radio",
+    const q = await insertRow(tables.questions, {
+      display_type: "radio",
       text: "Hidden Q",
     });
-    const a1 = await answersTable.insert({
-      questionId: q.id,
-      sortOrder: 0,
+    const a1 = await insertRow(tables.answers, {
+      question_id: q.id,
+      sort_order: 0,
       text: "Yes",
     });
     await listingQuestions.setIds(listing.id, [q.id]);

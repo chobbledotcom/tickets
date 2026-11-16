@@ -6,7 +6,8 @@ import { accountBalance, allTransfers } from "#accounting/queries.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
@@ -391,9 +392,9 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
 
     test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
-      const m = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const m = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name: "Add-on",
         stock: 0,

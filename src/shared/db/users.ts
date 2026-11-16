@@ -16,13 +16,13 @@ import type {
   WrappedKey,
 } from "#crypto/sealed.ts";
 import { execute, executeBatch, insertedRowId, queryAll } from "#db/client.ts";
-import { createKeyedCache } from "#db/keyed-cache.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
 import { equal, lessThan, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { tableCache } from "#db/table-cache.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { tableCache } from "#db/table-cache.ts";
 import { deleteFrom, insertInto, update } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";

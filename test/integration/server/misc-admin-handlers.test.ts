@@ -1,6 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import type { ActionHandlerConfig } from "#routes/admin/actions.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -330,14 +332,14 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { questionListings } = await import("#db/questions/queries.ts");
 
       const listing = await createTestListing({ maxAttendees: 10 });
-      const question = await questionsTable.insert({
-        displayType: "radio",
+      const question = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Food preference",
       });
       await questionListings.setIds(question.id, [listing.id]);
-      await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
+      await insertRow(tables.answers, {
+        question_id: question.id,
+        sort_order: 0,
         text: "Veg",
       });
       const { attendee } = await createTestAttendeeDirect(

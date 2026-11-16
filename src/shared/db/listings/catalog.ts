@@ -1,6 +1,7 @@
 /** Narrow listing reads for catalogs and site-page pickers. */
 
 import { LISTING_ROW } from "#db/listings/select.ts";
+import { readOneRow, readRows } from "#db/read.ts";
 import {
   and,
   type Expr,
@@ -10,7 +11,6 @@ import {
   notInQuery,
   or,
 } from "#db/select/expression.ts";
-import { readOneRow, readRows } from "#db/read.ts";
 import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";

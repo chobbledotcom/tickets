@@ -1,6 +1,6 @@
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 

@@ -6,7 +6,9 @@
 
 import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getGroupById, getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupById, getGroupPackagePrices } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -76,7 +78,7 @@ export const hiddenPackageWithBooking = async (
   token: string;
 }> => {
   const group = await createTestGroup({ isPackage: true, name, slug });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  await updateRow(tables.groups, group.id, { hide_package_listings: true });
   const memberListing = await member(group, `${name} Member`);
   const token = await sellPackageTicket(memberListing.id, group.id);
   return { group, memberListing, token };
@@ -153,6 +155,6 @@ export const hiddenPackageMember = async (
   name: string,
 ): Promise<TestListing> => {
   const group = await createTestGroup({ isPackage: true, name });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  await updateRow(tables.groups, group.id, { hide_package_listings: true });
   return member(group, `${name} member`);
 };

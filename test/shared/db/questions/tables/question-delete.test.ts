@@ -1,5 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -60,7 +62,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify it's gone
       const { questionsTable } = await import("#db/questions/tables.ts");
-      const found = await questionsTable.read.one({ id: id });
+      const found = await findRow(tables.questions, id);
       expect(found).toBeNull();
     });
 
@@ -80,7 +82,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       const { questionsTable } = await import("#db/questions/tables.ts");
-      expect(await questionsTable.read.one({ id: id })).toBeNull();
+      expect(await findRow(tables.questions, id)).toBeNull();
     });
 
     test("rejects deletion with wrong text", async () => {
@@ -100,7 +102,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify still exists
       const { questionsTable } = await import("#db/questions/tables.ts");
-      const found = await questionsTable.read.one({ id: id });
+      const found = await findRow(tables.questions, id);
       expect(found).not.toBeNull();
     });
 

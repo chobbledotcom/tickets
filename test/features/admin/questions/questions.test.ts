@@ -2,6 +2,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { setAdminFeatureEnabled } from "#db/admin-features.ts";
+import { findRow, insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -290,7 +292,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // Verify the question was updated
       const { questionsTable } = await import("#db/questions/tables.ts");
-      const updated = await questionsTable.read.one({ id: id });
+      const updated = await findRow(tables.questions, id);
       expect(updated!.text).toBe("After edit");
     });
 
@@ -313,8 +315,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("does not update a question when enabling the feature fails", async () => {
       const { questionsTable } = await import("#db/questions/tables.ts");
-      const question = await questionsTable.insert({
-        displayType: "radio",
+      const question = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Before?",
       });
       await enableFeature("questions");
@@ -326,7 +328,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
           });
         }),
       ).rejects.toThrow("feature enable failed");
-      expect((await questionsTable.read.one({ id: question.id }))?.text).toBe(
+      expect((await findRow(tables.questions, question.id))?.text).toBe(
         "Before?",
       );
     });
@@ -363,8 +365,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
       const { questionsTable } = await import("#db/questions/tables.ts");
-      const q = await questionsTable.insert({
-        displayType: "free_text",
+      const q = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Notes?",
       });
       const { response } = await adminFormPost(
@@ -375,7 +377,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         `/admin/questions/${q.id}`,
         "Question updated",
       )(response);
-      const updated = await questionsTable.read.one({ id: q.id });
+      const updated = await findRow(tables.questions, q.id);
       expect(updated!.display_type).toBe("free_text");
       expect(updated!.text).toBe("Notes updated");
     });
@@ -387,7 +389,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         display_type: "free_text",
         text: "Colour?",
       });
-      const updated = await questionsTable.read.one({ id: id });
+      const updated = await findRow(tables.questions, id);
       expect(updated!.display_type).toBe("radio");
     });
 

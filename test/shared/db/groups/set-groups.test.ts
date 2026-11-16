@@ -19,7 +19,6 @@ import {
   setListingGroupsTx,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";

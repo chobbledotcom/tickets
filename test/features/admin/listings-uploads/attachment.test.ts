@@ -6,7 +6,7 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { ATTACHMENT_ERROR_MESSAGES } from "#shared/storage.ts";
@@ -209,7 +209,7 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
   test("clears the record and logs it once the file is gone", async () => {
     await withBunnyDeleteCapture(async (storageCalls) => {
       const listing = await createTestListing({ name: "Had A Leaflet" });
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "leaflet.pdf",
         attachmentUrl: "stored-leaflet.pdf",
       });

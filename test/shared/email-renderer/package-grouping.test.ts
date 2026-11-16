@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { makeTestEntry as makeEntry } from "#test-utils/factories.ts";
@@ -14,7 +15,9 @@ describeEmailRenderer(() => {
         name: "Camp Kit",
       });
       if (hide) {
-        await groups.table.update(group.id, { hidePackageListings: true });
+        await updateRow(tables.groups, group.id, {
+          hide_package_listings: true,
+        });
       }
       const tent = await createTestListing({
         groupId: group.id,
@@ -68,7 +71,7 @@ describeEmailRenderer(() => {
         isPackage: true,
         name: "Free Kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const memberA = await createTestListing({
         groupId: group.id,
         name: "A",
@@ -102,7 +105,7 @@ describeEmailRenderer(() => {
         isPackage: true,
         name: "Dated Kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const spans: [name: string, endDate: string | null][] = [
         ["Day Only", null],
         ["Narrow A", "2026-08-02"],
@@ -178,7 +181,7 @@ describeEmailRenderer(() => {
         isPackage: true,
         name: "Single Kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const only = await createTestListing({
         groupId: group.id,
         name: "Only Member",
@@ -207,7 +210,7 @@ describeEmailRenderer(() => {
         isPackage: true,
         name: "Solo Kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const widget = await createTestListing({
         groupId: group.id,
         name: "Widget",

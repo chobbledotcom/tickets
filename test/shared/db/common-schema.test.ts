@@ -3,7 +3,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
 import { aggregateRepairs, cachedEntityTable } from "#db/common-schema.ts";
 import type { Answer } from "#db/question-types.ts";
-import { answersTable } from "#db/questions/tables.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {

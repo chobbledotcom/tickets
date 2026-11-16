@@ -35,10 +35,7 @@ import { sql } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import {
-  GROUP_FIELDS,
-  type GroupInput,
-} from "#shared/records/group-fields.ts";
+import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
@@ -147,6 +144,7 @@ export const groupRecord = defineNamedRowRecord<
     ),
   api: ADMIN_API_RESOURCES.groups,
   deleteRefusal: soldHiddenPackageError,
+  fieldDefaults: GROUP_FIELDS,
   getAll: () => groups.getAll(),
   load: getGroupById,
   nameLabel: "groups.name_label",
@@ -155,6 +153,5 @@ export const groupRecord = defineNamedRowRecord<
   rule: groupRule,
   saveLanding: "group",
   surface: "groups",
-  fieldDefaults: GROUP_FIELDS,
   table: tables.groups,
 });

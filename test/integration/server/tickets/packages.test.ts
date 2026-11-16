@@ -14,7 +14,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { formatDateRangeLabelCompactEn } from "#shared/date-labels.ts";
 import { addDays } from "#shared/dates.ts";
@@ -59,7 +60,7 @@ const bookedToken = async (
 /** A private one-member package and its sole listing. */
 const hiddenOneMemberPackage = async () => {
   const group = await createTestGroup({ isPackage: true, name: "Kit Bag" });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  await updateRow(tables.groups, group.id, { hide_package_listings: true });
   const widget = await createTestListing({
     groupId: group.id,
     name: "Widget",
@@ -256,7 +257,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       member: { name: string; thankYouUrl?: string },
     ) => {
       const group = await createTestGroup({ isPackage: true, name, slug });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const freebie = await createTestListing({
         groupId: group.id,
         name: member.name,

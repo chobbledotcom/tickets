@@ -7,7 +7,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { modifiersTable } from "#db/modifiers.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
@@ -122,7 +123,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       "no longer available",
     );
 
-    await modifiersTable.update(modifierId, { minVisits: 1 });
+    await updateRow(tables.modifiers, modifierId, { min_visits: 1 });
     assert(
       !(await quoteTicketHtml(listing.slug, selection)).includes(
         "no longer available",

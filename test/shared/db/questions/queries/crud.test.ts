@@ -14,7 +14,8 @@ import {
   listingQuestions,
   requireQuestionWithAnswersOnPrimary,
 } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { findRow, updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   addAnswer,
   createAttendee,
@@ -39,7 +40,7 @@ describeWithEnv(
         const q = await createQuestion("Favourite colour?");
         expect(q.id).toBeGreaterThan(0);
 
-        const found = await questionsTable.read.one({ id: q.id });
+        const found = await findRow(tables.questions, q.id);
         expect(found).not.toBeNull();
         expect(found!.text).toBe("Favourite colour?");
       });
@@ -59,8 +60,8 @@ describeWithEnv(
 
       test("updates a question", async () => {
         const q = await createQuestion("Old text");
-        await questionsTable.update(q.id, { text: "New text" });
-        const found = await questionsTable.read.one({ id: q.id });
+        await updateRow(tables.questions, q.id, { text: "New text" });
+        const found = await findRow(tables.questions, q.id);
         expect(found!.text).toBe("New text");
       });
 

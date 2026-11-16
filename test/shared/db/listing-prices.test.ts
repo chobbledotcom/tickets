@@ -12,7 +12,7 @@ import {
   removeGroupPricesStatement,
 } from "#db/listing-prices.ts";
 import { deleteListing } from "#db/listings/delete.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -286,13 +286,13 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
   test("updating a missing listing writes no price rows", async () => {
     // The table wrapper only re-syncs when the update returns a row; a missing
     // id yields null and must not touch listing_prices.
-    expect(await listingsTable.update(987655, { unitPrice: 500 })).toBeNull();
+    expect(await updateListing(987655, { unitPrice: 500 })).toBeNull();
     expect(await priceRows(987655)).toEqual([]);
   });
 
   test("updating day prices directly via the wrapper replaces the day_count rows", async () => {
     const listing = await createDayPricedListing({ 1: 400 });
-    const updated = await listingsTable.update(listing.id, {
+    const updated = await updateListing(listing.id, {
       customisableDays: true,
       dayPrices: { 2: 900, 3: 1300 },
       durationDays: 5,
@@ -304,7 +304,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
   test("a partial update that omits day prices leaves the day_count rows intact", async () => {
     const listing = await createDayPricedListing({ 1: 400, 2: 700 });
     // A direct partial update (no dayPrices) must not clobber the day_count rows.
-    const row = await listingsTable.update(listing.id, { active: false });
+    const row = await updateListing(listing.id, { active: false });
     expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
   });

@@ -81,7 +81,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
     );
 
     await deleteGroup(group.id);
-    groups.cache.invalidate();
+    groups.invalidate();
     expect(
       await queryAll(
         sql`SELECT groupRecord.id FROM groups AS groupRecord WHERE groupRecord.id = ${group.id}`,

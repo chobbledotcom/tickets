@@ -1,7 +1,8 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -131,7 +132,7 @@ describePublicApi(() => {
         isPackage: true,
         name: "Hidden Bundle",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       return createTestListing({ groupId: group.id, name: "Secret Member" });
     };
 

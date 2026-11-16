@@ -2,12 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
-import {
-  builtSitesCrudTable,
-  getAssignableBuiltSites,
-  insertBuiltSite,
-  updateBuiltSite,
-} from "#db/built-sites.ts";
+import { findBuiltSiteById, getAssignableBuiltSites, insertBuiltSite, updateBuiltSite } from "#db/built-sites.ts";
 import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -31,7 +26,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     expect(take.kind).toBe("claimed");
     expect(take.kind === "claimed" && take.site.id).toBe(row.id);
     expect(pool).toHaveLength(0);
-    expect(await builtSitesCrudTable.read.one({ id: row.id })).toMatchObject({
+    expect(await findBuiltSiteById(row.id)).toMatchObject({
       assignable: false,
       assignedAttendeeId: 42,
       assignedListingId: 7,
@@ -152,7 +147,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
       const key = await ensureBuiltSiteSchedulerKey(site.id);
       await claim;
 
-      expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject(
+      expect(await findBuiltSiteById(site.id)).toMatchObject(
         {
           assignable: false,
           assignedAttendeeId: 42,

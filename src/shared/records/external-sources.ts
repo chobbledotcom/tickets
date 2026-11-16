@@ -8,13 +8,13 @@ import {
   getAllExternalSources,
   getExternalSource,
 } from "#db/external-sources/queries.ts";
-import { findRowPrimary } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import {
   type ExternalSource,
   type ExternalSourceInput,
   ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
+import { findRowPrimary } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";

@@ -1,7 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   apiBookPackage,
   bookingRows,
@@ -15,7 +16,9 @@ describePackageBooking(() => {
     test(`POST shapes a child-total error by the package's visibility (${concealed})`, async () => {
       const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
       const { child } = await twoChildAddons(a, "Mix Kit");
-      await groups.table.update(group.id, { hidePackageListings: concealed });
+      await updateRow(tables.groups, group.id, {
+        hide_package_listings: concealed,
+      });
 
       // Member A books 2 units per package; a single chosen add-on undershoots.
       const { body, response } = await apiBookPackage(group.slug, {

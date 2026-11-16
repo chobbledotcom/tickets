@@ -10,10 +10,12 @@ import {
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { getAllModifiers, modifiersTable } from "#db/modifiers.ts";
+import { getAllModifiers } from "#db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { emptyBookingLine } from "#test-utils/attendees/helpers.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
@@ -183,9 +185,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "Modifier User",
       "modifier@example.com",
     );
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 5,
       direction: "charge",
       name: "Add-on",
       stock: null,

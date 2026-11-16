@@ -137,9 +137,7 @@ const activeOptionsOfType =
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   activeOptionsOfType("group")(
-    (await groups.getAll()).map(
-      (group) => [group.id, group.name] as const,
-    ),
+    (await groups.getAll()).map((group) => [group.id, group.name] as const),
   );
 
 /** News + page options — the Site-gated content types, shown only to a Site

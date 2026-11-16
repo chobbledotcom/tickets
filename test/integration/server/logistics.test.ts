@@ -4,6 +4,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
@@ -197,7 +199,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       );
 
       expect(response.status).toBe(503);
-      expect((await logisticsAgents.table.read.one({ id: id }))!.name).toBe(
+      expect((await findRow(tables.logistics_agents, id))!.name).toBe(
         "Atomic van",
       );
       expect(await agentUsers.getIds(id)).toEqual([]);
@@ -244,7 +246,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
         "/admin/logistics",
         "Logistics agent deleted",
       )(response);
-      expect(await logisticsAgents.table.read.one({ id: id })).toBeNull();
+      expect(await findRow(tables.logistics_agents, id)).toBeNull();
     });
 
     test("deleting an agent clears its booking references", async () => {

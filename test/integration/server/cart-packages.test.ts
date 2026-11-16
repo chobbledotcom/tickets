@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
@@ -204,7 +206,7 @@ describeWithEnv(
         "Secret Widget",
       );
       const { groups } = await import("#db/groups.ts");
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const solo = await createTestListing({ name: "Lantern", unitPrice: 0 });
 
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);

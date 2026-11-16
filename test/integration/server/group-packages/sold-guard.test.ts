@@ -13,6 +13,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { findRow, updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -42,7 +44,7 @@ describeWithEnv(
         },
       );
       expect(response.status).toBe(302);
-      const kept = (await groups.table.read.one({ id: group.id }))!;
+      const kept = (await findRow(tables.groups, group.id))!;
       expect(kept.is_package).toBe(true);
       expect(kept.hide_package_listings).toBe(true);
     });
@@ -99,7 +101,7 @@ describeWithEnv(
             error: t("error.sold_hidden_package"),
           });
         }
-        const kept = await groups.table.read.one({ id: group.id });
+        const kept = await findRow(tables.groups, group.id);
         expect(kept?.is_package).toBe(true);
         expect(kept?.hide_package_listings).toBe(true);
       }
@@ -111,14 +113,14 @@ describeWithEnv(
         name: "Empty Kit",
         slug: "empty-kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       await member(group, "Empty Member");
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,
         { confirm_identifier: "Empty Kit" },
       );
       expect(response.status).toBe(302);
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await findRow(tables.groups, group.id)).toBeNull();
     });
 
     test("the groups API blocks deleting a sold hidden package until un-hidden", async () => {
@@ -139,10 +141,12 @@ describeWithEnv(
           );
         },
       );
-      expect(await groups.table.read.one({ id: group.id })).not.toBeNull();
+      expect(await findRow(tables.groups, group.id)).not.toBeNull();
 
       // After the explicit reveal, the API delete un-groups as before.
-      await groups.table.update(group.id, { hidePackageListings: false });
+      await updateRow(tables.groups, group.id, {
+        hide_package_listings: false,
+      });
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {
           body: { confirm_identifier: "Api Kit" },
@@ -153,7 +157,7 @@ describeWithEnv(
           expect(body.status).toBe("ok");
         },
       );
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await findRow(tables.groups, group.id)).toBeNull();
       expect(await loadListing(memberListing.id)).not.toBeNull();
     });
 

@@ -11,7 +11,8 @@ import { allTransfers } from "#accounting/queries.ts";
 import { queryOne } from "#db/client.ts";
 import { getVisits, hashEmail } from "#db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { processParentApiBooking } from "#routes/api/folded-booking.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
@@ -65,9 +66,9 @@ describeWithEnv(
       });
       // A stock-bearing surcharge makes the batch consume stock, so the
       // rollback must give the unit back too.
-      const kit = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 100,
+      const kit = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 100,
         direction: "charge",
         name: "Fault kit",
         stock: 2,

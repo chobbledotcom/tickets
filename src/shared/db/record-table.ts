@@ -92,8 +92,7 @@ export const findRowPrimary = <Name extends TableWithId>(
 export const hasRow = <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
-): Promise<boolean> =>
-  readExists(rowById(table, id));
+): Promise<boolean> => readExists(rowById(table, id));
 
 /** The insert of one row that gives back the row it wrote. */
 export const insertRowStatement = async <Name extends TableWithId>(

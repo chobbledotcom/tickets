@@ -3,7 +3,9 @@ import { beforeEach, it as test } from "@std/testing/bdd";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -61,7 +63,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     // counts 2–5 are the only valid ones and the GET must say so — a client
     // that reads only the cap would book a count the fold refuses.
     const { a, group } = await fixedPackage("Floor Kit", "floor-kit");
-    await listingsTable.update(a.id, { minQuantity: 3 });
+    await updateListing(a.id, { minQuantity: 3 });
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -111,7 +113,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     ]);
     // Four units per bundle from 10 spots cap the bundle at 2; a minimum of
     // 9 needs ceil(9/4) = 3 bundles — past the cap, under the member's own.
-    await listingsTable.update(a.id, { minQuantity: 9 });
+    await updateListing(a.id, { minQuantity: 9 });
     expect((await apiGet(`/api/packages/${group.slug}`)).status).toBe(404);
     expect((await apiBookPackage(group.slug)).response.status).toBe(404);
   });
@@ -151,7 +153,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
     const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -227,7 +229,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     });
     await listingChildren.setIds(a.id, [child.id]);
     const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, group.id, { hide_package_listings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)

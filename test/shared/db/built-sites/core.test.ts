@@ -2,11 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob, type SiteDataBlob } from "#db/built-sites/blob.ts";
 import type { BuiltSiteFormInput } from "#db/built-sites/types.ts";
-import {
-  builtSites,
-  builtSitesCrudTable,
-  insertBuiltSite,
-} from "#db/built-sites.ts";
+import { builtSites, findBuiltSiteById, insertBuiltSite } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -163,7 +159,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
       "bunny",
       TEST_SCHEDULED_KEY,
     );
-    const site = await builtSitesCrudTable.read.one({ id: row.id });
+    const site = await findBuiltSiteById(row.id);
     expect(site?.scheduledTaskKey).toBe(TEST_SCHEDULED_KEY);
   });
 
@@ -195,7 +191,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
       }),
     });
     expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
+      (await findBuiltSiteById(row.id))?.renewalToken,
     ).toBe("");
   });
 });

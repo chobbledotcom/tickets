@@ -5,7 +5,6 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {

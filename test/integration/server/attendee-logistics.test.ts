@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
@@ -129,7 +130,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("undefined when no delivered listing is booked", async () => {
     settings.setForTest(featureSetting("logistics"));
-    await logisticsAgents.table.insert({ name: "Van" });
+    await insertRow(tables.logistics_agents, { name: "Van" });
     expect(await buildAttendeeLogisticsData([bookedLine(1, false)], null)).toBe(
       undefined,
     );
@@ -144,7 +145,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("returns agents and an empty single pair for a create form", async () => {
     settings.setForTest(featureSetting("logistics"));
-    await logisticsAgents.table.insert({ name: "Van" });
+    await insertRow(tables.logistics_agents, { name: "Van" });
     const data = await buildAttendeeLogisticsData([bookedLine(5, true)], null);
     expect(data!.agents.map((a) => a.name)).toEqual(["Van"]);
     expect(data!.split).toBe(false);
@@ -165,9 +166,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       maxAttendees: 100,
       maxQuantity: 5,
     });
-    await listingsTable.update(listing.id, { usesLogistics: true });
-    const drop = await logisticsAgents.table.insert({ name: "Drop Van" });
-    const coll = await logisticsAgents.table.insert({ name: "Coll Van" });
+    await updateListing(listing.id, { usesLogistics: true });
+    const drop = await insertRow(tables.logistics_agents, { name: "Drop Van" });
+    const coll = await insertRow(tables.logistics_agents, { name: "Coll Van" });
     return { coll, drop, listing };
   };
 

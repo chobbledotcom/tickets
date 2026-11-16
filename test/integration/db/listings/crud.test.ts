@@ -5,7 +5,7 @@ import {
   getAllListings,
   getListingWithCount,
   isSlugTaken,
-  listingsTable,
+  updateListing,
 } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -170,7 +170,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         thankYouUrl: "https://example.com/original",
       });
 
-      const updated = await listingsTable.update(created.id, {
+      const updated = await updateListing(created.id, {
         maxAttendees: 100,
         name: "Updated Listing",
         slug: created.slug,
@@ -187,7 +187,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     });
 
     test("listingsTable.update returns null for non-existent listing", async () => {
-      const result = await listingsTable.update(999, {
+      const result = await updateListing(999, {
         maxAttendees: 50,
         name: "Non Existent",
         slug: "non-existent",
@@ -205,7 +205,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
 
-      const updated = await listingsTable.update(created.id, {
+      const updated = await updateListing(created.id, {
         maxAttendees: 50,
         name: created.name,
         slug: created.slug,

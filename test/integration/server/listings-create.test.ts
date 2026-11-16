@@ -3,11 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { listingGroups } from "#db/groups/table.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";

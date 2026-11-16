@@ -1,8 +1,8 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { imagesTable } from "#db/images.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { insertImageRecord } from "#db/images.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -179,11 +179,11 @@ describeWithEnv("server (demo reset)", { db: true }, () => {
       setDemoModeForTest(true);
 
       const listing = await createTestListing({ maxAttendees: 10 });
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "reset-attachment.pdf",
       });
-      await imagesTable.insert({
+      await insertImageRecord({
         filename: nonEmptyString("reset-image.jpg"),
         filenameThumb: nonEmptyString("reset-image-thumb.jpg"),
         name: "Reset image",

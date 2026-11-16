@@ -1,7 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
@@ -85,9 +86,9 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 20,
+      const modifier = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 20,
         direction: "discount",
         name: "Comp",
         stock: 1,

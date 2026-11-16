@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -53,9 +54,9 @@ describeWithEnv(
         maxAttendees: 50,
         unitPrice: 0,
       });
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const modifier = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name: "Workshop kit",
       });
@@ -91,9 +92,9 @@ describeWithEnv(
         maxAttendees: 50,
         unitPrice: 1000,
       });
-      const modifier = await modifiersTable.insert({
-        calcKind: "percent",
-        calcValue: 10,
+      const modifier = await insertRow(tables.modifiers, {
+        calc_kind: "percent",
+        calc_value: 10,
         direction: "charge",
         name: "Last one",
         stock: 1,

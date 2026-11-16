@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { appendImageToItem, imagesTable } from "#db/images.ts";
+import { appendImageToItem, insertImageRecord } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -169,7 +169,7 @@ describeWithEnv("server (public news)", { db: true }, () => {
     test("a single image renders full-size with no thumbs or radios to swap", async () => {
       const post = await createTestNewsPost("One Image");
       // No alt text stored: the full image's alt falls back to the image name.
-      const image = await imagesTable.insert({
+      const image = await insertImageRecord({
         altText: "",
         filename: nonEmptyString("solo.webp"),
         filenameThumb: nonEmptyString("solo-thumb.webp"),

@@ -8,12 +8,7 @@ import { execute } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import { deleteRow, findRow, insertRow } from "#db/record-table.ts";
-import {
-  type Counted,
-  desc,
-  type Expr,
-  equal,
-} from "#db/select/expression.ts";
+import { type Counted, desc, type Expr, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";

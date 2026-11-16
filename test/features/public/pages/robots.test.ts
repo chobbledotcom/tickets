@@ -1,7 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -75,7 +76,7 @@ describeWithEnv(
         isPackage: true,
         name: "Private Kit",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const listing = await createTestListing({
         groupId: group.id,
         name: "Separate Unit",
@@ -99,8 +100,8 @@ describeWithEnv(
         isPackage: true,
         name: "Robots Hidden Pkg",
       });
-      await groups.table.update(hiddenPackage.id, {
-        hidePackageListings: true,
+      await updateRow(tables.groups, hiddenPackage.id, {
+        hide_package_listings: true,
       });
       const visiblePackage = await createTestGroup({
         hidden: false,

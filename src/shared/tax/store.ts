@@ -31,15 +31,15 @@ export const readTaxAssessments = async (
       .everyColumn(),
   );
   return rows.map((row) => ({
-        attendeeId: row.attendee_id,
-        bookingGroup: row.booking_group,
-        eventGroup: row.event_group,
-        occurredAt: row.occurred_at,
-        state: {
-          assessment: row.assessment,
-          kind: row.state,
-          revision: row.revision,
-        },
+    attendeeId: row.attendee_id,
+    bookingGroup: row.booking_group,
+    eventGroup: row.event_group,
+    occurredAt: row.occurred_at,
+    state: {
+      assessment: row.assessment,
+      kind: row.state,
+      revision: row.revision,
+    },
   }));
 };
 

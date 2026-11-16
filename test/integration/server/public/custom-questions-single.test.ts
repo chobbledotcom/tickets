@@ -1,14 +1,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
-import {
-  getAllModifiers,
-  modifiersTable,
-  setModifierAnswers,
-} from "#db/modifiers.ts";
+import { getAllModifiers, setModifierAnswers } from "#db/modifiers.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -29,18 +26,18 @@ describeWithEnv(
     describe("single-ticket with custom questions", () => {
       /** Create a question with answers and assign it to an listing */
       const setupQuestionForListing = async (listingId: number) => {
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const q = await insertRow(tables.questions, {
+          display_type: "radio",
           text: "T-shirt size?",
         });
-        const a1 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
+        const a1 = await insertRow(tables.answers, {
+          question_id: q.id,
+          sort_order: 0,
           text: "Small",
         });
-        const a2 = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 1,
+        const a2 = await insertRow(tables.answers, {
+          question_id: q.id,
+          sort_order: 1,
           text: "Large",
         });
         await listingQuestions.setIds(listingId, [q.id]);
@@ -96,9 +93,9 @@ describeWithEnv(
         const listing = await createTestListing({ maxAttendees: 50 });
         const { question, answer1 } = await setupQuestionForListing(listing.id);
         // A stock-limited answer tier with no stock left, linked to "Small".
-        const tier = await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
+        const tier = await insertRow(tables.modifiers, {
+          calc_kind: "fixed",
+          calc_value: 5,
           direction: "charge",
           name: "VIP upgrade",
           stock: 0,
@@ -128,9 +125,9 @@ describeWithEnv(
         // Payments are disabled here, so bookings are taken without charging — but
         // a stock-limited answer tier must still be consumed so it can't be
         // over-sold across bookings.
-        const tier = await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
+        const tier = await insertRow(tables.modifiers, {
+          calc_kind: "fixed",
+          calc_value: 5,
           direction: "charge",
           name: "VIP upgrade",
           stock: 1,

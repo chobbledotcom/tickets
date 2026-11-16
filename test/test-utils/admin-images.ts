@@ -5,7 +5,7 @@ import { execute } from "#db/client.ts";
 import {
   getImageById,
   getImagesForItem,
-  imagesTable,
+  insertImageRecord,
   setItemsForImage,
 } from "#db/images.ts";
 import { sql } from "#db/sql.ts";
@@ -21,7 +21,7 @@ import { makeTestPng } from "#test-utils/test-image.ts";
 import type { Image, ImageUseItemType } from "#types";
 
 export const makeImage = (name: string): Promise<Image> =>
-  imagesTable.insert({
+  insertImageRecord({
     altText: `Alt ${name}`,
     filename: nonEmptyString(`${name.toLowerCase()}.webp`),
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),

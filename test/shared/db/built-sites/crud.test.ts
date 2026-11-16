@@ -3,13 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { parseSiteDataBlob } from "#db/built-sites/blob.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import type { BuiltSite } from "#db/built-sites/types.ts";
-import {
-  builtSitesCrudTable,
-  getAssignableBuiltSites,
-  insertBuiltSite,
-  requireBuiltSiteByIdPrimary,
-  updateBuiltSiteRenewalState,
-} from "#db/built-sites.ts";
+import { createBuiltSite, findBuiltSiteById, getAssignableBuiltSites, insertBuiltSite, requireBuiltSiteByIdPrimary, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { mustReadFromPrimary } from "#db/primary-reads.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { testBuiltSite } from "#test-utils/factories.ts";
@@ -38,7 +32,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
   });
 
   test("exists answers by id without opening the site's blob", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const site = await createBuiltSite(builtSiteFormInput());
 
     expect(await builtSitesCrudTable.read.exists({ id: site.id })).toBe(true);
     expect(await builtSitesCrudTable.read.exists({ id: site.id + 1 })).toBe(
@@ -157,34 +151,34 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
   });
 
   test("update preserves the existing name", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
-    const updated = await builtSitesCrudTable.update(site.id, {
+    const site = await createBuiltSite(builtSiteFormInput());
+    const updated = await updateBuiltSite(site.id, () => ({
       siteUrl: "new.bunny.run",
-    });
+    }));
     expect(updated?.name).toBe("Original");
     expect(updated?.siteUrl).toBe("new.bunny.run");
   });
 
   test("update preserves the existing site URL", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
-    const updated = await builtSitesCrudTable.update(site.id, {
+    const site = await createBuiltSite(builtSiteFormInput());
+    const updated = await updateBuiltSite(site.id, () => ({
       name: "Updated",
-    });
+    }));
     expect(updated?.name).toBe("Updated");
     expect(updated?.siteUrl).toBe("original.bunny.run");
   });
 
   test("update preserves credentials not included in the edit", async () => {
-    const site = await builtSitesCrudTable.insert(
+    const site = await createBuiltSite(
       builtSiteFormInput({
         dbToken: "tok123",
         dbUrl: "libsql://db.turso.io",
         hostingId: "98765",
       }),
     );
-    const updated = await builtSitesCrudTable.update(site.id, {
+    const updated = await updateBuiltSite(site.id, () => ({
       name: "Updated",
-    });
+    }));
     expect(updated).toMatchObject({
       dbToken: "tok123",
       dbUrl: "libsql://db.turso.io",
@@ -193,20 +187,20 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
   });
 
   test("update changes hosting id when provided", async () => {
-    const site = await builtSitesCrudTable.insert(
+    const site = await createBuiltSite(
       builtSiteFormInput({ hostingId: "111" }),
     );
     expect(
-      await builtSitesCrudTable.update(site.id, { hostingId: "222" }),
+      await updateBuiltSite(site.id, () => ({ hostingId: "222" })),
     ).toMatchObject({ hostingId: "222" });
   });
 
   test("update returns null for a missing id", async () => {
-    expect(await builtSitesCrudTable.update(999, { name: "Test" })).toBeNull();
+    expect(await updateBuiltSite(999, () => ({ name: "Test" }))).toBeNull();
   });
 
   test("reads from the primary before updating a newly written site", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const site = await createBuiltSite(builtSiteFormInput());
     const primaryReads: boolean[] = [];
     const restore = wrapDbClient({
       batch: (statements, mode) => {
@@ -226,7 +220,7 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       },
     });
     try {
-      await builtSitesCrudTable.update(site.id, { assignable: true });
+      await updateBuiltSite(site.id, () => ({ assignable: true }));
     } finally {
       restore();
     }
@@ -249,9 +243,9 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
       renewalToken: "renewal-token",
       renewalTokenIndex: "renewal-index",
     });
-    const updated = await builtSitesCrudTable.update(row.id, {
+    const updated = await updateBuiltSite(row.id, () => ({
       name: "Edited stateful",
-    });
+    }));
     expect(updated).toMatchObject({
       assignedAttendeeId: 42,
       assignedListingId: 7,
@@ -262,12 +256,12 @@ describeWithEnv("built-sites CRUD table", { db: true }, () => {
   });
 
   test("concurrent edits preserve both changes", async () => {
-    const site = await builtSitesCrudTable.insert(builtSiteFormInput());
+    const site = await createBuiltSite(builtSiteFormInput());
     await Promise.all([
-      builtSitesCrudTable.update(site.id, { name: "Renamed" }),
-      builtSitesCrudTable.update(site.id, { siteUrl: "moved.bunny.run" }),
+      updateBuiltSite(site.id, () => ({ name: "Renamed" })),
+      updateBuiltSite(site.id, () => ({ siteUrl: "moved.bunny.run" })),
     ]);
-    expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject({
+    expect(await findBuiltSiteById(site.id)).toMatchObject({
       name: "Renamed",
       siteDataRevision: 2,
       siteUrl: "moved.bunny.run",

@@ -9,9 +9,10 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { parseFlashCookie } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -145,7 +146,7 @@ describeWithEnv("duplicating into a hidden package", { db: true }, () => {
   test("keeps the copy but drops the gate, and says so", async () => {
     const { parent } = await parentOf(1, "Packaged");
     const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
+    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
 
     const { copyId, message } = await duplicate(
       parent.id,

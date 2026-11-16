@@ -8,7 +8,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { type ModifierInput, modifiersTable } from "#db/modifiers.ts";
+import type { ModifierInput } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -62,7 +64,7 @@ const expectReturningBuyerRejectedForEmail = async (
     maxAttendees: 50,
     unitPrice,
   });
-  await modifiersTable.insert({ ...modifier, minVisits: 1 });
+  await insertRow(tables.modifiers, { ...modifier, min_visits: 1 });
   await createTestAttendeeDirect(
     listing.id,
     "Returning Buyer",

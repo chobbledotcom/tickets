@@ -16,13 +16,13 @@ import { execute, queryOne } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { decryptSessionTokens } from "#db/processed-payments.ts";
 import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
@@ -123,18 +123,18 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     const sessionId = "cs_lost_committed_result";
     const email = "recovered@example.com";
     const phone = "+447700900123";
-    const question = await questionsTable.insert({
-      displayType: "radio",
+    const question = await insertRow(tables.questions, {
+      display_type: "radio",
       text: "Recovery answer?",
     });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 1,
+    const answer = await insertRow(tables.answers, {
+      question_id: question.id,
+      sort_order: 1,
       text: "Recovered",
     });
     await listingQuestions.setIds(listing.id, [question.id]);
-    const textQuestion = await questionsTable.insert({
-      displayType: "free_text",
+    const textQuestion = await insertRow(tables.questions, {
+      display_type: "free_text",
       text: "Anything else?",
     });
     await listingQuestions.setIds(listing.id, [question.id, textQuestion.id]);
@@ -150,9 +150,9 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       { [String(textQuestion.id)]: "Vegetarian, please" },
       null,
     );
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "discount",
       name: "RECOVER",
       trigger: "code",

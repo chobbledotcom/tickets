@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Question, QuestionDisplayType } from "#db/question-types.ts";
-import { answersTable } from "#db/questions/tables.ts";
 import { questionRecord, questionRule } from "#shared/records/questions.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";

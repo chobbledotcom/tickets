@@ -13,13 +13,13 @@ import {
   listingAttributeOptions,
 } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import {
   flatCollectionSwap,
   insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
   createVerifiedFormRoute,

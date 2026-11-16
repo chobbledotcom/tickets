@@ -14,7 +14,8 @@ import {
 } from "#db/attendees/create.ts";
 import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -41,9 +42,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const m = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Add-on",
       stock: 5,
@@ -130,9 +131,9 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const m = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Sold out add-on",
       stock: 0,
@@ -264,16 +265,16 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 0,
       unitPrice: 500,
     });
-    const unlimited = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const unlimited = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Unlimited",
       stock: null,
     });
-    const plenty = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const plenty = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Plenty",
       stock: 5,

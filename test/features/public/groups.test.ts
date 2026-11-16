@@ -59,7 +59,7 @@ const packageSlugs = async (
 
 /** Resolve the slugs from cold caches, under a hard database-call allowance. */
 const coldCartCalls = (slugs: string[]): Promise<number> => {
-  groups.cache.invalidate();
+  groups.invalidate();
   invalidateListingsCache();
   return countDatabaseCalls(CART_CALL_LIMIT, () =>
     loadCartPackagesBySlugs(slugs),

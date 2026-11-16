@@ -7,7 +7,6 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";

@@ -1,7 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   apiBookPackage,
   describePackageBooking,
@@ -21,7 +22,9 @@ describePackageBooking(() => {
     const { group } = await fixedPackage("Paid Kit", "paid-kit");
     const hidden = await fixedPackage("Secret Kit", "secret-kit");
     const { child } = await twoChildAddons(hidden.a, "Secret Kit");
-    await groups.table.update(hidden.group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, hidden.group.id, {
+      hide_package_listings: true,
+    });
 
     const intents: import("#shared/payments.ts").CheckoutIntent[] = [];
     const mockCreate = stub(

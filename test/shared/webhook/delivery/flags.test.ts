@@ -3,7 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
@@ -152,8 +153,8 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     );
     // The listing carries a question, so the answer-lines read is a real
     // database call the budget can starve.
-    const question = await questionsTable.insert({
-      displayType: "radio",
+    const question = await insertRow(tables.questions, {
+      display_type: "radio",
       text: "Meal?",
     });
     await listingQuestions.setIds(listing.id, [question.id]);

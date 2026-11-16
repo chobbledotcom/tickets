@@ -5,14 +5,7 @@ import {
   hasAssignedBuiltSite,
   takePooledSiteForBuyer,
 } from "#db/built-sites/claims.ts";
-import {
-  builtSites,
-  builtSitesCrudTable,
-  getAssignableBuiltSites,
-  getBuiltSiteByRenewalTokenIndex,
-  insertBuiltSite,
-  updateBuiltSiteRenewalState,
-} from "#db/built-sites.ts";
+import { builtSites, createBuiltSite, findBuiltSiteById, getAssignableBuiltSites, getBuiltSiteByRenewalTokenIndex, insertBuiltSite, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("assignable built sites", { db: true }, () => {
@@ -101,7 +94,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
   });
 
   test("CRUD edits preserve renewal state", async () => {
-    const site = await builtSitesCrudTable.insert({
+    const site = await createBuiltSite({
       assignable: false,
       dbToken: "",
       dbUrl: "",
@@ -115,9 +108,9 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
       renewalTokenIndex: "idx-123",
     });
     expect(
-      await builtSitesCrudTable.update(site.id, {
+      await updateBuiltSite(site.id, () => ({
         name: "Token Preserve Updated",
-      }),
+      })),
     ).toMatchObject({
       name: "Token Preserve Updated",
       readOnlyFrom: "2026-08-01T00:00:00Z",
@@ -146,7 +139,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     const row = await insertBuiltSite("Empty Index", "empty-index.b-cdn.net");
     await updateBuiltSiteRenewalState(row.id, { renewalTokenIndex: "" });
     expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalTokenIndex,
+      (await findBuiltSiteById(row.id))?.renewalTokenIndex,
     ).toBe("");
   });
 
@@ -159,7 +152,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     await updateBuiltSiteRenewalState(row.id, { renewalToken: "" });
 
     expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
+      (await findBuiltSiteById(row.id))?.renewalToken,
     ).toBeNull();
   });
 });

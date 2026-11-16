@@ -16,7 +16,7 @@ import {
 
 describeWithEnv("Group parity pins", { db: true }, () => {
   const storedGroup = async (name: string) => {
-    const all = await groups.cache.getAll();
+    const all = await groups.getAll();
     const row = all.find((g) => g.name === name);
     if (!row) throw new Error(`no group named ${name} was stored`);
     return row;
@@ -119,11 +119,10 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       },
     );
     expect(
-      (await groups.cache.getAll()).find((g) => g.id === created.group.id)
-        ?.name,
+      (await groups.getAll()).find((g) => g.id === created.group.id)?.name,
     ).toBe("Pinned Name Type Group");
     expect(
-      (await groups.cache.getAll()).find((g) => g.name === "123"),
+      (await groups.getAll()).find((g) => g.name === "123"),
     ).toBeUndefined();
   });
 
@@ -145,9 +144,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
       "Group name does not match. Please type the exact group name to confirm deletion.",
       false,
     )(page);
-    expect(
-      (await groups.cache.getAll()).find((g) => g.id === row.id),
-    ).toBeDefined();
+    expect((await groups.getAll()).find((g) => g.id === row.id)).toBeDefined();
 
     const api = await ownerApiDelete(`/api/admin/groups/${row.id}`, {
       confirm_identifier: "Wrong Name",
@@ -156,8 +153,6 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     expect((await api.json()).error).toBe(
       "Group name does not match. Please provide the exact group name in confirm_identifier.",
     );
-    expect(
-      (await groups.cache.getAll()).find((g) => g.id === row.id),
-    ).toBeDefined();
+    expect((await groups.getAll()).find((g) => g.id === row.id)).toBeDefined();
   });
 });

@@ -11,6 +11,8 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -58,19 +60,19 @@ const attachTextAndChoiceQuestions = async (
     "#db/questions/tables.ts"
   );
   const { questionListings } = await import("#db/questions/queries.ts");
-  const textQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "free_text",
+  const textQuestion = await insertRow(tables.questions, {
+    assign_all: false,
+    display_type: "free_text",
     text: "Boiler notes?",
   });
-  const choiceQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "radio",
+  const choiceQuestion = await insertRow(tables.questions, {
+    assign_all: false,
+    display_type: "radio",
     text: "Boiler model?",
   });
-  const choiceAnswer = await answersTable.insert({
-    questionId: choiceQuestion.id,
-    sortOrder: 0,
+  const choiceAnswer = await insertRow(tables.answers, {
+    question_id: choiceQuestion.id,
+    sort_order: 0,
     text: "Vaillant",
   });
   for (const q of [textQuestion.id, choiceQuestion.id]) {

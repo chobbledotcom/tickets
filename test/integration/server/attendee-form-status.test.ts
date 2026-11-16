@@ -3,10 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import {
-  attendeeStatuses,
-  requirePaidDefaultStatus,
-} from "#db/attendee-statuses.ts";
+import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
@@ -15,6 +12,8 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
@@ -72,10 +71,10 @@ describeWithEnv(
       };
 
       const newReservation = () =>
-        attendeeStatuses.table.insert({
-          isReservation: true,
+        insertRow(tables.attendee_statuses, {
+          is_reservation: true,
           name: "Reserved",
-          reservationAmount: "10%",
+          reservation_amount: "10%",
         });
 
       const getEdit = async (id: number): Promise<string> => {

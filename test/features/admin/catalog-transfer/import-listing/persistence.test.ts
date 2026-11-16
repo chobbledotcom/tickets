@@ -8,7 +8,7 @@ import {
 } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";

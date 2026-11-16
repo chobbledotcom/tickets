@@ -134,12 +134,14 @@ const collectUniqueOptions = (
 const collectAttributeRows = (
   rows: JoinedAttributeRow[],
 ): CollectedAttributeRows => ({
-  attributes: reduce(collectUniqueAttributes, new Map<number, Attribute>())(
-    rows,
-  ),
-  options: reduce(collectUniqueOptions, new Map<number, AttributeOption>())(
-    rows,
-  ),
+  attributes: reduce(
+    collectUniqueAttributes,
+    new Map<number, Attribute>(),
+  )(rows),
+  options: reduce(
+    collectUniqueOptions,
+    new Map<number, AttributeOption>(),
+  )(rows),
 });
 
 const buildAttributeGroups = (
@@ -192,9 +194,7 @@ export const getAllAttributesWithOptions = async (): Promise<
     ),
   );
 
-const attributeJoinedSql = (
-  id: number,
-): SqlStatement =>
+const attributeJoinedSql = (id: number): SqlStatement =>
   ATTRIBUTE_COLUMNS.decoded(sql`SELECT ${ATTRIBUTE_COLUMNS.list}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption

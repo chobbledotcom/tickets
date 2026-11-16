@@ -1,6 +1,5 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attributeOptionsTable } from "#db/attributes.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";

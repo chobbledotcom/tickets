@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { groups, setGroupPackageMembers } from "#db/groups.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { insertRow, updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectPackageRefund,
@@ -192,7 +193,7 @@ describeWithEnv(
       const metadata = packageMetadata(group.id, listing.id, 1500);
       // The package flag is cleared, so the member revalidates at its 5000 base
       // price and the 1500 the buyer signed no longer matches.
-      await groups.table.update(group.id, { isPackage: false });
+      await updateRow(tables.groups, group.id, { is_package: false });
       await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
     });
 
@@ -231,9 +232,9 @@ describeWithEnv(
       ]);
       // An opt-in add-on keeps the order PAID even though every package line is
       // free — this is the case the old `hasPaidItems` guard skipped.
-      const addOn = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 500,
+      const addOn = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 500,
         direction: "charge",
         name: "Add-on",
       });

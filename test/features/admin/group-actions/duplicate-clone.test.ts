@@ -25,7 +25,7 @@ import type { Group } from "#types";
 /** The group a duplicate created, found by the name the test gave it. */
 const duplicatedGroupNamed = async (name: string): Promise<Group> =>
   requireValue(
-    (await groups.cache.getAll()).find((group) => group.name === name),
+    (await groups.getAll()).find((group) => group.name === name),
     `The duplicated group "${name}" is missing`,
   );
 
@@ -60,7 +60,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
         "Group 'Priced Source' duplicated to 'Priced Copy' with x1 listings",
       ]);
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Priced Copy",
       )!;
       const clone = (await getListingsByGroupId(newGroup.id))[0]!;
@@ -87,7 +87,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
         new_name: "Inherits copy",
       });
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Inherits copy",
       )!;
       const clone = (await getListingsByGroupId(newGroup.id))[0]!;
@@ -235,7 +235,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       );
       expect(response.status).toBe(302);
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Pkg Copy",
       )!;
       expect(newGroup.is_package).toBe(true);

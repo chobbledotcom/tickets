@@ -4,7 +4,8 @@ import type { Answer, Question } from "#db/question-types.ts";
 import { getAttendeeAnswersByQuestion } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
@@ -108,16 +109,16 @@ export const mergePairWithQuestion = async (
   target: Attendee;
 }> => {
   const { listing1, listing2, target, source, sourceToken } = await mergePair();
-  const q = await questionsTable.insert({
-    displayType: "radio",
+  const q = await insertRow(tables.questions, {
+    display_type: "radio",
     text: questionText,
   });
   const answers: Answer[] = [];
   for (const [index, text] of answerTexts.entries()) {
     answers.push(
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: index,
+      await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: index,
         text,
       }),
     );

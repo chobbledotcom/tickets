@@ -1,4 +1,5 @@
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { followRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -29,6 +30,6 @@ export const renderPaymentSuccess = async (
  */
 export const createHiddenPackageGroup = async (name = "Bundle") => {
   const group = await createTestGroup({ isPackage: true, name });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  await updateRow(tables.groups, group.id, { hide_package_listings: true });
   return group;
 };

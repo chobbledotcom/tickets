@@ -7,6 +7,7 @@ import {
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
 import { getDb, withTransaction } from "#db/client.ts";
+import { insertRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { update } from "#db/write.ts";
@@ -43,7 +44,7 @@ const seedStatus = async (): Promise<AttendeeStatus> => {
 
 /** Adds a status that carries no default flag. */
 const addStatus = async (name: string): Promise<AttendeeStatus> => {
-  const status = await attendeeStatuses.table.insert({ name });
+  const status = await insertRow(tables.attendee_statuses, { name });
   await clearStatusDefaults();
   return status;
 };
@@ -54,7 +55,7 @@ const setUpAssignmentRace = async (): Promise<{
   spareId: number;
 }> => {
   const seed = (await attendeeStatuses.getAll())[0]!;
-  const spare = await attendeeStatuses.table.insert({ name: "Spare" });
+  const spare = await insertRow(tables.attendee_statuses, { name: "Spare" });
   return {
     attendeeId: await createAttendeeWithStatus(seed.id),
     seedId: seed.id,

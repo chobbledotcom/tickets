@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { withMessageGroups } from "#i18n";
 import { validateAllItems as validateSnapshotItems } from "#routes/api/payment-processing/items.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
@@ -208,7 +209,7 @@ describeWithEnv("paid item validation", { db: true }, () => {
     child!.q = 2;
     child!.p = 400;
     const { listingsTable } = await import("#db/listings/records.ts");
-    await listingsTable.update(child!.e, { maxQuantity: 1 });
+    await updateListing(child!.e, { maxQuantity: 1 });
     const snapshot = await loadPaidOrderSnapshot(
       "cs_items_hidden_maximum",
       intent,

@@ -4,7 +4,8 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
@@ -194,9 +195,9 @@ describeWithEnv(
     test("reservation discounts reduce the paid deposit and remaining balance", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const statusId = await setPublicReservation("10%");
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const modifier = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "discount",
         name: "Discount",
       });

@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -51,7 +51,7 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
     // record anyway would lose the only pointer to a file still sitting in
     // storage, so the record keeps it and the operator is told.
     const listing = await createTestListing({ name: "Has A Leaflet" });
-    await listingsTable.update(listing.id, {
+    await updateListing(listing.id, {
       attachmentName: "leaflet.pdf",
       attachmentUrl: "https://example.test/leaflet.pdf",
     });

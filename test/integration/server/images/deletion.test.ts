@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { linkStoredImage } from "#test/integration/server/images/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -81,7 +81,7 @@ describeWithEnv(
 
       test("deletes attachment from storage when listing is deleted", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "doc.pdf",
           attachmentUrl: "listing-attachment.pdf",
         });
@@ -99,7 +99,7 @@ describeWithEnv(
       test("deletes attachment but keeps image when listing is deleted", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
         await linkStoredImage(listing.id, "both-image.jpg");
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "both.pdf",
           attachmentUrl: "both-attachment.pdf",
         });

@@ -21,11 +21,11 @@ import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { getListingWithCount, isSlugTaken } from "#db/listings/records.ts";
-import { updateRowStatement } from "#db/record-table.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { updateRowStatement } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { firstProblem, requiredMapValue } from "#fp";
@@ -48,8 +48,8 @@ import {
   LISTING_FIELDS,
   type ListingInput,
 } from "#shared/records/listing-fields.ts";
-import { transferValues } from "#shared/rest/field-reads.ts";
 import { parseUpdateSlug } from "#shared/rest/crud-parsers.ts";
+import { transferValues } from "#shared/rest/field-reads.ts";
 import { optionalFieldsSchema } from "#shared/rest/field-values.ts";
 import { generateUniqueSlug, normalizeSlug } from "#shared/slug.ts";
 import { deleteListingAttachmentFile } from "#shared/storage-cleanup.ts";
@@ -391,12 +391,12 @@ export const buildDuplicateListingInput = async (
 ): Promise<ListingInput> => ({
   // The declared fields of a stored listing are the fields of its input.
   ...(transferValues(LISTING_FIELDS, source) as Partial<ListingInput>),
-  maxAttendees: source.max_attendees,
-  maxPrice: source.max_price,
-  name: source.name,
   // An empty day-price map is left out of the transfer values, so the source's
   // day prices pass through here. An override may still replace them.
   dayPrices: source.day_prices,
+  maxAttendees: source.max_attendees,
+  maxPrice: source.max_price,
+  name: source.name,
   ...(await generateUniqueListingSlug()),
   attachmentName: "",
   attachmentUrl: "",

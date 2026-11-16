@@ -11,7 +11,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import {
   getLogisticsAssignments,
   setLogisticsAssignments,
@@ -216,7 +216,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
   test("stored assignments survive a save while the selectors are not shown", async () => {
     settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ maxAttendees: 10 });
-    await listingsTable.update(listing.id, { usesLogistics: true });
+    await updateListing(listing.id, { usesLogistics: true });
     const id = await makeAttendee("Keep Legs", [{ listingId: listing.id }]);
     // An assignment exists, but with no agents the selectors never render.
     await setLogisticsAssignments(

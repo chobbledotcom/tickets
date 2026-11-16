@@ -9,7 +9,8 @@
 import { expect } from "@std/expect";
 import { getDb } from "#db/client.ts";
 import { setLogisticsAssignments } from "#db/logistics.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { userAgents } from "#db/user-agents.ts";
@@ -61,7 +62,7 @@ export const fetchDeliveriesHtml = async (): Promise<string> => {
 
 /** Create a logistics agent and return its id. */
 export const makeVan = async (name: string): Promise<number> =>
-  (await logisticsAgents.table.insert({ name })).id;
+  (await insertRow(tables.logistics_agents, { name })).id;
 
 /** Create a booking dropped off on `startDate` with the given drop-off/
  * collection agents. `durationDays` is the hire length in whole days: `end_at`

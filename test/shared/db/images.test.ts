@@ -7,20 +7,7 @@ import {
   addTicketPageImageUrls,
   imageUrlsFor,
 } from "#db/image-urls.ts";
-import {
-  appendImageToItem,
-  clearImageUsesForItemStatement,
-  deleteImageRecord,
-  getAllImages,
-  getImageById,
-  getImageFilenamesForItem,
-  getImagesForItem,
-  getImageUsesForImage,
-  imagesTable,
-  imageUseTargets,
-  setImagesForItem,
-  setItemsForImage,
-} from "#db/images.ts";
+import { appendImageToItem, clearImageUsesForItemStatement, deleteImageRecord, getAllImages, getImageById, getImageFilenamesForItem, getImageUsesForImage, getImagesForItem, imageUseTargets, insertImageRecord, setImagesForItem, setItemsForImage } from "#db/images.ts";
 import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import {
@@ -52,7 +39,7 @@ const makeImage = (
     filenameThumb: string;
   }> = {},
 ): Promise<Image> =>
-  imagesTable.insert({
+  insertImageRecord({
     altText: extra.altText ?? `Alt ${name}`,
     filename: nonEmptyString(
       extra.filename ?? `${name.toLowerCase()}.webp`,

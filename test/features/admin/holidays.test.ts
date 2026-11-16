@@ -8,6 +8,8 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
 import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -44,9 +46,7 @@ describeWithEnv("holidays", { db: true }, () => {
       `/admin/holidays/${holiday.id}`,
       "Holiday updated",
     )(response);
-    expect((await holidays.table.read.one({ id: holiday.id }))?.name).toBe(
-      "Renamed",
-    );
+    expect((await findRow(tables.holidays, holiday.id))?.name).toBe("Renamed");
   });
 
   test("keeps the submitted dates when a save is rejected", async () => {
@@ -70,7 +70,7 @@ describeWithEnv("holidays", { db: true }, () => {
     );
 
     await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-    expect(await holidays.table.read.one({ id: holiday.id })).toBe(null);
+    expect(await findRow(tables.holidays, holiday.id)).toBe(null);
   });
 });
 
@@ -83,7 +83,7 @@ describeDemoNameSaves({
       name,
       start_date: "2026-12-25",
     });
-    return (await holidays.table.read.one({ id: holiday.id }))?.name;
+    return (await findRow(tables.holidays, holiday.id))?.name;
   },
   fields: (name) => ({
     end_date: "2027-01-02",

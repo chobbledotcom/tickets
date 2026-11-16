@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
-import { builtSitesCrudTable, insertBuiltSite } from "#db/built-sites.ts";
+import { findBuiltSiteById, insertBuiltSite, updateBuiltSite } from "#db/built-sites.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -37,7 +37,7 @@ describeWithEnv(
         ok: false,
       });
       expect(
-        (await builtSitesCrudTable.read.one({ id: child.id }))
+        (await findBuiltSiteById(child.id))
           ?.scheduledTaskKey,
       ).toBeNull();
     });
@@ -50,7 +50,7 @@ describeWithEnv(
 
     test("reuses the primary key when a replica read is stale", async () => {
       const child = await site();
-      const stale = await builtSitesCrudTable.read.one({ id: child.id });
+      const stale = await findBuiltSiteById(child.id);
       const key = await ensureBuiltSiteSchedulerKey(child.id);
       const pushed: string[] = [];
       stubs.push(
@@ -74,7 +74,7 @@ describeWithEnv(
 
     test("requires provider access before provisioning", async () => {
       const child = await insertScheduledTestSite(null);
-      await builtSitesCrudTable.update(child.id, { hostingId: "" });
+      await updateBuiltSite(child.id, () => ({ hostingId: "" }));
 
       expect(await provisionSiteScheduler(child.id)).toEqual({
         error:
@@ -102,11 +102,11 @@ describeWithEnv(
       stubBunnySchedulerSecrets(stubs, [], { error: "host down", ok: false });
 
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
-      const first = (await builtSitesCrudTable.read.one({ id: child.id }))
+      const first = (await findBuiltSiteById(child.id))
         ?.scheduledTaskKey;
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
       expect(
-        (await builtSitesCrudTable.read.one({ id: child.id }))
+        (await findBuiltSiteById(child.id))
           ?.scheduledTaskKey,
       ).toBe(first);
     });

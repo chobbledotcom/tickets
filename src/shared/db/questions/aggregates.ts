@@ -6,12 +6,7 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
-import {
-  execute,
-  queryAllPrimary,
-  queryOne,
-  requireOne,
-} from "#db/client.ts";
+import { execute, queryAllPrimary, queryOne, requireOne } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,

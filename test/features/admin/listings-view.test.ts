@@ -55,7 +55,7 @@ const listingInCappedGroups = async (
 };
 
 const coldGroupContextCalls = (listing: ListingWithCount): Promise<number> => {
-  groups.cache.invalidate();
+  groups.invalidate();
   return countDatabaseCalls(GROUP_CONTEXT_CALL_LIMIT, () =>
     loadGroupContext(listing, null),
   );

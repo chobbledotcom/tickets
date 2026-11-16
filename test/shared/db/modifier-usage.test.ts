@@ -5,7 +5,8 @@ import {
   anyModifierSoldOut,
   modifierUsedQuantities,
 } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,16 +21,16 @@ describeWithEnv("db > modifier-usage", { db: true }, () => {
   });
 
   test("distinguishes sold-out stock from available stock", async () => {
-    const soldOut = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const soldOut = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Sold out",
       stock: 0,
     });
-    const available = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 1,
+    const available = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 1,
       direction: "charge",
       name: "Available",
       stock: 2,

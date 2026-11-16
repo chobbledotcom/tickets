@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { postTransfers } from "#accounting/store.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { account } from "#shared/ledger/account.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import {
@@ -77,9 +78,9 @@ describeWithEnv("server (admin ledger list views)", { db: true }, () => {
   test("resolves a real modifier's name and links its leg to the modifier", async () => {
     // A real modifier row exists, so the historical list resolves its name and
     // links the modifier leg to /admin/modifiers/<id>.
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 500,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 500,
       direction: "charge",
       name: "Booking surcharge",
     });

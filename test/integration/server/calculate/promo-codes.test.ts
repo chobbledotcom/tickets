@@ -5,7 +5,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { matchKey } from "#shared/keys.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -23,10 +24,10 @@ const setupPromoListing = async () => {
     name: "Workshop",
     unitPrice: 1000,
   });
-  await modifiersTable.insert({
-    calcKind: "percent",
-    calcValue: 10,
-    codeIndex: await hmacHash(matchKey("SAVE10")),
+  await insertRow(tables.modifiers, {
+    calc_kind: "percent",
+    calc_value: 10,
+    code_index: await hmacHash(matchKey("SAVE10")),
     direction: "discount",
     name: "10% off",
     trigger: "code",

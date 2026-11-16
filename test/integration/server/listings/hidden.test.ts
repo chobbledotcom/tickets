@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
 import { assertAdminHtml, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -81,7 +81,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
 
     test("admin listing edit page shows attachment info when listing has attachment", async () => {
       const { listing, cookie } = await setupListingAndLogin();
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "Listing Guide.pdf",
         attachmentUrl: "uuid-guide.pdf",
       });

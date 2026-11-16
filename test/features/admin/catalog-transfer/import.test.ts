@@ -188,7 +188,7 @@ async function expectPlanMemberImportRefused(
     ok: false,
   });
   const { groups } = await import("#db/groups.ts");
-  expect(
-    (await groups.cache.getAll()).find((row) => row.name === group.name),
-  ).toBe(undefined);
+  expect((await groups.getAll()).find((row) => row.name === group.name)).toBe(
+    undefined,
+  );
 }

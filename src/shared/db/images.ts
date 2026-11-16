@@ -27,9 +27,9 @@ import {
 import {
   among,
   and,
-  equal,
   desc,
   type Expr,
+  equal,
   not,
   or,
   valued,
@@ -194,8 +194,7 @@ export const getImageFilenamesForItem = async (
         id: use.image.id,
       })),
   );
-  if (!image)
-    return { image_alt_text: "", image_thumb_url: "", image_url: "" };
+  if (!image) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
   return {
     image_alt_text: image.alt_text,
     image_thumb_url: image.filename_thumb,
@@ -418,9 +417,7 @@ const insertImage = async (
 /** Insert one image record. The insert is unconditional, so the written row
  * always comes back. */
 export const insertImageRecord = async (input: ImageInput): Promise<Image> =>
-  withImageVersionBump((transaction) =>
-    insertImage(transaction, input),
-  );
+  withImageVersionBump((transaction) => insertImage(transaction, input));
 
 /** Update one image record's metadata. Returns null when the id names no
  * row. The update takes its SET clause from the provided columns alone. An

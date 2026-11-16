@@ -8,13 +8,8 @@
  */
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import {
-  deleteRow,
-  findRow,
-  insertRow,
-  updateRow,
-} from "#db/record-table.ts";
 import { readRows } from "#db/read.ts";
+import { deleteRow, findRow, insertRow, updateRow } from "#db/record-table.ts";
 import { desc } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";

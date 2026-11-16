@@ -16,7 +16,6 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";

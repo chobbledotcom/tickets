@@ -24,6 +24,8 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { deleteRow, findRow, updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -51,26 +53,26 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         slug: "db-group",
       });
 
-      const fetched = await groups.table.read.one({ id: created.id });
+      const fetched = await findRow(tables.groups, created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
 
-      const updated = await groups.table.update(created.id, {
+      const updated = await updateRow(tables.groups, created.id, {
         name: "DB Group Updated",
-        termsAndConditions: "Terms",
+        terms_and_conditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
       expect(updated?.terms_and_conditions).toBe("Terms");
 
-      await groups.table.deleteById(created.id);
-      expect(await groups.table.read.one({ id: created.id })).toBeNull();
+      await deleteRow(tables.groups, created.id);
+      expect(await findRow(tables.groups, created.id)).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
       const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
       const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
-      const allGroups = await groups.cache.getAll();
+      const allGroups = await groups.getAll();
       expect(allGroups.length).toBe(2);
       expect(allGroups[0]?.id).toBe(g1.id);
       expect(allGroups[1]?.id).toBe(g2.id);
@@ -248,7 +250,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         { maxAttendees: 5, name: "delete-me", slug: "delete-me" },
         "orphan-listing",
       );
-      await groups.table.deleteById(group.id);
+      await deleteRow(tables.groups, group.id);
 
       expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
     });
@@ -546,7 +548,9 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Hidden Bundle",
         slug: "hidden-bundle-disp",
       });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
+      await updateRow(tables.groups, hidden.id, {
+        hide_package_listings: true,
+      });
       const regular = await createTestGroup({
         name: "Regular",
         slug: "regular-disp",
@@ -601,7 +605,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Changed Bundle",
       });
 
-      await groups.table.update(pkg.id, { hidePackageListings: true });
+      await updateRow(tables.groups, pkg.id, { hide_package_listings: true });
 
       expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
         hideListings: true,

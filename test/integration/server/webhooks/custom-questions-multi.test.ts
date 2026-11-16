@@ -6,7 +6,8 @@ import {
 } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -74,13 +75,13 @@ describeWithEnv(
       const { getAttendeeAnswersBatch } = await import(
         "#db/questions/attendee-answers/reads.ts"
       );
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const q = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Size?",
       });
-      const a = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
+      const a = await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 0,
         text: "Large",
       });
       await listingQuestions.setIds(listing1.id, [q.id]);
@@ -135,18 +136,18 @@ describeWithEnv(
       );
 
       // Add a custom question only to listing1
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const q = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Dietary needs?",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
+      const a1 = await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 0,
         text: "None",
       });
-      await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
+      await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 1,
         text: "Vegetarian",
       });
       await listingQuestions.setIds(listing1.id, [q.id]);
@@ -211,12 +212,12 @@ describeWithEnv(
         { maxAttendees: 50, name: "Free Text Free" },
       );
 
-      const q1 = await questionsTable.insert({
-        displayType: "free_text",
+      const q1 = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Access needs?",
       });
-      const q2 = await questionsTable.insert({
-        displayType: "free_text",
+      const q2 = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Dietary needs?",
       });
       await listingQuestions.setIds(listing1.id, [q1.id]);

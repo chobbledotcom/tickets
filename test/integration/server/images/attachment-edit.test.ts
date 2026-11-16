@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { toMajorUnits } from "#shared/currency.ts";
 import { runWithStorageConfig } from "#shared/storage.ts";
@@ -181,7 +181,7 @@ describeWithEnv(
 
       test("deletes old attachment when uploading new one", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "old.pdf",
           attachmentUrl: "old-file.pdf",
         });

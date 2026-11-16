@@ -19,8 +19,8 @@ import {
 } from "#db/questions/queries.ts";
 import { questionsOrder } from "#db/questions/tables.ts";
 import { updateRowStatement } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
+import { tables } from "#db/select/tables.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
 import {

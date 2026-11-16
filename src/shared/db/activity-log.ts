@@ -63,10 +63,7 @@ type StoredActivityLogEntry = DecodedRowOf<"activity_log">;
  * id). Being the rowid, it is served straight from the primary key /
  * idx_activity_log_listing_id without a sort over the unbounded log table.
  */
-const newestEntries = (
-  where: Matching<Node<"activity_log">>,
-  limit: number,
-) =>
+const newestEntries = (where: Matching<Node<"activity_log">>, limit: number) =>
   from(tables.activity_log)
     .where(where)
     .orderBy((entry) => [desc(entry.id)])

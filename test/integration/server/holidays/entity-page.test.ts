@@ -1,7 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -111,7 +112,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         "Holiday updated",
       )(response);
       const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).toEqual({
+      expect(await findRow(tables.holidays, holiday.id)).toEqual({
         ...holiday,
         end_date: "2026-12-27",
       });
@@ -216,7 +217,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
       await deleteTestHoliday(holiday.id);
       const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).toBeNull();
+      expect(await findRow(tables.holidays, holiday.id)).toBeNull();
     });
 
     test("rejects deletion with wrong name", async () => {
@@ -232,7 +233,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         false,
       );
       const { holidays } = await import("#db/holidays.ts");
-      expect(await holidays.table.read.one({ id: holiday.id })).not.toBeNull();
+      expect(await findRow(tables.holidays, holiday.id)).not.toBeNull();
     });
 
     test("name confirmation is case-insensitive", async () => {
@@ -242,7 +243,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         { confirm_identifier: "christmas day" },
       );
       await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-      expect(await holidays.table.read.one({ id: holiday.id })).toBeNull();
+      expect(await findRow(tables.holidays, holiday.id)).toBeNull();
     });
 
     test("returns 404 for non-existent holiday", async () => {

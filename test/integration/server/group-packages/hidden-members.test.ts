@@ -10,7 +10,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -33,7 +34,7 @@ describeWithEnv(
         name: "HiddenPage",
         slug: "hidden-page",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       await member(group, "SecretMember", { location: "SecretVenue" });
 
       const body = await (
@@ -54,7 +55,7 @@ describeWithEnv(
         name: "DirectHide",
         slug: "direct-hide",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const listing = await member(group, "DirectMember");
 
       const res = await handleRequest(mockRequest(`/ticket/${listing.slug}`));
@@ -70,7 +71,7 @@ describeWithEnv(
         name: "QrHide",
         slug: "qr-hide",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const listing = await member(group, "QrMember");
 
       const qr = await handleRequest(mockRequest(`/ticket/${listing.slug}/qr`));
@@ -100,7 +101,7 @@ describeWithEnv(
         name: "HidePkg",
         slug: "hide-pkg",
       });
-      await groups.table.update(pkg.id, { hidePackageListings: true });
+      await updateRow(tables.groups, pkg.id, { hide_package_listings: true });
       const regular = await createTestGroup({
         name: "Regular",
         slug: "regular",
@@ -184,7 +185,7 @@ describeWithEnv(
 
     test("a regular group can share a concealed-package member", async () => {
       const pkg = await createTestGroup({ isPackage: true, name: "HideOnly" });
-      await groups.table.update(pkg.id, { hidePackageListings: true });
+      await updateRow(tables.groups, pkg.id, { hide_package_listings: true });
       const shared = await member(pkg, "Hidden Shared Member");
       const regular = await createTestGroup({
         name: "RegularEmpty",

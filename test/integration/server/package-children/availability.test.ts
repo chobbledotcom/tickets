@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -83,7 +84,7 @@ describeWithEnv("package child availability", { db: true }, () => {
     const { listingsTable } = await import("#db/listings/records.ts");
     const { attendeesApi } = await import("#db/attendees/api.ts");
     for (const childListing of [child, childB]) {
-      await listingsTable.update(childListing.id, {
+      await updateListing(childListing.id, {
         maxAttendees: 1,
         maxQuantity: 1,
       });

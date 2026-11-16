@@ -8,7 +8,8 @@ import {
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
@@ -57,10 +58,13 @@ const buyer = {
  * a column on the answers row, so the answer must actually exist for the link
  * (and the resolve that reads it back) to take effect. */
 const createAnswer = async (): Promise<number> => {
-  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
-  const a = await answersTable.insert({
-    questionId: q.id,
-    sortOrder: 0,
+  const q = await insertRow(tables.questions, {
+    display_type: "radio",
+    text: "Q?",
+  });
+  const a = await insertRow(tables.answers, {
+    question_id: q.id,
+    sort_order: 0,
     text: "A",
   });
   return a.id;

@@ -1,10 +1,10 @@
 import type { RecordChanges } from "#db/record-table.ts";
-import {
-  type BuiltSite,
-  type BuiltSitePlainFields,
-  type DbProvider,
-  type HostingProvider,
-  type UpdateTier,
+import type {
+  BuiltSite,
+  BuiltSitePlainFields,
+  DbProvider,
+  HostingProvider,
+  UpdateTier,
 } from "./types.ts";
 
 const passthrough = <T>(value: T): T => value;
@@ -49,10 +49,11 @@ export const builtSitePlainColumns = [
     siteKey: "assignedListingId",
     toInput: nullable<number>,
   },
-  plainColumn<"database_key_rotation_started", "databaseKeyRotationStarted", number>(
+  plainColumn<
     "database_key_rotation_started",
     "databaseKeyRotationStarted",
-  ),
+    number
+  >("database_key_rotation_started", "databaseKeyRotationStarted"),
   plainColumn<"read_only_from", "readOnlyFrom", string>(
     "read_only_from",
     "readOnlyFrom",

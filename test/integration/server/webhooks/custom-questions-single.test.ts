@@ -7,7 +7,8 @@ import {
 } from "#db/questions/attendee-answers/reads.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -44,13 +45,13 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const q = await insertRow(tables.questions, {
+        display_type: "radio",
         text: "Dietary needs?",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
+      const a1 = await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 1,
         text: "Vegan",
       });
       await listingQuestions.setIds(listing.id, [q.id]);
@@ -92,8 +93,8 @@ describeWithEnv(
         name: "Round Trip Paid",
         unitPrice: 1000,
       });
-      const question = await questionsTable.insert({
-        displayType: "free_text",
+      const question = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Access needs?",
       });
       await listingQuestions.setIds(listing.id, [question.id]);
@@ -165,16 +166,16 @@ describeWithEnv(
         name: "Corrupt Ref Paid",
         unitPrice: 1000,
       });
-      const goodQ = await questionsTable.insert({
-        displayType: "free_text",
+      const goodQ = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Access needs?",
       });
-      const lostQ = await questionsTable.insert({
-        displayType: "free_text",
+      const lostQ = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Dietary needs?",
       });
-      const nonsenseQ = await questionsTable.insert({
-        displayType: "free_text",
+      const nonsenseQ = await insertRow(tables.questions, {
+        display_type: "free_text",
         text: "Anything else?",
       });
       await listingQuestions.setIds(listing.id, [

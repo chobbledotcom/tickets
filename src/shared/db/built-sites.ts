@@ -12,11 +12,11 @@ import {
   insertRow,
   updateRowStatement,
 } from "#db/record-table.ts";
+import { retryWrite } from "#db/retry-write.ts";
 import { desc, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { tableCache } from "#db/table-cache.ts";
-import { retryWrite } from "#db/retry-write.ts";
 import { compareByName } from "#shared/name-order.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";

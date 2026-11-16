@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
-
 import {
   adjustModifierRevenue,
   getActiveModifiers,
@@ -11,8 +10,9 @@ import {
   getModifierAggregateRecalculation,
   MODIFIER_AGGREGATE_FIELDS,
   modifierAggregates,
-  modifiersTable,
 } from "#db/modifiers.ts";
+import { findRow, insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   type AggregateRows,
@@ -52,9 +52,9 @@ describeWithEnv(
       values: { amount_applied: 0, created: "2026-06-17" },
     };
     const makeModifier = () =>
-      modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name: "Add-on",
       });
@@ -83,7 +83,7 @@ describeWithEnv(
       // defaults must make the modifier an active, automatic, whole-order rule
       // with no gates — exactly what the admin docs promise a fresh modifier is.
       const m = await makeModifier();
-      const stored = (await modifiersTable.read.one({ id: m.id }))!;
+      const stored = (await findRow(tables.modifiers, m.id))!;
       expect(stored).toMatchObject({
         active: true,
         code_index: null,
@@ -111,7 +111,7 @@ describeWithEnv(
     test("modifiersTable read exposes the trigger-maintained counts", async () => {
       const m = await makeModifier();
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
-      const reread = await modifiersTable.read.one({ id: m.id });
+      const reread = await findRow(tables.modifiers, m.id);
       expect(reread).toMatchObject({
         total_uses: 3,
         usage_count: 1,
@@ -230,7 +230,7 @@ describeWithEnv(
         usage_count: 4,
       });
 
-      const stale = (await modifiersTable.read.one({ id: m.id }))!;
+      const stale = (await findRow(tables.modifiers, m.id))!;
       expect(await getModifierAggregateRecalculation(stale)).toEqual({
         total_uses: { current: 8, recalculated: 5 },
         usage_count: { current: 4, recalculated: 2 },

@@ -5,6 +5,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
 import {
+  createListing,
   getAllListingOptions,
   getAllListings,
   getListingsBySlugs,
@@ -12,9 +13,9 @@ import {
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
   listingNames,
-  listingsTable,
   requireListingsWithCountsByIds,
   requireListingWithCount,
+  updateListing,
 } from "#db/listings/records.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
@@ -175,7 +176,7 @@ describeWithEnv(
   },
   () => {
     const insertPriced = async () =>
-      await listingsTable.insert({
+      await createListing({
         dayPrices: { 2: 500 },
         maxAttendees: 10,
         maxPrice: 0,
@@ -206,7 +207,7 @@ describeWithEnv(
 
     test("an update rewrites the day prices and re-mirrors the base price", async () => {
       const listing = await insertPriced();
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         dayPrices: { 3: 900 },
         unitPrice: 800,
       });

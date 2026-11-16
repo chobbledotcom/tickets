@@ -12,7 +12,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";

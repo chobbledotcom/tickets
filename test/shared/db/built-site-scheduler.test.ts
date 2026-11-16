@@ -2,11 +2,7 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
-import {
-  builtSitesCrudTable,
-  insertBuiltSite,
-  updateBuiltSiteRenewalState,
-} from "#db/built-sites.ts";
+import { findBuiltSiteById, insertBuiltSite, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
 import { queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
@@ -34,7 +30,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     assert(!raw!.site_data.includes(TEST_SCHEDULED_KEY));
     assert(!JSON.stringify(raw).includes(TEST_SCHEDULED_KEY));
     expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.scheduledTaskKey,
+      (await findBuiltSiteById(row.id))?.scheduledTaskKey,
     ).toBe(TEST_SCHEDULED_KEY);
   });
 
@@ -55,7 +51,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     expect(first).toBe(second);
     expect(isScheduledTaskKey(first)).toBe(true);
     expect(
-      (await builtSitesCrudTable.read.one({ id: site.id }))?.scheduledTaskKey,
+      (await findBuiltSiteById(site.id))?.scheduledTaskKey,
     ).toBe(first);
   });
 
@@ -64,10 +60,10 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
 
     await Promise.all([
       ensureBuiltSiteSchedulerKey(site.id),
-      builtSitesCrudTable.update(site.id, { name: "Edited child" }),
+      updateBuiltSite(site.id, () => ({ name: "Edited child" })),
     ]);
 
-    const updated = await builtSitesCrudTable.read.one({ id: site.id });
+    const updated = await findBuiltSiteById(site.id);
     expect(updated?.name).toBe("Edited child");
     expect(isScheduledTaskKey(updated?.scheduledTaskKey ?? "")).toBe(true);
   });
@@ -84,7 +80,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
       }),
     ]);
 
-    const updated = await builtSitesCrudTable.read.one({ id: site.id });
+    const updated = await findBuiltSiteById(site.id);
     expect(updated?.readOnlyFrom).toBe("2026-08-01T00:00:00.000Z");
     expect(updated?.renewalToken).toBe("renewal-token");
     expect(updated?.renewalTokenIndex).toBe("renewal-index");

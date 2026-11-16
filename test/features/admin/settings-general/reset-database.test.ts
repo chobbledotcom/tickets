@@ -1,8 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { imagesTable } from "#db/images.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { insertImageRecord } from "#db/images.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -50,11 +50,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("deletes storage files for all listings during admin reset", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "doc.pdf",
         attachmentUrl: "admin-reset-attachment.pdf",
       });
-      await imagesTable.insert({
+      await insertImageRecord({
         filename: nonEmptyString("admin-reset-image.jpg"),
         filenameThumb: nonEmptyString("admin-reset-image-thumb.jpg"),
         name: "Admin reset image",

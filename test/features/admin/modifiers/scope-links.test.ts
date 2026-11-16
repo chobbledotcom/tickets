@@ -8,7 +8,8 @@ import {
   modifierGroups,
   modifierListings,
 } from "#db/modifiers.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { matchKey } from "#shared/keys.ts";
 import {
   expectFlashRedirect,
@@ -152,13 +153,13 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       question: string,
       answer: string,
     ): Promise<{ questionId: number; answerId: number }> => {
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const q = await insertRow(tables.questions, {
+        display_type: "radio",
         text: question,
       });
-      const a = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
+      const a = await insertRow(tables.answers, {
+        question_id: q.id,
+        sort_order: 0,
         text: answer,
       });
       return { answerId: a.id, questionId: q.id };

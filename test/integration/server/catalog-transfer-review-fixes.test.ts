@@ -7,7 +7,7 @@ import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { createListing, getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -106,7 +106,7 @@ const hiddenPackageParent = async (): Promise<void> => {
     sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
   );
   const { groups } = await import("#db/groups.ts");
-  groups.cache.invalidate();
+  groups.invalidate();
   const parent = await createTestListing({ name: "Pkg Parent" });
   await assignListingsToGroup([parent.id], pkg.id);
 };
@@ -116,7 +116,7 @@ const twinParents = async (): Promise<void> => {
   const { listingsTable } = await import("#db/listings/records.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
   for (const slug of ["twin-a", "twin-b"]) {
-    await listingsTable.insert({
+    await createListing({
       maxAttendees: 1,
       maxPrice: 0,
       name: "Twin Parent",
@@ -336,7 +336,7 @@ describeWithEnv(
       // Supply dayPrices so insert does not read them back per row, which
       // would trip the N+1 guard across this 30-row setup.
       const parentNames = await storeThirty("Parent", (row) =>
-        listingsTable.insert({
+        createListing({
           ...row,
           dayPrices: {},
           maxAttendees: 1,

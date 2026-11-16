@@ -2,6 +2,9 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
@@ -143,7 +146,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const { attendeesApi } = await import("#db/attendees/api.ts");
     const { listingsTable } = await import("#db/listings/records.ts");
     const dateA = bookingDate();
-    await listingsTable.update(tent.id, { maxAttendees: 1 });
+    await updateListing(tent.id, { maxAttendees: 1 });
     const fill = await attendeesApi.createAttendeeAtomic({
       bookings: [{ date: dateA, listingId: tent.id, quantity: 1 }],
       email: "first@test.com",
@@ -381,7 +384,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");
     const { groups } = await import("#db/groups.ts");
     const { group } = await createFlexPackage("Hush Kit", "hush-kit");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, group.id, { hide_package_listings: true });
 
     // Neither member offers a 5-day span, so the submit bounces with the
     // day-count error — which must name the PACKAGE, never a hidden member.

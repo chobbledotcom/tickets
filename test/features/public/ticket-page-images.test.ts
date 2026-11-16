@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { questionListings } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { makeImage } from "#test-utils/admin-images.ts";
@@ -73,8 +74,8 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
   test("resolves a question text's image reference", async () => {
     const poster = await makeImage("Poster");
     const listing = await createTestListing({ name: "Kayak Tour" });
-    const question = await questionsTable.insert({
-      displayType: "free_text",
+    const question = await insertRow(tables.questions, {
+      display_type: "free_text",
       text: `![Poster](img#${poster.id})`,
     });
     await questionListings.setIds(question.id, [listing.id]);

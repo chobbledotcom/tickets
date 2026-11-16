@@ -16,12 +16,13 @@ import {
   hashEmail,
 } from "#db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import {
   decryptSessionTokens,
   markSessionFailed,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { bookingBatchPlan } from "#shared/checkout-complete.ts";
 import type { PricedOrder } from "#shared/checkout-pricing.ts";
@@ -166,9 +167,9 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 100,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 100,
       direction: "charge",
       name: "Atomic add-on",
       stock: 2,

@@ -2,6 +2,8 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { holidays } from "#db/holidays.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import {
   assertApiDeleteOk,
@@ -395,7 +397,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
 
       // Holiday should still exist
-      const row = await holidays.table.read.one({ id: holiday.id });
+      const row = await findRow(tables.holidays, holiday.id);
       expect(row).not.toBeNull();
     });
 
@@ -457,7 +459,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       );
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
-      expect(await holidays.table.read.one({ id: holiday.id })).not.toBeNull();
+      expect(await findRow(tables.holidays, holiday.id)).not.toBeNull();
     });
   });
 });

@@ -7,6 +7,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { bookingError } from "#booking/form.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
@@ -32,7 +34,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
       slug: "mystery-box",
     });
     const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Secret Contents",

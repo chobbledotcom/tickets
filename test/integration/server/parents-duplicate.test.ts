@@ -7,6 +7,8 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -110,9 +112,7 @@ const duplicateGroup = async (
     name_replace: nameReplace,
     new_name: newName,
   });
-  const newGroup = (await groups.cache.getAll()).find(
-    (g) => g.name === newName,
-  );
+  const newGroup = (await groups.getAll()).find((g) => g.name === newName);
   return getListingsByGroupId(newGroup!.id);
 };
 
@@ -346,7 +346,7 @@ describeWithEnv(
         "Cloned parent",
       );
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Stranded bundle copy",
       )!;
       const copies = await getListingsByGroupId(newGroup.id);
@@ -392,7 +392,7 @@ describeWithEnv(
         "Cloned",
       );
 
-      const newGroup = (await groups.cache.getAll()).find(
+      const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Incoming bundle copy",
       )!;
       const childCopy = (await getListingsByGroupId(newGroup.id)).find(
@@ -548,7 +548,9 @@ describeWithEnv(
         isPackage: true,
         name: "Hidden Pkg",
       });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
+      await updateRow(tables.groups, hidden.id, {
+        hide_package_listings: true,
+      });
       const { copy: hiddenCopy } = await duplicateListingResponse(
         parent.id,
         "Parent hidden copy",

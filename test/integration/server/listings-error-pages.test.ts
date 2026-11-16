@@ -3,10 +3,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
-import {
-  invalidateListingsCache,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { invalidateListingsCache } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectFlash,

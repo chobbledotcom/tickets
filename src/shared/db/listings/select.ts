@@ -10,12 +10,12 @@
  * picker in `groups.ts` do.
  */
 
-import type { BlindIndex } from "#crypto/sealed.ts";
 import {
   type AccountId,
   accountBalanceSubquery,
   creditsLessWriteoffDebits,
 } from "#accounting/projection-sql.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { imageFilenameSubqueries, type SealedItemImages } from "#db/images.ts";
 import { everyColumnPicked } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
@@ -130,18 +130,18 @@ const listingStatement = (query: GetListingsQuery): SqlStatement => {
     query.order === undefined ? [] : [LISTING_ORDER_SQL[query.order]];
   return decodedListingRead(
     query.where.inGroups === undefined
-    ? from(tables.listings)
-        .where(() => conditions)
-        .orderBy(() => order)
-        .columns(listingColumns)
-    : from(tables.group_listings, { listing: {} })
-        .where(() => conditions)
-        .groupBy((member) => [member.listing.id])
-        .orderBy(() => order)
-        .columns(
-          (member) =>
-            sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
-        ),
+      ? from(tables.listings)
+          .where(() => conditions)
+          .orderBy(() => order)
+          .columns(listingColumns)
+      : from(tables.group_listings, { listing: {} })
+          .where(() => conditions)
+          .groupBy((member) => [member.listing.id])
+          .orderBy(() => order)
+          .columns(
+            (member) =>
+              sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
+          ),
   );
 };
 

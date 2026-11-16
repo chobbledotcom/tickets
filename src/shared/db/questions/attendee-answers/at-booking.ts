@@ -128,16 +128,15 @@ export const attendeesWithChangedAnswers = async (
   attendeeIds: number[],
 ): Promise<Set<number>> =>
   new Set(
-    (
-      attendeeIds.length === 0
-        ? []
-        : await queryAll<{ attendee_id: number }>(
-            comparedAnswers(
-              attendeeIds,
-              sql`DISTINCT pair.attendee_id`,
-              sql`WHERE ${CHANGED}`,
-            ),
-          )
+    (attendeeIds.length === 0
+      ? []
+      : await queryAll<{ attendee_id: number }>(
+          comparedAnswers(
+            attendeeIds,
+            sql`DISTINCT pair.attendee_id`,
+            sql`WHERE ${CHANGED}`,
+          ),
+        )
     ).map((row) => row.attendee_id),
   );
 
@@ -193,9 +192,7 @@ export const getBookedAnswers = async (
   );
   return mapParallel(
     async (row: ComparedRow): Promise<BookedAnswer> => ({
-      answer:
-        row.answer_text ??
-        (await orNull(row.free_text, readFreeText)),
+      answer: row.answer_text ?? (await orNull(row.free_text, readFreeText)),
       answerAtBooking:
         row.booked_answer_text ??
         (await orNull(row.booked_free_text, readFreeText)),

@@ -1,6 +1,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -29,9 +31,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     /** Insert an "answer"-trigger modifier directly and return its id. */
     const createAnswerModifier = async (name: string): Promise<number> => {
       const { modifiersTable } = await import("#db/modifiers.ts");
-      const m = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const m = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name,
         trigger: "answer",
@@ -194,9 +196,9 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
       const { modifiersTable } = await import("#db/modifiers.ts");
-      const automatic = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const automatic = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name: "Automatic fee",
         trigger: "automatic",

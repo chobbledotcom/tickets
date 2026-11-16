@@ -132,9 +132,7 @@ export type PackagePath = {
  * order. Members are the package's CURRENT listings. A package with no
  * members offers nothing. */
 export const loadPackagePaths = async (): Promise<PackagePath[]> => {
-  const packages = (await groups.getAll()).filter(
-    (group) => group.is_package,
-  );
+  const packages = (await groups.getAll()).filter((group) => group.is_package);
   const { members: membersByGroupId, more: priceRowsByGroupId } =
     await readGroupMembersWith(
       packages,

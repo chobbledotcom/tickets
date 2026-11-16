@@ -26,6 +26,7 @@ import {
   testCookie,
 } from "#test-utils/session.ts";
 import { builtSitesTestEnv } from "./env.ts";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 
 describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites/:id/:tab", () => {
@@ -264,7 +265,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       await deleteTestBuiltSite(site.id);
 
       const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await builtSitesCrudTable.read.one({ id: site.id });
+      const found = await findBuiltSiteById(site.id);
       expect(found).toBeNull();
     });
 
@@ -284,7 +285,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       );
 
       const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await builtSitesCrudTable.read.one({ id: site.id });
+      const found = await findBuiltSiteById(site.id);
       expect(found).not.toBeNull();
     });
 

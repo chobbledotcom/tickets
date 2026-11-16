@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { listingGroups } from "#db/groups/table.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -251,7 +253,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { groups } = await import("#db/groups.ts");
       const { getListingWithCount } = await import("#db/listings/records.ts");
 
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await findRow(tables.groups, group.id)).toBeNull();
       const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.

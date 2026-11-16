@@ -58,7 +58,7 @@ export const createTestGroup = async (
     },
     async () => {
       const { groups } = await import("#db/groups.ts");
-      const all = await groups.cache.getAll();
+      const all = await groups.getAll();
       return all[all.length - 1] as Group;
     },
     "create group",
@@ -84,11 +84,12 @@ export const createHiddenPackageGroup = async (
   name = "Bundle",
 ): Promise<Group> => {
   const group = await createTestGroup({ isPackage: true, name });
-  const { groups } = await import("#db/groups.ts");
+  const { updateRow } = await import("#db/record-table.ts");
+  const { tables } = await import("#db/select/tables.ts");
   // Return the updated row. The object from before the update still says the
   // package shows its members, so a caller reading the flag reads a stale one.
-  return (await groups.table.update(group.id, {
-    hidePackageListings: true,
+  return (await updateRow(tables.groups, group.id, {
+    hide_package_listings: true,
   })) as Group;
 };
 
@@ -125,8 +126,8 @@ export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
-  const { groups } = await import("#db/groups.ts");
-  const existing = (await groups.table.read.one({ id: groupId })) as Group;
+  const { getGroupById } = await import("#db/groups.ts");
+  const existing = (await getGroupById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
   const isPackage = updates.isPackage ?? existing.is_package;
@@ -149,7 +150,7 @@ export const updateTestGroup = async (
       ...(showHiddenListings ? { show_hidden_listings: "1" } : {}),
     },
     async () => {
-      const updated = await groups.table.read.one({ id: groupId });
+      const updated = await getGroupById(groupId);
       return updated as Group;
     },
     "update group",
@@ -157,8 +158,8 @@ export const updateTestGroup = async (
 };
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
-  const { groups } = await import("#db/groups.ts");
-  const existing = (await groups.table.read.one({ id: groupId })) as Group;
+  const { getGroupById } = await import("#db/groups.ts");
+  const existing = (await getGroupById(groupId)) as Group;
 
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/delete`,

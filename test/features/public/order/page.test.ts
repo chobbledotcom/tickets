@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
@@ -242,7 +243,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
         name: "Mystery Box",
         slug: "mystery-box",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      await updateRow(tables.groups, group.id, { hide_package_listings: true });
       const secret = await createTestListing({
         groupId: group.id,
         name: "Secret Widget",

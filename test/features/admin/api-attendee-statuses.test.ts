@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
@@ -19,7 +21,7 @@ const createStatus = async (
   name: string,
   flags: { is_public_default?: boolean; is_paid_default?: boolean } = {},
 ): Promise<{ id: number; name: string }> =>
-  attendeeStatuses.table.insert({ name, ...flags });
+  insertRow(tables.attendee_statuses, { name, ...flags });
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
@@ -253,10 +255,10 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     });
 
     test("an update keeps a reservation's stored amount", async () => {
-      const status = await attendeeStatuses.table.insert({
-        isReservation: true,
+      const status = await insertRow(tables.attendee_statuses, {
+        is_reservation: true,
         name: "Reserved",
-        reservationAmount: "25%",
+        reservation_amount: "25%",
       });
 
       await assertJson(
@@ -324,10 +326,10 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     });
 
     test("refuses an amount when the update turns the reservation off", async () => {
-      const status = await attendeeStatuses.table.insert({
-        isReservation: true,
+      const status = await insertRow(tables.attendee_statuses, {
+        is_reservation: true,
         name: "Reserved",
-        reservationAmount: "25%",
+        reservation_amount: "25%",
       });
 
       await assertJson(

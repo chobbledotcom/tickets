@@ -2,10 +2,11 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   assertJson,
@@ -348,7 +349,7 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
 
   test("resolves status by name and refuses an unknown status", async () => {
     const listing = await createTestListing({ name: "Status Fair" });
-    const vip = await attendeeStatuses.table.insert({ name: "VIP" });
+    const vip = await insertRow(tables.attendee_statuses, { name: "VIP" });
     const created = await assertJson(
       createBooking(listing.id, { name: "VIP Buyer", status: "VIP" }),
       201,

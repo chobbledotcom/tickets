@@ -24,7 +24,7 @@ export const invalidateAllCaches = (): void => {
   settings.setup.clearCache();
   invalidateUsersCache();
   invalidateListingsCache();
-  groups.cache.invalidate();
+  groups.invalidate();
   holidays.invalidate();
   invalidateCachesForTable("sessions");
 };

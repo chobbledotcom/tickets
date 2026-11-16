@@ -1,10 +1,11 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectHtml,
@@ -59,10 +60,10 @@ const reservedAttendee = async () => {
     name: "Gala Ticket",
     thankYouUrl: "https://example.com",
   });
-  const reservation = await attendeeStatuses.table.insert({
-    isReservation: true,
+  const reservation = await insertRow(tables.attendee_statuses, {
+    is_reservation: true,
     name: "Reserved",
-    reservationAmount: "10%",
+    reservation_amount: "10%",
   });
   return owedAttendee(listing.id, reservation.id, 1500);
 };
@@ -197,10 +198,10 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const confirmed = await attendeeStatuses.table.insert({
-      isReservation: false,
+    const confirmed = await insertRow(tables.attendee_statuses, {
+      is_reservation: false,
       name: "Confirmed",
-      reservationAmount: "0",
+      reservation_amount: "0",
     });
     const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {

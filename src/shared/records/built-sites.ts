@@ -42,9 +42,7 @@ const saveBuiltSite = (
   verb: "created" | "updated",
 ): Promise<WriteVerdict<BuiltSite>> =>
   commitBuiltSite(verb, () =>
-    id === null
-      ? createBuiltSite(input)
-      : updateBuiltSite(id, () => input),
+    id === null ? createBuiltSite(input) : updateBuiltSite(id, () => input),
   );
 
 const builtSiteWrites = {
@@ -63,9 +61,9 @@ export const builtSiteRecord = defineNamedRowRecord<
 >()({
   activityName: "Built site",
   getAll: builtSites.getAll,
-  nameLabel: "built_sites.name_label",
-  surface: "builtSites",
   load: findBuiltSiteById,
   loadAfterWrite: findBuiltSiteByIdPrimary,
+  nameLabel: "built_sites.name_label",
+  surface: "builtSites",
   write: builtSiteWrites,
 });

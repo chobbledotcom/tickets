@@ -11,6 +11,8 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   expectFlashRedirect,
   expectHtmlResponse,
@@ -36,7 +38,7 @@ describeWithEnv(
         terms_and_conditions: "",
       });
       expect(response.status).toBe(302);
-      const allGroups = await groups.cache.getAll();
+      const allGroups = await groups.getAll();
       expect(allGroups[allGroups.length - 1]!.is_package).toBe(true);
     });
 
@@ -62,7 +64,7 @@ describeWithEnv(
         true,
       )(response);
 
-      const saved = (await groups.table.read.one({ id: group.id }))!;
+      const saved = (await findRow(tables.groups, group.id))!;
       expect(saved.is_package).toBe(true);
       const prices = await getTestPackagePrices(group.id);
       expect(prices.get(a.id)).toBe(1250);
@@ -160,7 +162,7 @@ describeWithEnv(
         is_package: "1",
       });
       expect(
-        (await groups.table.read.one({ id: group.id }))!.hide_package_listings,
+        (await findRow(tables.groups, group.id))!.hide_package_listings,
       ).toBe(true);
     });
 
@@ -230,16 +232,14 @@ describeWithEnv(
         is_package: "1",
         [`package_price_${a.id}`]: "9.00",
       });
-      expect((await groups.table.read.one({ id: group.id }))!.is_package).toBe(
-        true,
-      );
+      expect((await findRow(tables.groups, group.id))!.is_package).toBe(true);
 
       // Re-submit without the checkbox: flag clears and overrides reset to 0.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Clr", "clr"),
         [`package_price_${a.id}`]: "9.00",
       });
-      const saved = (await groups.table.read.one({ id: group.id }))!;
+      const saved = (await findRow(tables.groups, group.id))!;
       expect(saved.is_package).toBe(false);
       expect((await getTestPackagePrices(group.id)).size).toBe(0);
     });

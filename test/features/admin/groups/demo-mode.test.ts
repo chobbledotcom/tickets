@@ -22,7 +22,7 @@ describeDemoNameSaves({
       ...groupFields(name),
       slug: group.slug,
     });
-    groups.cache.invalidate();
+    groups.invalidate();
     return (await getGroupById(group.id))?.name;
   },
   fields: groupFields,

@@ -2,8 +2,9 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { withTransaction } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
@@ -272,7 +273,7 @@ describeWithEnv("validateListingInput package membership", { db: true }, () => {
       isPackage: true,
       name: "Hidden Pkg",
     });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
+    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
 
     // A hidden package collapses members to the package name, so a member that
     // gates children (would render a child selector) leaks them.
@@ -343,7 +344,7 @@ describeWithEnv("toggleListingActive", { db: true }, () => {
 
   test("reactivates and logs the reactivation", async () => {
     const listing = await createTestListing({ name: "Toggle On" });
-    await listingsTable.update(listing.id, { active: false });
+    await updateListing(listing.id, { active: false });
     await expectToggled(listing, true, "reactivated");
   });
 });
@@ -353,7 +354,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
     await withLocalStorageEnabled(async () => {
       const listing = await createTestListing({ name: "Delete Me" });
       await uploadRaw(new Uint8Array([1, 2, 3]), "delete-me.pdf");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "delete-me.pdf",
         attachmentUrl: "delete-me.pdf",
       });
@@ -373,7 +374,7 @@ describeWithEnv("performListingDelete", { db: true }, () => {
     await withLocalStorageEnabled(async () => {
       const listing = await createTestListing({ name: "Delete Blocked" });
       await uploadRaw(new Uint8Array([4, 5, 6]), "delete-blocked.pdf");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "delete-blocked.pdf",
         attachmentUrl: "delete-blocked.pdf",
       });

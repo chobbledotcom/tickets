@@ -73,8 +73,7 @@ const groupIdsJson = defineStoredJson(
 export const groups = tableCache(
   tables.groups,
   createKeyedCache<Group>({
-    fetchAll: () =>
-      readRows(from(tables.groups).sortedBy("id").everyColumn()),
+    fetchAll: () => readRows(from(tables.groups).sortedBy("id").everyColumn()),
     idOf: (g) => g.id,
     keyOf: (g) => g.slug_index,
     ttlMs: GROUPS_CACHE_TTL_MS,
@@ -582,16 +581,16 @@ export const getGroupPackagePricesByGroupIds = async (
   groupIds.length === 0
     ? new Map()
     : Map.groupBy(
-    await queryAll<GroupListing>(
-        sql`SELECT groupListing.group_id, groupListing.listing_id,
+        await queryAll<GroupListing>(
+          sql`SELECT groupListing.group_id, groupListing.listing_id,
             ${groupFlatPriceSubquery(sql`groupListing.group_id`)},
             groupListing.quantity
        FROM group_listings AS groupListing
       WHERE groupListing.group_id IN (${sqlList(groupIds)})
    ORDER BY groupListing.listing_id ASC`,
-    ),
-    (row) => row.group_id,
-  );
+        ),
+        (row) => row.group_id,
+      );
 
 /** The statement that copies a source listing's per-package `quantity` onto a
  * freshly-duplicated listing's membership rows, for every package group they

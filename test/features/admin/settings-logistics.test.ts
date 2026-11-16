@@ -6,7 +6,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { deleteRow, findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
@@ -41,9 +42,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       "/admin/logistics",
       "Logistics agent updated",
     )(response);
-    expect((await logisticsAgents.table.read.one({ id }))!.name).toBe(
-      "Renamed",
-    );
+    expect((await findRow(tables.logistics_agents, id))!.name).toBe("Renamed");
   });
 
   test("the edit afterWrite persists assigned users", async () => {
@@ -87,7 +86,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       name: "Ghost",
     });
     const raced = await racedBy(
-      () => logisticsAgents.table.deleteById(id),
+      () => deleteRow(tables.logistics_agents, id),
       () => adminFormPost(`/admin/logistics/${id}/edit`, { name: "Renamed" }),
     );
 
@@ -113,7 +112,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
       "/admin/logistics",
       "Logistics agent deleted",
     )(response);
-    expect(await logisticsAgents.table.read.one({ id })).toBeNull();
+    expect(await findRow(tables.logistics_agents, id)).toBeNull();
   });
 
   test("deleting an agent clears its user assignments", async () => {

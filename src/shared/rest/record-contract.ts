@@ -304,6 +304,9 @@ export interface RecordSpec<Shape extends RecordShape>
   /** A refusal the JSON delete answers beyond the confirmation check. The
    * page can declare its own pre-render guard. */
   readonly deleteRefusal?: DeleteRefusal;
+  /** The fields whose declared defaults a generated create starts from, for
+   * the fields that its input leaves out. */
+  readonly fieldDefaults?: FieldSpecs;
   readonly getAll?: GetAllCommand<ListRowOf<Shape>>;
   /** Link create/update log entries to the row (the listing log does). */
   readonly linkActivityToRow?: boolean;
@@ -352,9 +355,6 @@ export interface RecordSpec<Shape extends RecordShape>
   /** Where the record lives: the record area that declares its routes and
    * its audience, or the route ids of a record outside a record area. */
   readonly surface: RecordAreaId | RecordSurface;
-  /** The fields whose declared defaults a generated create starts from, for
-   * the fields that its input leaves out. */
-  readonly fieldDefaults?: FieldSpecs;
   /** The table that the generated writes change. */
   readonly table?: TableHandle<RecordTableOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table

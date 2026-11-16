@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -44,7 +44,7 @@ describeWithEnv(
     describe("POST /admin/listing/:id/attachment/delete", () => {
       test("removes attachment from listing and storage", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "file.pdf",
           attachmentUrl: "to-delete.pdf",
         });
@@ -82,7 +82,7 @@ describeWithEnv(
 
       test("keeps attachment linked when storage deletion fails", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "guide.pdf",
           attachmentUrl: "delete-fails.pdf",
         });

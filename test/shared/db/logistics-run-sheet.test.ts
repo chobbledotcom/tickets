@@ -7,7 +7,6 @@ import {
   type LogisticsAssignment,
   setLogisticsAssignments,
 } from "#db/logistics.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
 import {
   type DeliveryLegKind,
   getAgentRunSheet,
@@ -16,6 +15,8 @@ import {
   setLegDone,
 } from "#db/logistics-run-sheet.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createListingWithAttendeeAndLogistics } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -67,8 +68,8 @@ const insertVanAndOther = async (): Promise<{
   van: number;
   other: number;
 }> => ({
-  other: (await logisticsAgents.table.insert({ name: "Other" })).id,
-  van: (await logisticsAgents.table.insert({ name: "Van" })).id,
+  other: (await insertRow(tables.logistics_agents, { name: "Other" })).id,
+  van: (await insertRow(tables.logistics_agents, { name: "Van" })).id,
 });
 
 /** The one van pair every dual-path fixture stamps on its booking rows. */

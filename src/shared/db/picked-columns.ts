@@ -40,6 +40,8 @@ export const everyColumnPicked = (
 ): PickedColumns => {
   const node: Readonly<Record<string, SqlStatement>> = tableNode(table, word);
   return pickedColumns(
-    Object.fromEntries(table.columns.map(([column]) => [column, node[column]!])),
+    Object.fromEntries(
+      table.columns.map(([column]) => [column, node[column]!]),
+    ),
   );
 };

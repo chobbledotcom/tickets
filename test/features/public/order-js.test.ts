@@ -2,9 +2,10 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { orderWidgetBody } from "#routes/assets.ts";
@@ -94,7 +95,7 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
       name: "Secret Bundle",
       slug: "secret-bundle",
     });
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Concealed",

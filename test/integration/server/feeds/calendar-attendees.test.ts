@@ -4,6 +4,8 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { expectHtml } from "#test-utils/assertions.ts";
@@ -173,7 +175,7 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     await settings.update.calendarFeedsEnabled(true);
     const dataKey = await getTestDataKeyForApiKey();
     const user = await createUser("feed-agent", "", null, "agent");
-    const agent = await logisticsAgents.table.insert({ name: "Van 1" });
+    const agent = await insertRow(tables.logistics_agents, { name: "Van 1" });
     await userAgents.setIds(user.id, [agent.id]);
     await enableFeature("logistics");
     const { apiKey } = await createApiKey(

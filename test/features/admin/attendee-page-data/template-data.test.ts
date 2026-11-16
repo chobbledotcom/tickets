@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   buildCreateForm,
   buildTemplateData,
@@ -61,18 +62,18 @@ describeWithEnv("attendee form template data", { db: true }, () => {
   });
 
   test("a new reservation with no order does not show an unpaid-balance warning", async () => {
-    const status = await attendeeStatuses.table.insert({
-      isReservation: true,
+    const status = await insertRow(tables.attendee_statuses, {
+      is_reservation: true,
       name: "New reservation",
-      reservationAmount: "25%",
+      reservation_amount: "25%",
     });
 
     expect((await dataForStatus(status)).balanceNotice).toBeNull();
   });
 
   test("a new paid attendee with no order does not show an owing warning", async () => {
-    const status = await attendeeStatuses.table.insert({
-      isPaidDefault: true,
+    const status = await insertRow(tables.attendee_statuses, {
+      is_paid_default: true,
       name: "Paid before booking",
     });
 

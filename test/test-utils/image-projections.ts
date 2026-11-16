@@ -5,7 +5,7 @@
  */
 
 import { expect } from "@std/expect";
-import { getImageFilenamesForItem, imagesTable } from "#db/images.ts";
+import { getImageFilenamesForItem, insertImageRecord } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -46,7 +46,7 @@ export const addProjectedImage = async (
   expected: ItemImageColumns,
 ): Promise<number> =>
   (
-    await imagesTable.insert({
+    await insertImageRecord({
       altText: expected.image_alt_text,
       filename: nonEmptyString(expected.image_url, "projected image filename"),
       filenameThumb: nonEmptyString(

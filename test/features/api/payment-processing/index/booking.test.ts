@@ -12,7 +12,8 @@ import {
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
@@ -158,13 +159,13 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   test("creates and answers a paid booking in three database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
-    const question = await questionsTable.insert({
-      displayType: "select",
+    const question = await insertRow(tables.questions, {
+      display_type: "select",
       text: "Meal?",
     });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 0,
+    const answer = await insertRow(tables.answers, {
+      question_id: question.id,
+      sort_order: 0,
       text: "Soup",
     });
     await listingQuestions.setIds(listing.id, [question.id]);

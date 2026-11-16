@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -27,7 +27,7 @@ describeWithEnv(
     test("checks outgoing child edges", async () => {
       const parent = await createTestListing({ name: "Renewal parent" });
       const child = await createTestListing({ name: "Standard child" });
-      await listingsTable.update(parent.id, { monthsPerUnit: 1 });
+      await updateListing(parent.id, { monthsPerUnit: 1 });
       await listingChildren.setIds(parent.id, [child.id]);
 
       await expect(check(parent.id)).rejects.toThrow(

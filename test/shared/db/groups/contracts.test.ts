@@ -14,6 +14,8 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { findRow, insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -27,17 +29,17 @@ import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
-  return await groups.table.insert({
+  return await insertRow(tables.groups, {
     name,
     slug,
-    slugIndex: await hmacHash(slug),
+    slug_index: await hmacHash(slug),
   });
 };
 
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    expect(await groups.table.read.one({ id: inserted.id })).toMatchObject({
+    expect(await findRow(tables.groups, inserted.id)).toMatchObject({
       hidden: false,
       hide_package_listings: false,
       is_package: false,
@@ -45,22 +47,18 @@ describeWithEnv("db > group storage contracts", { db: true }, () => {
   });
 
   test("a group write refreshes an already-read group cache", async () => {
-    expect(await groups.cache.getAll()).toEqual([]);
+    expect(await groups.getAll()).toEqual([]);
 
     const group = await insertMinimalGroup("Cache Refresh");
 
-    expect((await groups.cache.getAll()).map(({ id }) => id)).toEqual([
-      group.id,
-    ]);
+    expect((await groups.getAll()).map(({ id }) => id)).toEqual([group.id]);
   });
 
   test("a second read inside the cache window does not query again", async () => {
     await insertMinimalGroup("Cache Window");
-    await groups.cache.getAll();
+    await groups.getAll();
 
-    const { roundTrips } = await runAndCountRoundTrips(() =>
-      groups.cache.getAll(),
-    );
+    const { roundTrips } = await runAndCountRoundTrips(() => groups.getAll());
 
     expect(roundTrips).toBe(0);
   });

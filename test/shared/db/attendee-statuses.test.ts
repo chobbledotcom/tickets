@@ -14,6 +14,8 @@ import {
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
+import { deleteRow, insertRow, updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -41,9 +43,9 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("saving a status that is not a default leaves it alone", async () => {
-    const other = await attendeeStatuses.table.insert({
+    const other = await insertRow(tables.attendee_statuses, {
       name: "Waitlist",
-      sortOrder: 1,
+      sort_order: 1,
     });
 
     // It holds neither default, and is not being asked to take one, so there
@@ -128,15 +130,15 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("inserting statuses returns them ordered by sort_order then id", async () => {
-    const reserved = await attendeeStatuses.table.insert({
-      isReservation: true,
+    const reserved = await insertRow(tables.attendee_statuses, {
+      is_reservation: true,
       name: "Reserved",
-      reservationAmount: "10%",
-      sortOrder: 2,
+      reservation_amount: "10%",
+      sort_order: 2,
     });
-    const waitlist = await attendeeStatuses.table.insert({
+    const waitlist = await insertRow(tables.attendee_statuses, {
       name: "Waitlist",
-      sortOrder: 1,
+      sort_order: 1,
     });
 
     const names = (await attendeeStatuses.getAll()).map((s) => s.name);
@@ -155,18 +157,26 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("ordered rows swap two statuses' sort_order", async () => {
-    const a = await attendeeStatuses.table.insert({ name: "A", sortOrder: 5 });
-    const b = await attendeeStatuses.table.insert({ name: "B", sortOrder: 6 });
+    const a = await insertRow(tables.attendee_statuses, {
+      name: "A",
+      sort_order: 5,
+    });
+    const b = await insertRow(tables.attendee_statuses, {
+      name: "B",
+      sort_order: 6,
+    });
     await attendeeStatusOrder.swap({ first: a.id, second: b.id });
     expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
     expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
   });
 
   test("update changes fields and invalidates the cache", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "Pending" });
-    await attendeeStatuses.table.update(created.id, {
-      isReservation: true,
-      reservationAmount: "25",
+    const created = await insertRow(tables.attendee_statuses, {
+      name: "Pending",
+    });
+    await updateRow(tables.attendee_statuses, created.id, {
+      is_reservation: true,
+      reservation_amount: "25",
     });
     const updated = await getAttendeeStatus(created.id);
     expect(updated?.is_reservation).toBe(true);
@@ -174,13 +184,15 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("deleteById removes a status", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "Temp" });
-    await attendeeStatuses.table.deleteById(created.id);
+    const created = await insertRow(tables.attendee_statuses, { name: "Temp" });
+    await deleteRow(tables.attendee_statuses, created.id);
     expect(await getAttendeeStatus(created.id)).toBeNull();
   });
 
   test("status name is encrypted at rest", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "VIP Guest" });
+    const created = await insertRow(tables.attendee_statuses, {
+      name: "VIP Guest",
+    });
     const raw = await getDb().execute(
       sql`SELECT name FROM attendee_statuses WHERE id = ${created.id}`,
     );
@@ -221,8 +233,10 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("concurrent default changes leave one public and paid default", async () => {
-    const first = await attendeeStatuses.table.insert({ name: "First" });
-    const second = await attendeeStatuses.table.insert({ name: "Second" });
+    const first = await insertRow(tables.attendee_statuses, { name: "First" });
+    const second = await insertRow(tables.attendee_statuses, {
+      name: "Second",
+    });
 
     const results = await Promise.all([
       attendeeStatusWrites.save(
@@ -282,7 +296,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("a failed default change restores the previous defaults", async () => {
     const seed = (await attendeeStatuses.getAll())[0]!;
-    const candidate = await attendeeStatuses.table.insert({
+    const candidate = await insertRow(tables.attendee_statuses, {
       name: "Candidate",
     });
     await getDb().execute(
@@ -316,7 +330,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   });
 
   test("a stale edit cannot clear a newly selected default", async () => {
-    const candidate = await attendeeStatuses.table.insert({
+    const candidate = await insertRow(tables.attendee_statuses, {
       name: "Candidate",
     });
 

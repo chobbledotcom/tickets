@@ -6,8 +6,9 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -156,7 +157,7 @@ describeWithEnv("the tabs a listing does not offer", { db: true }, () => {
 
   test("a package member keeps its standalone booking QR", async () => {
     const hidden = await createTestGroup({ isPackage: true, name: "Hidden" });
-    await groups.table.update(hidden.id, { hidePackageListings: true });
+    await updateRow(tables.groups, hidden.id, { hide_package_listings: true });
     const member = await createTestListing({
       groupId: hidden.id,
       maxAttendees: 10,

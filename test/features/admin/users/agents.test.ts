@@ -2,6 +2,8 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
@@ -31,7 +33,7 @@ const inviteAgent = (username: string, agentId?: string) =>
 
 const enableLogisticsWithVan = async () => {
   await enableFeature("logistics");
-  return await logisticsAgents.table.insert({ name: "Van 1" });
+  return await insertRow(tables.logistics_agents, { name: "Van 1" });
 };
 
 const vanWithAssignedAgent = async (token: string, username: string) => {

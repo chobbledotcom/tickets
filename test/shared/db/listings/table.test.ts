@@ -4,7 +4,11 @@ import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import {
+  createListing,
+  getListingWithCount,
+  updateListing,
+} from "#db/listings/records.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
@@ -21,7 +25,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     slug: string,
     fields: Partial<ListingInput> = {},
   ) =>
-    listingsTable.insert({
+    createListing({
       maxAttendees: 100,
       maxPrice: 10000,
       name: slug,
@@ -191,7 +195,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("clamps an out-of-range update", async () => {
       const listing = await insertListing("test-dur-upd");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         durationDays: MAX_DURATION_DAYS + 1,
       });
       expect((await getListingWithCount(listing.id))!.duration_days).toBe(

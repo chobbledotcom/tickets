@@ -1,8 +1,10 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups, setGroupPackageMembers } from "#db/groups.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { validateAllItems } from "#routes/api/payment-processing/items.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -55,7 +57,7 @@ const childOrder = async (
   const [parent, child] = intent.items;
   const allocation = intent.allocations?.[0];
   assert(parent?.r !== undefined && child && allocation);
-  await groups.table.update(parent.r, { hidePackageListings: true });
+  await updateRow(tables.groups, parent.r, { hide_package_listings: true });
 
   if (path === "offered" || path === "named-parent") {
     const named = await createTestGroup({ isPackage: true });
@@ -75,7 +77,7 @@ const childOrder = async (
   if (path === "named-parent" || path === "standalone-parent") {
     // The two paths sum the parent to two units, so its stored maximum must
     // hold them; the privacy matrix is not the maximum rule's test.
-    await listingsTable.update(parent.e, { maxQuantity: 2 });
+    await updateListing(parent.e, { maxQuantity: 2 });
     allocation.qty = 2;
     child.q = 2;
     child.p = 400;
@@ -95,7 +97,7 @@ const checkChildName = async (
   const intent = await childOrder(path);
   const child = intent.items[1];
   assert(child);
-  await listingsTable.update(child.e, {
+  await updateListing(child.e, {
     active: state !== "inactive",
     bookableAlone: true,
     closesAt: state === "closed" ? pastCloseTime() : null,

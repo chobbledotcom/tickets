@@ -1,13 +1,14 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute } from "#db/client.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -54,10 +55,10 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 1500,
   });
-  const status = await attendeeStatuses.table.insert({
-    isReservation: false,
+  const status = await insertRow(tables.attendee_statuses, {
+    is_reservation: false,
     name: "Confirmed",
-    reservationAmount: "0",
+    reservation_amount: "0",
   });
   const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 0, quantity: 1 }],
@@ -93,10 +94,10 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 10000,
   });
-  const status = await attendeeStatuses.table.insert({
-    isReservation: true,
+  const status = await insertRow(tables.attendee_statuses, {
+    is_reservation: true,
     name: "Reserved",
-    reservationAmount: "20%",
+    reservation_amount: "20%",
   });
   const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 2000, quantity: 1 }],

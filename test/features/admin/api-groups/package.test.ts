@@ -386,7 +386,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
         expect(body.error).toBe(t("error.sold_hidden_package"));
       },
     );
-    const refreshed = await groups.cache.getAll();
+    const refreshed = await groups.getAll();
     expect(refreshed.find((g) => g.id === group.id)?.is_package).toBe(true);
   });
 });

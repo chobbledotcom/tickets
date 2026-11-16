@@ -7,7 +7,9 @@
 
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
+import { findRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { map } from "#fp";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -225,7 +227,7 @@ export const organiserRevealsParts: ActOnOneThing = (world, name) =>
 
 /** The bundle as the site has it now, or nothing if it is gone. */
 const readBundle = (world: TicketsWorld, name: string) =>
-  groups.table.read.one({ id: bundleNamed(world, name).id });
+  findRow(tables.groups, bundleNamed(world, name).id);
 
 /** Whether the site is still selling this as one bundle. */
 export const isStillABundle: AsksAboutOneThing = async (world, name) => {

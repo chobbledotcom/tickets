@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { builtSitesCrudTable } from "#db/built-sites.ts";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
@@ -32,7 +32,7 @@ describeWithEnv(
       );
 
       expectFlash(response, "Scheduled maintenance key sent to the site.");
-      const key = (await builtSitesCrudTable.read.one({ id: site.id }))
+      const key = (await findBuiltSiteById(site.id))
         ?.scheduledTaskKey;
       expect(isScheduledTaskKey(key ?? "")).toBe(true);
     });
@@ -59,7 +59,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/provision-scheduler`,
       );
       expectFlash(failed, "provider failed", false);
-      const retained = (await builtSitesCrudTable.read.one({ id: site.id }))
+      const retained = (await findBuiltSiteById(site.id))
         ?.scheduledTaskKey;
 
       const { response: retried } = await adminFormPost(

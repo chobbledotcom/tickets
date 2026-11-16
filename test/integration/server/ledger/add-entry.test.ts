@@ -11,7 +11,8 @@ import {
   MANUAL_MODIFIER_REDUCTION,
 } from "#accounting/manual-entries.ts";
 import { allTransfers } from "#accounting/queries.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   postAttendeePayment,
@@ -74,9 +75,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
   });
 
   test("renders modifier add choices for modifier-specific changes", async () => {
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 500,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 500,
       direction: "charge",
       name: "Helmet hire",
     });
@@ -136,9 +137,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       name: "Door sales",
       thankYouUrl: "https://example.com",
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 500,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 500,
       direction: "charge",
       name: "Damage cover",
     });
@@ -192,9 +193,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
   });
 
   test("posts modifier income without moving money between item types", async () => {
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 500,
+    const modifier = await insertRow(tables.modifiers, {
+      calc_kind: "fixed",
+      calc_value: 500,
       direction: "charge",
       name: "Insurance",
     });

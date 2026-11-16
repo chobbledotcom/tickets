@@ -13,6 +13,8 @@ import {
   getAgentRunSheetBookings,
   runSheetBookingKey,
 } from "#db/logistics-run-sheet.ts";
+import { deleteRow, insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -42,8 +44,8 @@ const newAttendee = async (): Promise<{
 };
 
 const setupDropoffAndCollection = async (split: boolean) => {
-  const drop = await logisticsAgents.table.insert({ name: "Drop" });
-  const coll = await logisticsAgents.table.insert({ name: "Coll" });
+  const drop = await insertRow(tables.logistics_agents, { name: "Drop" });
+  const coll = await insertRow(tables.logistics_agents, { name: "Coll" });
   const { attendeeId, listingId } = await newAttendee();
   const assignment = {
     endAgentId: coll.id,
@@ -65,16 +67,18 @@ describeWithEnv("db logistics agents", { db: true }, () => {
   });
 
   test("inserts and reads back logistics agents (decrypted)", async () => {
-    await logisticsAgents.table.insert({ name: "Van 1" });
-    await logisticsAgents.table.insert({ name: "Van 2" });
+    await insertRow(tables.logistics_agents, { name: "Van 1" });
+    await insertRow(tables.logistics_agents, { name: "Van 2" });
     const agents = await logisticsAgents.getAll();
     expect(agents.map((a) => a.name)).toEqual(["Van 1", "Van 2"]);
   });
 
   test("invalidateLogisticsAgentsCache forces a re-read", async () => {
-    const agent = await logisticsAgents.table.insert({ name: "Cached Van" });
+    const agent = await insertRow(tables.logistics_agents, {
+      name: "Cached Van",
+    });
     await logisticsAgents.getAll();
-    await logisticsAgents.table.deleteById(agent.id);
+    await deleteRow(tables.logistics_agents, agent.id);
     logisticsAgents.invalidate();
     const agents = await logisticsAgents.getAll();
     expect(agents.find((a) => a.id === agent.id)).toBe(undefined);
@@ -110,7 +114,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getLogisticsAssignmentsForAttendees returns one row per booking", async () => {
-    const drop = await logisticsAgents.table.insert({ name: "Drop" });
+    const drop = await insertRow(tables.logistics_agents, { name: "Drop" });
     const { attendeeId, listingId } = await newAttendee();
     await setLogisticsAssignments(
       attendeeId,
@@ -149,8 +153,9 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getAgentRunSheetBookings keeps only requested bookings on the agent's run sheet", async () => {
-    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
-    const other = (await logisticsAgents.table.insert({ name: "Other" })).id;
+    const van = (await insertRow(tables.logistics_agents, { name: "Van" })).id;
+    const other = (await insertRow(tables.logistics_agents, { name: "Other" }))
+      .id;
     const mine = await newAttendee();
     const theirs = await newAttendee();
 
@@ -179,7 +184,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getAgentRunSheetBookings uses the run sheet collection date", async () => {
-    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const van = (await insertRow(tables.logistics_agents, { name: "Van" })).id;
     const booking = await newAttendee();
     await assignBookingLogistics(
       booking,
@@ -205,7 +210,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
   });
 
   test("getAgentRunSheetBookings excludes no-quantity bookings", async () => {
-    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const van = (await insertRow(tables.logistics_agents, { name: "Van" })).id;
     const booking = await newAttendee();
     await assignBookingLogistics(
       booking,
@@ -227,7 +232,7 @@ describeWithEnv("db logistics assignments", { db: true }, () => {
     // leg must NOT see the other row's date/quantity: returning the (attendee,
     // listing) pair alone would let one assigned row bless a sibling outside
     // the agent's run sheet.
-    const van = (await logisticsAgents.table.insert({ name: "Van" })).id;
+    const van = (await insertRow(tables.logistics_agents, { name: "Van" })).id;
     const { attendeeId, listingId } = await newAttendee();
     // Row A (D1, drop-off owned by `van`):
     await assignBookingLogistics(

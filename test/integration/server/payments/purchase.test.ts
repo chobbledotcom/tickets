@@ -4,7 +4,8 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { ProviderCheckoutError } from "#payment/checkout-failure.ts";
 import { matchKey } from "#shared/keys.ts";
@@ -203,21 +204,21 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       // An opt-in add-on and a promo-code discount, both whole-order. A second
       // add-on is offered but left unselected (its quantity field stays 0).
-      const addOn = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const addOn = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 5,
         direction: "charge",
         name: "T-shirt",
       });
-      const skippedAddOn = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 3,
+      const skippedAddOn = await insertRow(tables.modifiers, {
+        calc_kind: "fixed",
+        calc_value: 3,
         direction: "charge",
         name: "Tote bag",
       });
-      const promo = await modifiersTable.insert({
-        calcKind: "percent",
-        calcValue: 10,
+      const promo = await insertRow(tables.modifiers, {
+        calc_kind: "percent",
+        calc_value: 10,
         direction: "discount",
         name: "SAVE10",
       });

@@ -138,7 +138,7 @@ describeWithEnv("cold-start benchmark seeding", { db: true }, () => {
     expect(ids.groupIds.size).toBe(total);
     expect(ids.listingIds.size).toBe(total);
 
-    const groupRows = await groups.cache.getAll();
+    const groupRows = await groups.getAll();
     const listingRows = await getAllListings();
     expect(groupRows).toHaveLength(total);
     expect(listingRows).toHaveLength(total);

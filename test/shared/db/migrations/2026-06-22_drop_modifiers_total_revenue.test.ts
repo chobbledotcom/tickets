@@ -1,5 +1,6 @@
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { modifierRevenueDropFixture } from "#test-utils/db/legacy-aggregate-migration.ts";
 import {
@@ -11,9 +12,9 @@ import { describeWithEnv } from "#test-utils/db.ts";
 const { contribution, runMigration } = modifierRevenueDropFixture;
 
 const makeModifier = () =>
-  modifiersTable.insert({
-    calcKind: "fixed",
-    calcValue: 5,
+  insertRow(tables.modifiers, {
+    calc_kind: "fixed",
+    calc_value: 5,
     direction: "charge",
     name: "Add-on",
   });
