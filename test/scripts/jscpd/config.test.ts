@@ -15,8 +15,8 @@ interface ScanPromise {
    * and relies on jscpd's own exit code instead. */
   baseline: string | null;
   /** The scan skips the destructured dynamic imports that load a module on
-   * first use. The test scan reads them: the pattern gives its recorded
-   * clones new fingerprints. */
+   * first use. The scans of the tests and of their helpers read them: the
+   * pattern gives their recorded clones new fingerprints. */
   skipsLazyImports: boolean;
   /** The scan treats names, literals and annotations as noise, so a renamed
    * copy is a clone. jscpd labels it `renamed`, and a `kind` filter would hide
@@ -38,7 +38,7 @@ const scans: Record<string, ScanPromise> = {
   },
   "cfg/jscpd.helpers.json": {
     baseline: "cfg/.jscpd.helpers-baseline.json",
-    skipsLazyImports: true,
+    skipsLazyImports: false,
     strict: true,
     typescript: true,
   },
@@ -189,7 +189,7 @@ describe("typescript jscpd scans", () => {
     expect(readsTypescript).toEqual(declared.map(([name]) => name));
   });
 
-  test("share one import-statement ignore list, and all but the test scan skip lazy imports", async () => {
+  test("share one import-statement ignore list, and the scans outside the tests skip lazy imports", async () => {
     const typescript = declaredScans.filter(
       ([, promise]) => promise.typescript,
     );
@@ -206,7 +206,7 @@ describe("typescript jscpd scans", () => {
       typescript
         .filter(([, promise]) => !promise.skipsLazyImports)
         .map(([name]) => name),
-    ).toEqual(["cfg/jscpd.test.json"]);
+    ).toEqual(["cfg/jscpd.helpers.json", "cfg/jscpd.test.json"]);
   });
 });
 
