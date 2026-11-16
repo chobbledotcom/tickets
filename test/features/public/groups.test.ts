@@ -100,7 +100,7 @@ describeWithEnv("public package slug loading", { db: true }, () => {
       maxAttendees: 0,
       name: "Sold out member",
     });
-    expect(listing.max_attendees).toBe(0);
+    expect(listing.maxAttendees).toBe(0);
 
     const response = await handleGroupTicketBySlug(
       mockRequest(`/ticket/${group.slug}`),

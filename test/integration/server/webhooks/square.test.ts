@@ -266,8 +266,8 @@ describeWithEnv("Square payment webhooks", { db: true }, () => {
         // processed_payments.payment_session_id, so both deliveries reserve
         // the same row.
         const row = await getProcessedPayment("order-square-replay");
-        expect(row?.payment_session_id).toBe("order-square-replay");
-        expect(row?.attendee_id).toBe(attendees[0]!.id);
+        expect(row?.paymentSessionId).toBe("order-square-replay");
+        expect(row?.attendeeId).toBe(attendees[0]!.id);
 
         // A replayed completed booking asks for no refund at all.
         expect(refund.calls).toHaveLength(0);

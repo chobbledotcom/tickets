@@ -72,8 +72,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await expectCreated(createData());
       const modifier = await lastModifier();
       expect(modifier.name).toBe("Early bird");
-      expect(modifier.calc_kind).toBe("percent");
-      expect(modifier.calc_value).toBe(10);
+      expect(modifier.calcKind).toBe("percent");
+      expect(modifier.calcValue).toBe(10);
       expect(modifier.direction).toBe("discount");
       expect(await storedFeatureEnabled("modifiers")).toBe(true);
     });
@@ -110,12 +110,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
           direction: "charge",
           name: "Booking surcharge",
         },
-        { calc_kind: "fixed", calc_value: 5, direction: "charge" },
+        { calcKind: "fixed", calcValue: 5, direction: "charge" },
       ],
       [
         "accepts a fixed amount at the currency's precision",
         { calc_kind: "fixed", calc_value: "5.50" },
-        { calc_value: 5.5 },
+        { calcValue: 5.5 },
       ],
     ]);
 
@@ -123,13 +123,9 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "stores the minimum order in minor units",
         { min_subtotal: "50" },
-        { min_subtotal: toMinorUnits(50) },
+        { minSubtotal: toMinorUnits(50) },
       ],
-      [
-        "defaults the minimum order to zero when blank",
-        {},
-        { min_subtotal: 0 },
-      ],
+      ["defaults the minimum order to zero when blank", {}, { minSubtotal: 0 }],
     ]);
 
     createAcceptanceTests([
@@ -145,7 +141,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
           name: "Zone 2 delivery",
           trigger: "answer",
         },
-        { max_per_order: 2 },
+        { maxPerOrder: 2 },
       ],
     ]);
 
@@ -153,12 +149,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "drops the max times per order for other triggers",
         { max_per_order: "1" },
-        { max_per_order: null },
+        { maxPerOrder: null },
       ],
       [
         "accepts the max times per order at its declared minimum",
         { max_per_order: "1", trigger: "answer" },
-        { max_per_order: 1 },
+        { maxPerOrder: 1 },
       ],
     ]);
 
@@ -260,10 +256,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         createData({ calc_value: "150", direction: "charge" }),
       );
       const modifier = await lastModifier();
-      expect([modifier.calc_value, modifier.direction]).toEqual([
-        150,
-        "charge",
-      ]);
+      expect([modifier.calcValue, modifier.direction]).toEqual([150, "charge"]);
     });
 
     test("re-renders the create form with the validation error", async () => {

@@ -56,7 +56,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     );
 
     expectRedirect(response);
-    expect((await storedListing("With Date"))?.listing_type).toBe("standard");
+    expect((await storedListing("With Date"))?.listingType).toBe("standard");
   });
 
   test("does not ask a daily listing for a date", async () => {
@@ -70,7 +70,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
     });
 
     expectRedirect(response);
-    expect((await storedListing("Every Week"))?.listing_type).toBe("daily");
+    expect((await storedListing("Every Week"))?.listingType).toBe("daily");
   });
 });
 

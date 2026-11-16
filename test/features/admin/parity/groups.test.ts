@@ -32,11 +32,11 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     const row = await storedGroup("Pinned Page Group");
     expect(row.description).toBe("Pinned page group");
     expect(row.hidden).toBe(false);
-    expect(row.is_package).toBe(false);
-    expect(row.max_attendees).toBe(0);
+    expect(row.isPackage).toBe(false);
+    expect(row.maxAttendees).toBe(0);
     // An absent checkbox stores false, while the API's column default for
     // show_hidden_listings is true.
-    expect(row.show_hidden_listings).toBe(false);
+    expect(row.showHiddenListings).toBe(false);
   });
 
   test("api create stores the same shape from the same facts", async () => {
@@ -83,8 +83,8 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     // the minor-unit price, and the default quantity of one.
     const member = await getGroupPackagePrices(created.group.id);
     expect(member).toHaveLength(1);
-    expect(member[0]?.listing_id).toBe(listed.id);
-    expect(member[0]?.package_price).toBe(5000);
+    expect(member[0]?.listingId).toBe(listed.id);
+    expect(member[0]?.packagePrice).toBe(5000);
     expect(member[0]?.quantity).toBe(1);
   });
 

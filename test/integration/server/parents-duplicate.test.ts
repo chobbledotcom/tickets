@@ -481,9 +481,9 @@ describeWithEnv(
 
       // The copy joins at the source's override, not its base price/quantity 1.
       const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listing_id === copy.id,
+        (r) => r.listingId === copy.id,
       );
-      expect(row?.package_price).toBe(1500);
+      expect(row?.packagePrice).toBe(1500);
       expect(row?.quantity).toBe(2);
       // The per-day override rides the same copy (same group, so the same
       // "<groupId>/<n>" price_id applies to the clone verbatim).
@@ -536,7 +536,7 @@ describeWithEnv(
       );
       expect(
         (await getGroupPackagePrices(visible.id)).some(
-          (r) => r.listing_id === copy.id,
+          (r) => r.listingId === copy.id,
         ),
       ).toBe(true);
       expect(await listingChildren.getIds(copy.id)).toEqual([child.id]);

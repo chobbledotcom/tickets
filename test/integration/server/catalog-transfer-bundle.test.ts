@@ -185,8 +185,8 @@ describeWithEnv("catalog bundle import", { db: true }, () => {
     const packageRows = await getGroupPackagePrices(weekendId);
     expect(packageRows).toHaveLength(2);
     expect(
-      packageRows.find((row) => row.listing_id === workshopId),
-    ).toMatchObject({ package_price: 900, quantity: 2 });
+      packageRows.find((row) => row.listingId === workshopId),
+    ).toMatchObject({ packagePrice: 900, quantity: 2 });
     // The Social member carries its per-day override.
     const dayPrices = await getGroupDayPrices(weekendId);
     expect(dayPrices.get(socialId)).toEqual(new Map([[1, 300]]));

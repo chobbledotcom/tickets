@@ -45,8 +45,8 @@ describe("news post forms", () => {
   test("newsPostToValues pre-fills every edit field, snippet included", () => {
     const values = newsPostToValues({
       content: "Body",
-      meta_description: "Desc",
-      meta_title: "Title",
+      metaDescription: "Desc",
+      metaTitle: "Title",
       name: "Post",
       slug: "post-1",
       snippet: "Short",

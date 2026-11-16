@@ -75,7 +75,7 @@ describeWithEnv("listing detail group context", { db: true }, () => {
     const listing = await listingInCappedGroups("Tightest", [20, 3, 11]);
 
     const context = await loadGroupContext(listing, null);
-    expect(context?.group.max_attendees).toBe(3);
+    expect(context?.group.maxAttendees).toBe(3);
     expect(context?.attendeeCount).toBe(0);
   });
 
@@ -185,7 +185,7 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
   });
 
   test("describes the roster's controls from the listing", () => {
-    const daily = rosterListSetup({ id: 5, listing_type: "daily" }, [
+    const daily = rosterListSetup({ id: 5, listingType: "daily" }, [
       { label: "3 August", value: testDate("2026-08-03") },
     ]);
     expect(daily).toMatchObject({
@@ -200,7 +200,7 @@ describeWithEnv("listing detail attendee filtering", { db: true }, () => {
     expect(daily.dates.map((d) => d.value)).toEqual(["2026-08-03"]);
     // A listing not booked by the day has no day filter to offer.
     expect(
-      rosterListSetup({ id: 5, listing_type: "standard" }, []).withDates,
+      rosterListSetup({ id: 5, listingType: "standard" }, []).withDates,
     ).toBe(false);
   });
 });

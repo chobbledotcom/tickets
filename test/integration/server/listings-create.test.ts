@@ -115,7 +115,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
       const listings = await getAllListings();
       expect(listings.map(({ name }) => name)).toEqual(["Saved before error"]);
-      expect(listings[0]?.max_attendees).toBe(50);
+      expect(listings[0]?.maxAttendees).toBe(50);
       await expectTemporaryError(false)(response);
     });
 

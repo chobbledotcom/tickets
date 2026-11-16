@@ -140,8 +140,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Joining unwraps the DATA_KEY handoff and re-wraps it under the new
       // password (v2), so the user is active immediately — no admin step.
       const user = await getUserByUsername("joiner2");
-      expect(user!.wrapped_data_key).not.toBeNull();
-      expect(user!.kek_version).toBe(2);
+      expect(user!.wrappedDataKey).not.toBeNull();
+      expect(user!.kekVersion).toBe(2);
     });
 
     test("POST /join/:code tells a stale replay the invite is invalid", async () => {
@@ -180,7 +180,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         false,
       )(response);
       // The replay set no password — the account never bound to it.
-      expect((await getUserByUsername("stale-replay"))!.wrapped_data_key).toBe(
+      expect((await getUserByUsername("stale-replay"))!.wrappedDataKey).toBe(
         null,
       );
     });

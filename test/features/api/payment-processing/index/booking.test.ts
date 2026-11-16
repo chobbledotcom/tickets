@@ -86,7 +86,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       // The redelivery finds the booking already exists: it answers 200 and
       // runs nothing again — no second booking, no second email.
       expect(await processPaymentSession(id, data)).toEqual(first);
-      expect((await getProcessedPayment(id))?.attendee_id).toBe(
+      expect((await getProcessedPayment(id))?.attendeeId).toBe(
         first.attendee.id,
       );
     });
@@ -258,7 +258,7 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
       setSuppressDebugLogs(null);
     }
 
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
     expect(await getAttendeesRaw(listing.id)).toHaveLength(1);
     expect(
       debug.calls.some((call) =>

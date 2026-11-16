@@ -12,9 +12,9 @@ import { withSubmittedValues } from "#test-utils/saved-form.ts";
 describe("monthLabelsForListing", () => {
   test("names the months each count buys on a plan", () => {
     const labels = monthLabelsForListing({
-      assign_built_site: true,
-      initial_site_months: 3,
-      months_per_unit: 0,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
+      monthsPerUnit: 0,
     });
     expect(labels?.(1)).toBe("3 months");
     expect(labels?.(2)).toBe("6 months");
@@ -25,9 +25,9 @@ describe("monthLabelsForListing", () => {
     expect(
       monthLabelsForListing(
         {
-          assign_built_site: false,
-          initial_site_months: 0,
-          months_per_unit: 1,
+          assignBuiltSite: false,
+          initialSiteMonths: 0,
+          monthsPerUnit: 1,
         },
         true,
       )?.(2),
@@ -36,9 +36,9 @@ describe("monthLabelsForListing", () => {
     expect(
       monthLabelsForListing(
         {
-          assign_built_site: false,
-          initial_site_months: 0,
-          months_per_unit: 2,
+          assignBuiltSite: false,
+          initialSiteMonths: 0,
+          monthsPerUnit: 2,
         },
         true,
       )?.(3),
@@ -52,9 +52,9 @@ describe("monthLabelsForListing", () => {
     expect(
       monthLabelsForListing(
         {
-          assign_built_site: false,
-          initial_site_months: 0,
-          months_per_unit: 0,
+          assignBuiltSite: false,
+          initialSiteMonths: 0,
+          monthsPerUnit: 0,
         },
         true,
       ),
@@ -64,9 +64,9 @@ describe("monthLabelsForListing", () => {
   test("leaves ordinary listings to the plain count", () => {
     expect(
       monthLabelsForListing({
-        assign_built_site: false,
-        initial_site_months: 0,
-        months_per_unit: 0,
+        assignBuiltSite: false,
+        initialSiteMonths: 0,
+        monthsPerUnit: 0,
       }),
     ).toBeUndefined();
   });
@@ -76,9 +76,9 @@ describe("monthLabelsForListing", () => {
     // plain tickets again from the moment the flag is off.
     expect(
       monthLabelsForListing({
-        assign_built_site: false,
-        initial_site_months: 3,
-        months_per_unit: 0,
+        assignBuiltSite: false,
+        initialSiteMonths: 3,
+        monthsPerUnit: 0,
       }),
     ).toBeUndefined();
   });
@@ -87,9 +87,9 @@ describe("monthLabelsForListing", () => {
     expect(
       monthLabelsForListing(
         {
-          assign_built_site: false,
-          initial_site_months: 0,
-          months_per_unit: 1,
+          assignBuiltSite: false,
+          initialSiteMonths: 0,
+          monthsPerUnit: 1,
         },
         true,
       )?.(4),

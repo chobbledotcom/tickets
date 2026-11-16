@@ -260,7 +260,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
         quantityForm({ [listing.id]: 1 }),
       );
       expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
-        (await getListingWithCount(listing.id))!.thank_you_url,
+        (await getListingWithCount(listing.id))!.thankYouUrl,
       );
     });
 
@@ -313,7 +313,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
             name: member.name,
             quantity: 1,
             slug: member.slug,
-            unitPrice: member.unit_price,
+            unitPrice: member.unitPrice,
           },
         ]),
       ).toBe("https://example.com/separate");

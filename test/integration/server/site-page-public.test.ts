@@ -315,7 +315,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
       await records.groups.update(group.id, {
         hidePackageListings: true,
-        is_package: true,
+        isPackage: true,
       });
       const member = await createTestListing({
         groupId: group.id,

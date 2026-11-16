@@ -151,7 +151,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
 
   test("empty date shows no pre-filled value in edit form", () => {
     const html = editPanelHtml(
-      testListingWithCount({ attendee_count: 0, date: "" }),
+      testListingWithCount({ attendeeCount: 0, date: "" }),
     );
     // The date field should render split date and time inputs
     expectIncludesAll(html, ['name="date_date"', 'name="date_time"']);
@@ -160,7 +160,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
   test("non-empty date shows formatted split values in edit form", () => {
     const html = editPanelHtml(
       testListingWithCount({
-        attendee_count: 0,
+        attendeeCount: 0,
         date: "2026-06-15T14:00:00.000Z",
       }),
     );
@@ -170,7 +170,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
 
   test("pre-fills location in edit form", () => {
     const html = editPanelHtml(
-      testListingWithCount({ attendee_count: 0, location: "Village Hall" }),
+      testListingWithCount({ attendeeCount: 0, location: "Village Hall" }),
     );
     assertStringIncludes(html, 'value="Village Hall"');
   });
@@ -180,12 +180,12 @@ describe("adminListingEditPage max_price field", () => {
   registerListingTemplateHooks();
 
   // A can_pay_more listing rendered on the edit form for the given max_price.
-  const maxPriceEditHtml = (max_price: number) =>
+  const maxPriceEditHtml = (maxPrice: number) =>
     editPanelHtml(
       testListingWithCount({
-        attendee_count: 0,
-        can_pay_more: true,
-        max_price,
+        attendeeCount: 0,
+        canPayMore: true,
+        maxPrice,
       }),
     );
 

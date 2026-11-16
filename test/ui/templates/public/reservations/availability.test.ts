@@ -13,11 +13,11 @@ import { tl } from "#test-utils/package-cap-fixtures.ts";
  *  spots, standing alone on the page. */
 const parent = (minimum: number, remaining = 10): TicketListing =>
   resolved({
-    attendee_count: 10 - remaining,
+    attendeeCount: 10 - remaining,
     id: 1,
-    max_attendees: 10,
-    max_quantity: 10,
-    min_quantity: minimum,
+    maxAttendees: 10,
+    maxQuantity: 10,
+    minQuantity: minimum,
     name: "Parent",
     slug: "parent",
   });

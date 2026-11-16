@@ -210,14 +210,14 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     test("created user has a hashed password (not stored in plaintext)", () =>
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
-        expect(user!.password_hash).not.toBe("");
-        assert(!user!.password_hash.includes("pass1234"));
+        expect(user!.passwordHash).not.toBe("");
+        assert(!user!.passwordHash.includes("pass1234"));
       }));
 
     test("created user has wrapped_data_key set", () =>
       withEnableSuperuser(async () => {
         const user = await getUserByUsername("admin");
-        expect(user!.wrapped_data_key).not.toBeNull();
+        expect(user!.wrappedDataKey).not.toBeNull();
       }));
 
     test("created user's admin level decrypts to 'owner'", () =>

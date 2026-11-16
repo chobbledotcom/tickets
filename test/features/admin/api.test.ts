@@ -146,7 +146,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         400,
         "day_prices has an invalid value",
       );
-      expect((await getListingWithCount(listing.id))?.day_prices).toEqual({
+      expect((await getListingWithCount(listing.id))?.dayPrices).toEqual({
         1: 500,
       });
     });

@@ -20,7 +20,7 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 describe("renderDayPricesFieldset", () => {
   test("offers one row per day of the listing's longest stay", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ duration_days: 2 }),
+      testListingWithCount({ durationDays: 2 }),
     );
     expectIncludesAll(html, ['name="day_price_1"', 'name="day_price_2"']);
     assert(!html.includes('name="day_price_3"'));
@@ -28,7 +28,7 @@ describe("renderDayPricesFieldset", () => {
 
   test("draws a stored override and leaves an unset day to its placeholder", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ day_prices: { 1: 1500 }, duration_days: 2 }),
+      testListingWithCount({ dayPrices: { 1: 1500 }, durationDays: 2 }),
     );
     expect(html).toMatch(/name="day_price_1"[^>]*value="15\.00"/);
     // Day 2 has no stored override, so its own price stands in as the
@@ -38,7 +38,7 @@ describe("renderDayPricesFieldset", () => {
 
   test("wraps its rows in one fieldset and labels them tight together", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ duration_days: 2 }),
+      testListingWithCount({ durationDays: 2 }),
     );
     expectIncludesAll(html, [
       "</fieldset>",
@@ -60,9 +60,9 @@ describe("listingToFieldValues", () => {
   test("carries the slug and the price as typed money", () => {
     const values = listingToFieldValues(
       testListingWithCount({
-        non_transferable: true,
+        nonTransferable: true,
         slug: "summer-entry",
-        unit_price: 1500,
+        unitPrice: 1500,
       }),
     );
     expect(values.slug).toBe("summer-entry");
@@ -74,14 +74,14 @@ describe("listingToFieldValues", () => {
   test("a money box types its price, and a free recurring price stays empty", () => {
     expect(
       [0, 1, 500].map(
-        (unit_price) =>
-          listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
+        (unitPrice) =>
+          listingToFieldValues(testListingWithCount({ unitPrice })).unit_price,
       ),
     ).toEqual(["0.00", "0.01", "5.00"]);
     expect(
       [0, 1, 500].map(
-        (recurring_price) =>
-          listingToFieldValues(testListingWithCount({ recurring_price }))
+        (recurringPrice) =>
+          listingToFieldValues(testListingWithCount({ recurringPrice }))
             .recurring_price,
       ),
     ).toEqual(["", "0.01", "5.00"]);
@@ -100,8 +100,8 @@ describe("listingToFieldValues", () => {
   test("carries site months only while the listing holds a plan", () => {
     const kept = listingToFieldValues(
       testListingWithCount({
-        initial_site_months: 6,
-        months_per_unit: 3,
+        initialSiteMonths: 6,
+        monthsPerUnit: 3,
       }),
     );
     expect(kept.initial_site_months).toBe("6");
@@ -109,8 +109,8 @@ describe("listingToFieldValues", () => {
 
     const planless = listingToFieldValues(
       testListingWithCount({
-        initial_site_months: 0,
-        months_per_unit: 0,
+        initialSiteMonths: 0,
+        monthsPerUnit: 0,
       }),
     );
     expect(planless.initial_site_months).toBe("");

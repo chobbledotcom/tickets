@@ -18,8 +18,8 @@ import type { SitePage } from "#types";
 /** The page edges as parent and child id pairs. */
 const pageEdges = async (): Promise<[number, number][]> =>
   (await getAllPageItems())
-    .filter((item) => item.item_type === "page")
-    .map((item) => [item.page_id, item.item_id]);
+    .filter((item) => item.itemType === "page")
+    .map((item) => [item.pageId, item.itemId]);
 
 /** Two pages, the second one nested under the first. */
 const nestedPages = async (parentSlug: string, childSlug: string) => {

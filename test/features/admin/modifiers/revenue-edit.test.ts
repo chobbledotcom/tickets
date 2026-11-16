@@ -46,7 +46,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Option income corrected.",
         true,
       )(response);
-      expect((await getModifier(id))?.total_revenue).toBe(2500);
+      expect((await getModifier(id))?.totalRevenue).toBe(2500);
     });
 
     test("posts a writeoff correction that lowers the projected revenue", async () => {
@@ -61,7 +61,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Option income corrected.",
         true,
       )(response);
-      expect((await getModifier(id))?.total_revenue).toBe(1000);
+      expect((await getModifier(id))?.totalRevenue).toBe(1000);
     });
 
     test("accepts a negative corrected revenue (net discount)", async () => {
@@ -75,7 +75,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Option income corrected.",
         true,
       )(response);
-      expect((await getModifier(id))?.total_revenue).toBe(-500);
+      expect((await getModifier(id))?.totalRevenue).toBe(-500);
     });
 
     test("logs a neutral activity message without the raw figure", async () => {
@@ -128,7 +128,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
       expect(updated.name).toBe("After");
-      expect(updated.calc_value).toBe(20);
+      expect(updated.calcValue).toBe(20);
 
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("updated"));
@@ -150,7 +150,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const unchanged = await getModifier(id);
       expect(unchanged?.name).toBe("Before");
-      expect(unchanged?.calc_value).toBe(10);
+      expect(unchanged?.calcValue).toBe(10);
     });
 
     test("updates modifier running totals from the edit form", async () => {
@@ -158,8 +158,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
         ...createData({ name: "Totals" }),
-        total_uses: "12",
-        usage_count: "4",
+        totalUses: "12",
+        usageCount: "4",
       });
       await expectFlashRedirect(
         "/admin/modifiers",
@@ -167,10 +167,10 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         true,
       )(response);
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
-      expect(updated.total_uses).toBe(12);
-      expect(updated.usage_count).toBe(4);
+      expect(updated.totalUses).toBe(12);
+      expect(updated.usageCount).toBe(4);
       // The ledger has no modifier legs here, so projected revenue stays 0.
-      expect(updated.total_revenue).toBe(0);
+      expect(updated.totalRevenue).toBe(0);
     });
 
     test("rejects invalid modifier running totals", async () => {
@@ -178,16 +178,16 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(`/admin/modifiers/${id}/edit`, {
         ...createData({ name: "Bad" }),
-        total_uses: "-1",
-        usage_count: "4",
+        totalUses: "-1",
+        usageCount: "4",
       });
       await expectHtmlResponse(
         response,
         400,
         "Total Uses must be 0 or greater",
-        'name="total_uses"',
+        'name="totalUses"',
         'value="-1"',
-        'name="usage_count"',
+        'name="usageCount"',
         'value="4"',
         'value="Bad"',
       );
@@ -251,7 +251,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         "Recalculate:",
         "Current",
         "From attendee data",
-        'value="total_uses"',
+        'value="totalUses"',
         ">9<",
         ">2<",
       );
@@ -268,7 +268,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/modifiers/recalculate/${id}`,
-        { recalculate_fields: "total_uses" },
+        { recalculate_fields: "totalUses" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -277,11 +277,11 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       )(response);
 
       const updated = (await getAllModifiers()).find((m) => m.id === id)!;
-      expect(updated.total_uses).toBe(2);
-      expect(updated.usage_count).toBe(5);
+      expect(updated.totalUses).toBe(2);
+      expect(updated.usageCount).toBe(5);
       // total_revenue is projected from the ledger (no modifier legs here), so
       // it is 0 and unaffected by the count-only recalculation.
-      expect(updated.total_revenue).toBe(0);
+      expect(updated.totalRevenue).toBe(0);
 
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("totals recalculated"));
@@ -294,7 +294,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const { cookie, response } = await adminFormPost(
         `/admin/modifiers/recalculate/${id}`,
-        { recalculate_fields: "total_uses" },
+        { recalculate_fields: "totalUses" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,

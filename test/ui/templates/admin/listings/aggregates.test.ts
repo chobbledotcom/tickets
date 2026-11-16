@@ -37,7 +37,7 @@ describe("adminListingRecalculatePage", () => {
       "Compare the stored listing totals",
       'class="table-scroll"',
       'name="recalculate_fields"',
-      'value="booked_quantity"',
+      'value="bookedQuantity"',
       ">9<",
       ">4<",
       // The recalculate page marks the Home nav entry (/admin/) active.

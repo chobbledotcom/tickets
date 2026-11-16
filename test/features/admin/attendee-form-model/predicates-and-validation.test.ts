@@ -97,7 +97,7 @@ describe("validateParsedForm", () => {
       parsedBase({
         lines: [
           line({
-            listing: testListingWithCount({ id: 1, max_quantity: 5 }),
+            listing: testListingWithCount({ id: 1, maxQuantity: 5 }),
             quantity: 10,
           }),
         ],
@@ -139,7 +139,7 @@ describe("validateParsedForm", () => {
       parsedBase({
         lines: [
           line({
-            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listing: testListingWithCount({ id: 1, listingType: "daily" }),
           }),
         ],
         startDate: "",
@@ -155,7 +155,7 @@ describe("validateParsedForm", () => {
       parsedBase({
         lines: [
           line({
-            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listing: testListingWithCount({ id: 1, listingType: "daily" }),
           }),
         ],
         startDate: "2026-03-02",

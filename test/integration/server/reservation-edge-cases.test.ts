@@ -135,8 +135,8 @@ describeWithEnv(
           "#test-utils/processed-payments.ts"
         );
         const record = await getProcessedPayment("cs_addon_sold");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+        expect(record?.attendeeId).toBeNull();
+        expect(record?.failureData).not.toBe("");
       } finally {
         session.restore();
         refund.restore();

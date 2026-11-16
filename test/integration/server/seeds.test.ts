@@ -88,8 +88,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(listings.length).toBe(2);
 
       // Verify both paid and free listings are created
-      const paidListing = listings.find((e) => e.unit_price > 0);
-      const freeListing = listings.find((e) => e.unit_price === 0);
+      const paidListing = listings.find((e) => e.unitPrice > 0);
+      const freeListing = listings.find((e) => e.unitPrice === 0);
       expect(paidListing).toBeDefined();
       expect(freeListing).toBeDefined();
 
@@ -105,9 +105,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
         // Total quantity does not exceed listing max_attendees (no overselling)
         const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
-        expect(totalQuantity).toBeLessThanOrEqual(listing.max_attendees);
+        expect(totalQuantity).toBeLessThanOrEqual(listing.maxAttendees);
         // Listing max_attendees equals exactly the sum of attendee quantities
-        expect(listing.max_attendees).toBe(totalQuantity);
+        expect(listing.maxAttendees).toBe(totalQuantity);
       }
     });
 
@@ -147,7 +147,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const listings = await getAllListings();
       expect(listings[0]!.active).toBe(true);
       // With 0 attendees, max_attendees is 0 (sum of quantities)
-      expect(listings[0]!.max_attendees).toBe(0);
+      expect(listings[0]!.maxAttendees).toBe(0);
     });
 
     // The direct createSeeds contracts (day prices, price alternation, the

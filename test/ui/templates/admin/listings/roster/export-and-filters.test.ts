@@ -13,12 +13,12 @@ describe("adminListingPage export button", () => {
   registerListingTemplateHooks();
 
   test("renders export CSV button", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 2 }));
+    const html = detailHtml(testListingWithCount({ attendeeCount: 2 }));
     expectIncludesAll(html, ["/admin/listing/1/export", "Export CSV"]);
   });
 
   test("the export link carries the active check-in filter", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 1 }), {
+    const html = detailHtml(testListingWithCount({ attendeeCount: 1 }), {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
@@ -29,7 +29,7 @@ describe("adminListingPage export button", () => {
 describe("adminListingPage filter links", () => {
   registerListingTemplateHooks();
 
-  const listing = testListingWithCount({ attendee_count: 1 });
+  const listing = testListingWithCount({ attendeeCount: 1 });
   const oneAttendee = [testAttendee()];
   const linkHtml = (activeFilter?: "in" | "out") =>
     detailHtml(
@@ -72,7 +72,7 @@ describe("adminListingPage filter links", () => {
   });
 
   test("filters to only checked-in attendees when filter is in", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 2 }), {
+    const html = detailHtml(testListingWithCount({ attendeeCount: 2 }), {
       activeFilter: "in",
       attendees: namedPair(),
     });
@@ -81,7 +81,7 @@ describe("adminListingPage filter links", () => {
   });
 
   test("filters to only checked-out attendees when filter is out", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 2 }), {
+    const html = detailHtml(testListingWithCount({ attendeeCount: 2 }), {
       activeFilter: "out",
       attendees: [
         testAttendee({ checked_in: 1, id: 1, name: "Alice InPerson" }),
@@ -93,7 +93,7 @@ describe("adminListingPage filter links", () => {
   });
 
   test("shows all attendees when filter is all", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 2 }), {
+    const html = detailHtml(testListingWithCount({ attendeeCount: 2 }), {
       activeFilter: "all",
       attendees: namedPair(),
     });
@@ -101,7 +101,7 @@ describe("adminListingPage filter links", () => {
   });
 
   test("includes return_filter hidden field in checkin form", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 1 }), {
+    const html = detailHtml(testListingWithCount({ attendeeCount: 1 }), {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
@@ -113,7 +113,7 @@ describe("adminListingPage add attendee", () => {
   registerListingTemplateHooks();
 
   test("offers the add-attendee form beneath the roster", () => {
-    const html = detailHtml(testListingWithCount({ attendee_count: 0 }));
+    const html = detailHtml(testListingWithCount({ attendeeCount: 0 }));
     assertStringIncludes(html, 'id="add-attendee"');
   });
 });
@@ -130,7 +130,7 @@ describe("adminListingPage failed payments", () => {
 
   test("shows Failed Payments section when incomplete attendees exist", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 3, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 3, unitPrice: 1000 }),
       { attendees: paidPlusFailed() },
     );
     expectIncludesAll(html, [
@@ -142,7 +142,7 @@ describe("adminListingPage failed payments", () => {
 
   test("hides Failed Payments section when no incomplete attendees", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 1, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
@@ -154,7 +154,7 @@ describe("adminListingPage failed payments", () => {
 
   test("hides Failed Payments section when an empty-payment-id attendee has a processed reference", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 1, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({ id: 7, payment_id: "", price_paid: "1000" }),
@@ -168,7 +168,7 @@ describe("adminListingPage failed payments", () => {
 
   test("hides Failed Payments section for free listings", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 1, unit_price: 0 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 0 }),
       { attendees: [testAttendee({ id: 1, price_paid: "0" })] },
     );
     assert(!html.includes("Failed Payments"));
@@ -177,9 +177,9 @@ describe("adminListingPage failed payments", () => {
   test("excludes incomplete attendees from attendee count", () => {
     const html = detailHtml(
       testListingWithCount({
-        attendee_count: 3,
-        max_attendees: 100,
-        unit_price: 1000,
+        attendeeCount: 3,
+        maxAttendees: 100,
+        unitPrice: 1000,
       }),
       { attendees: paidPlusFailed() },
     );
@@ -189,7 +189,7 @@ describe("adminListingPage failed payments", () => {
 
   test("excludes incomplete attendees from checked-in count", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 2, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 2, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({
@@ -213,7 +213,7 @@ describe("adminListingPage failed payments", () => {
 
   test("excludes incomplete attendees from revenue", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 2, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 2, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({ id: 1, payment_id: "pi_ok", price_paid: "1000" }),
@@ -227,7 +227,7 @@ describe("adminListingPage failed payments", () => {
 
   test("failed payments table has delete button but no check-in or refund", () => {
     const html = detailHtml(
-      testListingWithCount({ attendee_count: 1, unit_price: 1000 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 1000 }),
       {
         attendees: [
           testAttendee({
@@ -257,14 +257,14 @@ describe("adminListingPage Renewal tag", () => {
   registerListingTemplateHooks();
 
   test("renders Renewal tag for tier listings with months_per_unit > 0", () => {
-    const html = detailHtml(testListingWithCount({ months_per_unit: 3 }), {
+    const html = detailHtml(testListingWithCount({ monthsPerUnit: 3 }), {
       allowedDomain: "",
     });
     assertStringIncludes(html, "Renewal");
   });
 
   test("does not render Renewal tag for listings with months_per_unit = 0", () => {
-    const html = detailHtml(testListingWithCount({ months_per_unit: 0 }), {
+    const html = detailHtml(testListingWithCount({ monthsPerUnit: 0 }), {
       allowedDomain: "",
     });
     assert(!html.includes("Renewal"));
@@ -278,7 +278,7 @@ describe("adminListingPage daily roster detail table", () => {
   // when a daily listing is narrowed to one date. Render the roster panel alone
   // so the overview's identical revenue row cannot satisfy the assertions.
   const dailyRosterHtml = (
-    unit_price: number,
+    unitPrice: number,
     attendees: Parameters<typeof renderRosterPanelType>[0]["attendees"],
   ) =>
     renderRosterPanel({
@@ -286,9 +286,9 @@ describe("adminListingPage daily roster detail table", () => {
       attendees,
       dateFilter: "2026-03-15",
       listing: testListingWithCount({
-        attendee_count: attendees.length,
-        listing_type: "daily",
-        unit_price,
+        attendeeCount: attendees.length,
+        listingType: "daily",
+        unitPrice,
       }),
     });
 

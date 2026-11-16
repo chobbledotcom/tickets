@@ -47,7 +47,7 @@ describeWithEnv(
           // Recorded as a terminal failure (refund settled), so a later delivery
           // replays it instead of retrying.
           const record = await getProcessedPayment("cs_already_refunded");
-          expect(record?.failure_data).not.toBe("");
+          expect(record?.failureData).not.toBe("");
         },
       );
     });

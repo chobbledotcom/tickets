@@ -230,7 +230,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         useDefaults: true,
         webhookUrl: "",
       });
-      expect(listing.use_defaults).toBe(true);
+      expect(listing.useDefaults).toBe(true);
 
       // Set a default after the listing exists — it should inherit live.
       // Saving defaults must invalidate the listings cache itself (no manual
@@ -241,13 +241,13 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       });
       const inheriting = await findByName("Inheriting listing");
       expect(inheriting?.hidden).toBe(true);
-      expect(inheriting?.webhook_url).toBe("https://example.com/live");
+      expect(inheriting?.webhookUrl).toBe("https://example.com/live");
 
       // Clear the defaults — it reverts to its own stored values.
       await adminFormPost("/admin/listing-defaults", {});
       const reverted = await findByName("Inheriting listing");
       expect(reverted?.hidden).toBe(false);
-      expect(reverted?.webhook_url).toBe("");
+      expect(reverted?.webhookUrl).toBe("");
     });
 
     test("disabling logistics drops an inherited logistics value live", async () => {
@@ -260,7 +260,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
         useDefaults: true,
       });
       // Materialise it into the listings cache while the default applies.
-      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+      expect((await findByName("Logistics inheritor"))?.usesLogistics).toBe(
         true,
       );
 
@@ -269,7 +269,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       await adminFormPost("/admin/features/logistics", {
         enabled: "false",
       });
-      expect((await findByName("Logistics inheritor"))?.uses_logistics).toBe(
+      expect((await findByName("Logistics inheritor"))?.usesLogistics).toBe(
         false,
       );
     });
@@ -408,7 +408,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       );
       expect([
         saved.status,
-        (await getStoredListingWithCount(listing.id))!.use_defaults,
+        (await getStoredListingWithCount(listing.id))!.useDefaults,
       ]).toEqual([302, true]);
     });
   });

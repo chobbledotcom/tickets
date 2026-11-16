@@ -85,8 +85,8 @@ describeWithEnv("catalog group import", { db: true }, () => {
     );
     if (!stored) throw new Error("The imported group membership is missing");
     expect({
-      listing_id: stored.listing_id,
-      package_price: stored.package_price,
+      listing_id: stored.listingId,
+      package_price: stored.packagePrice,
       quantity: stored.quantity,
     }).toEqual({
       listing_id: member.id,

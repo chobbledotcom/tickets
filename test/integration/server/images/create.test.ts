@@ -89,8 +89,8 @@ describeWithEnv(
             },
           );
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toBe("");
-          expect(created?.image_thumb_url).toBe("");
+          expect(created?.imageUrl).toBe("");
+          expect(created?.imageThumbUrl).toBe("");
         });
       });
 
@@ -111,7 +111,7 @@ describeWithEnv(
             },
           );
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toBe("");
+          expect(created?.imageUrl).toBe("");
         });
       });
     });
@@ -134,8 +134,8 @@ describeWithEnv(
             },
           );
           await expectFlashRedirect("/admin", "Listing created")(response);
-          expect(created?.attachment_url).toMatch(/info\.pdf$/);
-          expect(created?.attachment_name).toBe("info.pdf");
+          expect(created?.attachmentUrl).toMatch(/info\.pdf$/);
+          expect(created?.attachmentName).toBe("info.pdf");
         });
       });
     });

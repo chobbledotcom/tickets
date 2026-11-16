@@ -50,9 +50,9 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
     test("a routed invite carries a key handoff and no wrapped key yet", async () => {
       await createTestInvite("handoff-pending");
       const invited = (await getUserByUsername("handoff-pending"))!;
-      expect(invited.invite_wrapped_data_key).not.toBeNull();
-      expect(invited.wrapped_data_key).toBeNull();
-      expect(invited.kek_version).toBe(1);
+      expect(invited.inviteWrappedDataKey).not.toBeNull();
+      expect(invited.wrappedDataKey).toBeNull();
+      expect(invited.kekVersion).toBe(1);
     });
 
     test("joining self-activates the user at v2 with the shared DATA_KEY", async () => {
@@ -63,9 +63,9 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       });
 
       const activated = (await getUserByUsername("handoff-join"))!;
-      expect(activated.wrapped_data_key).not.toBeNull();
-      expect(activated.invite_wrapped_data_key).toBeNull();
-      expect(activated.kek_version).toBe(2);
+      expect(activated.wrappedDataKey).not.toBeNull();
+      expect(activated.inviteWrappedDataKey).toBeNull();
+      expect(activated.kekVersion).toBe(2);
 
       const dataKey = await unwrapUserKey(activated, "joinerpass123");
       expect(await sharesOwnerDataKey(dataKey)).toBe(true);
@@ -93,14 +93,14 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
     test("acceptInvite is single-use: a replay cannot overwrite the account", async () => {
       const { inviteCode } = await createTestInvite("single-use");
       const invited = (await getUserByUsername("single-use"))!;
-      const handoff = invited.invite_wrapped_data_key!;
+      const handoff = invited.inviteWrappedDataKey!;
 
       // First accept consumes the invite and sets the password.
       expect(
         await acceptInvite(invited.id, handoff, inviteCode, "firstpass123"),
       ).toBe(true);
       const wrapAfterFirst = (await getUserByUsername("single-use"))!
-        .wrapped_data_key;
+        .wrappedDataKey;
 
       // Replaying with the same (now-stale) handoff must not overwrite.
       expect(
@@ -108,7 +108,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       ).toBe(false);
 
       const after = (await getUserByUsername("single-use"))!;
-      expect(after.wrapped_data_key).toBe(wrapAfterFirst);
+      expect(after.wrappedDataKey).toBe(wrapAfterFirst);
       // The first password still works; the replay's password never took.
       expect(await verifyUserPassword(after, "firstpass123")).not.toBeNull();
       expect(await verifyUserPassword(after, "attacker9999")).toBeNull();
@@ -160,7 +160,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       );
       expect(response.status).toBe(404);
       expect(
-        (await getUserByUsername("legacy-join"))!.wrapped_data_key,
+        (await getUserByUsername("legacy-join"))!.wrappedDataKey,
       ).toBeNull();
     });
   });
@@ -228,13 +228,12 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       // new password.
       await settings.updateUserPassword(user.id, {
         newPassword: "newpass67890",
-        oldKekVersion: user.kek_version,
+        oldKekVersion: user.kekVersion,
         oldPassword: "oldpass12345",
         oldPasswordHash: oldHash,
-        oldWrappedDataKey: user.wrapped_data_key!,
+        oldWrappedDataKey: user.wrappedDataKey!,
       });
-      const winningWrap = (await getUserByUsername("v1-raced"))!
-        .wrapped_data_key;
+      const winningWrap = (await getUserByUsername("v1-raced"))!.wrappedDataKey;
 
       // Now the stale login's opportunistic migration runs with the old creds.
       await migrateUserToV2Kek(
@@ -245,8 +244,8 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       );
 
       const final = (await getUserByUsername("v1-raced"))!;
-      expect(final.wrapped_data_key).toBe(winningWrap);
-      expect(final.kek_version).toBe(2);
+      expect(final.wrappedDataKey).toBe(winningWrap);
+      expect(final.kekVersion).toBe(2);
       // The new password still unwraps the shared DATA_KEY.
       expect(
         await sharesOwnerDataKey(await unwrapUserKey(final, "newpass67890")),
@@ -261,15 +260,15 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
 
       const ok = await settings.updateUserPassword(user.id, {
         newPassword: "brandnew12345",
-        oldKekVersion: user.kek_version,
+        oldKekVersion: user.kekVersion,
         oldPassword: "v1pass12345",
         oldPasswordHash: oldHash!,
-        oldWrappedDataKey: user.wrapped_data_key!,
+        oldWrappedDataKey: user.wrappedDataKey!,
       });
       expect(ok).toBe(true);
 
       const updated = (await getUserByUsername("v1-pwchange"))!;
-      expect(updated.kek_version).toBe(2);
+      expect(updated.kekVersion).toBe(2);
       const dataKey = await unwrapUserKey(updated, "brandnew12345");
       expect(await sharesOwnerDataKey(dataKey)).toBe(true);
     });
@@ -283,11 +282,11 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       // The v1 KEK from the stored (DB-recoverable) hash must NOT unwrap the v2
       // wrap — only the raw password's KEK does.
       await expect(
-        unwrapKey(owner.wrapped_data_key!, await deriveKEK(hash)),
+        unwrapKey(owner.wrappedDataKey!, await deriveKEK(hash)),
       ).rejects.toThrow();
 
       const dataKey = await unwrapKey(
-        owner.wrapped_data_key!,
+        owner.wrappedDataKey!,
         await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, hash),
       );
       expect(dataKey.type).toBe("secret");

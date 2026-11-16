@@ -16,8 +16,8 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
       const plan = await createTestListing({ assignBuiltSite: true });
       const plain = await createTestListing({ name: "Plain listing" });
       expect([
-        (await getListingWithCount(plan.id))?.assign_built_site,
-        (await getListingWithCount(plain.id))?.assign_built_site,
+        (await getListingWithCount(plan.id))?.assignBuiltSite,
+        (await getListingWithCount(plain.id))?.assignBuiltSite,
       ]).toEqual([true, false]);
     });
 
@@ -34,7 +34,7 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
       const listing = await createTestListing();
       await updateTestListing(listing.id, { assignBuiltSite: true });
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.assign_built_site).toBe(true);
+      expect(updated?.assignBuiltSite).toBe(true);
     });
   });
 });

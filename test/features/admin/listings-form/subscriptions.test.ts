@@ -32,7 +32,7 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
   test("keeps a recurring price and frequency while subscriptions are offered", () =>
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
-      expect([row.recurring_price, row.recurring_interval]).toEqual([
+      expect([row.recurringPrice, row.recurringInterval]).toEqual([
         500,
         "month",
       ]);
@@ -46,7 +46,7 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
         recurring_price: "",
         unit_price: "10.00",
       });
-      expect([cleared.recurring_price, cleared.recurring_interval]).toEqual([
+      expect([cleared.recurringPrice, cleared.recurringInterval]).toEqual([
         0,
         "",
       ]);
@@ -72,8 +72,8 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
       id = (await createListing(MONTHLY)).id;
     });
     const saved = await updateListing(id, { unit_price: "12.00" });
-    expect(saved.unit_price).toBe(1200);
-    expect([saved.recurring_price, saved.recurring_interval]).toEqual([
+    expect(saved.unitPrice).toBe(1200);
+    expect([saved.recurringPrice, saved.recurringInterval]).toEqual([
       500,
       "month",
     ]);
@@ -92,9 +92,9 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
         unit_price: "0",
       });
       expect([
-        cleared.unit_price,
-        cleared.recurring_price,
-        cleared.recurring_interval,
+        cleared.unitPrice,
+        cleared.recurringPrice,
+        cleared.recurringInterval,
       ]).toEqual([0, 0, ""]);
     }));
 

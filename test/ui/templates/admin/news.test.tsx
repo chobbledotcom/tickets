@@ -27,9 +27,9 @@ const summary: NewsPostSummary = {
 const post: NewsPost = {
   ...summary,
   content: "Full **launch** details & more.",
-  meta_description: "Launch details & dates",
-  meta_title: "Launch <News>",
-  slug_index: "test-news-index" as BlindIndex,
+  metaDescription: "Launch details & dates",
+  metaTitle: "Launch <News>",
+  slugIndex: "test-news-index" as BlindIndex,
 };
 
 describe("admin news templates", () => {

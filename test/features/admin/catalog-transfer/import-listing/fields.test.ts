@@ -125,7 +125,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       minQuantity: 2,
       name: "Batched",
     });
-    expect(imported.min_quantity).toBe(2);
+    expect(imported.minQuantity).toBe(2);
   });
 
   test("defaults an absent minimum quantity to the stored 1", async () => {
@@ -133,7 +133,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       maxAttendees: 1,
       name: "No Floor",
     });
-    expect(imported.min_quantity).toBe(1);
+    expect(imported.minQuantity).toBe(1);
   });
 
   for (const { contains, label, listing } of importRefusals) {
@@ -154,7 +154,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       maxAttendees: 1,
       name: "Frac OK",
     });
-    expect([timed.closes_at, timed.date, fractional.closes_at]).toEqual([
+    expect([timed.closesAt, timed.date, fractional.closesAt]).toEqual([
       "2026-06-01T12:00:00.000Z",
       "2026-06-02T09:00:00.000Z",
       "2030-01-01T00:00:00.500Z",
@@ -167,7 +167,7 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       maxAttendees: 1,
       name: "Open Listing",
     });
-    expect([imported.closes_at, imported.max_price]).toEqual([null, 0]);
+    expect([imported.closesAt, imported.maxPrice]).toEqual([null, 0]);
   });
 
   test("accepts valid bookable day names", async () => {
@@ -177,6 +177,6 @@ describeWithEnv("catalog-transfer field validation", { db: true }, () => {
       maxAttendees: 1,
       name: "Good Days",
     });
-    expect(imported.bookable_days).toEqual(["Monday", "Wednesday"]);
+    expect(imported.bookableDays).toEqual(["Monday", "Wednesday"]);
   });
 });

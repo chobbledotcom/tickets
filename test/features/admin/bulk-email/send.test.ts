@@ -299,7 +299,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Monthly"'),
       );
-      expect(entry?.listing_id).toBe(null);
+      expect(entry?.listingId).toBe(null);
     });
 
     /**
@@ -465,7 +465,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Just you"'),
       )!;
-      expect(entry.listing_id).toBe(null);
+      expect(entry.listingId).toBe(null);
       // The log names one recipient in the singular, and says so exactly.
       assertStringIncludes(entry.message, "to 1 recipient.");
     });

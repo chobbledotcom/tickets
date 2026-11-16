@@ -16,7 +16,7 @@ describeWithEnv("server (listing logistics field)", { db: true }, () => {
     settings.setForTest(featureSetting("logistics"));
     const listing = await createTestListing({ usesLogistics: true });
     const stored = await getListingWithCount(listing.id);
-    expect(stored!.uses_logistics).toBe(true);
+    expect(stored!.usesLogistics).toBe(true);
 
     const response = await adminGet(`/admin/listing/${listing.id}/edit`);
     const html = await response.text();

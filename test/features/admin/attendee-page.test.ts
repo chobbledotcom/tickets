@@ -292,7 +292,7 @@ describeWithEnv(
         "Unrecorded Plan",
         "unrecorded@example.com",
         "",
-        plan.unit_price,
+        plan.unitPrice,
       );
       assert(
         !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),

@@ -13,7 +13,7 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 const listing = testListingWithCount({
-  attendee_count: 3,
+  attendeeCount: 3,
   id: 7,
   name: "Summer Camp & Fun",
 });

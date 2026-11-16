@@ -59,7 +59,7 @@ const resolved = (overrides: Partial<ListingWithCount> = {}) =>
 describe("resolvedToPublicListing built-site fields", () => {
   test("a built-site plan's response names no built-site fields", () => {
     const result = resolvedToPublicListing(
-      resolved({ assign_built_site: true, initial_site_months: 3 }),
+      resolved({ assignBuiltSite: true, initialSiteMonths: 3 }),
       undefined,
     );
     expect(Object.hasOwn(result, "assignBuiltSite")).toBe(false);
@@ -80,8 +80,8 @@ describe("resolvedToPublicListing boundary values", () => {
     const result = resolvedToPublicListing(
       resolved({
         date: "2026-06-01",
-        image_alt_text: "A poster",
-        image_url: "poster.webp",
+        imageAltText: "A poster",
+        imageUrl: "poster.webp",
         location: "Village Hall",
       }),
       undefined,

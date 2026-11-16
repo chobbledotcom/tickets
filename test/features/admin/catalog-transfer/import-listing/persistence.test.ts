@@ -97,8 +97,8 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     const listing = await getListingWithCount(id);
-    expect(listing?.attachment_name).toBe("");
-    expect(listing?.attachment_url).toBe("");
+    expect(listing?.attachmentName).toBe("");
+    expect(listing?.attachmentUrl).toBe("");
   });
 
   test("writes every resolved parent edge", async () => {
@@ -176,7 +176,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
-          (listing) => listing.listing_type,
+          (listing) => listing.listingType,
         ),
       ).size,
     ).toBe(1);

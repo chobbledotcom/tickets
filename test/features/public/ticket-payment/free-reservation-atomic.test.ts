@@ -41,7 +41,7 @@ const reservationParts = async (
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     })),
     listingRows,
   };

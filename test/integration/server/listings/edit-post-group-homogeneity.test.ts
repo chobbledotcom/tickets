@@ -56,7 +56,7 @@ describeWithEnv(
           { listing_type: "standard" },
           "already contains daily listings",
         );
-        expect(stored.listing_type).toBe("daily");
+        expect(stored.listingType).toBe("daily");
       });
 
       test("rejects enabling customisable days on a listing whose group mates are fixed-length", async () => {
@@ -65,7 +65,7 @@ describeWithEnv(
           { customisable_days: "1", day_price_1: "1.00" },
           "already contains listings with a fixed number of days",
         );
-        expect(stored.customisable_days).toBe(false);
+        expect(stored.customisableDays).toBe(false);
       });
     });
   },

@@ -29,8 +29,8 @@ const formWithAggregates = (
   ticketsCount: string,
 ): FormParams => {
   const body = new FormData();
-  body.set("booked_quantity", bookedQuantity);
-  body.set("tickets_count", ticketsCount);
+  body.set("bookedQuantity", bookedQuantity);
+  body.set("ticketsCount", ticketsCount);
   return formDataToParams(body);
 };
 
@@ -50,7 +50,7 @@ describe("edit save path > aggregates by role", () => {
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.input).toEqual({ booked_quantity: 12, tickets_count: 13 });
+      expect(result.input).toEqual({ bookedQuantity: 12, ticketsCount: 13 });
     }
   });
 });

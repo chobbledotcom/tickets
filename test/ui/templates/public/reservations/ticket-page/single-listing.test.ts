@@ -23,7 +23,7 @@ describe("ticketPage (single listing)", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
-  const listing = testListingWithCount({ attendee_count: 50 });
+  const listing = testListingWithCount({ attendeeCount: 50 });
   const renderTicket = async (
     ev: ListingWithCount,
     opts?: {
@@ -81,7 +81,7 @@ describe("ticketPage (single listing)", () => {
   });
 
   test("shows full message when no spots", async () => {
-    const fullListing = testListingWithCount({ attendee_count: 100 });
+    const fullListing = testListingWithCount({ attendeeCount: 100 });
     const html = await renderTicket(fullListing);
     assertStringIncludes(html, "this listing is full");
     assert(!html.includes(">Reserve Ticket</button>"));
@@ -98,11 +98,11 @@ describe("ticketPage (single listing)", () => {
     const s = stub(fieldsApi, "getSettingCached", () => "square");
     try {
       const free = testListingWithCount({
-        attendee_count: 0,
+        attendeeCount: 0,
         fields: "",
         id: 991,
         slug: "free991",
-        unit_price: 0,
+        unitPrice: 0,
       });
       const render = (packagePrices?: ReadonlyMap<number, number>) =>
         ticketPage({
@@ -122,8 +122,8 @@ describe("ticketPage (single listing)", () => {
 
   test("shows quantity selector when max_quantity > 1 and spots available", async () => {
     const multiQtyListing = testListingWithCount({
-      attendee_count: 0,
-      max_quantity: 5,
+      attendeeCount: 0,
+      maxQuantity: 5,
     });
     const html = await renderTicket(multiQtyListing);
     expectIncludesAll(html, [
@@ -137,8 +137,8 @@ describe("ticketPage (single listing)", () => {
 
   test("limits quantity selector to remaining spots", async () => {
     const limitedListing = testListingWithCount({
-      attendee_count: 97, // Only 3 spots remaining
-      max_quantity: 10,
+      attendeeCount: 97, // Only 3 spots remaining
+      maxQuantity: 10,
     });
     const html = await renderTicket(limitedListing);
     expectIncludesAll(html, [
@@ -150,10 +150,10 @@ describe("ticketPage (single listing)", () => {
 
   test("a built-site plan sells months, not tickets", async () => {
     const planListing = testListingWithCount({
-      assign_built_site: true,
-      attendee_count: 0,
-      initial_site_months: 3,
-      max_quantity: 5,
+      assignBuiltSite: true,
+      attendeeCount: 0,
+      initialSiteMonths: 3,
+      maxQuantity: 5,
     });
     const html = await renderTicket(planListing);
     expectIncludesAll(html, [
@@ -176,8 +176,8 @@ describe("ticketPage (single listing)", () => {
 
   test("shows Continue button for purchase_only listing", async () => {
     const poListing = testListingWithCount({
-      attendee_count: 50,
-      purchase_only: true,
+      attendeeCount: 50,
+      purchaseOnly: true,
     });
     const html = await renderTicket(poListing);
     assertStringIncludes(html, "Continue");
@@ -185,7 +185,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows phone field for phone-only listings", async () => {
     const phoneListing = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       fields: "phone",
     });
     const html = await renderTicket(phoneListing);
@@ -195,7 +195,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows both email and phone for email,phone setting", async () => {
     const bothListing = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       fields: "email,phone",
     });
     const html = await renderTicket(bothListing);
@@ -210,7 +210,7 @@ describe("ticketPage (single listing)", () => {
 
   test("hides header and description in iframe mode", async () => {
     const listingWithDesc = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc, { iframe: true });
@@ -221,7 +221,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows header and description when not in iframe mode", async () => {
     const listingWithDesc = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc);

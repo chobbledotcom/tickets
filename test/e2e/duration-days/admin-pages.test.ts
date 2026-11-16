@@ -85,7 +85,7 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       // The full edit form, so the listing keeps its per-day prices.
       await updateTestListing(listing.id, { durationDays: 4 });
 
-      expect((await getListingWithCount(listing.id))?.duration_days).toBe(4);
+      expect((await getListingWithCount(listing.id))?.durationDays).toBe(4);
       // The maximum changed; the booked span did not.
       expect((await rawListingRange(listing.id))!.end_at).toBe(before!.end_at);
       await expectListingActivityLogLacks(listing.id, "duration changed");

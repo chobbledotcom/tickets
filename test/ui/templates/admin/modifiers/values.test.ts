@@ -12,8 +12,8 @@ describe("ruleSummary", () => {
     expect(
       ruleSummary(
         testModifier({
-          calc_kind: "percent",
-          calc_value: 10,
+          calcKind: "percent",
+          calcValue: 10,
           direction: "discount",
         }),
       ),
@@ -24,8 +24,8 @@ describe("ruleSummary", () => {
     expect(
       ruleSummary(
         testModifier({
-          calc_kind: "fixed",
-          calc_value: 500,
+          calcKind: "fixed",
+          calcValue: 500,
           direction: "charge",
         }),
       ),
@@ -34,7 +34,7 @@ describe("ruleSummary", () => {
 
   test("summarises a multiply rule without a direction word", () => {
     expect(
-      ruleSummary(testModifier({ calc_kind: "multiply", calc_value: 1.5 })),
+      ruleSummary(testModifier({ calcKind: "multiply", calcValue: 1.5 })),
     ).toBe("Multiply · ×1.5");
   });
 });
@@ -49,8 +49,8 @@ describe("modifierToFieldValues", () => {
     const values = modifierToFieldValues(
       testModifier({
         active: false,
-        min_subtotal: 2500,
-        min_visits: 3,
+        minSubtotal: 2500,
+        minVisits: 3,
         stock: 8,
       }),
     );
@@ -62,12 +62,12 @@ describe("modifierToFieldValues", () => {
 
   test("prefills the max times per order, blank when uncapped", () => {
     const capped = modifierToFieldValues(
-      testModifier({ max_per_order: 2, trigger: "answer" }),
+      testModifier({ maxPerOrder: 2, trigger: "answer" }),
     );
     expect(capped.max_per_order).toBe(2);
 
     const uncapped = modifierToFieldValues(
-      testModifier({ max_per_order: null, trigger: "answer" }),
+      testModifier({ maxPerOrder: null, trigger: "answer" }),
     );
     expect(uncapped.max_per_order).toBe("");
   });
@@ -75,13 +75,13 @@ describe("modifierToFieldValues", () => {
   test("keeps an explicit zero max_per_order as 0, not blank", () => {
     // max_per_order is `?? ""` (nullish), like stock — a stored 0 (refused at
     // the form, but possible by direct repair) must survive a re-render.
-    const values = modifierToFieldValues(testModifier({ max_per_order: 0 }));
+    const values = modifierToFieldValues(testModifier({ maxPerOrder: 0 }));
     expect(values.max_per_order).toBe(0);
   });
 
   test("renders a zero min_subtotal and absent stock as blank", () => {
     const values = modifierToFieldValues(
-      testModifier({ min_subtotal: 0, min_visits: 0, stock: null }),
+      testModifier({ minSubtotal: 0, minVisits: 0, stock: null }),
     );
     expect(values.min_subtotal).toBe("");
     expect(values.min_visits).toBe("");
@@ -99,8 +99,8 @@ describe("modifierAggregateToFieldValues", () => {
   test("projects the two count aggregates", () => {
     expect(
       modifierAggregateToFieldValues(
-        testModifier({ total_uses: 7, usage_count: 3 }),
+        testModifier({ totalUses: 7, usageCount: 3 }),
       ),
-    ).toEqual({ total_uses: 7, usage_count: 3 });
+    ).toEqual({ totalUses: 7, usageCount: 3 });
   });
 });

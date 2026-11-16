@@ -104,7 +104,7 @@ describe("the listing booking-QR page", () => {
 
   test("caps a pay-what-you-want listing at its configured range", () => {
     const html = renderPanel({
-      listing: listing({ can_pay_more: true }),
+      listing: listing({ canPayMore: true }),
     });
 
     expectIncludesAll(html, [
@@ -137,7 +137,7 @@ describe("the listing booking-QR page", () => {
 
   test("a daily-only form shows no date dropdown for other listing types", () => {
     const html = renderPanel({
-      listing: listing({ listing_type: "standard" }),
+      listing: listing({ listingType: "standard" }),
     });
 
     assert(!html.includes('name="date"'));

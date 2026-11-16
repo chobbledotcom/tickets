@@ -27,8 +27,8 @@ const attendeeStatus = (
 
 const OWNER_NOTE: SystemNote = {
   created: "2026-07-11T10:00:00.000Z",
-  entity_id: 1,
-  entity_type: "attendee",
+  entityId: 1,
+  entityType: "attendee",
   id: 1,
   note: "Bring identification",
   type: "owner",

@@ -37,7 +37,7 @@ const bookedLine = (
   error: null,
   existingBooking: null,
   key: "",
-  listing: testListingWithCount({ id, uses_logistics: delivered }),
+  listing: testListingWithCount({ id, usesLogistics: delivered }),
   listingId: id,
   noQuantity: false,
   packageGroupId: 0,

@@ -118,22 +118,22 @@ describe("built-site templates", () => {
 
     test("lists each tier with units sold from attendee_count", () => {
       const monthly = testListingWithCount({
-        attendee_count: 7,
+        attendeeCount: 7,
         hidden: true,
         id: 11,
-        months_per_unit: 1,
+        monthsPerUnit: 1,
         name: "Monthly tier",
-        purchase_only: true,
-        unit_price: 500,
+        purchaseOnly: true,
+        unitPrice: 500,
       });
       const annual = testListingWithCount({
-        attendee_count: 2,
+        attendeeCount: 2,
         hidden: true,
         id: 12,
-        months_per_unit: 12,
+        monthsPerUnit: 12,
         name: "Annual tier",
-        purchase_only: true,
-        unit_price: 5000,
+        purchaseOnly: true,
+        unitPrice: 5000,
       });
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, [

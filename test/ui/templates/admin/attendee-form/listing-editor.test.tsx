@@ -138,7 +138,7 @@ describe("ListingEditor", () => {
       ListingEditor({
         data: data([
           attendeeFormLine({
-            listing: testListingWithCount({ id: 9, unit_price: 900 }),
+            listing: testListingWithCount({ id: 9, unitPrice: 900 }),
             listingId: 9,
             packageGroupId: 4,
             packagePrice: 0,
@@ -177,8 +177,8 @@ describe("ListingEditor", () => {
       listing: testListingWithCount({
         active: false,
         id: 1,
-        listing_type: "daily",
-        max_quantity: 3,
+        listingType: "daily",
+        maxQuantity: 3,
         name: "Summer camp",
       }),
       noQuantity: true,

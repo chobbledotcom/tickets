@@ -90,18 +90,18 @@ describe("renderDayCountSelector", () => {
 
 describe("renderPayMoreInput", () => {
   const listing = {
-    assign_built_site: false,
-    initial_site_months: 0,
-    max_price: 10000,
-    unit_price: 500,
+    assignBuiltSite: false,
+    initialSiteMonths: 0,
+    maxPrice: 10000,
+    unitPrice: 500,
   };
   const paidSitePlan = {
     ...listing,
-    assign_built_site: true,
-    initial_site_months: 3,
+    assignBuiltSite: true,
+    initialSiteMonths: 3,
   };
-  const freeSitePlan = { ...paidSitePlan, unit_price: 0 };
-  const freeTicket = { ...listing, unit_price: 0 };
+  const freeSitePlan = { ...paidSitePlan, unitPrice: 0 };
+  const freeTicket = { ...listing, unitPrice: 0 };
 
   /** Assert the price wording `plan` renders, and that it never carries the
    *  wording of the other pricing shape. */
@@ -152,12 +152,12 @@ describe("renderPayMoreInput", () => {
   });
 
   test("makes a page-listing price input required down to the smallest price", () => {
-    const nearlyFree = { ...listing, unit_price: 50 };
+    const nearlyFree = { ...listing, unitPrice: 50 };
     assertStringIncludes(renderPayMoreInput(nearlyFree), " required />");
   });
 
   test("treats even one minor unit as a priced minimum", () => {
-    const smallest = { ...listing, unit_price: 1 };
+    const smallest = { ...listing, unitPrice: 1 };
     const html = renderPayMoreInput(smallest);
     expectIncludesAll(html, [
       "Price per ticket (£0.01 minimum)",

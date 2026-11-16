@@ -9,7 +9,7 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 
 const ticketListing = (id: number, active = true) =>
   buildTicketListing(
-    testListingWithCount({ active, id, max_attendees: 10, max_quantity: 5 }),
+    testListingWithCount({ active, id, maxAttendees: 10, maxQuantity: 5 }),
     false,
     undefined,
   );

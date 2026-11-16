@@ -27,7 +27,7 @@ const editFormData = async (
   const listing = await getListingWithCount(listingId);
   if (!listing) throw new Error(`Listing not found: ${listingId}`);
   return {
-    bookable_days: listing.bookable_days,
+    bookable_days: listing.bookableDays,
     closes_at_date: "",
     closes_at_time: "",
     csrf_token: csrfToken,
@@ -35,18 +35,18 @@ const editFormData = async (
     date_time: "",
     description: listing.description,
     fields: (listing.fields || "email").split(","),
-    listing_type: listing.listing_type,
+    listing_type: listing.listingType,
     location: listing.location,
-    max_attendees: String(listing.max_attendees),
-    max_price: toMajorUnits(listing.max_price),
-    max_quantity: String(listing.max_quantity),
-    maximum_days_after: String(listing.maximum_days_after),
-    minimum_days_before: String(listing.minimum_days_before),
+    max_attendees: String(listing.maxAttendees),
+    max_price: toMajorUnits(listing.maxPrice),
+    max_quantity: String(listing.maxQuantity),
+    maximum_days_after: String(listing.maximumDaysAfter),
+    minimum_days_before: String(listing.minimumDaysBefore),
     name: listing.name,
     slug: listing.slug,
-    thank_you_url: listing.thank_you_url ?? "",
-    unit_price: toMajorUnits(listing.unit_price),
-    webhook_url: listing.webhook_url ?? "",
+    thank_you_url: listing.thankYouUrl ?? "",
+    unit_price: toMajorUnits(listing.unitPrice),
+    webhook_url: listing.webhookUrl ?? "",
   };
 };
 
@@ -112,7 +112,7 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
         });
       });
 
@@ -132,7 +132,7 @@ describeWithEnv(
               );
               expect(response.status).toBe(302);
               const updated = await getListingWithCount(listing.id);
-              expect(updated?.attachment_url).toBe("");
+              expect(updated?.attachmentUrl).toBe("");
             });
           });
         },
@@ -153,8 +153,8 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toMatch(/guide\.pdf$/);
-          expect(updated?.attachment_name).toBe("guide.pdf");
+          expect(updated?.attachmentUrl).toMatch(/guide\.pdf$/);
+          expect(updated?.attachmentName).toBe("guide.pdf");
         });
       });
 
@@ -175,7 +175,7 @@ describeWithEnv(
           );
           expectImageErrorRedirect(response, "25MB");
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
         });
       });
 

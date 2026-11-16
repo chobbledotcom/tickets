@@ -61,8 +61,8 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
-          expect(updated?.attachment_name).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
+          expect(updated?.attachmentName).toBe("");
         });
       });
 
@@ -108,8 +108,8 @@ describeWithEnv(
         });
 
         const updated = await getListingWithCount(listing.id);
-        expect(updated?.attachment_url).toBe("delete-fails.pdf");
-        expect(updated?.attachment_name).toBe("guide.pdf");
+        expect(updated?.attachmentUrl).toBe("delete-fails.pdf");
+        expect(updated?.attachmentName).toBe("guide.pdf");
       });
 
       test("returns 404 for non-existent listing", async () => {

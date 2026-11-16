@@ -67,7 +67,7 @@ const importLogisticsListing = async (name: string): Promise<boolean> => {
   });
   if (!result.ok) throw new Error(result.error);
   return (await getListingWithCount(requireEntityImport(result).id))!
-    .uses_logistics;
+    .usesLogistics;
 };
 
 /** A file for a one-place listing under the named parents. */
@@ -256,10 +256,7 @@ describeWithEnv(
         await editorExportCopy(),
         "editor",
       );
-      expect([imported.webhook_url, imported.use_defaults]).toEqual([
-        "",
-        false,
-      ]);
+      expect([imported.webhookUrl, imported.useDefaults]).toEqual(["", false]);
     });
 
     test("keeps the webhook URL for a non-editor import", async () => {
@@ -275,7 +272,7 @@ describeWithEnv(
         },
         "owner",
       );
-      expect(imported.webhook_url).toBe("https://example.com/hook");
+      expect(imported.webhookUrl).toBe("https://example.com/hook");
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
@@ -305,10 +302,10 @@ describeWithEnv(
       });
       if (!result.ok) throw new Error(result.error);
       const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listing_id === requireEntityImport(result).id,
+        (r) => r.listingId === requireEntityImport(result).id,
       )!;
       // The override is dropped because the group isn't a package.
-      expect(row.package_price).toBeNull();
+      expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
     });
 
@@ -324,7 +321,7 @@ describeWithEnv(
       const row = (
         await getGroupPackagePrices(requireEntityImport(result).id)
       )[0]!;
-      expect(row.package_price).toBeNull();
+      expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
     });
 

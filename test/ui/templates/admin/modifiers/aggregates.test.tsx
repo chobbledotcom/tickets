@@ -21,14 +21,14 @@ describe("ModifierRunningTotalsSection", () => {
   test("renders the two count aggregates and a recalculate link", () => {
     const html = String(
       ModifierRunningTotalsSection({
-        modifier: testModifier({ id: 1, total_uses: 7, usage_count: 3 }),
+        modifier: testModifier({ id: 1, totalUses: 7, usageCount: 3 }),
       }),
     );
     expectIncludesAll(html, [
       "Running totals",
-      'name="total_uses"',
+      'name="totalUses"',
       'value="7"',
-      'name="usage_count"',
+      'name="usageCount"',
       'value="3"',
       "/admin/modifiers/recalculate/1",
     ]);
@@ -45,8 +45,8 @@ describe("adminModifierRecalculatePage", () => {
     const html = adminModifierRecalculatePage(
       testModifier({ name: "Loyalty" }),
       {
-        total_uses: { current: 9, recalculated: 4 },
-        usage_count: { current: 5, recalculated: 2 },
+        totalUses: { current: 9, recalculated: 4 },
+        usageCount: { current: 5, recalculated: 2 },
       },
       OWNER_SESSION,
     );
@@ -55,7 +55,7 @@ describe("adminModifierRecalculatePage", () => {
       "Current",
       "From attendee data",
       'name="recalculate_fields"',
-      'value="total_uses"',
+      'value="totalUses"',
       ">9<",
       ">4<",
       ">5<",
@@ -71,8 +71,8 @@ describe("adminModifierRecalculatePage", () => {
     const html = adminModifierRecalculatePage(
       testModifier({ name: "Loyalty" }),
       {
-        total_uses: { current: 1, recalculated: 1 },
-        usage_count: { current: 1, recalculated: 1 },
+        totalUses: { current: 1, recalculated: 1 },
+        usageCount: { current: 1, recalculated: 1 },
       },
       OWNER_SESSION,
       "Something went wrong",

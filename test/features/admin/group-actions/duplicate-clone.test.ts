@@ -238,8 +238,8 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const newGroup = (await groups.getAll()).find(
         (g) => g.name === "Pkg Copy",
       )!;
-      expect(newGroup.is_package).toBe(true);
-      expect(newGroup.hide_package_listings).toBe(true);
+      expect(newGroup.isPackage).toBe(true);
+      expect(newGroup.hidePackageListings).toBe(true);
       const newListing = (await getListingsByGroupId(newGroup.id))[0]!;
       expect(newListing.id).not.toBe(listing.id);
       // The clone keeps its OWN per-day-count prices: they are no longer a
@@ -258,7 +258,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       expect(newDayPrices.get(newListing.id)?.get(2)).toBe(900);
       // The source override is untouched.
       const sourceRows = await getGroupPackagePrices(group.id);
-      expect(sourceRows[0]!.package_price).toBe(3000);
+      expect(sourceRows[0]!.packagePrice).toBe(3000);
       expect(sourceRows[0]!.quantity).toBe(4);
       expect((await getGroupDayPrices(group.id)).get(listing.id)?.get(2)).toBe(
         900,

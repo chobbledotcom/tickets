@@ -130,8 +130,8 @@ describeWithEnv(
         const afterFirst = (await getAllModifiers()).find(
           (m) => m.id === modifierId,
         );
-        expect(afterFirst?.total_uses).toBe(1);
-        expect(afterFirst?.total_revenue).toBe(500);
+        expect(afterFirst?.totalUses).toBe(1);
+        expect(afterFirst?.totalRevenue).toBe(500);
 
         // The single unit is now spent, so the next booking of the tier is blocked.
         const second = await submitTicketForm(listing.slug, {

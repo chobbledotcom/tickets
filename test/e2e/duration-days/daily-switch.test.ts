@@ -56,13 +56,13 @@ const expectListingType = async (
   listingId: number,
   type: "daily" | "standard",
 ): Promise<void> => {
-  expect((await getListingWithCount(listingId))?.listing_type).toBe(type);
+  expect((await getListingWithCount(listingId))?.listingType).toBe(type);
 };
 
 /** Save the confirmed switch for `day`, and assert the flash names the two
  * moved bookings and the listing now reads as a daily one. */
 const confirmSwitchOfTwo = async (
-  listing: { id: number; max_attendees: number; name: string; slug: string },
+  listing: { id: number; maxAttendees: number; name: string; slug: string },
   day: string,
 ): Promise<void> => {
   const response = await postSwitch(listing, { assign_undated_to: day });
@@ -198,7 +198,7 @@ describeWithEnv(
         sql`UPDATE listings SET max_attendees = 1 WHERE id = ${listing.id}`,
       );
 
-      const response = await postSwitch({ ...listing, max_attendees: 1 });
+      const response = await postSwitch({ ...listing, maxAttendees: 1 });
       expect(response.status).toBe(200);
       const page = await response.text();
       expect(page).toContain(

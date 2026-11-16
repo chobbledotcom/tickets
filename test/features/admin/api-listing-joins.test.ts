@@ -99,7 +99,7 @@ const staleEdgeCases: readonly StaleEdgeCase[] = [
     broken: "child",
     message: "listings_table.children_err_child_daily",
     name: "rejects a stale incoming edge after the child becomes daily",
-    read: (row) => row.listing_type,
+    read: (row) => row.listingType,
     statement: ({ child }) =>
       sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child}`,
     unchanged: "standard",
@@ -108,7 +108,7 @@ const staleEdgeCases: readonly StaleEdgeCase[] = [
     broken: "parent",
     message: "listings_table.children_err_parent_renewal",
     name: "rejects a stale outgoing edge after the parent becomes a renewal",
-    read: (row) => row.months_per_unit,
+    read: (row) => row.monthsPerUnit,
     statement: ({ parent }) =>
       sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent}`,
     unchanged: 0,
@@ -249,7 +249,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     );
 
     expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
-    expect((await getListingWithCount(listing.id))?.can_pay_more).toBe(false);
+    expect((await getListingWithCount(listing.id))?.canPayMore).toBe(false);
   });
 
   test("refuses child edges when the preserved membership gained a hidden package", async () => {

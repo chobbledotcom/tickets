@@ -102,8 +102,8 @@ describeWithEnv("server webhooks > concurrent processing", { db: true }, () => {
       const attendees = await getAttendeesRaw(listing.id);
       expect(attendees).toHaveLength(1);
       const processed = await getProcessedPayment("cs_webhook_concurrent");
-      expect(processed?.attendee_id).toBe(attendees[0]!.id);
-      expect(processed?.failure_data).toBe("");
+      expect(processed?.attendeeId).toBe(attendees[0]!.id);
+      expect(processed?.failureData).toBe("");
     } finally {
       releaseBooking.resolve();
       pauseWinner.restore();

@@ -138,7 +138,7 @@ Then(
   "the {word} is booked by the day",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const listing = (await getListingWithCount(listingIdNamed(this, name)))!;
-    expect(listing.listing_type).toBe("daily");
+    expect(listing.listingType).toBe("daily");
   },
 );
 
@@ -146,7 +146,7 @@ Then(
   "the {word} is still not booked by the day",
   async function (this: TicketsWorld, name: string): Promise<void> {
     const listing = (await getListingWithCount(listingIdNamed(this, name)))!;
-    expect(listing.listing_type).toBe("standard");
+    expect(listing.listingType).toBe("standard");
   },
 );
 

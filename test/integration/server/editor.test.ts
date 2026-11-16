@@ -321,9 +321,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const listing = await createTestListing();
       const editBody = {
         ...buildCreateListingForm(testListingInput(), "editor"),
-        booked_quantity: "999",
+        bookedQuantity: "999",
         slug: listing.slug,
-        tickets_count: "999",
+        ticketsCount: "999",
       };
 
       // The editor's save succeeds and returns to the listing's own page,
@@ -378,7 +378,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       // The income-adjust form and the running-totals aggregate inputs are gone.
       assert(!html.includes(`/admin/listing/${listing.id}/income`));
-      assert(!html.includes('name="booked_quantity"'));
+      assert(!html.includes('name="bookedQuantity"'));
     });
 
     test("groups list links editors to the group's own page", async () => {

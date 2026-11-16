@@ -38,7 +38,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         name: "Paid Listing",
         unit_price: "10.00",
       });
-      expect(listing?.unit_price).toBe(1000);
+      expect(listing?.unitPrice).toBe(1000);
     });
 
     test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
@@ -79,7 +79,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         day_price_1: "10.00",
         name: "Good Day Price",
       });
-      expect(listing?.day_prices).toEqual({ 1: 1000 });
+      expect(listing?.dayPrices).toEqual({ 1: 1000 });
     });
   });
   describe("POST /admin/listing with can_pay_more", () => {
@@ -89,10 +89,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         name: "Pay More Listing",
         unit_price: "10.00",
       });
-      expect([listing?.can_pay_more, listing?.unit_price]).toEqual([
-        true,
-        1000,
-      ]);
+      expect([listing?.canPayMore, listing?.unitPrice]).toEqual([true, 1000]);
     });
 
     test("creates listing with can_pay_more disabled by default", async () => {
@@ -100,7 +97,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         name: "Normal Listing",
         unit_price: "5.00",
       });
-      expect(listing?.can_pay_more).toBe(false);
+      expect(listing?.canPayMore).toBe(false);
     });
 
     test("updates listing can_pay_more via edit", async () => {
@@ -110,8 +107,8 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         `/admin/listing/${listing.id}/edit`,
         {
           can_pay_more: "1",
-          max_attendees: String(listing.max_attendees),
-          max_quantity: String(listing.max_quantity),
+          max_attendees: String(listing.maxAttendees),
+          max_quantity: String(listing.maxQuantity),
           name: listing.name,
           slug: listing.slug,
           unit_price: "10.00",
@@ -120,7 +117,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       expect(response.status).toBe(302);
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.can_pay_more).toBe(true);
+      expect(updated?.canPayMore).toBe(true);
     });
   });
   describe("POST /admin/listing with max_price", () => {
@@ -130,14 +127,14 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         maxPrice: 50000,
       });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(50000);
-      expect(saved?.can_pay_more).toBe(true);
+      expect(saved?.maxPrice).toBe(50000);
+      expect(saved?.canPayMore).toBe(true);
     });
 
     test("max_price defaults to 10000 when not set", async () => {
       const listing = await createTestListing({ canPayMore: true });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(10000);
+      expect(saved?.maxPrice).toBe(10000);
     });
 
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
@@ -158,7 +155,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         unitPrice: 1000,
       });
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.max_price).toBe(1050);
+      expect(saved?.maxPrice).toBe(1050);
     });
 
     test("accepts max_price equal to unit_price + 100", async () => {
@@ -166,7 +163,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
         maxPrice: 1100,
         unitPrice: 1000,
       });
-      expect(listing.max_price).toBe(1100);
+      expect(listing.maxPrice).toBe(1100);
     });
 
     test("updates max_price via edit", async () => {
@@ -176,7 +173,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       });
       await updateTestListing(listing.id, { maxPrice: 25000 });
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.max_price).toBe(25000);
+      expect(updated?.maxPrice).toBe(25000);
     });
   });
 });

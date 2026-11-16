@@ -183,8 +183,8 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
       await expectStoredPage(body.page.id, {
         hidden: true,
-        meta_description: "Before you come",
-        meta_title: "Plan",
+        metaDescription: "Before you come",
+        metaTitle: "Plan",
       });
       expect(await wasActivityLogged("Page 'Plan your weekend' created")).toBe(
         true,
@@ -333,9 +333,9 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       await putPageUnder(child.id, parent.id);
       // The no-op wrote no second parent edge for the child.
       const edges = (await getAllPageItems()).filter(
-        (item) => item.item_type === "page" && item.item_id === child.id,
+        (item) => item.itemType === "page" && item.itemId === child.id,
       );
-      expect(edges.map((edge) => edge.page_id)).toEqual([parent.id]);
+      expect(edges.map((edge) => edge.pageId)).toEqual([parent.id]);
     });
 
     test("refuses nesting a page under itself", async () => {

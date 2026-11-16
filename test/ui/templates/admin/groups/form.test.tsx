@@ -54,14 +54,14 @@ describe("admin group form templates", () => {
     const group = testGroup({
       description: "A <strong>group</strong>",
       hidden: true,
-      hide_package_listings: true,
+      hidePackageListings: true,
       id: 21,
-      is_package: true,
-      max_attendees: 25,
+      isPackage: true,
+      maxAttendees: 25,
       name: 'Family "Bundle"',
-      show_hidden_listings: false,
+      showHiddenListings: false,
       slug: "family-bundle",
-      terms_and_conditions: "Be kind.",
+      termsAndConditions: "Be kind.",
     });
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
@@ -85,18 +85,18 @@ describe("admin group form templates", () => {
   });
 
   test("renders package member overrides and defaults without losing a free price", () => {
-    const group = testGroup({ id: 3, is_package: true });
+    const group = testGroup({ id: 3, isPackage: true });
     const listings = [
-      testListingWithCount({ id: 8, name: "Free override", unit_price: 1250 }),
+      testListingWithCount({ id: 8, name: "Free override", unitPrice: 1250 }),
       testListingWithCount({
         id: 9,
         name: "Listing defaults",
-        unit_price: 3400,
+        unitPrice: 3400,
       }),
       testListingWithCount({
         id: 10,
         name: "Blank override",
-        unit_price: 5600,
+        unitPrice: 5600,
       }),
     ];
     const members: PackageMemberValues = new Map([
@@ -134,7 +134,7 @@ describe("admin group form templates", () => {
   test("shows a member's stored quantity as it is rather than lifting it to one", () => {
     // The fallback serves the member row that is not there; a stored quantity
     // is shown as stored, so a zero stays visible for the operator to fix.
-    const group = testGroup({ is_package: true });
+    const group = testGroup({ isPackage: true });
     const listing = testListingWithCount({ id: 12, name: "Zeroed" });
     const html = String(
       GroupEditPanel({
@@ -150,11 +150,11 @@ describe("admin group form templates", () => {
   });
 
   test("renders available package day prices with saved values and listing placeholders", () => {
-    const group = testGroup({ is_package: true });
+    const group = testGroup({ isPackage: true });
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1200, 3: 3000, 7: 7000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1: 1200, 3: 3000, 7: 7000 },
+      durationDays: 3,
       id: 6,
       name: "Flexible stay",
     });
@@ -191,7 +191,7 @@ describe("admin group form templates", () => {
   test("renders the package member empty state instead of a table", () => {
     const html = String(
       GroupEditPanel({
-        group: testGroup({ is_package: true }),
+        group: testGroup({ isPackage: true }),
         listings: [],
         members: new Map(),
       }),

@@ -19,9 +19,9 @@ import { withStorageDisabled, withStorageEnabled } from "#test-utils/mocks.ts";
 import type { Image } from "#types";
 
 const image = (id: number, name: string): Image => ({
-  alt_text: `Alt ${name}`,
+  altText: `Alt ${name}`,
   filename: nonEmptyString(`${name.toLowerCase()}.webp`),
-  filename_thumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
+  filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
   id,
   name,
 });

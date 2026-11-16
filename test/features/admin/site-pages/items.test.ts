@@ -44,7 +44,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         expectFlash(response, "Added to page", true);
       }
       const items = await getItemsForPage(page.id);
-      expect(items.map((i) => i.item_type)).toEqual([
+      expect(items.map((i) => i.itemType)).toEqual([
         "listing",
         "group",
         "page",
@@ -225,7 +225,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await addPageItem(page.id, "listing", l2.id);
       await addPageItem(page.id, "listing", l3.id);
       const ids = async (): Promise<number[]> =>
-        (await getItemsForPage(page.id)).map((i) => i.item_id);
+        (await getItemsForPage(page.id)).map((i) => i.itemId);
 
       // Move the middle item up (index 1 → 0): l2, l1, l3.
       const up = await adminFormPost(

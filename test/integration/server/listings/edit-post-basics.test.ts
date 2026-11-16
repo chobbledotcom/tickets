@@ -85,29 +85,27 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         "Listing updated",
       )(response);
       expect([
-        updated?.max_attendees,
-        updated?.thank_you_url,
-        updated?.unit_price,
+        updated?.maxAttendees,
+        updated?.thankYouUrl,
+        updated?.unitPrice,
       ]).toEqual([200, "https://example.com/updated", 2000]);
     });
 
     test("updates listing running totals from the edit form", async () => {
       const { response, updated } = await saveFirstListing({
-        booked_quantity: "12",
-        tickets_count: "4",
+        bookedQuantity: "12",
+        ticketsCount: "4",
       });
       expect(response.status).toBe(302);
       // income is no longer a column override — it's projected from the ledger,
       // so the form only edits the count aggregates now.
-      expect([updated?.attendee_count, updated?.tickets_count]).toEqual([
-        12, 4,
-      ]);
+      expect([updated?.attendeeCount, updated?.ticketsCount]).toEqual([12, 4]);
     });
 
     test("rejects invalid listing running totals", async () => {
       const { response } = await saveFirstListing({
-        booked_quantity: "-1",
-        tickets_count: "4",
+        bookedQuantity: "-1",
+        ticketsCount: "4",
       });
       await expectHtmlResponse(
         response,
@@ -122,7 +120,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
         max_attendees: "200",
         webhook_url: "https://example.com/new-webhook",
       });
-      expect([response.status, updated?.max_attendees]).toEqual([400, 100]);
+      expect([response.status, updated?.maxAttendees]).toEqual([400, 100]);
     });
   });
 });

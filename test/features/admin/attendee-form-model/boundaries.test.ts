@@ -30,8 +30,8 @@ describe("attendee form model > boundaries", () => {
   });
 
   describe("a balance of one penny", () => {
-    const paid = { is_paid_default: true, is_reservation: false };
-    const reservation = { is_paid_default: false, is_reservation: true };
+    const paid = { isPaidDefault: true, isReservation: false };
+    const reservation = { isPaidDefault: false, isReservation: true };
 
     test("still warns on a paid status", () => {
       expect(attendeeBalanceNotice(paid, 1, 1000, 999)?.tone).toBe("warning");

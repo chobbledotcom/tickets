@@ -104,10 +104,10 @@ describeWithEnv(
         )(response);
 
         const updated = await getListingWithCount(listing.id);
-        expect(updated?.attendee_count).toBe(2);
+        expect(updated?.attendeeCount).toBe(2);
         // Resetting only booked_quantity leaves the ledger-projected income alone.
         expect(updated?.income).toBe(9000);
-        expect(updated?.tickets_count).toBe(5);
+        expect(updated?.ticketsCount).toBe(5);
       });
 
       test("records an activity-log entry when totals are recalculated", async () => {

@@ -88,7 +88,7 @@ describeWithEnv(
           name: "Capped",
           slug: "capped",
         });
-        expect(group.max_attendees).toBe(50);
+        expect(group.maxAttendees).toBe(50);
       });
 
       test("creates group without max_attendees defaults to 0", async () => {
@@ -96,7 +96,7 @@ describeWithEnv(
           name: "Uncapped",
           slug: "uncapped",
         });
-        expect(group.max_attendees).toBe(0);
+        expect(group.maxAttendees).toBe(0);
       });
 
       test("edit form shows max_attendees field", async () => {
@@ -121,7 +121,7 @@ describeWithEnv(
         });
 
         const updated = await updateTestGroup(group.id, { maxAttendees: 30 });
-        expect(updated.max_attendees).toBe(30);
+        expect(updated.maxAttendees).toBe(30);
       });
 
       test("detail page shows Group Attendees with cap when set", async () => {

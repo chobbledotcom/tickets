@@ -221,7 +221,7 @@ describeWithEnv("server > listing parents > edges", { db: true }, () => {
       updateTestListing(parent.id, { listingType: "standard" }),
     ).rejects.toThrow();
     const after = await getListingWithCount(parent.id);
-    expect(after?.listing_type).toBe("daily");
+    expect(after?.listingType).toBe("daily");
   });
 
   test("allows a compatible listing edit while edges exist", async () => {

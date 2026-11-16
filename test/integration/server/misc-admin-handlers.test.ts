@@ -196,7 +196,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
       expect(entries[0]?.message).toBe("Fixed listing action");
-      expect(entries[0]?.listing_id).toBe(42);
+      expect(entries[0]?.listingId).toBe(42);
     });
 
     test("createActionHandler computes listingId from submitted form", async () => {
@@ -216,7 +216,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
       expect(entries[0]?.message).toBe("Computed listing action");
-      expect(entries[0]?.listing_id).toBe(77);
+      expect(entries[0]?.listingId).toBe(77);
     });
 
     test("getDateFilter returns valid date", async () => {

@@ -160,7 +160,7 @@ export const forwardingAddressOrNull: ReadAboutOneThing<string | null> = async (
   name,
 ) => {
   const found = await getListingWithCount(listingIdNamed(world, name));
-  return stillThere(found, name).webhook_url;
+  return stillThere(found, name).webhookUrl;
 };
 
 /** The editor renames something the site already sells, through the listing's

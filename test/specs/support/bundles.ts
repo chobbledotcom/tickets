@@ -246,9 +246,9 @@ export const bundleChargeForOrNull = async (
 ): Promise<number | null> => {
   const wanted = listingIdNamed(world, part);
   const rows = await getGroupPackagePrices(bundleNamed(world, name).id);
-  const inBundle = rows.find((row: GroupListing) => row.listing_id === wanted);
+  const inBundle = rows.find((row: GroupListing) => row.listingId === wanted);
   if (!inBundle) throw new Error(`The ${part} is not in the ${name} at all`);
-  return inBundle.package_price;
+  return inBundle.packagePrice;
 };
 
 /**

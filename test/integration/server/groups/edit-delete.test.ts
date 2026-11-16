@@ -121,7 +121,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       });
       expect(updated.name).toBe("After");
       expect(updated.slug).toBe("after");
-      expect(updated.terms_and_conditions).toBe("Updated terms");
+      expect(updated.termsAndConditions).toBe("Updated terms");
     });
 
     test("updates group description", async () => {

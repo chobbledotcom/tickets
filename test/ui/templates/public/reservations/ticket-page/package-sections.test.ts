@@ -16,14 +16,14 @@ import type { ListingWithCount } from "#types";
 
 const ticketListing = (over: Partial<ListingWithCount>) =>
   buildTicketListing(
-    testListingWithCount({ attendee_count: 0, max_attendees: 100, ...over }),
+    testListingWithCount({ attendeeCount: 0, maxAttendees: 100, ...over }),
     false,
     undefined,
   );
 
 const member = () => ticketListing({ id: 1, name: "Kit Tent", slug: "tent1" });
 const solo = () =>
-  ticketListing({ id: 2, max_quantity: 5, name: "Lantern", slug: "lant1" });
+  ticketListing({ id: 2, maxQuantity: 5, name: "Lantern", slug: "lant1" });
 
 /** A cart page: package 7 (member listing 1) beside standalone listing 2. */
 const mixedPage = (memberListing = member()) =>
@@ -52,7 +52,7 @@ describe("ticketPage — package sections beside standalone rows", () => {
   test("a sold-out bundle dims to a label while the rest of the page books", () => {
     const html = mixedPage(
       ticketListing({
-        attendee_count: 100,
+        attendeeCount: 100,
         id: 1,
         name: "Kit Tent",
         slug: "tent1",
@@ -73,8 +73,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       listings: [
         ticketListing({
           id: 1,
-          max_quantity: 10,
-          min_quantity: 3,
+          maxQuantity: 10,
+          minQuantity: 3,
           name: "Kit Tent",
           slug: "tent1",
         }),
@@ -102,8 +102,8 @@ describe("ticketPage — package sections beside standalone rows", () => {
       listings: [
         ticketListing({
           id: 1,
-          max_quantity: 10,
-          min_quantity: 9,
+          maxQuantity: 10,
+          minQuantity: 9,
           name: "Kit Tent",
           slug: "tent1",
         }),

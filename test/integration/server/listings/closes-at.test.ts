@@ -24,14 +24,14 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       const listing = await createTestListing({ closesAt });
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBe("2099-06-15T14:30:00.000Z");
+      expect(saved?.closesAt).toBe("2099-06-15T14:30:00.000Z");
     });
 
     test("creates listing without closes_at (defaults to null)", async () => {
       const listing = await createTestListing();
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.closes_at).toBeNull();
+      expect(saved?.closesAt).toBeNull();
     });
 
     test("updates listing closes_at", async () => {
@@ -40,7 +40,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       await updateTestListing(listing.id, { closesAt });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.closes_at).toBe("2099-12-31T23:59:00.000Z");
+      expect(updated?.closesAt).toBe("2099-12-31T23:59:00.000Z");
     });
 
     test("clears closes_at by setting to empty string", async () => {
@@ -48,7 +48,7 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
       await updateTestListing(listing.id, { closesAt: "" });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.closes_at).toBeNull();
+      expect(updated?.closesAt).toBeNull();
     });
 
     test("admin listing detail page shows closes_at with countdown when set", async () => {

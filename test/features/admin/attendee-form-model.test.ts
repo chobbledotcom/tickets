@@ -16,7 +16,7 @@ import { bookingRow, testListingWithCount } from "#test-utils/factories.ts";
 
 describe("toLedgerOrder", () => {
   test("a zero package override keeps the leg at zero, not the listing price", () => {
-    const listing = testListingWithCount({ id: 3, unit_price: 900 });
+    const listing = testListingWithCount({ id: 3, unitPrice: 900 });
     const parsed = parsedBase({
       lines: [
         line({

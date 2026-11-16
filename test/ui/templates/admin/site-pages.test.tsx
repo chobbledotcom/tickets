@@ -21,12 +21,12 @@ const PAGE: SitePage = {
   content: "Welcome **inside**.",
   hidden: false,
   id: 7,
-  meta_description: "A useful page",
-  meta_title: "Inside title",
+  metaDescription: "A useful page",
+  metaTitle: "Inside title",
   name: "Inside",
   slug: "inside",
-  slug_index: "site-page-index" as BlindIndex,
-  sort_order: 0,
+  slugIndex: "site-page-index" as BlindIndex,
+  sortOrder: 0,
 };
 
 const navPage = (
@@ -34,7 +34,7 @@ const navPage = (
   name: string,
   slug: string,
   sortOrder: number,
-): SitePageNavRow => ({ hidden: false, id, name, slug, sort_order: sortOrder });
+): SitePageNavRow => ({ hidden: false, id, name, slug, sortOrder: sortOrder });
 
 describe("site page templates", () => {
   beforeAll(setupAdminPageTest);

@@ -13,7 +13,7 @@ describe("GroupEditPanel package members table", () => {
   beforeAll(setupAdminPageTest);
 
   test("renders saved overrides and falls back to defaults for members without a row", () => {
-    const group = testGroup({ is_package: true, name: "Bundle" });
+    const group = testGroup({ isPackage: true, name: "Bundle" });
     const withOverride = testListingWithCount({ id: 1, name: "Priced" });
     const withoutRow = testListingWithCount({ id: 2, name: "Default" });
     // Only listing 1 has a saved member row; listing 2 exercises the
@@ -44,7 +44,7 @@ describe("GroupEditPanel package members table", () => {
     // stood, so an operator could never see — nor keep — a stored yes.
     const opening = testGroup({
       name: "Festival",
-      scan_checks_in_all_listings: true,
+      scanChecksInAllListings: true,
     });
     const html = String(
       GroupEditPanel({ group: opening, listings: [], members: new Map() }),
@@ -58,7 +58,7 @@ describe("GroupEditPanel package members table", () => {
 
     const closed = testGroup({
       name: "Festival",
-      scan_checks_in_all_listings: false,
+      scanChecksInAllListings: false,
     });
     const closedHtml = String(
       GroupEditPanel({ group: closed, listings: [], members: new Map() }),
@@ -73,7 +73,7 @@ describe("GroupEditPanel package members table", () => {
   });
 
   test("shows the empty-state prompt when the package has no listings", () => {
-    const group = testGroup({ is_package: true, name: "Empty" });
+    const group = testGroup({ isPackage: true, name: "Empty" });
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );

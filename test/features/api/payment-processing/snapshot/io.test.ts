@@ -47,8 +47,8 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
 
   const intent = bookingIntent(
     [
-      { e: listingLink.id, p: listingLink.unit_price, q: 1 },
-      { e: groupLink.id, p: groupLink.unit_price, q: 1 },
+      { e: listingLink.id, p: listingLink.unitPrice, q: 1 },
+      { e: groupLink.id, p: groupLink.unitPrice, q: 1 },
     ],
     { modifiers: [{ i: modifier.id, q: 1 }] },
   );
@@ -62,7 +62,7 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     })),
     modifiers: snapshot.modifierSpecs,
     name: intent.name,
@@ -92,7 +92,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const intent = bookingIntent(
       listings.map((listing) => ({
         e: listing.id,
-        p: listing.unit_price,
+        p: listing.unitPrice,
         q: 1,
       })),
     );

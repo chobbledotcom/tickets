@@ -57,7 +57,7 @@ describe("parseAttendeeForm money slots", () => {
 });
 
 describe("toLedgerOrder with an agreed price", () => {
-  const listing = testListingWithCount({ id: 3, unit_price: 900 });
+  const listing = testListingWithCount({ id: 3, unitPrice: 900 });
 
   test("the operator's agreed price wins over the package override", () => {
     const parsed = parsedBase({

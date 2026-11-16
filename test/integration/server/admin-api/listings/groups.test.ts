@@ -285,7 +285,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         group.id,
       ]);
       expect(
-        (await requireListingWithCount(created.listing.id)).listing_type,
+        (await requireListingWithCount(created.listing.id)).listingType,
       ).toBe("standard");
     });
 

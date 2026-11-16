@@ -64,7 +64,7 @@ describe("adminAnswerEditPage", () => {
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    expectIncludesAll(html, ['name="times_selected"', 'value="7"']);
+    expectIncludesAll(html, ['name="timesSelected"', 'value="7"']);
   });
 
   test("links back to the question", () => {

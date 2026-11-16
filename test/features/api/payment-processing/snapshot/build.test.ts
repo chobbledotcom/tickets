@@ -29,8 +29,8 @@ describe("paid order snapshot builder", () => {
       rows({
         groups: [{ hideListings: true, id: 7, name: "Bundle" }],
         memberships: [
-          { group_id: 7, listing_id: 11, package_price: 400, quantity: 2 },
-          { group_id: 7, listing_id: 12, package_price: null, quantity: 1 },
+          { groupId: 7, listingId: 11, packagePrice: 400, quantity: 2 },
+          { groupId: 7, listingId: 12, packagePrice: null, quantity: 1 },
         ],
       }),
       dayPrices,

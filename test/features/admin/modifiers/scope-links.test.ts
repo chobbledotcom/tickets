@@ -226,14 +226,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("stores a promo code's blind index and drops one on another trigger", async () => {
       const coded = await createModifier({ code: "Summer25", trigger: "code" });
       expect(coded.code).toBe("Summer25");
-      expect(coded.code_index).toBe(await hmacHash(matchKey("Summer25")));
+      expect(coded.codeIndex).toBe(await hmacHash(matchKey("Summer25")));
 
       const leftover = await createModifier({
         code: "LEFTOVER",
         trigger: "automatic",
       });
       expect(leftover.code).toBe("");
-      expect(leftover.code_index).toBeNull();
+      expect(leftover.codeIndex).toBeNull();
     });
   });
 
@@ -242,12 +242,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "stores the minimum previous bookings gate",
         { min_visits: "2" },
-        { min_visits: 2 },
+        { minVisits: 2 },
       ],
       [
         "accepts zero, the declared minimum",
         { min_visits: "0" },
-        { min_visits: 0 },
+        { minVisits: 0 },
       ],
     ]);
 

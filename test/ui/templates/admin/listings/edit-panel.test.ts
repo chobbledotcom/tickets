@@ -21,7 +21,7 @@ const advancedPanelHtml = (
   extra: Parameters<typeof editPanelHtml>[1] = {},
 ): string =>
   editPanelHtml(
-    testListingWithCount({ thank_you_url: "", webhook_url: "", ...overrides }),
+    testListingWithCount({ thankYouUrl: "", webhookUrl: "", ...overrides }),
     extra,
   );
 
@@ -58,8 +58,8 @@ describe("adminListingEditPage duration warning", () => {
 
   test("includes duration warning + confirmation gate with current duration", () => {
     const listing = testListingWithCount({
-      duration_days: 3,
-      listing_type: "daily",
+      durationDays: 3,
+      listingType: "daily",
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -86,9 +86,9 @@ describe("adminListingEditPage day prices", () => {
 
   test("renders priced day-count inputs and checks the customisable toggle", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -123,8 +123,8 @@ describe("adminListingEditPage form sections", () => {
     listing: ReturnType<typeof testListingWithCount>;
   } => {
     const listing = testListingWithCount({
-      attendee_count: 7,
-      tickets_count: 3,
+      attendeeCount: 7,
+      ticketsCount: 3,
     });
     const html = String(
       ListingEditPanel({
@@ -157,9 +157,9 @@ describe("adminListingEditPage form sections", () => {
 
   test("renders the day-prices block immediately after the customisable-days checkbox", () => {
     const listing = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 1000 },
-      duration_days: 1,
+      customisableDays: true,
+      dayPrices: { 1: 1000 },
+      durationDays: 1,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -188,8 +188,8 @@ describe("adminListingEditPage form sections", () => {
 
   test("renders editable running totals with a recalculation link", () => {
     const listing = testListingWithCount({
-      attendee_count: 7,
-      tickets_count: 3,
+      attendeeCount: 7,
+      ticketsCount: 3,
     });
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
@@ -197,9 +197,9 @@ describe("adminListingEditPage form sections", () => {
     expectIncludesAll(html, [
       "<legend>Running totals</legend>",
       "Accuracy is not guaranteed",
-      'name="booked_quantity"',
+      'name="bookedQuantity"',
       'value="7"',
-      'name="tickets_count"',
+      'name="ticketsCount"',
       'value="3"',
     ]);
     // Income is not a count override in the running-totals form — that form keeps
@@ -270,14 +270,14 @@ describe("adminListingEditPage Advanced section auto-open", () => {
 
   test("opens when a thank-you URL is set", () => {
     const html = advancedPanelHtml({
-      thank_you_url: "https://example.com/thanks",
+      thankYouUrl: "https://example.com/thanks",
     });
     assertStringIncludes(html, ADVANCED_OPEN);
   });
 
   test("opens when a webhook URL is set", () => {
     const html = advancedPanelHtml({
-      webhook_url: "https://hooks.example.com/notify",
+      webhookUrl: "https://hooks.example.com/notify",
     });
     assertStringIncludes(html, ADVANCED_OPEN);
   });
@@ -294,7 +294,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("opens when a renewal tier (months per unit) is set", () => {
     withBuilder(() => {
       assertStringIncludes(
-        advancedPanelHtml({ months_per_unit: 3 }),
+        advancedPanelHtml({ monthsPerUnit: 3 }),
         ADVANCED_OPEN,
       );
     });
@@ -303,7 +303,7 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("opens when initial site months is set", () => {
     withBuilder(() => {
       assertStringIncludes(
-        advancedPanelHtml({ initial_site_months: 6, months_per_unit: 0 }),
+        advancedPanelHtml({ initialSiteMonths: 6, monthsPerUnit: 0 }),
         ADVANCED_OPEN,
       );
     });
@@ -313,9 +313,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
     withBuilder(() => {
       assertStringIncludes(
         advancedPanelHtml({
-          assign_built_site: true,
-          initial_site_months: 0,
-          months_per_unit: 0,
+          assignBuiltSite: true,
+          initialSiteMonths: 0,
+          monthsPerUnit: 0,
         }),
         ADVANCED_OPEN,
       );
@@ -325,9 +325,9 @@ describe("adminListingEditPage Advanced section auto-open (builder fields)", () 
   test("stays collapsed when no advanced field is set even with the builder enabled", () => {
     withBuilder(() => {
       const html = advancedPanelHtml({
-        assign_built_site: false,
-        initial_site_months: 0,
-        months_per_unit: 0,
+        assignBuiltSite: false,
+        initialSiteMonths: 0,
+        monthsPerUnit: 0,
       });
       assertStringIncludes(html, '<details class="listing-advanced">');
       assert(!html.includes(ADVANCED_OPEN));

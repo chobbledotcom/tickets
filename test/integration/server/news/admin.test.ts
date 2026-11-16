@@ -99,8 +99,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         true,
       )(response);
       expect(post.content).toBe("Body **text**");
-      expect(post.meta_title).toBe("Meta title");
-      expect(post.meta_description).toBe("Meta description");
+      expect(post.metaTitle).toBe("Meta title");
+      expect(post.metaDescription).toBe("Meta description");
       expect(post.snippet).toBe("Short summary");
       expect(post.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       // The permalink slug is auto-generated from the created date and name.

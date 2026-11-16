@@ -46,7 +46,7 @@ describeWithEnv(
       const afterFirst = (await getAllListings()).find(
         (e) => e.id === listing.id,
       )!;
-      expect(afterFirst.tickets_count).toBe(1);
+      expect(afterFirst.ticketsCount).toBe(1);
       expect(afterFirst.income).toBe(1000);
 
       // A second booking writes listing_attendees through the create path, which
@@ -61,7 +61,7 @@ describeWithEnv(
       const afterSecond = (await getAllListings()).find(
         (e) => e.id === listing.id,
       )!;
-      expect(afterSecond.tickets_count).toBe(2);
+      expect(afterSecond.ticketsCount).toBe(2);
       expect(afterSecond.income).toBe(3000);
     });
 
@@ -78,7 +78,7 @@ describeWithEnv(
         0,
       );
       const before = (await getAllListings()).find((e) => e.id === listing.id)!;
-      expect(before.tickets_count).toBe(1);
+      expect(before.ticketsCount).toBe(1);
 
       await moveTickets("admit", [
         { attendeeId: attendee.id, count: 1, listingId: listing.id },

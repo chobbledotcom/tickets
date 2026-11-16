@@ -110,8 +110,8 @@ Then(
     if (!record) {
       throw new Error(`Processed payment ${sessionId} was not stored`);
     }
-    expect(record.attendee_id).toBe(attendee.id);
-    expect(record.ticket_tokens).not.toBe("");
+    expect(record.attendeeId).toBe(attendee.id);
+    expect(record.ticketTokens).not.toBe("");
   },
 );
 
@@ -205,10 +205,10 @@ Given(
     this.placeholderId = attendee.id;
     this.attendeeIds = (await getAttendeesRaw(listingId)).map(({ id }) => id);
     const record = await getProcessedPayment(sessionId);
-    if (!record?.failure_data) {
+    if (!record?.failureData) {
       throw new Error("terminal failure was not stored");
     }
-    this.firstFailureData = record.failure_data;
+    this.firstFailureData = record.failureData;
     await expectRefundedWithNote(attendee.id, refund);
   },
 );
@@ -252,7 +252,7 @@ Then(
     if (!record) {
       throw new Error(`Processed payment ${sessionId} was not stored`);
     }
-    expect(record.attendee_id).toBeNull();
-    expect(record.failure_data).toBe(this.firstFailureData);
+    expect(record.attendeeId).toBeNull();
+    expect(record.failureData).toBe(this.firstFailureData);
   },
 );

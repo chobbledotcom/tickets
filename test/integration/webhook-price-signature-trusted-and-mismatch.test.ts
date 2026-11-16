@@ -114,7 +114,7 @@ describeWithEnv(
       const legsAfter = await transfersByAccount(attendeeAccount(original!.id));
       expect(legsAfter.length).toBe(legsBefore.length);
       expect(legsAfter.some((leg) => leg.kind === "refund_cash")).toBe(false);
-      expect((await getProcessedPayment(session.id))!.attendee_id).toBe(
+      expect((await getProcessedPayment(session.id))!.attendeeId).toBe(
         original!.id,
       );
     });

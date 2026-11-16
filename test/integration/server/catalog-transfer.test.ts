@@ -69,7 +69,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
         requireEntityImport(result).id,
       ))!;
       expect(imported.name).toBe("Child Copy");
-      expect(imported.unit_price).toBe(1500);
+      expect(imported.unitPrice).toBe(1500);
       // Slug is freshly minted, never copied from the source.
       expect(imported.slug).not.toBe(child.slug);
       expect(
@@ -121,7 +121,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const result = await importCatalog(blob);
       const importedResult = requireEntityImport(result);
       const imported = (await getListingWithCount(importedResult.id))!;
-      expect(imported.bookable_alone).toBe(true);
+      expect(imported.bookableAlone).toBe(true);
     });
 
     test("carries a listing's own stored cells, not resolved site defaults", async () => {
@@ -189,7 +189,7 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const imported = (await getListingWithCount(
         requireEntityImport(result).id,
       ))!;
-      expect(imported.closes_at).toBe("2030-01-01T00:00:00.000Z");
+      expect(imported.closesAt).toBe("2030-01-01T00:00:00.000Z");
       // The derived listing_prices base row is re-synced from unit_price after
       // the transactional insert (which bypasses the table wrapper).
       const priceRows = await execute(
@@ -237,16 +237,16 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
 
       const rows = await getGroupPackagePrices(group.id);
       const importedRow = rows.find(
-        (r) => r.listing_id === requireEntityImport(result).id,
+        (r) => r.listingId === requireEntityImport(result).id,
       )!;
-      expect(importedRow.package_price).toBe(800);
+      expect(importedRow.packagePrice).toBe(800);
       expect(importedRow.quantity).toBe(3);
       const dayPrices = await getGroupDayPrices(group.id);
       expect(dayPrices.get(requireEntityImport(result).id)).toEqual(
         new Map([[1, 900]]),
       );
       // The existing member's overrides are untouched by the targeted insert.
-      expect(rows.find((r) => r.listing_id === member.id)?.package_price).toBe(
+      expect(rows.find((r) => r.listingId === member.id)?.packagePrice).toBe(
         800,
       );
     });

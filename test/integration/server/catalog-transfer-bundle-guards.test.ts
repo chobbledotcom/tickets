@@ -243,6 +243,6 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
     expect(await listingParents.getIds(kidId.id)).toEqual([topId.id]);
     const storedKid = await getListingWithCount(kidId.id);
     if (!storedKid) throw new Error("Alone Kid is missing after import");
-    expect(storedKid.bookable_alone).toBe(true);
+    expect(storedKid.bookableAlone).toBe(true);
   });
 });

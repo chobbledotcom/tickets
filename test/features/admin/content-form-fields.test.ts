@@ -92,8 +92,8 @@ describe("content form fields", () => {
     expect(
       contentFieldValues({
         content: "Body",
-        meta_description: "Desc",
-        meta_title: "Title",
+        metaDescription: "Desc",
+        metaTitle: "Title",
         name: "Name",
         slug: "slug-1",
       }),

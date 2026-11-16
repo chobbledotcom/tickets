@@ -118,7 +118,7 @@ export const expectPackageRejected = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   const refused = await expectPackageRefused(group, response);
-  expect(refused.is_package).toBe(false);
+  expect(refused.isPackage).toBe(false);
 };
 
 /** POST the edit form with is_package ticked and assert it saved. */
@@ -129,7 +129,7 @@ export const expectPackageAccepted = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   expect(response.status).toBe(302);
-  expect((await getGroupById(group.id))!.is_package).toBe(true);
+  expect((await getGroupById(group.id))!.isPackage).toBe(true);
 };
 
 /** POST add-listings with `listingId` to a package group and assert the package

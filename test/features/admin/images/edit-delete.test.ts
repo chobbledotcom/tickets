@@ -42,10 +42,10 @@ describeWithEnv(
     /** POST one image's edit form as the owner: the route's answer and the
      *  session cookie it used. The fields default to the image's own values. */
     const postImageEdit = async (
-      image: { alt_text: string; id: number; name: string },
+      image: { altText: string; id: number; name: string },
       fields: [string, string][] = [
         ["name", image.name],
-        ["alt_text", image.alt_text],
+        ["alt_text", image.altText],
       ],
     ): Promise<{ cookie: string; response: Response }> => {
       const cookie = await testCookie();
@@ -245,7 +245,7 @@ describeWithEnv(
           cookie,
         )(response);
         expect(await records.images.find(image.id)).toMatchObject({
-          alt_text: "Updated alt",
+          altText: "Updated alt",
           name: "Updated",
         });
         expect(await imageNamesForItem("listing", listing.id)).toEqual([
@@ -255,7 +255,7 @@ describeWithEnv(
         // The malformed and deleted entries must not create links.
         expect(
           (await getImageUsesForImage(image.id)).map(
-            ({ item_id, item_type }) => `${item_type}:${item_id}`,
+            ({ itemId, itemType }) => `${itemType}:${itemId}`,
           ),
         ).toEqual([`group:${group.id}`, `listing:${listing.id}`]);
         assertArrayIncludes(await activityMessages(), [

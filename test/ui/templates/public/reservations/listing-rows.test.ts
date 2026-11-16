@@ -119,7 +119,7 @@ const rowListing = (id: number, name: string, slug: string): TicketListing =>
 const bundledRow = (over: Partial<ChildRenderCtx> = {}): string =>
   renderRows({
     childCtx: { ...childCtx(), ...over },
-    listings: [tl(7, 10, { min_quantity: 3, name: "Bundled", slug: "bun010" })],
+    listings: [tl(7, 10, { minQuantity: 3, name: "Bundled", slug: "bun010" })],
   });
 
 const occurrences = (html: string, needle: string): number =>
@@ -201,8 +201,8 @@ describe("buildPageListingRows", () => {
 
   test("a row with pay-what-you-want renders its price input, a priced row does not", () => {
     const payMore = tl(2, 10, {
-      can_pay_more: true,
-      max_price: 5000,
+      canPayMore: true,
+      maxPrice: 5000,
       name: "Listing B",
       slug: "cd34e",
     });
@@ -254,8 +254,8 @@ describe("buildPageListingRows", () => {
 
   test("a hidden quantity still states the term a plan grants", () => {
     const plan = tl(1, 1, {
-      assign_built_site: true,
-      initial_site_months: 3,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
       name: "Listing A",
       slug: "ab12c",
     });
@@ -272,8 +272,8 @@ describe("buildPageListingRows", () => {
 
   test("a built-site plan is sold in months, an ordinary listing in tickets", () => {
     const plan = tl(1, 5, {
-      assign_built_site: true,
-      initial_site_months: 3,
+      assignBuiltSite: true,
+      initialSiteMonths: 3,
       name: "Listing A",
       slug: "ab12c",
     });
@@ -304,9 +304,9 @@ describe("buildPageListingRows", () => {
 
   test("a renewal page prices every tier by its months per unit", () => {
     const tier = tl(1, 5, {
-      assign_built_site: false,
-      initial_site_months: 0,
-      months_per_unit: 1,
+      assignBuiltSite: false,
+      initialSiteMonths: 0,
+      monthsPerUnit: 1,
       name: "Monthly",
       slug: "ab12c",
     });

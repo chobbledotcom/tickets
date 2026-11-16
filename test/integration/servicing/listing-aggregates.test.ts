@@ -54,12 +54,12 @@ describe("servicing §10 — tickets_count predicate excludes servicing by kind"
 describeWithEnv("servicing §10 — listing aggregates", { db: true }, () => {
   test("booked_quantity includes servicing holds (this is what blocks capacity)", async () => {
     const listing = await createHoldAndInvalidate(3);
-    expect((await getListingWithCount(listing.id))?.attendee_count).toBe(3);
+    expect((await getListingWithCount(listing.id))?.attendeeCount).toBe(3);
   });
 
   test("tickets_count excludes servicing holds (servicing is not a ticket)", async () => {
     const listing = await createHoldAndInvalidate(3);
-    expect((await getListingWithCount(listing.id))?.tickets_count).toBe(0);
+    expect((await getListingWithCount(listing.id))?.ticketsCount).toBe(0);
   });
 
   test("income is unaffected by servicing holds (servicing is free)", async () => {

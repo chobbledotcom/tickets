@@ -53,12 +53,12 @@ describe("group admin panels", () => {
 
   describe("GroupOverviewPanel", () => {
     test("shows Group Attendees row with cap, count, and remaining", () => {
-      const group = testGroup({ max_attendees: 50, name: "Summer Festival" });
+      const group = testGroup({ maxAttendees: 50, name: "Summer Festival" });
       const html = overviewHtml({
         group,
         listings: [
-          testListingWithCount({ attendee_count: 12, id: 1 }),
-          testListingWithCount({ attendee_count: 8, id: 2 }),
+          testListingWithCount({ attendeeCount: 12, id: 1 }),
+          testListingWithCount({ attendeeCount: 8, id: 2 }),
         ],
       });
       expectIncludesAll(html, [
@@ -70,10 +70,10 @@ describe("group admin panels", () => {
     });
 
     test("Group Attendees row drops cap fragment when group is uncapped", () => {
-      const group = testGroup({ max_attendees: 0, name: "Open Group" });
+      const group = testGroup({ maxAttendees: 0, name: "Open Group" });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ attendee_count: 5 })],
+        listings: [testListingWithCount({ attendeeCount: 5 })],
       });
       const groupRow = html.match(
         /<th>Group Attendees<\/th><td>([\s\S]*?)<\/td>/,
@@ -86,20 +86,20 @@ describe("group admin panels", () => {
     });
 
     test("shows the capacity meter for a cap of one", () => {
-      const group = testGroup({ max_attendees: 1, name: "Single Seat" });
+      const group = testGroup({ maxAttendees: 1, name: "Single Seat" });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ attendee_count: 0 })],
+        listings: [testListingWithCount({ attendeeCount: 0 })],
       });
       expectIncludesAll(html, ["0 / 1", "1 remain"]);
       assert(!html.includes("(no group cap)"));
     });
 
     test("keeps one space between the meter and its scope note", () => {
-      const group = testGroup({ max_attendees: 50 });
+      const group = testGroup({ maxAttendees: 50 });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ attendee_count: 20 })],
+        listings: [testListingWithCount({ attendeeCount: 20 })],
       });
       assertStringIncludes(html, "30 remain</span> <small>");
     });
@@ -118,16 +118,16 @@ describe("group admin panels", () => {
     });
 
     test("Group Attendees row gets danger-text when at cap", () => {
-      const group = testGroup({ max_attendees: 10 });
+      const group = testGroup({ maxAttendees: 10 });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ attendee_count: 10 })],
+        listings: [testListingWithCount({ attendeeCount: 10 })],
       });
       expectIncludesAll(html, ["danger-text", "10 / 10", "0 remain"]);
     });
 
     test("shows a running-total mismatch for group listings", () => {
-      const group = testGroup({ max_attendees: 20 });
+      const group = testGroup({ maxAttendees: 20 });
       const html = overviewHtml({
         attendees: [
           testAttendee({
@@ -141,10 +141,10 @@ describe("group admin panels", () => {
         hasPaidListing: true,
         listings: [
           testListingWithCount({
-            attendee_count: 9,
+            attendeeCount: 9,
             id: 1,
             income: 9000,
-            tickets_count: 5,
+            ticketsCount: 5,
           }),
         ],
       });
@@ -159,8 +159,8 @@ describe("group admin panels", () => {
       // An override-priced package charges via package_price even when its member
       // listings are free, so the loader passes hasPaidListing=true despite the
       // listings reading as unpaid. The revenue row must still render.
-      const group = testGroup({ is_package: true, max_attendees: 20 });
-      const listings = [testListingWithCount({ attendee_count: 2, id: 1 })];
+      const group = testGroup({ isPackage: true, maxAttendees: 20 });
+      const listings = [testListingWithCount({ attendeeCount: 2, id: 1 })];
       const attendees = [
         testAttendee({ id: 1, listing_id: 1, price_paid: "2500", quantity: 2 }),
       ];
@@ -284,8 +284,8 @@ describe("group admin panels", () => {
     });
 
     test("suppresses the public URL / QR / embed when the group isn't shareable", () => {
-      const group = testGroup({ is_package: true, name: "Sold Out Pkg" });
-      const listings = [testListingWithCount({ attendee_count: 0, id: 1 })];
+      const group = testGroup({ isPackage: true, name: "Sold Out Pkg" });
+      const listings = [testListingWithCount({ attendeeCount: 0, id: 1 })];
 
       const shareable = overviewHtml({ group, listings, shareable: true });
       expectIncludesAll(shareable, [
@@ -366,12 +366,12 @@ describe("group admin panels", () => {
       const group = testGroup({ name: "Target" });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ id: 1, listing_type: "standard" })],
+        listings: [testListingWithCount({ id: 1, listingType: "standard" })],
         ungroupedListings: [
           testListingWithCount({ id: 7, name: "Joinable" }),
           testListingWithCount({
             id: 8,
-            listing_type: "daily",
+            listingType: "daily",
             name: "Striker",
           }),
         ],
@@ -396,16 +396,16 @@ describe("group admin panels", () => {
         group,
         listings: [
           testListingWithCount({
-            customisable_days: false,
+            customisableDays: false,
             id: 1,
-            listing_type: "daily",
+            listingType: "daily",
           }),
         ],
         ungroupedListings: [
           testListingWithCount({
-            customisable_days: true,
+            customisableDays: true,
             id: 9,
-            listing_type: "daily",
+            listingType: "daily",
             name: "Flexible",
           }),
         ],
@@ -418,9 +418,9 @@ describe("group admin panels", () => {
       const group = testGroup({ name: "Bright" });
       const html = overviewHtml({
         group,
-        listings: [testListingWithCount({ id: 1, listing_type: "daily" })],
+        listings: [testListingWithCount({ id: 1, listingType: "daily" })],
         ungroupedListings: [
-          testListingWithCount({ id: 5, listing_type: "daily" }),
+          testListingWithCount({ id: 5, listingType: "daily" }),
         ],
       });
       expect(html).not.toMatch(/<input disabled[^>]*value="5"/);

@@ -21,7 +21,7 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
     await settings.update.listingDefaults({ hidden: true });
     const on = await createListing({ use_defaults: "1" });
     const off = await createListing({ name: "Own values" });
-    expect([hidden, on.use_defaults, off.use_defaults]).toEqual([
+    expect([hidden, on.useDefaults, off.useDefaults]).toEqual([
       { error: t("fields.validation.unshown_field"), ok: false },
       true,
       false,
@@ -31,7 +31,7 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
   test("demo mode refuses a webhook address, normal mode keeps it", async () => {
     const hook = "https://example.com/hook";
     const real = await createListing({ webhook_url: hook });
-    expect(real.webhook_url).toBe(hook);
+    expect(real.webhookUrl).toBe(hook);
 
     setDemoModeForTest(true);
     try {
@@ -56,10 +56,10 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
   test("a logistics choice is kept when the feature is on", () =>
     withSetting(featureSetting("logistics"), async () => {
       const on = await createListing({ uses_logistics: "1" });
-      expect(on.uses_logistics).toBe(true);
+      expect(on.usesLogistics).toBe(true);
       // An unticked checkbox never reaches the form at all.
       const off = await createListing({ name: "No logistics" });
-      expect(off.uses_logistics).toBe(false);
+      expect(off.usesLogistics).toBe(false);
     }));
 
   test("an edit saved while logistics is off keeps the stored logistics choice", async () => {
@@ -67,6 +67,6 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
       createListing({ uses_logistics: "1" }),
     );
     const saved = await updateListing(row.id, { name: "Renamed" });
-    expect([saved.name, saved.uses_logistics]).toEqual(["Renamed", true]);
+    expect([saved.name, saved.usesLogistics]).toEqual(["Renamed", true]);
   });
 });

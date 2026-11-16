@@ -12,7 +12,7 @@ const booking = (
 ): Attendee => testAttendee({ date, end_date, name });
 
 const daily = (): ListingWithCount =>
-  testListingWithCount({ listing_type: "daily" });
+  testListingWithCount({ listingType: "daily" });
 
 const stay = booking("Priya", "2026-03-02", "2026-03-05");
 const oneDay = booking("Rachel", "2026-03-03", "2026-03-04");

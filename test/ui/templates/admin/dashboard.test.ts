@@ -23,7 +23,7 @@ describe("adminDashboardPage", () => {
   });
 
   test("renders listings table", () => {
-    const listings = [testListingWithCount({ attendee_count: 25 })];
+    const listings = [testListingWithCount({ attendeeCount: 25 })];
     const html = adminDashboardPage(listings, OWNER_SESSION);
     expectIncludesAll(html, ["Test Listing", "25 / 100", "/admin/listing/1"]);
   });
@@ -238,7 +238,7 @@ describe("adminDashboardPage inactive listings", () => {
     const listings = [
       testListingWithCount({
         active: false,
-        attendee_count: 5,
+        attendeeCount: 5,
         name: "Inactive",
       }),
     ];
@@ -367,13 +367,13 @@ describe("adminDashboardPage type filter", () => {
 
   const standard = testListingWithCount({
     id: 1,
-    listing_type: "standard",
+    listingType: "standard",
     name: "Standard Listing",
     slug: "std01",
   });
   const daily = testListingWithCount({
     id: 2,
-    listing_type: "daily",
+    listingType: "daily",
     name: "Daily Listing",
     slug: "day01",
   });
@@ -390,7 +390,7 @@ describe("adminDashboardPage type filter", () => {
   test("hides the filter bar when only one type is present", () => {
     const onlyStandard = testListingWithCount({
       id: 3,
-      listing_type: "standard",
+      listingType: "standard",
       slug: "std02",
     });
     const html = adminDashboardPage([standard, onlyStandard], OWNER_SESSION);
@@ -411,7 +411,7 @@ describe("adminDashboardPage type filter", () => {
     const standardInactive = testListingWithCount({
       active: false,
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Standard Listing",
       slug: "std01",
     });
@@ -448,7 +448,7 @@ describeWithEnv(
       beforeAll(setupAdminPageTest);
 
       test("shows thumbnail when listing has image_url", () => {
-        const listings = [testListingWithCount({ image_url: "thumb.jpg" })];
+        const listings = [testListingWithCount({ imageUrl: "thumb.jpg" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
         expectIncludesAll(html, [
           "/image/thumb.jpg",
@@ -457,7 +457,7 @@ describeWithEnv(
       });
 
       test("does not show thumbnail when listing has no image_url", () => {
-        const listings = [testListingWithCount({ image_url: "" })];
+        const listings = [testListingWithCount({ imageUrl: "" })];
         const html = adminDashboardPage(listings, OWNER_SESSION);
         assert(!html.includes('src="/image/'));
       });

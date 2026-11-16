@@ -233,7 +233,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "Tally", times_selected: "15" },
+        { modifier_id: "", text: "Tally", timesSelected: "15" },
       );
       expect(response.status).toBe(302);
 
@@ -249,7 +249,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "After", times_selected: "-3" },
+        { modifier_id: "", text: "After", timesSelected: "-3" },
       );
       expect(response.status).toBe(302);
 
@@ -343,7 +343,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
-        { recalculate_fields: "times_selected" },
+        { recalculate_fields: "timesSelected" },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}/answers/${aId}/edit`,

@@ -163,11 +163,11 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const expected = getBookableStartDates(
       {
         ...stored,
-        bookable_days: submitted.bookableDays,
-        customisable_days: false,
-        duration_days: 2,
-        maximum_days_after: 0,
-        minimum_days_before: 0,
+        bookableDays: submitted.bookableDays,
+        customisableDays: false,
+        durationDays: 2,
+        maximumDaysAfter: 0,
+        minimumDaysBefore: 0,
       },
       await holidays.getAll(),
     );
@@ -229,7 +229,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     // violates the unique index, and the failure is no capacity verdict.
     const clash = await storedInputFor(listing.id, {
       slug: taken.slug,
-      slugIndex: taken.slug_index,
+      slugIndex: taken.slugIndex,
     });
     await expect(
       probeAssignDates(listing, clash, ["2026-11-05"], 1, 1),

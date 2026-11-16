@@ -42,7 +42,7 @@ const processed = async () =>
 
 const failure = async () =>
   requireValue(
-    await parseSessionFailure((await processed()).failure_data),
+    await parseSessionFailure((await processed()).failureData),
     "Stored session has no failure",
   );
 
@@ -56,9 +56,9 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
     test(`replays a settled rejected refund with ${staleMarker ? "a stale" : "the final"} outcome`, async () => {
       await setupStripe();
       const listingId = await checkoutListingId();
-      let pending: ProcessedPayment["failure_data"] | undefined;
+      let pending: ProcessedPayment["failureData"] | undefined;
       using cancel = stub(stripeApi, "cancelSubscription", async (id) => {
-        pending = (await processed()).failure_data;
+        pending = (await processed()).failureData;
         return observedSubscription(id, "canceled");
       });
       using refund = stubRefundPayment("re_settled_rejection", 2000);
@@ -168,8 +168,8 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
         // cleared while its already-stored money and plan remain behind.
         expect(await reserveSession(SESSION_ID)).toEqual({ reserved: true });
         const occupied = await processed();
-        expect(occupied.attendee_id).toBeNull();
-        expect(occupied.failure_data).toBe("");
+        expect(occupied.attendeeId).toBeNull();
+        expect(occupied.failureData).toBe("");
         await expectStatuses(deliver, 503);
         expect(await processed()).toEqual(occupied);
         expectActions(cancel, refund, 0, 0);

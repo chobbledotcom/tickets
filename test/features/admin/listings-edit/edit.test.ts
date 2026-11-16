@@ -79,7 +79,7 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
 
     expect([
       response.status,
-      (await getStoredListingWithCount(listing.id))!.webhook_url,
+      (await getStoredListingWithCount(listing.id))!.webhookUrl,
     ]).toEqual([400, "https://owner.example.com/hook"]);
   });
 
@@ -99,7 +99,7 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
 
     expect([
       response.status,
-      (await getStoredListingWithCount(listing.id))!.use_defaults,
+      (await getStoredListingWithCount(listing.id))!.useDefaults,
     ]).toEqual([400, true]);
   });
 
@@ -109,19 +109,19 @@ describeWithEnv("what an editor may not change", { db: true }, () => {
 
     await editAs(cookie, listing.id, {
       ...buildUpdateListingForm({}, listing, "editor"),
-      booked_quantity: "7",
-      tickets_count: "7",
+      bookedQuantity: "7",
+      ticketsCount: "7",
     });
 
-    expect((await getListingWithCount(listing.id))!.tickets_count).toBe(0);
+    expect((await getListingWithCount(listing.id))!.ticketsCount).toBe(0);
 
     await adminMultipartPost(`/admin/listing/${listing.id}/edit`, {
       ...buildUpdateListingForm({}, listing),
-      booked_quantity: "7",
-      tickets_count: "7",
+      bookedQuantity: "7",
+      ticketsCount: "7",
     });
 
-    expect((await getListingWithCount(listing.id))!.tickets_count).toBe(7);
+    expect((await getListingWithCount(listing.id))!.ticketsCount).toBe(7);
   });
 });
 

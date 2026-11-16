@@ -29,18 +29,18 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       });
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.listing_type).toBe("daily");
-      expect(saved?.bookable_days).toEqual(["Monday", "Wednesday", "Friday"]);
-      expect(saved?.minimum_days_before).toBe(2);
-      expect(saved?.maximum_days_after).toBe(30);
+      expect(saved?.listingType).toBe("daily");
+      expect(saved?.bookableDays).toEqual(["Monday", "Wednesday", "Friday"]);
+      expect(saved?.minimumDaysBefore).toBe(2);
+      expect(saved?.maximumDaysAfter).toBe(30);
     });
 
     test("creates standard listing with default daily config", async () => {
       const listing = await createTestListing();
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.listing_type).toBe("standard");
-      expect(saved?.bookable_days).toEqual([
+      expect(saved?.listingType).toBe("standard");
+      expect(saved?.bookableDays).toEqual([
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -49,8 +49,8 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
         "Saturday",
         "Sunday",
       ]);
-      expect(saved?.minimum_days_before).toBe(1);
-      expect(saved?.maximum_days_after).toBe(90);
+      expect(saved?.minimumDaysBefore).toBe(1);
+      expect(saved?.maximumDaysAfter).toBe(90);
     });
 
     test("admin listing detail page shows Daily type for daily listings", async () => {
@@ -114,10 +114,10 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.listing_type).toBe("daily");
-      expect(updated?.bookable_days).toEqual(["Saturday", "Sunday"]);
-      expect(updated?.minimum_days_before).toBe(0);
-      expect(updated?.maximum_days_after).toBe(14);
+      expect(updated?.listingType).toBe("daily");
+      expect(updated?.bookableDays).toEqual(["Saturday", "Sunday"]);
+      expect(updated?.minimumDaysBefore).toBe(0);
+      expect(updated?.maximumDaysAfter).toBe(14);
     });
 
     test("updates listing from daily to standard", async () => {
@@ -130,7 +130,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       await updateTestListing(listing.id, { listingType: "standard" });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.listing_type).toBe("standard");
+      expect(updated?.listingType).toBe("standard");
     });
 
     test("duplicate page pre-fills daily listing config", async () => {
@@ -163,14 +163,14 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       const listing = await createTestListing({ nonTransferable: true });
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.non_transferable).toBe(true);
+      expect(saved?.nonTransferable).toBe(true);
     });
 
     test("creates listing without non_transferable by default", async () => {
       const listing = await createTestListing();
 
       const saved = await getListingWithCount(listing.id);
-      expect(saved?.non_transferable).toBe(false);
+      expect(saved?.nonTransferable).toBe(false);
     });
 
     test("admin listing detail page shows non-transferable row when enabled", async () => {
@@ -209,7 +209,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       await updateTestListing(listing.id, { nonTransferable: true });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.non_transferable).toBe(true);
+      expect(updated?.nonTransferable).toBe(true);
     });
 
     test("rejects invalid bookable_days value", async () => {
@@ -240,7 +240,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       await updateTestListing(listing.id, { bookableDays: [] });
 
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.bookable_days).toEqual([]);
+      expect(updated?.bookableDays).toEqual([]);
     });
   });
 });

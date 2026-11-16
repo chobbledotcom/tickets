@@ -59,7 +59,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         mockFormRequest(
           recalculatePath(listing.id),
           {
-            [RECALCULATE_FIELD_NAME]: "booked_quantity",
+            [RECALCULATE_FIELD_NAME]: "bookedQuantity",
             csrf_token: csrfToken,
           },
           cookie,
@@ -78,8 +78,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
 
       expect(await getListingWithCount(listing.id)).toMatchObject({
         // tickets_count was not ticked, so it keeps the wrong stored value.
-        attendee_count: 1,
-        tickets_count: 5,
+        attendeeCount: 1,
+        ticketsCount: 5,
       });
     });
 
@@ -91,7 +91,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         mockFormRequest(
           recalculatePath(listing.id),
           {
-            [RECALCULATE_FIELD_NAME]: "booked_quantity",
+            [RECALCULATE_FIELD_NAME]: "bookedQuantity",
             csrf_token: csrfToken,
           },
           cookie,
@@ -127,8 +127,8 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
         "Choose at least one total to recalculate",
       );
       expect(await getListingWithCount(listing.id)).toMatchObject({
-        attendee_count: 9,
-        tickets_count: 5,
+        attendeeCount: 9,
+        ticketsCount: 5,
       });
     });
   });

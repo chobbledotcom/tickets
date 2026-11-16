@@ -38,7 +38,7 @@ describeWithEnv(
       });
       expect(response.status).toBe(302);
       const allGroups = await groups.getAll();
-      expect(allGroups[allGroups.length - 1]!.is_package).toBe(true);
+      expect(allGroups[allGroups.length - 1]!.isPackage).toBe(true);
     });
 
     test("edit POST saves is_package, per-listing prices and quantities", async () => {
@@ -70,7 +70,7 @@ describeWithEnv(
       // Blank input is stored as 0 (no override), so it's absent from the map.
       expect(prices.has(b.id)).toBe(false);
       const rows = await getGroupPackagePrices(group.id);
-      const qty = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+      const qty = new Map(rows.map((r) => [r.listingId, r.quantity]));
       expect(qty.get(a.id)).toBe(2);
       expect(qty.get(b.id)).toBe(1);
     });
@@ -145,7 +145,7 @@ describeWithEnv(
       });
 
       const rows = await getGroupPackagePrices(group.id);
-      const qty = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+      const qty = new Map(rows.map((r) => [r.listingId, r.quantity]));
       expect(qty.get(prefix.id)).toBe(1);
       expect(qty.get(zero.id)).toBe(1);
       expect(qty.get(huge.id)).toBe(1);

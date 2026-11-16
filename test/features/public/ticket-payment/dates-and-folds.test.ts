@@ -45,10 +45,10 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
   describe("resolveDayCount", () => {
     const custStandard = (overrides = {}) =>
       testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 2,
-        listing_type: "standard",
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        listingType: "standard",
         ...overrides,
       });
 
@@ -103,13 +103,13 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
 
     test("rejects a daily range that runs past the booking window", async () => {
       const listing = testListingWithCount({
-        bookable_days: allDays,
-        customisable_days: true,
-        day_prices: { 1: 1000, 5: 4000 },
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 2,
-        minimum_days_before: 0,
+        bookableDays: allDays,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 5: 4000 },
+        durationDays: 5,
+        listingType: "daily",
+        maximumDaysAfter: 2,
+        minimumDaysBefore: 0,
         name: "Trip",
       });
       const result = await resolveDayCount(
@@ -125,13 +125,13 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
 
     test("accepts a daily range that fits the window", async () => {
       const listing = testListingWithCount({
-        bookable_days: allDays,
-        customisable_days: true,
-        day_prices: { 1: 1000, 3: 2500 },
-        duration_days: 3,
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 0,
+        bookableDays: allDays,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 2500 },
+        durationDays: 3,
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 0,
       });
       const result = await resolveDayCount(
         [line(listing)],
@@ -148,13 +148,13 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
       // offer starts whose 5-day span fits, but a customisable one offers
       // every single-day start within the window.
       const listing = testListingWithCount({
-        bookable_days: allDays,
-        customisable_days: true,
-        day_prices: { 1: 1000, 5: 4000 },
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 3,
-        minimum_days_before: 0,
+        bookableDays: allDays,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 5: 4000 },
+        durationDays: 5,
+        listingType: "daily",
+        maximumDaysAfter: 3,
+        minimumDaysBefore: 0,
         name: "Windowed",
       });
       const items = await dailyDateItems([
@@ -170,7 +170,7 @@ describeWithEnv("routes > public > ticket-payment dates", { db: true }, () => {
     });
 
     test("skips non-daily listings entirely", async () => {
-      const listing = testListingWithCount({ listing_type: "standard" });
+      const listing = testListingWithCount({ listingType: "standard" });
       expect(
         await dailyDateItems([buildTicketListing(listing, false, undefined)]),
       ).toEqual([]);

@@ -188,7 +188,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const created = (await getAllListings()).find(
         (l) => l.name === "Imported One",
       )!;
-      expect(created.unit_price).toBe(900);
+      expect(created.unitPrice).toBe(900);
       expect(await listingGroups.getIds(created.id)).toEqual([group.id]);
       // The import is recorded in the activity log.
       await expectLogged("Imported One");

@@ -75,7 +75,7 @@ describeWithEnv(
 
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>
-      (await getAllModifiers()).find((m) => m.id === modifierId)!.total_revenue;
+      (await getAllModifiers()).find((m) => m.id === modifierId)!.totalRevenue;
 
     test("a bare create fills the behavioural defaults", async () => {
       // The base create form supplies only the pricing rule; the schema's
@@ -170,7 +170,7 @@ describeWithEnv(
       const m = await makeModifier();
       await postModifierLeg({ delta: 2500, modifierId: m.id });
       const active = await getActiveModifiers();
-      expect(active.find((row) => row.id === m.id)?.total_revenue).toBe(2500);
+      expect(active.find((row) => row.id === m.id)?.totalRevenue).toBe(2500);
     });
 
     test("raising revenue via the correction path moves the projection up by the delta", async () => {

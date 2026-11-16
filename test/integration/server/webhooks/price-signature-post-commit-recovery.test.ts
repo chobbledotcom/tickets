@@ -239,8 +239,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             ),
           ).toHaveLength(1);
           const processed = await getProcessedPayment(sessionId);
-          expect(processed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe(
+          expect(processed?.attendeeId).toBe(attendee!.id);
+          expect(await decryptSessionTokens(processed!.ticketTokens)).toBe(
             ticketToken,
           );
           await expectProcessedPaymentReference(
@@ -330,8 +330,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             expect(json.processed).toBe(true);
           });
           const replayed = await getProcessedPayment(sessionId);
-          expect(replayed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
+          expect(replayed?.attendeeId).toBe(attendee!.id);
+          expect(await decryptSessionTokens(replayed!.ticketTokens)).toBe("");
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
           await expectContactActivity(email, phone, privateKey, ticketToken);
           // The finalized-session replay answers send-free: the recovery

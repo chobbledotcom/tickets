@@ -117,7 +117,7 @@ describeWithEnv(
         updateTestListing(child.id, { bookableAlone: false }),
       ).rejects.toThrow();
       const { getListingWithCount } = await import("#db/listings/records.ts");
-      expect((await getListingWithCount(child.id))!.bookable_alone).toBe(true);
+      expect((await getListingWithCount(child.id))!.bookableAlone).toBe(true);
     });
 
     test("blocks flipping a child-scoped modifier to an opt-in add-on on edit", async () => {

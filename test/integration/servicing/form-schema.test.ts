@@ -94,15 +94,15 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     [
       1,
       {
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         income: 0,
-        listing_type: "daily" as const,
-        max_attendees: 5,
-        max_quantity: 5,
+        listingType: "daily" as const,
+        maxAttendees: 5,
+        maxQuantity: 5,
         name: "Room A",
         slug: "room-a",
-        tickets_count: 0,
+        ticketsCount: 0,
       },
     ],
   ]);

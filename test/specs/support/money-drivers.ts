@@ -118,7 +118,7 @@ export const runStripeSuccess = async (
     await getProcessedPayment(order.sessionId),
     missingAttendee,
   );
-  return requireValue(payment.attendee_id, missingAttendee);
+  return requireValue(payment.attendeeId, missingAttendee);
 };
 
 /**

@@ -40,9 +40,9 @@ describe("bookingDurationDays", () => {
   });
 });
 describe("attendeeBalanceNotice", () => {
-  const paid = { is_paid_default: true, is_reservation: false };
-  const reservation = { is_paid_default: false, is_reservation: true };
-  const other = { is_paid_default: false, is_reservation: false };
+  const paid = { isPaidDefault: true, isReservation: false };
+  const reservation = { isPaidDefault: false, isReservation: true };
+  const other = { isPaidDefault: false, isReservation: false };
 
   test("is silent when there is no status", () => {
     expect(attendeeBalanceNotice(null, 500, 1000, 100)).toBeNull();

@@ -102,7 +102,7 @@ describeWithEnv(
         },
       );
       const refused = await expectPackageRefused(group, response);
-      expect(refused.hide_package_listings).toBe(false);
+      expect(refused.hidePackageListings).toBe(false);
     });
 
     test("edit POST rejects is_package on a group whose member is another listing's child", async () => {
@@ -313,7 +313,7 @@ describeWithEnv(
       expect(response.status).toBe(302);
       const prices = await getGroupPackagePrices(group.id);
       assertArrayIncludes(
-        prices.map((r) => r.listing_id),
+        prices.map((r) => r.listingId),
         [flexible.id],
       );
     });
@@ -328,7 +328,7 @@ describeWithEnv(
       );
       expect(response.status).toBe(302);
       const rows = await getGroupPackagePrices(group.id);
-      expect(rows.map((r) => r.listing_id)).toEqual([fixed.id]);
+      expect(rows.map((r) => r.listingId)).toEqual([fixed.id]);
     });
   },
 );

@@ -35,7 +35,7 @@ const itemsFor = (
       ...(packageGroupId === undefined ? {} : { packageGroupId }),
       quantity: quantities.get(info.listing.id)!,
       slug: info.listing.slug,
-      unitPrice: info.listing.unit_price,
+      unitPrice: info.listing.unitPrice,
     }));
 
 const contact: ContactInfo = {

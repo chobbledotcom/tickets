@@ -64,7 +64,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     const row = rows[0];
     if (!row) throw new Error(`${label} member has no membership row`);
     expect(rows).toHaveLength(1);
-    expect(row.listing_id).toBe(member.id);
+    expect(row.listingId).toBe(member.id);
     return row;
   };
 
@@ -95,13 +95,13 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       price: "4.50",
       quantity: "3",
     });
-    expect(row.package_price).toBe(450);
+    expect(row.packagePrice).toBe(450);
     expect(row.quantity).toBe(3);
   });
 
   test("keeps an explicit free price", async () => {
     const row = await savedMemberRow("Free", { price: "0", quantity: "1" });
-    expect(row.package_price).toBe(0);
+    expect(row.packagePrice).toBe(0);
     expect(row.quantity).toBe(1);
   });
 
@@ -115,7 +115,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     });
 
     const [row] = await getGroupPackagePrices(group.id);
-    expect(row?.package_price).toBeNull();
+    expect(row?.packagePrice).toBeNull();
     expect(row?.quantity).toBe(1);
     expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
@@ -190,7 +190,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     )(response);
     // The refused save wrote no override: the membership keeps its defaults.
     const [row] = await getGroupPackagePrices(group.id);
-    expect(row?.package_price).toBeNull();
+    expect(row?.packagePrice).toBeNull();
     expect(row?.quantity).toBe(1);
   };
 
@@ -275,7 +275,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     assertArrayIncludes([200, 302], [response.status]);
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.package_price).toBeNull();
+    expect(rows[0]?.packagePrice).toBeNull();
   });
 
   test("refuses a junk day price with a plain-words message", async () => {

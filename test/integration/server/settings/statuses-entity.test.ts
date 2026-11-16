@@ -88,7 +88,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
     const reserved = await records.attendee_statuses.insert({
       isReservation: true,
       name: "Reserved",
-      reservation_amount: "25%",
+      reservationAmount: "25%",
     });
     const html = await (await adminGet(`${PATH}/${reserved.id}/edit`)).text();
     assertStringIncludes(html, 'value="25%"');

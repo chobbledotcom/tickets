@@ -45,7 +45,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           usernameHash: await encrypt("manager"),
           usernameIndex: "manager-idx-unique",
           wrappedDataKey: (await getUserByUsername(TEST_ADMIN_USERNAME))!
-            .wrapped_data_key,
+            .wrappedDataKey,
         }),
       );
       invalidateUsersCache();

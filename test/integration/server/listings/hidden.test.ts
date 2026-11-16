@@ -38,7 +38,7 @@ describeWithEnv("server listings > hidden listings", { db: true }, () => {
       const listing = await createTestListing({ unitPrice: 1000 });
       await updateTestListing(listing.id, { canPayMore: true });
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.can_pay_more).toBe(true);
+      expect(updated?.canPayMore).toBe(true);
     });
 
     test("updates listing to disable hidden", async () => {
