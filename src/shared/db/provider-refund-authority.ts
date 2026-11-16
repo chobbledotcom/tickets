@@ -1,5 +1,6 @@
 /** Atomic storage for the one provider-refund authority. */
 
+import type { ResultSet } from "@libsql/client";
 import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
 import {
@@ -116,7 +117,7 @@ const oneAuthority = (
   rows[0] === undefined ? null : authorityRow(rows[0]);
 
 export const refundAuthorityFromResult = (
-  result: Parameters<typeof resultRows>[0],
+  result: ResultSet,
 ): RefundAuthorityRow | null =>
   oneAuthority(resultRows<StoredRefundAuthorityRow>(result));
 

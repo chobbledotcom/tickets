@@ -26,11 +26,13 @@ import {
   wholeCondition,
 } from "#db/select/expression.ts";
 import {
+  type ColumnOf,
   type CountRow,
   type Joins,
   type Node,
   type None,
   type Out,
+  type Picked,
   type Query,
   type Selection,
   type Spec,
@@ -286,6 +288,12 @@ const query = <Root, First>(
     columns: statement,
     count: () =>
       statement(() => sql`COUNT(*) AS count`) as RowsStatement<CountRow>,
+    everyColumn: () =>
+      named((node) =>
+        Object.fromEntries(
+          table.columns.map(([column]) => [column, columnOf(node, column)]),
+        ),
+      ) as RowsStatement<Picked<First, ColumnOf<First>>>,
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),
     groupBy: (group) => next({ group }),
     join: (key, joinedTable, on) =>

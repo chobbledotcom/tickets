@@ -47,3 +47,17 @@ export const sourcesOf = (
   statement: InStatement,
 ): readonly (readonly [string, Source])[] =>
   typeof statement === "string" ? [] : (readSources.get(statement) ?? []);
+
+/** Mark a statement whose rows are the named columns of `table`, such as a
+ *  write that returns the rows it wrote. */
+export const withColumnsOf = <Statement extends SqlStatement>(
+  statement: Statement,
+  table: string,
+  columns: readonly string[],
+): Statement => {
+  readSources.set(
+    statement,
+    columns.map((column) => [column, { column, table }] as const),
+  );
+  return statement;
+};

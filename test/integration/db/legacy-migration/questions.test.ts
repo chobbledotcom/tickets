@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { encrypt } from "#crypto/encryption.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { initDb } from "#db/migrations.ts";
 import { tables } from "#db/select/tables.ts";
@@ -21,14 +21,14 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await client.execute(
       insertInto(tables.questions, {
         id: 1,
-        text: await encrypt("Encrypted question"),
+        text: "Encrypted question" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
       insertInto(tables.answers, {
         id: 1,
         question_id: 1,
-        text: await encrypt("Encrypted answer"),
+        text: "Encrypted answer" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
@@ -62,7 +62,10 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
     const client = await h.createLegacyDbWithListing();
     await client.execute(
-      insertInto(tables.questions, { id: 1, text: await encrypt("Encrypted") }),
+      insertInto(tables.questions, {
+        id: 1,
+        text: "Encrypted" as EnvKeyEncrypted,
+      }),
     );
     await client.execute(
       insertInto(tables.listing_questions, {

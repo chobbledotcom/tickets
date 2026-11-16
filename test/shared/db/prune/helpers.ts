@@ -2,6 +2,7 @@ import { attendeeAccount, WORLD } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { postTransfers } from "#accounting/store.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { executeBatch, getDb } from "#db/client.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
@@ -17,7 +18,9 @@ export const insertFinalizedPayment = async (
   await getDb().execute(
     insertInto(tables.processed_payments, {
       attendee_id: opts.attendeeId ?? 1,
-      payment_reference: opts.paymentReference ?? "",
+      payment_reference: (opts.paymentReference ?? "") as
+        | OwnerKeyEncrypted
+        | "",
       payment_session_id: sessionId,
       processed_at: processedAtIso,
       ticket_tokens: "",
@@ -45,7 +48,8 @@ export const insertFailedPayment = async (
   await getDb().execute(
     insertInto(tables.processed_payments, {
       attendee_id: null,
-      failure_data: '{"error":"sold out","status":409,"refunded":true}',
+      failure_data:
+        '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
       payment_session_id: sessionId,
       processed_at: processedAtIso,
     }),
@@ -62,7 +66,8 @@ export const insertClaimedPayment = async (
   await getDb().execute(
     insertInto(tables.processed_payments, {
       attendee_id: attendeeId,
-      failure_data: '{"error":"sold out","status":409,"refunded":true}',
+      failure_data:
+        '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
       payment_session_id: sessionId,
       processed_at: processedAtIso,
       protected_state: CLAIM_MIRROR,

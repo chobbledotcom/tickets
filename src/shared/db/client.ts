@@ -27,7 +27,13 @@ import {
   enforceTransactionRoundTripGuard,
   trackSql,
 } from "#db/query-log.ts";
-import { type Read, type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import {
+  type Read,
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  sqlName,
+} from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
@@ -249,8 +255,20 @@ export const setDb = (client: Client | StatementClient | null): void =>
   // A StatementClient is a libsql client behind a narrower type.
   dbSetter(client as Client | null);
 
+declare const RESULT_ROWS: unique symbol;
+
+/** A result whose rows have the type that its statement names. */
+export type RowsResult<Row> = ResultSet & { readonly [RESULT_ROWS]?: Row };
+
+/** Run one statement. A statement that names its rows gives a result of
+ *  those rows, so a caller cannot name another row type for them. */
+export type RunStatement = {
+  <Row>(statement: RowsStatement<Row>): Promise<RowsResult<Row>>;
+  (statement: SqlStatement): Promise<ResultSet>;
+};
+
 /** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
-export const resultRows = <T>(result: ResultSet): T[] => result.rows as T[];
+export const resultRows = <T>(result: RowsResult<T>): T[] => result.rows as T[];
 
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly
@@ -329,7 +347,7 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (statement) =>
  * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
  * the write itself rather than by each call site remembering to invalidate.
  */
-export const execute: StatementRunner<ResultSet> = async (statement) => {
+export const execute: RunStatement = async (statement: SqlStatement) => {
   const result = await executeTrackedStatement(statement);
   invalidateForSql(statement.sql);
   return result;
@@ -457,14 +475,28 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false, false);
 };
 
+/** The result of each statement of a batch, in its place. */
+export type ResultsOf<Statements extends readonly SqlStatement[]> = {
+  -readonly [Index in keyof Statements]: Statements[Index] extends RowsStatement<
+    infer Row
+  >
+    ? RowsResult<Row>
+    : ResultSet;
+};
+
 /** Runs several statements as one batch and answers each in turn: the shape
  *  {@link queryBatch} and {@link executeBatchWithResults} have, and the one
  *  {@link TxScope}'s `batch` fits. A caller that reads either from the client
  *  or through an open transaction takes one of these instead of naming both. */
-export type BatchExecutor = (
-  statements: SqlStatement[],
-) => Promise<ResultSet[]>;
+export type BatchExecutor = <const Statements extends readonly SqlStatement[]>(
+  statements: Statements,
+) => Promise<ResultsOf<Statements>>;
 
+/** The results of a batch under the types of its statements. libsql answers
+ *  each statement in its place. */
+export const resultsOf = <Statements extends readonly SqlStatement[]>(
+  results: ResultSet[],
+): ResultsOf<Statements> => results as ResultsOf<Statements>;
 /** What makes a read batch safe to retry: a write smuggled into one is rejected
  *  loudly here, so every statement really is a side-effect-free SELECT. */
 const requireReadStatements = (statements: readonly SqlStatement[]): void => {
@@ -491,11 +523,13 @@ const batchFor =
     // The async body turns a smuggled write into a rejected promise, not a
     // synchronous throw.
     if (isRead) requireReadStatements(statements);
-    return runBatch(
-      statements,
-      typeof mode === "function" ? mode() : mode,
-      true,
-      isRead,
+    return resultsOf(
+      await runBatch(
+        [...statements],
+        typeof mode === "function" ? mode() : mode,
+        true,
+        isRead,
+      ),
     );
   };
 
@@ -530,8 +564,8 @@ export const executeBatch = async (
  *  callback: run statements singly or as one batch; commit/rollback are managed
  *  for you. */
 export type TxScope = {
-  batch: (statements: SqlStatement[]) => Promise<ResultSet[]>;
-  execute: (statement: SqlStatement) => Promise<ResultSet>;
+  batch: BatchExecutor;
+  execute: RunStatement;
 };
 
 /** Reads narrow pre-update state through an open write transaction. */
@@ -557,14 +591,14 @@ const runWriteTransactionOnce = async <T>(
   const writtenSql: string[] = [];
   let statementCount = 0;
   const scope: TxScope = {
-    batch: (statements) => {
+    batch: async (statements) => {
       const sqls = statements.map((statement) => statement.sql);
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return trackedTxBatch(tx)(statements);
+      return resultsOf(await trackedTxBatch(tx)([...statements]));
     },
-    execute: (statement) => {
+    execute: (statement: SqlStatement) => {
       writtenSql.push(statement.sql);
       // Holding the write lock across many sequential round-trips is the
       // "Transaction timed-out" shape; chatty writes belong in a batch.
@@ -671,9 +705,9 @@ export const withReadSnapshot: TransactionRunner = (work) =>
       const tx = await getDb().transaction("read");
       // The SELECT-only runners the snapshot hands its work: each refuses a
       // non-SELECT before it reaches `tx`.
-      const batch = (statements: SqlStatement[]): Promise<ResultSet[]> => {
+      const batch: BatchExecutor = async (statements) => {
         requireReadStatements(statements);
-        return trackedTxBatch(tx)(statements);
+        return resultsOf(await trackedTxBatch(tx)([...statements]));
       };
       const execute = (statement: SqlStatement): Promise<ResultSet> => {
         requireReadStatements([statement]);

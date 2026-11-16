@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { type TxScope, withTransaction } from "#db/client.ts";
+import { resultsOf, type TxScope, withTransaction } from "#db/client.ts";
 import {
   moveUndatedBookingsToDayTx,
   refuseUndatedSwitchTx,
@@ -87,16 +87,18 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
       batch: () => {
         call += 1;
         if (call === 1) {
-          return Promise.resolve([
-            stubResultSet([
-              {
-                attendeeId: 1,
-                packageGroupId: 0,
-                parentListingId: 0,
-                quantity: 2,
-              },
+          return Promise.resolve(
+            resultsOf([
+              stubResultSet([
+                {
+                  attendeeId: 1,
+                  packageGroupId: 0,
+                  parentListingId: 0,
+                  quantity: 2,
+                },
+              ]),
             ]),
-          ]);
+          );
         }
         if (call === 2) {
           return Promise.reject(new Error("the database stopped responding"));
@@ -130,7 +132,7 @@ describeWithEnv("db: listings — the daily switch", { db: true }, () => {
     // its row set from it, never from a read outside the transaction — a
     // lagging replica read would strand a booking dayless behind the flip.
     const emptyTx: TxScope = {
-      batch: () => Promise.resolve([emptyResultSet()]),
+      batch: () => Promise.resolve(resultsOf([emptyResultSet()])),
       execute: () =>
         Promise.reject(new Error("the move must not write outside its batch")),
     };

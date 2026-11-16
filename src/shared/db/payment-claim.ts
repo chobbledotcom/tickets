@@ -40,7 +40,7 @@ export type PaymentRowRecord = {
   readonly attendeeId: number;
   readonly providerRefundWork: boolean;
   readonly sessionId: string;
-  readonly slot: string;
+  readonly slot: EnvKeyEncrypted | "";
   readonly state: PaymentRowState;
 };
 

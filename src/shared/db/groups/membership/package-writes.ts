@@ -99,30 +99,18 @@ export type PackageFlags = {
   is_package: boolean;
 };
 
-type PackageFlagsRow = {
-  hide_package_listings: number;
-  is_package: number;
-};
-
 /** Reads only the flags that package write guards need. */
 export const readPackageFlagsTxOrNull = async (
   tx: TxScope,
   id: number,
-): Promise<PackageFlags | null> => {
-  const row = resultRows<PackageFlagsRow>(
+): Promise<PackageFlags | null> =>
+  resultRows(
     await tx.execute(
       from(tables.groups)
         .where({ id: id })
         .pick("is_package", "hide_package_listings"),
     ),
-  )[0];
-  return row
-    ? {
-        hide_package_listings: row.hide_package_listings === 1,
-        is_package: row.is_package === 1,
-      }
-    : null;
-};
+  )[0] ?? null;
 
 /** Runs both package guards in one call so every group write path applies the
  *  same transaction-local checks: package members stay valid, and a hidden

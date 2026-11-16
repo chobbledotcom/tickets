@@ -23,7 +23,9 @@ import {
 } from "#db/select/expression.ts";
 import { tableNode } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
+import { withColumnsOf } from "#db/select/sources.ts";
 import type {
+  DecodedRowOf,
   NewRowOf,
   RowOf,
   TableHandle,
@@ -63,11 +65,11 @@ export type NewValues<Name extends TableName> = {
 type OneOrMore<Row> = Row | readonly [Row, ...Row[]];
 
 /** A write. `returning` gives the statement that also reads the named columns
- *  of each row that it wrote. */
+ *  of each row that it wrote, each through its codec. */
 export type Write<Name extends TableName> = SqlStatement & {
   readonly returning: <Column extends ColumnName<Name>>(
     ...columns: readonly [Column, ...Column[]]
-  ) => RowsStatement<{ -readonly [Each in Column]: RowOf<Name>[Each] }>;
+  ) => RowsStatement<{ -readonly [Each in Column]: DecodedRowOf<Name>[Each] }>;
 };
 
 /** What an insert does with a row whose key is already stored. `nothing`
@@ -112,11 +114,16 @@ const assignments = (changes: object): SqlStatement[] =>
 
 /** Give a statement its `returning` step. */
 const writing = <Name extends TableName>(
+  table: TableHandle<Name>,
   statement: SqlStatement,
 ): Write<Name> =>
   Object.defineProperty(statement, "returning", {
     value: (...columns: readonly string[]) =>
-      sql`${statement} RETURNING ${sqlNames(columns)}`,
+      withColumnsOf(
+        sql`${statement} RETURNING ${sqlNames(columns)}`,
+        table.name,
+        columns,
+      ),
   }) as Write<Name>;
 
 /** The `ON CONFLICT …` tail of an insert. */
@@ -191,6 +198,7 @@ export const insertInto = <Name extends TableName>(
       ? sql``
       : conflictTail(table, options.onConflict);
   return writing(
+    table,
     sql`INSERT${or} INTO ${sqlName(table.name)} (${sqlNames(columns)}) ${source}${conflict}`,
   );
 };
@@ -266,9 +274,9 @@ const scoped = <Name extends TableName>(
   table: TableHandle<Name>,
   head: SqlStatement,
 ): Scoped<Name> => ({
-  everyRow: () => writing(head),
+  everyRow: () => writing(table, head),
   where: (where) =>
-    writing(sql`${head}${whereTail(conditionsOf(table, where))}`),
+    writing(table, sql`${head}${whereTail(conditionsOf(table, where))}`),
 });
 
 /** Change some columns of the rows that `where` keeps. `changes` can work out

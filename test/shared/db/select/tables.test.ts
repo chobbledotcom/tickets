@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { queryAll } from "#db/client.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
@@ -18,6 +19,7 @@ import {
   tables,
 } from "#db/select/tables.ts";
 import { type Read, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("tables", () => {
@@ -118,9 +120,13 @@ describeWithEnv("the declared schema", { db: true }, () => {
     }
   });
 
-  test("gives a row its stored types", async () => {
+  test("gives a row the decoded value of a sealed column", async () => {
     await queryAll(
-      sql`INSERT INTO holidays (name, start_date, end_date) VALUES ('h', '2026-01-01', '2026-01-02')`,
+      insertInto(tables.holidays, {
+        end_date: "2026-01-02",
+        name: await encrypt("h"),
+        start_date: "2026-01-01",
+      }),
     );
     const rows = await queryAll(
       from(tables.holidays).select((holiday) => ({

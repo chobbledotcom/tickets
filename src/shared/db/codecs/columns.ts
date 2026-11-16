@@ -141,6 +141,11 @@ export const CODECS = {
     trigger: typed<ModifierTrigger>(),
   },
   news_posts: { ...SEALED_PAGE_TEXT, snippet: blankAsItself(sealed) },
+  processed_payments: {
+    failure_data: typed<EnvKeyEncrypted | "">(),
+    payment_reference: typed<OwnerKeyEncrypted | "">(),
+    ticket_tokens: typed<EnvKeyEncrypted | "">(),
+  },
   questions: {
     assign_all: yesNo,
     display_type: typed<QuestionDisplayType>(),

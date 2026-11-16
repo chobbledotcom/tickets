@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { getDb } from "#db/client.ts";
 import {
   deleteAllStaleReservations,
@@ -96,7 +97,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     test("clears the old charge's index along with its reference", async () => {
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          payment_reference: "old-ciphertext",
+          payment_reference: "old-ciphertext" as OwnerKeyEncrypted,
           payment_reference_index: "index-of-the-old-charge",
           payment_session_id: "cs_reused",
           processed_at: new Date(

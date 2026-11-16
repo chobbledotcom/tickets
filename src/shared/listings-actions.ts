@@ -439,17 +439,14 @@ export const toggleListingActive = async (
       // The stored state decides, not the loaded row: a replica lag can leave
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
-      const [row] = resultRows<{ active: number }>(
+      const [row] = resultRows(
         await tx.execute(
           from(tables.listings).where({ id: listingId }).pick("active"),
         ),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.
-      if (
-        row === undefined ||
-        listingAlreadyInState(row.active === 1, active)
-      ) {
+      if (row === undefined || listingAlreadyInState(row.active, active)) {
         return { noChange: true };
       }
       if (!active) {

@@ -152,7 +152,7 @@ export type Matching<Root> = {
 
 /** The name of a column of a node. A read that hides its first table names
  *  no column. */
-type ColumnOf<First> = [First] extends [never]
+export type ColumnOf<First> = [First] extends [never]
   ? never
   : keyof Matching<First> & string;
 
@@ -196,6 +196,8 @@ export type Query<Root, First = Root> = Readonly<{
   /** The read with its first table under another word. A table that a
    *  statement reads twice needs a word for each place. */
   as: (alias: string) => Query<Root, First>;
+  /** The statement that reads every column of the first table. */
+  everyColumn: () => RowsStatement<Picked<First, ColumnOf<First>>>;
   /** The statement that reads the named columns of the first table. */
   pick: <Column extends ColumnOf<First>>(
     ...columns: readonly Column[]
