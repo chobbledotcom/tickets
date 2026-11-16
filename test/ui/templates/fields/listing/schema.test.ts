@@ -36,10 +36,16 @@ const BUILT_SITE_BOXES = [
   "assign_built_site",
 ];
 
+const RECURRING_BOXES = ["recurring_price", "recurring_interval"];
+
+const boxesOf = (names: string[], reason: ClosedReason) =>
+  names.map((name): [string, ClosedReason] => [name, reason]);
+
 /** The boxes a site closes for each feature it turns off. */
 const FEATURE_BOXES: [string, ClosedReason][] = [
-  ...BUILT_SITE_BOXES.map((name): [string, ClosedReason] => [name, "builder"]),
+  ...boxesOf(BUILT_SITE_BOXES, "builder"),
   ["uses_logistics", "logistics"],
+  ...boxesOf(RECURRING_BOXES, "subscriptions"),
 ];
 
 /** The served fields of a form with the given features off and the given
@@ -57,34 +63,30 @@ const servedWith = (
     ...view,
   }).fields.map(shape);
 
-const FEATURES_OFF: ClosedReason[] = ["builder", "logistics"];
+const FEATURES_OFF: ClosedReason[] = ["builder", "logistics", "subscriptions"];
 
 describe("listing field schemas", () => {
-  test("with site building and logistics off, the listing form serves exactly its declared fields", () => {
+  test("with site building, logistics and subscriptions off, the listing form serves exactly its declared fields", () => {
     expect(servedWith(FEATURES_OFF)).toEqual(LISTING_FIELDS);
   });
 
   test("each feature turned on reveals only its own boxes", () => {
     expect([
       servedWith([]),
-      servedWith(["builder"]),
-      servedWith(["logistics"]),
+      servedWith(["builder", "subscriptions"]),
+      servedWith(["logistics", "subscriptions"]),
+      servedWith(["builder", "logistics"]),
     ]).toEqual([
-      revealing([...BUILT_SITE_BOXES, "uses_logistics"]),
+      revealing([...BUILT_SITE_BOXES, "uses_logistics", ...RECURRING_BOXES]),
       revealing(["uses_logistics"]),
       revealing(BUILT_SITE_BOXES),
+      revealing(RECURRING_BOXES),
     ]);
   });
 
   test("the storage view only reveals the image box", () => {
     expect(servedWith(FEATURES_OFF, { storage: true })).toEqual(
       revealing(["attachment"]),
-    );
-  });
-
-  test("the subscriptions view only reveals the recurring boxes", () => {
-    expect(servedWith(FEATURES_OFF, { subscriptions: true })).toEqual(
-      revealing(["recurring_price", "recurring_interval"]),
     );
   });
 

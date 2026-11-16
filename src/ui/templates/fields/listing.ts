@@ -58,7 +58,6 @@ export interface ListingFormView {
   closed: ClosedFields;
   nameAutofocus?: boolean;
   storage?: boolean;
-  subscriptions?: boolean;
 }
 
 /** A view that hides no field box, for a read of the box names. */
@@ -306,7 +305,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       ...ticketMoneyField("recurring_price", "price"),
       hint: t("fields.listing.recurring_price_hint"),
       label: t("fields.listing.recurring_price"),
-      visible: view.subscriptions === true,
+      visible: shows(view, "recurring_price"),
     },
     {
       ...choiceField(
@@ -320,7 +319,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
         "tickets",
         "select",
       ),
-      visible: view.subscriptions === true,
+      visible: shows(view, "recurring_interval"),
     },
     {
       ...ticketMoneyField("max_price", "max_price"),

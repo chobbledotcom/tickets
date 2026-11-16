@@ -5,7 +5,6 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
 import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
-import { subscriptionsOffered } from "#shared/subscriptions/offered.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
   type FormSection,
@@ -256,7 +255,6 @@ export const listingFormPageState = (
   const view: ListingFormView = {
     ...listingFormView(session.adminLevel),
     ...(fields.nameAutofocus ? { nameAutofocus: true } : {}),
-    subscriptions: subscriptionsOffered(),
   };
   const showUseDefaults = showUseDefaultsToggle(view.closed, defaults);
   const renderSection: ListingSectionRenderer = fields.includeSlug

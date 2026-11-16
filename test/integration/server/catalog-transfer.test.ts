@@ -25,6 +25,11 @@ import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  featureSetting,
+  setupStripe,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 describeWithEnv("catalog-transfer", { db: true }, () => {
   describe("listing round-trip", () => {
@@ -73,6 +78,31 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       expect(
         await listingParents.getIds(requireEntityImport(result).id),
       ).toEqual([parent.id]);
+    });
+
+    test("carries an ordinary listing and a plan while subscriptions are on", async () => {
+      await setupStripe();
+      await withSetting(featureSetting("subscriptions"), async () => {
+        const ordinary = await createTestListing({ name: "Ordinary" });
+        const plain = unwrapExport(await exportListing(ordinary.id));
+        expect([
+          plain.listing.recurringInterval,
+          plain.listing.recurringPrice,
+        ]).toEqual(["", 0]);
+
+        Object.assign(plain.listing, {
+          name: "Monthly",
+          recurringInterval: "month",
+          recurringPrice: 500,
+          unitPrice: 1000,
+        });
+        const monthly = requireEntityImport(await importCatalog(plain));
+        const copy = unwrapExport(await exportListing(monthly.id));
+        expect([
+          copy.listing.recurringInterval,
+          copy.listing.recurringPrice,
+        ]).toEqual(["month", 500]);
+      });
     });
 
     test("preserves a child's bookable-alone standalone page", async () => {

@@ -131,8 +131,9 @@ const FORM_READS: Record<
   name: (value) => value,
   optionalDatetime: (value, field) => formTime(value, field) || null,
   price: (value, field) => {
-    const amount = parseOptionalMinorUnits(value as string);
-    if (amount === null) {
+    const amount =
+      value === "" ? field.default : parseOptionalMinorUnits(value as string);
+    if (amount === null || amount === undefined) {
       throw new Error(`The ${field.key} form box holds no price`);
     }
     return amount;
