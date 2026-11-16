@@ -7,16 +7,14 @@
 import {
   ADMIN_API_RESOURCES,
   type AdminApiCreateQuestionBody,
-  type AdminApiOptionBody,
   type AdminApiUpdateQuestionBody,
 } from "#shared/admin-api-resources.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import {
-  childDocBase,
+  choiceWriteDocs,
   crudDocs,
   type EndpointDoc,
   json,
-  renameOneText,
 } from "./endpoint-doc.ts";
 
 /** Example question response: the question and its answers in display order,
@@ -59,49 +57,6 @@ const ADMIN_API_QUESTION_UPDATE_BODY = {
 const ADMIN_API_QUESTION_DELETE_BODY = {
   confirm_identifier: "What is your T-shirt size?",
 } satisfies DeleteBody;
-
-const ADMIN_API_QUESTION_ANSWER_CREATE_BODY = {
-  text: "Medium",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_QUESTION_ANSWER_UPDATE_BODY = {
-  text: "Extra large",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_QUESTION_ANSWER_DELETE_BODY = {
-  confirm_identifier: "Large",
-} satisfies DeleteBody;
-
-/** The answer to an answer add: the question's own fields are untouched, so
- *  the example must not read like the request also renamed the question. */
-const ADMIN_API_EXAMPLE_QUESTION_WITH_MEDIUM = {
-  ...ADMIN_API_EXAMPLE_QUESTION,
-  answers: [
-    ...ADMIN_API_EXAMPLE_QUESTION.answers,
-    {
-      active: true,
-      id: 23,
-      question_id: 9,
-      sort_order: 2,
-      text: "Medium",
-      times_selected: 0,
-    },
-  ],
-};
-
-/** The answer to an answer rename: the question's own fields are untouched. */
-const ADMIN_API_EXAMPLE_ANSWER_RENAMED = {
-  ...ADMIN_API_EXAMPLE_QUESTION,
-  answers: renameOneText(
-    ADMIN_API_EXAMPLE_QUESTION.answers,
-    "Large",
-    "Extra large",
-  ),
-};
-
-/** The documented base path of the answer routes: the question's id param and
- *  the `answers` segment both come from the resource table. */
-const ANSWERS_BASE = childDocBase(ADMIN_API_RESOURCES.questions, "answers");
 
 /** The documented base path of the question routes. */
 const QUESTIONS_BASE = `/api/admin/${ADMIN_API_RESOURCES.questions.path}`;
@@ -156,28 +111,21 @@ export const QUESTION_ENDPOINTS: EndpointDoc[] = [
     path: `${QUESTIONS_BASE}/:questionId/bookings`,
     response: json(ADMIN_API_EXAMPLE_QUESTION_BOOKINGS),
   },
-  {
-    description:
+  ...choiceWriteDocs([ADMIN_API_RESOURCES.questions, "answers"], {
+    added: {
+      active: true,
+      id: 23,
+      question_id: 9,
+      sort_order: 2,
+      text: "Medium",
+      times_selected: 0,
+    },
+    desc: [
       "Add an answer to a question (owner only). The answer joins the question's answer list, new answer last. A free-text question refuses answers, because it collects a typed value instead.",
-    method: "POST",
-    path: ANSWERS_BASE,
-    request: json(ADMIN_API_QUESTION_ANSWER_CREATE_BODY),
-    response: json({ question: ADMIN_API_EXAMPLE_QUESTION_WITH_MEDIUM }),
-  },
-  {
-    description:
       "Rename a question answer (owner only). The answer shows in the question's answer list.",
-    method: "PUT",
-    path: `${ANSWERS_BASE}/:answerId`,
-    request: json(ADMIN_API_QUESTION_ANSWER_UPDATE_BODY),
-    response: json({ question: ADMIN_API_EXAMPLE_ANSWER_RENAMED }),
-  },
-  {
-    description:
       "Delete a question answer (owner only, requires the answer text as confirmation).",
-    method: "DELETE",
-    path: `${ANSWERS_BASE}/:answerId`,
-    request: json(ADMIN_API_QUESTION_ANSWER_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
+    ],
+    record: ADMIN_API_EXAMPLE_QUESTION,
+    rename: ["Large", "Extra large"],
+  }),
 ];

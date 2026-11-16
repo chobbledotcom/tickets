@@ -73,15 +73,15 @@ src/shared/bunny-edge-script.ts::createEdgeScriptImpl.defaultHostname~185m0u5  ?
 src/shared/bunny-edge-script.ts::listEdgeScriptSecretsImpl.secrets~0cl5i4z  ?? → || audited:1jw7c26 # Secrets is an array|null, and every present array is truthy while null takes the fallback either way
 src/shared/subrequest-budget.ts::getSubrequestUsage~13c9nif  ?? → || audited:0zfjs24 # scoped counts is an object when present, and every object is truthy
 src/shared/accounting/queries.ts::transferActivityBounds~0ioze8t  || → && audited:1o7wako # transferActivityBounds: MIN(occurred_at) and MAX(occurred_at) over one table are NULL together (both iff the table is empty), so either-null and both-null coincide
-src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:12gdroc # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
+src/shared/admin-features.ts::featureBySlug~1rzgri8  ?? → || audited:0baf1yb # find(): AdminFeatureDefinition|undefined; a feature object is always truthy
 src/shared/admin-surface/definitions.ts::adminPathSegment~1hrcxzo  ?? → || audited:14jncpb # `path.split("/")[2] ?? ""`: the RHS is "" and the only falsy string is "", so `x ?? ""` and `x || ""` agree on every string|undefined input
 src/shared/admin-surface/definitions.ts::groupDestinations~1i8n5di  ?? → || audited:14jncpb # `group ?? {}`: group is AdminRouteGroup|undefined, and an object is always truthy, so only undefined reaches the fallback
 src/shared/admin-surface/definitions.ts::groupDestinations.audience~1c9r0s3  ?? → || audited:14jncpb # `object.audience ?? areaAudience`: a declared audience is a readonly array, and an array (even empty) is always truthy, so only undefined reaches the fallback
 src/shared/admin-surface/definitions.ts::validateAfterSave~1m1m6ct  ?? → || audited:14jncpb # `pattern.match(/:\w+/g) ?? []`: a global match returns null or a non-empty array, so the fallback is reached on exactly the same input either way
 src/shared/admin-surface/definitions.ts::foldAdminAreas.declaredSegments~08mzyyu  ?? → || audited:14jncpb # `area.segments ?? []`: segments is a readonly array when present, and arrays are always truthy, so only undefined reaches the fallback
-src/shared/db/admin-features.ts::requireSettingCondition~0lymkcw  __required_setting_condition__ → "" audited:0pcmc6x # the placeholder key is never stored: a failed condition always aborts on its NULL value
-src/shared/db/admin-features.ts::requireSettingCondition~0lymkcw  __required_setting_condition__ → "__required_setting_condition__ mutated" audited:0pcmc6x # same as above; no successful statement exposes this key
-src/shared/db/admin-features.ts::usageJsonEntry~1oaokhg  ?? → || audited:0pcmc6x # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
+src/shared/db/admin-features.ts::requireSettingCondition~0lymkcw  __required_setting_condition__ → "" audited:0fm0n34 # the placeholder key is never stored: a failed condition always aborts on its NULL value
+src/shared/db/admin-features.ts::requireSettingCondition~0lymkcw  __required_setting_condition__ → "__required_setting_condition__ mutated" audited:0fm0n34 # same as above; no successful statement exposes this key
+src/shared/db/admin-features.ts::usageJsonEntry~1oaokhg  ?? → || audited:0fm0n34 # inUseSql: a non-empty SQL string|undefined, so only undefined reaches the fallback
 src/shared/db/migrations/schema/admin-feature-triggers.ts::featureWriteTrigger.uses.source%2etable~0toeppz  ?? → || audited:0gybj0s # source.columns is undefined or an array; every array, including [], is truthy
 # Invariant-based, confirmed by reading toUnits: `lineIdxs` comes from toUnits,
 # which assigns lineIdx as the flatMap array index, so the sort's input is
@@ -327,8 +327,9 @@ src/shared/bulk-email-targets/registry.ts::firstTarget~0ltwke4  ?? → || audite
 
 # The optional parameters are Record<string, unknown> | undefined: undefined
 # is the only absent value, so ?? and || read identically over the type.
-src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0epxqlj  ?? → || audited:1nwgp80 # newRecordDefaults is undefined or a truthy record object
-src/shared/admin-api-example/endpoint-doc.ts::crudDocs.created~0lfuyxn  ?? → || audited:1nwgp80 # freshRecord is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0epxqlj  ?? → || audited:0r6kgt7 # newRecordDefaults is undefined or a truthy record object
+src/shared/admin-api-example/endpoint-doc.ts::crudDocsFor.created~0lfuyxn  ?? → || audited:0r6kgt7 # freshRecord is undefined or a truthy record object
+src/shared/admin-api-example/field-docs.ts::KIND_FORMS.count.min~16n3kul  ??→|| audited:0r3xi46 # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
 src/shared/entity-pages/core.ts::resolveTabSlug~14y75uy  ?? → || audited:13evilg # the named branch only runs for a non-empty requested slug, and the found tab carries that same slug; only undefined reaches the null fallback
 src/shared/admin-pages.ts::adminLandingPath~17bpn1g  ?? → || audited:14t8438 # landingFor[adminLevel] answers undefined or a declared route id, and every route id is a non-empty literal
 

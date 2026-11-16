@@ -13,6 +13,7 @@ import type { ApiKeyDisplay } from "#shared/records/api-keys.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
+import { FieldTable } from "#templates/admin/api-field-table.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
 import type { SummaryRow } from "#templates/admin/entity-pages.tsx";
 import { ExampleCode } from "#templates/admin/guide/components.tsx";
@@ -163,6 +164,7 @@ const EndpointEntry = ({ endpoint }: { endpoint: EndpointDoc }): string =>
       {endpoint.request && (
         <ExampleCode code={endpoint.request} label="Request:" />
       )}
+      {endpoint.fields && <FieldTable rows={endpoint.fields} />}
       <ExampleCode code={endpoint.response} label="Response:" />
     </details>,
   );

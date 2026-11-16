@@ -14,7 +14,7 @@ import {
   expectAdminApiError,
   expectTextChildCreateRefusals,
 } from "#test-utils/admin-api-transport.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 
 const { questions } = ADMIN_API_RESOURCES;
 

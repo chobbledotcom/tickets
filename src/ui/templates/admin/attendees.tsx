@@ -15,6 +15,7 @@ import { atBookingHints } from "#templates/admin/answer-rows.ts";
 import { pendingNotificationBadges } from "#templates/admin/attendee-notification-badges.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import { Badge } from "#templates/components/badge.tsx";
+import { LabelledBlock } from "#templates/components/labelled-block.tsx";
 import {
   type LabelledLine,
   LabelledParas,
@@ -229,16 +230,13 @@ const resendSideOption = (value: string, key: string): JSX.Element => (
 );
 
 const resendSidesChoice = (): JSX.Element => (
-  <>
-    <p>
-      <strong>{t("admin.attendees.resend_sides_title")}</strong>
-    </p>
+  <LabelledBlock label={t("admin.attendees.resend_sides_title")}>
     <RadioOption checked name="resend_sides" value="email">
       {t("admin.attendees.resend_sides_email")}
     </RadioOption>
     {resendSideOption("webhooks", "admin.attendees.resend_sides_webhook")}
     {resendSideOption("both", "admin.attendees.resend_sides_both")}
-  </>
+  </LabelledBlock>
 );
 
 /**

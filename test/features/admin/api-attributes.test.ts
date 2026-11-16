@@ -14,11 +14,11 @@ import {
   assertJson,
   expectRejectsEmptyName,
 } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import {
   createTestAttribute,
   createTestAttributeOption,
 } from "#test-utils/db-helpers/attributes.ts";
+import { describeWithAttributes as describeWithEnv } from "#test-utils/feature-suites.ts";
 import {
   apiRequest,
   createTestManagerSession,

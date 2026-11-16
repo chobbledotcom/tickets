@@ -32,10 +32,11 @@ export type FieldKind =
 
 /** The site features that a field can need. With the feature off, every
  *  write refuses the field. */
-export type Feature = "builder" | "logistics" | "subscriptions";
+export type Feature = "attributes" | "builder" | "logistics" | "subscriptions";
 
-/** The writers that a field can be locked against. */
-export type Lock = "demo" | "editor";
+/** The writers that a field can be locked against. `nonOwner` is every
+ *  writer below the owner. */
+export type Lock = "demo" | "editor" | "nonOwner";
 
 /** Why one write cannot set a field. */
 export type ClosedReason = Feature | Lock;
@@ -68,6 +69,11 @@ export type FieldSpec = {
 };
 
 export type FieldSpecs = readonly FieldSpec[];
+
+/** The access rule of one write key: the feature it needs and the writers
+ *  it is locked for. A declared field carries one. So does a body key that
+ *  links other records and is not a column. */
+export type KeyAccess = Pick<FieldSpec, "feature" | "key" | "lockedFor">;
 
 /** The kinds the shared form and the shared list can show. */
 export type ShownKind = "date" | "name";
@@ -151,7 +157,7 @@ export type FieldsBody<Fields extends FieldSpecs> = {
 /** Why one write cannot set the field. Null means the write can set it. */
 const closedReasonOrNull =
   (access: WriteAccess) =>
-  (field: FieldSpec): ClosedReason | null => {
+  (field: KeyAccess): ClosedReason | null => {
     if (field.feature !== undefined && !access.features[field.feature]) {
       return field.feature;
     }
@@ -163,7 +169,7 @@ export type ClosedFields = ReadonlyMap<string, ClosedReason>;
 
 /** The fields that one write cannot set. */
 export const closedFields = (
-  fields: FieldSpecs,
+  fields: readonly KeyAccess[],
   access: WriteAccess,
 ): ClosedFields =>
   new Map(
@@ -173,12 +179,23 @@ export const closedFields = (
     }),
   );
 
+/** The keys whose feature is off. An API answer leaves these keys out. */
+export const featureClosedKeys = (
+  fields: readonly KeyAccess[],
+  features: WriteAccess["features"],
+): string[] =>
+  fields.flatMap((field) =>
+    field.feature !== undefined && !features[field.feature] ? [field.key] : [],
+  );
+
 /** The refusal for a closed field that a JSON body or a transfer supplies. */
 const CLOSED_REFUSALS: Record<ClosedReason, (key: string) => string> = {
+  attributes: (key) => `${key} needs attributes turned on`,
   builder: (key) => `${key} needs site building turned on`,
   demo: (key) => `${key} cannot be set in the demo`,
   editor: (key) => `editors cannot set ${key}`,
   logistics: (key) => `${key} needs logistics turned on`,
+  nonOwner: (key) => `${key} is owner-only`,
   subscriptions: (key) => `${key} needs subscriptions turned on`,
 };
 

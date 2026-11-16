@@ -1,7 +1,7 @@
 import { it as test } from "@std/testing/bdd";
 import { expectApiError } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Site pages - taken slug", { db: true }, () => {

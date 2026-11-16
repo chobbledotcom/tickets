@@ -3,8 +3,46 @@
  * strings, so every check starts by finding an endpoint and reading a body.
  */
 
-import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
-import { BOOKING_TOTAL_FIELDS } from "#shared/admin-api-example.ts";
+import type {
+  DocsView,
+  EndpointDoc,
+} from "#shared/admin-api-example/endpoint-doc.ts";
+import {
+  adminApiEndpoints,
+  BOOKING_TOTAL_FIELDS,
+} from "#shared/admin-api-example.ts";
+import {
+  ADMIN_FEATURES,
+  type EnabledFeatures,
+} from "#shared/admin-features.ts";
+import type { WriteAccess } from "#shared/rest/field-specs.ts";
+
+/** An owner on a site with every field feature on, outside the demo. */
+export const OPEN_ACCESS: WriteAccess = {
+  features: {
+    attributes: true,
+    builder: true,
+    logistics: true,
+    subscriptions: true,
+  },
+  locks: { demo: false, editor: false, nonOwner: false },
+};
+
+/** Every admin feature, each one on or each one off. */
+export const everyFeature = (on: boolean): EnabledFeatures =>
+  // The feature list names every key of the enabled features.
+  Object.fromEntries(
+    ADMIN_FEATURES.map((feature) => [feature.key, on]),
+  ) as EnabledFeatures;
+
+/** The view that shows the whole docs. */
+export const OPEN_VIEW: DocsView = {
+  access: OPEN_ACCESS,
+  features: everyFeature(true),
+};
+
+/** The whole admin docs: every resource and every field. */
+export const ADMIN_API_ENDPOINTS: EndpointDoc[] = adminApiEndpoints(OPEN_VIEW);
 
 /** The running totals a record only gains by being booked, all at zero on a
  * record that was just created. Absent on a resource that has none. */
@@ -77,3 +115,19 @@ export const isBlank = (value: unknown, field = ""): boolean => {
   if (typeof value !== "number") return false;
   return value < 0 || (value === 0 && COUNT_FIELDS.includes(field));
 };
+
+/** The parsed request and answer of one documented endpoint. An endpoint
+ * with no request body has no request here. */
+export const documentedBodies =
+  (endpoints: EndpointDoc[]) =>
+  (method: string, path: string): { request?: unknown; response: unknown } => {
+    const { request, response } = documented(endpoints, method, path);
+    return {
+      ...(request === undefined ? {} : { request: JSON.parse(request) }),
+      response: JSON.parse(response),
+    };
+  };
+
+/** Each documented endpoint as "METHOD path", in documented order. */
+export const documentedRoutes = (endpoints: EndpointDoc[]): string[] =>
+  endpoints.map(({ method, path }) => `${method} ${path}`);
