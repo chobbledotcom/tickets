@@ -27,6 +27,7 @@ import type {
 } from "#db/select/tables.ts";
 import type { Read, RowsStatement } from "#db/sql.ts";
 import {
+  type Changes,
   type ColumnName,
   deleteFrom,
   type InsertOptions,
@@ -108,6 +109,15 @@ export const existsOn = async (
   query: Query<unknown, never>,
 ): Promise<boolean> => resultRows(await tx.execute(query.probe())).length > 0;
 
+/** The stored values of `values`, typed for a write over any table. A type
+ *  parameter hides the columns from the type of `encoded`, which keeps each
+ *  column that it is given. */
+const storedValues = <Name extends TableName, Stored>(
+  table: TableHandle<Name>,
+  values: RecordChanges<Name> | NewRecord<Name>,
+): Promise<Stored> =>
+  encoded(table, values as RecordChanges<Name>) as Promise<Stored>;
+
 /** The insert of one row that gives back the row it wrote. */
 export const insertRowStatement = async <Name extends TableWithId>(
   table: TableHandle<Name>,
@@ -116,9 +126,7 @@ export const insertRowStatement = async <Name extends TableWithId>(
 ): Promise<RowsStatement<DecodedRowOf<Name>>> =>
   insertInto(
     table,
-    // Each column that the new row must give is in `values`, and `encoded`
-    // keeps the columns that it is given.
-    (await encoded(table, values as RecordChanges<Name>)) as NewValues<Name>,
+    await storedValues<Name, NewValues<Name>>(table, values),
     options,
   ).returning(...everyColumnOf(table)) as RowsStatement<DecodedRowOf<Name>>;
 
@@ -130,7 +138,7 @@ export const updateRowStatement = async <Name extends TableWithId>(
   changes: RecordChanges<Name>,
   guard: (row: Node<Name>) => Condition = () => true,
 ): Promise<RowsStatement<DecodedRowOf<Name>>> =>
-  update(table, await encoded(table, changes))
+  update(table, await storedValues<Name, Changes<Name>>(table, changes))
     .where((row) => [withId(table.name, id)(), guard(row)])
     .returning(...everyColumnOf(table)) as RowsStatement<DecodedRowOf<Name>>;
 

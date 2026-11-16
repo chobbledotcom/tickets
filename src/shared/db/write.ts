@@ -80,6 +80,7 @@ export type Conflict<Name extends TableName> = Readonly<
   { on?: readonly ColumnName<Name>[] } & (
     | { nothing: true }
     | {
+        nothing?: never;
         take?: readonly ColumnName<Name>[];
         set?: (row: Node<Name>, excluded: Node<Name>) => Changes<Name>;
         where?: (row: Node<Name>, excluded: Node<Name>) => Condition;
@@ -133,7 +134,9 @@ const conflictTail = <Name extends TableName>(
 ): SqlStatement => {
   const target =
     conflict.on === undefined ? sql`` : sql`(${sqlNames(conflict.on)})`;
-  if ("nothing" in conflict) return sql` ON CONFLICT${target} DO NOTHING`;
+  if (conflict.nothing === true) {
+    return sql` ON CONFLICT${target} DO NOTHING`;
+  }
   const row = nodeOfWrite(table);
   const excluded = tableNode(table, "excluded");
   const taken = (conflict.take ?? []).map(

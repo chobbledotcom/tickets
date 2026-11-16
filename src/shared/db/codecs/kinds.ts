@@ -26,7 +26,7 @@ export type Typed<Stored extends InValue> = Readonly<{
   readonly [STORED]: Stored;
 }>;
 
-// biome-ignore lint/suspicious/noExplicitAny: a codec of any column
+/** The codec of any column. */
 export type ColumnCodec = Codec<any, any> | Typed<any>;
 
 /** The stored type of a codec. */
