@@ -6,8 +6,16 @@ import { findRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { handleRequest } from "#routes";
 import {
+  deleteJson,
+  expectApiRecord,
+  type JsonBody,
+  postJson,
+  putJson,
+} from "#test-utils/api/admin-json.ts";
+import {
   assertApiDeleteOk,
   assertJson,
+  expectApiError,
   expectRejectsEmptyName,
 } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,26 +29,47 @@ import {
   testCsrfToken,
 } from "#test-utils/session.ts";
 
+const HOLIDAYS = "/api/admin/holidays";
+
+/** The holiday that an admin API answer holds. */
+const expectHoliday = expectApiRecord("holiday");
+
+/** The path of one holiday in the admin API. */
+const holidayPath = (id: number | string): string => `${HOLIDAYS}/${id}`;
+
+/** A stored holiday from 1 to 2 January 2026, named `name`. */
+const newYearHoliday = (name: string) =>
+  createTestHoliday({ endDate: "2026-01-02", name, startDate: "2026-01-01" });
+
+/** Assert that a change to one stored holiday is refused with `message`. */
+const expectUpdateRefused = async (
+  changes: JsonBody,
+  message: string,
+): Promise<void> => {
+  const holiday = await newYearHoliday("Refused Update");
+  await expectApiError(putJson(holidayPath(holiday.id), changes), 400, message);
+};
+
 describeWithEnv("Admin API - Holidays", { db: true }, () => {
   describe("GET /api/admin/holidays", () => {
     test("lists all holidays", async () => {
       await createTestHoliday({ name: "Christmas" });
       await createTestHoliday({ name: "New Year" });
 
-      await assertJson(apiRequest("/api/admin/holidays"), 200, (body) => {
+      await assertJson(apiRequest(HOLIDAYS), 200, (body) => {
         expect(body.holidays.length).toBe(2);
         expect(body.holidays[0].name).toBe("Christmas");
       });
     });
 
     test("returns empty array when no holidays", async () => {
-      await assertJson(apiRequest("/api/admin/holidays"), 200, (body) => {
+      await assertJson(apiRequest(HOLIDAYS), 200, (body) => {
         expect(body.holidays).toEqual([]);
       });
     });
 
     test("returns 401 without auth", async () => {
-      const response = await handleRequest(mockRequest("/api/admin/holidays"));
+      const response = await handleRequest(mockRequest(HOLIDAYS));
       expect(response.status).toBe(401);
     });
   });
@@ -49,22 +78,22 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("returns single holiday by ID", async () => {
       const holiday = await createTestHoliday({ name: "Easter" });
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`),
-        200,
-        (body) => {
-          expect(body.holiday.name).toBe("Easter");
-          expect(body.holiday.id).toBe(holiday.id);
-          expect(body.holiday.start_date).toBeDefined();
-          expect(body.holiday.end_date).toBeDefined();
-        },
-      );
+      await expectHoliday(apiRequest(holidayPath(holiday.id)), 200, (row) => {
+        expect(row).toEqual({
+          end_date: "2026-12-25",
+          id: holiday.id,
+          name: "Easter",
+          start_date: "2026-12-25",
+        });
+      });
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      await assertJson(apiRequest("/api/admin/holidays/99999"), 404, (body) => {
-        expect(body.error).toBe("Holiday not found");
-      });
+      await expectApiError(
+        apiRequest(holidayPath(99999)),
+        404,
+        "Holiday not found",
+      );
     });
 
     test("works with cookie+CSRF auth", async () => {
@@ -72,38 +101,30 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      await assertJson(
+      await expectHoliday(
         handleRequest(
-          requestAsSession(`/api/admin/holidays/${holiday.id}`, {
-            cookie,
-            csrfToken,
-          }),
+          requestAsSession(holidayPath(holiday.id), { cookie, csrfToken }),
         ),
         200,
-        (body) => {
-          expect(body.holiday.name).toBe("Cookie Holiday");
-        },
+        (row) => expect(row.name).toBe("Cookie Holiday"),
       );
     });
   });
 
   describe("POST /api/admin/holidays", () => {
     test("creates holiday with all fields", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: {
-            end_date: "2026-08-31",
-            name: "Summer Break",
-            start_date: "2026-07-01",
-          },
-          method: "POST",
+      await expectHoliday(
+        postJson(HOLIDAYS, {
+          end_date: "2026-08-31",
+          name: "Summer Break",
+          start_date: "2026-07-01",
         }),
         201,
-        (body) => {
-          expect(body.holiday.name).toBe("Summer Break");
-          expect(body.holiday.start_date).toBe("2026-07-01");
-          expect(body.holiday.end_date).toBe("2026-08-31");
-          expect(body.holiday.id).toBeGreaterThan(0);
+        (row) => {
+          expect(row.name).toBe("Summer Break");
+          expect(row.start_date).toBe("2026-07-01");
+          expect(row.end_date).toBe("2026-08-31");
+          expect(row.id).toBeGreaterThan(0);
         },
       );
     });
@@ -111,103 +132,54 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     // The shared date parser runs at the JSON boundary: every unusable shape
     // the parser refuses answers the field-named message.
     test("refuses unusable date shapes with the field message", async () => {
-      const cases: Record<string, unknown>[] = [
-        { end_date: "2026-08-31", name: "Unpadded", start_date: "2026-7-1" },
-        {
-          end_date: "2026-08-31",
-          name: "Rollover",
-          start_date: "2026-02-30",
-        },
-        {
-          end_date: "2026-08-31",
-          name: "Datetime",
-          start_date: "2026-07-01T00:00",
-        },
-        { end_date: "2026-08-31", name: "Wording", start_date: "soon" },
-      ];
-      for (const body of cases) {
-        await assertJson(
-          apiRequest("/api/admin/holidays", { body, method: "POST" }),
+      for (const [name, start_date] of [
+        ["Unpadded", "2026-7-1"],
+        ["Rollover", "2026-02-30"],
+        ["Datetime", "2026-07-01T00:00"],
+        ["Wording", "soon"],
+      ]) {
+        await expectApiError(
+          postJson(HOLIDAYS, { end_date: "2026-08-31", name, start_date }),
           400,
-          (error) => {
-            expect(error.error).toBe("start_date has an invalid value");
-          },
+          "start_date has an invalid value",
         );
       }
     });
 
     test("trims a padded date and stores the clean value", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: {
-            end_date: "2026-08-31",
-            name: "Padded Create",
-            start_date: "  2026-07-01  ",
-          },
-          method: "POST",
+      await expectHoliday(
+        postJson(HOLIDAYS, {
+          end_date: "2026-08-31",
+          name: "Padded Create",
+          start_date: "  2026-07-01  ",
         }),
         201,
-        (body) => {
-          expect(body.holiday.start_date).toBe("2026-07-01");
-        },
+        (row) => expect(row.start_date).toBe("2026-07-01"),
       );
     });
 
-    test("returns error when name is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: { end_date: "2026-01-02", start_date: "2026-01-01" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name is required");
-        },
-      );
-    });
-
-    test("returns error when start_date is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: { end_date: "2026-01-02", name: "Test" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("start_date is required");
-        },
-      );
-    });
-
-    test("returns error when end_date is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: { name: "Test", start_date: "2026-01-01" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("end_date is required");
-        },
-      );
+    test("names the first missing field", async () => {
+      for (const [body, message] of [
+        [
+          { end_date: "2026-01-02", start_date: "2026-01-01" },
+          "name is required",
+        ],
+        [{ end_date: "2026-01-02", name: "Test" }, "start_date is required"],
+        [{ name: "Test", start_date: "2026-01-01" }, "end_date is required"],
+      ] as const) {
+        await expectApiError(postJson(HOLIDAYS, body), 400, message);
+      }
     });
 
     test("validates end_date >= start_date", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays", {
-          body: {
-            end_date: "2026-12-20",
-            name: "Bad Range",
-            start_date: "2026-12-25",
-          },
-          method: "POST",
+      await expectApiError(
+        postJson(HOLIDAYS, {
+          end_date: "2026-12-20",
+          name: "Bad Range",
+          start_date: "2026-12-25",
         }),
         400,
-        (body) => {
-          expect(body.error).toBe(
-            "End date must be on or after the start date",
-          );
-        },
+        "End date must be on or after the start date",
       );
     });
   });
@@ -216,57 +188,43 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("updates holiday name", async () => {
       const holiday = await createTestHoliday({ name: "Old Name" });
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { name: "New Name" },
-          method: "PUT",
-        }),
+      await expectHoliday(
+        putJson(holidayPath(holiday.id), { name: "New Name" }),
         200,
-        (body) => {
-          expect(body.holiday.name).toBe("New Name");
-          expect(body.holiday.start_date).toBe(holiday.start_date);
+        (row) => {
+          expect(row.name).toBe("New Name");
+          expect(row.start_date).toBe(holiday.start_date);
         },
       );
     });
 
     test("keeps the stored dates when none are supplied", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-01-02",
-        name: "Stored Dates",
-        startDate: "2026-01-01",
-      });
+      const holiday = await newYearHoliday("Stored Dates");
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { name: "Renamed Only" },
-          method: "PUT",
-        }),
+      await expectHoliday(
+        putJson(holidayPath(holiday.id), { name: "Renamed Only" }),
         200,
-        (body) => {
-          expect(body.holiday.name).toBe("Renamed Only");
-          expect(body.holiday.start_date).toBe("2026-01-01");
-          expect(body.holiday.end_date).toBe("2026-01-02");
+        (row) => {
+          expect(row.name).toBe("Renamed Only");
+          expect(row.start_date).toBe("2026-01-01");
+          expect(row.end_date).toBe("2026-01-02");
         },
       );
     });
 
     test("updates dates only", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-01-02",
-        name: "Keep Name",
-        startDate: "2026-01-01",
-      });
+      const holiday = await newYearHoliday("Keep Name");
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { end_date: "2026-06-30", start_date: "2026-06-01" },
-          method: "PUT",
+      await expectHoliday(
+        putJson(holidayPath(holiday.id), {
+          end_date: "2026-06-30",
+          start_date: "2026-06-01",
         }),
         200,
-        (body) => {
-          expect(body.holiday.name).toBe("Keep Name");
-          expect(body.holiday.start_date).toBe("2026-06-01");
-          expect(body.holiday.end_date).toBe("2026-06-30");
+        (row) => {
+          expect(row.name).toBe("Keep Name");
+          expect(row.start_date).toBe("2026-06-01");
+          expect(row.end_date).toBe("2026-06-30");
         },
       );
     });
@@ -274,40 +232,16 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     // The update mapper runs the same shared date readers: a stored fallback
     // applies to an absent field, and a supplied unusable date is refused.
     test("refuses an unusable supplied date on update", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-01-02",
-        name: "Padded Update",
-        startDate: "2026-01-01",
-      });
-
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { start_date: "2027-02-30" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("start_date has an invalid value");
-        },
+      await expectUpdateRefused(
+        { start_date: "2027-02-30" },
+        "start_date has an invalid value",
       );
     });
 
     test("refuses a non-string date on update", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-01-02",
-        name: "Typed Update",
-        startDate: "2026-01-01",
-      });
-
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { start_date: 42 },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("start_date has an invalid value");
-        },
+      await expectUpdateRefused(
+        { start_date: 42 },
+        "start_date has an invalid value",
       );
     });
 
@@ -318,15 +252,10 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         startDate: "2026-06-01",
       });
 
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { start_date: "  2027-06-01" },
-          method: "PUT",
-        }),
+      await expectHoliday(
+        putJson(holidayPath(holiday.id), { start_date: "  2027-06-01" }),
         200,
-        (body) => {
-          expect(body.holiday.start_date).toBe("2027-06-01");
-        },
+        (row) => expect(row.start_date).toBe("2027-06-01"),
       );
       expect(
         (await holidays.getAll()).find((h) => h.id === holiday.id)?.start_date,
@@ -334,40 +263,22 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays/99999", {
-          body: { name: "Nope" },
-          method: "PUT",
-        }),
+      await expectApiError(
+        putJson(holidayPath(99999), { name: "Nope" }),
         404,
-        (body) => {
-          expect(body.error).toBe("Holiday not found");
-        },
+        "Holiday not found",
       );
     });
 
     test("rejects empty name", async () => {
       const holiday = await createTestHoliday();
-      await expectRejectsEmptyName(`/api/admin/holidays/${holiday.id}`);
+      await expectRejectsEmptyName(holidayPath(holiday.id));
     });
 
     test("validates date range on update", async () => {
-      const holiday = await createTestHoliday({
-        endDate: "2026-01-10",
-        startDate: "2026-01-01",
-      });
-
-      await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { end_date: "2026-12-20", start_date: "2026-12-25" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "End date must be on or after the start date",
-          );
-        },
+      await expectUpdateRefused(
+        { end_date: "2026-12-20", start_date: "2026-12-25" },
+        "End date must be on or after the start date",
       );
     });
   });
@@ -376,19 +287,18 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("deletes holiday with correct confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
 
-      await assertApiDeleteOk(`/api/admin/holidays/${holiday.id}`, "To Delete");
+      await assertApiDeleteOk(holidayPath(holiday.id), "To Delete");
 
       const all = await holidays.getAll();
-      expect(all.find((h) => h.id === holiday.id)).toBeUndefined();
+      expect(all.map((h) => h.id)).not.toContain(holiday.id);
     });
 
     test("rejects delete with wrong confirmation", async () => {
       const holiday = await createTestHoliday({ name: "Protected" });
 
       await assertJson(
-        apiRequest(`/api/admin/holidays/${holiday.id}`, {
-          body: { confirm_identifier: "Wrong Name" },
-          method: "DELETE",
+        deleteJson(holidayPath(holiday.id), {
+          confirm_identifier: "Wrong Name",
         }),
         400,
         (body) => {
@@ -398,19 +308,14 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
       // Holiday should still exist
       const row = await findRow(tables.holidays, holiday.id);
-      expect(row).not.toBeNull();
+      expect(row?.name).toBe("Protected");
     });
 
     test("returns 404 for non-existent holiday", async () => {
-      await assertJson(
-        apiRequest("/api/admin/holidays/99999", {
-          body: { confirm_identifier: "anything" },
-          method: "DELETE",
-        }),
+      await expectApiError(
+        deleteJson(holidayPath(99999), { confirm_identifier: "anything" }),
         404,
-        (body) => {
-          expect(body.error).toBe("Holiday not found");
-        },
+        "Holiday not found",
       );
     });
   });
@@ -426,7 +331,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("rejects a manager listing holidays with 403 Forbidden", async () => {
       const res = await handleRequest(
-        requestAsSession("/api/admin/holidays", await managerSession()),
+        requestAsSession(HOLIDAYS, await managerSession()),
       );
       expect(res.status).toBe(403);
       expect((await res.json()).error).toBe("Forbidden");
@@ -434,7 +339,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
 
     test("rejects a manager creating a holiday with 403", async () => {
       const res = await handleRequest(
-        requestAsSession("/api/admin/holidays", await managerSession(), {
+        requestAsSession(HOLIDAYS, await managerSession(), {
           body: JSON.stringify({
             end_date: "2025-12-26",
             name: "Blocked",
@@ -451,15 +356,13 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
     test("rejects a manager deleting a holiday with 403", async () => {
       const holiday = await createTestHoliday({ name: "Locked" });
       const res = await handleRequest(
-        requestAsSession(
-          `/api/admin/holidays/${holiday.id}`,
-          await managerSession(),
-          { method: "DELETE" },
-        ),
+        requestAsSession(holidayPath(holiday.id), await managerSession(), {
+          method: "DELETE",
+        }),
       );
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
-      expect(await findRow(tables.holidays, holiday.id)).not.toBeNull();
+      expect((await findRow(tables.holidays, holiday.id))?.name).toBe("Locked");
     });
   });
 });
