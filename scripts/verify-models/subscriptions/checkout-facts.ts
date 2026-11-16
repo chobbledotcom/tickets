@@ -8,9 +8,9 @@ export const CHECKOUT_TABLES = {
     {
       attempt: "Int",
       checkoutAccepted: "Bool",
+      deposit: "Bool",
       orderAccepted: "Bool",
       own: "Bool",
-      partPayment: "Bool",
       provider: "Str",
       scenario: "Str",
       shape: "Str",

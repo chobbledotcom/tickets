@@ -91,7 +91,7 @@ The domain must include:
 
 - Every live and ended Stripe status, plus no subscription.
 - Stripe, each unsupported provider, and no provider.
-- One subscription line, an extra ordinary line, multiple subscription lines, packages, add-ons, deposits, balances, and a zero initial total.
+- One subscription line, an extra ordinary line, multiple subscription lines, packages, add-ons, deposits, and a zero initial total.
 - Quantities zero, one, and more than one where the production entry point permits them.
 - Two distinct attendees, listings, subscriptions, and equal-value invoice identities.
 - Every tax mode, zero tax, partial and excess observed payments, and half-unit VAT boundaries.

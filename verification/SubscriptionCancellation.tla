@@ -155,6 +155,8 @@ SafeWrite(w) ==
 \* Kept plans retain the start status for the next scheduled invoice pass.
 \* A valid anchorless retry still retains its quantity-zero plan; only the
 \* failed disposition requires a held payment anchor before cancellation.
+\* A named charge with no refund claim is a state for a person to investigate,
+\* so each later anchorless delivery throws and calls no provider.
 \* A booked row or an orphaned sale is durable protection, independent of a
 \* historic successful HTTP answer. An occupied callback and foreign proof
 \* also permit no cancellation or refund. Missing anchors permit no refund.
@@ -175,7 +177,8 @@ SafeCheckout(c) ==
   /\ (c.start \in EndedStatuses => (c.cancels = 0 /\ c.reads = 0))
   /\ (c.disposition \in {"booked", "orphaned", "occupied", "foreign"} =>
        (c.cancels = 0 /\ c.reads = 0 /\ c.refunds = 0))
-  /\ (c.disposition = "anchorless" => c.refunds = 0)
+  /\ (c.disposition = "anchorless" =>
+       (c.refunds = 0 /\ (c.attempt > 1 => c.threw)))
   /\ ((c.owned /\ c.signedOrder /\ c.disposition \in {"failed", "anchorless"}) =>
        /\ c.planKept /\ c.planRows = 1 /\ c.quantity = 0 /\ c.after = c.start
        /\ c.bookingId > 0 /\ c.attendeeId > 0 /\ c.listingId = 1

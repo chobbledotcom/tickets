@@ -278,8 +278,9 @@ describe("SubscriptionCancellation production evidence", () => {
       quantity: -1,
     });
     expect(checkout("anchorless", 2)).toMatchObject({
+      cancels: 1,
       held: 0,
-      heldAtCancel: 0,
+      heldAtCancel: 1,
       planAtCancel: 1,
       planKept: true,
       planRows: 1,
@@ -309,6 +310,7 @@ describe("SubscriptionCancellation production evidence", () => {
         quantity: 0,
         signedOrder: true,
         subscriptionId: "sub_failed",
+        threw: true,
       });
     }
     for (const scenario of ["unreadable", "foreign", "orphaned", "occupied"])
@@ -353,8 +355,9 @@ describe("SubscriptionCancellation production evidence", () => {
         threw: true,
       });
     }
-    expect(checkout("blank-reference")).toMatchObject({
+    expect(checkout("unpaid-charge")).toMatchObject({
       chargeNamed: false,
+      paymentReference: "",
       planRows: 1,
       quantity: 0,
       refunds: 0,

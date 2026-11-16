@@ -59,7 +59,7 @@ const checkoutScenarios = [
   "already-ended",
   "unreadable",
   "foreign",
-  "blank-reference",
+  "unpaid-charge",
   "booked",
   "orphaned",
   "occupied",

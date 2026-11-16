@@ -64,11 +64,6 @@ export const admissionCases = () => {
       shape: "deposit",
       total: 100,
     },
-    {
-      intent: { ...intentOf([item]), balanceAttendeeId: 93 },
-      shape: "balance",
-      total: 1000,
-    },
     withItem("zero", 0, { unitPrice: 0 }),
     withItem("quantity-two", 2000, { quantity: 2 }),
     withItem("quantity-zero", 0, { quantity: 0 }),
@@ -91,6 +86,7 @@ export const admissionFacts = (): {
       facts.push({
         attempt: 1,
         checkoutAccepted: subscriptionCheckoutError(provider, intent) === null,
+        deposit: intent.reservationAmount !== undefined,
         orderAccepted: subscriptionOrderError(provider, intent, total) === null,
         own: recurring.every(
           (line) =>
@@ -99,9 +95,6 @@ export const admissionFacts = (): {
               (allocation) => allocation.childId === line.listingId,
             ),
         ),
-        partPayment:
-          intent.balanceAttendeeId !== undefined ||
-          intent.reservationAmount !== undefined,
         provider: provider ?? "none",
         scenario,
         shape,

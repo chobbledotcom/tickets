@@ -34,7 +34,7 @@ const CASES: readonly (readonly [
     "missing-refused-outcome",
     "AdmissionFacts",
     "scenario",
-    "stripe-deposit",
+    "stripe-package",
     '{"checkoutAccepted":false,"orderAccepted":false}',
     "null",
   ],

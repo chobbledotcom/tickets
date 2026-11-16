@@ -1,5 +1,9 @@
 /** Run exported production rejected-session and placeholder completion tails. */
-import type { SessionRejection } from "#payment/validated-session.ts";
+import {
+  isSessionRejection,
+  type MalformedRejection,
+  validatedPaymentSession,
+} from "#payment/validated-session.ts";
 import {
   type CheckoutCase,
   checkoutPasses,
@@ -37,31 +41,33 @@ import {
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
 
+/** The real session boundary refuses each synthetic session. An unpaid
+ * session names no charge. */
 const checkoutRejection = (
   sample: CheckoutCase,
   start: SubscriptionStart,
-): SessionRejection => {
-  const fields = {
+): MalformedRejection => {
+  const refused = validatedPaymentSession({
+    amountTotal: null,
     createdAt: MODEL_TIME,
+    currency: "GBP",
+    id: CHECKOUT_SESSION,
     metadata: checkoutMetadata(sample.shape ?? "valid"),
-    provider: "stripe" as const,
-    sessionId: CHECKOUT_SESSION,
+    paymentReference: sample.unpaid ? "" : checkoutReference.reference,
+    paymentStatus: sample.unpaid ? "unpaid" : "paid",
+    provider: "stripe",
     subscription: start,
-  };
-  return sample.blankReference
-    ? { ...fields, reason: "blank_reference" }
-    : {
-        ...fields,
-        paymentReference: checkoutReference.reference,
-        reason: "malformed_charge",
-        refundable: true,
-      };
+  });
+  if (!isSessionRejection(refused) || refused.reason !== "malformed_charge") {
+    throw new Error("The session boundary did not refuse the model checkout");
+  }
+  return refused;
 };
 
 type CheckoutDelivery = {
   sample: CheckoutCase;
   start: SubscriptionStart;
-  rejection: SessionRejection;
+  rejection: MalformedRejection;
   fault: CancellationFault;
   onAttempt:
     | ((fact: CancellationFacts["checkouts"][number]) => Promise<void>)
@@ -139,7 +145,7 @@ const factFor = async (
   attempt,
   scenario: sample.scenario,
   ...(await checkoutReadback(start)),
-  chargeNamed: !sample.blankReference,
+  chargeNamed: !sample.unpaid,
   confirmed: probe.confirmed,
   disposition:
     sample.protected ??
@@ -153,7 +159,7 @@ const factFor = async (
   heldAtCancel: probe.heldAtCancel,
   observed: probe.providerStatus,
   owned: sample.shape !== "foreign",
-  paymentReference: sample.blankReference ? "" : checkoutReference.reference,
+  paymentReference: sample.unpaid ? "" : checkoutReference.reference,
   planAtCancel: probe.planAtCancel,
   refundBeforeEnd: probe.refundBeforeEnd,
   refunded,
@@ -182,7 +188,7 @@ export const checkoutFacts = async (
     { scenario: "already-ended", start: "canceled" },
     { scenario: "unreadable", shape: "unreadable" },
     { scenario: "foreign", shape: "foreign" },
-    { blankReference: true, scenario: "blank-reference" },
+    { scenario: "unpaid-charge", unpaid: true },
     ...(["booked", "orphaned", "occupied", "anchorless"] as const).map(
       (protectedCase) => ({
         protected: protectedCase,

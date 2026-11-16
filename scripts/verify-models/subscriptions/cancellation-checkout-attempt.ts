@@ -4,12 +4,13 @@ import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { reserveSession } from "#db/processed-payments.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
-import type { SessionRejection } from "#payment/validated-session.ts";
+import type { MalformedRejection } from "#payment/validated-session.ts";
 import {
   findHeldAnchor,
   finishPlaceholderRefund,
   loadRefundResume,
   type PlaceholderFailureResult,
+  unclaimedChargeMessage,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import { settleRejectedSubscription } from "#routes/api/payment-processing/rejected-subscription.ts";
 import {
@@ -45,7 +46,7 @@ export type CheckoutCase = {
   placeholder?: boolean;
   interruption?: boolean;
   protected?: "booked" | "orphaned" | "occupied" | "anchorless";
-  blankReference?: boolean;
+  unpaid?: boolean;
 };
 
 /** Booked and orphaned fixtures intentionally have no historical HTTP result. */
@@ -106,11 +107,13 @@ const expectedCheckoutFailure = (
     );
   if (sample.interruption)
     errors.add(`Money for session ${CHECKOUT_SESSION} could not be recorded`);
+  if (sample.protected === "anchorless")
+    errors.add(unclaimedChargeMessage(CHECKOUT_SESSION));
   return error instanceof Error && errors.has(error.message);
 };
 
 const completePlaceholder = async (
-  rejection: SessionRejection,
+  rejection: MalformedRejection,
 ): Promise<PlaceholderFailureResult> => {
   const resume = await loadRefundResume(
     checkoutReference,
@@ -151,7 +154,7 @@ export type CheckoutAttemptResult = { threw: boolean; refunded: boolean };
 /** Run the public orchestration, not a manually assembled cancellation/refund. */
 const invokeCheckout = async (
   sample: CheckoutCase,
-  rejection: SessionRejection,
+  rejection: MalformedRejection,
   entrypoint: string,
 ): Promise<CheckoutAttemptResult> =>
   outcomeOf<CheckoutAttemptResult>(async () => {
@@ -171,7 +174,7 @@ const invokeCheckout = async (
 export const executeCheckoutAttempt = async (
   sample: CheckoutCase,
   attempt: number,
-  rejection: SessionRejection,
+  rejection: MalformedRejection,
   entrypoint: string,
 ): Promise<CheckoutAttemptResult> => {
   const interrupted = sample.interruption && attempt === 1;

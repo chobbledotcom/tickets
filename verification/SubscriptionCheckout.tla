@@ -97,7 +97,8 @@ Coverage ==
   /\ IdentityCoverage(PlanFacts, PlanIdentityOf, PlanFactsCount,
        PlanUniverse, PlanUniverseCount)
   /\ \E f \in AdmissionFacts : f.orderAccepted /\ f.shape = "extra"
-  /\ \E f \in AdmissionFacts : ~f.orderAccepted /\ f.shape = "deposit"
+  /\ \E f \in AdmissionFacts : f.orderAccepted /\ f.deposit /\ f.subscriptions = 1
+  /\ \E f \in AdmissionFacts : ~f.orderAccepted /\ f.shape = "package"
   /\ \E f \in AdmissionFacts : f.orderAccepted /\ f.shape = "quantity-two"
   /\ {f.expectedInterval : f \in RequestFacts} = {"week", "month", "year"}
   /\ {f.taxMode : f \in RequestFacts} = {"none", "add_to_total", "calculate_from_total"}
@@ -105,12 +106,13 @@ Coverage ==
   /\ \E f \in PlanFacts : f.owned /\ f.quantity = 0
 
 \* An ordinary order needs no subscription provider. A subscribed order needs
-\* Stripe, one independently booked subscription line and full payment.
+\* Stripe and one independently booked subscription line. A deposit changes
+\* the first payment only, so it does not change admission.
 \* Extra ordinary lines and quantities above one do not break this law.
 \* The checkout gate leaves zero-total refusal to the earlier order gate.
 \* @type: ($admissionFactsFact) => Bool;
 AdmissionLaw(f) ==
-  LET supported == f.provider = "stripe" /\ f.subscriptions = 1 /\ f.own /\ ~f.partPayment
+  LET supported == f.provider = "stripe" /\ f.subscriptions = 1 /\ f.own
   IN /\ f.checkoutAccepted = (f.subscriptions = 0 \/ supported)
      /\ f.orderAccepted = (f.subscriptions = 0 \/ (supported /\ f.total > 0))
 

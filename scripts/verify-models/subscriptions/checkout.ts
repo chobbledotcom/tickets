@@ -153,7 +153,7 @@ const FAULTS: Faults = {
       "missing-refused-outcome",
       "initial",
       "admissions",
-      { scenario: "stripe-deposit" },
+      { scenario: "stripe-package" },
     ],
     [
       "missing-booking-outcome",

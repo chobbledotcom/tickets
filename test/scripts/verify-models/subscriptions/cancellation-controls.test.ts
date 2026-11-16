@@ -84,7 +84,7 @@ const STEP_CASES: readonly (readonly [
     "anchorless retry lost its retained plan",
     "Checkouts",
     '{"scenario":"anchorless","attempt":2}',
-    '{"after":"absent","attendeeId":-1,"bookingId":-1,"held":0,"heldAtCancel":0,"listingId":-1,"owned":true,"planAtCancel":1,"planKept":false,"planRows":0,"quantity":-1,"refunds":0,"signedOrder":true}',
+    '{"after":"absent","attendeeId":-1,"bookingId":-1,"held":0,"heldAtCancel":1,"listingId":-1,"owned":true,"planAtCancel":1,"planKept":false,"planRows":0,"quantity":-1,"refunds":0,"signedOrder":true}',
   ],
   [
     "registers the duplicate-refund control on persisted replay multiplicity",

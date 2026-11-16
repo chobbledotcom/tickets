@@ -74,7 +74,6 @@ const shapes = [
   "package",
   "addon",
   "deposit",
-  "balance",
   "zero",
   "quantity-two",
   "quantity-zero",
@@ -103,8 +102,7 @@ const hasBusinessFault = (data: string): boolean => {
       const supported =
         fact.provider === "stripe" &&
         fact.subscriptions === 1 &&
-        fact.own === true &&
-        fact.partPayment === false;
+        fact.own === true;
       return (
         fact.checkoutAccepted !== (fact.subscriptions === 0 || supported) ||
         fact.orderAccepted !==
@@ -143,7 +141,7 @@ describe("subscription checkout production facts", () => {
         outcomes.filter((f) => f.orderAccepted).map((f) => f.shape),
       ).toEqual(
         provider === "stripe"
-          ? ["ordinary", "single", "extra", "quantity-two"]
+          ? ["ordinary", "single", "extra", "deposit", "quantity-two"]
           : ["ordinary"],
       );
       expect(
@@ -154,6 +152,7 @@ describe("subscription checkout production facts", () => {
               "ordinary",
               "single",
               "extra",
+              "deposit",
               "zero",
               "quantity-two",
               "quantity-zero",
@@ -164,15 +163,7 @@ describe("subscription checkout production facts", () => {
         outcomes.filter((f) => !f.orderAccepted).map((f) => f.shape),
       ).toEqual(
         provider === "stripe"
-          ? [
-              "multiple",
-              "package",
-              "addon",
-              "deposit",
-              "balance",
-              "zero",
-              "quantity-zero",
-            ]
+          ? ["multiple", "package", "addon", "zero", "quantity-zero"]
           : shapes.filter((shape) => shape !== "ordinary"),
       );
     }
