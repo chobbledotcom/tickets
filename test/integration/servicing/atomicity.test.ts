@@ -56,9 +56,6 @@ const attachTextAndChoiceQuestions = async (
   choiceQuestionId: number;
   choiceAnswerId: number;
 }> => {
-  const { answersTable, questionsTable } = await import(
-    "#db/questions/tables.ts"
-  );
   const { questionListings } = await import("#db/questions/queries.ts");
   const textQuestion = await insertRow(tables.questions, {
     assign_all: false,

@@ -163,7 +163,6 @@ describeWithEnv("calendar attendee feeds", { db: true }, () => {
     const { createApiKey } = await import("#db/api-keys.ts");
     const { createUser } = await import("#db/users.ts");
     const { setLogisticsAssignments } = await import("#db/logistics.ts");
-    const { logisticsAgents } = await import("#db/logistics-agents.ts");
     const { userAgents } = await import("#db/user-agents.ts");
     const { generateSecureToken } = await import("#crypto/utils.ts");
     const { getTestDataKeyForApiKey, requestAsApiKey } = await import(

@@ -3,9 +3,10 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { fillTogether } from "#db/fill-together.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages, sitePagesNavRead } from "#db/site-pages.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -37,12 +38,12 @@ describeWithEnv("db > fill-together", { db: true }, () => {
   });
 
   test("serves the rows a later reader expects, with sealed columns opened", async () => {
-    const page = await sitePages.table.insert({
+    const page = await insertRow(tables.site_pages, {
       hidden: true,
       name: "About us",
       slug: "about-us",
-      slugIndex: await hmacHash("about-us"),
-      sortOrder: 3,
+      slug_index: await hmacHash("about-us"),
+      sort_order: 3,
     });
 
     await withRequestContext(async () => {

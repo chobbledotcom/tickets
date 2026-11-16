@@ -2,6 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
@@ -27,6 +28,7 @@ import {
   testCookie,
 } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 describeWithEnv("server listings > create", { db: true }, () => {
@@ -118,13 +120,23 @@ describeWithEnv("server listings > create", { db: true }, () => {
     });
 
     test("still creates when the read-back replica lags the just-committed write", async () => {
-      // The primary read-back succeeds even while an optional replica read
-      // still misses the newly committed row.
-      // The optional replica read misses the row; the primary read-back the
-      // create path actually uses must still find it.
-      const readStub = stub(listingsTable.read, "one", () =>
-        Promise.resolve(null),
-      );
+      // A lagging replica: each listings read off the primary misses the new
+      // listing, the first in this database. The primary read-back that the
+      // create path uses must still find it.
+      const db = getDb();
+      const realExecute = db.execute.bind(db);
+      const readStub = stub(db, "execute", async (...args) => {
+        const result = await realExecute(
+          ...(args as Parameters<typeof realExecute>),
+        );
+        if (!/\bFROM listings\b/.test(String(sqlText(args[0])))) return result;
+        const rows = result.rows.filter((row) => row.id !== 1);
+        return {
+          ...result,
+          rows,
+          toJSON: () => ({ ...result.toJSON(), rows }),
+        };
+      });
       try {
         const { response } = await submitListingCreate({
           name: "Lagged Listing",

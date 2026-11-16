@@ -326,9 +326,6 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { createTestAttendeeDirect } = await import(
         "#test-utils/db-helpers/attendees.ts"
       );
-      const { answersTable, questionsTable } = await import(
-        "#db/questions/tables.ts"
-      );
       const { questionListings } = await import("#db/questions/queries.ts");
 
       const listing = await createTestListing({ maxAttendees: 10 });

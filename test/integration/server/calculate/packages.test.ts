@@ -33,7 +33,6 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
       name: "Mystery Box",
       slug: "mystery-box",
     });
-    const { groups } = await import("#db/groups.ts");
     await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const member = await createTestListing({
       groupId: group.id,

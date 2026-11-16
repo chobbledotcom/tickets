@@ -4,11 +4,12 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { isGroupSlugTaken } from "#db/groups.ts";
-import { isSlugTaken, listingNames } from "#db/listings/records.ts";
+import { isSlugTaken, listingNamesByIds } from "#db/listings/records.ts";
+import { insertRow, type NewRecord } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   getSitePageById,
   getSitePageBySlugIndex,
-  type SitePageInput,
   sitePageOrder,
   sitePages,
   updateSitePage,
@@ -24,24 +25,22 @@ import type { SitePage } from "#types";
 
 const makePage = async (
   slug: string,
-  extra: Partial<SitePageInput> = {},
-): Promise<SitePage> => {
-  const slugIndex = await hmacHash(slug);
-  return sitePages.table.insert({
+  extra: Partial<NewRecord<"site_pages">> = {},
+): Promise<SitePage> =>
+  insertRow(tables.site_pages, {
     name: `Name ${slug}`,
     slug,
-    slugIndex,
-    sortOrder: 0,
+    slug_index: await hmacHash(slug),
+    sort_order: 0,
     ...extra,
   });
-};
 
 describeWithEnv("db > site-pages", { db: true }, () => {
   describe("site_pages encryption + reads", () => {
     test("stores free text encrypted and decrypts on read", async () => {
       const created = await makePage("about", {
         content: "Hello **world**",
-        metaTitle: "About us",
+        meta_title: "About us",
       });
       const raw = await queryAll<{
         content: string;
@@ -66,8 +65,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     });
 
     test("nav rows are decrypted, ordered, and carry no content", async () => {
-      await makePage("b", { sortOrder: 5 });
-      await makePage("a", { sortOrder: 1 });
+      await makePage("b", { sort_order: 5 });
+      await makePage("a", { sort_order: 1 });
       sitePages.invalidate();
       const rows = await sitePages.getAll();
       expect(rows.map((r) => r.slug)).toEqual(["a", "b"]);
@@ -164,10 +163,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       const listing = await createTestListing({ name: "L" });
       // The id-keyed name lookup short-circuits on empty ids (no query) and
       // decrypts names for real ids — the projection page labels lean on.
-      expect((await listingNames.byIds([])).size).toBe(0);
-      expect((await listingNames.byIds([listing.id])).get(listing.id)).toBe(
-        "L",
-      );
+      expect((await listingNamesByIds([])).size).toBe(0);
+      expect((await listingNamesByIds([listing.id])).get(listing.id)).toBe("L");
     });
 
     test("a page slug blocks a new listing and group (bidirectional)", async () => {
@@ -179,8 +176,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
   describe("root reorder", () => {
     test("ordered rows exchange two pages' sort_order", async () => {
-      const a = await makePage("first", { sortOrder: 0 });
-      const b = await makePage("second", { sortOrder: 1 });
+      const a = await makePage("first", { sort_order: 0 });
+      const b = await makePage("second", { sort_order: 1 });
       await sitePageOrder.swap({ first: a.id, second: b.id });
       sitePages.invalidate();
       expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
@@ -192,7 +189,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("ordered rows are a no-op when either row is missing", async () => {
       // A stale reorder click racing a delete must not 500 (binding an
       // undefined sort_order) — the swap simply does nothing.
-      const a = await makePage("survivor", { sortOrder: 0 });
+      const a = await makePage("survivor", { sort_order: 0 });
       await sitePageOrder.swap({ first: a.id, second: 9999 });
       await sitePageOrder.swap({ first: 9999, second: a.id });
       sitePages.invalidate();
@@ -203,7 +200,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("cache stats identify the site pages cache by name", () => {
       assertArrayIncludes(
         getAllCacheStats().map((stat) => stat.name),
-        ["site_pages_nav"],
+        ["site_pages"],
       );
     });
   });

@@ -11,8 +11,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { execute } from "#db/client.ts";
-import { groups } from "#db/groups.ts";
+import { stub } from "@std/testing/mock";
+import { execute, getDb } from "#db/client.ts";
 import { findRow, updateRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
@@ -28,6 +28,19 @@ import {
   member,
   sellPackageTicket,
 } from "./helpers.ts";
+
+/** Hide the package when the group write opens its transaction: after the
+ * request check passed, before the write reads the group again. */
+const hideWhenTheWriteOpens = (groupId: number) => {
+  const db = getDb();
+  const open = db.transaction.bind(db);
+  return stub(db, "transaction", async (mode) => {
+    await execute(
+      sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${groupId}`,
+    );
+    return open(mode);
+  });
+};
 
 describeWithEnv(
   "server (admin group packages) — pulling apart a package people have bought",
@@ -49,7 +62,7 @@ describeWithEnv(
       expect(kept.hide_package_listings).toBe(true);
     });
 
-    test("form and API updates catch a hide and sale after request validation", async () => {
+    test("form and API updates catch a hide of a sold package after request validation", async () => {
       const saves = [
         {
           label: "Race Form",
@@ -80,20 +93,17 @@ describeWithEnv(
           slug,
         });
         const memberListing = await member(group, `${label} Member`);
-        const original = groups.table.updateStatement!;
-        groups.table.updateStatement = async (...args) => {
-          await execute(
-            sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`,
-          );
-          await sellPackageTicket(memberListing.id, group.id);
-          return original(...args);
-        };
+        // The request check reads the sales of a hidden package only, so a
+        // sale while the package shows passes it.
+        await sellPackageTicket(memberListing.id, group.id);
+        const hides = hideWhenTheWriteOpens(group.id);
         let response: Response;
         try {
           response = await save(group.id);
         } finally {
-          groups.table.updateStatement = original;
+          hides.restore();
         }
+        expect(hides.calls.length).toBe(1);
 
         expect(response.status).toBe(status);
         if (status === 400) {

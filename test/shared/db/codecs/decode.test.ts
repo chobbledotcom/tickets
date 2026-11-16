@@ -19,7 +19,7 @@ import { coalesce } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
+import { insertInto, type NewValues } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const holiday = {
@@ -28,10 +28,14 @@ const holiday = {
   start_date: "2026-01-01",
 };
 
+/** The stored values of the holiday. Each column that a new holiday row
+ *  must give is in `holiday`, and `encoded` keeps the columns that it is
+ *  given. */
+const storedHoliday = async (): Promise<NewValues<"holidays">> =>
+  (await encoded(tables.holidays, holiday)) as NewValues<"holidays">;
+
 const addHoliday = async (): Promise<void> => {
-  await getDb().execute(
-    insertInto(tables.holidays, await encoded(tables.holidays, holiday)),
-  );
+  await getDb().execute(insertInto(tables.holidays, await storedHoliday()));
 };
 
 type StoredName = { name: EnvKeyEncrypted };
@@ -78,10 +82,7 @@ describeWithEnv(
 
     test("decodes the rows that a write returns", async () => {
       const rows = await queryAll(
-        insertInto(
-          tables.holidays,
-          await encoded(tables.holidays, holiday),
-        ).returning("name"),
+        insertInto(tables.holidays, await storedHoliday()).returning("name"),
       );
       expect(rows).toEqual([{ name: "New year" }]);
     });

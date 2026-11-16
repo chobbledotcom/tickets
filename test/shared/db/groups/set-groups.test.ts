@@ -19,7 +19,10 @@ import {
   setListingGroupsTx,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { newListingValues } from "#db/listings/records.ts";
+import { insertRowStatement } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
+import { tables } from "#db/select/tables.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import {
@@ -111,7 +114,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     const writes = await Promise.allSettled(
       inputs.map(async (input) =>
         writeRowInTransaction(
-          await listingsTable.insertStatement!(input),
+          await insertRowStatement(tables.listings, newListingValues(input)),
           null,
           (tx, id) => setListingGroupsTx(tx, id, input.groupIds!),
         ),

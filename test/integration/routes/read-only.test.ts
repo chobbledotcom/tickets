@@ -202,11 +202,9 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups } = await import("#db/groups.ts");
       const { assignListingsToGroup } = await import(
         "#db/groups/membership/package-writes.ts"
       );
-      const { listingsTable } = await import("#db/listings/records.ts");
       const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
       const slugIndex = await hmacHash("ro-group");

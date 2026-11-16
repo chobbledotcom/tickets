@@ -111,7 +111,6 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         `/admin/holidays/${holiday.id}`,
         "Holiday updated",
       )(response);
-      const { holidays } = await import("#db/holidays.ts");
       expect(await findRow(tables.holidays, holiday.id)).toEqual({
         ...holiday,
         end_date: "2026-12-27",
@@ -216,7 +215,6 @@ describeWithEnv("holiday entity page", { db: true }, () => {
     test("deletes holiday with correct name confirmation", async () => {
       const holiday = await createTestHoliday({ name: "To Delete" });
       await deleteTestHoliday(holiday.id);
-      const { holidays } = await import("#db/holidays.ts");
       expect(await findRow(tables.holidays, holiday.id)).toBeNull();
     });
 
@@ -232,7 +230,6 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         expect.stringContaining("Holiday name does not match"),
         false,
       );
-      const { holidays } = await import("#db/holidays.ts");
       expect(await findRow(tables.holidays, holiday.id)).not.toBeNull();
     });
 

@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { matchesNothing } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -15,7 +16,7 @@ describe("a match", () => {
     expect(
       placed(
         from(tables.listings)
-          .where({ id: [3, 4], slug_index: "x" })
+          .where({ id: [3, 4], slug_index: "x" as BlindIndex })
           .select((listing) => ({ id: listing.id })),
       ),
     ).toEqual({

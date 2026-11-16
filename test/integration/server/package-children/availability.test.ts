@@ -81,7 +81,6 @@ describeWithEnv("package child availability", { db: true }, () => {
       "Gone Addons",
       "gone-addons-pkg",
     );
-    const { listingsTable } = await import("#db/listings/records.ts");
     const { attendeesApi } = await import("#db/attendees/api.ts");
     for (const childListing of [child, childB]) {
       await updateListing(childListing.id, {

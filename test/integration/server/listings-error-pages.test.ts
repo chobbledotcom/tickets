@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { getDb } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectFlash,
@@ -16,7 +16,14 @@ import {
   createTestListing,
   deactivateTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { aroundRowCheck } from "#test-utils/db-helpers/row-check.ts";
 import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+
+/** Remove the listing row straight from the database. */
+const deleteListing = async (id: number): Promise<void> => {
+  await execute(sql`DELETE FROM listings WHERE id = ${id}`);
+  invalidateListingsCache();
+};
 
 describeWithEnv(
   "server listings > error pages and fallbacks",
@@ -163,23 +170,17 @@ describeWithEnv(
           name: "Listing For Delete Err",
         });
 
-        // Spy on the existence check: say the listing is there (so requireExists
-        // passes), but delete it from the DB on the way past so
-        // getListingWithCount (raw SQL) returns null.
-        const originalExists = listingsTable.read.exists.bind(
-          listingsTable.read,
+        // The check that the row is there sees the listing. The listing goes
+        // just after, so getListingWithCount returns null.
+        const readStub = aroundRowCheck(
+          tables.listings,
+          listing1.id,
+          async (check) => {
+            const found = await check();
+            await deleteListing(listing1.id);
+            return found;
+          },
         );
-        const readStub = stub(listingsTable.read, "exists", async (filter) => {
-          const found = await originalExists(filter);
-          if (found) {
-            // Delete the listing from DB so getListingWithCount returns null
-            await getDb().execute(
-              sql`DELETE FROM listings WHERE id = ${Number(filter?.id)}`,
-            );
-            invalidateListingsCache();
-          }
-          return found;
-        });
 
         try {
           // Send an update with empty name to trigger validation error
@@ -207,12 +208,16 @@ describeWithEnv(
           thankYouUrl: "https://example.com",
         });
 
-        // handleAdminListingEditPost calls getListingWithCount (raw SQL), then
+        // handleAdminListingEditPost calls getListingWithCount, then
         // updateResource.update which checks whether the row is still there.
-        // Return null to simulate the listing being deleted
-        // between the initial check and the update.
-        const readStub2 = stub(listingsTable.read, "exists", () =>
-          Promise.resolve(false),
+        // The listing goes between the two.
+        const readStub2 = aroundRowCheck(
+          tables.listings,
+          listing.id,
+          async (check) => {
+            await deleteListing(listing.id);
+            return check();
+          },
         );
 
         try {

@@ -178,7 +178,6 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
       "stale@example.com",
       "Stale Buyer",
     );
-    const { groups } = await import("#db/groups.ts");
     await updateRow(tables.groups, group.id, { hide_package_listings: true });
 
     try {
@@ -374,7 +373,6 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
     // itself" mid-payment: those standalone units now lead to a 404 page, so
     // the order must be saved-and-refunded — the package allocation must not
     // exempt the line's surplus from the stale check.
-    const { listingsTable } = await import("#db/listings/records.ts");
     await updateListing(addon.id, { bookableAlone: false });
 
     try {

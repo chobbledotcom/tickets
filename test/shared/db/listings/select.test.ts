@@ -10,6 +10,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingReader } from "#db/listings/select.ts";
 
 const LISTINGS_FROM = "FROM listings AS listing";
@@ -59,7 +60,7 @@ describe("the listing reader's statement", () => {
 
   test("filters by slug index", () => {
     const { sql, args } = listingReader.statement({
-      where: { slugIndexes: ["abc"] },
+      where: { slugIndexes: ["abc" as BlindIndex] },
     });
     expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.slug_index IN (?1)`);
     expect(args).toEqual(["abc"]);

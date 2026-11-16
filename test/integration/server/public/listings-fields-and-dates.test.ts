@@ -219,7 +219,6 @@ describeWithEnv(
           minimumDaysBefore: 0,
           name: "Hidden Daily Member",
         });
-        const { groups } = await import("#db/groups.ts");
         await updateRow(tables.groups, pkg.id, { hide_package_listings: true });
         await bookAttendee(member, { date, quantity: 1 });
         await createTestListing({ maxAttendees: 50, name: "Plain Listing" });

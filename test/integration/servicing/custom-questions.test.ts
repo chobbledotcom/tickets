@@ -34,9 +34,6 @@ import {
 const attachQuestion = async (
   listingId: number,
 ): Promise<{ questionId: number; answerId: number }> => {
-  const { answersTable, questionsTable } = await import(
-    "#db/questions/tables.ts"
-  );
   const question = await insertRow(tables.questions, {
     assign_all: false,
     display_type: "radio",

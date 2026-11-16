@@ -1,6 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { Question, QuestionDisplayType } from "#db/question-types.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { questionRecord, questionRule } from "#shared/records/questions.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { createQuestionWithAnswer } from "#test-utils/db-helpers/questions.ts";
@@ -101,6 +104,6 @@ describeRecord(questionRecord, "Question", "Question text", () => {
     await expectRecordDelete(questionRecord, questionId, [
       "Question 'Choose one' deleted",
     ]);
-    expect(await answersTable.read.many({})).toEqual([]);
+    expect(await readRows(from(tables.answers).pick("id"))).toEqual([]);
   });
 });

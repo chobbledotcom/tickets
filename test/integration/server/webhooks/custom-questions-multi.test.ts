@@ -68,9 +68,6 @@ describeWithEnv(
       });
 
       // Create a question and answer via DB
-      const { questionsTable, answersTable } = await import(
-        "#db/questions/tables.ts"
-      );
       const { listingQuestions } = await import("#db/questions/queries.ts");
       const { getAttendeeAnswersBatch } = await import(
         "#db/questions/attendee-answers/reads.ts"

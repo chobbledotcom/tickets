@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { encrypt } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
@@ -168,7 +169,7 @@ describe("test-utils — stubs, caches & request mocks", () => {
           fields: "email",
           max_attendees: 10,
           slug: await encrypt("old"),
-          slug_index: "old",
+          slug_index: await hmacHash("old"),
         }),
       );
       resetDb();

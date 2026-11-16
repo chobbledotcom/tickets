@@ -7,13 +7,14 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { updateRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createTestListing,
   duplicateTestListing,
@@ -518,7 +519,6 @@ describeWithEnv(
     });
 
     test("duplicating a parent into a package keeps children when visible, drops them when hidden", async () => {
-      const { groups } = await import("#db/groups.ts");
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({
         maxAttendees: 10,
@@ -544,13 +544,7 @@ describeWithEnv(
       // A HIDDEN package collapses members to the package name, so its copy
       // must NOT inherit the child edges — the member stays valid and the
       // operator is told the gate wasn't carried over.
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Pkg",
-      });
-      await updateRow(tables.groups, hidden.id, {
-        hide_package_listings: true,
-      });
+      const hidden = await createHiddenPackageGroup("Hidden Pkg");
       const { copy: hiddenCopy } = await duplicateListingResponse(
         parent.id,
         "Parent hidden copy",

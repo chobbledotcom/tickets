@@ -1,10 +1,11 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { execute } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { findRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -22,6 +23,7 @@ import {
   updateTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { aroundRowCheck } from "#test-utils/db-helpers/row-check.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -250,7 +252,6 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groups } = await import("#db/groups.ts");
       const { getListingWithCount } = await import("#db/listings/records.ts");
 
       expect(await findRow(tables.groups, group.id)).toBeNull();
@@ -275,11 +276,15 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      // The confirm page still loads the group; by the time the delete itself
-      // checks the row is there, it has gone.
-      const { groups } = await import("#db/groups.ts");
-      const readStub = stub(groups.table.read, "exists", () =>
-        Promise.resolve(false),
+      // The confirm page still loads the group. The group goes just before
+      // the delete itself checks that the row is there.
+      const readStub = aroundRowCheck(
+        tables.groups,
+        group.id,
+        async (check) => {
+          await execute(sql`DELETE FROM groups WHERE id = ${group.id}`);
+          return check();
+        },
       );
 
       try {
@@ -291,6 +296,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
           ),
         );
         expect(response.status).toBe(404);
+        expect(await findRow(tables.groups, group.id)).toBeNull();
         expect(await wasActivityLogged("Group 'Race Group' deleted")).toBe(
           false,
         );

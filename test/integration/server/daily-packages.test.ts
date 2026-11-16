@@ -144,7 +144,6 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // date-aware submit gate, and the next day books normally.
     const { group, tent } = await dailyPackage("Tight", "tight-pkg");
     const { attendeesApi } = await import("#db/attendees/api.ts");
-    const { listingsTable } = await import("#db/listings/records.ts");
     const dateA = bookingDate();
     await updateListing(tent.id, { maxAttendees: 1 });
     const fill = await attendeesApi.createAttendeeAtomic({
@@ -382,7 +381,6 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
   test("a hidden package's day-count error names the package, not the member", async () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");
-    const { groups } = await import("#db/groups.ts");
     const { group } = await createFlexPackage("Hush Kit", "hush-kit");
     await updateRow(tables.groups, group.id, { hide_package_listings: true });
 

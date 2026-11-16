@@ -119,7 +119,6 @@ export const capAddonsAtThree = async (
   childId: number,
   childBId: number,
 ): Promise<void> => {
-  const { listingsTable } = await import("#db/listings/records.ts");
   await updateListing(childId, { maxAttendees: 2, maxQuantity: 2 });
   await updateListing(childBId, { maxAttendees: 1, maxQuantity: 1 });
 };
