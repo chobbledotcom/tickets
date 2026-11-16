@@ -625,7 +625,6 @@
     "wordy": 1
   },
   "src/shared/db/listings/select.ts": {
-    "banned-modal": 1,
     "contraction": 2,
     "long-sentence": 3,
     "semicolon": 1
