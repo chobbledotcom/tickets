@@ -582,7 +582,7 @@
     "present-perfect": 1,
     "wordy": 2,
     "semicolon": 12,
-    "contraction": 8
+    "contraction": 7
   },
   "src/shared/db/groups/candidates.ts": {
     "long-sentence": 2,
@@ -760,9 +760,7 @@
     "banned-modal": 1
   },
   "src/shared/db/notes/types.ts": {
-    "wordy": 1,
-    "long-sentence": 1,
-    "banned-modal": 1
+    "wordy": 1
   },
   "src/shared/db/orphan-attendees.ts": {
     "long-sentence": 2,

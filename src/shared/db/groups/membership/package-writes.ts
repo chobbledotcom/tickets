@@ -21,6 +21,8 @@ import {
 import { listingGroups } from "#db/groups/table.ts";
 import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
@@ -107,9 +109,11 @@ export const readPackageFlagsTxOrNull = async (
   id: number,
 ): Promise<PackageFlags | null> => {
   const row = resultRows<PackageFlagsRow>(
-    await tx.execute(sql`SELECT groupRow.is_package, groupRow.hide_package_listings
-              FROM groups AS groupRow
-             WHERE groupRow.id = ${id}`),
+    await tx.execute(
+      from(tables.groups)
+        .where({ id: id })
+        .pick("is_package", "hide_package_listings"),
+    ),
   )[0];
   return row
     ? {

@@ -12,9 +12,11 @@ import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
  * route wiring.
  */
 
-import { rowExists } from "#db/client.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
+import { readExists } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   addPageItem,
   getItemsForPage,
@@ -26,7 +28,6 @@ import {
   type SitePageWriteInput,
   sitePageOrder,
 } from "#db/site-pages.ts";
-import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { formGuard, SITE_FORM } from "#routes/auth.ts";
 import {
@@ -172,7 +173,7 @@ const isEligibleTarget = async (
   }
   if (type === "group") {
     // Single-row check: no name decryption, never the whole table.
-    return rowExists(sql`SELECT 1 FROM groups WHERE id = ${itemId} LIMIT 1`);
+    return readExists(from(tables.groups).where({ id: itemId }));
   }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,

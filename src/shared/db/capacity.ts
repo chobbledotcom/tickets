@@ -27,7 +27,8 @@ import {
   sum,
   when,
 } from "#db/select/expression.ts";
-import { from, type Node, type Query } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node, Query } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   type CapacityRuleKey,

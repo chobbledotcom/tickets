@@ -14,7 +14,8 @@
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { ScanOperationGuard } from "#db/attendees/door-moves.ts";
 import { insertOrIgnore, queryOne, type TxScope, update } from "#db/client.ts";
-import { sql } from "#db/sql.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { limit } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 
@@ -89,9 +90,10 @@ export const deliveredScanOperation = async (
   operationId: string,
   tokenHash: string,
 ): Promise<DeliveredScanOperation | null> => {
-  const row = await queryOne<{ listing_ids: string; quantity: number }>(
-    sql`SELECT listing_ids, quantity FROM processed_scan_operations
-       WHERE operation_id = ${operationId} AND token_hash = ${tokenHash}`,
+  const row = await queryOne(
+    from(tables.processed_scan_operations)
+      .where({ operation_id: operationId, token_hash: tokenHash })
+      .pick("listing_ids", "quantity"),
   );
   if (!row) return null;
   return {

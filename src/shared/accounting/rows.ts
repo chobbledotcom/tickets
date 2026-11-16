@@ -11,7 +11,8 @@ import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
 import { among, named } from "#db/select/expression.ts";
-import { from, type Node, type Query } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node, Query } from "#db/select/shape.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
 import {
   type SqlSlot,

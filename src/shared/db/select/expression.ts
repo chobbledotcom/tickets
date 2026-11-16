@@ -16,6 +16,7 @@ import {
   sqlList,
   sqlLiteral,
   sqlName,
+  typedSql,
 } from "#db/sql.ts";
 
 declare const VALUE: unique symbol;
@@ -36,7 +37,7 @@ export type Condition = Expr<boolean> | boolean;
 
 /** Name the type of the value that hand-written SQL gives. */
 export const valued = <Value>(statement: SqlStatement): Expr<Value> =>
-  statement as Expr<Value>;
+  typedSql(statement);
 
 /** A column that code over any table names by text. A read of one known
  *  table takes its columns from the node of the table instead. */
@@ -191,6 +192,19 @@ export const among = <Value extends Comparable | null>(
   values.length === 0
     ? matchingNothing(wholeCondition(sql`${value} IN (NULL)`))
     : wholeCondition(sql`${value} IN (${sqlList(values)})`);
+
+/** One condition for each named column. A list means "is one of these". Any
+ *  other value means "equals this", and a null asks for a column that holds
+ *  nothing. */
+export const matching = (
+  columnOf: (name: string) => Expr<InValue>,
+  match: Readonly<Record<string, unknown>>,
+): Expr<boolean>[] =>
+  Object.entries(match).map(([name, wanted]) =>
+    Array.isArray(wanted)
+      ? among(columnOf(name), wanted)
+      : equal(columnOf(name), wanted as InValue),
+  );
 
 /** The value is one of these constants, each written into the SQL text. The
  *  list comes from the code, never from a request. */
