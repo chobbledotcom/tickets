@@ -4,13 +4,18 @@
  * path clears it by hand. The cache stats count its entries.
  */
 
-import type { TableHandle } from "#db/select/tables.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import type { Node, Query } from "#db/select/shape.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
+import type { Read } from "#db/sql.ts";
 import type { CollectionCache } from "#fp";
 import {
   type DependsOnEntry,
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
+import { requestCache } from "#shared/request-cache.ts";
 
 /** What a cache must give for the registry to clear it and count it. */
 type ClearableCache = Pick<CollectionCache<unknown>, "invalidate" | "size">;
@@ -27,3 +32,13 @@ export const tableCache = <Cache extends ClearableCache>(
   registerDependencies(table.name, dependsOn, cache.invalidate);
   return cache;
 };
+
+/** The rows that `read` picks from the table, cached for the request. */
+export const requestCachedRows = <Name extends TableName, Row>(
+  table: TableHandle<Name>,
+  read: (rows: Query<Node<Name>>) => Read<Row>,
+) =>
+  tableCache(
+    table,
+    requestCache(() => readRows(read(from(table)))),
+  );

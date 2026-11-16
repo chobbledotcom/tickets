@@ -16,6 +16,7 @@ import {
 import { findRowPrimary } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
@@ -63,7 +64,7 @@ export const externalSourceRecord = defineNamedRowRecord<
   load: getExternalSource,
   // Read-your-writes: the create and update answers re-read the row from the
   // primary, so a lagging replica cannot miss the row the write just made.
-  loadAfterWrite: (id) => findRowPrimary(tables.external_sources, id),
+  loadAfterWrite: bindFirst(findRowPrimary)(tables.external_sources),
   onDelete: (id) => deleteExternalSource(id),
   rule: sourceRule,
   surface: { deleteDestination: "externalSources", list: "externalSources" },

@@ -52,6 +52,7 @@ import {
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
@@ -92,11 +93,9 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
 export type OrderedImage = Image & { sort_order: number };
 
 /** Every image, newest first. */
-export const getAllImages = (): Promise<Image[]> =>
-  allRowsNewestFirst(tables.images);
+export const getAllImages = allRowsNewestFirst(tables.images);
 
-export const getImageById = (id: number): Promise<Image | null> =>
-  findRow(tables.images, id);
+export const getImageById = bindFirst(findRow)(tables.images);
 
 /** The first image of an item as a read projects it: sealed, or "" when the
  *  item has no image. */

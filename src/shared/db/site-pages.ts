@@ -13,7 +13,6 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { readRows } from "#db/read.ts";
 import { findRow, findRowWhere } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -24,8 +23,8 @@ import {
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import { tableCache } from "#db/table-cache.ts";
-import { requestCache } from "#shared/request-cache.ts";
+import { requestCachedRows } from "#db/table-cache.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import type { Result } from "#shared/result.ts";
 import type { SitePage } from "#types";
 
@@ -37,9 +36,9 @@ const navRowsRead = from(tables.site_pages)
 
 // Request-scoped cache over those columns: computed once per request, and
 // cleared on any write to site_pages.
-export const sitePages = tableCache(
+export const sitePages = requestCachedRows(
   tables.site_pages,
-  requestCache(() => readRows(navRowsRead)),
+  () => navRowsRead,
 );
 
 /** The nav rows as a read the nav can batch with its other small ones. */
@@ -67,8 +66,7 @@ export const getSitePageBySlugIndex = (
   findRowWhere(tables.site_pages, { slug_index: slugIndex });
 
 /** One full page by id (the admin edit read). */
-export const getSitePageById = (id: number): Promise<SitePage | null> =>
-  findRow(tables.site_pages, id);
+export const getSitePageById = bindFirst(findRow)(tables.site_pages);
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move

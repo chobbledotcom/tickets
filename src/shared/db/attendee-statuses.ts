@@ -17,7 +17,6 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { readRows } from "#db/read.ts";
 import {
   insertRow,
   insertRowStatement,
@@ -30,12 +29,11 @@ import { from } from "#db/select/query.ts";
 import type { CountRow } from "#db/select/shape.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type RowsStatement, type SqlStatement, sql } from "#db/sql.ts";
-import { tableCache } from "#db/table-cache.ts";
+import { requestCachedRows } from "#db/table-cache.ts";
 import { deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import type { STATUS_FIELDS } from "#shared/records/status-fields.ts";
-import { requestCache } from "#shared/request-cache.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { FieldsInput } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -135,13 +133,9 @@ export const statusDeleteProspects = async (
 
 /** Every status in its list order, cached for the request. Only `name` is
  * encrypted, and its codec decrypts it. */
-export const attendeeStatuses = tableCache(
+export const attendeeStatuses = requestCachedRows(
   tables.attendee_statuses,
-  requestCache(() =>
-    readRows(
-      from(tables.attendee_statuses).sortedBy("sort_order", "id").everyColumn(),
-    ),
-  ),
+  (rows) => rows.sortedBy("sort_order", "id").everyColumn(),
 );
 
 export const attendeeStatusOrder = defineOrderedCollection({

@@ -18,6 +18,7 @@ import { desc, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { tableCache } from "#db/table-cache.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { compareByName } from "#shared/name-order.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -176,8 +177,7 @@ export const createBuiltSite = async (
   );
 
 /** Remove one built site. */
-export const deleteBuiltSite = (id: number): Promise<void> =>
-  deleteRow(tables.built_sites, id);
+export const deleteBuiltSite = bindFirst(deleteRow)(tables.built_sites);
 
 /** Insert a new built site record */
 export const insertBuiltSite = (

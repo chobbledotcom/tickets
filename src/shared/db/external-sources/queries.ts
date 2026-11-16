@@ -6,7 +6,6 @@
  * external id, so a lookup finds the row without decrypting any.
  */
 
-/* jscpd:ignore-start -- imports */
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
@@ -21,6 +20,8 @@ import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
 import { snakeCaseKeys } from "#shared/column-names.ts";
+/* jscpd:ignore-start -- imports */
+import { bindFirst } from "#shared/fp-bind.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -48,8 +49,7 @@ export const externalLinkIndex = (
 export const getAllExternalSources = (): Promise<ExternalSource[]> =>
   readRows(from(tables.external_sources).sortedBy("id").everyColumn());
 
-export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
-  findRow(tables.external_sources, id);
+export const getExternalSource = bindFirst(findRow)(tables.external_sources);
 
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */

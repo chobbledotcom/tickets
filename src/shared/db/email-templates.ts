@@ -16,12 +16,14 @@ import {
   updateRow,
 } from "#db/record-table.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 
 export type RawEmailTemplate = DecodedRowOf<"email_templates">;
 
 /** Every template, newest first (the admin templates list). */
-export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
-  allRowsNewestFirst(tables.email_templates);
+export const getAllRawEmailTemplates = allRowsNewestFirst(
+  tables.email_templates,
+);
 
 export const getRawEmailTemplate = (
   id: number,
@@ -41,5 +43,4 @@ export const updateEmailTemplate = async (
   await updateRow(tables.email_templates, id, { body, subject });
 };
 
-export const deleteEmailTemplate = (id: number): Promise<void> =>
-  deleteRow(tables.email_templates, id);
+export const deleteEmailTemplate = bindFirst(deleteRow)(tables.email_templates);

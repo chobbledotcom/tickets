@@ -20,6 +20,7 @@ import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { update } from "#db/write.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 
 /** A stored invoice row. The body is sealed under the share token's derived
@@ -41,8 +42,7 @@ export type NewInvoice = {
 };
 
 /** One row by its invoice number, or null. */
-export const getInvoice = (id: number): Promise<InvoiceRow | null> =>
-  findRow(tables.invoices, id);
+export const getInvoice = bindFirst(findRow)(tables.invoices);
 
 /** Every invoice the filter keeps, newest first, without its sealed body. */
 const summariesNewestFirst = (
@@ -125,8 +125,7 @@ export const cancelInvoice = async (id: number): Promise<boolean> =>
   executeChangedRow(cancelInvoiceStatement(id));
 
 /** Remove one invoice. */
-export const deleteInvoice: (id: number) => Promise<void> = (id) =>
-  deleteRow(tables.invoices, id);
+export const deleteInvoice = bindFirst(deleteRow)(tables.invoices);
 
 /**
  * The statement that marks an attendee's open invoices paid, guarded on the

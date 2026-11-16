@@ -139,14 +139,14 @@ export const namesByIds =
     );
 
 /** Every whole row of the table, newest first. A newer row has a higher id. */
-export const allRowsNewestFirst = <Name extends TableWithId>(
-  table: TableHandle<Name>,
-): Promise<DecodedRowOf<Name>[]> =>
-  readRows(
-    from(table)
-      .orderBy(() => [desc(named<number>(`${table.singular}.id`))])
-      .everyColumn() as RowsStatement<DecodedRowOf<Name>>,
-  );
+export const allRowsNewestFirst =
+  <Name extends TableWithId>(table: TableHandle<Name>) =>
+  (): Promise<DecodedRowOf<Name>[]> =>
+    readRows(
+      from(table)
+        .orderBy(() => [desc(named<number>(`${table.singular}.id`))])
+        .everyColumn() as RowsStatement<DecodedRowOf<Name>>,
+    );
 
 /** The first whole row that `where` keeps, or null when it keeps none. */
 export const findRowWhere = <Name extends TableName>(

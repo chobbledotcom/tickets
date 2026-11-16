@@ -10,7 +10,6 @@
  * refuses every route while that feature is off.
  */
 
-/* jscpd:ignore-start -- imports */
 import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
@@ -49,6 +48,8 @@ import { withAuth } from "#routes/auth.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+/* jscpd:ignore-start -- imports */
+import { bindFirst } from "#shared/fp-bind.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { externalSourceRecord } from "#shared/records/external-sources.ts";
 import {
@@ -157,7 +158,7 @@ const toLinkResponse = (
 /** The parent gate every link route runs. The read pins to the primary, so a
  *  link created right after its source can always see the source. */
 const sourceGate = apiEntityGate(
-  (id: number) => findRowPrimary(tables.external_sources, id),
+  bindFirst(findRowPrimary)(tables.external_sources),
   "Source",
   recordJsonPolicy(externalSourceRecord),
 );
