@@ -18,8 +18,9 @@ import {
   storedPlanMemberErrorTx,
   submittedMembersCapErrorTx,
 } from "#db/groups/membership.ts";
+import { hasPackageBookingsTx } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";

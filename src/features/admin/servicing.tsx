@@ -1,16 +1,18 @@
 /** Admin servicing-event route shell. */
 
 import {
+  getServicingCosts,
+  type ServicingCostRecord,
+} from "#db/attendees/service-cost-legs.ts";
+import {
   costBelongsToServicing,
   createServicingEvent,
   deleteServicingEvent,
   duplicateServicingEvent,
   editServiceCost,
   getAllServicingEvents,
-  getServicingCosts,
   getServicingEvent,
   recordServiceCost,
-  type ServicingCostRecord,
   type ServicingEvent,
   servicingHoldsListing,
   updateServicingEvent,

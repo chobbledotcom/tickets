@@ -14,11 +14,11 @@ import {
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership/package-writes.ts";
+import { hasPackageBookings } from "#db/groups/package-display.ts";
 import {
   getGroupById,
   getListingsByGroupId,
   groups,
-  hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,

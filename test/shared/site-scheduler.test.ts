@@ -1,17 +1,58 @@
+import type { ResultSet } from "@libsql/client";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
-import { findBuiltSiteById, insertBuiltSite, updateBuiltSite } from "#db/built-sites.ts";
+import {
+  findBuiltSiteById,
+  insertBuiltSite,
+  updateBuiltSite,
+} from "#db/built-sites.ts";
+import { getDb } from "#db/client.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { bunnyHostingProvider } from "#shared/bunny-cdn.ts";
 import { provisionSiteScheduler } from "#shared/site-scheduler.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
 import { restoreStubsAfterEach } from "#test-utils/mocks.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 import {
   insertScheduledTestSite,
   stubBunnySchedulerSecrets,
 } from "#test-utils/scheduled.ts";
+
+const readsBuiltSites = (statement: SqlStatement): boolean =>
+  statement.sql.includes("FROM built_sites");
+
+/** The result that a replica read of the site gives now. A primary read goes
+ *  through a batch, so a replica read is the one plain execute. */
+const captureReplicaSiteRead = async (siteId: number): Promise<ResultSet> => {
+  const real = getDb();
+  const captured: ResultSet[] = [];
+  const restore = wrapDbClient({
+    batch: () => {},
+    execute: (statement) =>
+      readsBuiltSites(statement)
+        ? real.execute(statement).then((result) => {
+            captured.push(result);
+            return result;
+          })
+        : null,
+  });
+  await findBuiltSiteById(siteId).finally(restore);
+  const [result] = captured;
+  if (result === undefined) throw new Error("No replica read of the site");
+  return result;
+};
+
+/** Give every later replica read of a site the stale result, as a lagging
+ *  replica does. Returns the restore function. */
+const serveReplicaSiteReads = (stale: ResultSet): (() => void) =>
+  wrapDbClient({
+    batch: () => {},
+    execute: (statement) =>
+      readsBuiltSites(statement) ? Promise.resolve(stale) : null,
+  });
 
 describeWithEnv(
   "built-site scheduler provisioning",
@@ -36,10 +77,7 @@ describeWithEnv(
           "The child already has a scheduled task key that this site cannot read.",
         ok: false,
       });
-      expect(
-        (await findBuiltSiteById(child.id))
-          ?.scheduledTaskKey,
-      ).toBeNull();
+      expect((await findBuiltSiteById(child.id))?.scheduledTaskKey).toBeNull();
     });
 
     test("fails loudly when the child record does not exist", async () => {
@@ -50,11 +88,11 @@ describeWithEnv(
 
     test("reuses the primary key when a replica read is stale", async () => {
       const child = await site();
-      const stale = await findBuiltSiteById(child.id);
+      const staleRead = await captureReplicaSiteRead(child.id);
       const key = await ensureBuiltSiteSchedulerKey(child.id);
       const pushed: string[] = [];
       stubs.push(
-        stub(builtSitesCrudTable.read, "one", () => Promise.resolve(stale)),
+        { restore: serveReplicaSiteReads(staleRead) },
         stub(bunnyHostingProvider, "getSecretNames", () =>
           Promise.resolve({ ok: true, value: ["SCHEDULED_TASK_KEY"] }),
         ),
@@ -102,13 +140,9 @@ describeWithEnv(
       stubBunnySchedulerSecrets(stubs, [], { error: "host down", ok: false });
 
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
-      const first = (await findBuiltSiteById(child.id))
-        ?.scheduledTaskKey;
+      const first = (await findBuiltSiteById(child.id))?.scheduledTaskKey;
       expect((await provisionSiteScheduler(child.id)).ok).toBe(false);
-      expect(
-        (await findBuiltSiteById(child.id))
-          ?.scheduledTaskKey,
-      ).toBe(first);
+      expect((await findBuiltSiteById(child.id))?.scheduledTaskKey).toBe(first);
     });
 
     test("requires an empty 204 from the live child", async () => {

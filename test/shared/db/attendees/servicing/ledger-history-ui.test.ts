@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { costAccount } from "#accounting/accounts.ts";
 import { KIND } from "#accounting/kinds.ts";
 import { transfersByAccount } from "#accounting/queries.ts";
-import { getServicingCosts } from "#db/attendees/servicing.ts";
+import { getServicingCosts } from "#db/attendees/service-cost-legs.ts";
 import { queryAll } from "#db/client.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";

@@ -7,7 +7,9 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { setListingGroups, setListingGroupsTx } from "#db/groups.ts";
+import { updateRowStatement } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
+import { tables } from "#db/select/tables.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -64,7 +66,7 @@ describeWithEnv(
 
       await expect(
         writeRowInTransaction(
-          await listingsTable.updateStatement!(plan.id, { active: true }),
+          await updateRowStatement(tables.listings, plan.id, { active: true }),
           plan.id,
           (tx, id) => setListingGroupsTx(tx, id, [group.id]),
         ),

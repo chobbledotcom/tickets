@@ -1,5 +1,5 @@
 import { bookedPathGroupIds } from "#booking/signed-metadata.ts";
-import { getPackageDisplaysByIds } from "#db/groups.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { clearSessionTokens } from "#db/processed-payments.ts";
 import { unique } from "#fp";

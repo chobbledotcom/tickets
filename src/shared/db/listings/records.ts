@@ -3,6 +3,7 @@
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import { executeBatch, queryOnePrimary } from "#db/client.ts";
+import { json } from "#db/codecs/kinds.ts";
 import { getImageFilenamesForItem, openItemImages } from "#db/images.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
 import { syncListingPrices } from "#db/listing-price-sync.ts";
@@ -34,7 +35,6 @@ import {
   type ListingInput,
 } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
-import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import {
   type DayPrices,
   DayPricesSchema,
@@ -49,7 +49,8 @@ import {
   listingReader,
 } from "./select.ts";
 
-const dayPricesJson = defineStoredJson(DayPricesSchema);
+/** The day prices that a listing read projects as JSON. */
+const dayPricesJson = json(DayPricesSchema, "listings.day_prices");
 
 /** Open the projected values of a listing read and work out its profit. */
 const decryptStoredListingWithCount = async ({
@@ -70,7 +71,7 @@ const decryptStoredListingWithCount = async ({
       `listing ${stored.id}`,
     )),
     cost: costAmount,
-    day_prices: dayPricesJson.read(day_prices, "listings.day_prices"),
+    day_prices: await dayPricesJson.decode(day_prices, stored.id),
     income: incomeAmount,
     profit: incomeAmount - costAmount,
     tickets_count: Number(stored.tickets_count),

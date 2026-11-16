@@ -32,8 +32,7 @@ describeWithEnv(
       );
 
       expectFlash(response, "Scheduled maintenance key sent to the site.");
-      const key = (await findBuiltSiteById(site.id))
-        ?.scheduledTaskKey;
+      const key = (await findBuiltSiteById(site.id))?.scheduledTaskKey;
       expect(isScheduledTaskKey(key ?? "")).toBe(true);
     });
 
@@ -59,8 +58,7 @@ describeWithEnv(
         `/admin/built-sites/${site.id}/provision-scheduler`,
       );
       expectFlash(failed, "provider failed", false);
-      const retained = (await findBuiltSiteById(site.id))
-        ?.scheduledTaskKey;
+      const retained = (await findBuiltSiteById(site.id))?.scheduledTaskKey;
 
       const { response: retried } = await adminFormPost(
         `/admin/built-sites/${site.id}/provision-scheduler`,

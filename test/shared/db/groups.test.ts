@@ -9,6 +9,7 @@ import {
 } from "#db/attendees/capacity/groups.ts";
 import { getDb } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
@@ -17,7 +18,6 @@ import {
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
-  getPackageDisplaysByIds,
   groups,
   isGroupSlugTaken,
   resetGroupListings,

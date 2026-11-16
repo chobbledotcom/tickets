@@ -1,7 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
-import { builtSites, createBuiltSite, findBuiltSiteById, getAssignableBuiltSites, insertBuiltSite, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import {
+  builtSites,
+  createBuiltSite,
+  findBuiltSiteById,
+  getAssignableBuiltSites,
+  insertBuiltSite,
+  updateBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { builtSiteFormInput } from "./fixtures.ts";
 
@@ -26,9 +34,7 @@ describeWithEnv("built-site update channel", { db: true }, () => {
 
   test("CRUD insert defaults the channel to release", async () => {
     expect(
-      await createBuiltSite(
-        builtSiteFormInput({ name: "Crud Default" }),
-      ),
+      await createBuiltSite(builtSiteFormInput({ name: "Crud Default" })),
     ).toMatchObject({ updates: "release" });
   });
 
@@ -48,9 +54,7 @@ describeWithEnv("built-site update channel", { db: true }, () => {
   });
 
   test("CRUD update preserves the channel", async () => {
-    const site = await createBuiltSite(
-      builtSiteFormInput({ updates: "beta" }),
-    );
+    const site = await createBuiltSite(builtSiteFormInput({ updates: "beta" }));
     expect(
       await updateBuiltSite(site.id, () => ({ name: "Renamed" })),
     ).toMatchObject({ name: "Renamed", updates: "beta" });
@@ -70,9 +74,7 @@ describeWithEnv("built-site update channel", { db: true }, () => {
     expect((await takePooledSiteForBuyer(pool, 1, [2], 2)).kind).toBe(
       "claimed",
     );
-    expect((await findBuiltSiteById(row.id))?.updates).toBe(
-      "beta",
-    );
+    expect((await findBuiltSiteById(row.id))?.updates).toBe("beta");
   });
 
   test("updating renewal state preserves the channel", async () => {

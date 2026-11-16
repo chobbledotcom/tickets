@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 import {
   expectActivityLogShows,
   expectFlash,
@@ -19,7 +20,6 @@ import {
 } from "#test-utils/db-helpers/built-sites.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import { builtSitesTestEnv } from "./env.ts";
-import { findBuiltSiteById } from "#db/built-sites.ts";
 
 describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites", () => {
@@ -358,10 +358,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         { name: "Keep Beta Renamed", site_url: site.siteUrl },
       );
       expect(response.status).toBe(302);
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const updated = await findBuiltSiteById(site.id);
-      expect(updated!.name).toBe("Keep Beta Renamed");
-      expect(updated!.updates).toBe("beta");
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        name: "Keep Beta Renamed",
+        updates: "beta",
+      });
     });
 
     test("rejects an unknown channel value", async () => {

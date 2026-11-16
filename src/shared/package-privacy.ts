@@ -1,4 +1,4 @@
-import type { PackageDisplay } from "#db/groups.ts";
+import type { PackageDisplay } from "#db/groups/package-display.ts";
 
 /** Group 0 is a standalone path. An unresolved package cannot reveal names. */
 export const hasNamedBookingPath = (

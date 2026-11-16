@@ -5,7 +5,16 @@ import {
   hasAssignedBuiltSite,
   takePooledSiteForBuyer,
 } from "#db/built-sites/claims.ts";
-import { builtSites, createBuiltSite, findBuiltSiteById, getAssignableBuiltSites, getBuiltSiteByRenewalTokenIndex, insertBuiltSite, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import {
+  builtSites,
+  createBuiltSite,
+  findBuiltSiteById,
+  getAssignableBuiltSites,
+  getBuiltSiteByRenewalTokenIndex,
+  insertBuiltSite,
+  updateBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("assignable built sites", { db: true }, () => {
@@ -138,9 +147,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
   test("an empty renewal index remains an empty string", async () => {
     const row = await insertBuiltSite("Empty Index", "empty-index.b-cdn.net");
     await updateBuiltSiteRenewalState(row.id, { renewalTokenIndex: "" });
-    expect(
-      (await findBuiltSiteById(row.id))?.renewalTokenIndex,
-    ).toBe("");
+    expect((await findBuiltSiteById(row.id))?.renewalTokenIndex).toBe("");
   });
 
   test("an empty renewal token clears the stored token", async () => {
@@ -151,8 +158,6 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
 
     await updateBuiltSiteRenewalState(row.id, { renewalToken: "" });
 
-    expect(
-      (await findBuiltSiteById(row.id))?.renewalToken,
-    ).toBeNull();
+    expect((await findBuiltSiteById(row.id))?.renewalToken).toBeNull();
   });
 });

@@ -6,7 +6,10 @@
  * or network. LiquidJS parses templates to an AST (no eval/new Function).
  */
 
-import { type PackageDisplay, packageDisplaysForRows } from "#db/groups.ts";
+import {
+  type PackageDisplay,
+  packageDisplaysForRows,
+} from "#db/groups/package-display.ts";
 import { settings } from "#db/settings.ts";
 import { map, mapNotNullish, requiredMapValue, sumOf } from "#fp";
 import { bookedRangeLabel } from "#shared/date-labels.ts";

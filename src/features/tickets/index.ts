@@ -6,7 +6,7 @@
 
 import { orderModifierLines } from "#accounting/queries.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { packageDisplaysForRows } from "#db/groups.ts";
+import { packageDisplaysForRows } from "#db/groups/package-display.ts";
 import { addPageImageUrls } from "#db/image-urls.ts";
 import { getModifierNamesByIds } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";

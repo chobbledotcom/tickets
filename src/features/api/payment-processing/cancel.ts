@@ -7,7 +7,8 @@
  */
 
 import { bookedPathGroupIds, lineGroupIds } from "#booking/signed-metadata.ts";
-import { getGroupById, getPackageDisplaysByIds } from "#db/groups.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
+import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";

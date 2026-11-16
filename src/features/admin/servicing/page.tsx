@@ -1,5 +1,5 @@
+import type { ServicingCostRecord } from "#db/attendees/service-cost-legs.ts";
 import type {
-  ServicingCostRecord,
   ServicingEvent,
   ServicingEventSummary,
 } from "#db/attendees/servicing.ts";

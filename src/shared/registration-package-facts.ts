@@ -1,9 +1,9 @@
 import type { WebhookBookingSource } from "#db/contact-tokens.ts";
 import {
   getPackageDisplaysByIds,
-  loadPackageMemberPricingByGroupIds,
   type PackageDisplay,
-} from "#db/groups.ts";
+} from "#db/groups/package-display.ts";
+import { loadPackageMemberPricingByGroupIds } from "#db/groups.ts";
 import { mapNotNullish, unique } from "#fp";
 
 export interface RegistrationPackagePricing {

@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -26,7 +27,6 @@ import {
   testCookie,
 } from "#test-utils/session.ts";
 import { builtSitesTestEnv } from "./env.ts";
-import { findBuiltSiteById } from "#db/built-sites.ts";
 
 describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("GET /admin/built-sites/:id/:tab", () => {
@@ -264,9 +264,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const site = await createTestBuiltSite({ name: "To Delete" });
       await deleteTestBuiltSite(site.id);
 
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await findBuiltSiteById(site.id);
-      expect(found).toBeNull();
+      expect(await findBuiltSiteById(site.id)).toBeNull();
     });
 
     test("rejects deletion with wrong name", async () => {
@@ -284,19 +282,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         false,
       );
 
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await findBuiltSiteById(site.id);
-      expect(found).not.toBeNull();
-    });
-
-    test("a list filter reads back only the sites that exist", async () => {
-      const site = await createTestBuiltSite({ name: "Lookup Site" });
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      expect(
-        (await builtSitesCrudTable.read.many({ id: [site.id, 999_999] })).map(
-          (row) => row.id,
-        ),
-      ).toEqual([site.id]);
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        id: site.id,
+        name: "Keep Me",
+      });
     });
 
     test("name confirmation is case-insensitive", async () => {

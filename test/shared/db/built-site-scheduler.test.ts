@@ -2,7 +2,12 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
-import { findBuiltSiteById, insertBuiltSite, updateBuiltSite, updateBuiltSiteRenewalState } from "#db/built-sites.ts";
+import {
+  findBuiltSiteById,
+  insertBuiltSite,
+  updateBuiltSite,
+  updateBuiltSiteRenewalState,
+} from "#db/built-sites.ts";
 import { queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { isScheduledTaskKey } from "#shared/scheduled-keys.ts";
@@ -29,9 +34,9 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
     );
     assert(!raw!.site_data.includes(TEST_SCHEDULED_KEY));
     assert(!JSON.stringify(raw).includes(TEST_SCHEDULED_KEY));
-    expect(
-      (await findBuiltSiteById(row.id))?.scheduledTaskKey,
-    ).toBe(TEST_SCHEDULED_KEY);
+    expect((await findBuiltSiteById(row.id))?.scheduledTaskKey).toBe(
+      TEST_SCHEDULED_KEY,
+    );
   });
 
   test("fails loudly when the built site does not exist", async () => {
@@ -50,9 +55,7 @@ describeWithEnv("built-site scheduler keys", { db: true }, () => {
 
     expect(first).toBe(second);
     expect(isScheduledTaskKey(first)).toBe(true);
-    expect(
-      (await findBuiltSiteById(site.id))?.scheduledTaskKey,
-    ).toBe(first);
+    expect((await findBuiltSiteById(site.id))?.scheduledTaskKey).toBe(first);
   });
 
   test("keeps an edit and concurrent key provisioning", async () => {

@@ -2,7 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
-import { findBuiltSiteById, getAssignableBuiltSites, insertBuiltSite, updateBuiltSite } from "#db/built-sites.ts";
+import {
+  findBuiltSiteById,
+  getAssignableBuiltSites,
+  insertBuiltSite,
+  updateBuiltSite,
+} from "#db/built-sites.ts";
 import { getDb } from "#db/client.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -147,15 +152,13 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
       const key = await ensureBuiltSiteSchedulerKey(site.id);
       await claim;
 
-      expect(await findBuiltSiteById(site.id)).toMatchObject(
-        {
-          assignable: false,
-          assignedAttendeeId: 42,
-          assignedListingId: 7,
-          scheduledTaskKey: key,
-          siteDataRevision: 2,
-        },
-      );
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        assignable: false,
+        assignedAttendeeId: 42,
+        assignedListingId: 7,
+        scheduledTaskKey: key,
+        siteDataRevision: 2,
+      });
     } finally {
       restore();
     }

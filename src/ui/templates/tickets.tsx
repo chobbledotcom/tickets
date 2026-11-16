@@ -3,7 +3,7 @@
  */
 
 /* jscpd:ignore-start -- imports */
-import type { PackageDisplay } from "#db/groups.ts";
+import type { PackageDisplay } from "#db/groups/package-display.ts";
 import { sumOf } from "#fp";
 import { t } from "#i18n";
 import { escapeHtml } from "#jsx/escape-html.ts";

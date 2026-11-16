@@ -163,11 +163,7 @@ export const setupAnswerTier = async (
   listing: { id: number },
   overrides: Partial<ModifierInput> = {},
 ): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
-  const [{ answersTable, questionsTable }, { listingQuestions }] =
-    await Promise.all([
-      import("#db/questions/tables.ts"),
-      import("#db/questions/queries.ts"),
-    ]);
+  const { listingQuestions } = await import("#db/questions/queries.ts");
   const question = await insertRow(tables.questions, {
     display_type: "radio",
     text: "T-shirt size?",
