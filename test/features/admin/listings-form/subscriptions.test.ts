@@ -4,6 +4,8 @@ import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   createListing,
+  saveListingEdit,
+  tryCreateListing,
   updateListing,
 } from "#test/features/admin/listings-form/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -50,10 +52,11 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
       ]);
     }));
 
-  test("ignores the plan boxes while the feature is off", async () => {
+  test("refuses the plan boxes while the feature is off", async () => {
     await setupStripe();
-    const row = await createListing({ ...MONTHLY, name: "Feature off" });
-    expect([row.recurring_price, row.recurring_interval]).toEqual([0, ""]);
+    expect(await tryCreateListing({ ...MONTHLY, name: "Feature off" })).toEqual(
+      { error: t("fields.validation.unshown_field"), ok: false },
+    );
   });
 
   test("refuses a plan while Stripe does not take payments", () =>
@@ -80,10 +83,14 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
       await settings.update.setPaymentProviderNone();
-      await expect(
-        updateListing(row.id, { ...MONTHLY, unit_price: "12.00" }),
-      ).rejects.toThrow(`update failed: ${t("error.recurring_needs_stripe")}`);
-      const cleared = await updateListing(row.id, { unit_price: "0" });
+      expect(
+        await saveListingEdit(row.id, { ...MONTHLY, unit_price: "12.00" }),
+      ).toEqual({ error: t("error.recurring_needs_stripe"), ok: false });
+      const cleared = await updateListing(row.id, {
+        recurring_interval: "",
+        recurring_price: "",
+        unit_price: "0",
+      });
       expect([
         cleared.unit_price,
         cleared.recurring_price,
@@ -103,10 +110,8 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
   test("refuses an edit that keeps a recurring price and chooses Never", () =>
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
-      await expect(
-        updateListing(row.id, { ...MONTHLY, recurring_interval: "" }),
-      ).rejects.toThrow(
-        `update failed: ${t("error.recurring_interval_required")}`,
-      );
+      expect(
+        await saveListingEdit(row.id, { ...MONTHLY, recurring_interval: "" }),
+      ).toEqual({ error: t("error.recurring_interval_required"), ok: false });
     }));
 });

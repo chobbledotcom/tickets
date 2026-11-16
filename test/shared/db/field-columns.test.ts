@@ -58,6 +58,8 @@ describe("field columns", () => {
       months_per_unit: 0,
       non_transferable: false,
       purchase_only: false,
+      recurring_interval: "",
+      recurring_price: 0,
       thank_you_url: "",
       unit_price: 0,
       use_defaults: false,

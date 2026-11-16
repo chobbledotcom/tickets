@@ -283,7 +283,6 @@ export interface Listing
   attachment_url: string;
   created: string;
   id: number;
-
   slug: string;
   slug_index: BlindIndex;
 }
