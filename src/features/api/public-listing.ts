@@ -72,31 +72,31 @@ export const resolvedToPublicListing = (
 ): PublicListing => {
   const { isClosed: closed, isSoldOut, listing, maxPurchasable } = resolved;
   const result: PublicListing = {
-    canPayMore: listing.can_pay_more,
-    customisableDays: listing.customisable_days,
+    canPayMore: listing.canPayMore,
+    customisableDays: listing.customisableDays,
     date: listing.date || null,
     description: listing.description,
     fields: listing.fields,
-    imageAltText: listing.image_alt_text || null,
-    imageUrl: listing.image_url || null,
+    imageAltText: listing.imageAltText || null,
+    imageUrl: listing.imageUrl || null,
     isClosed: closed,
     isSoldOut,
-    listingType: listing.listing_type,
+    listingType: listing.listingType,
     location: listing.location || null,
-    maxPrice: listing.max_price,
+    maxPrice: listing.maxPrice,
     maxPurchasable,
     name: listing.name,
-    nonTransferable: listing.non_transferable,
-    purchaseOnly: listing.purchase_only,
+    nonTransferable: listing.nonTransferable,
+    purchaseOnly: listing.purchaseOnly,
     slug: listing.slug,
-    unitPrice: listing.unit_price,
+    unitPrice: listing.unitPrice,
   };
 
   if (availableDates) {
     result.availableDates = availableDates;
   }
 
-  if (listing.customisable_days) {
+  if (listing.customisableDays) {
     // availableDayCounts only yields priced counts, so dayPriceFor is non-null.
     result.dayPrices = Object.fromEntries(
       availableDayCounts(listing).map((n) => [n, dayPriceFor(listing, n)!]),
@@ -154,7 +154,7 @@ export const buildChildPublicListings = async (
       child.active
         ? toResolvedPublicListing(
             child,
-            child.listing_type === "daily"
+            child.listingType === "daily"
               ? getAvailableDates(child, await getActiveHolidays())
               : undefined,
           )

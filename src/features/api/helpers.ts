@@ -78,12 +78,12 @@ export const resolveCustomPrice = (
   listing: ListingWithCount,
   form: FormParams,
 ): number | undefined | Response => {
-  if (!listing.can_pay_more) return;
+  if (!listing.canPayMore) return;
   const priceResult = parseCustomPrice(
     form,
     "customPrice",
-    listing.unit_price,
-    listing.max_price,
+    listing.unitPrice,
+    listing.maxPrice,
   );
   return priceResult.ok ? priceResult.price : apiError(priceResult.error);
 };

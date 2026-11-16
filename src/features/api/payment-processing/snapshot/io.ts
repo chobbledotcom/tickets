@@ -27,7 +27,6 @@ import type {
   SnapshotRows,
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
-import { camelCaseKeys } from "#shared/column-names.ts";
 import type { GroupListing, ListingWithCount } from "#types";
 
 const selectIn = (
@@ -75,27 +74,27 @@ const snapshotStatements = (
     ),
     typedSql<RowsStatement<ListingRecordRow>>(listingStatement(listingIds)),
     from(tables.groups)
-      .where({ id: groupIds, is_package: 1 })
+      .where({ id: groupIds, isPackage: 1 })
       .sortedBy("id")
       .select((group) => ({
-        hideListings: group.hide_package_listings,
+        hideListings: group.hidePackageListings,
         id: group.id,
         name: group.name,
       })),
     typedSql<RowsStatement<GroupListing>>(
-      sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+      sql`SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId, groupListing.quantity,
         (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
           WHERE listingPrice.listing_id = groupListing.listing_id
             AND listingPrice.price_type = 'group'
-            AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT)) AS package_price
+            AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT)) AS packagePrice
        FROM group_listings AS groupListing
        WHERE ${selectIn("groupListing.group_id", groupIds)}
        ORDER BY groupListing.group_id, groupListing.listing_id`,
     ),
-    typedSql<RowsStatement<RawDayPriceRow>>(
-      sql`SELECT groupListing.group_id, listingPrice.listing_id,
+    typedSql<RowsStatement<SnapshotDayPriceRow>>(
+      sql`SELECT groupListing.group_id AS groupId, listingPrice.listing_id AS listingId,
         CAST(SUBSTR(listingPrice.price_id, LENGTH(CAST(groupListing.group_id AS TEXT)) + 2) AS INTEGER) AS days,
-        listingPrice.unit_price
+        listingPrice.unit_price AS unitPrice
        FROM group_listings AS groupListing
        JOIN listing_prices AS listingPrice
          ON listingPrice.listing_id = groupListing.listing_id
@@ -106,34 +105,34 @@ const snapshotStatements = (
     from(tables.listing_parents)
       .where((edge) =>
         or(
-          among(edge.parent_listing_id, listingIds),
-          among(edge.child_listing_id, listingIds),
+          among(edge.parentListingId, listingIds),
+          among(edge.childListingId, listingIds),
         ),
       )
-      .sortedBy("parent_listing_id", "child_listing_id")
-      .pick("parent_listing_id", "child_listing_id"),
+      .sortedBy("parentListingId", "childListingId")
+      .pick("parentListingId", "childListingId"),
     from(tables.modifiers)
       .where({ active: 1, id: modifierIds })
       .sortedBy("id")
       .pick(
         "id",
         "name",
-        "calc_kind",
-        "calc_value",
+        "calcKind",
+        "calcValue",
         "direction",
-        "min_visits",
+        "minVisits",
         "scope",
         "trigger",
       ),
     typedSql<RowsStatement<ModifierScopeRow>>(
-      sql`SELECT modifierListing.modifier_id, modifierListing.listing_id
+      sql`SELECT modifierListing.modifier_id AS modifierId, modifierListing.listing_id AS listingId
        FROM modifier_listings AS modifierListing
         JOIN modifiers AS modifier
           ON modifier.id = modifierListing.modifier_id
          AND modifier.scope = 'listings'
         WHERE ${selectIn("modifierListing.modifier_id", modifierIds)}
         UNION
-        SELECT modifierGroup.modifier_id, groupListing.listing_id
+        SELECT modifierGroup.modifier_id AS modifierId, groupListing.listing_id AS listingId
         FROM modifier_groups AS modifierGroup
         JOIN modifiers AS modifier
           ON modifier.id = modifierGroup.modifier_id
@@ -142,11 +141,11 @@ const snapshotStatements = (
         WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
     ),
     from(tables.contact_preferences)
-      .where({ contact_hash: contactHashes })
+      .where({ contactHash: contactHashes })
       .pick("visits"),
     from(tables.attendee_statuses)
-      .where({ is_public_default: 1 })
-      .sortedBy("sort_order", "id")
+      .where({ isPublicDefault: 1 })
+      .sortedBy("sortOrder", "id")
       .pick("id"),
   ] as const;
 };
@@ -155,16 +154,9 @@ type LedgerRow = {
   has_legs: number;
   owner_attendee_id: number | null;
 };
-type ListingIdRow = {
-  listing_id: number;
-};
-type ModifierScopeRow = ListingIdRow & {
-  modifier_id: number;
-};
-type RawDayPriceRow = ListingIdRow & {
-  days: number;
-  group_id: number;
-  unit_price: number;
+type ModifierScopeRow = {
+  listingId: number;
+  modifierId: number;
 };
 
 const mapListings = async (
@@ -196,18 +188,17 @@ export const loadPaidOrderSnapshot = async (
   const { has_legs, owner_attendee_id } = ledger!;
   const rows: SnapshotRows = {
     childEdges: childEdges.map((row) => ({
-      childId: row.child_listing_id,
-      parentId: row.parent_listing_id,
+      childId: row.childListingId,
+      parentId: row.parentListingId,
     })),
     groups,
     ledger: { hasLegs: has_legs === 1, ownerAttendeeId: owner_attendee_id },
     listings: await mapListings(listings),
     memberships,
-    modifierScopes: modifierScopes.map(camelCaseKeys),
-    modifiers: modifiers.map(camelCaseKeys),
+    modifierScopes,
+    modifiers,
     publicStatusIds: publicStatuses.map((row) => row.id),
     visitCounts: visitCounts.map((row) => row.visits),
   };
-  const dayPrices: SnapshotDayPriceRow[] = dayPriceRows.map(camelCaseKeys);
-  return buildPaidOrderSnapshot(intent.modifiers, rows, dayPrices);
+  return buildPaidOrderSnapshot(intent.modifiers, rows, dayPriceRows);
 };

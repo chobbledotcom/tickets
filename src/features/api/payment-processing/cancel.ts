@@ -46,7 +46,7 @@ const retryHrefFor = async (
     // package converted to a regular group no longer sells the bundle, so its
     // page offers the wrong thing.
     const bundleServes =
-      group?.is_package === true &&
+      group?.isPackage === true &&
       (await groupBookable(group, await getVisibleGroupMembers(group)));
     if (bundleServes) return `/ticket/${group.slug}`;
   }

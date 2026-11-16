@@ -77,7 +77,7 @@ const listingControls = (
   const priceFieldName = nodePriceFieldName(node)!;
   return {
     childBlock: childCtx ? renderChildBlock(info, childCtx) : "",
-    priceHtml: listing.can_pay_more
+    priceHtml: listing.canPayMore
       ? renderPayMoreInput(
           listing,
           priceFieldName,
@@ -94,10 +94,10 @@ const listingControls = (
             listing.id,
             prefill,
             maxPurchasable,
-            listing.min_quantity,
+            listing.minQuantity,
           ),
           monthLabelsForListing(listing, renewal),
-          listing.min_quantity,
+          listing.minQuantity,
         )}</select>`,
     termNote: termNoteFor(listing, hideQuantity, renewal),
   };
@@ -141,7 +141,7 @@ const renderListingRow: RenderListingControls = (
   // Required children can cap the parent below its own capacity. A ceiling
   // under the minimum is as unsellable as an empty one.
   const soldOut =
-    info.isSoldOut || childLimitedMax(info, childCtx) < listing.min_quantity;
+    info.isSoldOut || childLimitedMax(info, childCtx) < listing.minQuantity;
   if (soldOut) {
     return `
       <div class="ticket-row sold-out">
@@ -385,7 +385,7 @@ export const buildPageListingRows = (opts: {
       attributesByListing,
       bundleMinimum: packageBundleMinimum(
         pkg.quantities,
-        new Map(members.map((e) => [e.listing.id, e.listing.min_quantity])),
+        new Map(members.map((e) => [e.listing.id, e.listing.minQuantity])),
       ),
       childCtxFor: claimChildCtx,
       limit,

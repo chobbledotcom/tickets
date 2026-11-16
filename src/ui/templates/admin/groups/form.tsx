@@ -23,7 +23,7 @@ const groupToFieldValues = (
     group,
     getGroupForm().fields,
     {
-      max_attendees: (value) => value.max_attendees || null,
+      maxAttendees: (value) => value.maxAttendees || null,
     },
     // A new group's form starts with its hidden-listings box ticked, matching
     // the column default. The public group page offers hidden members until
@@ -101,11 +101,11 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
           <input
             inputmode="decimal"
             name={`package_price_${listing.id}`}
-            placeholder={toMajorUnits(listing.unit_price)}
+            placeholder={toMajorUnits(listing.unitPrice)}
             type="text"
             value={override === null ? "" : toMajorUnits(override)}
           />
-          {listing.customisable_days && (
+          {listing.customisableDays && (
             <MemberDayPriceInputs
               dayPrices={member?.dayPrices}
               listing={listing}

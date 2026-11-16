@@ -119,8 +119,8 @@ export const getAuthenticatedSession = async (
   const result: AuthSession = {
     adminLevel,
     token,
-    userId: session.user_id,
-    wrappedDataKey: session.wrapped_data_key,
+    userId: session.userId,
+    wrappedDataKey: session.wrappedDataKey,
   };
 
   if (adminLevel === "owner") {
@@ -174,13 +174,13 @@ export const getAuthenticatedApiKey = async (
   }
 
   const user = await loadAuthUserFields(
-    apiKeyRow.user_id,
+    apiKeyRow.userId,
     "API key references non-existent user",
   );
   if (!user) return null;
 
   try {
-    await unwrapKeyWithToken(apiKeyRow.wrapped_data_key, token);
+    await unwrapKeyWithToken(apiKeyRow.wrappedDataKey, token);
   } catch {
     logError({
       code: ErrorCode.AUTH_INVALID_SESSION,
@@ -190,7 +190,7 @@ export const getAuthenticatedApiKey = async (
   }
 
   // getPrivateKey() expects token + wrappedDataKey in the session's format.
-  const wrappedDataKey = apiKeyRow.wrapped_data_key;
+  const wrappedDataKey = apiKeyRow.wrappedDataKey;
 
   const adminLevel = await decryptAdminLevel(user);
 
@@ -204,7 +204,7 @@ export const getAuthenticatedApiKey = async (
   const result: AuthSession = {
     adminLevel,
     token,
-    userId: apiKeyRow.user_id,
+    userId: apiKeyRow.userId,
     wrappedDataKey,
   };
   setCachedSession(result);

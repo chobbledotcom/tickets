@@ -222,7 +222,7 @@ export const adminDuplicateListingPage = (
           customiseOpen: false,
           dayPricesListing: listing,
           durationWarning: "",
-          useDefaultsChecked: listing.use_defaults,
+          useDefaultsChecked: listing.useDefaults,
           values,
         })}
       </CreateListingFormBody>

@@ -80,7 +80,7 @@ const imageUploadField = (): Field => ({
 });
 
 const imageValue = (image?: Image): Record<string, string | number | null> => ({
-  alt_text: image?.alt_text ?? "",
+  alt_text: image?.altText ?? "",
   name: image?.name ?? "",
 });
 
@@ -92,10 +92,10 @@ const LAZY_THUMBNAIL_FROM = 9;
  *  thumbnails, so the count carries across the collections one page renders. */
 const thumbnail = (image: Image, position: number): JSX.Element => (
   <img
-    alt={image.alt_text || image.name}
+    alt={image.altText || image.name}
     class="image-library-thumb"
     loading={position >= LAZY_THUMBNAIL_FROM ? "lazy" : undefined}
-    src={getImageProxyUrl(image.filename_thumb)}
+    src={getImageProxyUrl(image.filenameThumb)}
   />
 );
 
@@ -146,7 +146,7 @@ const imageColumns: readonly TableColumn<Image>[] = [
   translatedTableColumn(
     "alt_text",
     "images.field.alt_text",
-    (image) => image.alt_text,
+    (image) => image.altText,
   ),
 ];
 

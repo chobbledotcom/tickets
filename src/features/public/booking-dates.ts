@@ -42,7 +42,7 @@ export const resolveDayCount = async (
   const shownName = (listing: ListingWithCount): string =>
     standIns?.get(listing.id) ?? listing.name;
   const customisable = selected.filter(
-    ({ listing }) => listing.customisable_days,
+    ({ listing }) => listing.customisableDays,
   );
   if (customisable.length === 0) return { dayCount: 1 };
 
@@ -58,7 +58,7 @@ export const resolveDayCount = async (
     }
   }
   const dailyCustomisable = customisable.filter(
-    ({ listing }) => listing.listing_type === "daily",
+    ({ listing }) => listing.listingType === "daily",
   );
   if (date && dailyCustomisable.length > 0) {
     const holidays = await getActiveHolidays();
@@ -84,7 +84,7 @@ export const dailyDateItems = async (
   listings: TicketListing[],
 ): Promise<CartDateItem[]> => {
   const dailyListings = listings.filter(
-    (e) => e.listing.listing_type === "daily",
+    (e) => e.listing.listingType === "daily",
   );
   if (dailyListings.length === 0) return [];
   const holidays = await getActiveHolidays();
@@ -105,7 +105,7 @@ const datesChildCanServe = (
   parentDates: string[],
   { fixedDays, holidays }: DailySpan,
 ): string[] => {
-  if (child.listing.listing_type !== "daily") return parentDates;
+  if (child.listing.listingType !== "daily") return parentDates;
   if (fixedDays === null) return getBookableStartDates(child.listing, holidays);
   return parentDates.filter((d) =>
     isBookingRangeValid(child.listing, d, fixedDays, holidays),
@@ -132,7 +132,7 @@ export const singleDailyParent = (
 ): { children: TicketListing[]; fixedDays: number | null } | null => {
   if (listings.length !== 1) return null;
   const parent = listings[0]!;
-  if (parent.listing.listing_type !== "daily") return null;
+  if (parent.listing.listingType !== "daily") return null;
   const children = childrenByParentId.get(parent.listing.id) ?? null;
   if (!children) return null;
   return { children, fixedDays: fixedParentDays(parent.listing) };
@@ -150,7 +150,7 @@ export const keepPackageDatesChildrenCanServe = (
     childrenByParentId,
     dates,
     (acc, member, children) =>
-      member.listing.listing_type !== "daily"
+      member.listing.listingType !== "daily"
         ? acc
         : keepDatesSomeChildCanServe(acc, children, {
             fixedDays: fixedParentDays(member.listing),
@@ -190,7 +190,7 @@ export const buildChildDatesById = (
     const children = childrenByParentId.get(parent.id);
     if (!children) continue;
     for (const child of children) {
-      if (child.listing.listing_type !== "daily") continue;
+      if (child.listing.listingType !== "daily") continue;
       result.set(
         pairKey(parent.id, child.listing.id),
         childDatesForParentDayCounts(child, parent, holidays),

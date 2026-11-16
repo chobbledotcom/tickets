@@ -78,19 +78,19 @@ export const renderDayCountSelector = (
 export const renderPayMoreInput = (
   listing: Pick<
     ListingWithCount,
-    "assign_built_site" | "initial_site_months" | "max_price" | "unit_price"
-  > & { months_per_unit?: number | undefined },
+    "assignBuiltSite" | "initialSiteMonths" | "maxPrice" | "unitPrice"
+  > & { monthsPerUnit?: number | undefined },
   fieldName = "custom_price",
   prefillMinor?: number,
   required = true,
   renewal?: boolean | undefined,
 ): string => {
-  const minPrice = listing.unit_price;
-  const maxPrice = listing.max_price;
+  const minPrice = listing.unitPrice;
+  const maxPrice = listing.maxPrice;
   // One priced unit of a site plan is its whole initial term, not one month;
   // a renewal tier prices its count by months per unit.
   const pricedMonths = pricedMonthsForListing(
-    { ...listing, months_per_unit: listing.months_per_unit ?? 0 },
+    { ...listing, monthsPerUnit: listing.monthsPerUnit ?? 0 },
     renewal,
   );
   const rangeHint =

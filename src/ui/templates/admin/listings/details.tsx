@@ -43,7 +43,7 @@ const CustomisableDaysRow = ({ listing }: ListingRowProps): JSX.Element => {
       <th>{t("listings_table.customisable_days")}</th>
       <td>
         {t("listings_table.visitors_choose_days", {
-          max_days: clampDurationDays(listing.duration_days),
+          max_days: clampDurationDays(listing.durationDays),
         })}{" "}
         {counts.length > 0 ? (
           <span>
@@ -68,13 +68,13 @@ const CustomisableDaysRow = ({ listing }: ListingRowProps): JSX.Element => {
 
 const ListingPriceRow = ({ listing }: ListingRowProps): JSX.Element => {
   const price =
-    listing.unit_price > 0
-      ? formatCurrency(listing.unit_price)
+    listing.unitPrice > 0
+      ? formatCurrency(listing.unitPrice)
       : t("listings_table.free");
-  const payMoreSuffix = listing.can_pay_more
-    ? listing.max_price > listing.unit_price
+  const payMoreSuffix = listing.canPayMore
+    ? listing.maxPrice > listing.unitPrice
       ? ` (${t("listings_table.pay_more_range", {
-          max: formatCurrency(listing.max_price),
+          max: formatCurrency(listing.maxPrice),
           min: price,
         })})`
       : ` (${t("listings_table.pay_more_enabled")})`
@@ -93,17 +93,17 @@ const ListingPriceRow = ({ listing }: ListingRowProps): JSX.Element => {
 const DailyScheduleRows = ({ listing }: ListingRowProps): JSX.Element => (
   <>
     <LabelledRow label={t("listings_table.bookable_days")}>
-      {formatBookableDays(listing.bookable_days)}
+      {formatBookableDays(listing.bookableDays)}
     </LabelledRow>
     <LabelledRow label={t("listings_table.booking_window")}>
-      {listing.minimum_days_before} {t("listings_table.to")}{" "}
-      {listing.maximum_days_after === 0
+      {listing.minimumDaysBefore} {t("listings_table.to")}{" "}
+      {listing.maximumDaysAfter === 0
         ? t("listings_table.unlimited")
-        : listing.maximum_days_after}{" "}
+        : listing.maximumDaysAfter}{" "}
       {t("listings_table.days_from_today")}
     </LabelledRow>
     <LabelledRow label={t("listings_table.booking_duration")}>
-      {listing.duration_days} {t("listings_table.day_count_with_parens")}
+      {listing.durationDays} {t("listings_table.day_count_with_parens")}
     </LabelledRow>
   </>
 );
@@ -123,18 +123,18 @@ const buildListingCopyRows = (
   listing: ListingWithCount,
 ): CopyableInputRowSpec[] =>
   compact([
-    listing.thank_you_url
+    listing.thankYouUrl
       ? {
           id: `thank-you-url-${listing.id}`,
           label: t("listings_table.thank_you_url"),
-          value: listing.thank_you_url,
+          value: listing.thankYouUrl,
         }
       : null,
-    listing.webhook_url
+    listing.webhookUrl
       ? {
           id: `webhook-url-${listing.id}`,
           label: t("listings_table.webhook_url"),
-          value: listing.webhook_url,
+          value: listing.webhookUrl,
         }
       : null,
   ]);
@@ -204,39 +204,39 @@ export const ListingDetailsTable = ({
         <tr>
           <th>{t("listings_table.listing_type")}</th>
           <td>
-            {listing.listing_type === "daily"
+            {listing.listingType === "daily"
               ? t("listings_table.daily")
               : t("listings_table.standard")}
           </td>
         </tr>
         <ListingPriceRow listing={listing} />
-        {listing.customisable_days && <CustomisableDaysRow listing={listing} />}
-        {listing.months_per_unit > 0 && (
+        {listing.customisableDays && <CustomisableDaysRow listing={listing} />}
+        {listing.monthsPerUnit > 0 && (
           <tr>
             <th>{t("listings_table.renewal")}</th>
             <td>
-              {listing.months_per_unit} {t("listings_table.months_per_ticket")}
+              {listing.monthsPerUnit} {t("listings_table.months_per_ticket")}
             </td>
           </tr>
         )}
-        {listing.non_transferable && (
+        {listing.nonTransferable && (
           <tr>
             <th>{t("listings_table.non_transferable")}</th>
             <td>{t("listings_table.yes_id_verification_required")}</td>
           </tr>
         )}
         {listing.hidden && <HiddenDetailRow />}
-        {listing.listing_type === "daily" && (
+        {listing.listingType === "daily" && (
           <DailyScheduleRows listing={listing} />
         )}
         <tr>
           <th>{t("listings_table.registration_closes")}</th>
           <td>
-            {listing.closes_at ? (
+            {listing.closesAt ? (
               <span>
                 {withCountdown(
-                  formatDatetimeLabel(listing.closes_at),
-                  listing.closes_at,
+                  formatDatetimeLabel(listing.closesAt),
+                  listing.closesAt,
                 )}
               </span>
             ) : (

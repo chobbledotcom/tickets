@@ -47,7 +47,7 @@ const loadActiveGroupListingsBySlug = groupListingsLoader(async (group) => {
   ]);
   const sorted = sortListings(visible, holidays);
   if (sorted.length === 0) return null;
-  if (group.is_package && !(await groupBookable(group, visible))) {
+  if (group.isPackage && !(await groupBookable(group, visible))) {
     return null;
   }
   return { group, listings: sorted };
@@ -70,7 +70,7 @@ export const loadBookablePackageBySlug = async (
   slug: string,
 ): Promise<GroupWithListings | null> => {
   const loaded = await loadActiveGroupListingsBySlug(slug);
-  return loaded?.group.is_package ? loaded : null;
+  return loaded?.group.isPackage ? loaded : null;
 };
 
 /** Load the COMPLETE package group behind each cart slug, in slug order, with
@@ -92,7 +92,7 @@ export const loadCartPackagesBySlugs = async (
   const slugIndices = await Promise.all(slugs.map(hmacHash));
   const bySlug = await groups.getByKeys(slugIndices);
   const packages = uniqueBy((group: Group) => group.id)(
-    compact(bySlug).filter((group) => group.is_package),
+    compact(bySlug).filter((group) => group.isPackage),
   );
   if (packages.length === 0) return noPackages;
   const { members: membersByGroup, more } = await readGroupMembersWith(

@@ -369,7 +369,7 @@ export const getTicketContext = async (
   // price/derive against the same maps with no extra query.
   const packages =
     pagePackages ??
-    (group?.is_package === true
+    (group?.isPackage === true
       ? [await loadPagePackage(group, listingIds)]
       : []);
   // The dates the page can offer start from what EVERY daily listing supports.
@@ -395,7 +395,7 @@ export const getTicketContext = async (
   );
   // A group page's own terms win; a cart shows every selected package's terms.
   const terms = group
-    ? group.terms_and_conditions || globalTerms || ""
+    ? group.termsAndConditions || globalTerms || ""
     : combinedPackageTerms(packages, globalTerms || "");
   const packageCapMaps =
     packages.length > 0

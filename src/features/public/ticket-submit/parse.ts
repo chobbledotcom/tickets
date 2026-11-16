@@ -71,9 +71,9 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
     // rows keep the skip behaviour: their posted quantity is ignored.
     if (
       maxPurchasable > 0 &&
-      quantityBelowMin(selectedQty, listing.min_quantity)
+      quantityBelowMin(selectedQty, listing.minQuantity)
     ) {
-      return bookingError.minimum(listing.name, listing.min_quantity);
+      return bookingError.minimum(listing.name, listing.minQuantity);
     }
     // A count above the live limit refuses instead of silently booking fewer
     // places than the buyer asked for. The select cannot send one, so only a
@@ -182,7 +182,7 @@ const listingsByPayMore = (
   canPayMore: boolean,
 ): ListingWithCount[] =>
   ctx.listings
-    .filter(({ listing }) => listing.can_pay_more === canPayMore)
+    .filter(({ listing }) => listing.canPayMore === canPayMore)
     .map(({ listing }) => listing);
 
 /** Parse custom prices for pay-more listings. Returns an error message string
@@ -199,8 +199,8 @@ export const parseCustomPrices = (
     const priceResult = parseCustomPrice(
       form,
       customPriceFieldName(listing.id),
-      listing.unit_price,
-      listing.max_price,
+      listing.unitPrice,
+      listing.maxPrice,
     );
     if (!priceResult.ok) {
       return `${listing.name}: ${priceResult.error}`;

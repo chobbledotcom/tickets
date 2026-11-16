@@ -90,7 +90,7 @@ export const childPriceMinor = (
   child: ListingWithCount,
   parent: ListingWithCount,
 ): number | null => {
-  if (!child.customisable_days) return child.unit_price;
+  if (!child.customisableDays) return child.unitPrice;
   const duration = parentRenderDuration(parent);
   // Customisable parent, no single duration yet: price by the cheapest span the
   // parent can actually offer (parent∩child counts).
@@ -120,7 +120,7 @@ export const childPriceLabel = (
   if (price === 0 && !showZero) return "";
   // A customisable child under a customisable parent (no single duration yet)
   // advertises "from <min day price>"; every other case shows the fixed price.
-  if (child.customisable_days && parentRenderDuration(parent) === null) {
+  if (child.customisableDays && parentRenderDuration(parent) === null) {
     return t("public.ticket.child_from_price", {
       price: formatCurrency(price),
     });
@@ -154,7 +154,7 @@ export const foldReserveByChildId = (
     );
     const combined = pageCombinedChildCapacity(parent, children, page);
     const foldable =
-      combined >= parent.listing.min_quantity ? parent.maxPurchasable : 0;
+      combined >= parent.listing.minQuantity ? parent.maxPurchasable : 0;
     return children.map((child) => [child.listing.id, foldable] as const);
   })(listings);
   return reduce(

@@ -45,10 +45,10 @@ import {
 } from "#types";
 
 const totalAttendeeCount = sumOf(
-  (listing: ListingWithCount) => listing.attendee_count,
+  (listing: ListingWithCount) => listing.attendeeCount,
 );
 const totalTicketCount = sumOf(
-  (listing: ListingWithCount) => listing.tickets_count,
+  (listing: ListingWithCount) => listing.ticketsCount,
 );
 
 const groupAggregateMismatchItems = (
@@ -100,13 +100,13 @@ const GroupAttendeesRow = ({
   attendeeCount: number;
 }): JSX.Element => (
   <LabelledRow label={t("groups.group_attendees")}>
-    {group.max_attendees <= 0 ? (
+    {group.maxAttendees <= 0 ? (
       <>
         {attendeeCount} <small>({t("groups.detail.no_group_cap")})</small>
       </>
     ) : (
       <>
-        <GroupCapacityMeter count={attendeeCount} max={group.max_attendees} />{" "}
+        <GroupCapacityMeter count={attendeeCount} max={group.maxAttendees} />{" "}
         <small>{t("groups.detail.attendees_scope")}</small>
       </>
     )}

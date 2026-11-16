@@ -39,7 +39,7 @@ const listingRosterView = (opts: ListingPanelOptions) => {
     paymentReferenceAttendeeIds = new Set(),
   } = opts;
   const { checkin, date: dateFilter, sort } = list.state;
-  const isDaily = listing.listing_type === "daily";
+  const isDaily = listing.listingType === "daily";
   const hasPaidListing = isPaidListing(listing);
   const {
     incompleteAttendees,

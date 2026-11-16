@@ -91,7 +91,7 @@ const resolveTicketHeader = ({
   // page the customer landed on. Plain listing pages fall back to the listing.
   const headerName = groupName ?? singleListing?.name;
   const headerDescription = groupDescription ?? singleListing?.description;
-  const headerImage = groupImage?.image_url ? groupImage : singleListing;
+  const headerImage = groupImage?.imageUrl ? groupImage : singleListing;
   return {
     headExtra: ticketPageHeadExtra(
       headerImage,
@@ -212,7 +212,7 @@ export const ticketPage = ({
     pagePaid(paidInput),
     pageOrChildPaid({ ...paidInput, childrenByParentId }),
   );
-  const hasDaily = listings.some((e) => e.listing.listing_type === "daily");
+  const hasDaily = listings.some((e) => e.listing.listingType === "daily");
 
   const singleListing = headerListing(listings, packages);
   const isSingleListing = singleListing !== null;

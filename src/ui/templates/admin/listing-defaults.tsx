@@ -199,7 +199,7 @@ export const adminListingDefaultsPage = (
   success?: string,
 ): string => {
   const fields = LISTING_DEFAULT_FIELDS.filter(
-    (field) => field.field !== "uses_logistics" || hasLogistics,
+    (field) => field.field !== "usesLogistics" || hasLogistics,
   );
   const renderField = (field: ListingDefaultField) => (
     <DefaultControl defaults={defaults} field={field} />

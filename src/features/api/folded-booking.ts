@@ -308,7 +308,7 @@ export const processParentApiBooking = async (
   // The API has no day-count input. A customisable parent (priced by a chosen
   // span its children inherit) therefore cannot be booked here, like a
   // customisable standalone listing.
-  if (listing.customisable_days) {
+  if (listing.customisableDays) {
     return apiError("This listing must be booked through the website.");
   }
   const selections = parseApiChildSelections(body);
@@ -375,7 +375,7 @@ export const processParentApiBooking = async (
       items,
       // The fold always starts from this single parent, so its configured
       // thank-you URL is the one a folded order otherwise drops.
-      parentThankYouUrl: listing.thank_you_url,
+      parentThankYouUrl: listing.thankYouUrl,
     },
   );
 };

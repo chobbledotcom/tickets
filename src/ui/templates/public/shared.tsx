@@ -134,7 +134,7 @@ const galleryEntry = (
       type="radio"
     />
     <img
-      alt={image.alt_text || image.name}
+      alt={image.altText || image.name}
       class="news-gallery-full"
       src={getImageProxyUrl(image.filename)}
     />
@@ -142,7 +142,7 @@ const galleryEntry = (
       <label class="news-gallery-thumb" for={`news-gallery-${index}`}>
         <img
           alt={t("public.gallery_thumb", { number: index + 1 })}
-          src={getImageProxyUrl(image.filename_thumb)}
+          src={getImageProxyUrl(image.filenameThumb)}
         />
       </label>
     )}
@@ -221,17 +221,17 @@ export const feedDiscoveryTags = (hasNews: boolean): string =>
   ].join("\n");
 
 /** The `<title>` and head extras for an operator-authored page with SEO
- * fields: the title prefers `meta_title` over the display name (suffixed with
- * the website title), and a non-empty `meta_description` becomes an escaped
+ * fields: the title prefers `metaTitle` over the display name (suffixed with
+ * the website title), and a non-empty `metaDescription` becomes an escaped
  * description tag after the shared feed-discovery links. */
 const seoPageHead = (
-  page: { name: string; meta_title: string; meta_description: string },
+  page: { name: string; metaTitle: string; metaDescription: string },
   websiteTitle: string,
   hasNews: boolean,
 ): { title: string; headExtra: string } => {
-  const base = page.meta_title || page.name;
-  const metaTag = page.meta_description
-    ? `\n<meta name="description" content="${escapeHtml(page.meta_description)}" />`
+  const base = page.metaTitle || page.name;
+  const metaTag = page.metaDescription
+    ? `\n<meta name="description" content="${escapeHtml(page.metaDescription)}" />`
     : "";
   return {
     headExtra: feedDiscoveryTags(hasNews) + metaTag,
@@ -272,7 +272,7 @@ const PublicLayout = ({
 
 export const publicSeoPage =
   (
-    page: { name: string; meta_title: string; meta_description: string },
+    page: { name: string; metaTitle: string; metaDescription: string },
     nav: PublicNavProps,
     websiteTitle: string,
     { showHeading = true }: { showHeading?: boolean } = {},
@@ -360,19 +360,19 @@ export const publicPage =
  * when one is stored, falling back to the full image for records without a
  * thumbnail filename. */
 export const renderListingImage = (
-  listing: Pick<ItemImageColumns, "image_url" | "image_thumb_url"> & {
-    image_alt_text?: string | undefined;
+  listing: Pick<ItemImageColumns, "imageUrl" | "imageThumbUrl"> & {
+    imageAltText?: string | undefined;
   },
   className = "listing-image",
   options: { thumb?: boolean } = {},
 ): string => {
   const src =
-    options.thumb && listing.image_thumb_url
-      ? listing.image_thumb_url
-      : listing.image_url;
+    options.thumb && listing.imageThumbUrl
+      ? listing.imageThumbUrl
+      : listing.imageUrl;
   return src
     ? `<img src="${escapeHtml(getImageProxyUrl(src))}" alt="${escapeHtml(
-        listing.image_alt_text ?? "",
+        listing.imageAltText ?? "",
       )}" class="${className}" />`
     : "";
 };

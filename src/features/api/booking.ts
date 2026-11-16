@@ -56,13 +56,13 @@ const resolveQuantityAndDate = async (
 ): Promise<{ quantity: number; date: string | null } | Response> => {
   const quantity = resolvePositiveQuantity(body);
   if (quantity instanceof Response) return quantity;
-  if (quantityBelowMin(quantity, listing.min_quantity)) {
-    return apiError(bookingError.belowMinimumQuantity(listing.min_quantity));
+  if (quantityBelowMin(quantity, listing.minQuantity)) {
+    return apiError(bookingError.belowMinimumQuantity(listing.minQuantity));
   }
-  if (quantity > listing.max_quantity) {
-    return apiError(bookingError.aboveMaximumQuantity(listing.max_quantity));
+  if (quantity > listing.maxQuantity) {
+    return apiError(bookingError.aboveMaximumQuantity(listing.maxQuantity));
   }
-  if (!countsPerDate(listing.listing_type)) {
+  if (!countsPerDate(listing.listingType)) {
     return { date: null, quantity };
   }
   const availableDates = getAvailableDates(listing, await getActiveHolidays());
@@ -110,7 +110,7 @@ export const handleBook = withActiveListing(async (request, listing) => {
     // Customisable-days listings are priced by a chosen day count, which this
     // endpoint does not accept. Booking them here can charge the wrong
     // amount, so they must be booked through the website form.
-    if (listing.customisable_days) {
+    if (listing.customisableDays) {
       return apiError("This listing must be booked through the website.");
     }
 

@@ -57,18 +57,16 @@ const PriceInput = ({
   listing: ListingWithCount;
   value: string;
 }): JSX.Element => {
-  const hint = listing.can_pay_more
+  const hint = listing.canPayMore
     ? t("listing_qr.price_hint_can_pay_more", {
-        max: formatCurrency(listing.max_price),
-        min: formatCurrency(listing.unit_price),
+        max: formatCurrency(listing.maxPrice),
+        min: formatCurrency(listing.unitPrice),
       })
     : t("listing_qr.price_hint_fixed", {
-        price: formatCurrency(listing.unit_price),
+        price: formatCurrency(listing.unitPrice),
       });
-  const min = listing.can_pay_more ? toMajorUnits(listing.unit_price) : "0";
-  const max = listing.can_pay_more
-    ? toMajorUnits(listing.max_price)
-    : undefined;
+  const min = listing.canPayMore ? toMajorUnits(listing.unitPrice) : "0";
+  const max = listing.canPayMore ? toMajorUnits(listing.maxPrice) : undefined;
   return (
     <label>
       {t("listing_qr.price")}
@@ -166,7 +164,7 @@ export const ListingQrPanel = ({
   error,
   result,
 }: Omit<AdminListingQrPageOptions, "session">): JSX.Element => {
-  const isDaily = listing.listing_type === "daily";
+  const isDaily = listing.listingType === "daily";
   const formAction = `/admin/listing/${listing.id}/qr`;
   const refreshUrl = `/admin/listing/${listing.id}/qr.json`;
   return (
@@ -207,8 +205,8 @@ export const ListingQrPanel = ({
         <label>
           {t("common.quantity")}
           <input
-            max={listing.max_quantity}
-            min={listing.min_quantity}
+            max={listing.maxQuantity}
+            min={listing.minQuantity}
             name="quantity"
             required
             type="number"

@@ -62,7 +62,7 @@ const activeMembersByGroup: LoadGroupMembers = (groupList) =>
  * A regular group offers a hidden member only when it ticked the group's
  * "Show hidden listings" box. */
 const buyerSeesMember = (group: Group, member: ListingWithCount): boolean =>
-  group.is_package || group.show_hidden_listings || !member.hidden;
+  group.isPackage || group.showHiddenListings || !member.hidden;
 
 /** Each group's active members as its public booking page shows them. */
 const publicMembersByGroup: LoadGroupMembers = async (groupList) => {
@@ -80,8 +80,8 @@ const publicMembersByGroup: LoadGroupMembers = async (groupList) => {
 const groupKinds = (
   groupList: readonly Group[],
 ): { packages: Group[]; regular: Group[] } => ({
-  packages: groupList.filter((group) => group.is_package),
-  regular: groupList.filter((group) => !group.is_package),
+  packages: groupList.filter((group) => group.isPackage),
+  regular: groupList.filter((group) => !group.isPackage),
 });
 
 const uniqueMembersFor = (
@@ -167,7 +167,7 @@ const bookablePackageIds = async (
           {
             dayPrices: new Map(),
             groupId: group.id,
-            hideListings: group.hide_package_listings,
+            hideListings: group.hidePackageListings,
             memberListingIds: members.map((member) => member.id),
             prices: maps.prices,
             quantities: maps.quantities,
@@ -279,4 +279,4 @@ export const loadDecidedGroups = async (
 
 /** Packages a public surface can advertise as first-class products. */
 export const loadBookablePackages = async (): Promise<GroupWithMembers[]> =>
-  (await loadDecidedGroups("bookable")).filter(({ group }) => group.is_package);
+  (await loadDecidedGroups("bookable")).filter(({ group }) => group.isPackage);

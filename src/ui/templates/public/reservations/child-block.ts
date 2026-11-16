@@ -56,7 +56,7 @@ const childPriceInput = (
   parent: ListingWithCount,
   child: TicketListing,
 ): string =>
-  child.listing.can_pay_more
+  child.listing.canPayMore
     ? renderPayMoreInput(
         child.listing,
         childPriceFieldName(parent.id, child.listing.id),

@@ -82,9 +82,9 @@ export const getHolidayPages = (): AdminResourcePages<Holiday> =>
     delete: {
       confirm: (holiday) => ({
         args: {
-          end: holiday.end_date,
+          end: holiday.endDate,
           name: escapeHtml(holiday.name),
-          start: holiday.start_date,
+          start: holiday.startDate,
         },
         key: "holidays.delete.confirm",
       }),

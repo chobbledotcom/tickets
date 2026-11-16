@@ -31,7 +31,7 @@ export type TicketCard = {
 
 /** True when every card is a purchase-only listing (no admission ticket). */
 const allCardsPurchaseOnly = (cards: readonly TicketCard[]): boolean =>
-  cards.every((c) => c.entry.listing.purchase_only);
+  cards.every((c) => c.entry.listing.purchaseOnly);
 
 /** Pluralize ticket count */
 const ticketCount = (count: number): string => t("tickets.count", { count });
@@ -93,7 +93,7 @@ const computeBookingDateLabel = (entry: TokenEntry): string =>
   bookedRangeLabel(
     entry.attendee.date,
     entry.attendee.end_date,
-    clampDurationDays(entry.listing.duration_days),
+    clampDurationDays(entry.listing.durationDays),
   );
 
 /** Render the "Add to: …" wallet links section, or "" when purchase-only or no
@@ -146,7 +146,7 @@ const renderPackageCard = (
       c.attachmentUrl,
       (url) =>
         ` <a href="${escapeHtml(url)}" class="attachment-link">${t("tickets.download")} ${escapeHtml(
-          c.entry.listing.attachment_name,
+          c.entry.listing.attachmentName,
         )}</a>`,
     );
   // A hidden package shows no member rows, but must still tell the buyer how many
@@ -170,7 +170,7 @@ const renderPackageCard = (
   // Kept package-level (it never names a member) so a hidden package stays
   // concealed; purchase-only members aren't checked in, so they don't trigger it.
   const nonTransferableHtml = cards.some(
-    (c) => c.entry.listing.non_transferable && !c.entry.listing.purchase_only,
+    (c) => c.entry.listing.nonTransferable && !c.entry.listing.purchaseOnly,
   )
     ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
     : "";
@@ -236,13 +236,13 @@ const renderTicketCard = (
   const modifiersHtml = renderModifiers(modifiers, pricePaid);
 
   const nonTransferableHtml =
-    listing.non_transferable && !listing.purchase_only
+    listing.nonTransferable && !listing.purchaseOnly
       ? `<div class="ticket-card-notice">${t("tickets.non_transferable")}</div>`
       : "";
 
   const walletHtml = renderWalletSection(
     token,
-    listing.purchase_only,
+    listing.purchaseOnly,
     appleWalletEnabled,
     googleWalletEnabled,
   );
@@ -251,7 +251,7 @@ const renderTicketCard = (
     attachmentUrl,
     (url) =>
       `<a href="${escapeHtml(url)}" class="attachment-link">${t("tickets.download")} ${escapeHtml(
-        listing.attachment_name,
+        listing.attachmentName,
       )}</a>`,
   );
 
@@ -268,7 +268,7 @@ const renderTicketCard = (
       ${priceHtml}
       ${modifiersHtml}
       ${attachmentHtml}
-      ${renderQrBlock(token, listing.purchase_only)}
+      ${renderQrBlock(token, listing.purchaseOnly)}
       ${walletHtml}
     </div>
   `;

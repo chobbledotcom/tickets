@@ -43,7 +43,7 @@ const attendeeUrl = (attendeeId: number): string =>
 
 /** The are-you-sure delete page for one note, returning to `returnUrl`. */
 const noteDeleteAction = (note: SystemNote): string =>
-  `/admin/attendee/${note.entity_id}/note/${note.id}/delete`;
+  `/admin/attendee/${note.entityId}/note/${note.id}/delete`;
 
 const deleteNoteUrl = (note: SystemNote, returnUrl: string): string =>
   withReturnUrl(noteDeleteAction(note), returnUrl);
@@ -170,7 +170,7 @@ export const AttendeeNotesSection = ({
   isOwner,
 }: NotesViewProps): JSX.Element | null =>
   NotesSection({
-    deleteHref: (note) => deleteNoteUrl(note, attendeeUrl(note.entity_id)),
+    deleteHref: (note) => deleteNoteUrl(note, attendeeUrl(note.entityId)),
     isOwner,
     notes,
   });

@@ -38,11 +38,11 @@ const LIST_PATH = adminPattern("statuses");
 /** Render one row's flag badges. */
 const statusBadges = (s: AttendeeStatus): JSX.Element => (
   <>
-    {s.is_public_default && <Badge>{t("statuses.badge_public_default")}</Badge>}
-    {s.is_paid_default && <Badge>{t("statuses.badge_paid")}</Badge>}
-    {s.is_reservation && (
+    {s.isPublicDefault && <Badge>{t("statuses.badge_public_default")}</Badge>}
+    {s.isPaidDefault && <Badge>{t("statuses.badge_paid")}</Badge>}
+    {s.isReservation && (
       <Badge>
-        {t("statuses.badge_reservation", { amount: s.reservation_amount })}
+        {t("statuses.badge_reservation", { amount: s.reservationAmount })}
       </Badge>
     )}
   </>
@@ -106,7 +106,7 @@ const renderStatusFields = (
       {checkbox(
         "is_reservation",
         t("statuses.form_reservation_checkbox"),
-        values?.has("is_reservation") ?? status?.is_reservation ?? false,
+        values?.has("is_reservation") ?? status?.isReservation ?? false,
         {
           other: "is_paid_default",
           why: t("statuses.error_paid_default_reservation"),
@@ -115,12 +115,12 @@ const renderStatusFields = (
       {checkbox(
         "is_public_default",
         t("statuses.form_public_default_checkbox"),
-        values?.has("is_public_default") ?? status?.is_public_default ?? false,
+        values?.has("is_public_default") ?? status?.isPublicDefault ?? false,
       )}
       {checkbox(
         "is_paid_default",
         t("statuses.form_paid_default_checkbox"),
-        values?.has("is_paid_default") ?? status?.is_paid_default ?? false,
+        values?.has("is_paid_default") ?? status?.isPaidDefault ?? false,
         {
           other: "is_reservation",
           why: t("statuses.error_paid_default_reservation"),
@@ -133,7 +133,7 @@ const renderStatusFields = (
         name="reservation_amount"
         type="text"
         value={
-          values?.get("reservation_amount") ?? status?.reservation_amount ?? "0"
+          values?.get("reservation_amount") ?? status?.reservationAmount ?? "0"
         }
       />
       <small>

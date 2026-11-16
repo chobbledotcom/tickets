@@ -76,12 +76,12 @@ export const advancedSectionHasValues = (
   listing: ListingWithCount,
   builderEnabled: boolean,
 ): boolean => {
-  if (listing.thank_you_url || listing.webhook_url) return true;
+  if (listing.thankYouUrl || listing.webhookUrl) return true;
   return (
     builderEnabled &&
-    (listing.months_per_unit > 0 ||
-      listing.initial_site_months > 0 ||
-      listing.assign_built_site)
+    (listing.monthsPerUnit > 0 ||
+      listing.initialSiteMonths > 0 ||
+      listing.assignBuiltSite)
   );
 };
 
@@ -91,7 +91,7 @@ export const DurationWarning = ({
   listing: ListingWithCount;
 }): JSX.Element => (
   <div
-    data-duration-original={listing.duration_days}
+    data-duration-original={listing.durationDays}
     hidden
     id="duration-warning"
   >

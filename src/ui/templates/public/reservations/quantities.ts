@@ -20,7 +20,7 @@ import type { TicketPrefill } from "./types.ts";
  *  term each of its units buys. */
 type MonthsListing = Pick<
   ListingWithCount,
-  "assign_built_site" | "initial_site_months" | "months_per_unit"
+  "assignBuiltSite" | "initialSiteMonths" | "monthsPerUnit"
 >;
 
 /** The months one priced unit buys, or undefined when a count is plain. The

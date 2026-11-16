@@ -54,7 +54,7 @@ const singleListingThankYou = async (
 ): Promise<string> => {
   if (!(await pathsShowListings(bookingGroupIds))) return "";
   const listing = await getListingWithCount(listingId);
-  return listing?.thank_you_url.trim() ?? "";
+  return listing?.thankYouUrl.trim() ?? "";
 };
 
 const processSessionAndRedirect = async (

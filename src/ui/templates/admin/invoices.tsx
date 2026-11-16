@@ -111,7 +111,7 @@ export const adminInvoicesPage = ({
       items: invoices.map((invoice) => ({
         // An invoice whose attendee row is gone (hand-edited data only) still
         // lists, without a name, so an operator can find and delete it.
-        attendeeName: attendeeNames.get(invoice.attendee_id) ?? "",
+        attendeeName: attendeeNames.get(invoice.attendeeId) ?? "",
         created: invoice.created,
         id: invoice.id,
         status: invoice.status,

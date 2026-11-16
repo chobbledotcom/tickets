@@ -75,7 +75,7 @@ const validateInvite = async (
   // handoff (e.g. created before self-activation existed) can't be completed and
   // the owner re-invites (such invites expire within a week anyway).
   const adminLevel = await decryptAdminLevel(user);
-  if (adminLevel !== "editor" && !user.invite_wrapped_data_key) {
+  if (adminLevel !== "editor" && !user.inviteWrappedDataKey) {
     return invalidInviteResponse();
   }
 
@@ -136,10 +136,10 @@ const setPasswordRoute = (code: string, user: User) =>
       // Editors activate keyless (no DATA_KEY to unwrap); every other role
       // unwraps the handoff with this invite code and re-wraps it under the new
       // password's KEK. validateInvite guaranteed a handoff for non-editors.
-      const accepted = user.invite_wrapped_data_key
+      const accepted = user.inviteWrappedDataKey
         ? await acceptInvite(
             user.id,
-            user.invite_wrapped_data_key,
+            user.inviteWrappedDataKey,
             code,
             values.password,
           )

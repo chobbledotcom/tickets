@@ -328,7 +328,7 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // prunable processed_payments row), so one leg here means a replay.
     const alreadySettled = await readExists(
       from(tables.transfers).where({
-        event_group: await balanceEventGroup(sessionId),
+        eventGroup: await balanceEventGroup(sessionId),
       }),
     );
     if (alreadySettled) {

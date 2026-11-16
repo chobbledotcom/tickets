@@ -168,7 +168,7 @@ export const ListingEditPanel = ({
           customiseOpen: !!error,
           dayPricesListing: listing,
           durationWarning,
-          useDefaultsChecked: listing.use_defaults,
+          useDefaultsChecked: listing.useDefaults,
           // On the switch page the form carries the organiser's submitted
           // values, so the confirm save still submits the switch it started
           // from. The stored row answers the type radio "Standard".
@@ -213,11 +213,11 @@ export const ListingEditPanel = ({
           warning={t("listings_table.adjust_income_warning")}
         />
       )}
-      {storageEnabled && listing.attachment_name && (
+      {storageEnabled && listing.attachmentName && (
         <div class="attachment-info">
           <p>
             {t("listings_table.current_attachment", {
-              name: listing.attachment_name,
+              name: listing.attachmentName,
             })}
           </p>
           <SaveForm

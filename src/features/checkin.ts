@@ -179,7 +179,7 @@ const handleCheckinGet: TokenMethodHandler = (request, tokens) =>
     const door = isDoorRole(session.adminLevel);
     const canCheckIn =
       door &&
-      entries.some((e) => !e.attendee.refunded && !e.listing.purchase_only);
+      entries.some((e) => !e.attendee.refunded && !e.listing.purchaseOnly);
     return visibleEntries.length === 0
       ? authFailure("html", "forbidden")
       : renderAdminCheckin(request, tokens, visibleEntries, {
@@ -227,7 +227,7 @@ const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
       // listings' rows are excluded too — a package QR shared with a checkable
       // member must not silently mark the no-check-in member as attended.
       const eligibleEntries = filter(
-        (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchase_only,
+        (e: TokenEntry) => !e.attendee.refunded && !e.listing.purchaseOnly,
       )(entries);
 
       if (eligibleEntries.length === 0) {

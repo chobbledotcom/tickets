@@ -12,6 +12,7 @@ import {
   type ListingDefaultKind,
   type ListingDefaults,
   listingDefaultFormClasses,
+  listingDefaultFormName,
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import type { ListingTemplate } from "#shared/listing-templates.ts";
@@ -25,8 +26,8 @@ const formatDatetimeLocal = (iso: string | null): string | null =>
   iso ? utcToLocalInput(iso, settings.timezone) : null;
 
 export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
-  const max = listing ? clampDurationDays(listing.duration_days) : 1;
-  const prices = listing?.day_prices ?? {};
+  const max = listing ? clampDurationDays(listing.durationDays) : 1;
+  const prices = listing?.dayPrices ?? {};
   const rows = Array.from({ length: max }, (_, i) => i + 1)
     .map((n) => {
       const stored = prices[n];
@@ -54,16 +55,16 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
 const listingFieldFormatters: Partial<
   Record<keyof ListingWithCount, (e: ListingWithCount) => string | null>
 > = {
-  bookable_days: (e) => formatBookableDays(e.bookable_days),
-  closes_at: (e) => formatDatetimeLocal(e.closes_at),
+  bookableDays: (e) => formatBookableDays(e.bookableDays),
+  closesAt: (e) => formatDatetimeLocal(e.closesAt),
   date: (e) => (e.date ? formatDatetimeLocal(e.date) : null),
-  initial_site_months: (e) =>
-    e.initial_site_months ? String(e.initial_site_months) : "",
-  max_price: (e) => toMajorUnits(e.max_price),
-  months_per_unit: (e) => (e.months_per_unit ? String(e.months_per_unit) : ""),
-  recurring_price: (e) =>
-    e.recurring_price > 0 ? toMajorUnits(e.recurring_price) : "",
-  unit_price: (e) => toMajorUnits(e.unit_price),
+  initialSiteMonths: (e) =>
+    e.initialSiteMonths ? String(e.initialSiteMonths) : "",
+  maxPrice: (e) => toMajorUnits(e.maxPrice),
+  monthsPerUnit: (e) => (e.monthsPerUnit ? String(e.monthsPerUnit) : ""),
+  recurringPrice: (e) =>
+    e.recurringPrice > 0 ? toMajorUnits(e.recurringPrice) : "",
+  unitPrice: (e) => toMajorUnits(e.unitPrice),
 };
 
 export const listingToFieldValues = (listing: ListingWithCount): FieldValues =>
@@ -94,7 +95,7 @@ const defaultFieldValue = (
 export const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues =>
   Object.fromEntries(
     setListingDefaultFields(defaults).map((field) => [
-      field.field,
+      listingDefaultFormName(field),
       defaultFieldValue(field, defaults[field.key]),
     ]),
   );

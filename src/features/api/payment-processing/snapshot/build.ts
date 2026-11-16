@@ -42,7 +42,7 @@ const packagePricing = (
 ): Map<number, RegistrationPackagePricing> =>
   new Map(
     groups.map((group) => {
-      const members = memberships.filter((row) => row.group_id === group.id);
+      const members = memberships.filter((row) => row.groupId === group.id);
       const memberDayPrices = dayPrices.filter(
         (row) => row.groupId === group.id,
       );
@@ -58,7 +58,7 @@ const packagePricing = (
               ],
             ),
           ),
-          memberIds: new Set(members.map((row) => row.listing_id)),
+          memberIds: new Set(members.map((row) => row.listingId)),
           priceMap: memberMaps.prices,
           quantityMap: memberMaps.quantities,
         },

@@ -121,7 +121,7 @@ const owesEmailSend = (listings: readonly ListingWithCount[]): boolean => {
 /** Whether any booked listing has a registration webhook, so a webhook send is
  * owed. */
 const owesWebhookSend = (listings: readonly ListingWithCount[]): boolean => {
-  const urls = listings.map((listing) => listing.webhook_url);
+  const urls = listings.map((listing) => listing.webhookUrl);
   return urls.some((url) => url !== "");
 };
 
@@ -130,12 +130,12 @@ const owesWebhookSend = (listings: readonly ListingWithCount[]): boolean => {
  * rather than bound as an argument. */
 const flagStatement =
   (
-    column: "email_pending" | "webhooks_pending",
+    column: "emailPending" | "webhooksPending",
     value: PendingNotificationFlag,
   ): ((tokenIndex: string) => SqlStatement) =>
   (tokenIndex) =>
     update(tables.attendees, { [column]: literal(value) }).where({
-      ticket_token_index: tokenIndex,
+      ticketTokenIndex: tokenIndex,
     });
 
 export type PaidBookingTail = {
@@ -221,10 +221,10 @@ export const paidBookingTail = async ({
   ]);
 
   const emailPending = owesEmailSend(listings)
-    ? flagStatement("email_pending", PENDING_NOTIFICATION.online)
+    ? flagStatement("emailPending", PENDING_NOTIFICATION.online)
     : null;
   const webhooksPending = owesWebhookSend(listings)
-    ? flagStatement("webhooks_pending", PENDING_NOTIFICATION.online)
+    ? flagStatement("webhooksPending", PENDING_NOTIFICATION.online)
     : null;
 
   return {
