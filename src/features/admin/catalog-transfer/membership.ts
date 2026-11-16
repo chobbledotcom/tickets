@@ -8,12 +8,9 @@
 
 import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlInsertRowsOrNull,
-  sqlLiteral,
-} from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { insertingAll } from "#db/write.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
@@ -54,35 +51,34 @@ export type ImportedMembership = {
 export const membershipStatements = (
   memberships: readonly ImportedMembership[],
 ): SqlStatement[] => {
-  const memberRows = memberships.map((m) => [
-    m.groupId,
-    m.listingId,
-    m.quantity,
-  ]);
+  const memberRows = memberships.map((m) => ({
+    group_id: m.groupId,
+    listing_id: m.listingId,
+    quantity: m.quantity,
+  }));
   // A `null` package price means "no override" — write no `group` row for it.
   const flatRows = memberships.flatMap((m) =>
     m.packagePrice === null
       ? []
-      : [[m.listingId, PRICE_TYPE_GROUP, String(m.groupId), m.packagePrice]],
+      : [
+          {
+            listing_id: m.listingId,
+            price_id: String(m.groupId),
+            price_type: PRICE_TYPE_GROUP,
+            unit_price: m.packagePrice,
+          },
+        ],
   );
   const dayRows = memberships.flatMap((m) =>
-    Object.entries(parseDayPrices(m.dayPrices)).map(([days, price]) => [
-      m.listingId,
-      PRICE_TYPE_GROUP_DAY,
-      `${m.groupId}/${days}`,
-      price,
-    ]),
+    Object.entries(parseDayPrices(m.dayPrices)).map(([days, price]) => ({
+      listing_id: m.listingId,
+      price_id: `${m.groupId}/${days}`,
+      price_type: PRICE_TYPE_GROUP_DAY,
+      unit_price: price,
+    })),
   );
   return [
-    sqlInsertRowsOrNull(
-      "group_listings",
-      ["group_id", "listing_id", "quantity"],
-      memberRows,
-    ),
-    sqlInsertRowsOrNull(
-      "listing_prices",
-      ["listing_id", "price_type", "price_id", "unit_price"],
-      [...flatRows, ...dayRows],
-    ),
-  ].filter((stmt): stmt is SqlStatement => stmt !== null);
+    ...insertingAll(tables.group_listings, memberRows),
+    ...insertingAll(tables.listing_prices, [...flatRows, ...dayRows]),
+  ];
 };

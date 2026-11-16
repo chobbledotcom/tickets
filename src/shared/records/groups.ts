@@ -5,7 +5,6 @@
 
 import type { InValue } from "@libsql/client";
 import { executeBatch } from "#db/client.ts";
-import { deleteById } from "#db/delete-row.ts";
 import {
   clearExternalLinksStatement,
   externalLinkTargets,
@@ -30,8 +29,10 @@ import {
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
+import { tables } from "#db/select/tables.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sql } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import type { GroupInput } from "#shared/records/group-fields.ts";
@@ -120,7 +121,7 @@ export const deleteGroup = async (id: InValue) => {
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
     noteDeleteStatement("group", sql`${groupId}`),
-    deleteById("groups", groupId),
+    deleteFrom(tables.groups).where({ id: groupId }),
   ]);
 };
 

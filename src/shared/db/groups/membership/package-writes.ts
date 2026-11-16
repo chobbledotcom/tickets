@@ -23,11 +23,12 @@ import { hasPackageBookingsTx, setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { sql } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
   TransactionValidationError,
 } from "#db/transaction.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { byId, compact, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { groupLeavingOrphanedAddOnError } from "#shared/add-on-reachability.ts";
@@ -179,11 +180,15 @@ const groupListingAssignmentStatements = (
   listingIds: readonly number[],
   groupId: number,
 ) =>
-  listingIds.map(
-    (listingId) =>
-      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id)
-              SELECT ${groupId}, ${listingId}
-               WHERE EXISTS (SELECT 1 FROM listings WHERE id = ${listingId})`,
+  listingIds.map((listingId) =>
+    insertInto(
+      tables.group_listings,
+      { group_id: groupId, listing_id: listingId },
+      {
+        or: "IGNORE",
+        when: from(tables.listings).where({ id: listingId }).exists(),
+      },
+    ),
   );
 
 /** A membership write over one group: which listings, and the group they join
@@ -283,7 +288,10 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     const orphanError = await groupLeavingOrphanedAddOnError(leaving, tx);
     if (orphanError) return orphanError;
     await tx.batch([
-      sql`DELETE FROM group_listings WHERE group_id = ${groupId} AND listing_id IN (${sqlList(ids)})`,
+      deleteFrom(tables.group_listings).where({
+        group_id: groupId,
+        listing_id: ids,
+      }),
       ...compact([removeGroupPricesStatement(ids, [groupId])]),
     ]);
     return null;

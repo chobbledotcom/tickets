@@ -9,6 +9,7 @@ import {
   cancelInvoiceStatement,
   markOpenInvoicesPaidStatement,
 } from "#db/invoices.ts";
+import { literal } from "#db/select/expression.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import {
   corruptOneFact,
@@ -209,7 +210,7 @@ const updateAccepted = async (
         ? cancelInvoiceStatement(slot)
         : markOpenInvoicesPaidStatement(
             ATTENDEE_ID,
-            sql`1`,
+            literal(1),
             guardMatched ? 1 : 0,
           ),
     )

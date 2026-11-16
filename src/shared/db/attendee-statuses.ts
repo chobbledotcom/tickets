@@ -19,14 +19,15 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
-import { deleteById } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { equal, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { CountRow } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
@@ -248,9 +249,10 @@ const clearChosenDefaults = async (
   ): Promise<void> => {
     await executeStatusWrite(
       tx,
-      sql`UPDATE attendee_statuses AS status
-               SET ${sqlName(column)} = 0
-             WHERE (${id} IS NULL OR status.id != ${id}) AND ${sqlName(`status.${column}`)} = 1`,
+      update(tables.attendee_statuses, { [column]: 0 }).where((status) => [
+        id === null ? true : notEqual(status.id, id),
+        equal(status[column], 1),
+      ]),
     );
   };
   if (input.isPublicDefault) {
@@ -366,7 +368,9 @@ const reassignHeldAttendees = async (
   const names = await reassignNameRows(tx, id, reassignTo);
   if (names === null) return null;
   await tx.execute(
-    sql`UPDATE attendees AS attendee SET status_id = ${reassignTo} WHERE attendee.status_id = ${id}`,
+    update(tables.attendees, { status_id: reassignTo }).where({
+      status_id: id,
+    }),
   );
   await logActivity(
     `${held} attendee(s) moved from status '${names.fromName}' to '${names.toName}'`,
@@ -401,7 +405,7 @@ const deleteStatus = (
       return errorResult("status_in_use");
     }
 
-    await tx.execute(deleteById("attendee_statuses", id));
+    await tx.execute(deleteFrom(tables.attendee_statuses).where({ id }));
     return okResult(undefined);
   });
 
@@ -443,6 +447,8 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     sortOrder: 0,
   });
   await execute(
-    sql`UPDATE attendees AS attendee SET status_id = ${status.id} WHERE attendee.status_id IS NULL`,
+    update(tables.attendees, { status_id: status.id }).where({
+      status_id: null,
+    }),
   );
 };

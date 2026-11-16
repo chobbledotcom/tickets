@@ -18,7 +18,6 @@ import {
   requireOne,
   resultRows,
   type TxScope,
-  update,
 } from "#db/client.ts";
 import {
   type AggregateRecalculation,
@@ -39,6 +38,7 @@ import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
+import { update } from "#db/write.ts";
 import { emptyListsFor, mapParallel, requiredMapValue } from "#fp";
 import type {
   CalcKind,
@@ -308,9 +308,11 @@ export const setModifierAnswers = (
   answerIds: number[],
 ): Promise<void> =>
   executeBatch([
-    update("answers", { modifier_id: null }, { modifier_id: modifierId }),
+    update(tables.answers, { modifier_id: null }).where({
+      modifier_id: modifierId,
+    }),
     ...answerIds.map((id) =>
-      update("answers", { modifier_id: modifierId }, { id }),
+      update(tables.answers, { modifier_id: modifierId }).where({ id }),
     ),
   ]);
 

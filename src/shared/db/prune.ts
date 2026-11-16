@@ -6,8 +6,18 @@ import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
+import {
+  among,
+  equal,
+  inQuery,
+  inStatement,
+  notEqual,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
@@ -180,7 +190,9 @@ const orphanStatements = (): PruneStatement[] => {
   );
   return [
     ...attendeeRemovalStatements(orphanIds),
-    sql`DELETE FROM attendees WHERE id IN (${orphanIds})`,
+    deleteFrom(tables.attendees).where((attendee) =>
+      inStatement(attendee.id, orphanIds),
+    ),
   ];
 };
 
@@ -234,22 +246,26 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const unactivatedIds = sql`SELECT id FROM users
-    WHERE id IN (${sqlList(ids)})
-      AND wrapped_data_key IS NULL
-      AND password_hash = ''
-      AND invite_expiry IS NOT NULL`;
+  const unactivatedIds = from(tables.users)
+    .where((user) => [
+      among(user.id, ids),
+      equal(user.wrapped_data_key, null),
+      equal(user.password_hash, ""),
+      notEqual(user.invite_expiry, null),
+    ])
+    .values((user) => user.id);
   return [
-    { field: "user_id", table: "api_keys" },
-    { field: "user_id", table: "sessions" },
-    { field: "user_id", table: "user_logistics_agents" },
-    { field: "id", table: "users" },
-  ].map(
-    ({ field, table }) =>
-      sql`DELETE FROM ${sqlName(table)} WHERE ${sqlName(
-        field,
-      )} IN (${unactivatedIds})`,
-  );
+    deleteFrom(tables.api_keys).where((key) =>
+      inQuery(key.user_id, unactivatedIds),
+    ),
+    deleteFrom(tables.sessions).where((session) =>
+      inQuery(session.user_id, unactivatedIds),
+    ),
+    deleteFrom(tables.user_logistics_agents).where((link) =>
+      inQuery(link.user_id, unactivatedIds),
+    ),
+    deleteFrom(tables.users).where((user) => inQuery(user.id, unactivatedIds)),
+  ];
 };
 
 const lastResultIndexes = (batches: PruneStatement[][]): number[] =>

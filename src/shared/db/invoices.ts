@@ -1,6 +1,5 @@
 /** Invoice storage: the frozen body, the status, and the share token. */
 
-import type { InValue } from "@libsql/client";
 import { encryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
@@ -12,10 +11,13 @@ import type {
 import { generateSecureToken } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
+import { type Counted, type Expr, equal } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { type RowFilter, readById } from "#db/table-reader.ts";
+import { update } from "#db/write.ts";
 import { invoiceBodyKey } from "#shared/invoices/seal.ts";
 import type { InvoiceStatus } from "#shared/invoices/status.ts";
 
@@ -147,7 +149,7 @@ export const createInvoice = async ({
 /** The statement that moves one new invoice to cancelled, and no other
  *  row. */
 export const cancelInvoiceStatement = (id: number): SqlStatement =>
-  sql`UPDATE invoices SET status = 'cancelled' WHERE id = ${id} AND status = 'new'`;
+  update(tables.invoices, { status: "cancelled" }).where({ id, status: "new" });
 
 /** Move one new invoice to cancelled. False when it was not new. */
 export const cancelInvoice = async (id: number): Promise<boolean> =>
@@ -164,7 +166,11 @@ export const deleteInvoice: (id: number) => Promise<void> = (id) =>
  */
 export const markOpenInvoicesPaidStatement = (
   attendeeId: number,
-  owedSql: SqlStatement,
-  expectedAmount: InValue,
-): SqlStatement => sql`UPDATE invoices SET status = 'paid'
-         WHERE attendee_id = ${attendeeId} AND status = 'new' AND ${owedSql} = ${expectedAmount}`;
+  owed: Expr<Counted>,
+  expectedAmount: number,
+): SqlStatement =>
+  update(tables.invoices, { status: "paid" }).where((invoice) => [
+    equal(invoice.attendee_id, attendeeId),
+    equal(invoice.status, "new"),
+    equal(owed, expectedAmount),
+  ]);

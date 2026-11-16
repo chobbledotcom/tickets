@@ -11,7 +11,10 @@ export type Filling = "given" | "optional";
 
 /** A column's type in SQL, the value a stored row holds in that column, and
  *  whether a new row must give that value. */
-export type ColumnKind<Stored, Fill extends Filling = "given"> = SqlStatement & {
+export type ColumnKind<
+  Stored,
+  Fill extends Filling = "given",
+> = SqlStatement & {
   readonly [STORED]: Stored;
   readonly [FILL]: Fill;
 };

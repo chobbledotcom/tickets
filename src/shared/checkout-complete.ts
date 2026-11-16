@@ -24,8 +24,10 @@ import type {
   AttendeeCreationWork,
   BookingBatchPlan,
 } from "#db/attendees/create.ts";
-import { type TxScope, update } from "#db/client.ts";
+import type { TxScope } from "#db/client.ts";
 import type { ModifierUsage } from "#db/modifier-usage.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   type BookingLedgerContext,
@@ -91,11 +93,9 @@ export const postBookingLegsTx = async (
     // per ORDER: a row this order never created (an earlier order's line, a
     // merge-moved row) keeps the group it was stamped with.
     await tx.execute(
-      update(
-        "listing_attendees",
-        { ledger_event_group: legs[0]!.eventGroup },
-        { attendee_id: attendeeId, ledger_event_group: "" },
-      ),
+      update(tables.listing_attendees, {
+        ledger_event_group: legs[0]!.eventGroup,
+      }).where({ attendee_id: attendeeId, ledger_event_group: "" }),
     );
   }
 };
@@ -208,11 +208,10 @@ export const apiCreateLedgerPoster =
     // later refund reconciliation reads.
     if (legs.length === 0) {
       await tx.execute(
-        update(
-          "listing_attendees",
-          { ledger_event_group: group },
-          { attendee_id: attendeeId, ledger_event_group: "" },
-        ),
+        update(tables.listing_attendees, { ledger_event_group: group }).where({
+          attendee_id: attendeeId,
+          ledger_event_group: "",
+        }),
       );
     }
     await postInitialTaxAssessmentTx(

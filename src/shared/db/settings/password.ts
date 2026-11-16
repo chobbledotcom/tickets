@@ -16,8 +16,9 @@ import {
 } from "#crypto/keys.ts";
 import type { PasswordHash, WrappedKey } from "#crypto/sealed.ts";
 import { execute } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { deleteAllSessions } from "#db/sessions.ts";
-import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 export const updateUserPassword = async (
   userId: number,
@@ -49,7 +50,11 @@ export const updateUserPassword = async (
     newHash,
   );
   await execute(
-    sql`UPDATE users SET password_hash = ${encryptedNewHash}, wrapped_data_key = ${newWrappedDataKey}, kek_version = 2 WHERE id = ${userId}`,
+    update(tables.users, {
+      kek_version: 2,
+      password_hash: encryptedNewHash,
+      wrapped_data_key: newWrappedDataKey,
+    }).where({ id: userId }),
   );
   await deleteAllSessions();
   return true;

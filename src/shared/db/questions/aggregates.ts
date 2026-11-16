@@ -16,6 +16,7 @@ import { rowsByIds, rowsByIdsPrimary } from "#db/query.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { map } from "#fp";
 
 /** The owner-editable, trigger-maintained aggregate columns on an answer. */
@@ -104,6 +105,6 @@ export const setAnswerModifier = async (
   modifierId: number | null,
 ): Promise<void> => {
   await execute(
-    sql`UPDATE answers SET modifier_id = ${modifierId} WHERE id = ${answerId}`,
+    update(tables.answers, { modifier_id: modifierId }).where({ id: answerId }),
   );
 };

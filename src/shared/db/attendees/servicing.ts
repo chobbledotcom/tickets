@@ -34,7 +34,11 @@ import {
   type AttendeeAnswerSet,
   saveAttendeeAnswers,
 } from "#db/questions/attendee-answers/save.ts";
+import { valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList, sqlLiteral } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { requiredMapValue, sumByKey, sumOf, unique } from "#fp";
 import {
   type AttendeeUpdateFailureReason,
@@ -656,8 +660,23 @@ export const recordServiceCost = async (
   // stale; the SELECT always resolves to the correct row regardless.
   await withTransaction(async (tx) => {
     await postTransfersTx(tx, [transfer]);
+    const posted = from(tables.transfers).where({
+      reference: transfer.reference,
+    });
     await tx.execute(
-      sql`INSERT OR IGNORE INTO service_costs (servicing_attendee_id, listing_id, transfer_id, occurred_at, memo, created) SELECT ${input.servicingId}, ${input.listingId}, id, ${input.occurredAt}, ${encryptedMemo}, ${nowIso()} FROM transfers WHERE reference = ${transfer.reference}`,
+      insertInto(
+        tables.service_costs,
+        {
+          created: nowIso(),
+          listing_id: input.listingId,
+          memo: encryptedMemo,
+          occurred_at: input.occurredAt,
+          servicing_attendee_id: input.servicingId,
+          // The guard keeps the one transfer of this unique reference.
+          transfer_id: valued<number>(posted.scalar((leg) => leg.id)),
+        },
+        { or: "IGNORE", when: posted.exists() },
+      ),
     );
   });
   const row = await requireOne<{ id: number }>(

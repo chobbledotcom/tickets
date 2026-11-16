@@ -17,14 +17,14 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type Condition, whereTail } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteWhere } from "#db/where-clauses.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
@@ -178,7 +178,12 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     transaction: tx,
   });
   await tx.execute(
-    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${next})`,
+    insertInto(tables.site_page_items, {
+      item_id: itemId,
+      item_type: itemType,
+      page_id: pageId,
+      sort_order: next,
+    }),
   );
   return true;
 };
@@ -192,7 +197,7 @@ const itemDeleteStatement = (
   itemType: SitePageItemType,
   itemId: number,
 ): SqlStatement =>
-  deleteWhere("site_page_items")(
+  deleteFrom(tables.site_page_items).where(() =>
     itemOnPage(pageId, sitePageItemTargets.of(itemType)(itemId)),
   );
 
@@ -221,8 +226,8 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    deleteFrom("site_page_items", { page_id: pageId }),
+    deleteFrom(tables.site_page_items).where({ page_id: pageId }),
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
-    deleteById("site_pages", pageId),
+    deleteFrom(tables.site_pages).where({ id: pageId }),
   ]);

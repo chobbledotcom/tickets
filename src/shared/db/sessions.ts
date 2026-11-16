@@ -4,16 +4,13 @@
 
 import { hashSessionToken } from "#crypto/hashing.ts";
 import type { WrappedKey } from "#crypto/sealed.ts";
-import {
-  deleteByField,
-  execute,
-  insert,
-  queryAll,
-  queryOne,
-} from "#db/client.ts";
+import { execute, queryAll, queryOne } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import { notEqual } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlNames } from "#db/sql.ts";
 import type { UserAuthFields } from "#db/users.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { ttlCache } from "#fp";
 import {
   type CacheInvalidation,
@@ -89,7 +86,7 @@ export const createSession = async (
     user_id: userId,
     wrapped_data_key: wrappedDataKey,
   };
-  await execute(insert("sessions", session));
+  await execute(insertInto(tables.sessions, session));
   // Pre-cache the new session using token hash as key
   cacheSession(tokenHash, session);
 };
@@ -195,14 +192,14 @@ export const getSessionWithUser = async (
  */
 export const deleteSession = async (token: string): Promise<void> => {
   const tokenHash = await hashSessionToken(token);
-  await deleteByField("sessions", "token", tokenHash);
+  await execute(deleteFrom(tables.sessions).where({ token: tokenHash }));
 };
 
 /**
  * Delete all sessions (used when password is changed)
  */
 export const deleteAllSessions = async (): Promise<void> => {
-  await execute(sql`DELETE FROM sessions`);
+  await execute(deleteFrom(tables.sessions).everyRow());
 };
 
 /**
@@ -222,7 +219,11 @@ export const deleteOtherSessions = async (
 ): Promise<void> => {
   const tokenHash = await hashSessionToken(currentToken);
   const currentSession = await getSession(currentToken);
-  await execute(sql`DELETE FROM sessions WHERE token != ${tokenHash}`);
+  await execute(
+    deleteFrom(tables.sessions).where((session) =>
+      notEqual(session.token, tokenHash),
+    ),
+  );
 
   // The write invalidation clears every entry; the unchanged current session
   // can be restored without another database read.

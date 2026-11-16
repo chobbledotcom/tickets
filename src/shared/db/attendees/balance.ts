@@ -27,7 +27,8 @@ import { remainingBalanceFromLedger } from "#db/attendees/select.ts";
 import { executeBatchWithResults, queryOne } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
 import { readBatch } from "#db/read.ts";
-import { tableNode } from "#db/select/query.ts";
+import { equal, inQuery } from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   type RowsStatement,
@@ -35,6 +36,7 @@ import {
   sql,
   typedSql,
 } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -207,16 +209,24 @@ export const settleAttendeeBalance = async (
     // Verdict (first statement): a harmless self-update while they still owe
     // the expected amount. A mismatched or already-settled balance matches 0
     // rows.
-    sql`UPDATE attendees SET status_id = status_id WHERE id = ${attendeeId} AND ${owed} = ${expectedAmount}`,
+    update(tables.attendees, (attendee) => ({
+      status_id: attendee.status_id,
+    })).where((attendee) => [
+      equal(attendee.id, attendeeId),
+      equal(owed, expectedAmount),
+    ]),
     // Lifecycle move: only reservations advance to the paid default. Other
     // statuses are operator-owned and stay put once their balance is cleared.
-    sql`UPDATE attendees SET status_id = COALESCE(${paid.id}, status_id)
-             WHERE id = ${attendeeId}
-               AND status_id IN (
-                 SELECT status.id FROM attendee_statuses AS status
-                  WHERE status.is_reservation = 1
-               )
-               AND ${owed} = ${expectedAmount}`,
+    update(tables.attendees, { status_id: paid.id }).where((attendee) => [
+      equal(attendee.id, attendeeId),
+      inQuery(
+        attendee.status_id,
+        from(tables.attendee_statuses)
+          .where({ is_reservation: 1 })
+          .values((status) => status.id),
+      ),
+      equal(owed, expectedAmount),
+    ]),
     ...extraStatements,
     // An invoice bills this attendee's outstanding balance. Clearing that
     // balance closes the open invoice in the same transaction.

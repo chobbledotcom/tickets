@@ -28,7 +28,7 @@ type PriceRow = readonly [number, string, string, number];
 
 /** The insert every full-replace dimension writes: one multi-row VALUES. */
 const priceInsertSql = (rowCount: number) =>
-  `INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES ${Array.from(
+  `INSERT INTO listing_prices (listing_id, price_id, price_type, unit_price) VALUES ${Array.from(
     { length: rowCount },
     () => "(?, ?, ?, ?)",
   ).join(", ")}`;
@@ -47,18 +47,26 @@ const expectScopedReplace = (
 ): void => {
   const expected = [{ args: [...deleteArgs], sql: deleteSql }];
   if (rows.length > 0) {
-    expected.push({ args: rows.flat(), sql: priceInsertSql(rows.length) });
+    expected.push({
+      args: rows.flatMap(([listingId, type, key, price]) => [
+        listingId,
+        key,
+        type,
+        price,
+      ]),
+      sql: priceInsertSql(rows.length),
+    });
   }
   expect(stmts.map((stmt) => placed(stmt))).toEqual(expected);
 };
 
 /** The delete every day-count replace scopes on the listing row. */
 const dayCountDelete =
-  "DELETE FROM listing_prices WHERE listing_id = ? AND price_type = ?";
+  "DELETE FROM listing_prices WHERE listing_prices.listing_id = ? AND listing_prices.price_type = ?";
 
 /** The delete every group day-price replace scopes on the group's LIKE prefix. */
 const groupDayDelete =
-  "DELETE FROM listing_prices WHERE price_type = ? AND price_id LIKE ?";
+  "DELETE FROM listing_prices WHERE listing_prices.price_type = ? AND listing_prices.price_id LIKE ?";
 
 /** Assert the group day-price replace for `groupId` writes exactly `rows`. */
 const expectGroupDayReplace = (
@@ -155,6 +163,10 @@ describe("groupDayPriceStatements", () => {
   }
 });
 
+/** The delete every flat group price replace scopes on the exact price_id. */
+const groupFlatDelete =
+  "DELETE FROM listing_prices WHERE listing_prices.price_id = ? AND listing_prices.price_type = ?";
+
 describe("groupFlatPriceStatements", () => {
   test("emits a group-scoped delete, then ONE multi-row insert for all overrides", () => {
     // A positive override and an explicit free (0) both get a row.
@@ -164,8 +176,8 @@ describe("groupFlatPriceStatements", () => {
         { listingId: 6, price: 0 },
       ]),
       // The delete scopes to this group's flat rows by exact price_id (not LIKE).
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
-      ["group", "12"],
+      groupFlatDelete,
+      ["12", "group"],
       [
         [5, "group", "12", 1500],
         [6, "group", "12", 0],
@@ -181,18 +193,17 @@ describe("groupFlatPriceStatements", () => {
         { listingId: 10 },
         { listingId: 11, price: 250 },
       ]),
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
-      ["group", "3"],
+      groupFlatDelete,
+      ["3", "group"],
       [[11, "group", "3", 250]],
     );
   });
 
   test("emits only the group-scoped delete when there are no members", () => {
-    expectScopedReplace(
-      groupFlatPriceStatements(7, []),
-      "DELETE FROM listing_prices WHERE price_type = ? AND price_id = ?",
-      ["group", "7"],
-    );
+    expectScopedReplace(groupFlatPriceStatements(7, []), groupFlatDelete, [
+      "7",
+      "group",
+    ]);
   });
 });
 
@@ -211,8 +222,8 @@ describe("removeGroupPricesStatement", () => {
     // trailing "/" keeps group 1's glob from matching group 12's price_ids).
     expect(placed(stmt).args).toEqual([5, "1", "12", "1/%", "12/%"]);
     expectIncludesAll(placed(stmt).sql, [
-      "price_type = 'group' AND price_id IN (?, ?)",
-      "price_id LIKE ? OR price_id LIKE ?",
+      "listing_prices.price_type = 'group' AND listing_prices.price_id IN (?, ?)",
+      "listing_prices.price_id LIKE ? OR listing_prices.price_id LIKE ?",
     ]);
   });
 

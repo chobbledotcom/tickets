@@ -14,7 +14,13 @@ import { placed } from "#test-utils/sql-text.ts";
 describe("insertInto", () => {
   test("adds one row with its values bound", () => {
     expect(
-      placed(insertInto(tables.holidays, { end_date: "b", name: "n", start_date: "a" })),
+      placed(
+        insertInto(tables.holidays, {
+          end_date: "b",
+          name: "n",
+          start_date: "a",
+        }),
+      ),
     ).toEqual({
       args: ["b", "n", "a"],
       sql: "INSERT INTO holidays (end_date, name, start_date) VALUES (?, ?, ?)",
@@ -45,13 +51,15 @@ describe("insertInto", () => {
     expect(() =>
       insertInto(tables.listing_parents, [
         { child_listing_id: 1, parent_listing_id: 2 },
-        { parent_listing_id: 2, child_listing_id: 3 },
+        { child_listing_id: 3, parent_listing_id: 2 },
       ]),
     ).toThrow("must name the same columns in the same order");
   });
 
   test("refuses an empty list of rows and a row with no column", () => {
-    expect(() => insertInto(tables.settings, [] as never)).toThrow("has no row");
+    expect(() => insertInto(tables.settings, [] as never)).toThrow(
+      "has no row",
+    );
     expect(() => insertInto(tables.holidays, {} as never)).toThrow(
       "names no column",
     );
@@ -130,8 +138,11 @@ describe("insertInto", () => {
 
   test("reads back the named columns of each written row", () => {
     expect(
-      insertInto(tables.holidays, { end_date: "b", name: "n", start_date: "a" })
-        .returning("id", "name").sql,
+      insertInto(tables.holidays, {
+        end_date: "b",
+        name: "n",
+        start_date: "a",
+      }).returning("id", "name").sql,
     ).toBe(
       "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id, name",
     );
@@ -141,7 +152,9 @@ describe("insertInto", () => {
 describe("update", () => {
   test("changes the matched rows", () => {
     expect(
-      placed(update(tables.settings, { value: "v" }).where({ key: ["a", "b"] })),
+      placed(
+        update(tables.settings, { value: "v" }).where({ key: ["a", "b"] }),
+      ),
     ).toEqual({
       args: ["v", "a", "b"],
       sql: "UPDATE settings SET value = ? WHERE settings.key IN (?, ?)",
@@ -176,9 +189,7 @@ describe("update", () => {
 describe("deleteFrom", () => {
   test("removes the matched rows and can read them back", () => {
     expect(
-      deleteFrom(tables.sessions)
-        .where({ token: "t" })
-        .returning("token").sql,
+      deleteFrom(tables.sessions).where({ token: "t" }).returning("token").sql,
     ).toBe("DELETE FROM sessions WHERE sessions.token = ?1 RETURNING token");
   });
 

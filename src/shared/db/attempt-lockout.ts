@@ -7,17 +7,16 @@
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
-import {
-  deleteByField,
-  execute,
-  executeReturningRow,
-  queryOne,
-} from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import { execute, executeReturningRow, queryOne } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { nowMs } from "#shared/now.ts";
 
 type StoredLockout = { locked_until: number | null };
+
+/** The tables that lock an IP out. */
+type AttemptTable = "login_attempts" | "token_attempts";
 
 /** Build a limiter's attempt recorder from its single-statement upsert.
  * The statement must count the attempt AND
@@ -37,7 +36,7 @@ export const makeAttemptRecorder =
  * only the lockout column; a missing row (no attempts yet) reads as not
  * limited, and an expired lockout is cleaned up on the way. */
 export const isIpLockedOut = async (
-  table: string,
+  table: AttemptTable,
   hashedIp: string,
 ): Promise<boolean> => {
   const row = await queryOne<StoredLockout>(
@@ -50,15 +49,16 @@ export const isIpLockedOut = async (
  * row (found by its one-way hash). Used on success so legitimate users leave
  * no fingerprint, and by tests to reset state. */
 export const clearAttemptsFor =
-  (table: string): ((ip: string) => Promise<void>) =>
-  async (ip: string): Promise<void> =>
-    deleteByField(table, "ip", await hmacHash(ip));
+  (table: AttemptTable): ((ip: string) => Promise<void>) =>
+  async (ip: string): Promise<void> => {
+    await execute(deleteFrom(tables[table]).where({ ip: await hmacHash(ip) }));
+  };
 
 /** Whether a stored lockout is still active. No lockout (or no row) reads as
  * not limited; an expired lockout deletes the row so the next attempt starts
  * fresh. */
 export const lockoutActive = async (
-  table: string,
+  table: AttemptTable,
   hashedIp: string,
   lockedUntil: number | null | undefined,
 ): Promise<boolean> => {
@@ -66,6 +66,11 @@ export const lockoutActive = async (
   if (lockedUntil > nowMs()) return true;
   // Delete only the exact lockout we read: a fresh one written by a
   // concurrent request has a different timestamp and must survive.
-  await execute(deleteFrom(table, { ip: hashedIp, locked_until: lockedUntil }));
+  await execute(
+    deleteFrom(tables[table]).where({
+      ip: hashedIp,
+      locked_until: lockedUntil,
+    }),
+  );
   return false;
 };

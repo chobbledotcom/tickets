@@ -16,6 +16,8 @@ import {
   mapBookingRows,
 } from "#db/logistics.ts";
 import { columnFrom } from "#db/query.ts";
+import { among, equal, greaterThan, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type SqlStatement,
   sql,
@@ -23,6 +25,7 @@ import {
   sqlList,
   sqlName,
 } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { compact, flatMap, uniqueBy } from "#fp";
 
 /** Which leg of a delivery a run-sheet entry represents. */
@@ -292,21 +295,30 @@ export const setLegDone = async (
   agentIds: number[],
 ): Promise<boolean> => {
   if (agentIds.length === 0) return false;
-  const doneColumn = kind === "start" ? sql`start_done` : sql`end_done`;
-  const agentColumn =
-    kind === "start" ? sql`start_agent_id` : sql`end_agent_id`;
-  const dateExpression =
-    kind === "start" ? sql`DATE(start_at)` : sql`DATE(end_at, '-1 day')`;
+  const isStart = kind === "start";
+  const mark = done ? 1 : 0;
   return executeChangedRow(
     // The date predicate scopes the update to the leg on the claimed run-sheet
     // day: a listing+attendee can have several rows across dates, so without it
     // a mark would flip legs on days the user isn't viewing.
     // quantity > 0: refuse to complete a leg on a no-quantity line, so a stale or
     // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
-    sql`UPDATE listing_attendees SET ${doneColumn} = ${done ? 1 : 0}
-          WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}
-            AND ${dateExpression} = ${date}
-            AND ${agentColumn} IN (${sqlList(agentIds)})
-            AND quantity > 0`,
+    update(
+      tables.listing_attendees,
+      isStart ? { start_done: mark } : { end_done: mark },
+    ).where((row) => [
+      equal(row.attendee_id, attendeeId),
+      equal(row.listing_id, listingId),
+      equal(
+        valued<string | null>(
+          isStart
+            ? sql`DATE(${row.start_at})`
+            : sql`DATE(${row.end_at}, '-1 day')`,
+        ),
+        date,
+      ),
+      among(isStart ? row.start_agent_id : row.end_agent_id, agentIds),
+      greaterThan(row.quantity, 0),
+    ]),
   );
 };

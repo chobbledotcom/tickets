@@ -11,24 +11,27 @@
 
 import * as v from "valibot";
 import { execute, queryAll, type TxScope } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { requireTouchingRelationshipsTx } from "#db/listing-relationship-validation.ts";
 import {
   PRICE_TYPE_DAY_COUNT,
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
-import { from } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
 import {
-  type SqlStatement,
-  sql,
-  sqlInsertRowsOrNull,
-  sqlJoin,
-  sqlList,
-  sqlLiteral,
-} from "#db/sql.ts";
-import { compact, mapNotNullish, requiredMapValue } from "#fp";
+  among,
+  and,
+  type Expr,
+  equal,
+  literal,
+  or,
+  wholeCondition,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { deleteFrom, insertingAll, type NewValues } from "#db/write.ts";
+import { mapNotNullish, requiredMapValue } from "#fp";
 import { type DayPrices, parseDayPrices } from "#types";
 
 /** The `price_id` composition for one (package group, day count) override. The
@@ -50,38 +53,40 @@ export type GroupDayPriceInput = {
   dayPrices?: DayPrices | undefined;
 };
 
-/** One managed price row's (listing, type, key, price) tuple. */
-type PriceRow = [number, string, string, number];
+/** One managed price row. */
+type PriceRow = NewValues<"listing_prices">;
 
 /** The delete that clears one managed dimension's rows for one listing — the
  * head of every delete-then-insert replace this module writes. */
 const priceDimensionDelete =
   (priceType: string) =>
   (listingId: number): SqlStatement =>
-    deleteFrom("listing_prices", {
+    deleteFrom(tables.listing_prices).where({
       listing_id: listingId,
       price_type: priceType,
     });
 
-/** A SINGLE multi-row INSERT over the managed price rows, or `null` when there
- * are none. Every full-replace dimension (`day_count`, `group`, `group_day`)
- * pairs its delete with one of these, so a replace is at most two statements
- * regardless of row count — the write paths run them inside an interactive
- * transaction, and a per-row insert would trip the round-trip guard. */
-const multiInsertPriceStatement = (
+/** A SINGLE multi-row INSERT over the managed price rows, or no statement when
+ * there are none. Every full-replace dimension (`day_count`, `group`,
+ * `group_day`) pairs its delete with one of these, so a replace is at most two
+ * statements regardless of row count — the write paths run them inside an
+ * interactive transaction, and a per-row insert would trip the round-trip
+ * guard. */
+const multiInsertPriceStatements = (
   rows: readonly PriceRow[],
-): SqlStatement | null =>
-  sqlInsertRowsOrNull(
-    "listing_prices",
-    ["listing_id", "price_type", "price_id", "unit_price"],
-    rows,
-  );
+): SqlStatement[] => insertingAll(tables.listing_prices, rows);
+
+/** The price id matches a LIKE pattern. */
+const priceIdLike = (
+  price: Node<"listing_prices">,
+  pattern: string,
+): Expr<boolean> => wholeCondition(sql`${price.price_id} LIKE ${pattern}`);
 
 /** The delete-then-insert statements that make a package group's `group_day`
  * rows exactly match the submitted members — a full replace per group, so a
  * removed member's stale overrides can't outlive it. Entries are normalised
  * through {@link parseDayPrices} like every other day-price write, and the
- * inserts are a single multi-row statement (see {@link multiInsertPriceStatement}). */
+ * inserts are a single multi-row statement (see {@link multiInsertPriceStatements}). */
 export const groupDayPriceStatements = (
   groupId: number,
   members: readonly GroupDayPriceInput[],
@@ -91,18 +96,21 @@ export const groupDayPriceStatements = (
     for (const [days, price] of Object.entries(
       parseDayPrices(member.dayPrices || {}),
     )) {
-      rows.push([
-        member.listingId,
-        PRICE_TYPE_GROUP_DAY,
-        groupDayPriceId(groupId, days),
-        price,
-      ]);
+      rows.push({
+        listing_id: member.listingId,
+        price_id: groupDayPriceId(groupId, days),
+        price_type: PRICE_TYPE_GROUP_DAY,
+        unit_price: price,
+      });
     }
   }
-  return compact([
-    sql`DELETE FROM listing_prices WHERE price_type = ${PRICE_TYPE_GROUP_DAY} AND price_id LIKE ${groupDayPriceId(groupId, "%")}`,
-    multiInsertPriceStatement(rows),
-  ]);
+  return [
+    deleteFrom(tables.listing_prices).where((stored) => [
+      equal(stored.price_type, PRICE_TYPE_GROUP_DAY),
+      priceIdLike(stored, groupDayPriceId(groupId, "%")),
+    ]),
+    ...multiInsertPriceStatements(rows),
+  ];
 };
 
 /** One member's flat package override as applied by the group save. `price` is
@@ -125,12 +133,20 @@ export const groupFlatPriceStatements = (
   const rows = mapNotNullish((member: GroupFlatPriceInput): PriceRow | null =>
     member.price === null || member.price === undefined
       ? null
-      : [member.listingId, PRICE_TYPE_GROUP, String(groupId), member.price],
+      : {
+          listing_id: member.listingId,
+          price_id: String(groupId),
+          price_type: PRICE_TYPE_GROUP,
+          unit_price: member.price,
+        },
   )(members);
-  return compact([
-    sql`DELETE FROM listing_prices WHERE price_type = ${PRICE_TYPE_GROUP} AND price_id = ${String(groupId)}`,
-    multiInsertPriceStatement(rows),
-  ]);
+  return [
+    deleteFrom(tables.listing_prices).where({
+      price_id: String(groupId),
+      price_type: PRICE_TYPE_GROUP,
+    }),
+    ...multiInsertPriceStatements(rows),
+  ];
 };
 
 /** The statement that drops package price overrides — flat `group` and per-day
@@ -149,16 +165,21 @@ export const removeGroupPricesStatement = (
 ): SqlStatement | null => {
   if (groupIds.length === 0 || listingIds.length === 0) return null;
   const idText = groupIds.map(String);
-  // Each group's group_day price_ids are "<groupId>/<n>"; the trailing "/" keeps
-  // the LIKE exact (group 1's "1/%" never matches group 12's "12/3").
-  const dayPriceOfGroup = sqlJoin(
-    groupIds.map((id) => sql`price_id LIKE ${`${id}/%`}`),
-    sql` OR `,
-  );
-  return sql`DELETE FROM listing_prices WHERE listing_id IN (${sqlList(listingIds)}) AND (
-        (price_type = ${sqlLiteral(PRICE_TYPE_GROUP)} AND price_id IN (${sqlList(idText)}))
-        OR (price_type = ${sqlLiteral(PRICE_TYPE_GROUP_DAY)} AND (${dayPriceOfGroup}))
-      )`;
+  return deleteFrom(tables.listing_prices).where((price) => [
+    among(price.listing_id, listingIds),
+    or(
+      and(
+        equal(price.price_type, literal(PRICE_TYPE_GROUP)),
+        among(price.price_id, idText),
+      ),
+      and(
+        equal(price.price_type, literal(PRICE_TYPE_GROUP_DAY)),
+        // Each group's group_day price_ids are "<groupId>/<n>". The trailing
+        // "/" keeps the LIKE exact: group 1's "1/%" never matches "12/3".
+        or(...groupIds.map((id) => priceIdLike(price, `${id}/%`))),
+      ),
+    ),
+  ]);
 };
 
 /** A raw day-price row as selected from `listing_prices`. */
@@ -245,12 +266,17 @@ export const dayCountPriceStatements = (
   dayPrices: DayPrices | undefined,
 ): SqlStatement[] => {
   const rows = Object.entries(parseDayPrices(dayPrices || {})).map(
-    ([days, price]): PriceRow => [listingId, PRICE_TYPE_DAY_COUNT, days, price],
+    ([days, price]): PriceRow => ({
+      listing_id: listingId,
+      price_id: days,
+      price_type: PRICE_TYPE_DAY_COUNT,
+      unit_price: price,
+    }),
   );
-  return compact([
+  return [
     priceDimensionDelete(PRICE_TYPE_DAY_COUNT)(listingId),
-    multiInsertPriceStatement(rows),
-  ]);
+    ...multiInsertPriceStatements(rows),
+  ];
 };
 
 /** One `listing_prices` `day_count` row: the day count it prices and its

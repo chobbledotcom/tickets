@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -16,14 +15,17 @@ import { queryAll, requireOne } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { and, type Expr, type Operand, valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
-  type SqlSlot,
   type SqlStatement,
   sql,
   sqlCommas,
   sqlList,
   sqlName,
 } from "#db/sql.ts";
+import { insertInto, type NewValues } from "#db/write.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
@@ -33,16 +35,16 @@ import type { ListingCapacityRow } from "./types.ts";
  * and keeps the column defaults. */
 const subscriptionPlanColumns = (
   plan: ListingBooking["subscription"],
-): [column: string, value: InValue][] =>
+): Partial<NewValues<"listing_attendees">> =>
   plan === undefined
-    ? []
-    : [
-        ["recurring_price", plan.amount],
-        ["recurring_tax", plan.tax],
-        ["recurring_interval", plan.interval],
-        ["subscription_id", plan.id],
-        ["subscription_status", plan.status],
-      ];
+    ? {}
+    : {
+        recurring_interval: plan.interval,
+        recurring_price: plan.amount,
+        recurring_tax: plan.tax,
+        subscription_id: plan.id,
+        subscription_status: plan.status,
+      };
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
@@ -53,7 +55,7 @@ const subscriptionPlanColumns = (
  * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
-  attendeeId: SqlSlot = sql`last_insert_rowid()`,
+  attendeeId: Operand<number> = valued(sql`last_insert_rowid()`),
   allowOverbook = false,
   extraCondition?: SqlStatement,
 ): SqlStatement => {
@@ -67,35 +69,43 @@ export const buildCapacityCheckedInsert = (
     packageGroupId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const plan = subscriptionPlanColumns(booking.subscription);
-  /** The SQL that follows the base column list or value list when the row
-   * carries a plan. */
-  const planSuffix = (parts: readonly SqlStatement[]): SqlStatement =>
-    parts.length === 0 ? sql`` : sql`, ${sqlCommas(parts)}`;
-  const planColumns = planSuffix(plan.map(([column]) => sqlName(column)));
-  const planValues = planSuffix(plan.map(([, value]) => sql`${value}`));
-  const insertSelect = sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id${planColumns})
-          SELECT ${listingId}, ${attendeeId}, ${startAt}, ${endAt}, ${quantity}, ${orderToken}, ${parentListingId}, ${packageGroupId}${planValues}`;
-  const guardedBy = (condition: SqlStatement): SqlStatement =>
-    sql`${insertSelect}\n          WHERE ${
-      extraCondition === undefined
-        ? condition
-        : sql`${condition} AND (${extraCondition})`
-    }`;
-  if (allowOverbook) {
-    return extraCondition === undefined
-      ? insertSelect
-      : sql`${insertSelect}\n          WHERE ${extraCondition}`;
-  }
-  if (quantity === 0) {
-    return guardedBy(
-      sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingId})`,
-    );
-  }
-  return guardedBy(
-    buildCapacityCondition(listingId, quantity, date, undefined, durationDays),
+  const extra =
+    extraCondition === undefined ? true : valued<boolean>(extraCondition);
+  const conditions = [
+    allowOverbook ? true : roomFor({ date, durationDays, listingId, quantity }),
+    extra,
+  ];
+  return insertInto(
+    tables.listing_attendees,
+    {
+      attendee_id: attendeeId,
+      end_at: endAt,
+      listing_id: listingId,
+      order_token: orderToken,
+      package_group_id: packageGroupId,
+      parent_listing_id: parentListingId,
+      quantity,
+      start_at: startAt,
+      ...subscriptionPlanColumns(booking.subscription),
+    },
+    conditions.every((condition) => condition === true)
+      ? {}
+      : { when: and(...conditions) },
   );
 };
+
+/** What the row of one booking needs before it lands: room on the listing,
+ *  or for a booking of no places a listing that exists. */
+const roomFor = (line: LineBooking): Expr<boolean> =>
+  line.quantity === 0
+    ? from(tables.listings).where({ id: line.listingId }).exists()
+    : buildCapacityCondition(
+        line.listingId,
+        line.quantity,
+        line.date,
+        undefined,
+        line.durationDays,
+      );
 
 /** Check several capacity conditions in one query. */
 export const checkLinesCapacity = async (

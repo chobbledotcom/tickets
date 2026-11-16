@@ -4,7 +4,11 @@ import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#db/payment-claim.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { and, not } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import { EMPTY_ROW_STATE } from "#payment/row-state.ts";
 import { checkingClaimFor, grantClaim } from "#payment/row-transitions.ts";
@@ -63,19 +67,32 @@ export const prepareClaimedAttendeePaymentAnchor = async (
         heldSince,
         rows: new Map([[sessionId, { claim: "release", phase: "checking" }]]),
       },
-      statement: sql`INSERT INTO processed_payments
-            (payment_session_id, attendee_id, processed_at, payment_reference,
-             payment_reference_index, failure_data, protected_state)
-          SELECT ${sessionId}, ${attendeeId}, ${heldSince}, ${stored.encrypted},
-                 ${stored.index}, ${state.failureData}, ${state.protectedState}
-           WHERE EXISTS (
-             SELECT 1 FROM attendees AS attendee WHERE attendee.id = ${attendeeId}
-           )
-              AND NOT EXISTS (
-                SELECT 1 FROM processed_payments AS payment
-                WHERE payment.attendee_id = ${attendeeId}
-                  AND payment.payment_reference_index IN (${sqlList(matchingIndexes)})
-              )`,
+      statement: insertInto(
+        tables.processed_payments,
+        {
+          attendee_id: attendeeId,
+          failure_data: state.failureData,
+          payment_reference: stored.encrypted,
+          payment_reference_index: stored.index,
+          payment_session_id: sessionId,
+          processed_at: heldSince,
+          protected_state: state.protectedState,
+        },
+        {
+          when: and(
+            from(tables.attendees).where({ id: attendeeId }).exists(),
+            not(
+              from(tables.processed_payments)
+                .as("payment")
+                .where({
+                  attendee_id: attendeeId,
+                  payment_reference_index: matchingIndexes,
+                })
+                .exists(),
+            ),
+          ),
+        },
+      ),
     };
   };
   return {

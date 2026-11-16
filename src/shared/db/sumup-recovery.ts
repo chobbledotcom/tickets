@@ -11,7 +11,9 @@
 
 import { execute, queryAll, queryBatch, resultRows } from "#db/client.ts";
 import { SCAN_LIMIT } from "#db/schema-anomaly-scan.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import {
   parseSumupRecoveryState,
   RECOVERY_CHECKABLE_NODES,
@@ -86,9 +88,14 @@ const moveSumupRecoveryRow = async (
   nextCheckAt: string | null,
 ): Promise<number> => {
   const result = await execute(
-    sql`UPDATE sumup_checkouts
-        SET recovery_state = ${recoveryState}, next_check_at = ${nextCheckAt}
-      WHERE reference_index = ${checkout.referenceIndex} AND recovery_state = ${checkout.state} AND next_check_at = ${checkout.checkedAt}`,
+    update(tables.sumup_checkouts, {
+      next_check_at: nextCheckAt,
+      recovery_state: recoveryState,
+    }).where({
+      next_check_at: checkout.checkedAt,
+      recovery_state: checkout.state,
+      reference_index: checkout.referenceIndex,
+    }),
   );
   return result.rowsAffected;
 };

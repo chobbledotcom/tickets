@@ -2,7 +2,21 @@
 
 import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import {
+  and,
+  type Expr,
+  equal,
+  not,
+  notEqual,
+  type Operand,
+  or,
+  valued,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlName, sqlNames } from "#db/sql.ts";
+import { insertInto, update } from "#db/write.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
@@ -45,9 +59,42 @@ type StoredRefundAuthorityRow = {
   refund_state: string;
 };
 
-export const REFUND_AUTHORITY_COLUMNS = sql`id, provider, reference_index,
-  callback_replay_index, captured_amount, currency, refunded_amount,
-  refund_state, refund_revision`;
+/** The columns of one refund authority that a read or a write gives back. */
+export const REFUND_AUTHORITY_COLUMN_NAMES = [
+  "id",
+  "provider",
+  "reference_index",
+  "callback_replay_index",
+  "captured_amount",
+  "currency",
+  "refunded_amount",
+  "refund_state",
+  "refund_revision",
+] as const;
+
+const REFUND_AUTHORITY_COLUMNS = sqlNames(REFUND_AUTHORITY_COLUMN_NAMES);
+
+/** No other charge holds the callback identity. */
+const noOtherCallbackOwner = (
+  callbackReplayIndex: Operand<string | null>,
+  referenceIndex: Operand<string>,
+): Expr<boolean> =>
+  not(
+    from(tables.payment_charges)
+      .as("callbackOwner")
+      .where((owner) => [
+        equal(owner.callback_replay_index, callbackReplayIndex),
+        notEqual(owner.reference_index, referenceIndex),
+      ])
+      .exists(),
+  );
+
+/** The stored callback identity, or `fallback` where none is stored. */
+const callbackOrElse = (
+  charge: Node<"payment_charges">,
+  fallback: Operand<string | null>,
+): Expr<string | null> =>
+  valued(sql`COALESCE(${charge.callback_replay_index}, ${fallback})`);
 
 const authorityRow = (row: StoredRefundAuthorityRow): RefundAuthorityRow => ({
   callbackReplayIndex: row.callback_replay_index,
@@ -135,17 +182,15 @@ export const bindRefundCallbackIfChargeExists = async (
   binding: RefundCallbackBinding,
 ): Promise<RefundAuthorityRow | null> => {
   const { callbackReplayIndex, referenceIndex } = binding;
-  const statement = sql`UPDATE payment_charges
-          SET callback_replay_index = COALESCE(callback_replay_index, ${callbackReplayIndex})
-        WHERE reference_index = ${referenceIndex}
-          AND callback_replay_index IS NULL
-          AND NOT EXISTS (
-            SELECT 1
-              FROM payment_charges AS callbackOwner
-             WHERE callbackOwner.callback_replay_index = ${callbackReplayIndex}
-               AND callbackOwner.reference_index <> ${referenceIndex}
-          )
-      RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
+  const statement = update(tables.payment_charges, (charge) => ({
+    callback_replay_index: callbackOrElse(charge, callbackReplayIndex),
+  }))
+    .where((charge) => [
+      equal(charge.reference_index, referenceIndex),
+      equal(charge.callback_replay_index, null),
+      noOtherCallbackOwner(callbackReplayIndex, referenceIndex),
+    ])
+    .returning(...REFUND_AUTHORITY_COLUMN_NAMES);
   const changed = refundAuthorityFromResult(await execute(statement));
   if (changed !== null) return changed;
   return await loadRefundCallbackBinding(binding);
@@ -204,38 +249,53 @@ const prepareRefundAuthorityWrite = async (
   requireCreateFacts(input);
   const stored = await storePaymentReference(input.reference);
   const callbackReplayIndex = input.callbackReplayIndex;
-  const statement = sql`INSERT INTO payment_charges
-        (provider, provider_reference, reference_index, callback_replay_index,
-         capability, captured_amount, currency, refunded_amount, refund_state,
-          refund_state_name, refund_local_state, next_refund_action_at,
-          refund_revision, created_at, updated_at, observed_at)
-         VALUES (${input.reference.provider}, ${stored.encrypted}, ${stored.index},
-                 ${input.callbackReplayIndex === undefined ? null : input.callbackReplayIndex},
-                 ${input.state.request.capability}, ${input.captured.amount},
-                 ${input.captured.currency}, ${0},
-                 ${writeRefundAuthorityState(input.state)},
-                 ${refundStateMirror(input.state)},
-                 ${refundLocalMirror(input.state)},
-                 ${refundNextActionAt(input.state)}, ${1},
-                 ${input.now}, ${input.now}, ${input.now})
-        ON CONFLICT DO UPDATE SET
-          callback_replay_index = COALESCE(
-            payment_charges.callback_replay_index,
-            excluded.callback_replay_index
-          )
-        WHERE payment_charges.reference_index = excluded.reference_index
-          AND (
-            excluded.callback_replay_index IS NULL OR
-            payment_charges.callback_replay_index IS NULL OR
-            payment_charges.callback_replay_index = excluded.callback_replay_index
-          )
-          AND NOT EXISTS (
-            SELECT 1
-              FROM payment_charges AS callbackOwner
-             WHERE callbackOwner.callback_replay_index = excluded.callback_replay_index
-               AND callbackOwner.reference_index <> excluded.reference_index
-          )
-        RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
+  const statement = insertInto(
+    tables.payment_charges,
+    {
+      callback_replay_index:
+        input.callbackReplayIndex === undefined
+          ? null
+          : input.callbackReplayIndex,
+      capability: input.state.request.capability,
+      captured_amount: input.captured.amount,
+      created_at: input.now,
+      currency: input.captured.currency,
+      next_refund_action_at: refundNextActionAt(input.state),
+      observed_at: input.now,
+      provider: input.reference.provider,
+      provider_reference: stored.encrypted,
+      reference_index: stored.index,
+      refund_local_state: refundLocalMirror(input.state),
+      refund_revision: 1,
+      refund_state: writeRefundAuthorityState(input.state),
+      refund_state_name: refundStateMirror(input.state),
+      refunded_amount: 0,
+      updated_at: input.now,
+    },
+    {
+      onConflict: {
+        set: (row, excluded) => ({
+          callback_replay_index: callbackOrElse(
+            row,
+            excluded.callback_replay_index,
+          ),
+        }),
+        where: (row, excluded) =>
+          and(
+            equal(row.reference_index, excluded.reference_index),
+            or(
+              equal(excluded.callback_replay_index, null),
+              equal(row.callback_replay_index, null),
+              equal(row.callback_replay_index, excluded.callback_replay_index),
+            ),
+            noOtherCallbackOwner(
+              excluded.callback_replay_index,
+              excluded.reference_index,
+            ),
+          ),
+      },
+    },
+  ).returning(...REFUND_AUTHORITY_COLUMN_NAMES);
   return {
     loadConflictOwner:
       callbackReplayIndex === undefined

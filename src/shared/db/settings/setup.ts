@@ -14,11 +14,14 @@ import { generateKeyPair } from "#crypto/hybrid.ts";
 import { generateDataKey, wrapDataKeyForPassword } from "#crypto/keys.ts";
 
 import { withTransaction } from "#db/client.ts";
+import { notEqual } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { bumpSettingsVersion } from "#db/settings/cache.ts";
 import { invalidateCache, loadKeys } from "#db/settings/load.ts";
 import { getRawCached, settingUpsert } from "#db/settings/raw-writes.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { buildCreateUserStatement } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { lazyRef } from "#fp";
 import { registerCacheReset } from "#shared/cache-registry.ts";
 import { CONFIG_KEYS } from "#shared/settings/keys.ts";
@@ -62,7 +65,17 @@ export const clearSetupCompleteCache = (): void => {
 registerCacheReset(clearSetupCompleteCache);
 
 const claimSetupSlot = (): SqlStatement =>
-  sql`INSERT INTO settings (key, value) VALUES (${CONFIG_KEYS.SETUP_COMPLETE}, ${SETUP_CLAIM_VALUE}) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE settings.value <> ${SETUP_DONE_VALUE}`;
+  insertInto(
+    tables.settings,
+    { key: CONFIG_KEYS.SETUP_COMPLETE, value: SETUP_CLAIM_VALUE },
+    {
+      onConflict: {
+        on: ["key"],
+        take: ["value"],
+        where: (row) => notEqual(row.value, SETUP_DONE_VALUE),
+      },
+    },
+  );
 
 /**
  * The initial site-setup ceremony — creates the owner account, generates and

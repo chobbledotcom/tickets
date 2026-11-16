@@ -15,22 +15,18 @@ import type {
   PasswordHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
-import {
-  deleteByFieldBatch,
-  execute,
-  insert,
-  insertedRowId,
-  queryAll,
-} from "#db/client.ts";
+import { execute, executeBatch, insertedRowId, queryAll } from "#db/client.ts";
 import {
   createKeyedCache,
   registerCache,
   registerTableInvalidation,
 } from "#db/common-schema.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
+import { equal, lessThan, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { deleteFrom, insertInto, update } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -124,7 +120,7 @@ type InsertUserOpts = {
 const buildUserInsert = async (
   opts: InsertUserOpts,
 ): Promise<{
-  statement: ReturnType<typeof insert>;
+  statement: SqlStatement;
   values: Omit<User, "id">;
 }> => {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
@@ -150,7 +146,10 @@ const buildUserInsert = async (
     username_index: usernameIndex,
     wrapped_data_key: opts.wrappedDataKey,
   };
-  return { statement: insert("users", values, "id"), values };
+  return {
+    statement: insertInto(tables.users, values).returning("id"),
+    values,
+  };
 };
 
 /** A user INSERT statement plus the row values needed to rebuild the User. */
@@ -354,7 +353,17 @@ export const acceptInvite = async (
     passwordHash,
   );
   return executeChangedRow(
-    sql`UPDATE users SET password_hash = ${encryptedHash}, wrapped_data_key = ${wrappedDataKey}, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND invite_wrapped_data_key IS NOT NULL`,
+    update(tables.users, {
+      invite_code_hash: encryptedEmpty,
+      invite_expiry: encryptedEmpty,
+      invite_wrapped_data_key: null,
+      kek_version: 2,
+      password_hash: encryptedHash,
+      wrapped_data_key: wrappedDataKey,
+    }).where((user) => [
+      equal(user.id, userId),
+      notEqual(user.invite_wrapped_data_key, null),
+    ]),
   );
 };
 
@@ -374,7 +383,12 @@ export const activateKeylessUser = async (
   const { encryptedHash, encryptedEmpty } =
     await buildActivationSecrets(password);
   return executeChangedRow(
-    sql`UPDATE users SET password_hash = ${encryptedHash}, kek_version = 2, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND password_hash = ''`,
+    update(tables.users, {
+      invite_code_hash: encryptedEmpty,
+      invite_expiry: encryptedEmpty,
+      kek_version: 2,
+      password_hash: encryptedHash,
+    }).where({ id: userId, password_hash: "" }),
   );
 };
 
@@ -402,7 +416,10 @@ export const migrateUserToV2Kek = async (
   // wrapped_data_key bound to different passwords and lock the account out. A
   // no-op is safe: the login already holds the DATA_KEY for its own session.
   await execute(
-    sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey}, kek_version = 2 WHERE id = ${userId} AND kek_version < 2`,
+    update(tables.users, {
+      kek_version: 2,
+      wrapped_data_key: wrappedDataKey,
+    }).where((user) => [equal(user.id, userId), lessThan(user.kek_version, 2)]),
   );
 };
 
@@ -410,11 +427,11 @@ export const migrateUserToV2Kek = async (
  * Delete a user and all their sessions and API keys
  */
 export const deleteUser = async (userId: number): Promise<void> => {
-  await deleteByFieldBatch([
-    { field: "user_id", table: "api_keys", value: userId },
-    { field: "user_id", table: "sessions", value: userId },
-    { field: "user_id", table: "user_logistics_agents", value: userId },
-    { field: "id", table: "users", value: userId },
+  await executeBatch([
+    deleteFrom(tables.api_keys).where({ user_id: userId }),
+    deleteFrom(tables.sessions).where({ user_id: userId }),
+    deleteFrom(tables.user_logistics_agents).where({ user_id: userId }),
+    deleteFrom(tables.users).where({ id: userId }),
   ]);
 };
 

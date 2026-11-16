@@ -12,7 +12,9 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
@@ -51,4 +53,7 @@ export const repointExternalLinksStatement = (
   sourceId: number,
   targetId: number,
 ): SqlStatement =>
-  sql`UPDATE ${sqlName(LINK_TABLE)} SET ${sqlName(LINK_COLUMNS.id)} = ${targetId} WHERE ${sqlName(LINK_COLUMNS.kind)} = ${kind} AND ${sqlName(LINK_COLUMNS.id)} = ${sourceId}`;
+  update(tables.external_source_links, { link_id: targetId }).where({
+    link_id: sourceId,
+    link_type: kind,
+  });

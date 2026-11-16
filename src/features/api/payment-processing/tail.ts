@@ -33,7 +33,10 @@ import {
   groupListingAnswerSets,
   prepareAttendeeAnswerSave,
 } from "#db/questions/attendee-answers/save.ts";
-import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import { literal } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import {
   type BookingIntent,
@@ -131,8 +134,9 @@ const flagStatement =
     value: PendingNotificationFlag,
   ): ((tokenIndex: string) => SqlStatement) =>
   (tokenIndex) =>
-    sql`UPDATE attendees SET ${sqlName(column)} = ${sqlLiteral(value)}
-          WHERE ticket_token_index = ${tokenIndex}`;
+    update(tables.attendees, { [column]: literal(value) }).where({
+      ticket_token_index: tokenIndex,
+    });
 
 export type PaidBookingTail = {
   /** The buyer's typed free-text answers, read from the staged row for the

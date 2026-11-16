@@ -13,12 +13,12 @@ import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
 import { execute, executeBatch, queryAll, queryOne } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { queryColumnSet } from "#db/query.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { deleteFrom, insertInto, update } from "#db/write.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -87,12 +87,25 @@ export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
 
 export const unsubscribeHash = (hash: string): Promise<void> =>
   run(
-    sql`INSERT INTO contact_preferences (contact_hash, unsubscribed, last_activity) VALUES (${hash}, 1, ${nowMs()}) ON CONFLICT(contact_hash) DO UPDATE SET unsubscribed = 1, last_activity = excluded.last_activity`,
+    insertInto(
+      tables.contact_preferences,
+      { contact_hash: hash, last_activity: nowMs(), unsubscribed: 1 },
+      {
+        onConflict: {
+          on: ["contact_hash"],
+          set: () => ({ unsubscribed: 1 }),
+          take: ["last_activity"],
+        },
+      },
+    ),
   );
 
 export const resubscribeHash = (hash: string): Promise<void> =>
   run(
-    sql`UPDATE contact_preferences SET unsubscribed = 0, last_activity = ${nowMs()} WHERE contact_hash = ${hash}`,
+    update(tables.contact_preferences, {
+      last_activity: nowMs(),
+      unsubscribed: 0,
+    }).where({ contact_hash: hash }),
   );
 
 export const getUnsubscribedHashSet = (): Promise<Set<string>> =>
@@ -115,7 +128,7 @@ export const getVisits = async (hash: string): Promise<number> => {
  * callers report "erased" versus "nothing on file" without a prior lookup. */
 export const forgetContact = async (hash: string): Promise<number> => {
   const result = await execute(
-    deleteFrom("contact_preferences", { contact_hash: hash }),
+    deleteFrom(tables.contact_preferences).where({ contact_hash: hash }),
   );
   return result.rowsAffected;
 };
@@ -327,15 +340,28 @@ const saveStats = async (
   stats: ContactStats,
   lastActivity = nowMs(),
 ): Promise<SqlStatement> =>
-  sql`INSERT INTO contact_preferences (contact_hash, stats_blob, last_activity) VALUES (${hash}, ${await encryptWithOwnerKey(
-    statsJson.write(statsToBlob(stats), "contact_preferences.stats_blob"),
-    settings.publicKey,
-  )}, ${lastActivity}) ON CONFLICT(contact_hash) DO UPDATE SET stats_blob = excluded.stats_blob, last_activity = excluded.last_activity`;
+  insertInto(
+    tables.contact_preferences,
+    {
+      contact_hash: hash,
+      last_activity: lastActivity,
+      stats_blob: await encryptWithOwnerKey(
+        statsJson.write(statsToBlob(stats), "contact_preferences.stats_blob"),
+        settings.publicKey,
+      ),
+    },
+    {
+      onConflict: {
+        on: ["contact_hash"],
+        take: ["stats_blob", "last_activity"],
+      },
+    },
+  );
 
 const updateStatsForHashes = async (
   hashes: string[],
   privateKey: CryptoKey,
-  update: (current: ContactStats) => ContactStats,
+  change: (current: ContactStats) => ContactStats,
 ): Promise<void> => {
   if (hashes.length === 0) return;
   const lastActivity = nowMs();
@@ -344,7 +370,7 @@ const updateStatsForHashes = async (
     hashes.map(async (hash) =>
       saveStats(
         hash,
-        update(await parseStats(byHash.get(hash) ?? "", privateKey)),
+        change(await parseStats(byHash.get(hash) ?? "", privateKey)),
         lastActivity,
       ),
     ),
@@ -379,13 +405,28 @@ export const saveContactRecord = async (
     settings.publicKey,
   );
   await execute(
-    sql`INSERT INTO contact_preferences (contact_hash, visits, public_booking_count, admin_booking_count, stats_blob, last_activity)
-     VALUES (${hash}, ${record.visits}, ${record.publicBookingCount}, ${record.adminBookingCount}, ${blob}, ${nowMs()})
-     ON CONFLICT(contact_hash) DO UPDATE SET
-       visits = excluded.visits,
-       public_booking_count = excluded.public_booking_count,
-       admin_booking_count = excluded.admin_booking_count,
-       stats_blob = excluded.stats_blob,
-       last_activity = excluded.last_activity`,
+    insertInto(
+      tables.contact_preferences,
+      {
+        admin_booking_count: record.adminBookingCount,
+        contact_hash: hash,
+        last_activity: nowMs(),
+        public_booking_count: record.publicBookingCount,
+        stats_blob: blob,
+        visits: record.visits,
+      },
+      {
+        onConflict: {
+          on: ["contact_hash"],
+          take: [
+            "visits",
+            "public_booking_count",
+            "admin_booking_count",
+            "stats_blob",
+            "last_activity",
+          ],
+        },
+      },
+    ),
   );
 };

@@ -9,11 +9,14 @@ import { generateTicketToken } from "#crypto/utils.ts";
 import { buildAttendeeInsert } from "#db/attendees/create.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { encryptAttendeeFields } from "#db/attendees/pii.ts";
-import { executeBatch, insert, queryAll } from "#db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
+import { valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { chunk, map, range, sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -90,7 +93,7 @@ const prepareListing = async (
   // serves them all — each decrypts to "" exactly as before.
   const empty = await encrypt("");
 
-  return insert("listings", {
+  return insertInto(tables.listings, {
     active: 1,
     attachment_name: empty,
     attachment_url: empty,
@@ -140,8 +143,11 @@ const prepareAttendee = async (
 
   return [
     buildAttendeeInsert(enc, { statusId: null }),
-    sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-            VALUES (${listingId}, ${attendeeByToken(enc.ticketTokenIndex)}, ${quantity})`,
+    insertInto(tables.listing_attendees, {
+      attendee_id: valued<number>(attendeeByToken(enc.ticketTokenIndex)),
+      listing_id: listingId,
+      quantity,
+    }),
   ];
 };
 

@@ -11,8 +11,9 @@
  */
 
 import { attendeeAccount } from "#accounting/accounts.ts";
-import { update } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 export const repointAttendeeStatements = (
   fromAttendeeId: number,
@@ -21,20 +22,16 @@ export const repointAttendeeStatements = (
   const from = attendeeAccount(fromAttendeeId);
   const to = attendeeAccount(toAttendeeId);
   return [
-    update(
-      "transfers",
-      { source_id: to.id },
-      { source_id: from.id, source_type: from.type },
-    ),
-    update(
-      "transfers",
-      { dest_id: to.id },
-      { dest_id: from.id, dest_type: from.type },
-    ),
-    update(
-      "booking_tax_assessments",
-      { attendee_id: toAttendeeId },
-      { attendee_id: fromAttendeeId },
-    ),
+    update(tables.transfers, { source_id: to.id }).where({
+      source_id: from.id,
+      source_type: from.type,
+    }),
+    update(tables.transfers, { dest_id: to.id }).where({
+      dest_id: from.id,
+      dest_type: from.type,
+    }),
+    update(tables.booking_tax_assessments, {
+      attendee_id: toAttendeeId,
+    }).where({ attendee_id: fromAttendeeId }),
   ];
 };

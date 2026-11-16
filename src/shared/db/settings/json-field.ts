@@ -1,9 +1,12 @@
 import * as v from "valibot";
 import { resultRows, withTransaction } from "#db/client.ts";
+import { and, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import { publishStoredSetting } from "#db/settings/raw-writes.ts";
 import type { StringSettingKey } from "#db/settings/snapshot.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 
@@ -28,15 +31,29 @@ export const booleanJsonField = (
 ): BooleanJsonField => {
   const jsonType = value ? "true" : "false";
   /** `when` is the condition the write keeps true on both passes. */
-  const statement = (when: SqlStatement): SqlStatement =>
-    sql`INSERT INTO settings (key, value)
-        SELECT ${key}, ${initialValue}
-        WHERE ${when}
-        ON CONFLICT(key) DO UPDATE SET
-          value = json_set(settings.value, ${path}, json(${jsonType}))
-        WHERE (${when})
-          AND json_type(settings.value, ${path}) IS NOT ${jsonType}
-        RETURNING value`;
+  const statement = (when: SqlStatement): SqlStatement => {
+    const holds = valued<boolean>(when);
+    return insertInto(
+      tables.settings,
+      { key, value: initialValue },
+      {
+        onConflict: {
+          on: ["key"],
+          set: (row) => ({
+            value: valued<string>(
+              sql`json_set(${row.value}, ${path}, json(${jsonType}))`,
+            ),
+          }),
+          where: (row) =>
+            and(
+              holds,
+              valued(sql`json_type(${row.value}, ${path}) IS NOT ${jsonType}`),
+            ),
+        },
+        when: holds,
+      },
+    ).returning("value");
+  };
 
   const write = async (
     when: SqlStatement,

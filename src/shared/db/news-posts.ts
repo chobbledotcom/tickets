@@ -24,7 +24,6 @@ import {
 import { encryptedSlugSchema, idAndCreatedSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
-import { deleteById } from "#db/delete-row.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import {
@@ -44,6 +43,7 @@ import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
+import { deleteFrom } from "#db/write.ts";
 import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
@@ -254,5 +254,5 @@ export const updateNewsPost = async (
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
     clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
-    deleteById("news_posts", id),
+    deleteFrom(tables.news_posts).where({ id }),
   ]);

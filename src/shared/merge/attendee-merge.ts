@@ -17,7 +17,7 @@ import {
   checkoutStageDeleteStatements,
   repointAttendeeDependents,
 } from "#db/attendees/delete.ts";
-import { insert, withTransaction } from "#db/client.ts";
+import { withTransaction } from "#db/client.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
 import type { QuestionWithAnswers } from "#db/question-types.ts";
 import {
@@ -28,7 +28,11 @@ import {
   prepareAttendeeAnswerSave,
   saveAttendeeAnswersTx,
 } from "#db/questions/attendee-answers/save.ts";
+import { equal } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto, update } from "#db/write.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -599,7 +603,7 @@ const bookingInsertStatement = (
   targetId: number,
   booking: ListingAttendeeRow,
 ): SqlStatement =>
-  insert("listing_attendees", {
+  insertInto(tables.listing_attendees, {
     ...copiedBookingColumns(booking),
     attendee_id: targetId,
     // A quantity-0 line carries no check-in, so a ghost cannot arrive checked in.
@@ -638,11 +642,13 @@ const applyBookingDecisions = (
       // slot the decision names: a listing booked through several paths keeps
       // its other package/standalone rows.
       deleteTargetBookingStatements.push(
-        sql`DELETE FROM listing_attendees
-              WHERE attendee_id = ${targetId} AND listing_id = ${item.listingId}
-              AND (start_at IS ${item.startAt} OR start_at = ${item.startAt})
-              AND parent_listing_id = ${item.parentListingId}
-              AND package_group_id = ${item.packageGroupId}`,
+        deleteFrom(tables.listing_attendees).where({
+          attendee_id: targetId,
+          listing_id: item.listingId,
+          package_group_id: item.packageGroupId,
+          parent_listing_id: item.parentListingId,
+          start_at: item.startAt,
+        }),
       );
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),
@@ -788,25 +794,27 @@ export const applyAttendeeMerge = async (
     ...checkoutStageDeleteStatements(sql`${targetId}`),
     // An old source without payment provenance makes the merged history
     // unqualified too; carry that fact before deleting its attendee row.
-    sql`UPDATE attendees
-               SET pii_payment_session_id = NULL
-             WHERE id = ${targetId}
-               AND EXISTS (
-                 SELECT 1
-                   FROM attendees AS sourceAttendee
-                  WHERE sourceAttendee.id = ${sourceId}
-                    AND sourceAttendee.pii_payment_session_id IS NULL
-               )`,
+    update(tables.attendees, { pii_payment_session_id: null }).where(
+      (attendee) => [
+        equal(attendee.id, targetId),
+        from(tables.attendees)
+          .as("sourceAttendee")
+          .where({ id: sourceId, pii_payment_session_id: null })
+          .exists(),
+      ],
+    ),
     // Move source-owned payment references before deleting the source attendee,
     // so refunds on the merged person can return every charge whose ledger rows
     // now live on the target account.
-    sql`UPDATE processed_payments SET attendee_id = ${targetId} WHERE attendee_id = ${sourceId}`,
+    update(tables.processed_payments, { attendee_id: targetId }).where({
+      attendee_id: sourceId,
+    }),
     ...repointAttendeeDependents(sourceId, targetId),
     // The source is going away, so clear every row whose identity belongs to
     // it through the same schema as ordinary deletion. Payment rows survive:
     // the statement above has already moved them to the target.
     ...attendeeRemovalStatements(sql`${sourceId}`),
-    sql`DELETE FROM attendees WHERE id = ${sourceId}`,
+    deleteFrom(tables.attendees).where({ id: sourceId }),
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person
     // rather than stranding on the deleted source (plan §5.17).

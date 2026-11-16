@@ -17,8 +17,12 @@ import {
   contactHash,
   preferenceOf,
 } from "#db/contact-preferences.ts";
+import { type Expr, equal, plus, valued } from "#db/select/expression.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto, update } from "#db/write.ts";
 import { nowMs } from "#shared/now.ts";
 
 /** Booking origin: an online public checkout vs an admin manual add. Each is
@@ -134,18 +138,43 @@ const preparedTokenEntry = async ({
 const bookingActivityStatement = async (
   input: TokenEntryInput,
 ): Promise<SqlStatement> => {
-  const column = sqlName(BOOKING_COLUMN[input.source]);
+  const column = BOOKING_COLUMN[input.source];
   const entry = await preparedTokenEntry(input);
-  return sql`INSERT INTO contact_preferences
-            (contact_hash, last_activity, visits, ${column}, attendee_tokens_blob)
-          VALUES (${input.hash}, ${nowMs()}, 1, 1, ${entry.encrypted})
-          ON CONFLICT(contact_hash) DO UPDATE SET
-            visits = visits + 1,
-            ${column} = ${column} + 1,
-            last_activity = excluded.last_activity,
-            attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob
-          WHERE INSTR(attendee_tokens_blob, ${`${entry.marker}${TOKEN_LINE_SEPARATOR}`}) = 0`;
+  const marker = `${entry.marker}${TOKEN_LINE_SEPARATOR}`;
+  return insertInto(
+    tables.contact_preferences,
+    {
+      attendee_tokens_blob: entry.encrypted,
+      contact_hash: input.hash,
+      last_activity: nowMs(),
+      visits: 1,
+      [column]: 1,
+    },
+    {
+      onConflict: {
+        on: ["contact_hash"],
+        set: (row, excluded) => ({
+          attendee_tokens_blob: appendedTokens(row, excluded),
+          visits: plus(row.visits, 1),
+          [column]: plus(row[column], 1),
+        }),
+        take: ["last_activity"],
+        where: (row) =>
+          equal(
+            valued<number>(sql`INSTR(${row.attendee_tokens_blob}, ${marker})`),
+            0,
+          ),
+      },
+    },
+  );
 };
+
+/** The stored token list with the new row's tokens after it. */
+const appendedTokens = (
+  row: Node<"contact_preferences">,
+  excluded: Node<"contact_preferences">,
+): Expr<string> =>
+  valued(sql`${row.attendee_tokens_blob} || ${excluded.attendee_tokens_blob}`);
 
 /** Run one token write on the caller's transaction, or as its own write when
  *  no caller transaction is open. */
@@ -165,11 +194,23 @@ const appendBookingToken = async (
   const entry = await preparedTokenEntry(input);
   await writeTokenStatement(
     transaction,
-    sql`INSERT INTO contact_preferences (contact_hash, last_activity, attendee_tokens_blob)
-     VALUES (${input.hash}, ${nowMs()}, ${entry.encrypted})
-     ON CONFLICT(contact_hash) DO UPDATE SET
-       last_activity = excluded.last_activity,
-       attendee_tokens_blob = attendee_tokens_blob || excluded.attendee_tokens_blob`,
+    insertInto(
+      tables.contact_preferences,
+      {
+        attendee_tokens_blob: entry.encrypted,
+        contact_hash: input.hash,
+        last_activity: nowMs(),
+      },
+      {
+        onConflict: {
+          on: ["contact_hash"],
+          set: (row, excluded) => ({
+            attendee_tokens_blob: appendedTokens(row, excluded),
+          }),
+          take: ["last_activity"],
+        },
+      },
+    ),
   );
 };
 
@@ -313,7 +354,12 @@ const removeBookingToken = async (
   // lands after our read is preserved instead of overwritten by a stale rewrite.
   await writeTokenStatement(
     transaction,
-    sql`UPDATE contact_preferences SET attendee_tokens_blob = REPLACE(attendee_tokens_blob, ${`${match.raw}\n`}, ''), last_activity = ${nowMs()} WHERE contact_hash = ${hash}`,
+    update(tables.contact_preferences, (row) => ({
+      attendee_tokens_blob: valued<string>(
+        sql`REPLACE(${row.attendee_tokens_blob}, ${`${match.raw}\n`}, '')`,
+      ),
+      last_activity: nowMs(),
+    })).where({ contact_hash: hash }),
   );
   return removed.source;
 };

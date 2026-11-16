@@ -26,7 +26,10 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
+import { equal, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { type Changes, deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue, unique } from "#fp";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
@@ -52,13 +55,21 @@ export const CAPACITY_GUARD: SqlStatement = sql`INSERT INTO listing_attendees (l
  * start_done/end_done completion flags — in the same write. A quantity-0 line
  * is hidden from run sheets, so a completed leg would otherwise haunt them;
  * resetting the done flags too stops a completed leg reappearing as done if the
- * line is later re-activated. Real lines (quantity ≥ 1) keep their state. The
- * fragment carries no bind args, so it slots into both update branches.
+ * line is later re-activated. Real lines (quantity ≥ 1) keep their state.
  */
-const noQuantityResetColumns = (quantity: number): SqlStatement =>
+const noQuantityResetColumns = (
+  quantity: number,
+): Changes<"listing_attendees"> =>
   quantity === 0
-    ? sql`, start_agent_id = NULL, end_agent_id = NULL, start_time = '', end_time = '', start_done = 0, end_done = 0`
-    : sql``;
+    ? {
+        end_agent_id: null,
+        end_done: 0,
+        end_time: "",
+        start_agent_id: null,
+        start_done: 0,
+        start_time: "",
+      }
+    : {};
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
@@ -225,12 +236,21 @@ export const updateStatementFor = (
 ): SqlStatement => {
   const { startAt, endAt } = lineRange(line);
   // A smaller quantity also lowers the admitted count, so it never exceeds it.
-  const setClause = sql`UPDATE listing_attendees SET quantity = ${line.quantity}, checked_in = MIN(checked_in, ${line.quantity}), start_at = ${startAt}, end_at = ${endAt}${noQuantityResetColumns(
-    line.quantity,
-  )} WHERE attendee_id = ${attendeeId} AND listing_id = ${line.listingId} AND start_at IS ${oldPin.startAt} AND parent_listing_id = ${oldPin.parentListingId} AND package_group_id = ${oldPin.packageGroupId}`;
-  return skipCapacityGuard
-    ? setClause
-    : sql`${setClause} AND ${capacityConditionFor(line, attendeeId)}`;
+  const changes = update(tables.listing_attendees, (row) => ({
+    checked_in: valued<number>(sql`MIN(${row.checked_in}, ${line.quantity})`),
+    end_at: endAt,
+    quantity: line.quantity,
+    start_at: startAt,
+    ...noQuantityResetColumns(line.quantity),
+  }));
+  return changes.where((row) => [
+    equal(row.attendee_id, attendeeId),
+    equal(row.listing_id, line.listingId),
+    equal(row.start_at, oldPin.startAt),
+    equal(row.parent_listing_id, oldPin.parentListingId),
+    equal(row.package_group_id, oldPin.packageGroupId),
+    skipCapacityGuard ? true : capacityConditionFor(line, attendeeId),
+  ]);
 };
 
 /** One desired line's write statement, and whether the batch must follow it
@@ -280,8 +300,15 @@ export const buildAttendeeEditBatch = (
   );
   const statements: SqlStatement[] = [];
   for (const booking of removed) {
-    statements.push(sql`DELETE FROM listing_attendees
-            WHERE attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`);
+    statements.push(
+      deleteFrom(tables.listing_attendees).where({
+        attendee_id: attendeeId,
+        listing_id: booking.listing_id,
+        package_group_id: booking.package_group_id,
+        parent_listing_id: booking.parent_listing_id,
+        start_at: booking.start_at ?? null,
+      }),
+    );
   }
   for (const line of [
     ...desired.filter((line) => line.exists),

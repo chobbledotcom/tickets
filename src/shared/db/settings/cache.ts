@@ -10,8 +10,11 @@
 
 import { executeWithoutCacheInvalidation, queryAll } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
+import { valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { recordSettingRead } from "#db/settings-audit.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { lazyRef } from "#fp";
 import {
   type CacheInvalidation,
@@ -100,7 +103,18 @@ export const prefetchVersion = (): void => {
  * again.
  */
 export const settingsVersionIncrement = (): SqlStatement =>
-  sql`INSERT INTO settings (key, value) VALUES (${CONFIG_KEYS.SETTINGS_VERSION}, '1') ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + 1`;
+  insertInto(
+    tables.settings,
+    { key: CONFIG_KEYS.SETTINGS_VERSION, value: "1" },
+    {
+      onConflict: {
+        on: ["key"],
+        set: (row) => ({
+          value: valued<string>(sql`CAST(${row.value} AS INTEGER) + 1`),
+        }),
+      },
+    },
+  );
 
 export const bumpSettingsVersion = async (): Promise<void> => {
   await executeWithoutCacheInvalidation(settingsVersionIncrement());

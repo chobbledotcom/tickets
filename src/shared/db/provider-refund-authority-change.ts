@@ -3,12 +3,14 @@
 import { execute, type TxScope } from "#db/client.ts";
 import {
   loadRefundAuthorityById,
-  REFUND_AUTHORITY_COLUMNS,
+  REFUND_AUTHORITY_COLUMN_NAMES,
   type RefundAuthorityRow,
   type RefundAuthorityVersion,
   refundAuthorityFromResult,
 } from "#db/provider-refund-authority.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import type { Money } from "#payment/money.ts";
 import {
   markRefundCompleted,
@@ -57,13 +59,23 @@ const changeRefundAuthorityStatement = (
   now: number,
 ): SqlStatement => {
   requireRefundMoney(row, money);
-  return sql`UPDATE payment_charges
-             SET captured_amount = ${money.captured.amount}, currency = ${money.captured.currency}, refunded_amount = ${money.refunded.amount},
-                 refund_state = ${writeRefundAuthorityState(state, "payment_charges.refund_state")}, refund_state_name = ${refundStateMirror(state)},
-                 refund_local_state = ${refundLocalMirror(state)}, next_refund_action_at = ${refundNextActionAt(state)},
-                 refund_revision = ${row.revision + 1}, updated_at = ${now}, observed_at = ${now}
-           WHERE id = ${row.id} AND refund_revision = ${row.revision}
-       RETURNING ${REFUND_AUTHORITY_COLUMNS}`;
+  return update(tables.payment_charges, {
+    captured_amount: money.captured.amount,
+    currency: money.captured.currency,
+    next_refund_action_at: refundNextActionAt(state),
+    observed_at: now,
+    refund_local_state: refundLocalMirror(state),
+    refund_revision: row.revision + 1,
+    refund_state: writeRefundAuthorityState(
+      state,
+      "payment_charges.refund_state",
+    ),
+    refund_state_name: refundStateMirror(state),
+    refunded_amount: money.refunded.amount,
+    updated_at: now,
+  })
+    .where({ id: row.id, refund_revision: row.revision })
+    .returning(...REFUND_AUTHORITY_COLUMN_NAMES);
 };
 
 type RefundAuthorityWriter = (

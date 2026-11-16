@@ -15,8 +15,9 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import type { FreeTextAnswers } from "#shared/email/answers.ts";
 import { nowIso } from "#shared/now.ts";
 import { stringRecordJson } from "#shared/validation/stored-json.ts";
@@ -38,13 +39,23 @@ export const stageCheckoutAnswers = async (
 ): Promise<void> => {
   if (!texts || Object.keys(texts).length === 0) return;
   await execute(
-    sql`INSERT INTO checkout_pending_answers
-               (session_index, sealed, created_at, link_ends_at)
-             VALUES (${await hmacHash(sessionId)}, ${await encrypt(stringRecordJson.write(texts, "checkout answers"))}, ${nowIso()}, ${linkEndsAt})
-             ON CONFLICT(session_index) DO UPDATE SET
-               sealed = excluded.sealed,
-               created_at = excluded.created_at,
-               link_ends_at = excluded.link_ends_at`,
+    insertInto(
+      tables.checkout_pending_answers,
+      {
+        created_at: nowIso(),
+        link_ends_at: linkEndsAt,
+        sealed: await encrypt(
+          stringRecordJson.write(texts, "checkout answers"),
+        ),
+        session_index: await hmacHash(sessionId),
+      },
+      {
+        onConflict: {
+          on: ["session_index"],
+          take: ["sealed", "created_at", "link_ends_at"],
+        },
+      },
+    ),
   );
 };
 
@@ -79,6 +90,6 @@ export const readCheckoutAnswers = async (
 export const dropCheckoutAnswersStatement = async (
   sessionId: string,
 ): Promise<SqlStatement> =>
-  deleteFrom("checkout_pending_answers", {
+  deleteFrom(tables.checkout_pending_answers).where({
     session_index: await hmacHash(sessionId),
   });

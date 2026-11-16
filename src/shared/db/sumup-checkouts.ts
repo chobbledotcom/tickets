@@ -19,8 +19,10 @@ import {
   wrapKeyWithToken,
 } from "#crypto/keys.ts";
 import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
-import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto, update } from "#db/write.ts";
 import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
@@ -62,7 +64,7 @@ export const storeSumupCheckout = async (
     ),
   ]);
   await execute(
-    insert("sumup_checkouts", {
+    insertInto(tables.sumup_checkouts, {
       created_at: nowIso(),
       metadata: ciphertext,
       // No checkout id yet, so there is nothing to ask SumUp about and nothing
@@ -84,17 +86,15 @@ export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
-  const result = await executeUpdate(
-    "sumup_checkouts",
-    {
+  const result = await execute(
+    update(tables.sumup_checkouts, {
       next_check_at: isoAfter(SUMUP_FIRST_CHECK_MS),
       recovery_state: recoveryMoveTo("staged", "checkout_created"),
       sumup_id: sumupId,
-    },
-    {
+    }).where({
       recovery_state: "staged",
       reference_index: await hmacHash(reference),
-    },
+    }),
   );
   // The hosted URL must never reach a customer while this checkout's
   // callbacks are still refused as unknown. Creation fails here — before the

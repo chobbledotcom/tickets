@@ -10,14 +10,16 @@
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
-  deleteByFieldBatch,
+  executeBatch,
   queryAll,
   resultRows,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import type { RowFilter } from "#db/table-reader.ts";
+import { deleteFrom } from "#db/write.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { externalSourceLinksTable, externalSourcesTable } from "./tables.ts";
@@ -51,9 +53,9 @@ export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */
 export const deleteExternalSource = (id: number): Promise<void> =>
-  deleteByFieldBatch([
-    { field: "source_id", table: "external_source_links", value: id },
-    { field: "id", table: "external_sources", value: id },
+  executeBatch([
+    deleteFrom(tables.external_source_links).where({ source_id: id }),
+    deleteFrom(tables.external_sources).where({ id }),
   ]);
 
 /** The filter one links read keeps, written as the row's own shape. */

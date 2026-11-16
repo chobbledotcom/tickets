@@ -6,19 +6,13 @@
  */
 
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
-import {
-  execute,
-  executeBatch,
-  insert,
-  insertOrIgnore,
-  type TxScope,
-} from "#db/client.ts";
+import { execute, executeBatch, type TxScope } from "#db/client.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import type { Condition } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
-import { deleteWhere } from "#db/where-clauses.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { openNote, openNotes, sealNote } from "./sealing.ts";
 import { type NoteEntity, type NoteTarget, noteTargets } from "./target.ts";
@@ -42,14 +36,18 @@ const writeNote = async (
   if (name?.key === "") throw new Error("A named system note needs a key");
   // A named note is unique by its name: a replayed write is a no-op, so a
   // resumable flow can re-run its note step without a second copy landing.
-  const statement = (name === null ? insert : insertOrIgnore)("system_notes", {
-    created: nowIso(),
-    entity_id: target.id,
-    entity_type: target.kind,
-    note: await sealNote(type, note),
-    system_name: name === null ? null : storedSystemNoteName(name),
-    type,
-  });
+  const statement = insertInto(
+    tables.system_notes,
+    {
+      created: nowIso(),
+      entity_id: target.id,
+      entity_type: target.kind,
+      note: await sealNote(type, note),
+      system_name: name === null ? null : storedSystemNoteName(name),
+      type,
+    },
+    name === null ? {} : { or: "IGNORE" },
+  );
   if (transaction === undefined) {
     await execute(statement);
   } else {
@@ -183,9 +181,6 @@ export const loadNotesForListing: NotesLoader<number> = notesLoaderVia(
 const noteOfTarget = (target: NoteTarget, noteId: number): Condition[] =>
   noteTargets.whereAlso(target, "id", noteId);
 
-/** A delete over the notes the clauses select. */
-const deleteNotesWhere = deleteWhere("system_notes");
-
 /** One record's note, opened up, or null when it isn't that record's. */
 export const getNote = async (
   target: NoteTarget,
@@ -211,7 +206,7 @@ export const deleteNotes = async (
 ): Promise<void> => {
   if (noteIds.length === 0) return;
   const statements = noteIds.map((noteId) =>
-    deleteNotesWhere(noteOfTarget(target, noteId)),
+    deleteFrom(tables.system_notes).where(() => noteOfTarget(target, noteId)),
   );
   await executeBatch(statements);
 };

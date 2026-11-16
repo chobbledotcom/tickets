@@ -8,20 +8,15 @@
 
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { executeBatch, type TxScope, withTransaction } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import type { TextAnswer, TextAnswerId } from "#db/question-types.ts";
 import {
   internWriteStatements,
   type PreparedStringRow,
   prepareStringRows,
 } from "#db/questions/strings.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlRows,
-} from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlSlot, type SqlStatement, sql, sqlRows } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 
 export type AttendeeAnswerSet = {
@@ -76,7 +71,7 @@ type AttendeeRef = {
 
 const idsRef: AttendeeRef = {
   delete: (attendeeIds) =>
-    sql`DELETE FROM attendee_answers WHERE attendee_id IN (${sqlList(attendeeIds)})`,
+    deleteFrom(tables.attendee_answers).where({ attendee_id: attendeeIds }),
   idOf: (attendeeId) => attendeeId,
 };
 
@@ -85,7 +80,8 @@ const idsRef: AttendeeRef = {
 const bookedRef = (tokenIndex: string): AttendeeRef => {
   const attendee = attendeeByToken(tokenIndex);
   return {
-    delete: () => deleteFrom("attendee_answers", { attendee_id: attendee }),
+    delete: () =>
+      deleteFrom(tables.attendee_answers).where({ attendee_id: attendee }),
     idOf: () => attendee,
   };
 };

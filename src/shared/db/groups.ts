@@ -33,19 +33,21 @@ import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { envNameSource, rowsByIds } from "#db/query.ts";
 import { readExists } from "#db/read.ts";
-import { among, equal, greaterThan } from "#db/select/expression.ts";
+import {
+  among,
+  type Expr,
+  equal,
+  greaterThan,
+  inQuery,
+  valued,
+  when,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlList,
-  sqlLiteral,
-  sqlRows,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
+import { deleteFrom, insertInto, insertingAll, update } from "#db/write.ts";
 import {
   flatMap,
   identity,
@@ -355,9 +357,24 @@ export const cloneGroupMembershipStatement = (member: {
   groupSlugIndex: string;
   listingSlugIndex: string;
   quantity: number;
-}): SqlStatement => sql`INSERT INTO group_listings (group_id, listing_id, quantity)
-        SELECT (SELECT id FROM groups WHERE slug_index = ${member.groupSlugIndex}),
-               (SELECT id FROM listings WHERE slug_index = ${member.listingSlugIndex}), ${member.quantity}`;
+}): SqlStatement =>
+  insertInto(tables.group_listings, {
+    group_id: idOfSlug(tables.groups, member.groupSlugIndex),
+    listing_id: idOfSlug(tables.listings, member.listingSlugIndex),
+    quantity: member.quantity,
+  });
+
+/** The id of the row that the same batch inserted with this slug index. The
+ *  row is always there, and the NOT NULL column refuses a missing one. */
+const idOfSlug = (
+  table: typeof tables.groups | typeof tables.listings,
+  slugIndex: string,
+): Expr<number> =>
+  valued(
+    from(table)
+      .where((row) => equal(row.slug_index, slugIndex))
+      .scalar((row) => row.id),
+  );
 
 /**
  * Replace a listing's full set of group memberships (the listing-form
@@ -384,7 +401,10 @@ const listingGroupDiffStatements = (
   // well under the interactive round-trip guard even for a large group selection.
   if (toRemove.length > 0) {
     statements.push(
-      sql`DELETE FROM group_listings WHERE listing_id = ${listingId} AND group_id IN (${sqlList(toRemove)})`,
+      deleteFrom(tables.group_listings).where({
+        group_id: toRemove,
+        listing_id: listingId,
+      }),
     );
     // Drop the listing's package price overrides for the groups it is leaving —
     // they live in listing_prices, not on the membership row, so they'd otherwise
@@ -392,13 +412,13 @@ const listingGroupDiffStatements = (
     // non-empty inside this branch.
     statements.push(removeGroupPricesStatement([listingId], toRemove)!);
   }
-  if (toAdd.length > 0) {
-    statements.push(
-      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${sqlRows(
-        toAdd.map((groupId) => [groupId, listingId]),
-      )}`,
-    );
-  }
+  statements.push(
+    ...insertingAll(
+      tables.group_listings,
+      toAdd.map((groupId) => ({ group_id: groupId, listing_id: listingId })),
+      { or: "IGNORE" },
+    ),
+  );
   return statements;
 };
 
@@ -586,17 +606,32 @@ export const getGroupPackagePricesByGroupIds = async (
 const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
-): SqlStatement =>
-  sql`UPDATE group_listings AS cloneMembership
-        SET quantity = (
-              SELECT sourceMembership.quantity FROM group_listings AS sourceMembership
-               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ${sourceListingId})
-      WHERE cloneMembership.listing_id = ${newListingId}
-        AND cloneMembership.group_id IN (
-              SELECT groupListing.group_id
-                FROM group_listings AS groupListing
-               WHERE groupListing.listing_id = ${sourceListingId})
-        AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`;
+): SqlStatement => {
+  const sourceMemberships = () =>
+    from(tables.group_listings)
+      .as("sourceMembership")
+      .where({ listing_id: sourceListingId });
+  return update(tables.group_listings, (clone) => ({
+    // The WHERE keeps only groups that the source is in, so one row is there.
+    quantity: valued<number>(
+      sourceMemberships()
+        .where((source) => equal(source.group_id, clone.group_id))
+        .scalar((source) => source.quantity),
+    ),
+  })).where((clone) => [
+    equal(clone.listing_id, newListingId),
+    inQuery(
+      clone.group_id,
+      sourceMemberships().values((source) => source.group_id),
+    ),
+    inQuery(
+      clone.group_id,
+      from(tables.groups)
+        .where({ is_package: 1 })
+        .values((group) => group.id),
+    ),
+  ]);
+};
 
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
@@ -635,7 +670,7 @@ export const copyPackageMemberOverridesTx = async (
 /** Reset-every-member-to-default-quantity statement (quantity 1). The flat price
  * overrides are cleared separately via {@link groupFlatPriceStatements}. */
 const clearMembersStatement = (groupId: number) =>
-  sql`UPDATE group_listings SET quantity = 1 WHERE group_id = ${groupId}`;
+  update(tables.group_listings, { quantity: 1 }).where({ group_id: groupId });
 
 /** The single CASE-UPDATE that applies each valid member's `quantity`, resetting
  * every other member to the default (quantity 1) via the ELSE branch. One
@@ -645,16 +680,16 @@ const clearMembersStatement = (groupId: number) =>
 const memberQuantityStatement = (
   groupId: number,
   valid: PackageMemberInput[],
-): SqlStatement => {
-  const quantityCases = sqlJoin(
-    valid.map(
-      ({ listingId, quantity }) =>
-        sql` WHEN ${listingId} THEN ${quantity ?? 1}`,
+): SqlStatement =>
+  update(tables.group_listings, (member) => ({
+    quantity: when(
+      valid.map(({ listingId, quantity }) => [
+        equal(member.listing_id, listingId),
+        quantity ?? 1,
+      ]),
+      1,
     ),
-    sql``,
-  );
-  return sql`UPDATE group_listings SET quantity = CASE listing_id ${quantityCases} ELSE 1 END WHERE group_id = ${groupId}`;
-};
+  })).where({ group_id: groupId });
 
 /** Keep only the submitted members that are CURRENT members of the group, so a
  * stale or crafted id is ignored rather than wiping real overrides, and collapse
@@ -736,11 +771,15 @@ export const setGroupListingsActive = async (
   active: boolean,
   tx?: TxScope,
 ): Promise<number> => {
-  // Unaliased `id`: this UPDATE has no table alias for SQLite to qualify.
-  const statement = sql`UPDATE listings SET active = ${active ? 1 : 0} WHERE id IN (
-       SELECT groupListing.listing_id
-         FROM group_listings AS groupListing
-        WHERE groupListing.group_id = ${groupId})`;
+  const statement = update(tables.listings, { active: active ? 1 : 0 }).where(
+    (listing) =>
+      inQuery(
+        listing.id,
+        from(tables.group_listings)
+          .where({ group_id: groupId })
+          .values((member) => member.listing_id),
+      ),
+  );
   const result =
     tx === undefined ? await execute(statement) : await tx.execute(statement);
   return result.rowsAffected;

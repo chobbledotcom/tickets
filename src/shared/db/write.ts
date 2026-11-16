@@ -46,7 +46,9 @@ type Written<Value> = Operand<Value> | Expr<Value>;
 /** The new values of some columns. A column that is left out keeps its value.
  *  An `undefined` value counts as left out. */
 export type Changes<Name extends TableName> = {
-  readonly [Column in ColumnName<Name>]?: Written<RowOf<Name>[Column]> | undefined;
+  readonly [Column in ColumnName<Name>]?:
+    | Written<RowOf<Name>[Column]>
+    | undefined;
 };
 
 /** One new row: a value for every column that the database cannot fill. */
@@ -190,6 +192,17 @@ export const insertInto = <Name extends TableName>(
     sql`INSERT${or} INTO ${sqlName(table.name)} (${sqlNames(columns)}) ${source}${conflict}`,
   );
 };
+
+/** The insert of every row as a list for a batch: no statement when there is
+ *  no row, else one statement. */
+export const insertingAll = <Name extends TableName>(
+  table: TableHandle<Name>,
+  rows: readonly NewValues<Name>[],
+  options: InsertOptions<Name> = {},
+): Write<Name>[] =>
+  rows.length === 0
+    ? []
+    : [insertInto(table, rows as readonly [NewValues<Name>], options)];
 
 /** The VALUES of an insert, or the one row it adds only where `when` holds. */
 const sourceOf = (

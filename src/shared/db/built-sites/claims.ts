@@ -8,7 +8,10 @@
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
 import { execute, withTransaction } from "#db/client.ts";
+import { type Expr, equal, plus, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 /** One statement over a buyer's site assignments: the select list and the
  * trailing clause vary, the attendee and the listing filter do not. */
@@ -55,20 +58,30 @@ export const claimBuiltSiteStatement = (
   candidateIds: readonly number[],
   attendeeId: number,
   listingId: number,
-): SqlStatement => sql`UPDATE built_sites
-           SET assignable = 0,
-               assigned_attendee_id = ${attendeeId},
-               assigned_listing_id = ${listingId},
-               site_data_revision = site_data_revision + 1
-         WHERE assignable = 1
-           AND id = (
-             SELECT candidate.id
-               FROM json_each(${JSON.stringify(candidateIds)}) AS poolOrder
-               JOIN built_sites AS candidate ON candidate.id = poolOrder.value
-              WHERE candidate.assignable = 1
-              ORDER BY poolOrder.key
-              LIMIT 1
-           )`;
+): SqlStatement =>
+  update(tables.built_sites, (site) => ({
+    assignable: 0,
+    assigned_attendee_id: attendeeId,
+    assigned_listing_id: listingId,
+    site_data_revision: plus(site.site_data_revision, 1),
+  })).where((site) => [
+    equal(site.assignable, 1),
+    equal(site.id, firstAssignableCandidate(candidateIds)),
+  ]);
+
+/** The id of the first candidate, in the given order, that is still
+ *  assignable. */
+const firstAssignableCandidate = (
+  candidateIds: readonly number[],
+): Expr<number> =>
+  valued(sql`(
+    SELECT candidate.id
+      FROM json_each(${JSON.stringify(candidateIds)}) AS poolOrder
+      JOIN built_sites AS candidate ON candidate.id = poolOrder.value
+     WHERE candidate.assignable = 1
+     ORDER BY poolOrder.key
+     LIMIT 1
+  )`);
 
 /** The site a claim just won for this attendee: the row the claim statement
  * above now carries, found on any of the plan listings the buyer booked — a

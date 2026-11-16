@@ -12,7 +12,6 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
-import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import {
@@ -21,7 +20,14 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
-import { among, and, equal } from "#db/select/expression.ts";
+import {
+  among,
+  and,
+  equal,
+  not,
+  or,
+  wholeCondition,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
@@ -30,13 +36,13 @@ import {
   type SqlStatement,
   sql,
   sqlCommas,
-  sqlJoin,
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
 import { type ColumnDef, col, writeTableRow } from "#db/table.ts";
 import { readById } from "#db/table-reader.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilename } from "#shared/images/broken.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
@@ -285,10 +291,22 @@ const linkImageStatement = (
   target: ImageUseTarget,
   sortOrder: number,
 ): SqlStatement =>
-  sql`INSERT OR IGNORE INTO image_uses (image_id, item_type, item_id, sort_order)
-          SELECT ${imageId}, ${target.kind}, ${target.id}, ${sortOrder}
-           WHERE EXISTS (SELECT 1 FROM images WHERE id = ${imageId})
-             AND ${imageUseTargets.existsSql(target.kind, target.id)}`;
+  insertInto(
+    tables.image_uses,
+    {
+      image_id: imageId,
+      item_id: target.id,
+      item_type: target.kind,
+      sort_order: sortOrder,
+    },
+    {
+      or: "IGNORE",
+      when: and(
+        from(tables.images).where({ id: imageId }).exists(),
+        wholeCondition(imageUseTargets.existsSql(target.kind, target.id)),
+      ),
+    },
+  );
 
 /** Clear every image link of one record. */
 export const clearImageUsesForItemStatement =
@@ -327,12 +345,11 @@ const clearStaleImageUseTargetsStatement = (
   imageId: number,
   targets: readonly ImageUseTarget[],
 ): SqlStatement => {
-  const kept = targets.map(
-    (target) => sql`(${and(...imageUseTargets.where(target))})`,
-  );
-  return sql`DELETE FROM image_uses WHERE image_id = ${imageId}${
-    kept.length === 0 ? sql`` : sql` AND NOT (${sqlJoin(kept, sql` OR `)})`
-  }`;
+  const kept = targets.map((target) => and(...imageUseTargets.where(target)));
+  return deleteFrom(tables.image_uses).where((use) => [
+    equal(use.image_id, imageId),
+    kept.length === 0 ? true : not(or(...kept)),
+  ]);
 };
 
 /** Set one image's links to exactly the records named. Naming none of them
@@ -400,8 +417,8 @@ export const updateImageRecord = async (
 
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
-    deleteFrom("image_uses", { image_id: imageId }),
-    deleteById("images", imageId),
+    deleteFrom(tables.image_uses).where({ image_id: imageId }),
+    deleteFrom(tables.images).where({ id: imageId }),
     // The shared version is the signal every isolate reads, so a deletion
     // here drops the cached URLs the other isolates still hold.
     settingsVersionIncrement(),

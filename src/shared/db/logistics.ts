@@ -6,11 +6,12 @@
  * Run-sheet reads live next door in `logistics-run-sheet.ts`.
  */
 
-import { executeBatch, queryAll, update } from "#db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import { rowsByIds } from "#db/query.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { mapBy } from "#fp";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
@@ -90,22 +91,16 @@ export const setLogisticsAssignments = async (
   perListing: Map<number, LogisticsAssignment>,
 ): Promise<void> => {
   const statements = [
-    update(
-      "attendees",
-      { split_logistics_agents: split ? 1 : 0 },
-      { id: attendeeId },
-    ),
+    update(tables.attendees, { split_logistics_agents: split ? 1 : 0 }).where({
+      id: attendeeId,
+    }),
     ...Array.from(perListing.entries()).map(([listingId, assignment]) =>
-      update(
-        "listing_attendees",
-        {
-          end_agent_id: assignment.endAgentId,
-          end_time: assignment.endTime,
-          start_agent_id: assignment.startAgentId,
-          start_time: assignment.startTime,
-        },
-        { attendee_id: attendeeId, listing_id: listingId },
-      ),
+      update(tables.listing_attendees, {
+        end_agent_id: assignment.endAgentId,
+        end_time: assignment.endTime,
+        start_agent_id: assignment.startAgentId,
+        start_time: assignment.startTime,
+      }).where({ attendee_id: attendeeId, listing_id: listingId }),
     ),
   ];
   await executeBatch(statements);
@@ -154,15 +149,11 @@ export const clearLogisticsAgentReferences = async (
   agentId: number,
 ): Promise<void> => {
   await executeBatch([
-    update(
-      "listing_attendees",
-      { start_agent_id: null },
-      { start_agent_id: agentId },
-    ),
-    update(
-      "listing_attendees",
-      { end_agent_id: null },
-      { end_agent_id: agentId },
-    ),
+    update(tables.listing_attendees, { start_agent_id: null }).where({
+      start_agent_id: agentId,
+    }),
+    update(tables.listing_attendees, { end_agent_id: null }).where({
+      end_agent_id: agentId,
+    }),
   ]);
 };

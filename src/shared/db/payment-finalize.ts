@@ -5,7 +5,10 @@ import {
   encryptTicketTokens,
   UNRESOLVED_RESERVATION,
 } from "#db/processed-payments.ts";
+import { equal, type Operand, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { CLAIM_MIRROR } from "#payment/admit-move.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 
@@ -39,7 +42,7 @@ const ALWAYS = sql`1 = 1`;
 
 /** What one finalize writes, and the conditions it writes under. */
 type FinalizeWrite = {
-  attendeeId: SqlSlot;
+  attendeeId: Operand<number>;
   guard?: SqlStatement;
   paymentReference: TaggedPaymentReference | null;
   sessionId: string;
@@ -60,11 +63,18 @@ const buildFinalizeStatements = async ({
     // The blind index is written by the same statement as the reference it
     // indexes, so a row can never carry one without the other — a refund claim
     // looks rows up by it to find another row holding the same money.
-    sql`UPDATE processed_payments
-          SET attendee_id = ${attendeeId}, ticket_tokens = ${await encryptTicketTokens(ticketTokens)}, payment_reference = ${referenceWrite.stored?.encrypted ?? ""},
-              payment_reference_index = ${referenceWrite.stored?.index ?? ""}
-          WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}
-            AND ${guard} AND ${referenceWrite.claim} AND ${standDownWhen}`,
+    update(tables.processed_payments, {
+      attendee_id: attendeeId,
+      payment_reference: referenceWrite.stored?.encrypted ?? "",
+      payment_reference_index: referenceWrite.stored?.index ?? "",
+      ticket_tokens: await encryptTicketTokens(ticketTokens),
+    }).where((payment) => [
+      equal(payment.payment_session_id, sessionId),
+      valued(UNRESOLVED_RESERVATION),
+      valued(guard),
+      valued(referenceWrite.claim),
+      valued(standDownWhen),
+    ]),
     paymentFinalizeGuard(guard),
   ];
 };
@@ -73,12 +83,12 @@ const buildFinalizeStatements = async ({
  * returned guard must stay immediately after the UPDATE in the batch. */
 export const batchFinalizeStatements = (
   sessionId: string,
-  attendeeId: SqlSlot,
+  attendeeId: number | SqlStatement,
   paymentReference: TaggedPaymentReference | null,
   ticketToken: string,
 ): Promise<SqlStatement[]> =>
   buildFinalizeStatements({
-    attendeeId,
+    attendeeId: valued(sql`${attendeeId}`),
     paymentReference,
     sessionId,
     ticketTokens: [ticketToken],

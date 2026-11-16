@@ -17,7 +17,18 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import {
+  atLeast,
+  greaterThan,
+  lessThan,
+  valued,
+  when,
+  wholeCondition,
+} from "#db/select/expression.ts";
+import type { Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { type Changes, insertInto } from "#db/write.ts";
 import {
   MAX_TOKEN_404S,
   TOKEN_LOCKOUT_MS,
@@ -43,61 +54,68 @@ interface TokenFailureValues {
  * lockout is active, both arms keep it: a straggling failure that queued
  * behind the locking one must not restart the count and drop the lock. */
 const recordFailureStatement = (values: TokenFailureValues): SqlStatement => {
-  const {
-    hashedIp: ip,
-    lockDeadline,
-    newTokens,
-    now,
-    tokenLimit,
-    windowMs,
-  } = values;
+  const { lockDeadline, newTokens, now, tokenLimit } = values;
+  const firstFull = wholeCondition(
+    sql`json_array_length(${newTokens}) >= ${tokenLimit}`,
+  );
 
-  /** The stored tokens that still count: the saved set while the window is
-   * live, an empty set once the window has tumbled. */
-  const liveTokens = sql`CASE
-    WHEN ${now} - token_attempts.window_start > ${windowMs} THEN '[]'
-    ELSE token_attempts.recent_tokens
-  END`;
+  return insertInto(
+    tables.token_attempts,
+    {
+      ip: values.hashedIp,
+      last_attempt: now,
+      locked_until: valued(
+        sql`CASE WHEN ${firstFull} THEN ${lockDeadline} ELSE NULL END`,
+      ),
+      recent_tokens: when([[firstFull, "[]"]], newTokens),
+      window_start: now,
+    },
+    { onConflict: { on: ["ip"], set: laterFailure(values) } },
+  ).returning("locked_until");
+};
 
-  /** The live tokens and this request's tokens as one set (UNION removes
-   * duplicates, so retries of a known token never grow the set). */
-  const unionTokens = sql`(
+/** The changes to the stored row of an IP that failed before. */
+const laterFailure =
+  (values: TokenFailureValues) =>
+  (row: Node<"token_attempts">): Changes<"token_attempts"> => {
+    const { lockDeadline, newTokens, now, tokenLimit, windowMs } = values;
+    const tumbled = lessThan(row.window_start, now - windowMs);
+
+    /** The stored tokens that still count: the saved set while the window is
+     * live, an empty set once the window has tumbled. */
+    const liveTokens = when<string>([[tumbled, "[]"]], row.recent_tokens);
+
+    /** The live tokens and this request's tokens as one set (UNION removes
+     * duplicates, so retries of a known token never grow the set). */
+    const unionTokens = sql`(
     SELECT value FROM json_each(${liveTokens})
     UNION
     SELECT value FROM json_each(${newTokens})
   ) AS hashedToken`;
 
-  const mergedCount = sql`(SELECT count(*) FROM ${unionTokens})`;
-  const mergedJson = sql`(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`;
-  const lockIsActive = sql`token_attempts.locked_until > ${now}`;
-
-  return sql`
-  INSERT INTO token_attempts (ip, recent_tokens, locked_until, window_start, last_attempt)
-  VALUES (
-    ${ip},
-    CASE WHEN json_array_length(${newTokens}) >= ${tokenLimit} THEN '[]' ELSE ${newTokens} END,
-    CASE WHEN json_array_length(${newTokens}) >= ${tokenLimit} THEN ${lockDeadline} ELSE NULL END,
-    ${now},
-    ${now}
-  )
-  ON CONFLICT (ip) DO UPDATE SET
-    recent_tokens = CASE
-      WHEN ${lockIsActive} THEN token_attempts.recent_tokens
-      WHEN ${mergedCount} >= ${tokenLimit} THEN '[]'
-      ELSE ${mergedJson}
-    END,
-    locked_until = CASE
-      WHEN ${lockIsActive} THEN token_attempts.locked_until
-      WHEN ${mergedCount} >= ${tokenLimit} THEN ${lockDeadline}
-      ELSE NULL
-    END,
-    window_start = CASE
-      WHEN ${now} - token_attempts.window_start > ${windowMs} THEN ${now}
-      ELSE token_attempts.window_start
-    END,
-    last_attempt = ${now}
-  RETURNING locked_until`;
-};
+    const mergedFull = atLeast(
+      valued<number>(sql`(SELECT count(*) FROM ${unionTokens})`),
+      tokenLimit,
+    );
+    const mergedJson = valued<string>(
+      sql`(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`,
+    );
+    const lockIsActive = greaterThan(row.locked_until, now);
+    return {
+      last_attempt: now,
+      locked_until: valued(
+        sql`CASE WHEN ${lockIsActive} THEN ${row.locked_until} WHEN ${mergedFull} THEN ${lockDeadline} ELSE NULL END`,
+      ),
+      recent_tokens: when<string>(
+        [
+          [lockIsActive, row.recent_tokens],
+          [mergedFull, "[]"],
+        ],
+        mergedJson,
+      ),
+      window_start: when([[tumbled, now]], row.window_start),
+    };
+  };
 
 const recordFailure = makeAttemptRecorder(recordFailureStatement);
 

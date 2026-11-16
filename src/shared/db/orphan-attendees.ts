@@ -12,7 +12,10 @@
 
 import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll, requireOne } from "#db/client.ts";
+import { inStatement } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
 import { requireValue } from "#shared/required-value.ts";
 
@@ -226,7 +229,9 @@ export const purgeOrphanedAttendees = async (
   const ids = orphanIds(cutoffIso);
   const statements = [
     ...attendeeRemovalStatements(ids),
-    sql`DELETE FROM attendees WHERE id IN (${ids})`,
+    deleteFrom(tables.attendees).where((attendee) =>
+      inStatement(attendee.id, ids),
+    ),
   ];
   // The final statement (the attendees delete) reports how many orphans went;
   // executeBatchWithResults always returns one result per statement.

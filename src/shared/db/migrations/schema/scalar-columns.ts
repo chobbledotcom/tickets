@@ -90,10 +90,7 @@ export const defaulted = <Stored, Fill extends Filling>(
   type: ColumnKind<Stored, Fill>,
   startingAt: string | number,
 ): ColumnKind<Stored, "optional"> =>
-  withFacts(
-    sql`${type} DEFAULT ${sqlLiteral(startingAt)}`,
-    columnFacts(type),
-  );
+  withFacts(sql`${type} DEFAULT ${sqlLiteral(startingAt)}`, columnFacts(type));
 
 /** A whole number that the column always holds. */
 export const wholeNumber = storing<number>(sql`INTEGER NOT NULL`);

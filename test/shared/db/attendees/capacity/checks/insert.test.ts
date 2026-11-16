@@ -25,11 +25,12 @@ describe("buildCapacityCheckedInsert", () => {
       listingId: 17,
     });
 
-    expect(statement.args.slice(0, 6)).toEqual([17, startAt, endAt, 1, "", 0]);
-    // Both zero defaults (parent_listing_id and package_group_id) share the
-    // interned ?6 slot; the capacity clause binds nothing new.
+    expect(statement.args).toEqual([endAt, 17, "", 0, 1, startAt]);
+    // Both zero defaults (package_group_id and parent_listing_id) share the
+    // interned ?4 slot. The capacity clause binds nothing new.
     expectIncludesAll(statement.sql, [
-      "SELECT ?1, last_insert_rowid(), ?2, ?3, ?4, ?5, ?6, ?6",
+      "(attendee_id, end_at, listing_id, order_token, package_group_id, parent_listing_id, quantity, start_at)",
+      "SELECT last_insert_rowid(), ?1, ?2, ?3, ?4, ?4, ?5, ?6",
       "WHERE",
     ]);
   });
@@ -51,18 +52,18 @@ describe("buildCapacityCheckedInsert", () => {
     );
 
     expect(statement.args).toEqual([
-      17,
       41,
-      startAt,
       endAt,
-      3,
+      17,
       "order-17",
-      19,
       23,
+      19,
+      3,
+      startAt,
     ]);
     assertStringIncludes(
       statement.sql,
-      "SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8",
+      "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     );
   });
 
@@ -71,8 +72,9 @@ describe("buildCapacityCheckedInsert", () => {
   // listing row still exists. An overbook caller always lands its row — the
   // payment ghost store's documented contract, even against a listing deleted
   // since checkout.
-  const existsClause =
-    "WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?1)";
+  // The listing id takes the slot after the attendee and end_at values.
+  const existsClause = (slot: number): string =>
+    `WHERE EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ?${slot})`;
   const cases: ClauseCase[] = [
     {
       call: [{ date: "2026-06-24", listingId: 17 }, 41, true],
@@ -82,7 +84,7 @@ describe("buildCapacityCheckedInsert", () => {
     {
       call: [{ date: "2026-06-24", listingId: 17, quantity: 0 }],
       title: "a zero-quantity booking carries no capacity or active condition",
-      where: existsClause,
+      where: existsClause(2),
     },
     {
       call: [{ date: "2026-06-24", listingId: 17, quantity: 0 }, 41, true],
@@ -108,7 +110,7 @@ describe("buildCapacityCheckedInsert", () => {
       ],
       title:
         "a zero-quantity booking keeps an extra condition the caller passed",
-      where: `${existsClause} AND (order_not_yet_recorded)`,
+      where: `${existsClause(3)} AND (order_not_yet_recorded)`,
     },
   ];
 

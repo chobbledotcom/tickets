@@ -13,9 +13,10 @@
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryAll } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
+import { deleteFrom, insertInto, update } from "#db/write.ts";
 import {
   LINK_END_CHECKABLE_NODES,
   parseSquareLinkEndState,
@@ -82,10 +83,14 @@ export const stageSquareLinkEnd = async (
   const sealedHandle = await encrypt(linkId);
   const state = squareLinkEndMoveTo("unwritten", "checkout_created");
   await execute(
-    sql`INSERT INTO square_link_ends
-               (session_index, state, sealed_handle, link_ends_at,
-                next_attempt_at, created_at)
-             VALUES (${sessionIndex}, ${state}, ${sealedHandle}, ${linkEndsAt}, ${linkEndsAt}, ${nowIso()})`,
+    insertInto(tables.square_link_ends, {
+      created_at: nowIso(),
+      link_ends_at: linkEndsAt,
+      next_attempt_at: linkEndsAt,
+      sealed_handle: sealedHandle,
+      session_index: sessionIndex,
+      state,
+    }),
   );
 };
 
@@ -97,9 +102,14 @@ const moveRowAsRead = async (
   nextAttemptAt: string,
 ): Promise<boolean> =>
   executeChangedRow(
-    sql`UPDATE square_link_ends
-        SET state = ${state}, next_attempt_at = ${nextAttemptAt}
-      WHERE session_index = ${row.sessionIndex} AND state = ${row.state} AND next_attempt_at = ${row.claimedAt}`,
+    update(tables.square_link_ends, {
+      next_attempt_at: nextAttemptAt,
+      state,
+    }).where({
+      next_attempt_at: row.claimedAt,
+      session_index: row.sessionIndex,
+      state: row.state,
+    }),
   );
 
 /**
@@ -151,7 +161,7 @@ const deleteSquareLinkEnd = async (
   claimedAt?: string,
 ): Promise<boolean> =>
   executeChangedRow(
-    deleteFrom("square_link_ends", {
+    deleteFrom(tables.square_link_ends).where({
       session_index: sessionIndex,
       state,
       ...(claimedAt === undefined ? {} : { next_attempt_at: claimedAt }),

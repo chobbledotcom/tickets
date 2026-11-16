@@ -17,12 +17,16 @@ import { accountBalancesForIds } from "#accounting/queries.ts";
 import { insertIfNewStatements } from "#accounting/rows.ts";
 import { executeBatch, queryAll, queryIdColumn } from "#db/client.ts";
 import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-} from "#db/sql.ts";
+  type Expr,
+  equal,
+  literal,
+  type Operand,
+  valued,
+} from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { sumOf } from "#fp";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { nowIso } from "#shared/now.ts";
@@ -114,19 +118,36 @@ const attendeeLegs = async (
  *  rows still missing their link are filled. An attendee who already carries
  *  two orders' stamps (a merge target) then keeps each order's rows on
  *  that order's legs. */
-const stampUpdate = (eventGroup: SqlSlot, attendeeId: number): SqlStatement =>
-  sql`UPDATE listing_attendees SET ledger_event_group = ${eventGroup} WHERE attendee_id = ${attendeeId} AND ledger_event_group = ''`;
+const stampUpdate = (
+  eventGroup: Operand<string>,
+  attendeeId: number,
+): SqlStatement =>
+  update(tables.listing_attendees, { ledger_event_group: eventGroup }).where({
+    attendee_id: attendeeId,
+    ledger_event_group: "",
+  });
 
 /** Stamp the row→event link with a known event group (a just-built booking's). */
 const stampStatement = (attendeeId: number, eventGroup: string): SqlStatement =>
   stampUpdate(eventGroup, attendeeId);
+
+/** The event group of an attendee's first sale leg. Null with no sale leg. */
+const saleEventGroup = (attendeeId: number): Expr<string | null> =>
+  from(tables.transfers)
+    .where((transfer) => [
+      equal(transfer.source_type, literal(ATTENDEE)),
+      equal(transfer.source_id, String(attendeeId)),
+      equal(transfer.kind, literal(KIND.sale)),
+    ])
+    .limit(1)
+    .scalar((transfer) => transfer.event_group);
 
 /** Stamp the row→event link for an already-ledgered attendee from their existing
  *  booking's sale leg, in one statement (so no read-then-write and no re-post).
  *  COALESCE to '' when no sale leg exists, which the projection reads as 0. */
 const stampFromExistingStatement = (attendeeId: number): SqlStatement =>
   stampUpdate(
-    sql`COALESCE((SELECT transfer.event_group FROM transfers AS transfer WHERE transfer.source_type = ${sqlLiteral(ATTENDEE)} AND transfer.source_id = ${String(attendeeId)} AND transfer.kind = ${sqlLiteral(KIND.sale)} LIMIT 1), '')`,
+    valued(sql`COALESCE(${saleEventGroup(attendeeId)}, '')`),
     attendeeId,
   );
 

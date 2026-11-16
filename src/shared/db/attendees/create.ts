@@ -30,10 +30,11 @@ import {
 } from "#db/attendees/notification-flags.ts";
 import { annotateOrderParents } from "#db/attendees/order-parents.ts";
 import { contactFields, encryptAttendeeFields } from "#db/attendees/pii.ts";
-import { insert } from "#db/client.ts";
 import { orderActivityStatements } from "#db/contact-tokens.ts";
 import { anyModifierSoldOut } from "#db/modifier-usage.ts";
+import { tables } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { addDays } from "#shared/dates.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
 import { type Attendee, type ContactInfo, clampDurationDays } from "#types";
@@ -50,7 +51,7 @@ export const buildAttendeeInsert = (
   order: AttendeeOrderFields,
   piiPaymentSessionId = enc.piiPaymentSessionId,
 ): SqlStatement =>
-  insert("attendees", {
+  insertInto(tables.attendees, {
     created: enc.created,
     email_pending: order.emailPending ?? PENDING_NOTIFICATION.none,
     kind: order.kind ?? ATTENDEE_KIND,

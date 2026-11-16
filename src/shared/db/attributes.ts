@@ -8,7 +8,6 @@
 import { decrypt, encrypt } from "#crypto/encryption.ts";
 import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
-  deleteWithChildren,
   executeBatch,
   queryAll,
   queryAllPrimary,
@@ -17,7 +16,6 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
-import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import {
@@ -25,11 +23,13 @@ import {
   listingOptionColumns,
 } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { inQuery } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
+import { deleteFrom } from "#db/write.ts";
 import {
   filter,
   groupToMap,
@@ -364,15 +364,24 @@ export const getAttributeListingUse = async (
   };
 };
 
-export const deleteAttributeOption = deleteWithChildren("attribute_options", [
-  { field: "option_id", table: "listing_attribute_options" },
-]);
+export const deleteAttributeOption = (optionId: number): Promise<void> =>
+  executeBatch([
+    deleteFrom(tables.listing_attribute_options).where({ option_id: optionId }),
+    deleteFrom(tables.attribute_options).where({ id: optionId }),
+  ]);
 
 export const deleteAttribute = async (attributeId: number): Promise<void> => {
   await executeBatch([
-    sql`DELETE FROM listing_attribute_options WHERE option_id IN (SELECT id FROM attribute_options WHERE attribute_id = ${attributeId})`,
-    deleteFrom("attribute_options", { attribute_id: attributeId }),
-    deleteById("attributes", attributeId),
+    deleteFrom(tables.listing_attribute_options).where((link) =>
+      inQuery(
+        link.option_id,
+        from(tables.attribute_options)
+          .where({ attribute_id: attributeId })
+          .values((option) => option.id),
+      ),
+    ),
+    deleteFrom(tables.attribute_options).where({ attribute_id: attributeId }),
+    deleteFrom(tables.attributes).where({ id: attributeId }),
   ]);
 };
 
