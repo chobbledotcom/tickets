@@ -80,11 +80,8 @@ export type ExternalLinkWrite = {
 
 /** The columns a link write stores, sealed and indexed. The index stays empty
  *  while the external id does. */
-export type ExternalLinkInput = {
-  externalId: string | null;
+export type ExternalLinkInput = ExternalLinkWrite & {
   externalIdIndex: BlindIndex | null;
-  linkId: number;
-  linkType: ExternalLinkKind;
   sourceId: number;
 };
 
