@@ -35,7 +35,7 @@ import {
   queryAndMap,
 } from "#db/query.ts";
 import { type Condition, equal, whereTail } from "#db/select/expression.ts";
-import { tableNode } from "#db/select/query.ts";
+import { from, tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlNames } from "#db/sql.ts";
 import { col } from "#db/table.ts";
@@ -294,7 +294,9 @@ export const getModifierGroupListingIdsByModifierId =
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn(sql`SELECT id FROM answers WHERE modifier_id = ${modifierId}`);
+  queryIdColumn(
+    from(tables.answers).where({ modifier_id: modifierId }).pick("id"),
+  );
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and

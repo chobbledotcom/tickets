@@ -16,7 +16,9 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -109,12 +111,10 @@ const batchProbePrefixes = (
 const buildFactsStatements = (
   listingIds: readonly number[],
 ): SqlStatement[] => [
-  sql`SELECT listing.id, listing.listing_type
-            FROM listings AS listing
-           WHERE listing.id IN (${sqlList(listingIds)})`,
-  sql`SELECT groupListing.listing_id, groupListing.group_id
-            FROM group_listings AS groupListing
-           WHERE groupListing.listing_id IN (${sqlList(listingIds)})`,
+  from(tables.listings).where({ id: listingIds }).pick("id", "listing_type"),
+  from(tables.group_listings)
+    .where({ listing_id: listingIds })
+    .pick("listing_id", "group_id"),
 ];
 
 /** Fold two facts result sets into the model the probes build their demands

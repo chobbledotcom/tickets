@@ -29,7 +29,8 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-import { sql } from "#db/sql.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
 import {
@@ -440,7 +441,7 @@ export const toggleListingActive = async (
       // write the operator asked for.
       const [row] = resultRows<{ active: number }>(
         await tx.execute(
-          sql`SELECT listing.active FROM listings AS listing WHERE listing.id = ${listingId}`,
+          from(tables.listings).where({ id: listingId }).pick("active"),
         ),
       );
       // The listing vanished under a concurrent delete. There is nothing to

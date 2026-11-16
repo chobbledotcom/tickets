@@ -12,11 +12,13 @@
  * joined nodes. A read becomes a statement that runs alone or in a batch.
  */
 
+import type { InValue } from "@libsql/client";
 import {
   and,
   type Condition,
   type Expr,
   matchesNothing,
+  matching,
   matchingNothing,
   type ValuesStatement,
   valued,
@@ -24,16 +26,26 @@ import {
   wholeCondition,
 } from "#db/select/expression.ts";
 import {
-  type IsOptional,
+  type CountRow,
+  type Joins,
+  type Node,
+  type None,
+  type Out,
+  type Query,
+  type Selection,
+  type Spec,
+  type Valued,
+  Via,
+  type Where,
+} from "#db/select/shape.ts";
+import {
   type ReferenceOf,
-  type ReferenceTo,
-  type RowOf,
   referenceOf,
   type TableHandle,
   type TableName,
-  type TargetOf,
 } from "#db/select/tables.ts";
 import {
+  isSqlStatement,
   type RowsStatement,
   type SqlStatement,
   sql,
@@ -41,159 +53,7 @@ import {
   sqlJoin,
   sqlName,
 } from "#db/sql.ts";
-
-type None = Readonly<Record<never, never>>;
-type Or<A extends boolean, B extends boolean> = A extends true ? true : B;
-type Maybe<Value, Nullable extends boolean> = Nullable extends true
-  ? Value | null
-  : Value;
-
-/** The rows of `table` whose reference `edge` points at the parent node, with
- *  their own joins. */
-export class Via<
-  Name extends TableName,
-  Edge extends string,
-  Joined,
-  Left extends boolean,
-> {
-  constructor(
-    readonly table: TableHandle<Name>,
-    readonly edge: Edge,
-    readonly spec: Joined,
-    readonly left: Left,
-  ) {}
-
-  /** The join as a left join: a parent with no referring row stays, and the
-   *  joined columns are null. */
-  optional(): Via<Name, Edge, Joined, true> {
-    return new Via(this.table, this.edge, this.spec, true);
-  }
-}
-
-/** What a read joins: for each key, the joins below a reference of the parent,
- *  or a `via` join. */
-export type Spec = {
-  readonly [key: string]: Spec | Via<TableName, string, Spec, boolean>;
-};
-
-/** Why a join key is refused, the key, and what the table accepts instead. */
-type Refused<Reason extends string, Key, Accepted> = readonly [
-  refused: Reason,
-  key: Key,
-  accepted: Accepted,
-];
-
-/** `Joined` where each key names a reference of `Name`, or a `via` join whose
- *  reference points at `Name`. */
-type Valid<Name extends TableName, Joined> = {
-  readonly [Key in keyof Joined]: Joined[Key] extends Via<
-    infer Child,
-    infer Edge,
-    unknown,
-    boolean
-  >
-    ? Edge extends ReferenceTo<Child, Name>
-      ? Joined[Key]
-      : Refused<
-          "this via reference does not point at the parent table",
-          Edge,
-          ReferenceTo<Child, Name>
-        >
-    : Key extends ReferenceOf<Name>
-      ? Valid<TargetOf<Name, Key>, Joined[Key]>
-      : Refused<"not a reference of the parent table", Key, ReferenceOf<Name>>;
-};
-
-/** The joins of a read from `Name`, refused where a key does not join. */
-export type Joins<Name extends TableName, Joined> = Joined &
-  Valid<Name, Joined>;
-
-type Fields<Row, Nullable extends boolean> = {
-  readonly [Column in keyof Row]: Expr<Maybe<Row[Column], Nullable>>;
-};
-
-type Child<Name extends TableName, Key, Joined, Nullable extends boolean> =
-  Joined extends Via<infer Target, string, infer Below, infer Optional>
-    ? Node<Target, Below, Or<Nullable, Optional>>
-    : Key extends ReferenceOf<Name>
-      ? Node<TargetOf<Name, Key>, Joined, Or<Nullable, IsOptional<Name, Key>>>
-      : never;
-
-/** A table in a read: its columns and its joined nodes. */
-export type Node<
-  Name extends TableName,
-  Joined = None,
-  Nullable extends boolean = false,
-> = Fields<RowOf<Name>, Nullable> & {
-  readonly [Key in keyof Joined]: Child<Name, Key, Joined[Key], Nullable>;
-};
-
-/** What a read gives for each row: a name for each value. */
-export type Selection = { readonly [name: string]: Expr<unknown> };
-
-/** The row a selection reads. */
-export type Out<Picked extends Selection> = {
-  -readonly [Name in keyof Picked]: Picked[Name] extends Expr<infer Value>
-    ? Value
-    : never;
-};
-
-/** A node with one more joined table under `Key`. */
-type Joining<
-  Root,
-  Key extends string,
-  Name extends TableName,
-  Nullable extends boolean,
-> = Root & { readonly [Each in Key]: Node<Name, None, Nullable> };
-
-/** A join of `table` under `key`, where `on` holds. */
-type JoinStep<Root, Nullable extends boolean> = <
-  Key extends string,
-  Name extends TableName,
->(
-  key: Key,
-  table: TableHandle<Name>,
-  on: (node: Joining<Root, Key, Name, Nullable>) => Condition,
-) => Query<Joining<Root, Key, Name, Nullable>>;
-
-export type Query<Root> = Readonly<{
-  /** The read with its first table under another word. A table that a
-   *  statement reads twice needs a word for each place. */
-  as: (alias: string) => Query<Root>;
-  /** The read with `table` joined under `key`, where `on` holds. */
-  join: JoinStep<Root, false>;
-  /** The same join, where a row with no match stays and the joined columns
-   *  are null. */
-  leftJoin: JoinStep<Root, true>;
-  /** The read with more conditions. */
-  where: (
-    conditions: (node: Root) => Condition | readonly Condition[],
-  ) => Query<Root>;
-  /** The read with its rows folded by these values. */
-  groupBy: (by: (node: Root) => readonly Expr<unknown>[]) => Query<Root>;
-  /** The read with its rows in this order. */
-  orderBy: (order: (node: Root) => readonly SqlStatement[]) => Query<Root>;
-  /** The read with at most `count` rows. */
-  limit: (count: number) => Query<Root>;
-  /** Whether no row can pass the conditions, so a runner can skip the read. */
-  matchesNothing: () => boolean;
-  /** The statement that reads each row as the picked names. */
-  select: <Picked extends Selection>(
-    pick: (node: Root) => Picked,
-  ) => RowsStatement<Out<Picked>>;
-  /** The statement that reads a column list written by hand. The caller names
-   *  the type of the rows. */
-  columns: (pick: (node: Root) => SqlStatement) => SqlStatement;
-  /** The statement that reads one unnamed value for each row. */
-  values: <Value>(pick: (node: Root) => Expr<Value>) => ValuesStatement<Value>;
-  /** The value of the first row, as an expression. Null with no row. */
-  scalar: <Value>(pick: (node: Root) => Expr<Value>) => Expr<Value | null>;
-  /** The one value of a read that folds every row, as an expression. A fold
-   *  with no group always has a row, so the value is never missing. */
-  aggregate: <Value>(pick: (node: Root) => Expr<Value>) => Expr<Value>;
-  /** Whether the read has a row, as a condition. */
-  exists: () => Expr<boolean>;
-}>;
+import { bindFirst } from "#shared/fp-bind.ts";
 
 type NodeFn<Root, Result> = (node: Root) => Result;
 
@@ -324,15 +184,37 @@ const listOrNull = (
 ): SqlStatement | null =>
   parts === undefined || parts.length === 0 ? null : sqlCommas(parts);
 
-const query = <Root>(
+/** The column `name` of a node. The types refuse a name that is not a
+ *  column, so a miss here is a cast that hid one. */
+const columnOf = (node: unknown, name: string): Expr<InValue> => {
+  const held = (node as Handle)[name];
+  if (!isSqlStatement(held)) {
+    throw new Error(
+      `A match names ${name}, which is not a column of its table.`,
+    );
+  }
+  return valued(held);
+};
+
+const held = (node: unknown, match: object): Expr<boolean>[] =>
+  matching(bindFirst(columnOf)(node), { ...match });
+
+const asNodeTest = <Root, First>(
+  conditions: Where<Root, First>,
+): NodeFn<Root, Condition | readonly Condition[]> =>
+  typeof conditions === "function"
+    ? conditions
+    : (node) => held(node, conditions);
+
+const query = <Root, First>(
   table: TableHandle<string>,
   spec: Spec,
   listing: Listing<Root>,
-): Query<Root> => {
-  const next = (change: Partial<Listing<Root>>): Query<Root> =>
+): Query<Root, First> => {
+  const next = (change: Partial<Listing<Root>>): Query<Root, First> =>
     query(table, spec, { ...listing, ...change });
-  const joined = <Wider>(join: ConditionJoin): Query<Wider> =>
-    query<Wider>(table, spec, {
+  const joined = <Wider>(join: ConditionJoin): Query<Wider, First> =>
+    query<Wider, First>(table, spec, {
       ...(listing as Listing<unknown>),
       joins: [...listing.joins, join],
     });
@@ -375,6 +257,16 @@ const query = <Root>(
     return conditions.some(matchesNothing) ? matchingNothing(built) : built;
   };
 
+  /** The statement that reads each picked value under its name. */
+  const named = (pick: (node: Root) => Selection): SqlStatement =>
+    statement((node) =>
+      sqlCommas(
+        Object.entries(pick(node)).map(
+          ([name, value]) => sql`${value} AS ${sqlName(name)}`,
+        ),
+      ),
+    );
+
   return {
     aggregate: (pick) => {
       if (listing.group !== undefined) {
@@ -386,6 +278,8 @@ const query = <Root>(
     },
     as: (alias) => next({ alias }),
     columns: statement,
+    count: () =>
+      statement(() => sql`COUNT(*) AS count`) as RowsStatement<CountRow>,
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),
     groupBy: (group) => next({ group }),
     join: (key, joinedTable, on) =>
@@ -395,18 +289,22 @@ const query = <Root>(
     limit: (limit) => next({ limit }),
     matchesNothing: () => planned().conditions.some(matchesNothing),
     orderBy: (order) => next({ order }),
+    pick: ((...columns: readonly string[]) =>
+      named((node) =>
+        Object.fromEntries(
+          columns.map((column) => [column, columnOf(node, column)]),
+        ),
+      )) as Query<Root, First>["pick"],
+    probe: () => next({ limit: 1 }).columns(() => sql`1`),
     scalar: (pick) => valued(sql`(${statement(pick)})`),
     select: <Picked extends Selection>(pick: (node: Root) => Picked) =>
-      statement((node) =>
-        sqlCommas(
-          Object.entries(pick(node)).map(
-            ([name, value]) => sql`${value} AS ${sqlName(name)}`,
-          ),
-        ),
-      ) as RowsStatement<Out<Picked>>,
-    values: <Value>(pick: (node: Root) => Expr<Value>) =>
+      named(pick) as RowsStatement<Out<Picked>>,
+    sortedBy: (...columns) =>
+      next({ order: (node) => columns.map(bindFirst(columnOf)(node)) }),
+    values: <Value>(pick: Valued<Root, Value>) =>
       statement(pick) as ValuesStatement<Value>,
-    where: (conditions) => next({ wheres: [...listing.wheres, conditions] }),
+    where: (conditions) =>
+      next({ wheres: [...listing.wheres, asNodeTest(conditions)] }),
   };
 };
 

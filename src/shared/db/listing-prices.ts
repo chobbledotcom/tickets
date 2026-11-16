@@ -18,6 +18,8 @@ import {
   PRICE_TYPE_GROUP,
   PRICE_TYPE_GROUP_DAY,
 } from "#db/price-types.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type SqlStatement,
   sql,
@@ -266,8 +268,9 @@ export const getListingDayPrices = async (
   listingId: number,
 ): Promise<DayPrices> => {
   const result = await execute(
-    sql`SELECT price_id, unit_price FROM listing_prices
-      WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_DAY_COUNT}`,
+    from(tables.listing_prices)
+      .where({ listing_id: listingId, price_type: PRICE_TYPE_DAY_COUNT })
+      .pick("price_id", "unit_price"),
   );
   const dayPrices: DayPrices = {};
   for (const row of v.parse(v.array(DayCountPriceRowSchema), result.rows)) {

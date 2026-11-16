@@ -9,11 +9,14 @@
 import type { ResultSet } from "@libsql/client";
 import { blindIndexFor } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import { openEach } from "#crypto/open-each.ts";
 import type { BlindIndex, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne, resultRows, type TxScope } from "#db/client.ts";
-import { type ContactChannel, contactHash } from "#db/contact-preferences.ts";
+import {
+  type ContactChannel,
+  contactHash,
+  preferenceOf,
+} from "#db/contact-preferences.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { nowMs } from "#shared/now.ts";
@@ -214,19 +217,19 @@ const addBookingToken = async (
 
 /** Load a contact's encrypted token blob, or null when no row exists. With a
  *  caller transaction the read sees that transaction's own writes. */
+/** The sealed ticket tokens of one contact. */
+const tokenBlobOf = (hash: string) =>
+  preferenceOf(hash).pick("attendee_tokens_blob");
+
 const loadTokenBlob = async (
   hash: string,
   transaction?: TxScope,
 ): Promise<string | null> => {
   const row = transaction
     ? resultRows<{ attendee_tokens_blob: string }>(
-        await transaction.execute(
-          sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
-        ),
+        await transaction.execute(tokenBlobOf(hash)),
       )[0]
-    : await queryOne<{ attendee_tokens_blob: string }>(
-        sql`SELECT attendee_tokens_blob FROM contact_preferences WHERE contact_hash = ${hash}`,
-      );
+    : await queryOne<{ attendee_tokens_blob: string }>(tokenBlobOf(hash));
   return row?.attendee_tokens_blob ?? null;
 };
 

@@ -12,10 +12,10 @@ import {
   type Expr,
   equal,
   greaterThan,
-  lessThan,
   literal,
 } from "#db/select/expression.ts";
-import { from, type Node } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { mapById, requiredMapValue, unique } from "#fp";
@@ -23,7 +23,7 @@ import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#types";
 import { getListingGroupMembership, useListingById } from "./listing.ts";
-import { daySpan, type IntervalRow, perDayLoads } from "./range.ts";
+import { perDayLoads, spanLoadsOf } from "./range.ts";
 import type { ListingForGroupLookup, PerIdDayLoader } from "./types.ts";
 
 type RemainingMap = Map<number, number>;
@@ -94,28 +94,22 @@ export const getGroupPerDayRemaining: PerIdDayLoader<
   );
   if (caps.length === 0) return new Map();
   const cappedIds = caps.map((cap) => cap.id);
-  const { startAt, endAt } = daySpan(days);
-  type GroupRow = IntervalRow & { group_id: number };
-  const rows = await queryAll<GroupRow>(
-    from(tables.listing_attendees, { listing: {} })
-      .as("attendee")
-      .join("membership", tables.group_listings, (line) =>
-        equal(line.membership.listing_id, line.listing_id),
-      )
-      .where((line) => [
-        among(line.membership.group_id, cappedIds),
-        capacityRuleTypeSql("perDateCap", line.listing.listing_type),
-        lessThan(line.start_at, endAt),
-        greaterThan(line.end_at, startAt),
-      ])
-      .select((line) => ({
-        end_at: line.end_at,
-        group_id: line.membership.group_id,
-        quantity: line.quantity,
-        start_at: line.start_at,
-      })),
+  const rows = await queryAll(
+    spanLoadsOf(
+      from(tables.listing_attendees, { listing: {} })
+        .as("attendee")
+        .join("membership", tables.group_listings, (line) =>
+          equal(line.membership.listing_id, line.listing_id),
+        )
+        .where((line) => [
+          among(line.membership.group_id, cappedIds),
+          capacityRuleTypeSql("perDateCap", line.listing.listing_type),
+        ]),
+      days,
+      (line) => line.membership.group_id,
+    ),
   );
-  const rowsByGroup = Map.groupBy(rows, (row) => row.group_id);
+  const rowsByGroup = Map.groupBy(rows, (row) => row.owner_id);
   return mapById(({ id, max_attendees, total }: CappedGroupTotal) => {
     const loads = perDayLoads(rowsByGroup.get(id) ?? [], days);
     return new Map(

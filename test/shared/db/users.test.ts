@@ -42,11 +42,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       }
       expect(
         queries.filter((sql) =>
-          sql.includes("SELECT id, admin_level FROM users"),
+          sql.includes("FROM users AS user WHERE user.id = "),
         ),
       ).toEqual([
-        "SELECT id, admin_level FROM users WHERE id = ?1 LIMIT 1",
-        "SELECT id, admin_level FROM users WHERE id = ?1 LIMIT 1",
+        "SELECT user.id AS id, user.admin_level AS admin_level FROM users AS user WHERE user.id = ?1 LIMIT ?1",
+        "SELECT user.id AS id, user.admin_level AS admin_level FROM users AS user WHERE user.id = ?1 LIMIT ?1",
       ]);
     });
 
