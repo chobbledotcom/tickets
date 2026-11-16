@@ -1,31 +1,28 @@
-/** Run the real scheduled check and the real owner cancel request against one
- * stored subscription state. Stripe replies are supplied assumptions. */
+/** Run the real scheduled check and the real owner cancel against one stored
+ * subscription state. Stripe replies are supplied assumptions. */
 import { stub } from "@std/testing/mock";
 import { eventGroup } from "#accounting/refs.ts";
 import { execute, queryOnePrimary } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import { getSubscribedRowOrNull } from "#db/subscriptions.ts";
-import { ensureMessageGroups, t } from "#i18n";
-import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
 import {
   denoEnvironment,
   setEnvironmentValue,
 } from "#scripts/environment-values.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeApi } from "#shared/stripe.ts";
+import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
 import {
   SUBSCRIPTION_NODE_OF,
   type SubscriptionStatus,
 } from "#shared/subscriptions/plan.ts";
 import { recordObserved } from "#shared/subscriptions/record.ts";
 import { runSubscriptionCheck } from "#shared/subscriptions/status-check.ts";
-import { parseFlashCookie } from "#test-utils/assertions/redirect.ts";
-import { createTestDbWithSetup, resetDb } from "#test-utils/db.ts";
-import { adminFormPost } from "#test-utils/session.ts";
 import {
   paidInvoice,
   providerSubscription,
   seedBooking,
+  withSubscriptionDb,
 } from "./environment.ts";
 import {
   type LifecycleCase,
@@ -118,29 +115,15 @@ const runCheck = async (row: number): Promise<string> => {
   return "returned";
 };
 
-/* jscpd:ignore-start -- a list of strings, not code */
-const CANCEL_ANSWERS = [
-  ["subscriptions.success.cancelled", "cancelled"],
-  ["subscriptions.success.cancelled_behind", "behind"],
-  ["subscriptions.error.not_cancelled", "not_cancelled"],
-  ["subscriptions.error.ended", "ended"],
-] as const;
-/* jscpd:ignore-end */
-
-/** The owner posts the cancel form. The outcome is the message that the
- * owner reads. */
-const runCancel = async (row: number): Promise<string> => {
-  const { response } = await adminFormPost(
-    `/admin/subscriptions/${row}/cancel`,
+/** The owner cancel of the Subscriptions page, below its route. The outcome
+ * is the answer that the route turns into the message for the owner. */
+const runCancel = async (row: number): Promise<string> =>
+  cancelOwnerSubscription(
+    requireValue(
+      await getSubscribedRowOrNull(row),
+      "The subscription row is absent before its cancel",
+    ),
   );
-  const flash = parseFlashCookie(response);
-  const message = flash.success ?? flash.error;
-  const answer = CANCEL_ANSWERS.find(([key]) => t(key) === message);
-  return requireValue(
-    answer,
-    `The cancel request gave an unknown answer: ${message}`,
-  )[1];
-};
 
 const COMMAND_RUNNERS = { cancel: runCancel, check: runCheck };
 
@@ -242,25 +225,23 @@ const withLifecycleProvider = async (
   return await run();
 };
 
-/** One site with an owner holds every case. Each case has a row of its own,
- * and the row id is the position of the case in the list. */
-export const lifecycleMoves = async (
+/** One database holds every case. Each case has a row of its own, and the
+ * row id is the position of the case in the list. */
+export const lifecycleMoves = (
   cases: readonly LifecycleCase[],
-): Promise<Move[]> => {
-  await ensureMessageGroups(MESSAGE_GROUPS);
-  const expectedError = Deno.env.get("TEST_EXPECT_ERROR");
-  Deno.env.set("TEST_EXPECT_ERROR", "1");
-  await createTestDbWithSetup();
-  try {
-    const worlds = new Map<string, World>();
-    return await withLifecycleProvider(worlds, async () => {
-      const moves: Move[] = [];
-      for (const [index, sample] of cases.entries())
-        moves.push(await observeCase(worlds, sample, index + 1));
-      return moves;
-    });
-  } finally {
-    resetDb();
-    setEnvironmentValue(denoEnvironment, "TEST_EXPECT_ERROR", expectedError);
-  }
-};
+): Promise<Move[]> =>
+  withSubscriptionDb(async () => {
+    const expectedError = Deno.env.get("TEST_EXPECT_ERROR");
+    Deno.env.set("TEST_EXPECT_ERROR", "1");
+    try {
+      const worlds = new Map<string, World>();
+      return await withLifecycleProvider(worlds, async () => {
+        const moves: Move[] = [];
+        for (const [index, sample] of cases.entries())
+          moves.push(await observeCase(worlds, sample, index + 1));
+        return moves;
+      });
+    } finally {
+      setEnvironmentValue(denoEnvironment, "TEST_EXPECT_ERROR", expectedError);
+    }
+  });

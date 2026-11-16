@@ -15,10 +15,10 @@ EXTENDS Integers, ModelRules, SubscriptionRules, SubscriptionLifecycleData
 \* cancel requests. The other subscription models check one result at a time.
 \*
 \* scripts/verify-models/subscriptions/lifecycle.ts supplies the facts.
-\* lifecycle-run.ts puts a row in each state on a site with an owner. It runs
-\* runSubscriptionCheck, or posts the owner cancel form through the real
-\* route, and reads the row and the ledger afterwards. No helper rebuilds
-\* that orchestration. The Stripe replies are supplied assumptions.
+\* lifecycle-run.ts puts a row in each state. It runs runSubscriptionCheck or
+\* cancelOwnerSubscription, and reads the row and the ledger afterwards. No
+\* helper rebuilds that orchestration. The route of the cancel form only turns
+\* the answer into a message. The Stripe replies are supplied assumptions.
 \*
 \* == defines a rule, not an assignment. A prime names the state after a step.
 \* A model permits steps; it does not execute this text from top to bottom.

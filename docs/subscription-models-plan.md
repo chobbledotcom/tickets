@@ -58,7 +58,7 @@ TLA sets must not collapse distinct attempts or equal-value invoices.
 | `SubscriptionCheckout` | Checkout admission, Stripe session parameters, `subscriptionStartOf`, `withSubscriptionPlan`, and stored plan columns | Unsupported orders refuse. Ordinary extra tickets remain valid. Exactly the subscribed booking receives the observed plan. Later listing or tax edits do not change it. |
 | `SubscriptionRenewals` | `recordObserved`, `renewalTax`, `mapRenewal`, `postTransferGroups`, `renewalBookingGuard`, and stored transfers | Each eligible invoice posts once to its true attendee and listing. Cash equals the observed amount. Sale plus VAT equals cash. References and paid times remain exact. A changed booking identity cannot post from the old snapshot. |
 | `SubscriptionCancellation` | `cancelOwnerSubscription`, `endFailedCheckoutSubscription`, the failed-checkout refund paths, and `statusWrite` | A failed checkout needs an observed ended status before a refund. An already-observed end needs no extra cancel call. Booked or orphaned ledger dispositions never enter that refund path. Stale checks cannot overwrite an ended status. An ended status becomes visible only with its final returned renewals. |
-| `SubscriptionLifecycle` | `runSubscriptionCheck` and the owner cancel request through its real route, from each stored state of one row | The model holds the row status, the Stripe status, and the paid and recorded renewals. In every order of Stripe changes, checks and cancel requests, an ended row needs an ended Stripe subscription and every paid renewal in the ledger. An ended row takes no command. |
+| `SubscriptionLifecycle` | `runSubscriptionCheck` and `cancelOwnerSubscription`, from each stored state of one row | The model holds the row status, the Stripe status, and the paid and recorded renewals. In every order of Stripe changes, checks and cancel requests, an ended row needs an ended Stripe subscription and every paid renewal in the ledger. An ended row takes no command. |
 | `SubscriptionRecords` | The production edit, delete, merge, and subscriber-read paths | No permitted operation loses a live plan. Safe moves preserve it. Subscriber reads include live, ended, and quantity-zero plans exactly once per stored booking. |
 
 Each model has its own law, domain explanation, and named controls.
@@ -175,7 +175,7 @@ Keep the registry free of application IO at import time.
 Declare each producer and relevant production source as review context.
 Use the existing SQLite fault and payment observer patterns. Add no production test hooks.
 Statement producers use `schemaClientWith`. Full-function producers install the isolated client through the existing `setDb` seam and restore it afterwards.
-The lifecycle producer needs a site with an owner for the cancel request, so it uses the test database setup and its owner session.
+The lifecycle producer runs the owner cancel below its route. The route needs the built stylesheet, and the model job does not build it. The function gives each answer that the route turns into a message.
 
 Expected files are five TLA modules, their producers, focused fixture or schema helpers, direct tests, and five flat registry entries.
 Keep each file near 400 lines and below the enforced 500-line limit.

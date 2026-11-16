@@ -1,4 +1,5 @@
 /** Subscription lifecycle evidence. No provider call or database runs at import. */
+import { once } from "#fp";
 import { tlaModule, tlaSet } from "#scripts/verify-models/data.ts";
 import {
   producerFor,
@@ -12,9 +13,13 @@ import {
 import { lifecycleMoves } from "#scripts/verify-models/subscriptions/lifecycle-run.ts";
 import { SubscriptionStatusSchema } from "#shared/subscriptions/plan.ts";
 
-/** Each call executes anew. A control cannot reuse clean cached output. */
+/** The commands run once for each process: 1152 real commands are slow. */
+const observedMoves = once(() => lifecycleMoves(lifecycleCases()));
+
+/** Each caller gets a copy of its own, so a control cannot change the clean
+ * facts. */
 export const lifecycleFacts = async (): Promise<LifecycleFacts> => ({
-  moves: await lifecycleMoves(lifecycleCases()),
+  moves: structuredClone(await observedMoves()),
 });
 
 const recordSets = recordSetsFor(LIFECYCLE_TABLES);
