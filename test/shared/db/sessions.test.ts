@@ -117,13 +117,13 @@ describeWithEnv("db > sessions", { db: true }, () => {
     expect(calls).toBe(1);
     expect(found).toEqual({
       session: {
-        csrf_token: "csrf-joined",
+        csrfToken: "csrf-joined",
         expires,
         token: await hashSessionToken("joined"),
-        user_id: user.id,
-        wrapped_data_key: null,
+        userId: user.id,
+        wrappedDataKey: null,
       },
-      user: { admin_level: user.adminLevel, id: user.id },
+      user: { adminLevel: user.adminLevel, id: user.id },
     });
   });
 

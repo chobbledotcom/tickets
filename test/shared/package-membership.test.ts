@@ -216,7 +216,7 @@ describe("packageGroups", () => {
         { id: 1, isPackage: false },
         { id: 2, isPackage: true },
       ]),
-    ).toEqual([{ id: 2, is_package: true }]);
+    ).toEqual([{ id: 2, isPackage: true }]);
   });
 });
 

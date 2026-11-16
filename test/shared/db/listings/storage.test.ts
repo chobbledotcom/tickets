@@ -53,25 +53,25 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const saved = await getListingWithCount(listing.id);
     expect(saved).toMatchObject({
       active: true,
-      assign_built_site: false,
-      bookable_alone: false,
-      can_pay_more: false,
-      customisable_days: false,
-      duration_days: 1,
+      assignBuiltSite: false,
+      bookableAlone: false,
+      canPayMore: false,
+      customisableDays: false,
+      durationDays: 1,
       fields: "email",
       hidden: false,
-      initial_site_months: 0,
-      listing_type: "standard",
-      max_price: 10000,
-      max_quantity: 1,
-      maximum_days_after: 90,
-      minimum_days_before: 1,
-      months_per_unit: 0,
-      non_transferable: false,
-      purchase_only: false,
-      unit_price: 0,
-      use_defaults: false,
-      uses_logistics: false,
+      initialSiteMonths: 0,
+      listingType: "standard",
+      maximumDaysAfter: 90,
+      maxPrice: 10000,
+      maxQuantity: 1,
+      minimumDaysBefore: 1,
+      monthsPerUnit: 0,
+      nonTransferable: false,
+      purchaseOnly: false,
+      unitPrice: 0,
+      useDefaults: false,
+      usesLogistics: false,
     });
   });
 
@@ -80,7 +80,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const [row] = await readRows(
       from(tables.listings).pick("durationDays", "maxPrice"),
     );
-    expect(row).toEqual({ duration_days: 1, max_price: 0 });
+    expect(row).toEqual({ durationDays: 1, maxPrice: 0 });
   });
 
   test("names each projected image when its stored filename is broken", async () => {
@@ -115,7 +115,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const savedValue = async (
       slug: string,
       fields: Partial<ListingInput>,
-      column: "date" | "closes_at",
+      column: "date" | "closesAt",
     ): Promise<unknown> => {
       const listing = await insertListing(slug, fields);
       return (await getListingWithCount(listing.id))?.[column];
@@ -140,14 +140,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "returns null for no-deadline listing",
         "test-read-1",
         { closesAt: "" },
-        "closes_at",
+        "closesAt",
         null,
       ],
       [
         "returns normalized ISO string for valid datetime",
         "test-read-2",
         { closesAt: "2099-12-31T23:59" },
-        "closes_at",
+        "closesAt",
         "2099-12-31T23:59:00.000Z",
       ],
     ] as const) {

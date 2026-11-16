@@ -170,8 +170,8 @@ describeWithEnv(
       invalidateListingsCache();
       const reread = await getListingWithCount(listing.id);
       expect(reread).toMatchObject({
-        attendee_count: 3,
-        tickets_count: 1,
+        attendeeCount: 3,
+        ticketsCount: 1,
       });
     });
 

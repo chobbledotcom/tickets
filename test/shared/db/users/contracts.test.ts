@@ -68,7 +68,7 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     );
 
     expect(await getUserAuthFieldsById(invited.id)).toEqual({
-      admin_level: invited.adminLevel,
+      adminLevel: invited.adminLevel,
       id: invited.id,
     });
   });
@@ -146,13 +146,13 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     );
     const expired = {
       ...current,
-      invite_expiry: await encrypt("2020-01-01T00:00:00.000Z"),
+      inviteExpiry: await encrypt("2020-01-01T00:00:00.000Z"),
     };
     const states = [
-      { ...current, invite_code_hash: null },
-      { ...current, invite_code_hash: await encrypt("") },
-      { ...current, invite_expiry: null },
-      { ...current, invite_expiry: await encrypt("") },
+      { ...current, inviteCodeHash: null },
+      { ...current, inviteCodeHash: await encrypt("") },
+      { ...current, inviteExpiry: null },
+      { ...current, inviteExpiry: await encrypt("") },
       current,
       expired,
     ];

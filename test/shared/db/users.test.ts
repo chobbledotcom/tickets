@@ -47,8 +47,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
           sql.includes("FROM users AS user WHERE user.id = "),
         ),
       ).toEqual([
-        "SELECT user.id AS id, user.admin_level AS admin_level FROM users AS user WHERE user.id = ?1 LIMIT ?1",
-        "SELECT user.id AS id, user.admin_level AS admin_level FROM users AS user WHERE user.id = ?1 LIMIT ?1",
+        "SELECT user.id AS id, user.admin_level AS adminLevel FROM users AS user WHERE user.id = ?1 LIMIT ?1",
+        "SELECT user.id AS id, user.admin_level AS adminLevel FROM users AS user WHERE user.id = ?1 LIMIT ?1",
       ]);
     });
 

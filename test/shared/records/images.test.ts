@@ -269,7 +269,7 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
       await imageRecord.create({ ...imageInput, name: "  Cat  " }),
     ).toMatchObject({
       kind: "written",
-      row: { alt_text: "A cat", filename: "cat.webp", id: 1, name: "Cat" },
+      row: { altText: "A cat", filename: "cat.webp", id: 1, name: "Cat" },
     });
     expect(await loggedMessages()).toEqual(["Image 'Cat' uploaded"]);
   });
@@ -300,7 +300,7 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
       }),
     ).toMatchObject({
       kind: "written",
-      row: { alt_text: "New alt", id: image.id, name: "After" },
+      row: { altText: "New alt", id: image.id, name: "After" },
     });
     expect(await loggedMessages()).toEqual(["Image 'After' updated"]);
   });

@@ -28,8 +28,8 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await addPageItem(p.id, "group", 200);
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
-        { item_id: 100, item_type: "listing", page_id: p.id, sort_order: 0 },
-        { item_id: 200, item_type: "group", page_id: p.id, sort_order: 1 },
+        { itemId: 100, itemType: "listing", pageId: p.id, sortOrder: 0 },
+        { itemId: 200, itemType: "group", pageId: p.id, sortOrder: 1 },
       ]);
     });
 
@@ -53,10 +53,10 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       );
       expect(edges).toEqual([
         {
-          item_id: child.id,
-          item_type: "page",
-          page_id: parentA.id,
-          sort_order: 0,
+          itemId: child.id,
+          itemType: "page",
+          pageId: parentA.id,
+          sortOrder: 0,
         },
       ]);
     });
@@ -108,8 +108,8 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       });
       const items = await getItemsForPage(p.id);
       expect(items).toEqual([
-        { item_id: 5, item_type: "group", page_id: p.id, sort_order: 0 },
-        { item_id: 5, item_type: "listing", page_id: p.id, sort_order: 1 },
+        { itemId: 5, itemType: "group", pageId: p.id, sortOrder: 0 },
+        { itemId: 5, itemType: "listing", pageId: p.id, sortOrder: 1 },
       ]);
       // page_id is part of the match: the other page's row is untouched.
       expect((await getItemsForPage(q.id))[0]?.sortOrder).toBe(0);

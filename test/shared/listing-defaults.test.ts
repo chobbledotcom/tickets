@@ -52,9 +52,9 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
 
     expect(resolved.bookableDays).toEqual(["Monday", "Wednesday"]);
     expect(Object.keys(resolved).toSorted()).toEqual([
-      "bookable_days",
+      "bookableDays",
       "id",
-      "use_defaults",
+      "useDefaults",
     ]);
   });
 
@@ -67,7 +67,7 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
         fullDefaults,
         true,
       ),
-    ).toThrow("months_per_unit");
+    ).toThrow("monthsPerUnit");
   });
 
   test("overlays every set default when use_defaults is on", () => {
@@ -189,7 +189,7 @@ describe("shared > listing-defaults > setListingDefaultFields", () => {
       usesLogistics: true,
     });
     // Display order is uses_logistics before hidden, regardless of insertion.
-    expect(fields.map((f) => f.field)).toEqual(["uses_logistics", "hidden"]);
+    expect(fields.map((f) => f.field)).toEqual(["usesLogistics", "hidden"]);
   });
 
   test("is empty when nothing is set", () => {
@@ -342,7 +342,7 @@ describe("shared > listing-defaults > resolveListingDate", () => {
   test("a narrow row selects listing_type beside date or cannot be resolved", () => {
     expect(() =>
       resolveListingDate({ date: "2020-06-15T18:00:00.000Z", id: 1 }),
-    ).toThrow("listing_type");
+    ).toThrow("listingType");
   });
 });
 

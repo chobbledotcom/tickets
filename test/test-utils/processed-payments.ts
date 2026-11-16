@@ -34,7 +34,10 @@ export const getProcessedPayment = (
   sessionId: string,
 ): Promise<ProcessedPayment | null> =>
   queryOne<ProcessedPayment>(
-    sql`SELECT payment_session_id, attendee_id, processed_at, ticket_tokens, failure_data, payment_reference FROM processed_payments WHERE payment_session_id = ${sessionId}`,
+    sql`SELECT payment_session_id AS paymentSessionId, attendee_id AS attendeeId,
+            processed_at AS processedAt, ticket_tokens AS ticketTokens,
+            failure_data AS failureData, payment_reference AS paymentReference
+     FROM processed_payments WHERE payment_session_id = ${sessionId}`,
   );
 
 export const expectSessionFailed = async (sessionId: string): Promise<void> => {

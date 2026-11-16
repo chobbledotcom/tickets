@@ -78,7 +78,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
       created: source.created,
       id: source.id,
       name: "Stripe invoices",
-      url_pattern: "https://dashboard.stripe.com/invoices/{external_id}",
+      urlPattern: "https://dashboard.stripe.com/invoices/{external_id}",
     });
   });
 

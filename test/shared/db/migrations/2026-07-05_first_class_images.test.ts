@@ -99,12 +99,12 @@ describeWithEnv(
       // fallback); the legacy system had no alt text.
       expect(await getImagesForItem("listing", pictured.id)).toEqual([
         {
-          alt_text: "",
+          altText: "",
           filename: "products/full.webp",
-          filename_thumb: "products/thumb.webp",
+          filenameThumb: "products/thumb.webp",
           id: pictured.id,
           name: "Poster listing",
-          sort_order: 0,
+          sortOrder: 0,
         },
       ]);
       expect(await getImagesForItem("listing", bare.id)).toEqual([]);

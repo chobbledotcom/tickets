@@ -128,7 +128,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     );
     expect(notes).toHaveLength(1);
     expect(notes[0]).toMatchObject({
-      entity_id: attendeeId,
+      entityId: attendeeId,
       note: "Refunded: price changed",
       type: "system",
     });
