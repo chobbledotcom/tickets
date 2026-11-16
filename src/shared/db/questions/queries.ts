@@ -74,14 +74,15 @@ const inQuestionOrder = (question: QuestionNode) => [
   question.answer.sort_order,
 ];
 
-/** The columns of a joined row. */
+/** The columns of a joined row. A switch column is typed as the boolean that
+ *  the read transform of its table gives. */
 const joinedColumns = (question: QuestionNode) => ({
-  a_active: question.answer.active,
+  a_active: valued<boolean | null>(question.answer.active),
   a_id: question.answer.id,
   a_question_id: question.answer.question_id,
   a_sort_order: question.answer.sort_order,
   a_text: question.answer.text,
-  q_assign_all: question.assign_all,
+  q_assign_all: valued<boolean>(question.assign_all),
   q_display_type: question.display_type,
   q_id: question.id,
   q_text: question.text,

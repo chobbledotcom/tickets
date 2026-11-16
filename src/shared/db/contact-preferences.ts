@@ -193,10 +193,7 @@ const parseStats = async (
 const loadStatsBlobs = async (
   hashes: string[],
 ): Promise<Map<string, OwnerKeyEncrypted | "">> => {
-  const rows = await queryAll<{
-    contact_hash: string;
-    stats_blob: OwnerKeyEncrypted | "";
-  }>(
+  const rows = await queryAll(
     from(tables.contact_preferences)
       .where({ contact_hash: hashes })
       .pick("contact_hash", "stats_blob"),

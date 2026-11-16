@@ -51,6 +51,7 @@ src/shared/db/capacity.ts::buildCapacityCondition.durationDays~18guaiu  1 → 0 
 # Capacity checks clamp a zero-day duration to one day. Demand maps contain
 # finite totals, and a missing total has the same zero value as a stored zero.
 src/shared/db/attendees/capacity/checks.ts::buildCapacityCheckedInsert.durationDays.durationDays~18guaiu  1 → 0 audited:0fxsl04 # dateToStartEnd clamps both duration values to one day
+src/shared/db/attendees/capacity/range.ts::dateToStartEnd.durationDays~18guaiu  1 → 0 audited:0129u6k # dateToRange clamps the duration, and the clamp gives one day for zero as for one
 src/shared/db/attendees/capacity/checks.ts::checkListingAvailability.durationDays~18guaiu  1 → 0 audited:0fxsl04 # buildCapacityCondition applies the same duration clamp
 src/shared/db/capacity-batch.ts::addDemandToBucket~0k2ebng  ?? → || audited:1ah3sli # a supplied duration is a finite integer; zero and the fallback both expand to one clamped day
 src/shared/db/capacity-batch.ts::addDemandToBucket~0k2ebng  1 → 0 audited:1ah3sli # expandDailyRange clamps both fallback values to one day
@@ -272,7 +273,7 @@ src/shared/db/listings/daily-switch.ts::moveStatement.line.exists~1w8epkj  true�
 # Ordered collection (ordered-collection.ts): a collection without a scope
 # opens each where clause with "1 = 1 AND ". The text after it is always one
 # complete predicate, so the clause selects the same rows without the opener.
-src/shared/db/users.ts::getUserAuthFieldsById~1ykoi57  ?? → || audited:0exa54c # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
+src/shared/db/users.ts::getUserAuthFieldsById~0sx053t  ?? → || audited:02f2r55 # queryAll()[0] is a truthy UserAuthFields object or undefined, so both operators return the row or null
 src/shared/update.ts::readRecordedScriptCommit~0a5wpjt  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/update.ts::fetchLatestRelease.assetUrl~16g02qy  ?? → || audited:0iassr4 # the primary row value is a string or absent and the fallback is empty, so both operators return the same string
 src/shared/db/capacity.ts::buildCapacityCondition.conditionFor.excludeAttendeeId~1jgxbsh  ?? → || audited:13edx5i # excludeAttendeeId is an attendee row id or undefined. A row id starts at 1, so the only falsy value is the absent one.

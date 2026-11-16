@@ -3,14 +3,17 @@
  * Every table as a read sees it. Each table has the type of its stored row,
  * the columns that refer to another table, and the word a query calls it by.
  *
- * All of it comes from the schema declaration. A column that the schema does
- * not declare is a compile error in a read.
+ * All of it comes from the schema declaration, apart from the values that
+ * `StoredValues` names. A column that the schema does not declare is a compile
+ * error in a read.
  */
 
+import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
+import type { ImageUseItemType, SitePageItemType } from "#types";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -24,10 +27,55 @@ type ColumnOf<Name extends TableName> = Extract<
 
 type StoredIn<Kind> = Kind extends ColumnKind<infer Stored> ? Stored : never;
 
-/** The row a table stores: each column, and the value it holds. */
-export type RowOf<Name extends TableName> = {
+/** The row of a table as its column types alone give it. */
+type DeclaredRow<Name extends TableName> = {
   [Each in ColumnOf<Name> as Each[0]]: StoredIn<Each[1]>;
 };
+
+/** The values that the code writes to a column whose type says only "text".
+ *  The database does not check them. The code that writes the column keeps
+ *  them true, and a read takes the type of the column from here. */
+type StoredValues = {
+  attendees: { pii_blob: OwnerKeyEncrypted | "" };
+  contact_preferences: { stats_blob: OwnerKeyEncrypted | "" };
+  image_uses: { item_type: ImageUseItemType };
+  site_page_items: { item_type: SitePageItemType };
+  system_notes: { note: EnvKeyEncrypted | OwnerKeyEncrypted };
+  users: { admin_level: EnvKeyEncrypted; username_hash: EnvKeyEncrypted };
+};
+
+/** The named values of one table, or nothing for a table with none. */
+type ValuesOf<Name> = Name extends keyof StoredValues
+  ? StoredValues[Name]
+  : Record<never, never>;
+
+type StoredAt<Row, Column> = Column extends keyof Row ? Row[Column] : never;
+
+/** The columns of one entry of `StoredValues` that fit no declared column. A
+ *  value fits when the type of its column can hold it. */
+type UnfitIn<Name extends keyof StoredValues> = {
+  [Column in keyof StoredValues[Name]]: StoredValues[Name][Column] extends StoredAt<
+    DeclaredRow<Name>,
+    Column
+  >
+    ? never
+    : Column;
+}[keyof StoredValues[Name]];
+
+/** Every entry of `StoredValues` that fits no declared column. */
+type Unfit = {
+  [Name in keyof StoredValues]: UnfitIn<Name>;
+}[keyof StoredValues];
+
+/** The row a table stores: each column, and the value it holds. An entry of
+ *  `StoredValues` that fits no column leaves every row with no type. */
+export type RowOf<Name extends TableName> = [Unfit] extends [never]
+  ? {
+      [Column in keyof DeclaredRow<Name>]: Column extends keyof ValuesOf<Name>
+        ? ValuesOf<Name>[Column]
+        : StoredAt<DeclaredRow<Name>, Column>;
+    }
+  : never;
 
 /** The referring columns of a table, and the table each one points at. */
 type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES
@@ -47,8 +95,6 @@ export type TargetOf<
   Name extends TableName,
   Key extends ReferenceOf<Name>,
 > = ReferencesOf<Name>[`${Key}_id` & keyof ReferencesOf<Name>] & TableName;
-
-type StoredAt<Row, Column> = Column extends keyof Row ? Row[Column] : never;
 
 /** Whether the referring column can hold nothing. */
 export type IsOptional<Name extends TableName, Key extends ReferenceOf<Name>> =

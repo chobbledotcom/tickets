@@ -258,7 +258,7 @@ export const getUserAuthFieldsById = async (
   id: number,
 ): Promise<UserAuthFields | null> =>
   (
-    await queryAll<UserAuthFields>(
+    await queryAll(
       from(tables.users).where({ id: id }).limit(1).pick("id", "admin_level"),
     )
   )[0] ?? null;
