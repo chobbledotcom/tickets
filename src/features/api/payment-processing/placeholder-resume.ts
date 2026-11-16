@@ -261,8 +261,16 @@ export const loadRefundResume = async (
 /** A failed subscription checkout that was stored without a charge keeps no
  * refund claim. A paid charge on it later is a state for a person to
  * investigate, so each delivery fails. */
-export const unclaimedChargeMessage = (sessionId: string): string =>
-  `Failed subscription checkout ${sessionId} names a paid charge that has no refund claim`;
+export const requireRefundClaim = (
+  sessionId: string,
+  rows: readonly unknown[],
+): void => {
+  if (rows.length === 0) {
+    throw new Error(
+      `Failed subscription checkout ${sessionId} names a paid charge that has no refund claim`,
+    );
+  }
+};
 
 /**
  * A redelivered session whose stored outcome can carry the completion
@@ -300,8 +308,8 @@ export const resumePlaceholderSession = async (
   // crash between the release and the advance leaves the pending outcome on
   // a refund the durable authority knows completed.
   if (stored.refunded === true) return null;
-  if (search.rows.length === 0 && session.subscription !== undefined) {
-    throw new Error(unclaimedChargeMessage(session.id));
+  if (session.subscription !== undefined) {
+    requireRefundClaim(session.id, search.rows);
   }
   if (!search.rows.some((row) => row.refundStateName === "completed")) {
     return null;
