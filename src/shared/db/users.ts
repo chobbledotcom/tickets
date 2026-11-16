@@ -16,15 +16,12 @@ import type {
   WrappedKey,
 } from "#crypto/sealed.ts";
 import { execute, executeBatch, insertedRowId, queryAll } from "#db/client.ts";
-import {
-  createKeyedCache,
-  registerCache,
-  registerTableInvalidation,
-} from "#db/common-schema.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { equal, lessThan, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
+import { tableCache } from "#db/table-cache.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { deleteFrom, insertInto, update } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
@@ -84,8 +81,6 @@ export const onUsersInvalidated = (listener: () => void): void => {
 
 export const getAllUsers = (): Promise<User[]> => usersCache.getAll();
 
-registerCache(() => ({ entries: usersCache.size(), name: "users" }));
-
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (
   cause: CacheInvalidation = "manual",
@@ -94,10 +89,13 @@ export const invalidateUsersCache = (
   for (const listener of usersInvalidationListeners) listener();
 };
 
-// Any write to the users table clears the cache automatically (db-client layer).
-// Must call invalidateUsersCache() (not just usersCache.invalidate()) so that
-// onUsersInvalidated listeners such as the superuser account-state cache also fire.
-registerTableInvalidation(["users"], invalidateUsersCache);
+// Any write to the users table clears the cache at the client. The
+// registration calls invalidateUsersCache, so that onUsersInvalidated
+// listeners such as the superuser account-state cache also fire.
+tableCache(tables.users, {
+  invalidate: invalidateUsersCache,
+  size: () => usersCache.size(),
+});
 
 /** Fields needed to build a users row. */
 type InsertUserOpts = {

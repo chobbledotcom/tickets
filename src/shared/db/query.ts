@@ -1,19 +1,6 @@
-import type { InValue, Row } from "@libsql/client";
-import { decrypt } from "#crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { execute, queryAll, queryAllPrimary, resultRows } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
-import { mapParallel } from "#fp";
-
-/**
- * Execute a SQL query and map result rows through an async transformer.
- *
- * Useful for running a query and decrypting/transforming each row via `table.fromDb`.
- */
-export const queryAndMap =
-  <Row, Out>(toOut: (row: Row) => Promise<Out>) =>
-  async (statement: SqlStatement): Promise<Out[]> =>
-    mapParallel(toOut)(resultRows<Row>(await execute(statement)));
+import type { Row } from "@libsql/client";
+import { queryAll } from "#db/client.ts";
+import { type SqlStatement, sqlName } from "#db/sql.ts";
 
 /** A row of whole numbers by column. SQLite gives a COUNT or a SUM back as a
  * number or as a bigint. */
@@ -42,38 +29,6 @@ export const columnFrom =
   (name: string): SqlStatement =>
     sqlName(`${sourceName}.${name}`);
 
-/**
- * Run an id-keyed SELECT, short-circuiting to `[]` (no query) when `ids` is
- * empty. `buildSql` receives the bound list of `ids`, ready for an
- * `IN (...)`. The base skeleton for the id-map helpers below and
- * for any read that loads rows for a caller-supplied id list.
- */
-/** Builds a statement from the bound list of ids, ready for an `IN (...)`. */
-type IdListStatement = (boundIds: SqlStatement) => SqlStatement;
-
-const rowsByIdsOn =
-  (readAll: (statement: SqlStatement) => Promise<unknown[]>) =>
-  async <Row>(ids: number[], buildSql: IdListStatement): Promise<Row[]> =>
-    ids.length === 0 ? [] : ((await readAll(buildSql(sqlList(ids)))) as Row[]);
-
-export const rowsByIds = rowsByIdsOn(queryAll);
-
-/** The same id-keyed lookup, pinned to the primary: for a caller that must
- * read rows this same request just wrote (the registration emails read the
- * answers the booking saved moments earlier in the same request). */
-export const rowsByIdsPrimary = rowsByIdsOn(queryAllPrimary);
-
-/**
- * Run an integer-keyed lookup query and turn each row into a `[key, value]`
- * pair via `toEntry`, returning the id-keyed map (empty when `ids` is empty).
- */
-export const mapByIds = async <Row, Value = number>(
-  ids: number[],
-  buildSql: IdListStatement,
-  toEntry: (row: Row) => [number, Value],
-): Promise<Map<number, Value>> =>
-  new Map((await rowsByIds<Row>(ids, buildSql)).map(toEntry));
-
 /** Whether a failed batch tripped a guard's NOT NULL insert — the one shape
  * every guard abort surfaces with, named by the constraint that tripped it. */
 export const notNullGuardFailure = (error: unknown, column: string): boolean =>
@@ -87,107 +42,7 @@ export const notNullGuardFailureAt =
   (error: unknown): boolean =>
     notNullGuardFailure(error, column);
 
-type NameRow<Raw> = { id: number; name: Raw };
-type Decryptor<Raw> = (raw: Raw) => Promise<string>;
-type NameMap = Promise<Map<number, string>>;
-
-/** Decrypt each fetched row's name into an `id → name` map. */
-const decryptNameMap = async <Raw>(
-  rows: Promise<NameRow<Raw>[]>,
-  decryptName: Decryptor<Raw>,
-): NameMap => {
-  const entries = await Promise.all(
-    (await rows).map(async (r) => [r.id, await decryptName(r.name)] as const),
-  );
-  return new Map(entries);
-};
-
-/** Project `alias.id, alias.nameColumn` from `table`, with an optional tail. */
-const nameSelect = (
-  table: string,
-  alias: string,
-  nameColumn: string,
-  tail: SqlStatement,
-): SqlStatement =>
-  sql`SELECT ${sqlName(`${alias}.id`)}, ${sqlName(
-    `${alias}.${nameColumn}`,
-  )} AS name FROM ${sqlName(table)} AS ${sqlName(alias)} ${tail}`;
-
-/**
- * A table's `id → name` projection, bound to its columns once. `byIds` returns
- * the map for the requested ids (empty ids ⇒ empty map); `all` returns it for
- * every row, ordered by id. Only the name column is decrypted, via the
- * decryption-agnostic `decryptName`. `alias` qualifies the selected columns.
- *
- * This is the single home for narrow id→name reads that skip the full-row cache:
- * the per-table `getXNamesByIds` wrappers bind it and expose `.byIds`, and the
- * pickers/labels that need every name call `.all()`.
- */
-export const nameSource = <Raw>(
-  table: string,
-  alias: string,
-  nameColumn: string,
-  decryptName: Decryptor<Raw>,
-) => ({
-  all: (): NameMap =>
-    decryptNameMap(
-      queryAll<NameRow<Raw>>(
-        nameSelect(
-          table,
-          alias,
-          nameColumn,
-          sql`ORDER BY ${sqlName(`${alias}.id`)} ASC`,
-        ),
-      ),
-      decryptName,
-    ),
-  byIds: (ids: number[]): NameMap =>
-    decryptNameMap(
-      rowsByIds<NameRow<Raw>>(ids, (boundIds) =>
-        nameSelect(
-          table,
-          alias,
-          nameColumn,
-          sql`WHERE ${sqlName(`${alias}.id`)} IN (${boundIds})`,
-        ),
-      ),
-      decryptName,
-    ),
-});
-
-/** A table's env-key-encrypted `name` column as an `id → name` source. The env
- * decrypt and the `name` column are the common case, so per-table wrappers bind
- * just the table and its singular-word alias, then take `.byIds` (narrow id
- * lookups) or `.all()` (every name, for pickers/labels). */
-export const envNameSource = (table: string, alias: string) =>
-  nameSource(table, alias, "name", (raw: EnvKeyEncrypted) => decrypt(raw));
-
-/**
- * Map each row's `id` to one of its columns (`id → column`) for the rows of
- * `table` whose id is in `ids`, optionally narrowed by an extra `where`
- * statement appended as written, such as ` AND modifier_id IS NOT NULL`. `Value` is
- * the column's stored type (a number unless the caller says otherwise —
- * strings and nullable columns work too). `alias` is the table's singular-word
- * alias and qualifies the selected columns.
- */
 /** A batch loader: takes a list of ids and returns, for each id, the list of
  * related numbers found for it. Ids with no matches are absent from the map. */
 export type ListsByIds = (ids: number[]) => Promise<Map<number, number[]>>;
 
-export const columnMapByIds = <Value extends InValue = number>(
-  table: string,
-  alias: string,
-  column: string,
-  ids: number[],
-  where: SqlStatement = sql``,
-): Promise<Map<number, Value>> =>
-  mapByIds<{ id: number; value: Value }, Value>(
-    ids,
-    (boundIds) =>
-      sql`SELECT ${sqlName(`${alias}.id`)}, ${sqlName(
-        `${alias}.${column}`,
-      )} AS value FROM ${sqlName(table)} AS ${sqlName(alias)} WHERE ${sqlName(
-        `${alias}.id`,
-      )} IN (${boundIds})${where}`,
-    (row) => [row.id, row.value],
-  );

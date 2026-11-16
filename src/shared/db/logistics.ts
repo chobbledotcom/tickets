@@ -7,10 +7,9 @@
  */
 
 import { executeBatch, queryAll } from "#db/client.ts";
-import { rowsByIds } from "#db/query.ts";
+import { readRows } from "#db/read.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
 import { update } from "#db/write.ts";
 import { mapBy } from "#fp";
 
@@ -135,11 +134,17 @@ export const getLogisticsAssignments = async (
 export const getLogisticsAssignmentsForAttendees = async (
   attendeeIds: number[],
 ): Promise<BookingLogisticsAssignment[]> => {
-  const rows = await rowsByIds<AssignmentRow>(
-    attendeeIds,
-    (ids) =>
-      sql`SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
-     FROM listing_attendees WHERE attendee_id IN (${ids})`,
+  const rows = await readRows(
+    from(tables.listing_attendees)
+      .where({ attendee_id: attendeeIds })
+      .pick(
+        "attendee_id",
+        "listing_id",
+        "start_agent_id",
+        "end_agent_id",
+        "start_time",
+        "end_time",
+      ),
   );
   return mapBookingRows(rows, rowToAssignment);
 };

@@ -5,7 +5,7 @@ import {
 } from "#db/capacity.ts";
 import { queryAll } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { columnMapByIds } from "#db/query.ts";
+import { readRows } from "#db/read.ts";
 import {
   among,
   type Counted,
@@ -17,8 +17,7 @@ import {
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
-import { mapById, requiredMapValue, unique } from "#fp";
+import { fieldById, mapById, requiredMapValue, unique } from "#fp";
 import { capacityRuleTypeSql, countsPerDate } from "#shared/capacity-rules.ts";
 import type { BatchLookup } from "#shared/request-cache.ts";
 import type { ListingType } from "#types";
@@ -182,13 +181,14 @@ export const getGroupStaticCapByGroupId = (
   groupIds: number[],
 ): Promise<RemainingMap> =>
   cappedGroupQuery(groupIds, (ids) =>
-    columnMapByIds(
-      "groups",
-      "groupRow",
-      "max_attendees",
-      ids,
-      sql` AND groupRow.max_attendees > 0`,
-    ),
+    readRows(
+      from(tables.groups)
+        .where((group) => [
+          among(group.id, ids),
+          greaterThan(group.max_attendees, 0),
+        ])
+        .pick("id", "max_attendees"),
+    ).then(fieldById("max_attendees")),
   );
 
 /** Group remaining, static caps, and membership for date-less package checks. */

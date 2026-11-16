@@ -9,8 +9,9 @@
  */
 
 import { queryOnePrimary } from "#db/client.ts";
-import { mapByIds } from "#db/query.ts";
-import { valued } from "#db/select/expression.ts";
+import { readRows } from "#db/read.ts";
+import { orZero, sum, valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlJoin } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
@@ -25,16 +26,21 @@ export type ModifierUsage = {
 };
 
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
-export const modifierUsedQuantities = (
+export const modifierUsedQuantities = async (
   ids: number[],
 ): Promise<Map<number, number>> =>
-  mapByIds<{ modifier_id: number; used: number }>(
-    ids,
-    (modifierIds) =>
-      sql`SELECT modifier_id, COALESCE(SUM(quantity), 0) AS used
-       FROM modifier_usages WHERE modifier_id IN (${modifierIds})
-       GROUP BY modifier_id`,
-    (row) => [row.modifier_id, row.used],
+  new Map(
+    (
+      await readRows(
+        from(tables.modifier_usages)
+          .where({ modifier_id: ids })
+          .groupBy((usage) => [usage.modifier_id])
+          .select((usage) => ({
+            modifier_id: usage.modifier_id,
+            used: orZero(sum(usage.quantity)),
+          })),
+      )
+    ).map((row) => [row.modifier_id, Number(row.used)]),
   );
 
 /**
