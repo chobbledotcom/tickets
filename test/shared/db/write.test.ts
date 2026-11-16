@@ -57,6 +57,18 @@ describe("insertInto", () => {
     ).toThrow("must name the same columns");
   });
 
+  // A field and its column name both reach the same column. SQLite keeps one
+  // value and drops the other, so the write refuses the pair.
+  test("refuses a row and an update that name one column twice", () => {
+    const twice = { end_date: "b", endDate: "c", startDate: "a" } as never;
+    expect(() => insertInto(tables.holidays, twice)).toThrow(
+      "names the column end_date twice",
+    );
+    expect(() => update(tables.holidays, twice)).toThrow(
+      "names the column end_date twice",
+    );
+  });
+
   test("refuses an empty list of rows and a row with no column", () => {
     expect(() => insertInto(tables.settings, [] as never)).toThrow(
       "has no row",
@@ -145,7 +157,7 @@ describe("insertInto", () => {
         startDate: "a",
       }).returning("id", "name").sql,
     ).toBe(
-      "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id AS id, name AS name",
+      "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id, name",
     );
   });
 });
@@ -191,7 +203,7 @@ describe("deleteFrom", () => {
   test("removes the matched rows and can read them back", () => {
     expect(
       deleteFrom(tables.sessions).where({ token: "t" }).returning("token").sql,
-    ).toBe("DELETE FROM sessions WHERE sessions.token = ?1 RETURNING token AS token");
+    ).toBe("DELETE FROM sessions WHERE sessions.token = ?1 RETURNING token");
   });
 
   test("removes every row when it says so", () => {

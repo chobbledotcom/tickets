@@ -108,9 +108,12 @@ const nodeOfWrite = <Name extends TableName>(
 export const columnSql = (field: string): SqlStatement =>
   sqlName(columnName(field));
 
-/** The column of a field, read under the field name. */
+/** The column of a field, read under the field name. A one-word field is
+ *  its column already. */
 const fieldAs = (field: string): SqlStatement =>
-  sql`${columnSql(field)} AS ${sqlName(field)}`;
+  columnName(field) === field
+    ? columnSql(field)
+    : sql`${columnSql(field)} AS ${sqlName(field)}`;
 
 /** The entries of `values` that hold a value. */
 const given = (values: object): [string, unknown][] =>
@@ -168,6 +171,19 @@ const conflictTail = <Name extends TableName>(
   return sql` ON CONFLICT${target} DO UPDATE SET ${sqlCommas(changes)}${guard}`;
 };
 
+/** Refuse two keys that name one column, such as `thankYouUrl` and
+ *  `thank_you_url`. SQLite would keep one value and drop the other without a
+ *  word. */
+const refuseSharedColumn = (name: string, fields: readonly string[]): void => {
+  const columns = fields.map(columnName);
+  const shared = columns.find(
+    (column, index) => columns.indexOf(column) !== index,
+  );
+  if (shared !== undefined) {
+    throw new Error(`A write to ${name} names the column ${shared} twice.`);
+  }
+};
+
 /** The column names of the rows, which every row must give alike. */
 const columnsOfRows = (
   name: string,
@@ -186,6 +202,7 @@ const columnsOfRows = (
   if (columns.length === 0) {
     throw new Error(`A new row of ${name} names no column.`);
   }
+  refuseSharedColumn(name, columns);
   return columns;
 };
 
@@ -299,9 +316,13 @@ export const update = <Name extends TableName>(
   table: TableHandle<Name>,
   changes: Changes<Name> | ((row: Node<Name>) => Changes<Name>),
 ): Scoped<Name> => {
-  const set = assignments(
-    typeof changes === "function" ? changes(nodeOfWrite(table)) : changes,
+  const named =
+    typeof changes === "function" ? changes(nodeOfWrite(table)) : changes;
+  refuseSharedColumn(
+    table.name,
+    given(named).map(([field]) => field),
   );
+  const set = assignments(named);
   if (set.length === 0) {
     throw new Error(`An update of ${table.name} names no column to change.`);
   }

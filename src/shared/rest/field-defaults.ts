@@ -5,6 +5,7 @@
  * where the table has a different default or none.
  */
 
+import { fieldName } from "#shared/column-names.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
 import type {
   FieldKind,
@@ -34,12 +35,12 @@ const NEW_ROW_VALUES: Record<FieldKind, (field: FieldSpec) => unknown> = {
     Array.isArray(field.default) ? [...field.default] : undefined,
 };
 
-/** The starting value of each field of a new row, by column. */
+/** The starting value of each field of a new row, by field name. */
 export const newRowDefaults = (
   fields: FieldSpecs,
 ): Readonly<Record<string, unknown>> =>
   definedValuesBy(
     fields,
-    (field) => field.key,
+    (field) => fieldName(field.key),
     (field) => NEW_ROW_VALUES[field.kind](field),
   );
