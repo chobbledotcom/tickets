@@ -100,7 +100,7 @@ const pageParents = (
 const parentsNow = async (): Promise<ReadonlyMap<number, number>> =>
   pageParents(await getAllPageItems());
 
-/** The API row for one stored page, under its column names: the stored
+/** The API row for one stored page, under its column names. It is the stored
  *  record without its slug HMAC, plus the page it nests under (null at the
  *  top level). */
 const toRow = (

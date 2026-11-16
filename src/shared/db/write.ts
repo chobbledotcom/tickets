@@ -172,7 +172,7 @@ const conflictTail = <Name extends TableName>(
 };
 
 /** Refuse two keys that name one column, such as `thankYouUrl` and
- *  `thank_you_url`. SQLite would keep one value and drop the other without a
+ *  `thank_you_url`. SQLite keeps one value and drops the other without a
  *  word. */
 const refuseSharedColumn = (name: string, fields: readonly string[]): void => {
   const columns = fields.map(columnName);

@@ -143,9 +143,8 @@ const parseLinkFilter = (
     : errorResult(target.error);
 };
 
-/** One link as a response carries it, under its column names: its sealed
- *  index stays in the database, and its address is filled from the source's
- *  pattern. */
+/** One link as a response carries it, under its column names. Its sealed
+ *  index stays in the database. The source's pattern fills its address. */
 const toLinkResponse = (
   { externalIdIndex: _index, ...link }: ExternalSourceLink,
   pattern: string,

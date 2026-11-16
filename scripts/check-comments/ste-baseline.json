@@ -811,7 +811,6 @@
     "wordy": 1
   },
   "src/shared/db/question-types.ts": {
-    "contraction": 1,
     "semicolon": 1,
     "present-perfect": 1
   },
@@ -1387,11 +1386,11 @@
     "wordy": 1
   },
   "src/shared/types.ts": {
-    "long-sentence": 9,
+    "long-sentence": 7,
     "wordy": 2,
     "contraction": 2,
-    "banned-modal": 11,
-    "semicolon": 16
+    "banned-modal": 10,
+    "semicolon": 9
   },
   "src/shared/update.ts": {
     "long-sentence": 4,
