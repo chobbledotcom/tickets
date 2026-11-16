@@ -30,7 +30,7 @@ const group = (
   ...overrides,
 });
 
-const reversalOf = (data: string): Record<string, string | boolean>[] =>
+const reversalOf = (data: string): ReturnType<typeof records> =>
   records(data, "ReversalFacts");
 
 describe("refund reversal checker data", () => {
@@ -118,7 +118,7 @@ describe("refund reversal checker data", () => {
       round: "first",
     });
     // Every (round, reference) pair the fixtures feed appears exactly once.
-    const pairs = (facts: Record<string, string | boolean>[]): string[] =>
+    const pairs = (facts: ReturnType<typeof records>): string[] =>
       facts.map((fact) => `${fact.round} ${fact.reference}`).sort();
     expect(pairs(references)).toEqual(
       pairs(records(data, "ExpectedReferences")),
