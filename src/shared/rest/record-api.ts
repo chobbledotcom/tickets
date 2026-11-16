@@ -17,6 +17,7 @@ import {
   type AdminApiResource,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import type {
   CrudApiHandlers,
   CrudChildHandlers,
@@ -44,7 +45,6 @@ import {
   type WriteVerdict,
 } from "#shared/rest/record.ts";
 import { gatedByFeature } from "#shared/rest/resource-feature.ts";
-import { snakeCaseKeys } from "#shared/column-names.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminLevel, AdminSession } from "#types";
 

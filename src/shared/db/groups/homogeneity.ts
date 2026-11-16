@@ -1,10 +1,10 @@
 /** Checks that every listing in a group shares the same listing type and
  *  customisable-days setting, so a group's members stay interchangeable. */
 
+import type { DecodedRowOf } from "#db/select/tables.ts";
 import { filter } from "#fp";
 import { t } from "#i18n";
 import { firstReason } from "#shared/reasons.ts";
-import type { DecodedRowOf } from "#db/select/tables.ts";
 import type { ListingType } from "#types";
 
 export type GroupListingSettings = Pick<
