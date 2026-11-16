@@ -4,7 +4,7 @@ import {
   groupRunningTotal,
 } from "#db/capacity.ts";
 import { queryAll } from "#db/client.ts";
-import { listingGroups } from "#db/groups/table.ts";
+import { groupsAmong, listingGroups } from "#db/groups/table.ts";
 import { readRows } from "#db/read.ts";
 import {
   among,
@@ -12,7 +12,6 @@ import {
   type Expr,
   equal,
   greaterThan,
-  literal,
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
@@ -45,6 +44,10 @@ const cappedGroupQuery = async <T>(
   return ids.length === 0 ? new Map() : queryFor(ids);
 };
 
+/** The read of the groups among `ids` that carry a cap. */
+const cappedGroupsAmong = (ids: readonly number[]) =>
+  groupsAmong(ids, (group) => greaterThan(group.max_attendees, 0));
+
 /** The groups among `ids` that carry a cap, each with its cap and the total
  *  that already counts against it. */
 const cappedGroupTotals = (
@@ -52,16 +55,11 @@ const cappedGroupTotals = (
   total: (group: Node<"groups">) => Expr<Counted>,
 ) =>
   queryAll(
-    from(tables.groups)
-      .where((group) => [
-        among(group.id, ids),
-        greaterThan(group.max_attendees, literal(0)),
-      ])
-      .select((group) => ({
-        id: group.id,
-        max_attendees: group.max_attendees,
-        total: total(group),
-      })),
+    cappedGroupsAmong(ids).select((group) => ({
+      id: group.id,
+      max_attendees: group.max_attendees,
+      total: total(group),
+    })),
   );
 
 type CappedGroupTotal = Awaited<ReturnType<typeof cappedGroupTotals>>[number];
@@ -181,14 +179,9 @@ export const getGroupStaticCapByGroupId = (
   groupIds: number[],
 ): Promise<RemainingMap> =>
   cappedGroupQuery(groupIds, (ids) =>
-    readRows(
-      from(tables.groups)
-        .where((group) => [
-          among(group.id, ids),
-          greaterThan(group.max_attendees, 0),
-        ])
-        .pick("id", "max_attendees"),
-    ).then(fieldById("max_attendees")),
+    readRows(cappedGroupsAmong(ids).pick("id", "max_attendees")).then(
+      fieldById("max_attendees"),
+    ),
   );
 
 /** Group remaining, static caps, and membership for date-less package checks. */

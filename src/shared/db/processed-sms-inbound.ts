@@ -6,11 +6,10 @@
  * `sms:received` events cannot create duplicate activity-log entries.
  */
 
-import { executeBatch } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
-import { lessThan } from "#db/select/expression.ts";
+import { pruneRowsBefore } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
-import { deleteFrom, insertInto } from "#db/write.ts";
+import { insertInto } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** Claim an inbound webhook id. Returns false when it was already processed. */
@@ -27,11 +26,6 @@ export const claimProcessedSmsInbound = async (
 };
 
 /** Prune rows older than the given ISO cutoff. */
-export const pruneProcessedSmsInboundBefore = (
-  cutoffIso: string,
-): Promise<void> =>
-  executeBatch([
-    deleteFrom(tables.processed_sms_inbound).where((row) =>
-      lessThan(row.created, cutoffIso),
-    ),
-  ]);
+export const pruneProcessedSmsInboundBefore = pruneRowsBefore(
+  tables.processed_sms_inbound,
+);

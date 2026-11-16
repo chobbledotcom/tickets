@@ -11,9 +11,8 @@ import {
   queryAll,
   queryOnePrimary,
 } from "#db/client.ts";
-import { tables } from "#db/select/tables.ts";
+import { settingUpsert } from "#db/settings/raw-writes.ts";
 import { sql, sqlList } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
 import { compact, lazyRef } from "#fp";
 import { BUILD_COMMIT, BUILD_TIMESTAMP } from "#shared/build-info.ts";
 import {
@@ -173,9 +172,7 @@ export const recordScriptVersion = async (): Promise<void> => {
       // Runs concurrently with the request; the normal write path would
       // wipe the settings snapshot the request just loaded.
       await executeBatchWithoutCacheInvalidation(
-        changes.map(([key, value]) =>
-          insertInto(tables.settings, { key, value }, { or: "REPLACE" }),
-        ),
+        changes.map(([key, value]) => settingUpsert(key, value)),
       );
     }
   } catch (e) {

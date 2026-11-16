@@ -10,11 +10,12 @@
 
 import { executeWithoutCacheInvalidation, queryAll } from "#db/client.ts";
 import { createPrimaryCacheRefill } from "#db/primary-reads.ts";
-import { valued } from "#db/select/expression.ts";
+import { type Condition, type Expr, valued } from "#db/select/expression.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { recordSettingRead } from "#db/settings-audit.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
+import { insertInto, type Write } from "#db/write.ts";
 import { lazyRef } from "#fp";
 import {
   type CacheInvalidation,
@@ -95,6 +96,36 @@ export const prefetchVersion = (): void => {
   );
 };
 
+/** The conditions of a setting rewrite. The row is added only where `when`
+ *  holds, and a stored row changes only where `where` holds. */
+type SettingGuard = {
+  when?: Condition;
+  where?: (row: Node<"settings">) => Condition;
+};
+
+/** The write of one setting. A new key takes `initial`. A stored key takes the
+ *  value that `next` makes from its stored value. */
+export const settingRewrite = (
+  key: string,
+  initial: string,
+  next: (stored: Expr<string>) => SqlStatement,
+  guard: SettingGuard = {},
+): Write<"settings"> => {
+  const { where, ...insertGuard } = guard;
+  return insertInto(
+    tables.settings,
+    { key, value: initial },
+    {
+      ...insertGuard,
+      onConflict: {
+        on: ["key"],
+        set: (row) => ({ value: valued<string>(next(row.value)) }),
+        ...(where === undefined ? {} : { where }),
+      },
+    },
+  );
+};
+
 /**
  * Atomically increment the shared `settings_version` counter. Every settings
  * write calls this so other isolates notice the change on their next request.
@@ -103,17 +134,10 @@ export const prefetchVersion = (): void => {
  * again.
  */
 export const settingsVersionIncrement = (): SqlStatement =>
-  insertInto(
-    tables.settings,
-    { key: CONFIG_KEYS.SETTINGS_VERSION, value: "1" },
-    {
-      onConflict: {
-        on: ["key"],
-        set: (row) => ({
-          value: valued<string>(sql`CAST(${row.value} AS INTEGER) + 1`),
-        }),
-      },
-    },
+  settingRewrite(
+    CONFIG_KEYS.SETTINGS_VERSION,
+    "1",
+    (stored) => sql`CAST(${stored} AS INTEGER) + 1`,
   );
 
 export const bumpSettingsVersion = async (): Promise<void> => {

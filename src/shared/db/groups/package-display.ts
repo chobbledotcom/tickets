@@ -4,9 +4,10 @@
  */
 
 import type { TxScope } from "#db/client.ts";
+import { groupsAmong } from "#db/groups/table.ts";
 import { readExists, readRows } from "#db/read.ts";
 import { existsOn } from "#db/record-table.ts";
-import { among, equal, greaterThan } from "#db/select/expression.ts";
+import { equal, greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 
@@ -40,15 +41,10 @@ export const getPackageDisplaysByIds = async (
   groupIds: readonly number[],
 ): Promise<Map<number, PackageDisplay>> => {
   const packageGroups = await readRows(
-    from(tables.groups)
-      .where((group) => [
-        among(
-          group.id,
-          [...new Set(groupIds)].filter((groupId) => groupId > 0),
-        ),
-        equal(group.is_package, 1),
-      ])
-      .pick("id", "hide_package_listings", "name"),
+    groupsAmong(
+      [...new Set(groupIds)].filter((groupId) => groupId > 0),
+      (group) => equal(group.is_package, 1),
+    ).pick("id", "hide_package_listings", "name"),
   );
   return new Map(
     packageGroups.map((group) => [

@@ -3,7 +3,9 @@
  * side, listing records read the other, so the table homes apart from both. */
 
 import { linkTableSide } from "#db/link-table.ts";
-import { tableNode } from "#db/select/query.ts";
+import { among, type Condition } from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { requiredMapValue } from "#fp";
 
@@ -29,3 +31,9 @@ export const listingGroups = {
 
 /** The group row of a read that names the table `groups AS groupRecord`. */
 export const GROUP_ROW = tableNode(tables.groups, "groupRecord");
+
+/** The read of the groups among `ids` where `also` holds. */
+export const groupsAmong = (
+  ids: readonly number[],
+  also: (group: Node<"groups">) => Condition,
+) => from(tables.groups).where((group) => [among(group.id, ids), also(group)]);

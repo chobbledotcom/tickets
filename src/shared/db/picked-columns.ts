@@ -5,6 +5,7 @@
  * picked column through its codec, as it does for a builder read.
  */
 
+import { pick } from "@std/collections";
 import { tableNode } from "#db/select/query.ts";
 import { withSources } from "#db/select/sources.ts";
 import type { TableHandle, TableName } from "#db/select/tables.ts";
@@ -45,3 +46,9 @@ export const everyColumnPicked = (
     ),
   );
 };
+
+/** The columns of a builder read that these keys of its node name. */
+export const columnsNamed =
+  <Key extends string>(keys: readonly Key[]) =>
+  <Node extends Record<Key, unknown>>(node: Node): Pick<Node, Key> =>
+    pick(node, keys);

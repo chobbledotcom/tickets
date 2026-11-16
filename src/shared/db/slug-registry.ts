@@ -18,13 +18,14 @@ import {
 } from "#db/client.ts";
 import {
   existsOn,
+  findRowWhere,
   insertRowStatement,
   type NewRecord,
   type RecordChanges,
   rowById,
   updateRowStatement,
 } from "#db/record-table.ts";
-import { wholeCondition } from "#db/select/expression.ts";
+import { equal, named, wholeCondition } from "#db/select/expression.ts";
 import type { DecodedRowOf, TableHandle } from "#db/select/tables.ts";
 import {
   contentValues,
@@ -100,6 +101,15 @@ export type UnclaimedSlugCondition = (
 
 /** The content tables whose rows own a slug and its blind index. */
 export type SluggedTable = "news_posts" | "site_pages";
+
+/** The read of the whole row whose slug has this blind index, or null when no
+ *  row has it. */
+export const rowBySlugIndex =
+  <Name extends SluggedTable>(table: TableHandle<Name>) =>
+  (slugIndex: BlindIndex): Promise<DecodedRowOf<Name> | null> =>
+    findRowWhere(table, () =>
+      equal(named<string>(`${table.singular}.slug_index`), slugIndex),
+    );
 
 /** The values of a slugged write: never the blind index, which the write
  *  computes from the slug. */

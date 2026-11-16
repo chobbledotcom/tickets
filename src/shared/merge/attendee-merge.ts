@@ -14,7 +14,7 @@ import { repointAttendeeStatements } from "#accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
 import { bookingRowDelete } from "#db/attendees/booking-row-delete.ts";
 import {
-  attendeeRemovalStatements,
+  attendeesRemoval,
   checkoutStageDeleteStatements,
   repointAttendeeDependents,
 } from "#db/attendees/delete.ts";
@@ -33,7 +33,7 @@ import { equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteFrom, insertInto, update } from "#db/write.ts";
+import { insertInto, update } from "#db/write.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
@@ -805,8 +805,7 @@ export const applyAttendeeMerge = async (
     ...repointAttendeeDependents(sourceId, targetId),
     // Clear each row that belongs to the source, the way an ordinary delete
     // does. Its payment rows stay, because the update above moved them.
-    ...attendeeRemovalStatements(sql`${sourceId}`),
-    deleteFrom(tables.attendees).where({ id: sourceId }),
+    ...attendeesRemoval(sql`${sourceId}`),
     // Move the source's ledger rows onto the target — the sole sanctioned
     // account-id mutation — so its financial history follows the merged person
     // rather than stranding on the deleted source (plan §5.17).

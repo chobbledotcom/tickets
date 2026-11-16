@@ -38,30 +38,25 @@ const activationOf = async (password: string) => {
   };
 };
 
-/** The DATA_KEY of a user, and the password that its v2 KEK binds. */
-type PasswordWrap = {
-  dataKey: CryptoKey;
-  password: string;
-  passwordHash: PasswordHash;
-};
-
 /** The update that stores the DATA_KEY wrapped under the password-bound (v2)
  *  KEK, with `changes`, on the row of the user where `guard` holds. */
-const passwordWrapUpdate = async (
-  userId: number,
-  wrap: PasswordWrap,
-  guard: (user: Node<"users">) => Condition,
-  changes: Changes<"users"> = {},
-) =>
-  update(tables.users, {
-    ...changes,
-    kek_version: 2,
-    wrapped_data_key: await wrapDataKeyForPassword(
-      wrap.dataKey,
-      wrap.password,
-      wrap.passwordHash,
-    ),
-  }).where((user) => [equal(user.id, userId), guard(user)]);
+const passwordWrapUpdate =
+  (guard: (user: Node<"users">) => Condition, changes: Changes<"users"> = {}) =>
+  async (
+    userId: number,
+    dataKey: CryptoKey,
+    password: string,
+    passwordHash: PasswordHash,
+  ) =>
+    update(tables.users, {
+      ...changes,
+      kek_version: 2,
+      wrapped_data_key: await wrapDataKeyForPassword(
+        dataKey,
+        password,
+        passwordHash,
+      ),
+    }).where((user) => [equal(user.id, userId), guard(user)]);
 
 /**
  * Complete an invite. The single-use invite code unwraps the DATA_KEY handoff,
@@ -81,13 +76,12 @@ export const acceptInvite = async (
 ): Promise<boolean> => {
   const { columns, passwordHash } = await activationOf(password);
   const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
+  const accept = passwordWrapUpdate(
+    (user) => notEqual(user.invite_wrapped_data_key, null),
+    { ...columns, invite_wrapped_data_key: null },
+  );
   return executeChangedRow(
-    await passwordWrapUpdate(
-      userId,
-      { dataKey, password, passwordHash },
-      (user) => notEqual(user.invite_wrapped_data_key, null),
-      { ...columns, invite_wrapped_data_key: null },
-    ),
+    await accept(userId, dataKey, password, passwordHash),
   );
 };
 
@@ -109,6 +103,8 @@ export const activateKeylessUser = async (
   );
 };
 
+const v2Migration = passwordWrapUpdate((user) => lessThan(user.kek_version, 2));
+
 /**
  * Wrap the DATA_KEY of a v1 user under the password-bound (v2) KEK. The login
  * calls it, because only the login holds the password and the open DATA_KEY.
@@ -121,16 +117,7 @@ export const activateKeylessUser = async (
  * DATA_KEY for its own session.
  */
 export const migrateUserToV2Kek = async (
-  userId: number,
-  dataKey: CryptoKey,
-  password: string,
-  passwordHash: PasswordHash,
+  ...wrap: Parameters<typeof v2Migration>
 ): Promise<void> => {
-  await execute(
-    await passwordWrapUpdate(
-      userId,
-      { dataKey, password, passwordHash },
-      (user) => lessThan(user.kek_version, 2),
-    ),
-  );
+  await execute(await v2Migration(...wrap));
 };

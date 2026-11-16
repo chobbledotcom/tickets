@@ -9,7 +9,6 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
-import { pick } from "@std/collections";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
@@ -27,14 +26,15 @@ import {
   openItemImages,
   type SealedItemImages,
 } from "#db/images.ts";
+import { columnsNamed } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
-import { findRow, findRowWhere } from "#db/record-table.ts";
+import { findRow } from "#db/record-table.ts";
 import { desc } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   freshSlugIndexWrites,
+  rowBySlugIndex,
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
@@ -61,8 +61,13 @@ const newestFirst = from(tables.news_posts)
   .orderBy((post) => [desc(post.created), desc(post.id)]);
 
 /** The summary columns of a post. */
-const summaryColumns = (post: Node<"news_posts">) =>
-  pick(post, ["created", "id", "name", "slug", "snippet"]);
+const summaryColumns = columnsNamed([
+  "created",
+  "id",
+  "name",
+  "slug",
+  "snippet",
+]);
 
 const unclaimedNewsSlugCondition = (
   slugIndex: BlindIndex,
@@ -145,10 +150,7 @@ export const getNewsPostById = bindFirst(findRow)(tables.news_posts);
 
 /** One full post (fully decrypted) by blind-index slug lookup — the public
  * `/news/:slug` read. Null when absent. */
-export const getNewsPostBySlugIndex = (
-  slugIndex: BlindIndex,
-): Promise<NewsPost | null> =>
-  findRowWhere(tables.news_posts, { slug_index: slugIndex });
+export const getNewsPostBySlugIndex = rowBySlugIndex(tables.news_posts);
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date

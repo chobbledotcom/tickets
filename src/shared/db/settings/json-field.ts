@@ -1,12 +1,13 @@
 import * as v from "valibot";
 import { resultRows, withTransaction } from "#db/client.ts";
 import { and, valued } from "#db/select/expression.ts";
-import { tables } from "#db/select/tables.ts";
-import { settingsVersionIncrement } from "#db/settings/cache.ts";
+import {
+  settingRewrite,
+  settingsVersionIncrement,
+} from "#db/settings/cache.ts";
 import { publishStoredSetting } from "#db/settings/raw-writes.ts";
 import type { StringSettingKey } from "#db/settings/snapshot.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { insertInto } from "#db/write.ts";
 
 const StoredJsonSchema = v.object({ value: v.string() });
 
@@ -33,24 +34,17 @@ export const booleanJsonField = (
   /** `when` is the condition the write keeps true on both passes. */
   const statement = (when: SqlStatement): SqlStatement => {
     const holds = valued<boolean>(when);
-    return insertInto(
-      tables.settings,
-      { key, value: initialValue },
+    return settingRewrite(
+      key,
+      initialValue,
+      (stored) => sql`json_set(${stored}, ${path}, json(${jsonType}))`,
       {
-        onConflict: {
-          on: ["key"],
-          set: (row) => ({
-            value: valued<string>(
-              sql`json_set(${row.value}, ${path}, json(${jsonType}))`,
-            ),
-          }),
-          where: (row) =>
-            and(
-              holds,
-              valued(sql`json_type(${row.value}, ${path}) IS NOT ${jsonType}`),
-            ),
-        },
         when: holds,
+        where: (row) =>
+          and(
+            holds,
+            valued(sql`json_type(${row.value}, ${path}) IS NOT ${jsonType}`),
+          ),
       },
     ).returning("value");
   };

@@ -9,15 +9,15 @@
  * `/page/:slug` (or admin edit) view.
  */
 
-import type { BlindIndex } from "#crypto/sealed.ts";
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { findRow, findRowWhere } from "#db/record-table.ts";
+import { findRow } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   freshSlugIndexWrites,
+  rowBySlugIndex,
   type UnclaimedSlugCondition,
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
@@ -60,10 +60,7 @@ export const existingSitePageIdsStatement = (
 ): SqlStatement => from(tables.site_pages).where({ id: ids }).pick("id");
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
-export const getSitePageBySlugIndex = (
-  slugIndex: BlindIndex,
-): Promise<SitePage | null> =>
-  findRowWhere(tables.site_pages, { slug_index: slugIndex });
+export const getSitePageBySlugIndex = rowBySlugIndex(tables.site_pages);
 
 /** One full page by id (the admin edit read). */
 export const getSitePageById = bindFirst(findRow)(tables.site_pages);

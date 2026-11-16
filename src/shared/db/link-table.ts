@@ -144,17 +144,26 @@ type ReadIdsByKeys = (
   tx?: TxScope,
 ) => Promise<LinkedIdsByKey>;
 
-/** Build the helpers for one direction through a link table. */
-export const linkTableSide = <Name extends TableName>(
+/** A build over a link table, its key column, and its value column. */
+type OverLinkTable<Built, Extra extends unknown[] = []> = <
+  Name extends TableName,
+>(
   handle: TableHandle<Name>,
   keyColumn: ColumnName<Name>,
   valueColumn: ColumnName<Name>,
-  readIdsByKeys: ReadIdsByKeys = oneDirectionReader(
-    handle.name,
-    keyColumn,
-    valueColumn,
-  ),
-): LinkTableSide => {
+  ...extra: Extra
+) => Built;
+
+/** Build the helpers for one direction through a link table. */
+export const linkTableSide: OverLinkTable<
+  LinkTableSide,
+  [readIdsByKeys?: ReadIdsByKeys]
+> = (
+  handle,
+  keyColumn,
+  valueColumn,
+  readIdsByKeys = oneDirectionReader(handle.name, keyColumn, valueColumn),
+) => {
   const table = handle.name;
   const linkTable = sqlName(table);
   const key = sqlName(keyColumn);
@@ -250,11 +259,11 @@ const emptyBothDirections = (
  * the same records costs one round trip rather than two. Rows come back ordered
  * by key then value, which leaves every list here ascending.
  */
-export const selfLinkTableSides = <Name extends TableName>(
-  handle: TableHandle<Name>,
-  keyColumn: ColumnName<Name>,
-  valueColumn: ColumnName<Name>,
-): SelfLinkTableSides => {
+export const selfLinkTableSides: OverLinkTable<SelfLinkTableSides> = (
+  handle,
+  keyColumn,
+  valueColumn,
+) => {
   const table = handle.name;
   const fetchBothDirections = async (
     ids: number[],

@@ -10,7 +10,7 @@ import {
 import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
-import { plus } from "#db/select/expression.ts";
+import { inStatement, plus } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { deleteFrom, update } from "#db/write.ts";
@@ -105,6 +105,14 @@ export const attendeeRemovalStatements = (
       ? [repointRuleStatement(rule, attendeeIds)]
       : [];
   });
+
+/** Remove the attendees with these ids, after every dependent row. */
+export const attendeesRemoval = (attendeeIds: SqlStatement): SqlStatement[] => [
+  ...attendeeRemovalStatements(attendeeIds),
+  deleteFrom(tables.attendees).where((attendee) =>
+    inStatement(attendee.id, attendeeIds),
+  ),
+];
 
 /** Clear the one booking-stage relationship a merge must replace early. */
 export const checkoutStageDeleteStatements = (

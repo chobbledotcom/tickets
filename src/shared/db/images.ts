@@ -2,7 +2,6 @@
  * First-class uploaded images and their ordered item links.
  */
 
-import { pick } from "@std/collections";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { removalWithChildren } from "#db/child-rows.ts";
@@ -13,6 +12,7 @@ import {
   useTransaction,
 } from "#db/client.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { columnsNamed, pickedColumns } from "#db/picked-columns.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import {
   allRowsNewestFirst,
@@ -39,16 +39,9 @@ import {
   wholeCondition,
 } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
@@ -132,12 +125,7 @@ export const itemImageValues = (
 export const imageFilenameSubqueries = (
   itemType: ImageUseItemType,
   itemIdExpr: SqlStatement,
-): SqlStatement =>
-  sqlCommas(
-    Object.entries(itemImageValues(itemType, itemIdExpr)).map(
-      ([name, value]) => sql`${value} AS ${sqlName(name)}`,
-    ),
-  );
+): SqlStatement => pickedColumns(itemImageValues(itemType, itemIdExpr)).list;
 
 /** Open the projected first-image values of an item. A filename that will not
  *  open reads as the broken-image marker. */
@@ -158,8 +146,12 @@ export const openItemImages = async (
 });
 
 /** The id and the files of an image, for a read that names its own columns. */
-const imageFileColumns = (image: Node<"images">) =>
-  pick(image, ["alt_text", "filename", "filename_thumb", "id"]);
+const imageFileColumns = columnsNamed([
+  "alt_text",
+  "filename",
+  "filename_thumb",
+  "id",
+]);
 
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
@@ -201,8 +193,12 @@ export const getImagesForItem = (
   );
 
 /** The columns of one link between an image and a record. */
-const imageUseColumns = (use: Node<"image_uses">) =>
-  pick(use, ["image_id", "item_id", "item_type", "sort_order"]);
+const imageUseColumns = columnsNamed([
+  "image_id",
+  "item_id",
+  "item_type",
+  "sort_order",
+]);
 
 /** The item links of several images, keyed by image id. One query covers the
  *  whole list. An image with no links has no entry. The links of one image

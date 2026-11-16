@@ -2,17 +2,16 @@
 
 import { decrypt } from "#crypto/encryption.ts";
 import { addressCachePruneStatement } from "#db/address-cache.ts";
-import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
+import { attendeesRemoval } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
-import { among, equal, inStatement, notEqual } from "#db/select/expression.ts";
+import { among, equal, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
 import { userRemoval } from "#db/users.ts";
-import { deleteFrom } from "#db/write.ts";
 import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
@@ -183,12 +182,7 @@ const orphanStatements = (): PruneStatement[] => {
     orphanRetentionCutoffIso(settings.orphanPurgeRetention, nowMs()),
     MAINTENANCE_PRUNE_BATCH,
   );
-  return [
-    ...attendeeRemovalStatements(orphanIds),
-    deleteFrom(tables.attendees).where((attendee) =>
-      inStatement(attendee.id, orphanIds),
-    ),
-  ];
+  return [...attendeesRemoval(orphanIds)];
 };
 
 type InviteCandidate = Pick<User, "id" | "invite_expiry">;
