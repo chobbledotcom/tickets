@@ -32,29 +32,16 @@ describe("field specs", () => {
   });
 
   test("byFieldKind builds one value per field from its kind", () => {
-    const lengths = {
-      contactFields: 13,
-      count: 5,
-      date: 10,
-      datetime: 8,
-      dayPrices: 9,
-      durationDays: 12,
-      listingType: 11,
-      name: 1,
-      optionalDatetime: 16,
-      price: 5,
-      privateText: 11,
-      recurringInterval: 3,
-      switch: 0,
-      text: 2,
-      weekdays: 8,
-    } as const satisfies Record<FieldKind, number>;
     expect(
-      byFieldKind<typeof FIELDS, typeof lengths>(
-        FIELDS,
-        (field) => lengths[field.kind],
+      byFieldKind<typeof FIELDS, Record<FieldKind, string>>(FIELDS, (field) =>
+        field.kind.toUpperCase(),
       ),
-    ).toEqual({ is_public: 0, name: 1, note: 2, start_date: 10 });
+    ).toEqual({
+      is_public: "SWITCH",
+      name: "NAME",
+      note: "TEXT",
+      start_date: "DATE",
+    });
   });
 
   test("a field closes for its feature turned off and for each writer it locks out", () => {

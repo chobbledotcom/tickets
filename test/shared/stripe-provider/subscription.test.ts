@@ -90,11 +90,19 @@ const sentParams = async (intent: CheckoutIntent) => {
   }
 };
 
+/** Runs the body at the fixed time, on a site with no booking fee. The body
+ * gets the monthly item without its recurring price. */
+const atCheckoutTime = async (
+  body: (oneOff: Omit<typeof monthly, "recurring">) => Promise<void>,
+): Promise<void> => {
+  using _time = new FakeTime(NOW_MS);
+  const { recurring: _, ...oneOff } = monthly;
+  await withSetting({ booking_fee: "0", currency: "GBP" }, () => body(oneOff));
+};
+
 describeStripe("Stripe subscription checkout", () => {
   test("adds the recurring line and holds it back for one period", async () => {
-    using _time = new FakeTime(NOW_MS);
-    await withSetting({ booking_fee: "0", currency: "GBP" }, async () => {
-      const { recurring: _, ...oneOff } = monthly;
+    await atCheckoutTime(async (oneOff) => {
       const ordinary = await sentParams(
         checkoutIntent({ items: [oneOff], taxPolicy: ADDED }),
       );
@@ -131,9 +139,7 @@ describeStripe("Stripe subscription checkout", () => {
   });
 
   test("takes a deposit today and keeps the full recurring charge", async () => {
-    using _time = new FakeTime(NOW_MS);
-    await withSetting({ booking_fee: "0", currency: "GBP" }, async () => {
-      const { recurring: _, ...oneOff } = monthly;
+    await atCheckoutTime(async (oneOff) => {
       const deposit = { reservationAmount: "10%", taxPolicy: ADDED };
       const ordinary = await sentParams(
         checkoutIntent({ ...deposit, items: [oneOff] }),
