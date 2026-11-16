@@ -6,6 +6,7 @@ import { stripeApi } from "#shared/stripe.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { withFetchMock } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
+import { OWN_WEBHOOK_EVENTS } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
 import {
   newWebhookApiCalls,
@@ -234,7 +235,7 @@ describeStripe("Stripe webhook setup", () => {
       expectFailedResultWithNoDeletes(result, calls);
     });
 
-    test("subscribes only to completed checkouts", async () => {
+    test("subscribes to the checkout and each subscription delivery", async () => {
       const webhookUrl = "https://example.com/payment/webhook";
       const calls = newWebhookApiCalls();
 
@@ -242,7 +243,10 @@ describeStripe("Stripe webhook setup", () => {
 
       expect([...calls.createdBody!.entries()]).toEqual([
         ["api_version", STRIPE_API_VERSION],
-        ["enabled_events[0]", "checkout.session.completed"],
+        ...OWN_WEBHOOK_EVENTS.map((event, index) => [
+          `enabled_events[${index}]`,
+          event,
+        ]),
         ["url", webhookUrl],
       ]);
     });

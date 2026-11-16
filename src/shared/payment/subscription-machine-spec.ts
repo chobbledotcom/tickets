@@ -2,8 +2,9 @@
 /** The machine of the subscription on one booking row.
  *
  * Stripe owns the status word. The site groups each word onto one node: no
- * subscription, a live one, or an ended one. The scheduled check moves a
- * live row by the status Stripe reports. An ended row takes nothing. */
+ * subscription, a live one, or an ended one. A Stripe read moves a live row by
+ * the status it reports. The scheduled check and a webhook delivery each make
+ * that read. An ended row takes nothing. */
 
 import {
   derivedNodeIds,
@@ -48,20 +49,20 @@ export const SUBSCRIPTION_NODES: readonly MachineNode<
 ];
 
 export type SubscriptionEventId =
-  | "check_saw_ended"
-  | "check_saw_live"
-  | "checkout_completed";
+  | "checkout_completed"
+  | "observed_ended"
+  | "observed_live";
 
-/** Who fires an event: the paid checkout, or the scheduled check. */
+/** Who fires an event: the paid checkout, or a Stripe read. */
 type SubscriptionEvent = {
   readonly id: SubscriptionEventId;
-  readonly kind: "check" | "complete";
+  readonly kind: "complete" | "observe";
 };
 
 export const SUBSCRIPTION_EVENTS: readonly SubscriptionEvent[] = [
   { id: "checkout_completed", kind: "complete" },
-  { id: "check_saw_live", kind: "check" },
-  { id: "check_saw_ended", kind: "check" },
+  { id: "observed_live", kind: "observe" },
+  { id: "observed_ended", kind: "observe" },
 ];
 
 /** Every way a row can move. An ended row refuses every event. */
@@ -70,39 +71,39 @@ export const SUBSCRIPTION_MOVES: MachineMoves<
   SubscriptionEventId
 > = {
   ended: {},
-  live: { check_saw_ended: "ended", check_saw_live: "live" },
+  live: { observed_ended: "ended", observed_live: "live" },
   none: { checkout_completed: "live" },
 };
 
 const MOVES_READER = movesIn(SUBSCRIPTION_MOVES);
 
-/** The event the scheduled check fires for the status Stripe reports. */
-const CHECK_EVENT_OF: Record<StatusNodeId, SubscriptionEventId> = {
-  ended: "check_saw_ended",
-  live: "check_saw_live",
+/** The event a Stripe read fires for the status it reports. */
+const EVENT_OF: Record<StatusNodeId, SubscriptionEventId> = {
+  ended: "observed_ended",
+  live: "observed_live",
 };
 
-/** Where the check moves a row that holds `from` when Stripe reports
- * `observed`. A row the check cannot move is refused loudly. */
-export const checkedStatusNode = (
+/** Where a Stripe read moves a row that holds `from` when it reports
+ * `observed`. A row that the read cannot move is refused loudly. */
+export const observedStatusNode = (
   from: SubscriptionStatus,
   observed: SubscriptionStatus,
 ): SubscriptionNodeId =>
   moveOrRefuse(
     MOVES_READER,
     SUBSCRIPTION_NODE_OF[from],
-    CHECK_EVENT_OF[SUBSCRIPTION_NODE_OF[observed]],
-    `A ${from} subscription refuses the scheduled check`,
+    EVENT_OF[SUBSCRIPTION_NODE_OF[observed]],
+    `A ${from} subscription refuses what Stripe reports`,
   );
 
-const CHECKED_NODES = derivedNodeIds({
+const OBSERVED_NODES = derivedNodeIds({
   events: SUBSCRIPTION_EVENTS,
   moves: SUBSCRIPTION_MOVES,
   nodes: SUBSCRIPTION_NODES,
-}).movedBy((event) => event.kind === "check");
+}).movedBy((event) => event.kind === "observe");
 
-/** The status words of the rows the scheduled check asks Stripe about. */
-export const CHECKED_STATUSES: readonly SubscriptionStatus[] =
+/** The status words of a live row: the rows that a Stripe read acts on. */
+export const LIVE_STATUSES: readonly SubscriptionStatus[] =
   SubscriptionStatusSchema.options.filter((status) =>
-    CHECKED_NODES.includes(SUBSCRIPTION_NODE_OF[status]),
+    OBSERVED_NODES.includes(SUBSCRIPTION_NODE_OF[status]),
   );

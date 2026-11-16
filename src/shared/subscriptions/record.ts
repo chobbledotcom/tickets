@@ -1,20 +1,22 @@
 /**
- * Store what Stripe reports about one subscription: each paid renewal reaches
+ * Record what Stripe reports about one subscription: each paid renewal reaches
  * the ledger, then the status reaches the booking row.
  *
  * The first payment belongs to the booking, so only renewal invoices post.
  * The invoice id is the identity of each ledger event, so a second record of
- * the same invoice posts nothing.
+ * the same invoice posts nothing. The scheduled check and a webhook delivery
+ * both record through here.
  */
 
 import { mapRenewal } from "#accounting/mappers.ts";
 import { postTransferGroups } from "#accounting/store.ts";
 import {
-  type CheckedRow,
+  type LiveRow,
   renewalBookingGuard,
   statusWrite,
 } from "#db/subscriptions.ts";
 import type { ProviderReader } from "#payment/provider-read.ts";
+import { observedStatusNode } from "#payment/subscription-machine-spec.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { ErrorCode, logDebug, logError } from "#shared/logger.ts";
 import type { StripePaidInvoice } from "#shared/stripe/schemas.ts";
@@ -30,7 +32,7 @@ const isRenewal = (invoice: StripePaidInvoice): boolean =>
   invoice.billing_reason === "subscription_cycle" && invoice.amount_paid > 0;
 
 const renewalLegs = (
-  row: CheckedRow,
+  row: LiveRow,
   invoice: StripePaidInvoice,
 ): Promise<TransferInput[]> =>
   mapRenewal({
@@ -47,9 +49,9 @@ const renewalLegs = (
     ),
   });
 
-/** A refused Stripe read leaves this subscription for a later pass. */
-export const readForSubscriptionOrNull = async <Resource>(
-  row: CheckedRow,
+/** A refused Stripe read leaves this subscription for a later read. */
+const readForSubscriptionOrNull = async <Resource>(
+  row: LiveRow,
   read: ProviderReader<Resource>,
 ): Promise<Resource | null> => {
   const answer = await read(row.subscription_id);
@@ -65,18 +67,18 @@ export const readForSubscriptionOrNull = async <Resource>(
  * Store the status `observed` for the subscription of `row`, with every paid
  * renewal. Stripe reported `observed` before this reads the invoices, so the
  * list holds each payment made up to that status. A row that ends here leaves
- * the check with all its money in the ledger. A refused invoice read leaves
- * the row for the next pass. A refused write throws to the caller.
+ * with all its money in the ledger. A refused invoice read hands back false. A
+ * refused write throws to the caller.
  */
-export const recordObserved = async (
-  row: CheckedRow,
+const recordObserved = async (
+  row: LiveRow,
   observed: SubscriptionStatus,
-): Promise<void> => {
+): Promise<boolean> => {
   const invoices = await readForSubscriptionOrNull(
     row,
     stripeApi.readPaidInvoices,
   );
-  if (invoices === null) return;
+  if (invoices === null) return false;
   const groups = await Promise.all(
     invoices.filter(isRenewal).map((invoice) => renewalLegs(row, invoice)),
   );
@@ -85,4 +87,21 @@ export const recordObserved = async (
     companion.push(statusWrite(row, observed));
   await postTransferGroups(groups, companion);
   logDebug("Stripe", `Subscription ${row.subscription_id} is ${observed}`);
+  return true;
+};
+
+/**
+ * Read what Stripe reports for one live row, then record it. Returns false
+ * when a Stripe read was refused, so the caller knows that this row still owes
+ * work.
+ */
+export const recordStripeReport = async (row: LiveRow): Promise<boolean> => {
+  const subscription = await readForSubscriptionOrNull(
+    row,
+    stripeApi.readSubscription,
+  );
+  if (subscription === null) return false;
+  const observed = subscription.status;
+  observedStatusNode(row.subscription_status, observed);
+  return recordObserved(row, observed);
 };

@@ -1,6 +1,8 @@
 import { settings } from "#db/settings.ts";
-import { errorMessage } from "#shared/error-message.ts";
-import type { CredentialCheck } from "#shared/payment-helpers.ts";
+import {
+  type CredentialCheck,
+  refusedCredential,
+} from "#shared/credential-check.ts";
 import type { GetSquareClient } from "#shared/square/client.ts";
 import type { SquareLocation } from "#shared/square/wire.ts";
 
@@ -42,7 +44,7 @@ export const testSquareConnection = async (
       valid: true,
     };
   } catch (error) {
-    result.accessToken = { error: errorMessage(error), valid: false };
+    result.accessToken = refusedCredential(error);
     return result;
   }
 

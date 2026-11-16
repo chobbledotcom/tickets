@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  CHECKED_STATUSES,
-  checkedStatusNode,
+  LIVE_STATUSES,
+  observedStatusNode,
   SUBSCRIPTION_EVENTS,
   SUBSCRIPTION_MOVES,
   SUBSCRIPTION_NODES,
@@ -42,7 +42,7 @@ describe("subscription machine", () => {
   });
 
   test("asks Stripe about live subscriptions only", () => {
-    expect(CHECKED_STATUSES).toEqual([
+    expect(LIVE_STATUSES).toEqual([
       "active",
       "incomplete",
       "past_due",
@@ -53,10 +53,10 @@ describe("subscription machine", () => {
   });
 
   test("moves a live row by the status Stripe reports, and refuses an ended row", () => {
-    expect(checkedStatusNode("trialing", "active")).toBe("live");
-    expect(checkedStatusNode("past_due", "canceled")).toBe("ended");
-    expect(() => checkedStatusNode("canceled", "active")).toThrow(
-      "A canceled subscription refuses the scheduled check",
+    expect(observedStatusNode("trialing", "active")).toBe("live");
+    expect(observedStatusNode("past_due", "canceled")).toBe("ended");
+    expect(() => observedStatusNode("canceled", "active")).toThrow(
+      "A canceled subscription refuses what Stripe reports",
     );
   });
 });

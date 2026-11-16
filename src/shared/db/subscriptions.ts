@@ -6,7 +6,7 @@ import { desc, greaterThan, not, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
-import { CHECKED_STATUSES } from "#payment/subscription-machine-spec.ts";
+import { LIVE_STATUSES } from "#payment/subscription-machine-spec.ts";
 import {
   RecurringIntervalSchema,
   SUBSCRIPTION_NODE_OF,
@@ -16,18 +16,18 @@ import {
 
 /** The words that a blank column cannot hold on a subscribed row: the booking
  * path writes the plan, the id and the status together. */
-const CHECKED_WORDS = {
+const LIVE_WORDS = {
   subscription_id: v.pipe(v.string(), v.minLength(1)),
   subscription_status: SubscriptionStatusSchema,
 };
-const CheckedWordsSchema = v.object(CHECKED_WORDS);
+const LiveWordsSchema = v.object(LIVE_WORDS);
 const SubscribedWordsSchema = v.object({
-  ...CHECKED_WORDS,
+  ...LIVE_WORDS,
   recurring_interval: RecurringIntervalSchema,
 });
 
 /** The columns that each read of a subscribed row needs. */
-const CHECKED_COLUMNS = [
+const LIVE_COLUMNS = [
   "id",
   "attendee_id",
   "listing_id",
@@ -37,7 +37,7 @@ const CHECKED_COLUMNS = [
   "subscription_status",
 ] as const;
 const SUBSCRIBED_COLUMNS = [
-  ...CHECKED_COLUMNS,
+  ...LIVE_COLUMNS,
   "quantity",
   "recurring_interval",
 ] as const;
@@ -51,10 +51,11 @@ type Proved<Column extends keyof Booking, Words> = Omit<
 > &
   Words;
 
-/** A row the scheduled check watches: the plan it read, and where it lives. */
-export type CheckedRow = Proved<
-  (typeof CHECKED_COLUMNS)[number],
-  v.InferOutput<typeof CheckedWordsSchema>
+/** A live row, as a Stripe read sees it: the plan it read, and where it
+ * lives. */
+export type LiveRow = Proved<
+  (typeof LIVE_COLUMNS)[number],
+  v.InferOutput<typeof LiveWordsSchema>
 >;
 
 export type SubscribedRow = Proved<
@@ -93,21 +94,39 @@ export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
 export const getCheckedRows = async (
   afterId: number,
   limit: number,
-): Promise<CheckedRow[]> =>
+): Promise<LiveRow[]> =>
   (
     await readRows(
       bookings()
-        .where({ subscription_status: CHECKED_STATUSES })
+        .where({ subscription_status: LIVE_STATUSES })
         .where((booking) => greaterThan(booking.id, afterId))
         .sortedBy("id")
         .limit(limit)
-        .pick(...CHECKED_COLUMNS),
+        .pick(...LIVE_COLUMNS),
     )
-  ).map(provedBy(CheckedWordsSchema));
+  ).map(provedBy(LiveWordsSchema));
+
+/** The live row of one Stripe subscription, or null when this site holds no
+ * live row for it. A delivery can name a subscription of another site on a
+ * shared Stripe account, or one whose row already ended. Neither owes work. */
+export const getLiveRowBySubscriptionIdOrNull = async (
+  subscriptionId: string,
+): Promise<LiveRow | null> => {
+  const [row] = await readRows(
+    bookings()
+      .where({
+        subscription_id: subscriptionId,
+        subscription_status: LIVE_STATUSES,
+      })
+      .limit(1)
+      .pick(...LIVE_COLUMNS),
+  );
+  return row === undefined ? null : provedBy(LiveWordsSchema)(row);
+};
 
 /** A merge can replace this booking while Stripe answers. Refuse stale money
  * in the same batch as its ledger legs. */
-export const renewalBookingGuard = (row: CheckedRow): SqlStatement =>
+export const renewalBookingGuard = (row: LiveRow): SqlStatement =>
   sql`INSERT INTO listing_attendees (listing_id)
         SELECT NULL
          WHERE ${not(
@@ -125,16 +144,16 @@ export const renewalBookingGuard = (row: CheckedRow): SqlStatement =>
  * final, so it replaces any live one. A live status needs the row to hold the
  * status that was read, so a cancel that landed first stays. */
 const replaceableBy = (
-  row: CheckedRow,
+  row: LiveRow,
   status: SubscriptionStatus,
 ): readonly SubscriptionStatus[] =>
   SUBSCRIPTION_NODE_OF[status] === "ended"
-    ? CHECKED_STATUSES
+    ? LIVE_STATUSES
     : [row.subscription_status];
 
 /** Write the status Stripe reported over the status that `row` held. */
 export const statusWrite = (
-  row: CheckedRow,
+  row: LiveRow,
   status: SubscriptionStatus,
 ): SqlStatement =>
   sql`UPDATE listing_attendees

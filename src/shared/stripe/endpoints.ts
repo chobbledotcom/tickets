@@ -1,9 +1,13 @@
 import { settings } from "#db/settings.ts";
+import {
+  type CredentialCheck,
+  refusedCredential,
+} from "#shared/credential-check.ts";
 import { errorMessage } from "#shared/error-message.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
-import type { CredentialCheck } from "#shared/payment-helpers.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { SetupWebhookEndpoint } from "#shared/payments.ts";
+import { SUBSCRIPTION_WEBHOOK_EVENTS } from "#shared/stripe/webhook-events.ts";
 import type { StripeClient } from "./client.ts";
 import { STRIPE_API_VERSION } from "./request.ts";
 import { sanitizeStripeError, stripeClientRuntime } from "./runtime.ts";
@@ -54,13 +58,20 @@ const deleteWebhookEndpoints = async (
   for (const id of ids) await client.webhookEndpoints.del(id);
 };
 
-const createCheckoutWebhook = (
+/** Every delivery the site acts on: the completed checkout that books a
+ * ticket, and each subscription report that records money and status. */
+const ENABLED_EVENTS = [
+  "checkout.session.completed",
+  ...SUBSCRIPTION_WEBHOOK_EVENTS,
+] as const;
+
+const createPaymentWebhook = (
   client: StripeClient,
   webhookUrl: string,
 ): Promise<StripeCreatedWebhookEndpoint> =>
   client.webhookEndpoints.create({
     api_version: STRIPE_API_VERSION,
-    enabled_events: ["checkout.session.completed"],
+    enabled_events: ENABLED_EVENTS,
     url: webhookUrl,
   });
 
@@ -82,7 +93,7 @@ export const setupWebhookEndpoint: SetupWebhookEndpoint = async (
     const client = stripeClientRuntime.create(secretKey);
     let endpoint: StripeCreatedWebhookEndpoint;
     try {
-      endpoint = await createCheckoutWebhook(client, webhookUrl);
+      endpoint = await createPaymentWebhook(client, webhookUrl);
     } catch (error) {
       if (!isEndpointLimitError(error)) throw error;
       const staleIds = await listStaleEndpointIds(
@@ -92,7 +103,7 @@ export const setupWebhookEndpoint: SetupWebhookEndpoint = async (
       );
       if (staleIds.length === 0) throw error;
       await deleteWebhookEndpoints(client, staleIds);
-      endpoint = await createCheckoutWebhook(client, webhookUrl);
+      endpoint = await createPaymentWebhook(client, webhookUrl);
     }
     return {
       endpointId: endpoint.id,
@@ -139,6 +150,9 @@ export type StripeConnectionTestResult = {
   webhookError?: string;
 };
 
+/** An endpoint this site made listens for every delivery the site acts on. An
+ * endpoint that lacks one leaves work for the scheduled check, so the test
+ * names it unhealthy and the operator saves the key again. */
 const isHealthyOwnEndpoint = (
   endpoint: StripeWebhookEndpoint,
   ownEndpointId: string,
@@ -147,7 +161,7 @@ const isHealthyOwnEndpoint = (
   endpoint.id === ownEndpointId &&
   endpoint.status === "enabled" &&
   endpoint.url === webhookUrl &&
-  endpoint.enabled_events.includes("checkout.session.completed");
+  ENABLED_EVENTS.every((event) => endpoint.enabled_events.includes(event));
 
 export const testStripeConnection =
   async (): Promise<StripeConnectionTestResult> => {
@@ -165,7 +179,7 @@ export const testStripeConnection =
       const balance = await client.balance.retrieve();
       result.apiKey = { mode: balance.livemode ? "live" : "test", valid: true };
     } catch (error) {
-      result.apiKey = { error: errorMessage(error), valid: false };
+      result.apiKey = refusedCredential(error);
       return result;
     }
     result.ownEndpointId = settings.stripe.webhookEndpointId;
