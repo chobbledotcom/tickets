@@ -159,7 +159,7 @@ describeWithEnv("db > record table", { db: true }, () => {
 });
 
 describe("db > record table > values from an input", () => {
-  test("rowValuesOf takes each camelCase key that names a column", () => {
+  test("rowValuesOf takes each key that is a field of the table", () => {
     expect(
       rowValuesOf(tables.holidays, {
         endDate: "2026-01-02",
@@ -167,7 +167,7 @@ describe("db > record table > values from an input", () => {
         notAColumn: "dropped",
         startDate: undefined,
       }),
-    ).toEqual({ end_date: "2026-01-02", name: "New year" });
+    ).toEqual({ endDate: "2026-01-02", name: "New year" });
   });
 
   test("newRecordOf adds the created time where the table has it", () => {
@@ -177,12 +177,12 @@ describe("db > record table > values from an input", () => {
     expect(Number.isNaN(Date.parse(String(values.created)))).toBe(false);
   });
 
-  test("newRecordOf puts the field defaults under the input values", () => {
+  test("newRecordOf puts the field defaults, by field, under the input values", () => {
     expect(
       newRecordOf(tables.holidays, [
         { default: "Default name", key: "name", kind: "price" },
         { default: 3, key: "end_date", kind: "count" },
       ])({ name: "Given" }),
-    ).toEqual({ end_date: 3, name: "Given" });
+    ).toEqual({ endDate: 3, name: "Given" });
   });
 });
