@@ -28,7 +28,9 @@ import {
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import {
   type ApiBody,
@@ -284,6 +286,9 @@ export type AdminApiResource = {
    *  replaces the standard delete handler. */
   custom?: Record<string, AdminApiCustomRoute>;
   createBodySchema?: v.GenericSchema;
+  /** The field list that declares the write fields. Absent on a resource
+   *  whose body schemas declare them. */
+  fields?: FieldSpecs;
   /** The display name the server logs and confirms with ("Attribute"). The
    *  single-envelope key and the id param name derive from it lowercased. */
   label: string;
@@ -328,6 +333,7 @@ const attributeTableRow = resourceTableRow(
 export const ADMIN_API_RESOURCES = {
   "attendee-statuses": {
     createBodySchema: attendeeStatusApi.bodies.create,
+    fields: STATUS_FIELDS,
     ...resourceTableRow("Status", "attendee-statuses", AttendeeStatusRowSchema),
     updateBodySchema: attendeeStatusApi.bodies.update,
   },
@@ -350,6 +356,7 @@ export const ADMIN_API_RESOURCES = {
       },
     },
     createBodySchema: attributeBodies.create,
+    fields: ATTRIBUTE_FIELDS,
     ...attributeTableRow,
     updateBodySchema: attributeBodies.update,
   },
@@ -378,10 +385,12 @@ export const ADMIN_API_RESOURCES = {
     updateBodySchema: UpdateExternalSourceBodySchema,
   },
   groups: {
+    fields: GROUP_FIELDS,
     ...resourceTableRow("Group", "groups", GroupRowSchema),
   },
   holidays: {
     createBodySchema: holidayApi.bodies.create,
+    fields: HOLIDAY_FIELDS,
     ...resourceTableRow("Holiday", "holidays", HolidayRowSchema),
     updateBodySchema: holidayApi.bodies.update,
   },
@@ -409,6 +418,7 @@ export const ADMIN_API_RESOURCES = {
         subpath: ":listingId/reactivate",
       },
     },
+    fields: LISTING_FIELDS,
     ...resourceTableRow("Listing", "listings", ListingRowSchema),
   },
   questions: {

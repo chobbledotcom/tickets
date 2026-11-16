@@ -9,6 +9,7 @@ import type {
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   childDocBase,
+  childWriteDocs,
   crudDocs,
   type EndpointDoc,
   json,
@@ -115,35 +116,23 @@ export const EXTERNAL_SOURCE_ENDPOINTS: EndpointDoc[] = [
     path: LINKS_BASE,
     response: json({ links: [ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK] }),
   },
-  {
-    description:
+  ...childWriteDocs([ADMIN_API_RESOURCES["external-sources"], "links"], {
+    createBody: CREATE_LINK_BODY,
+    created: { link: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK },
+    deleteBody: {
+      confirm_identifier: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK.external_id,
+    },
+    desc: [
       "Link one record to its id at a source. link_type is attendee, listing, or group. Leave external_id out when the other system has not named the record yet. One external id can name several records, such as an invoice that covers a group. The record must exist and the source must not hold that record under that id twice.",
-    method: "POST",
-    path: LINKS_BASE,
-    request: json(CREATE_LINK_BODY),
-    response: json({ link: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK }),
-  },
-  {
-    description:
       "Change one link. The body carries all three fields, and the same checks as a create run against them.",
-    method: "PUT",
-    path: `${LINKS_BASE}/:linkId`,
-    request: json(UPDATE_LINK_BODY),
-    response: json({
+      "Delete one link (requires the link reference confirmation: its external id, or the record it names when the id is absent)",
+    ],
+    updateBody: UPDATE_LINK_BODY,
+    updated: {
       link: {
         ...ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK,
         external_id: UPDATE_LINK_BODY.external_id,
       },
-    }),
-  },
-  {
-    description:
-      "Delete one link (requires the link reference confirmation: its external id, or the record it names when the id is absent)",
-    method: "DELETE",
-    path: `${LINKS_BASE}/:linkId`,
-    request: json({
-      confirm_identifier: ADMIN_API_EXAMPLE_EXTERNAL_SOURCE_LINK.external_id,
-    }),
-    response: json({ status: "ok" }),
-  },
+    },
+  }),
 ];

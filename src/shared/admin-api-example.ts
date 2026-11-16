@@ -24,7 +24,7 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiAttendeeStatus,
   type AdminApiCreateAttendeeStatusBody,
-  type AdminApiOptionBody,
+  type AdminApiHoliday,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
@@ -32,13 +32,12 @@ import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
 import { fieldOfKey } from "#shared/rest/field-specs.ts";
-import type { AdminListing } from "#types";
+import type { AdminListing, Group } from "#types";
 import {
-  childDocBase,
+  choiceWriteDocs,
   crudDocs,
   type EndpointDoc,
   json,
-  renameOneText,
 } from "./admin-api-example/endpoint-doc.ts";
 import { EXTERNAL_SOURCE_ENDPOINTS } from "./admin-api-example/external-sources.ts";
 import { IMAGE_ENDPOINTS } from "./admin-api-example/images.ts";
@@ -70,6 +69,7 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
+  closes_at: "2025-08-19T17:00:00.000Z",
   // Written in the form storage reads back, so the create answer below can
   // show the same string the caller sent.
   date: "2025-08-20T10:00:00.000Z",
@@ -115,10 +115,11 @@ const ADMIN_API_EXAMPLE_GROUP = {
   is_package: false,
   max_attendees: 50,
   name: "Summer Series",
+  scan_checks_in_all_listings: false,
   show_hidden_listings: true,
   slug: "summer-series",
   terms_and_conditions: "",
-};
+} satisfies Omit<Group, "slug_index">;
 
 const ADMIN_API_GROUP_CREATE_BODY = {
   description: "Workshops running through the summer.",
@@ -145,7 +146,7 @@ const ADMIN_API_EXAMPLE_HOLIDAY = {
   id: 5,
   name: "Christmas",
   start_date: "2025-12-25",
-};
+} satisfies AdminApiHoliday;
 
 const ADMIN_API_HOLIDAY_CREATE_BODY = {
   end_date: "2025-12-26",
@@ -247,37 +248,6 @@ const ADMIN_API_ATTRIBUTE_DELETE_BODY = {
   confirm_identifier: "Difficulty",
 } satisfies DeleteBody;
 
-const ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY = {
-  text: "Medium",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY = {
-  text: "Very hard",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY = {
-  confirm_identifier: "Hard",
-} satisfies DeleteBody;
-
-const ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM = {
-  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
-  options: [
-    ...ADMIN_API_EXAMPLE_ATTRIBUTE.options,
-    { attribute_id: 6, id: 13, sort_order: 2, text: "Medium" },
-  ],
-};
-
-/** The answer to an option rename: the attribute's own name is untouched, so
- * the example must not read like the request also renames the attribute. */
-const ADMIN_API_EXAMPLE_OPTION_RENAMED = {
-  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
-  options: renameOneText(
-    ADMIN_API_EXAMPLE_ATTRIBUTE.options,
-    "Hard",
-    "Very hard",
-  ),
-};
-
 /** Example attendee booking row, exactly as the attendees endpoint answers
  * with it: the decrypted roster row minus the sealed PII blob and its blind
  * index. A standard listing holds no booking date, so both span fields are
@@ -319,10 +289,6 @@ const LISTING_DEFAULT_DAYS_AFTER = fieldOfKey(
   "maximum_days_after",
 ).default;
 
-/** The documented base path of the option routes: the attribute's id param and
- *  the `options` segment both come from the resource table. */
-const OPTIONS_BASE = childDocBase(ADMIN_API_RESOURCES.attributes, "options");
-
 /** The documented path of one listing custom route. */
 const listingCustom = (
   customKey: keyof typeof ADMIN_API_RESOURCES.listings.custom,
@@ -349,34 +315,16 @@ export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
     newRecordDefaults: { options: [] },
     updateBody: ADMIN_API_ATTRIBUTE_UPDATE_BODY,
   }),
-  {
-    description:
+  ...choiceWriteDocs([ADMIN_API_RESOURCES.attributes, "options"], {
+    added: { attribute_id: 6, id: 13, sort_order: 2, text: "Medium" },
+    desc: [
       "Add an option to an attribute (owner only). The answer shows the attribute with its full option list, new option last.",
-    method: "POST",
-    path: OPTIONS_BASE,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY),
-    response: json({
-      attribute: ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM,
-    }),
-  },
-  {
-    description:
       "Rename an attribute option (owner only). The answer shows the attribute with its full option list.",
-    method: "PUT",
-    path: `${OPTIONS_BASE}/:optionId`,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY),
-    response: json({
-      attribute: ADMIN_API_EXAMPLE_OPTION_RENAMED,
-    }),
-  },
-  {
-    description:
       "Delete an attribute option (owner only, requires the option text as confirmation).",
-    method: "DELETE",
-    path: `${OPTIONS_BASE}/:optionId`,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
+    ],
+    record: ADMIN_API_EXAMPLE_ATTRIBUTE,
+    rename: ["Hard", "Very hard"],
+  }),
   ...crudDocs({
     createBody: ADMIN_API_CREATE_BODY,
     deleteBody: ADMIN_API_DELETE_BODY,
