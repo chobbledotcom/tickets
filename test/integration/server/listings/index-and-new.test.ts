@@ -49,16 +49,35 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Add Listing",
         "Choose a listing type",
       );
-      // "Import from file" is a card in the picker grid, and the final one —
-      // after every listing-type card (including "Custom / advanced").
-      assertStringIncludes(html, 'href="/admin/catalog/import"');
-      expect(html.indexOf("Custom / advanced")).toBeLessThan(
-        html.indexOf("Import from file"),
+      // The import path reads as a sentence in the picker's intro, its tail
+      // linking to the catalog importer — Other is the grid's last card.
+      assertStringIncludes(
+        html,
+        '<a href="/admin/catalog/import">JSON importer.</a>',
       );
-      // No other picker card follows it.
+      assertStringIncludes(
+        html,
+        "Alternatively you can import multiple listings using our",
+      );
+      assertStringIncludes(html, "What sort of listing do you want to make?");
       expect(html.lastIndexOf('class="listing-type-card"')).toBe(
-        html.indexOf('class="listing-type-card" href="/admin/catalog/import"'),
+        html.indexOf(
+          'class="listing-type-card" href="/admin/listing/new?template=custom"',
+        ),
       );
+      // The storefront-first card order: what the operator sells, then how
+      // it is booked. Each card must follow the one before it.
+      let lastCardAt = -1;
+      for (const label of [
+        "Physical product",
+        "Digital product",
+        "Event",
+        "Bookable session",
+      ]) {
+        const at = html.indexOf(`>${label}</strong>`);
+        expect(at).toBeGreaterThan(lastCardAt);
+        lastCardAt = at;
+      }
     });
 
     test("renders create listing form with template=custom", async () => {

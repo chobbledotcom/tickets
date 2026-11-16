@@ -28,6 +28,16 @@ type ListingRenderValues = FormRenderValuesFor<
   ReturnType<typeof getListingForm>["fields"]
 >;
 
+/** A purchase-only, non-dated product seed: the buyer pays, nothing is
+ *  checked in, and the form collects exactly the given contact fields. */
+const purchaseSeed = (fields: string): ListingRenderValues => ({
+  fields,
+  listing_type: "standard",
+  purchase_only: "1",
+  uses_logistics: "",
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
   "hireable-item": {
     bookable_days: ALL_BOOKABLE_DAYS,
@@ -45,12 +55,8 @@ export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
     purchase_only: "",
     uses_logistics: "",
   },
-  "online-digital": {
-    fields: "email",
-    listing_type: "standard",
-    purchase_only: "1",
-    uses_logistics: "",
-  },
+  "online-digital": purchaseSeed("email"),
+  "physical-product": purchaseSeed("email,address"),
   "weekly-event": {
     bookable_days: ALL_BOOKABLE_DAYS,
     duration_days: "1",
@@ -62,6 +68,7 @@ export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
     uses_logistics: "",
   },
 };
+/* jscpd:ignore-end */
 
 type ListingSectionId = ReturnType<typeof getListingForm>["sections"][number];
 type ListingSectionRenderer = (

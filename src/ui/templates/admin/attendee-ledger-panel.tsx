@@ -20,6 +20,7 @@ import {
 import { LabelledAmount } from "#templates/components/labelled-amount.tsx";
 import { PageRegions } from "#templates/components/page-structure.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 
 export type AttendeeLedgerView = {
   status: AttendeeStatus | null;
@@ -175,13 +176,15 @@ const LedgerHistory = ({
 }: {
   activityHref: string;
 }): JSX.Element => (
-  <div class="prose">
-    <h3>{t("attendee_balance.history_heading")}</h3>
-    <p>{t("attendee_balance.history_intro")}</p>
+  <ProseIntro
+    heading={t("attendee_balance.history_heading")}
+    headingTag="h3"
+    intro={t("attendee_balance.history_intro")}
+  >
     <p>
       <a href={activityHref}>{t("attendee_balance.history_activity_link")}</a>
     </p>
-  </div>
+  </ProseIntro>
 );
 
 export const AttendeeLedgerPanel = (view: AttendeeLedgerView): JSX.Element => (

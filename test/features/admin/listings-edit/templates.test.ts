@@ -54,6 +54,14 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
     assertStringIncludes(html, FORM_HEADING);
     assert(!html.includes(PICKER_HEADING));
     expect(carriedTemplate(html)).toBe("one-off-event");
+
+    // The physical product card remembers its template too, and its seed
+    // checks the email + delivery-address boxes.
+    const physical = await (
+      await adminGet("/admin/listing/new?template=physical-product")
+    ).text();
+    expect(carriedTemplate(physical)).toBe("physical-product");
+    assertStringIncludes(physical, 'value="address" checked');
   });
 
   test("treats an unknown template as the custom form", async () => {
@@ -83,6 +91,23 @@ describeWithEnv("opening the new listing form", { db: true }, () => {
 
       assertStringIncludes(html, FORM_HEADING);
       expect(carriedTemplate(html)).toBe("hireable-item");
+    } finally {
+      settings.clearTestOverride("enabled_features");
+    }
+  });
+
+  test("picker shows hireable as a live card once the feature is on", async () => {
+    settings.setForTest(featureSetting("logistics"));
+    try {
+      const html = await (await adminGet("/admin/listing/new")).text();
+
+      assertStringIncludes(html, PICKER_HEADING);
+      assertStringIncludes(
+        html,
+        'href="/admin/listing/new?template=hireable-item"',
+      );
+      // A live card, not the disabled placeholder.
+      assert(!html.includes("listing-type-card--disabled"));
     } finally {
       settings.clearTestOverride("enabled_features");
     }

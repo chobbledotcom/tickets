@@ -176,6 +176,22 @@ describe("inferTemplate — price is not a dimension", () => {
   });
 });
 
+describe("inferTemplate — the physical/digital pair", () => {
+  test("the shared purchase-only combo keeps inferring online-digital", () => {
+    // physical-product shares online-digital's signature; the picker offers
+    // both cards, but inference stays pinned to the exhaustive table above
+    // (first match in LISTING_TEMPLATES order).
+    expect(inferTemplate(src(false, false, true, false))?.id).toBe(
+      "online-digital",
+    );
+    expect(
+      LISTING_TEMPLATES.findIndex((t) => t.id === "online-digital"),
+    ).toBeLessThan(
+      LISTING_TEMPLATES.findIndex((t) => t.id === "physical-product"),
+    );
+  });
+});
+
 describe("inferTemplate — template flags", () => {
   test("only one-off-event requires a date", () => {
     const dateRequired = LISTING_TEMPLATES.filter((t) => t.requiresDate);
@@ -203,6 +219,7 @@ describe("inferTemplate — template flags", () => {
   // is gated behind requiresLogistics and isn't exercised by the default
   // settings fixture in server-listings/create.test.ts, so this is the only test
   // that would catch a typo in its label/description key.
+  /* jscpd:ignore-start -- a list of strings, not code */
   const EXPECTED_KEYS: Record<
     TemplateId,
     { label: string; description: string }
@@ -219,11 +236,16 @@ describe("inferTemplate — template flags", () => {
       description: "listings_table.template_online_digital_description",
       label: "listings_table.template_online_digital",
     },
+    "physical-product": {
+      description: "listings_table.template_physical_product_description",
+      label: "listings_table.template_physical_product",
+    },
     "weekly-event": {
       description: "listings_table.template_weekly_event_description",
       label: "listings_table.template_weekly_event",
     },
   };
+  /* jscpd:ignore-end */
 
   for (const tmpl of LISTING_TEMPLATES) {
     test(`${tmpl.id} has its exact label and description i18n key`, () => {
