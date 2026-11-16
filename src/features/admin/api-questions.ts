@@ -25,6 +25,7 @@ import type {
   AdminApiCreateQuestionBody,
   AdminApiUpdateQuestionBody,
 } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { questionRecord } from "#shared/records/questions.ts";
 import {
@@ -113,7 +114,8 @@ const answerTextCap = (text: string): Response | null =>
     : null;
 
 /** Every answer row the API answers with carries its selection total, the
- *  "Times selected" count the question page shows. One query covers the whole
+ *  "Times selected" count the question page shows. The JSON API sends each
+ *  answer under its column names. One query covers the whole
  *  question list, so a list response costs no extra read per question. */
 const hydrateAnswerStatsWith =
   (totals: (questionIds: number[]) => Promise<Map<number, number>>) =>
@@ -127,7 +129,7 @@ const hydrateAnswerStatsWith =
         question.id,
         {
           answers: question.answers.map((answer) => ({
-            ...answer,
+            ...snakeCaseKeys(answer),
             times_selected: requiredMapValue(
               byAnswer,
               answer.id,
@@ -159,7 +161,7 @@ const questionResponse = async (
   return jsonResponse(
     {
       question: {
-        ...question,
+        ...snakeCaseKeys(question),
         ...(await hydrateAnswerStatsAfterWrite([question])).get(question.id),
       },
     },

@@ -76,23 +76,16 @@ export const getApiKeyByToken = async (
 /**
  * List all API keys for a user (decrypts names for display).
  */
-export const getApiKeysForUser = async (
+export const getApiKeysForUser = (
   userId: number,
 ): Promise<
   Array<{ id: number; name: string; created: string; lastUsed: string }>
-> => {
-  const decrypted = await readRows(
-    apiKeys({ userId: userId })
+> =>
+  readRows(
+    apiKeys({ userId })
       .sortedBy("id")
       .pick("id", "name", "created", "lastUsed"),
   );
-  return decrypted.map((row) => ({
-    created: row.created,
-    id: row.id,
-    lastUsed: row.lastUsed,
-    name: row.name,
-  }));
-};
 
 /** The key's display facts: its id and its decrypted name. */
 export type ApiKeyName = { id: number; name: string };
