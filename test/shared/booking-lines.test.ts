@@ -21,7 +21,7 @@ const item = (
 });
 
 const listing = (id: number, overrides = {}) =>
-  testListingWithCount({ id, listing_type: "standard", ...overrides });
+  testListingWithCount({ id, listingType: "standard", ...overrides });
 
 const listingMap = (...listings: ReturnType<typeof listing>[]) =>
   new Map(listings.map((entry) => [entry.id, entry]));

@@ -17,13 +17,11 @@ export const insertFinalizedPayment = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: opts.attendeeId ?? 1,
-      payment_reference: (opts.paymentReference ?? "") as
-        | OwnerKeyEncrypted
-        | "",
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
-      ticket_tokens: "",
+      attendeeId: opts.attendeeId ?? 1,
+      paymentReference: (opts.paymentReference ?? "") as OwnerKeyEncrypted | "",
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
+      ticketTokens: "",
     }),
   );
 };
@@ -34,9 +32,9 @@ export const insertUnfinalizedPayment = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: null,
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
+      attendeeId: null,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
     }),
   );
 };
@@ -47,11 +45,11 @@ export const insertFailedPayment = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: null,
-      failure_data:
+      attendeeId: null,
+      failureData:
         '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
     }),
   );
 };
@@ -65,12 +63,12 @@ export const insertClaimedPayment = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: attendeeId,
-      failure_data:
+      attendeeId: attendeeId,
+      failureData:
         '{"error":"sold out","status":409,"refunded":true}' as EnvKeyEncrypted,
-      payment_session_id: sessionId,
-      processed_at: processedAtIso,
-      protected_state: CLAIM_MIRROR,
+      paymentSessionId: sessionId,
+      processedAt: processedAtIso,
+      protectedState: CLAIM_MIRROR,
     }),
   );
 };
@@ -102,10 +100,10 @@ export const insertSumupCheckout = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.sumup_checkouts, {
-      created_at: createdAtIso,
+      createdAt: createdAtIso,
       metadata: "ciphertext",
-      reference_index: referenceIndex,
-      wrapped_key: "wk",
+      referenceIndex: referenceIndex,
+      wrappedKey: "wk",
     }),
   );
 };
@@ -127,9 +125,9 @@ export const insertString = async (
   await getDb().execute(
     insertInto(tables.strings, {
       created,
-      encrypted_text: "ciphertext",
-      text_index: textIndex,
-      used_count: usedCount,
+      encryptedText: "ciphertext",
+      textIndex: textIndex,
+      usedCount: usedCount,
     }),
   );
 };
@@ -143,9 +141,9 @@ export const insertStrings = (
     Array.from({ length: count }, (_, index) =>
       insertInto(tables.strings, {
         created,
-        encrypted_text: "ciphertext",
-        text_index: `${prefix}-${index}`,
-        used_count: 0,
+        encryptedText: "ciphertext",
+        textIndex: `${prefix}-${index}`,
+        usedCount: 0,
       }),
     ),
   );
@@ -221,8 +219,8 @@ export const insertOrphanAttendee = async (
   const result = await getDb().execute(
     insertInto(tables.attendees, {
       created: createdIso,
-      pii_blob: "",
-      ticket_token_index: `prune-orphan-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `prune-orphan-${crypto.randomUUID()}`,
     }),
   );
   return Number(result.lastInsertRowid);

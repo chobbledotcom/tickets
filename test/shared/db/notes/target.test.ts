@@ -31,9 +31,9 @@ describe("what a note is about", () => {
     // Two of the notes name one record, one names another, so grouping must
     // both bucket and keep the order.
     const notes = [
-      { entity_id: 1, note: "first" },
-      { entity_id: 2, note: "other" },
-      { entity_id: 1, note: "second" },
+      { entityId: 1, note: "first" },
+      { entityId: 2, note: "other" },
+      { entityId: 1, note: "second" },
     ];
     const grouped = groupNotesByTargetId(notes);
 
@@ -41,10 +41,10 @@ describe("what a note is about", () => {
     // order, and nothing for a record with none.
     expect(Object.fromEntries(grouped)).toEqual({
       1: [
-        { entity_id: 1, note: "first" },
-        { entity_id: 1, note: "second" },
+        { entityId: 1, note: "first" },
+        { entityId: 1, note: "second" },
       ],
-      2: [{ entity_id: 2, note: "other" }],
+      2: [{ entityId: 2, note: "other" }],
     });
   });
 });

@@ -243,7 +243,7 @@ const createDirectAdminSession = async (): Promise<{
   const user = (await getUserByUsername(TEST_ADMIN_USERNAME))!;
   const ownerHash = (await verifyUserPassword(user, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key!, kek);
+  const dataKey = await unwrapKey(user.wrappedDataKey!, kek);
 
   const token = generateSecureToken();
   const csrfToken = generateSecureToken();

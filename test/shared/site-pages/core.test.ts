@@ -115,7 +115,7 @@ describe("site-pages core", () => {
       );
       const items = forest.itemsByPage.get(1) ?? [];
       // order 0 rows first (tiebreak item_id: 2 < 4), then order 1.
-      expect(items.map((i) => `${i.item_type}:${i.item_id}`)).toEqual([
+      expect(items.map((i) => `${i.itemType}:${i.itemId}`)).toEqual([
         "listing:2",
         "group:4",
         "listing:9",

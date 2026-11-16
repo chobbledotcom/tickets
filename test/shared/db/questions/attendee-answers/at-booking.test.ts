@@ -213,7 +213,7 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
     const { attendee, book, size, small } = await seedBooking();
     await book({ answerIds: [small.id] });
     await records.questions.update(size.id, {
-      display_type: "radio",
+      displayType: "radio",
       text: "Shirt size?",
     });
     await records.answers.update(small.id, { text: "S" });

@@ -23,5 +23,5 @@ export const storedSiteRow = async (
   const { id } = await createBuiltSite(input);
   const row = await records.built_sites.find(id);
   if (row === null) throw new Error(`Built site ${id} was not stored`);
-  return { ...row, blob: parseSiteDataBlob(row.site_data) };
+  return { ...row, blob: parseSiteDataBlob(row.siteData) };
 };

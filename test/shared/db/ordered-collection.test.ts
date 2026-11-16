@@ -37,8 +37,8 @@ const pageItems = defineOrderedCollection({
 const insertStatus = async (sortOrder: number): Promise<number> => {
   const statement = insertInto(tables.attendee_statuses, {
     name: await encrypt("status"),
-    reservation_amount: "0",
-    sort_order: sortOrder,
+    reservationAmount: "0",
+    sortOrder: sortOrder,
   });
   return Number((await execute(statement)).lastInsertRowid);
 };

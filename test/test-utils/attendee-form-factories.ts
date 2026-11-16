@@ -10,7 +10,7 @@ export const attendeeFormLine = (
   error: null,
   existingBooking: null,
   key: "",
-  listing: testListingWithCount({ id: 1, max_quantity: 5 }),
+  listing: testListingWithCount({ id: 1, maxQuantity: 5 }),
   listingId: 1,
   noQuantity: false,
   packageGroupId: 0,

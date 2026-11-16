@@ -396,7 +396,7 @@ describeRecord(imageRecord, "Image", "Type the image name to confirm", () => {
       expect(
         await imageRecord.update(image.id, {
           filename: image.filename,
-          filenameThumb: image.filename_thumb,
+          filenameThumb: image.filenameThumb,
           name: "Gone",
         }),
       ).toEqual({ kind: "not-found" });

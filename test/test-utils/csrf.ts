@@ -102,7 +102,7 @@ export const getCsrfTokenFromCookie = async (
 
   const sessionToken = sessionMatch[1];
   const session = await getSession(sessionToken);
-  return session?.csrf_token ?? null;
+  return session?.csrfToken ?? null;
 };
 
 export const submitJoinForm = async (

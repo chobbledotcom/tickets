@@ -17,9 +17,9 @@ describe("insertInto", () => {
     expect(
       placed(
         insertInto(tables.holidays, {
-          end_date: "b",
+          endDate: "b",
           name: "n" as EnvKeyEncrypted,
-          start_date: "a",
+          startDate: "a",
         }),
       ),
     ).toEqual({
@@ -32,8 +32,8 @@ describe("insertInto", () => {
     expect(
       placed(
         insertInto(tables.listing_parents, [
-          { child_listing_id: 1, parent_listing_id: 2 },
-          { child_listing_id: 3, parent_listing_id: 2 },
+          { childListingId: 1, parentListingId: 2 },
+          { childListingId: 3, parentListingId: 2 },
         ]),
       ),
     ).toEqual({
@@ -51,7 +51,7 @@ describe("insertInto", () => {
   test("refuses rows that name different columns", () => {
     expect(() =>
       insertInto(tables.listing_parents, [
-        { child_listing_id: 1, parent_listing_id: 2 },
+        { childListingId: 1, parentListingId: 2 },
         { parent_listing_id: 2 } as never,
       ]),
     ).toThrow("must name the same columns");
@@ -140,9 +140,9 @@ describe("insertInto", () => {
   test("reads back the named columns of each written row", () => {
     expect(
       insertInto(tables.holidays, {
-        end_date: "b",
+        endDate: "b",
         name: "n" as EnvKeyEncrypted,
-        start_date: "a",
+        startDate: "a",
       }).returning("id", "name").sql,
     ).toBe(
       "INSERT INTO holidays (end_date, name, start_date) VALUES (?1, ?2, ?3) RETURNING id, name",

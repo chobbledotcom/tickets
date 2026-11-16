@@ -48,9 +48,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     const insertStale = (sessionId: string) =>
       getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: null,
-          payment_session_id: sessionId,
-          processed_at: new Date(
+          attendeeId: null,
+          paymentSessionId: sessionId,
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),
@@ -75,9 +75,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     test("does not delete finalized reservations regardless of age", async () => {
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: ctx.attendeeId,
-          payment_session_id: "cs_finalized_bulk",
-          processed_at: new Date(
+          attendeeId: ctx.attendeeId,
+          paymentSessionId: "cs_finalized_bulk",
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),
@@ -98,10 +98,10 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     test("clears the old charge's index along with its reference", async () => {
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          payment_reference: "old-ciphertext" as OwnerKeyEncrypted,
-          payment_reference_index: "index-of-the-old-charge",
-          payment_session_id: "cs_reused",
-          processed_at: new Date(
+          paymentReference: "old-ciphertext" as OwnerKeyEncrypted,
+          paymentReferenceIndex: "index-of-the-old-charge",
+          paymentSessionId: "cs_reused",
+          processedAt: new Date(
             Date.now() - STALE_RESERVATION_MS - 1000,
           ).toISOString(),
         }),

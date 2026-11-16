@@ -52,10 +52,7 @@ const externalIds = async (sourceId: number): Promise<string[]> =>
       listExternalSourceLinks(sourceId, { kind: "all" }),
     )
   ).map((link) =>
-    requireValue(
-      link.external_id,
-      "A link in this test carries an external id",
-    ),
+    requireValue(link.externalId, "A link in this test carries an external id"),
   );
 
 describeWithEnv("db > external links follow their record", { db: true }, () => {
@@ -99,7 +96,7 @@ describeWithEnv("db > external links follow their record", { db: true }, () => {
         linkType: "attendee",
       }),
     );
-    expect(moved.map((link) => link.external_id)).toEqual(["INV-1"]);
+    expect(moved.map((link) => link.externalId)).toEqual(["INV-1"]);
   });
 
   test("removes a listing's links with the listing", async () => {

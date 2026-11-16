@@ -78,7 +78,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   test("a bare row takes its numeric defaults from the table", async () => {
     await execute(await listingRowStatement("bare defaults"));
     const [row] = await readRows(
-      from(tables.listings).pick("duration_days", "max_price"),
+      from(tables.listings).pick("durationDays", "maxPrice"),
     );
     expect(row).toEqual({ duration_days: 1, max_price: 0 });
   });
@@ -86,7 +86,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   test("names each projected image when its stored filename is broken", async () => {
     const stored = await encrypt("");
     await openItemImages(
-      { image_alt_text: "", image_thumb_url: stored, image_url: "" },
+      { imageAltText: "", imageThumbUrl: stored, imageUrl: "" },
       "listing 8",
     );
     assertStringIncludes(
@@ -94,7 +94,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       "listing 8 thumbnail image",
     );
     await openItemImages(
-      { image_alt_text: "", image_thumb_url: "", image_url: stored },
+      { imageAltText: "", imageThumbUrl: "", imageUrl: stored },
       "listing 9",
     );
     assertStringIncludes(errors.lastMessage() ?? "", "listing 9 image");
@@ -181,7 +181,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("duration_days write validation", () => {
     const insertWithDuration = async (slug: string, durationDays: number) => {
       const listing = await insertListing(slug, { durationDays });
-      return (await getListingWithCount(listing.id))!.duration_days;
+      return (await getListingWithCount(listing.id))!.durationDays;
     };
 
     test("accepts whole days within the supported range", async () => {
@@ -212,7 +212,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       await updateListing(listing.id, {
         durationDays: MAX_DURATION_DAYS + 1,
       });
-      expect((await getListingWithCount(listing.id))!.duration_days).toBe(
+      expect((await getListingWithCount(listing.id))!.durationDays).toBe(
         MAX_DURATION_DAYS,
       );
     });
@@ -253,7 +253,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "test-bd-day",
         '["Monday","Funday"]',
       );
-      expect((await getListingWithCount(listing.id))?.bookable_days).toEqual([
+      expect((await getListingWithCount(listing.id))?.bookableDays).toEqual([
         "Monday",
         "Funday",
       ]);

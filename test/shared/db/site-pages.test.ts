@@ -28,8 +28,8 @@ const makePage = async (
   records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
-    slug_index: await hmacHash(slug),
-    sort_order: 0,
+    slugIndex: await hmacHash(slug),
+    sortOrder: 0,
     ...extra,
   });
 
@@ -38,7 +38,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("stores free text encrypted and decrypts on read", async () => {
       const created = await makePage("about", {
         content: "Hello **world**",
-        meta_title: "About us",
+        metaTitle: "About us",
       });
       const raw = await queryAll<{
         content: string;
@@ -55,7 +55,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
       expect(back?.name).toBe("Name about");
       expect(back?.slug).toBe("about");
       expect(back?.content).toBe("Hello **world**");
-      expect(back?.meta_title).toBe("About us");
+      expect(back?.metaTitle).toBe("About us");
     });
 
     test("records.site_pages.find returns null for a missing id", async () => {
@@ -63,8 +63,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     });
 
     test("nav rows are decrypted, ordered, and carry no content", async () => {
-      await makePage("b", { sort_order: 5 });
-      await makePage("a", { sort_order: 1 });
+      await makePage("b", { sortOrder: 5 });
+      await makePage("a", { sortOrder: 1 });
       sitePages.invalidate();
       const rows = await sitePages.getAll();
       expect(rows.map((r) => r.slug)).toEqual(["a", "b"]);
@@ -87,7 +87,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
             metaTitle: "",
             name: `Name ${slug}`,
           })
-        ).sort_order;
+        ).sortOrder;
       const orders = [await make("o-a"), await make("o-b"), await make("o-c")];
       // Distinct + strictly increasing ⇒ the pages are reliably reorderable
       // (equal orders would make the move-up/down swap a no-op).
@@ -113,7 +113,7 @@ describeWithEnv("db > site-pages", { db: true }, () => {
         assertArrayIncludes(slugs, ["fresh-cache"]);
         // The returned row is built from the input (no post-commit read-back),
         // and matches what a fresh read decrypts.
-        expect(created.meta_title).toBe("Meta");
+        expect(created.metaTitle).toBe("Meta");
         expect(await records.site_pages.find(created.id)).toEqual(created);
       }));
 
@@ -174,8 +174,8 @@ describeWithEnv("db > site-pages", { db: true }, () => {
 
   describe("root reorder", () => {
     test("ordered rows exchange two pages' sort_order", async () => {
-      const a = await makePage("first", { sort_order: 0 });
-      const b = await makePage("second", { sort_order: 1 });
+      const a = await makePage("first", { sortOrder: 0 });
+      const b = await makePage("second", { sortOrder: 1 });
       await sitePageOrder.swap({ first: a.id, second: b.id });
       sitePages.invalidate();
       expect((await sitePages.getAll()).map((r) => r.slug)).toEqual([
@@ -187,12 +187,12 @@ describeWithEnv("db > site-pages", { db: true }, () => {
     test("ordered rows are a no-op when either row is missing", async () => {
       // A stale reorder click racing a delete must not 500 (binding an
       // undefined sort_order) — the swap simply does nothing.
-      const a = await makePage("survivor", { sort_order: 0 });
+      const a = await makePage("survivor", { sortOrder: 0 });
       await sitePageOrder.swap({ first: a.id, second: 9999 });
       await sitePageOrder.swap({ first: 9999, second: a.id });
       sitePages.invalidate();
       const row = (await sitePages.getAll()).find((r) => r.slug === "survivor");
-      expect(row?.sort_order).toBe(0);
+      expect(row?.sortOrder).toBe(0);
     });
 
     test("cache stats identify the site pages cache by name", () => {

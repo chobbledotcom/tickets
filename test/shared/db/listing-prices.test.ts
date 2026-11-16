@@ -245,7 +245,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       { price_id: "3", price_type: "day_count", unit_price: 1000 },
     ]);
     // The returned entity (form re-fetch via the projection) carries them.
-    expect(listing.day_prices).toEqual({ 1: 400, 3: 1000 });
+    expect(listing.dayPrices).toEqual({ 1: 400, 3: 1000 });
     // And getListingDayPrices reads the same rows directly.
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 3: 1000 });
   });
@@ -260,7 +260,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       durationDays: 5,
     });
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 550 });
-    expect(edited.day_prices).toEqual({ 1: 550 });
+    expect(edited.dayPrices).toEqual({ 1: 550 });
   });
 
   test("a day-count row whose price is not a number fails the read loudly", async () => {
@@ -297,7 +297,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
       dayPrices: { 2: 900, 3: 1300 },
       durationDays: 5,
     });
-    expect(updated!.day_prices).toEqual({ 2: 900, 3: 1300 });
+    expect(updated!.dayPrices).toEqual({ 2: 900, 3: 1300 });
     expect(await getListingDayPrices(listing.id)).toEqual({ 2: 900, 3: 1300 });
   });
 
@@ -305,7 +305,7 @@ describeWithEnv("listing_prices persistence", { db: true }, () => {
     const listing = await createDayPricedListing({ 1: 400, 2: 700 });
     // A direct partial update (no dayPrices) must not clobber the day_count rows.
     const row = await updateListing(listing.id, { active: false });
-    expect(row!.day_prices).toEqual({ 1: 400, 2: 700 });
+    expect(row!.dayPrices).toEqual({ 1: 400, 2: 700 });
     expect(await getListingDayPrices(listing.id)).toEqual({ 1: 400, 2: 700 });
   });
 

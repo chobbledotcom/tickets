@@ -204,26 +204,26 @@ describe("booking model — day-count support", () => {
   describe("dayCountsChildSupports", () => {
     test("customisable child returns its available day counts", () => {
       const child = resolved({
-        customisable_days: true,
-        day_prices: { 1: 100, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 1: 100, 3: 300 },
+        durationDays: 3,
       });
       expect(dayCountsChildSupports(child)).toEqual([1, 3]);
     });
 
     test("fixed daily child returns only its own duration", () => {
       const child = resolved({
-        customisable_days: false,
-        duration_days: 4,
-        listing_type: "daily",
+        customisableDays: false,
+        durationDays: 4,
+        listingType: "daily",
       });
       expect(dayCountsChildSupports(child)).toEqual([4]);
     });
 
     test("non-daily fixed child supports any day count", () => {
       const child = resolved({
-        customisable_days: false,
-        listing_type: "standard",
+        customisableDays: false,
+        listingType: "standard",
       });
       expect(dayCountsChildSupports(child)).toBeNull();
     });
@@ -236,14 +236,14 @@ describe("booking model — day-count support", () => {
       dayPrices: Record<number, number>,
     ): TicketListing =>
       resolved({
-        customisable_days: true,
-        day_prices: dayPrices,
-        duration_days: Math.max(...Object.keys(dayPrices).map(Number)),
+        customisableDays: true,
+        dayPrices: dayPrices,
+        durationDays: Math.max(...Object.keys(dayPrices).map(Number)),
         id,
       });
 
     test("empty when there are no customisable listings", () => {
-      const listings = [resolved({ customisable_days: false })];
+      const listings = [resolved({ customisableDays: false })];
       expect(pageDayCounts(listings, undefined, false)).toEqual([]);
     });
 
@@ -258,7 +258,7 @@ describe("booking model — day-count support", () => {
     test("ignores non-customisable listings when intersecting", () => {
       const listings = [
         supporting(1, { 1: 100, 2: 200 }),
-        resolved({ customisable_days: false, id: 2 }),
+        resolved({ customisableDays: false, id: 2 }),
       ];
       expect(pageDayCounts(listings, undefined, false)).toEqual([1, 2]);
     });
@@ -287,9 +287,9 @@ describe("booking model — day-count support", () => {
           [
             resolved({
               active: false,
-              customisable_days: true,
-              day_prices: { 2: 200 },
-              duration_days: 2,
+              customisableDays: true,
+              dayPrices: { 2: 200 },
+              durationDays: 2,
               id: 10,
             }),
           ],
@@ -323,7 +323,7 @@ describe("booking model — day-count support", () => {
     });
 
     test("empty when no listing is customisable, even for a package", () => {
-      const listings = [resolved({ customisable_days: false, id: 1 })];
+      const listings = [resolved({ customisableDays: false, id: 1 })];
       expect(pageDayCounts(listings, new Map(), true)).toEqual([]);
     });
   });

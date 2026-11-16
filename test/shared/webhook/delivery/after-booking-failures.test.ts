@@ -91,8 +91,8 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
           [
             makeEntry({
               hidden: true,
-              months_per_unit: 1,
-              purchase_only: true,
+              monthsPerUnit: 1,
+              purchaseOnly: true,
             }),
           ],
           { siteTokenIndex: "stored-index", source: "public" },

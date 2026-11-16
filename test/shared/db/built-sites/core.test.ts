@@ -185,7 +185,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
   test("legacy empty renewal tokens remain empty strings", async () => {
     const row = await records.built_sites.insert({
       created: "2026-01-01T00:00:00Z",
-      site_data: JSON.stringify({
+      siteData: JSON.stringify({
         n: "Legacy renewal",
         rt: "",
         u: "legacy.example.test",

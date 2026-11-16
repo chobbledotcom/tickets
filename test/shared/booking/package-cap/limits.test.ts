@@ -171,7 +171,7 @@ describe("packageBundleLimit", () => {
     // governed by the parent's capacity elsewhere — it must not also be
     // pooled here, so the bundle limit falls back to the package's own
     // quantity limit (floor(100/2)=50).
-    expect(soleMemberBundleLimit([tl(2, 5, { listing_type: "daily" })])).toBe(
+    expect(soleMemberBundleLimit([tl(2, 5, { listingType: "daily" })])).toBe(
       50,
     );
   });

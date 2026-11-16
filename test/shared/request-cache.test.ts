@@ -199,12 +199,12 @@ describe("requestCache", () => {
 describeWithEnv("caching integration", { db: true }, () => {
   test("caches holidays within a request and serves fresh data across requests", async () => {
     await records.holidays.insert({
-      end_date: parseDateStringOrThrow(
+      endDate: parseDateStringOrThrow(
         "2026-07-31",
         "the request-cache holiday end date",
       ),
       name: "Summer Break",
-      start_date: parseDateStringOrThrow(
+      startDate: parseDateStringOrThrow(
         "2026-07-01",
         "the request-cache holiday start date",
       ),
@@ -225,12 +225,12 @@ describeWithEnv("caching integration", { db: true }, () => {
     expect(first).toHaveLength(0);
 
     await records.holidays.insert({
-      end_date: parseDateStringOrThrow(
+      endDate: parseDateStringOrThrow(
         "2026-12-31",
         "the request-cache holiday end date",
       ),
       name: "Winter Break",
-      start_date: parseDateStringOrThrow(
+      startDate: parseDateStringOrThrow(
         "2026-12-20",
         "the request-cache holiday start date",
       ),

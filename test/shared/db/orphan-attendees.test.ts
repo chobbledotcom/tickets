@@ -53,8 +53,8 @@ const insertOrphan = async (createdIso: string): Promise<number> => {
   const result = await getDb().execute(
     insertInto(tables.attendees, {
       created: createdIso,
-      pii_blob: "",
-      ticket_token_index: `orphan-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `orphan-${crypto.randomUUID()}`,
     }),
   );
   return Number(result.lastInsertRowid);
@@ -75,10 +75,10 @@ const addPaymentWork = async (
 ): Promise<void> => {
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: attendeeId,
-      payment_session_id: `ps-held-${attendeeId}`,
-      processed_at: nowIso(),
-      protected_state: protectedState,
+      attendeeId: attendeeId,
+      paymentSessionId: `ps-held-${attendeeId}`,
+      processedAt: nowIso(),
+      protectedState: protectedState,
     }),
   );
 };
@@ -151,11 +151,11 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       await getDb().execute(
         insertInto(tables.service_costs, {
           created: nowIso(),
-          listing_id: 1,
+          listingId: 1,
           memo: "",
-          occurred_at: nowIso(),
-          servicing_attendee_id: id,
-          transfer_id: 0, // dummy; SQLite does not enforce FKs by default
+          occurredAt: nowIso(),
+          servicingAttendeeId: id,
+          transferId: 0, // dummy; SQLite does not enforce FKs by default
         }),
       );
       await purgeOrphanedAttendees(nowIso());
@@ -169,16 +169,16 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
         insertInto(tables.attendee_answers, {
-          answer_id: 1,
-          attendee_id: id,
-          question_id: 1,
+          answerId: 1,
+          attendeeId: id,
+          questionId: 1,
         }),
       );
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: id,
-          payment_session_id: `ps-orphan-${id}`,
-          processed_at: nowIso(),
+          attendeeId: id,
+          paymentSessionId: `ps-orphan-${id}`,
+          processedAt: nowIso(),
         }),
       );
       await createSystemNote(attendeeNotes(id), "orphan note");

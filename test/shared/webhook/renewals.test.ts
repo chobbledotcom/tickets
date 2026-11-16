@@ -33,9 +33,9 @@ const tierEntry = (
       active: true,
       hidden: true,
       id: listingId,
-      months_per_unit: monthsPerUnit,
-      purchase_only: true,
-      unit_price: 100,
+      monthsPerUnit: monthsPerUnit,
+      purchaseOnly: true,
+      unitPrice: 100,
     },
     { quantity },
   );
@@ -162,9 +162,9 @@ describeWithEnv(
           active: true,
           hidden: false,
           id: 55,
-          months_per_unit: 0,
-          purchase_only: false,
-          unit_price: 100,
+          monthsPerUnit: 0,
+          purchaseOnly: false,
+          unitPrice: 100,
         },
         { quantity: 1 },
       );
@@ -216,9 +216,9 @@ describeWithEnv(
         {
           active: true,
           hidden: false,
-          months_per_unit: 0,
-          purchase_only: false,
-          unit_price: 100,
+          monthsPerUnit: 0,
+          purchaseOnly: false,
+          unitPrice: 100,
         },
         { quantity: 1 },
       );

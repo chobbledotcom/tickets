@@ -164,7 +164,7 @@ describe("accounting > rows > selectTransfersMany", () => {
     await storeTwoLegs();
 
     const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
-      byColumnIn("event_group", ["evt-b"]),
+      byColumnIn("eventGroup", ["evt-b"]),
       byColumnIn("reference", ["ref-a"]),
     ]);
 
@@ -216,7 +216,7 @@ describe("accounting > rows > selectTransfersMany", () => {
         },
       };
       return selectTransfersMany(counted.batch, [
-        byColumnIn("event_group", ["evt-a"]),
+        byColumnIn("eventGroup", ["evt-a"]),
         byColumnIn("reference", ["ref-b"]),
       ]);
     });

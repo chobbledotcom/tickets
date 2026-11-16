@@ -123,8 +123,8 @@ export const createTestListing = async (
   }
   return {
     ...listing,
-    max_attendees: input.maxAttendees,
-    use_defaults: listing.use_defaults || writesDefaultsFlag,
+    maxAttendees: input.maxAttendees,
+    useDefaults: listing.useDefaults || writesDefaultsFlag,
   };
 };
 
@@ -252,13 +252,13 @@ export const bookableStartDates = async (
  * the real form always submits, at the listing's stored values. Each ticked
  * day is one field, as a browser sends a checkbox group. */
 export const dailySwitchForm = (
-  listing: Pick<ListingWithCount, "max_attendees" | "name" | "slug">,
+  listing: Pick<ListingWithCount, "maxAttendees" | "name" | "slug">,
   extra: TestFormValues = {},
 ): TestFormValues => ({
   bookable_days: allDays,
   duration_days: "1",
   listing_type: "daily",
-  max_attendees: String(listing.max_attendees),
+  max_attendees: String(listing.maxAttendees),
   max_quantity: "1",
   maximum_days_after: "90",
   minimum_days_before: "1",

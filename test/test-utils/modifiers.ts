@@ -136,9 +136,9 @@ export const modifierAggregates = async (
 }> => {
   const row = (await getAllModifiers()).find((m) => m.id === modifierId)!;
   return {
-    totalRevenue: row.total_revenue,
-    totalUses: row.total_uses,
-    usageCount: row.usage_count,
+    totalRevenue: row.totalRevenue,
+    totalUses: row.totalUses,
+    usageCount: row.usageCount,
   };
 };
 

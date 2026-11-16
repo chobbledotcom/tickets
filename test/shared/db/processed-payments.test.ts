@@ -100,9 +100,9 @@ describeWithEnv("db > processed payments", { db: true }, () => {
       ).toISOString();
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: null,
-          payment_session_id: "sess_stale",
-          processed_at: oldTimestamp,
+          attendeeId: null,
+          paymentSessionId: "sess_stale",
+          processedAt: oldTimestamp,
         }),
       );
 

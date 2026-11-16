@@ -18,14 +18,14 @@ describeWithEnv("attendee merge service", { db: true }, () => {
     await insertCheckoutStage(source.id, "stage-merge-source");
     await executeBatch([
       insertInto(tables.processed_payments, {
-        attendee_id: target.id,
-        payment_session_id: "payment-merge-target",
-        processed_at: "2026-07-15T12:00:00.000Z",
+        attendeeId: target.id,
+        paymentSessionId: "payment-merge-target",
+        processedAt: "2026-07-15T12:00:00.000Z",
       }),
       insertInto(tables.processed_payments, {
-        attendee_id: source.id,
-        payment_session_id: "payment-merge-source",
-        processed_at: "2026-07-15T12:00:00.000Z",
+        attendeeId: source.id,
+        paymentSessionId: "payment-merge-source",
+        processedAt: "2026-07-15T12:00:00.000Z",
       }),
     ]);
 

@@ -87,8 +87,8 @@ describeWithEnv(
         const { listing, attendee } = await attendeeOnListing();
         await execute(
           update(tables.listing_attendees, { quantity: lineQuantity }).where({
-            attendee_id: attendee.id,
-            listing_id: listing.id,
+            attendeeId: attendee.id,
+            listingId: listing.id,
           }),
         );
         for (const [direction, count, stored] of moves) {

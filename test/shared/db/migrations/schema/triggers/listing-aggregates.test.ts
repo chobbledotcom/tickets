@@ -212,8 +212,8 @@ describeWithEnv(
       expect(recalc.booked_quantity).toEqual({ current: 3, recalculated: 3 });
 
       await listingAggregates.reset(listing.id, [
-        "booked_quantity",
-        "tickets_count",
+        "bookedQuantity",
+        "ticketsCount",
       ]);
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 3,
@@ -324,8 +324,8 @@ describeWithEnv(
       await seedAggregateRows(ATTENDEE_ROWS, listing.id, [[1, 3]]);
 
       await listingAggregates.update(listing.id, {
-        booked_quantity: 8,
-        tickets_count: 4,
+        bookedQuantity: 8,
+        ticketsCount: 4,
       });
 
       expect(await aggregates(listing.id)).toEqual({
@@ -341,8 +341,8 @@ describeWithEnv(
         [2, 2],
       ]);
       await listingAggregates.update(listing.id, {
-        booked_quantity: 8,
-        tickets_count: 4,
+        bookedQuantity: 8,
+        ticketsCount: 4,
       });
 
       const stale = (await getListingWithCount(listing.id))!;
@@ -351,7 +351,7 @@ describeWithEnv(
         tickets_count: { current: 4, recalculated: 2 },
       });
 
-      await listingAggregates.reset(listing.id, ["booked_quantity"]);
+      await listingAggregates.reset(listing.id, ["bookedQuantity"]);
 
       expect(await aggregates(listing.id)).toEqual({
         booked_quantity: 5,

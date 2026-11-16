@@ -36,12 +36,12 @@ const seedChoiceQuestion = async (
   text = "Any allergies?",
 ): Promise<SeededQuestion> => {
   const question = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text,
   });
   const chosen = await records.answers.insert({
-    question_id: question.id,
-    sort_order: 0,
+    questionId: question.id,
+    sortOrder: 0,
     text: "Shellfish",
   });
   await questionListings.setIds(question.id, assignedTo);

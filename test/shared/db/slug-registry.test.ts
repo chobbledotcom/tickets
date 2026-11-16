@@ -21,8 +21,8 @@ const makePage = async (slug: string) =>
   records.site_pages.insert({
     name: `Name ${slug}`,
     slug,
-    slug_index: await hmacHash(slug),
-    sort_order: 0,
+    slugIndex: await hmacHash(slug),
+    sortOrder: 0,
   });
 
 describeWithEnv("db > slug-registry", { db: true }, () => {
@@ -77,8 +77,8 @@ describeWithEnv("db > slug-registry", { db: true }, () => {
     expect(await takenSlugIndexes([])).toEqual(new Set());
     const listing = await createTestListing({ name: "Batched" });
     const free = await hmacHash("never-registered");
-    const held = await takenSlugIndexes([listing.slug_index, free]);
-    expect(held.has(listing.slug_index)).toBe(true);
+    const held = await takenSlugIndexes([listing.slugIndex, free]);
+    expect(held.has(listing.slugIndex)).toBe(true);
     expect(held.has(free)).toBe(false);
   });
 });

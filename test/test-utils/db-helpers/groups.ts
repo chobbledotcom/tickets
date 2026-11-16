@@ -68,11 +68,11 @@ export const createTestGroup = async (
     return updateTestGroup(group.id, {
       description: group.description,
       hidden: group.hidden,
-      maxAttendees: group.max_attendees,
+      maxAttendees: group.maxAttendees,
       name: group.name,
-      showHiddenListings: group.show_hidden_listings,
+      showHiddenListings: group.showHiddenListings,
       slug: overrides.slug,
-      termsAndConditions: group.terms_and_conditions,
+      termsAndConditions: group.termsAndConditions,
     });
   }
 
@@ -131,20 +131,20 @@ export const updateTestGroup = async (
   const existing = (await getGroupById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
-  const isPackage = updates.isPackage ?? existing.is_package;
+  const isPackage = updates.isPackage ?? existing.isPackage;
   const scanChecksInAllListings =
-    updates.scanChecksInAllListings ?? existing.scan_checks_in_all_listings;
+    updates.scanChecksInAllListings ?? existing.scanChecksInAllListings;
   const showHiddenListings =
-    updates.showHiddenListings ?? existing.show_hidden_listings;
+    updates.showHiddenListings ?? existing.showHiddenListings;
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
       description: updates.description ?? existing.description,
-      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      max_attendees: String(updates.maxAttendees ?? existing.maxAttendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
       terms_and_conditions:
-        updates.termsAndConditions ?? existing.terms_and_conditions,
+        updates.termsAndConditions ?? existing.termsAndConditions,
       ...(hidden ? { hidden: "1" } : {}),
       ...(isPackage ? { is_package: "1" } : {}),
       ...(scanChecksInAllListings ? { scan_checks_in_all_listings: "1" } : {}),

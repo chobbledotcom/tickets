@@ -232,7 +232,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     expect(result).not.toBeNull();
     expect(result?.listing.id).toBe(listing.id);
     expect(result?.listing.name).toBe("Batch Test Listing");
-    expect(result?.listing.attendee_count).toBe(0);
+    expect(result?.listing.attendeeCount).toBe(0);
     // REST API logs listing creation + our 2 = 3
     expect(result?.entries.length).toBe(3);
     expect(result?.entries[0]?.message).toBe("Second action");

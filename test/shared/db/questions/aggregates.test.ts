@@ -29,7 +29,7 @@ const questionWithADriftedTotal = async () => {
   await saveAttendeeAnswers(
     new Map([[attendee.id, { answerIds: [small.id], textAnswers: [] }]]),
   );
-  await answerAggregates.update(small.id, { times_selected: 42 });
+  await answerAggregates.update(small.id, { timesSelected: 42 });
   return { large, question, small };
 };
 
@@ -61,7 +61,7 @@ describeWithEnv("db > answer aggregates", { db: true }, () => {
       const { large, question, small } = await questionWithADriftedTotal();
       const other = await createQuestion("Colour?");
       const red = await addAnswer(other.id, 0, "Red");
-      await answerAggregates.update(red.id, { times_selected: 7 });
+      await answerAggregates.update(red.id, { timesSelected: 7 });
 
       // The answers of both questions answer in one map, keyed by answer id.
       const totals = await getAnswerSelectionTotals([question.id, other.id]);
@@ -93,14 +93,14 @@ describeWithEnv("db > answer aggregates", { db: true }, () => {
   describe("answerAggregates", () => {
     test("update writes the total, and only for the named answer", async () => {
       const { small, large } = await questionWithADriftedTotal();
-      await answerAggregates.update(large.id, { times_selected: 7 });
+      await answerAggregates.update(large.id, { timesSelected: 7 });
       expect(await storedTotal(large.id)).toBe(7);
       expect(await storedTotal(small.id)).toBe(42);
     });
 
     test("reset rebuilds the total from the attendee answers", async () => {
       const { small } = await questionWithADriftedTotal();
-      await answerAggregates.reset(small.id, ["times_selected"]);
+      await answerAggregates.reset(small.id, ["timesSelected"]);
       expect(await storedTotal(small.id)).toBe(1);
     });
 

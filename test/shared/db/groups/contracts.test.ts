@@ -31,7 +31,7 @@ const insertMinimalGroup = async (name: string) => {
   return await records.groups.insert({
     name,
     slug,
-    slug_index: await hmacHash(slug),
+    slugIndex: await hmacHash(slug),
   });
 };
 
@@ -201,7 +201,7 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
     });
 
     const rows = await getGroupPackagePrices(group.id);
-    expect(rows.find((r) => r.listing_id === member.id)?.quantity).toBe(2);
+    expect(rows.find((r) => r.listingId === member.id)?.quantity).toBe(2);
   });
 
   test("bulk deactivation updates every member", async () => {

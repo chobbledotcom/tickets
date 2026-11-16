@@ -198,9 +198,9 @@ describeWithEnv(
 
     test("an insert stores day prices, mirrors the base price, and carries no image", async () => {
       const listing = await insertPriced();
-      expect(listing.image_url).toBe("");
-      expect(listing.image_thumb_url).toBe("");
-      expect(listing.image_alt_text).toBe("");
+      expect(listing.imageUrl).toBe("");
+      expect(listing.imageThumbUrl).toBe("");
+      expect(listing.imageAltText).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
       expect(await storedBasePrice(listing.id)).toBe(700);
     });

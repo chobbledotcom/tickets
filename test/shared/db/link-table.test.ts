@@ -10,23 +10,19 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 // Exercised through a real link table so the SQL runs against the schema's
 // unique (key, value) index — the constraint the factory's dedupe protects.
-const byUser = linkTableSide(
-  tables.user_logistics_agents,
-  "user_id",
-  "agent_id",
-);
+const byUser = linkTableSide(tables.user_logistics_agents, "userId", "agentId");
 const byAgent = linkTableSide(
   tables.user_logistics_agents,
-  "agent_id",
-  "user_id",
+  "agentId",
+  "userId",
 );
 
 // A listing's children and its parents are both listings, so this table is
 // read from both ends of the same id.
 const edges = selfLinkTableSides(
   tables.listing_parents,
-  "parent_listing_id",
-  "child_listing_id",
+  "parentListingId",
+  "childListingId",
 );
 
 /** Count the database calls `work` makes with a request's memory switched on,

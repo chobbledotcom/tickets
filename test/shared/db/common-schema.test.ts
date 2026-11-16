@@ -14,7 +14,7 @@ describeWithEnv("aggregateRepairs", { db: true }, () => {
   const answerRepairs = aggregateRepairs(tables.answers, {
     // Read the row's id, then ignore it: this proves the factory passes the
     // caller's own SQL through rather than knowing anything about answers.
-    times_selected: sql`COALESCE((SELECT 33 WHERE answers.id > 0), 0)`,
+    timesSelected: sql`COALESCE((SELECT 33 WHERE answers.id > 0), 0)`,
   });
 
   const storedTotal = async (answerId: number): Promise<number | undefined> =>
@@ -34,22 +34,22 @@ describeWithEnv("aggregateRepairs", { db: true }, () => {
 
   test("update writes the values, and only on the named row", async () => {
     const { first, second } = await twoAnswers();
-    await answerRepairs.update(first.id, { times_selected: 12 });
+    await answerRepairs.update(first.id, { timesSelected: 12 });
     expect(await storedTotal(first.id)).toBe(12);
     expect(await storedTotal(second.id)).toBe(0);
   });
 
   test("reset runs the caller's SQL against the named row", async () => {
     const { first, second } = await twoAnswers();
-    await answerRepairs.update(first.id, { times_selected: 12 });
-    await answerRepairs.reset(first.id, ["times_selected"]);
+    await answerRepairs.update(first.id, { timesSelected: 12 });
+    await answerRepairs.reset(first.id, ["timesSelected"]);
     expect(await storedTotal(first.id)).toBe(33);
     expect(await storedTotal(second.id)).toBe(0);
   });
 
   test("reset with no column named writes nothing", async () => {
     const { first } = await twoAnswers();
-    await answerRepairs.update(first.id, { times_selected: 12 });
+    await answerRepairs.update(first.id, { timesSelected: 12 });
     await answerRepairs.reset(first.id, []);
     expect(await storedTotal(first.id)).toBe(12);
   });

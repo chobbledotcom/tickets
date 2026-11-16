@@ -134,7 +134,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
-          (listing) => listing.listing_type,
+          (listing) => listing.listingType,
         ),
       ).size,
     ).toBe(1);
@@ -228,7 +228,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
       writePackageMembersTx(
         tx,
         group.id,
-        { hide_package_listings: false, is_package: true },
+        { hidePackageListings: false, isPackage: true },
         { isPackage: true },
         [{ listingId: member.id, price: 0, quantity: 2 }],
       ),

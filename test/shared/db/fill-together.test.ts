@@ -41,8 +41,8 @@ describeWithEnv("db > fill-together", { db: true }, () => {
       hidden: true,
       name: "About us",
       slug: "about-us",
-      slug_index: await hmacHash("about-us"),
-      sort_order: 3,
+      slugIndex: await hmacHash("about-us"),
+      sortOrder: 3,
     });
 
     await withRequestContext(async () => {

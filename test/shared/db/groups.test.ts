@@ -59,10 +59,10 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       const updated = await records.groups.update(created.id, {
         name: "DB Group Updated",
-        terms_and_conditions: "Terms",
+        termsAndConditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
-      expect(updated?.terms_and_conditions).toBe("Terms");
+      expect(updated?.termsAndConditions).toBe("Terms");
 
       await records.groups.delete(created.id);
       expect(await records.groups.find(created.id)).toBeNull();
@@ -144,7 +144,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const activeMember = byGroup
         .get(populated.id)
         ?.find((l) => l.id === active.id);
-      expect(activeMember?.attendee_count).toBe(3);
+      expect(activeMember?.attendeeCount).toBe(3);
     });
 
     test("getListingsByGroupIds maps a memberless group to an empty list", async () => {
@@ -413,8 +413,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         "manual-remaining",
       );
       await listingAggregates.update(e1.id, {
-        booked_quantity: 4,
-        tickets_count: 0,
+        bookedQuantity: 4,
+        ticketsCount: 0,
       });
 
       const map = await getGroupRemainingByGroupId([group.id]);
@@ -597,7 +597,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Changed Bundle",
       });
 
-      await records.groups.update(pkg.id, { hide_package_listings: true });
+      await records.groups.update(pkg.id, { hidePackageListings: true });
 
       expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
         hideListings: true,
@@ -677,8 +677,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(result.get(a.id)?.length).toBe(2);
       expect(result.get(b.id)?.length).toBe(1);
       // Each row carries its override price for the right group.
-      const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
-      expect(a2Row?.package_price).toBe(200);
+      const a2Row = result.get(a.id)?.find((r) => r.listingId === a2.id);
+      expect(a2Row?.packagePrice).toBe(200);
       expect(a2Row?.quantity).toBe(3);
     });
   });
@@ -701,7 +701,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       const rows = await getGroupPackagePrices(group.id);
       const priceOf = (id: number) =>
-        rows.find((r) => r.listing_id === id)?.package_price;
+        rows.find((r) => r.listingId === id)?.packagePrice;
       // null and 0 are preserved as distinct values, not collapsed together.
       expect(priceOf(none.id)).toBeNull();
       expect(priceOf(free.id)).toBe(0);

@@ -19,9 +19,9 @@ import {
 import type { Image, ImageUseItemType } from "#types";
 
 const libraryImage = (id: number, name: string): Image => ({
-  alt_text: "",
+  altText: "",
   filename: nonEmptyString(`${id}.webp`, "test image filename"),
-  filename_thumb: nonEmptyString(`${id}-thumb.webp`, "test thumb filename"),
+  filenameThumb: nonEmptyString(`${id}-thumb.webp`, "test thumb filename"),
   id,
   name,
 });

@@ -117,11 +117,11 @@ describe("dates — pinned values", () => {
       minimum_days_before: 0,
     };
     const flexible = getBookableStartDates(
-      testListing({ ...base, customisable_days: true }),
+      testListing({ ...base, customisableDays: true }),
       [],
     );
     const fixed = getBookableStartDates(
-      testListing({ ...base, customisable_days: false }),
+      testListing({ ...base, customisableDays: false }),
       [],
     );
     expect(flexible.length).toBeGreaterThan(fixed.length);

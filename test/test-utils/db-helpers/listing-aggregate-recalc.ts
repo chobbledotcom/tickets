@@ -45,6 +45,6 @@ export const expectListingAggregateSplit = (
 ): void => {
   expect(recalc.booked_quantity.recalculated).toBe(split.booked_quantity);
   expect(recalc.tickets_count.recalculated).toBe(split.tickets_count);
-  expect(after?.attendee_count).toBe(split.booked_quantity);
-  expect(after?.tickets_count).toBe(split.tickets_count);
+  expect(after?.attendeeCount).toBe(split.booked_quantity);
+  expect(after?.ticketsCount).toBe(split.tickets_count);
 };

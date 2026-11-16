@@ -147,7 +147,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
 
       const remaining = await getAllSessions();
       assert(
-        !remaining.map((session) => session.csrf_token).includes("csrf-stale"),
+        !remaining.map((session) => session.csrfToken).includes("csrf-stale"),
       );
     });
 
@@ -164,7 +164,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
 
       const remaining = await getAllSessions();
       assertArrayIncludes(
-        remaining.map((session) => session.csrf_token),
+        remaining.map((session) => session.csrfToken),
         ["csrf-active"],
       );
     });
@@ -182,7 +182,7 @@ describeWithEnv("db > table pruning", { db: true }, () => {
 
       const remaining = await getAllSessions();
       assertArrayIncludes(
-        remaining.map((session) => session.csrf_token),
+        remaining.map((session) => session.csrfToken),
         ["csrf-fresh-expired"],
       );
     });

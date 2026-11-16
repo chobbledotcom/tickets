@@ -24,9 +24,9 @@ describeWithEnv("db > attendees > pair bookings", { db: true }, () => {
       { listingId: workshop.id, quantity: 2 },
     ]);
     await execute(
-      update(tables.listing_attendees, { checked_in: 1 }).where({
-        attendee_id: ada.id,
-        listing_id: gala.id,
+      update(tables.listing_attendees, { checkedIn: 1 }).where({
+        attendeeId: ada.id,
+        listingId: gala.id,
       }),
     );
 

@@ -226,7 +226,7 @@ const submitAtSpan = async (
     date: built.date,
     dayCount: resolved.dayCount,
     hasCustomisable: built.parents.some(
-      (parent) => parent.listing.customisable_days,
+      (parent) => parent.listing.customisableDays,
     ),
     quantities: built.quantities,
   });
@@ -345,7 +345,7 @@ describeWithEnv(
         // day_count can only be one of them. The submission's chain is
         // resolveDayCount, then the gated fold, then the checkout's SQL.
         const spans = built.parents.some(
-          (parent) => parent.listing.customisable_days,
+          (parent) => parent.listing.customisableDays,
         )
           ? pageDayCounts([...built.parents], built.childrenByParentId, false)
           : [1];

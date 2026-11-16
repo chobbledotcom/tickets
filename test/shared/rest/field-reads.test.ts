@@ -65,10 +65,10 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const { toCreateInput, toUpdateInput } = bodyMappers(HOLIDAY_FIELDS);
 
 const stored = {
-  end_date: "2026-08-31",
+  endDate: "2026-08-31",
   id: 1,
   name: "Summer Break",
-  start_date: "2026-07-01",
+  startDate: "2026-07-01",
 };
 
 describe("field reads", () => {
@@ -76,7 +76,7 @@ describe("field reads", () => {
     const shapes: [
       Same<
         Holiday,
-        { end_date: string; id: number; name: string; start_date: string }
+        { endDate: string; id: number; name: string; startDate: string }
       >,
       Same<
         HolidayInput,
@@ -160,11 +160,11 @@ describe("field reads", () => {
     const status = bodyMappers(STATUS_FIELDS);
     const storedStatus = {
       id: 1,
-      is_paid_default: false,
-      is_public_default: true,
-      is_reservation: true,
+      isPaidDefault: false,
+      isPublicDefault: true,
+      isReservation: true,
       name: "Reserved",
-      reservation_amount: "10",
+      reservationAmount: "10",
     };
 
     expect(status.toCreateInput({ is_reservation: true, name: "New" })).toEqual(

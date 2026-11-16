@@ -18,14 +18,14 @@ import { insertModifier, patchModifier } from "#test-utils/modifiers.ts";
  * ids are real rows now that the link is a modifier_id column on answers). */
 export const createAnswers = async (count: number): Promise<number[]> => {
   const q = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text: "Q?",
   });
   const ids: number[] = [];
   for (let i = 0; i < count; i++) {
     const a = await records.answers.insert({
-      question_id: q.id,
-      sort_order: i,
+      questionId: q.id,
+      sortOrder: i,
       text: `A${i + 1}`,
     });
     ids.push(a.id);

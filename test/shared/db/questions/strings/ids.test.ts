@@ -51,8 +51,8 @@ describeWithEnv("custom questions > shared strings", { db: true }, () => {
       ];
       // Deliberately out of order to prove pairing is by index, not position.
       const found = [
-        { id: 11, text_index: "idx-b" },
-        { id: 7, text_index: "idx-a" },
+        { id: 11, textIndex: "idx-b" },
+        { id: 7, textIndex: "idx-a" },
       ];
       expect(pairStringIds(rows, found)).toEqual(
         new Map([

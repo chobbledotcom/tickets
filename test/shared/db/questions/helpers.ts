@@ -23,7 +23,7 @@ export const createQuestion = (
   overrides: Partial<QuestionInput> = {},
 ): Promise<Question> =>
   records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text,
     ...rowValuesOf(tables.questions, overrides),
   });
@@ -39,8 +39,8 @@ export const addAnswer = (
   overrides: { active?: boolean } = {},
 ) =>
   records.answers.insert({
-    question_id: questionId,
-    sort_order: sortOrder,
+    questionId: questionId,
+    sortOrder: sortOrder,
     text,
     ...overrides,
   });

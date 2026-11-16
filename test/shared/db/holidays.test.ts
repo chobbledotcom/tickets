@@ -54,7 +54,7 @@ describeWithEnv("db > holidays", { db: true }, () => {
     // Added latest but dated earliest, so order must follow the dates, not
     // insertion.
     const stored = await holidays.getAll();
-    expect(stored.map((holiday) => holiday.start_date)).toEqual([
+    expect(stored.map((holiday) => holiday.startDate)).toEqual([
       "2020-01-01",
       "2030-03-01",
       "2030-03-02",

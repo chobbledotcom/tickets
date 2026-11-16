@@ -28,11 +28,11 @@ const inputOfStored = (listing: ListingWithCount): ListingInput => {
   );
   return {
     ...columns,
-    maxAttendees: listing.max_attendees,
-    maxPrice: listing.max_price,
+    maxAttendees: listing.maxAttendees,
+    maxPrice: listing.maxPrice,
     name: listing.name,
     slug: listing.slug,
-    slugIndex: listing.slug_index,
+    slugIndex: listing.slugIndex,
   };
 };
 

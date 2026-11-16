@@ -68,7 +68,7 @@ const setUpAssignmentRace = async (): Promise<{
 const assignStatus = (attendeeId: number, statusId: number): Promise<void> =>
   withTransaction(async (tx) => {
     await tx.execute(
-      update(tables.attendees, { status_id: statusId }).where({
+      update(tables.attendees, { statusId: statusId }).where({
         id: attendeeId,
       }),
     );

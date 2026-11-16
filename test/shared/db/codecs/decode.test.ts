@@ -23,9 +23,9 @@ import { insertInto } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const holiday = {
-  end_date: "2026-01-02",
+  endDate: "2026-01-02",
   name: "New year",
-  start_date: "2026-01-01",
+  startDate: "2026-01-01",
 };
 
 const addHoliday = async (): Promise<void> => {
@@ -105,9 +105,9 @@ describeWithEnv(
     test("passes a column with no codec as it is", async () => {
       expect(
         await encoded(tables.holidays, {
-          end_date: "2026-01-02",
+          endDate: "2026-01-02",
         }),
-      ).toEqual({ end_date: "2026-01-02" });
+      ).toEqual({ endDate: "2026-01-02" });
     });
   },
 );

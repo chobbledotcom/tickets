@@ -139,7 +139,7 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
 
   const setCap = async (groupId: number, cap: number): Promise<void> => {
     await execute(
-      update(tables.groups, { max_attendees: cap }).where({ id: groupId }),
+      update(tables.groups, { maxAttendees: cap }).where({ id: groupId }),
     );
   };
 
@@ -229,13 +229,13 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
     await bookAttendee(sibling, { date: DAY_1, quantity: 5 });
     await bookAttendee(legacyEnd, { date: DAY_1, quantity: 20 });
     await execute(
-      update(tables.listing_attendees, { end_at: null }).where({
-        listing_id: sibling.id,
+      update(tables.listing_attendees, { endAt: null }).where({
+        listingId: sibling.id,
       }),
     );
     await execute(
-      update(tables.listing_attendees, { start_at: null }).where({
-        listing_id: legacyEnd.id,
+      update(tables.listing_attendees, { startAt: null }).where({
+        listingId: legacyEnd.id,
       }),
     );
     await setCap(group.id, 10);

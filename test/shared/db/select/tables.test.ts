@@ -123,9 +123,9 @@ describeWithEnv("the declared schema", { db: true }, () => {
   test("gives a row the decoded value of a sealed column", async () => {
     await queryAll(
       insertInto(tables.holidays, {
-        end_date: "2026-01-02",
+        endDate: "2026-01-02",
         name: await encrypt("h"),
-        start_date: "2026-01-01",
+        startDate: "2026-01-01",
       }),
     );
     const rows = await queryAll(
@@ -155,7 +155,7 @@ describeWithEnv("the declared schema", { db: true }, () => {
   });
 
   test("gives a column the values that the schema names for it", () => {
-    const read = from(tables.system_notes).pick("type", "entity_type");
+    const read = from(tables.system_notes).pick("type", "entityType");
     const typed: Read<{ type: "system" | "owner" }> = read;
     // @ts-expect-error a note is of the system or of the owner
     const refused: Read<{ type: "system" }> = read;

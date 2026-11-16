@@ -55,7 +55,7 @@ describeWithEnv("db > api keys", { db: true }, () => {
         key_index: await hmacHash("fixed-token"),
         last_used: "",
         user_id: 1,
-        wrapped_data_key: found?.wrapped_data_key,
+        wrapped_data_key: found?.wrappedDataKey,
       });
       expect(Number.isNaN(Date.parse(found?.created ?? ""))).toBe(false);
     });
@@ -65,13 +65,10 @@ describeWithEnv("db > api keys", { db: true }, () => {
       const found = await getApiKeyByToken(apiKey);
       if (found === null) throw new Error("the key was not stored");
 
-      const unwrapped = await unwrapKeyWithToken(
-        found.wrapped_data_key,
-        apiKey,
-      );
+      const unwrapped = await unwrapKeyWithToken(found.wrappedDataKey, apiKey);
       expect(unwrapped.type).toBe("secret");
       await expect(
-        unwrapKeyWithToken(found.wrapped_data_key, "wrong-token"),
+        unwrapKeyWithToken(found.wrappedDataKey, "wrong-token"),
       ).rejects.toThrow();
     });
 

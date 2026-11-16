@@ -36,16 +36,16 @@ describeWithEnv("db > invoices", { db: true }, () => {
     const { invoice, shareToken } = await storeInvoice(attendeeId, 1);
 
     expect(invoice.id).toBe(1);
-    expect(invoice.attendee_id).toBe(attendeeId);
+    expect(invoice.attendeeId).toBe(attendeeId);
     expect(invoice.status).toBe("new");
     expect(invoice.created).toBe(CREATED);
     expect(invoice.body.startsWith("enc:1:")).toBe(true);
-    expect(invoice.share_token.startsWith("hyb:1:")).toBe(true);
+    expect(invoice.shareToken.startsWith("hyb:1:")).toBe(true);
 
     expect(await openInvoiceBody(invoice.body, shareToken)).toBe(
       "<p>Frozen invoice</p>",
     );
-    expect(await decryptWithOwnerKey(invoice.share_token, privateKey)).toBe(
+    expect(await decryptWithOwnerKey(invoice.shareToken, privateKey)).toBe(
       shareToken,
     );
     expect((await getInvoiceByShareToken(shareToken))?.id).toBe(1);

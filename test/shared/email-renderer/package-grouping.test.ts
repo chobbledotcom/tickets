@@ -18,7 +18,7 @@ describeEmailRenderer(() => {
       });
       if (hide) {
         await records.groups.update(group.id, {
-          hide_package_listings: true,
+          hidePackageListings: true,
         });
       }
       const tent = await createTestListing({
@@ -33,11 +33,11 @@ describeEmailRenderer(() => {
       });
       return [
         makeEntry(
-          { id: tent.id, name: "Tent", unit_price: 0 },
+          { id: tent.id, name: "Tent", unitPrice: 0 },
           { package_group_id: group.id, price_paid: "2000", quantity: 2 },
         ),
         makeEntry(
-          { id: chair.id, name: "Chair", unit_price: 500 },
+          { id: chair.id, name: "Chair", unitPrice: 500 },
           { package_group_id: group.id, price_paid: "3000", quantity: 6 },
         ),
       ];
@@ -83,11 +83,11 @@ describeEmailRenderer(() => {
       const data = await buildTestData(
         [
           makeEntry(
-            { id: memberA.id, name: "A", unit_price: 0 },
+            { id: memberA.id, name: "A", unitPrice: 0 },
             { package_group_id: group.id, price_paid: "1000", quantity: 1 },
           ),
           makeEntry(
-            { id: memberB.id, name: "B", unit_price: 0 },
+            { id: memberB.id, name: "B", unitPrice: 0 },
             { package_group_id: group.id, price_paid: "0", quantity: 1 },
           ),
         ],
@@ -115,7 +115,7 @@ describeEmailRenderer(() => {
         });
         entries.push(
           makeEntry(
-            { id: listing.id, name, unit_price: 500 },
+            { id: listing.id, name, unitPrice: 500 },
             {
               date: "2026-08-01",
               end_date: endDate,
@@ -152,7 +152,7 @@ describeEmailRenderer(() => {
       });
       entries.push(
         makeEntry(
-          { id: lantern.id, name: "Lantern", unit_price: 300 },
+          { id: lantern.id, name: "Lantern", unitPrice: 300 },
           { price_paid: "300", quantity: 1 },
         ),
       );
@@ -178,7 +178,7 @@ describeEmailRenderer(() => {
         unitPrice: 500,
       });
       const entry = makeEntry(
-        { id: only.id, name: "Only Member", unit_price: 500 },
+        { id: only.id, name: "Only Member", unitPrice: 500 },
         { package_group_id: group.id, price_paid: "1500", quantity: 3 },
       );
 
@@ -205,7 +205,7 @@ describeEmailRenderer(() => {
       const data = await buildTestData(
         [
           makeEntry(
-            { id: widget.id, name: "Widget", unit_price: 500 },
+            { id: widget.id, name: "Widget", unitPrice: 500 },
             { price_paid: "1500", quantity: 3 },
           ),
         ],

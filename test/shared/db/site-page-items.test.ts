@@ -49,7 +49,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       expect(await addPageItem(parentB.id, "page", child.id)).toBe(false);
       // Only the first parent's edge exists.
       const edges = (await getAllPageItems()).filter(
-        (e) => e.item_type === "page" && e.item_id === child.id,
+        (e) => e.itemType === "page" && e.itemId === child.id,
       );
       expect(edges).toEqual([
         {
@@ -90,7 +90,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       await addPageItem(p.id, "listing", 1);
       await addPageItem(p.id, "group", 1); // same numeric id, different type
       await removePageItem(p.id, "listing", 1);
-      expect((await getItemsForPage(p.id)).map((i) => i.item_type)).toEqual([
+      expect((await getItemsForPage(p.id)).map((i) => i.itemType)).toEqual([
         "group",
       ]);
     });
@@ -112,7 +112,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
         { item_id: 5, item_type: "listing", page_id: p.id, sort_order: 1 },
       ]);
       // page_id is part of the match: the other page's row is untouched.
-      expect((await getItemsForPage(q.id))[0]?.sort_order).toBe(0);
+      expect((await getItemsForPage(q.id))[0]?.sortOrder).toBe(0);
     });
 
     test("sitePageItemOrder is a no-op when an item is missing", async () => {
@@ -123,7 +123,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
         scope: p.id,
         second: ["group", 999],
       });
-      expect((await getItemsForPage(p.id))[0]?.sort_order).toBe(0);
+      expect((await getItemsForPage(p.id))[0]?.sortOrder).toBe(0);
     });
   });
 
@@ -140,9 +140,9 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       expect(await records.site_pages.find(child.id)).toBeNull();
       const edges = await getAllPageItems();
       // No edge references the deleted child (as parent OR as page item).
-      expect(edges.some((e) => e.page_id === child.id)).toBe(false);
+      expect(edges.some((e) => e.pageId === child.id)).toBe(false);
       expect(
-        edges.some((e) => e.item_type === "page" && e.item_id === child.id),
+        edges.some((e) => e.itemType === "page" && e.itemId === child.id),
       ).toBe(false);
     });
 
@@ -180,7 +180,7 @@ describeWithEnv("db > site-page-items", { db: true }, () => {
       invalidatePageItemsCache();
       const edges = await getAllPageItems();
       expect(
-        edges.some((e) => e.item_type === "listing" && e.item_id === 50),
+        edges.some((e) => e.itemType === "listing" && e.itemId === 50),
       ).toBe(false);
     });
   });

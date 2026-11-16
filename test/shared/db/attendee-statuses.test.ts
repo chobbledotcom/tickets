@@ -28,11 +28,11 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     expect(statuses).toHaveLength(1);
     const seed = statuses[0]!;
     expect(seed.name).toBe(DEFAULT_ATTENDEE_STATUS_NAME);
-    expect(seed.is_public_default).toBe(true);
-    expect(seed.is_paid_default).toBe(true);
-    expect(seed.is_reservation).toBe(false);
-    expect(seed.reservation_amount).toBe("0");
-    expect(seed.sort_order).toBe(0);
+    expect(seed.isPublicDefault).toBe(true);
+    expect(seed.isPaidDefault).toBe(true);
+    expect(seed.isReservation).toBe(false);
+    expect(seed.reservationAmount).toBe("0");
+    expect(seed.sortOrder).toBe(0);
   });
 
   test("the seeded status is the word an operator sees", async () => {
@@ -44,7 +44,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
   test("saving a status that is not a default leaves it alone", async () => {
     const other = await records.attendee_statuses.insert({
       name: "Waitlist",
-      sort_order: 1,
+      sortOrder: 1,
     });
 
     // It holds neither default, and is not being asked to take one, so there
@@ -90,8 +90,8 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     // Two statuses claiming the same default is the state this must never
     // leave behind — the old one gives them up as the new one takes them.
     const previous = await getAttendeeStatus(seed.id);
-    expect(previous?.is_public_default).toBe(false);
-    expect(previous?.is_paid_default).toBe(false);
+    expect(previous?.isPublicDefault).toBe(false);
+    expect(previous?.isPaidDefault).toBe(false);
   });
 
   test("required default status lookups return the seed", async () => {
@@ -130,14 +130,14 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
 
   test("inserting statuses returns them ordered by sort_order then id", async () => {
     const reserved = await records.attendee_statuses.insert({
-      is_reservation: true,
+      isReservation: true,
       name: "Reserved",
-      reservation_amount: "10%",
-      sort_order: 2,
+      reservationAmount: "10%",
+      sortOrder: 2,
     });
     const waitlist = await records.attendee_statuses.insert({
       name: "Waitlist",
-      sort_order: 1,
+      sortOrder: 1,
     });
 
     const names = (await attendeeStatuses.getAll()).map((s) => s.name);
@@ -147,26 +147,26 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       "Waitlist",
       "Reserved",
     ]);
-    expect(reserved.is_reservation).toBe(true);
-    expect(reserved.reservation_amount).toBe("10%");
+    expect(reserved.isReservation).toBe(true);
+    expect(reserved.reservationAmount).toBe("10%");
     const storedWaitlist = await getAttendeeStatus(waitlist.id);
-    expect(storedWaitlist?.is_paid_default).toBe(false);
-    expect(storedWaitlist?.is_public_default).toBe(false);
-    expect(storedWaitlist?.is_reservation).toBe(false);
+    expect(storedWaitlist?.isPaidDefault).toBe(false);
+    expect(storedWaitlist?.isPublicDefault).toBe(false);
+    expect(storedWaitlist?.isReservation).toBe(false);
   });
 
   test("ordered rows swap two statuses' sort_order", async () => {
     const a = await records.attendee_statuses.insert({
       name: "A",
-      sort_order: 5,
+      sortOrder: 5,
     });
     const b = await records.attendee_statuses.insert({
       name: "B",
-      sort_order: 6,
+      sortOrder: 6,
     });
     await attendeeStatusOrder.swap({ first: a.id, second: b.id });
-    expect((await getAttendeeStatus(a.id))?.sort_order).toBe(6);
-    expect((await getAttendeeStatus(b.id))?.sort_order).toBe(5);
+    expect((await getAttendeeStatus(a.id))?.sortOrder).toBe(6);
+    expect((await getAttendeeStatus(b.id))?.sortOrder).toBe(5);
   });
 
   test("update changes fields and invalidates the cache", async () => {
@@ -174,12 +174,12 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       name: "Pending",
     });
     await records.attendee_statuses.update(created.id, {
-      is_reservation: true,
-      reservation_amount: "25",
+      isReservation: true,
+      reservationAmount: "25",
     });
     const updated = await getAttendeeStatus(created.id);
-    expect(updated?.is_reservation).toBe(true);
-    expect(updated?.reservation_amount).toBe("25");
+    expect(updated?.isReservation).toBe(true);
+    expect(updated?.reservationAmount).toBe("25");
   });
 
   test("deleteById removes a status", async () => {

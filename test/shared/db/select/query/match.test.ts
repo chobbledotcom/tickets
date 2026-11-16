@@ -16,7 +16,7 @@ describe("a match", () => {
     expect(
       placed(
         from(tables.listings)
-          .where({ id: [3, 4], slug_index: "x" as BlindIndex })
+          .where({ id: [3, 4], slugIndex: "x" as BlindIndex })
           .select((listing) => ({ id: listing.id })),
       ),
     ).toEqual({
@@ -51,7 +51,7 @@ describe("a match", () => {
     const line = tableNode(tables.listing_attendees, "line");
     expect(
       from(tables.listings)
-        .where({ id: line.listing_id })
+        .where({ id: line.listingId })
         .values((listing) => listing.id).sql,
     ).toBe(
       "SELECT listing.id FROM listings AS listing WHERE listing.id = line.listing_id",
@@ -71,7 +71,7 @@ describe("a match", () => {
 describe("sortedBy", () => {
   test("orders the rows by the named columns of the first table", () => {
     expect(
-      from(tables.listings).sortedBy("max_attendees", "id").pick("id").sql,
+      from(tables.listings).sortedBy("maxAttendees", "id").pick("id").sql,
     ).toBe(
       "SELECT listing.id AS id FROM listings AS listing ORDER BY listing.max_attendees, listing.id",
     );
@@ -87,7 +87,7 @@ describe("pick", () => {
   });
 
   test("selects the named columns under their own names", () => {
-    expect(from(tables.listings).pick("id", "max_attendees").sql).toBe(
+    expect(from(tables.listings).pick("id", "maxAttendees").sql).toBe(
       "SELECT listing.id AS id, listing.max_attendees AS max_attendees FROM listings AS listing",
     );
   });

@@ -49,8 +49,8 @@ describeWithEnv("db > listing aggregates", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const other = await createTestListing({ maxAttendees: 10 });
       await listingAggregates.update(listing.id, {
-        booked_quantity: 7,
-        tickets_count: 3,
+        bookedQuantity: 7,
+        ticketsCount: 3,
       });
       expect(await storedTotals(listing.id)).toEqual({
         booked_quantity: 7,
@@ -66,7 +66,7 @@ describeWithEnv("db > listing aggregates", { db: true }, () => {
   describe("listingAggregates.reset", () => {
     test("rebuilds only the named column", async () => {
       const listing = await createListingWithDriftedTotals();
-      await listingAggregates.reset(listing.id, ["booked_quantity"]);
+      await listingAggregates.reset(listing.id, ["bookedQuantity"]);
       expect(await storedTotals(listing.id)).toEqual({
         booked_quantity: 1,
         tickets_count: 5,
@@ -76,8 +76,8 @@ describeWithEnv("db > listing aggregates", { db: true }, () => {
     test("rebuilds every column when all are named", async () => {
       const listing = await createListingWithDriftedTotals();
       await listingAggregates.reset(listing.id, [
-        "booked_quantity",
-        "tickets_count",
+        "bookedQuantity",
+        "ticketsCount",
       ]);
       expect(await storedTotals(listing.id)).toEqual({
         booked_quantity: 1,

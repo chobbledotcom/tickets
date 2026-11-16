@@ -35,9 +35,9 @@ const listingFieldsOf = async (id: number): Promise<ItemImageColumns> =>
 /** A stored image whose filename or thumbnail decrypts empty projects the
  * marker instead. */
 const BROKEN_IMAGE_FIELDS: ItemImageColumns = {
-  image_alt_text: "",
-  image_thumb_url: "broken-thumb.webp",
-  image_url: BROKEN_IMAGE_FILENAME,
+  imageAltText: "",
+  imageThumbUrl: "broken-thumb.webp",
+  imageUrl: BROKEN_IMAGE_FILENAME,
 };
 
 /** A stored image whose row spells the fields `expected` projects. */
@@ -47,10 +47,10 @@ export const addProjectedImage = async (
 ): Promise<number> =>
   (
     await insertImageRecord({
-      altText: expected.image_alt_text,
-      filename: nonEmptyString(expected.image_url, "projected image filename"),
+      altText: expected.imageAltText,
+      filename: nonEmptyString(expected.imageUrl, "projected image filename"),
       filenameThumb: nonEmptyString(
-        expected.image_thumb_url,
+        expected.imageThumbUrl,
         "projected image thumbnail filename",
       ),
       name,
@@ -83,18 +83,18 @@ export const projectionCases: readonly {
   },
   {
     expected: {
-      image_alt_text: "Primary image alt",
-      image_thumb_url: "primary-thumb.webp",
-      image_url: "primary.webp",
+      imageAltText: "Primary image alt",
+      imageThumbUrl: "primary-thumb.webp",
+      imageUrl: "primary.webp",
     },
     read: (listingId) => getImageFilenamesForItem("listing", listingId),
     title: "projects the primary image filenames and alt text for an item",
   },
   {
     expected: {
-      image_alt_text: "Projected image alt",
-      image_thumb_url: "projected-thumb.webp",
-      image_url: "projected.webp",
+      imageAltText: "Projected image alt",
+      imageThumbUrl: "projected-thumb.webp",
+      imageUrl: "projected.webp",
     },
     read: listingFieldsOf,
     title: "projects listing images through listing reads",

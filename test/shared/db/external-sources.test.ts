@@ -150,7 +150,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
       }),
     );
     expect(found).toHaveLength(1);
-    expect(found[0]!.source_id).toBe(invoices.id);
+    expect(found[0]!.sourceId).toBe(invoices.id);
   });
 
   test("filters a source's links by the record they point at", async () => {
@@ -175,12 +175,12 @@ describeWithEnv("db > external sources", { db: true }, () => {
         linkType: "listing",
       }),
     );
-    expect(found.map((link) => link.external_id)).toEqual(["INV-1"]);
+    expect(found.map((link) => link.externalId)).toEqual(["INV-1"]);
 
     const all = await withTestSession(() =>
       listExternalSourceLinks(source.id, { kind: "all" }),
     );
-    expect(all.map((link) => link.external_id)).toEqual(["INV-1", "INV-2"]);
+    expect(all.map((link) => link.externalId)).toEqual(["INV-1", "INV-2"]);
   });
 
   test("links every kind of record a source may name", async () => {
@@ -249,7 +249,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
 
     const refused = await createExternalSourceLink(source.id, {
       externalId: "INV-1001",
-      linkId: first.link_id,
+      linkId: first.linkId,
       linkType: "listing",
     });
 
@@ -265,7 +265,7 @@ describeWithEnv("db > external sources", { db: true }, () => {
 
     const changed = await updateExternalSourceLink(link, {
       externalId: "INV-2002",
-      linkId: link.link_id,
+      linkId: link.linkId,
       linkType: "listing",
     });
     expect(changed).toEqual({ ok: true, value: true });
@@ -273,8 +273,8 @@ describeWithEnv("db > external sources", { db: true }, () => {
     const stored = await withTestSession(() =>
       requireExternalSourceLink(source.id, link.id),
     );
-    expect(stored.external_id).toBe("INV-2002");
-    expect(stored.external_id_index).toBe(
+    expect(stored.externalId).toBe("INV-2002");
+    expect(stored.externalIdIndex).toBe(
       await externalLinkIndex(source.id, "INV-2002"),
     );
 

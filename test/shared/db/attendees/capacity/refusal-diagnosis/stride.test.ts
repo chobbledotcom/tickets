@@ -48,7 +48,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
       clones.push(
         await records.listings.insertStatement(newListingValues(clone)),
         cloneGroupMembershipStatement({
-          groupSlugIndex: shared.slug_index,
+          groupSlugIndex: shared.slugIndex,
           listingSlugIndex: clone.slugIndex,
           quantity: 1,
         }),

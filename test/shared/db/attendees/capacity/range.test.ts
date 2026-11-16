@@ -18,9 +18,9 @@ describe("spanLoadsOf", () => {
     expect(
       placed(
         spanLoadsOf(
-          from(tables.listing_attendees).where({ listing_id: [4, 5] }),
+          from(tables.listing_attendees).where({ listingId: [4, 5] }),
           ["2026-03-03", "2026-03-01", "2026-03-02"],
-          (line) => line.listing_id,
+          (line) => line.listingId,
         ),
       ),
     ).toEqual({

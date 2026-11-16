@@ -28,7 +28,7 @@ export const unwrapUserKey = async (
 ): Promise<CryptoKey> => {
   const hash = (await verifyUserPassword(user, password))!;
   return unwrapKey(
-    user.wrapped_data_key!,
+    user.wrappedDataKey!,
     await deriveKEKFromPassword(password, hash),
   );
 };

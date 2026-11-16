@@ -78,7 +78,7 @@ export const saveChoice = (attendeeId: number, answerId: number) =>
 
 /** Insert a free-text question (not yet assigned to any listing). */
 export const createFreeTextQuestion = (text = "Dietary needs?") =>
-  records.questions.insert({ display_type: "free_text", text });
+  records.questions.insert({ displayType: "free_text", text });
 
 /** Create an Alice → Bob merge pair. By default the target is on one listing
  *  and the source on a second ("E2"); pass `sameListing` to put both on one so

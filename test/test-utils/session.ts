@@ -95,8 +95,8 @@ export const getTestAuthSession = async (): Promise<AuthSession> => {
   return {
     adminLevel: "owner",
     token,
-    userId: session.user_id!,
-    wrappedDataKey: session.wrapped_data_key,
+    userId: session.userId!,
+    wrappedDataKey: session.wrappedDataKey,
   };
 };
 

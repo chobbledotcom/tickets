@@ -38,7 +38,7 @@ describeWithEnv("db > groups > add-listing candidates", { db: true }, () => {
     const candidates = await getListingsNotInGroup(group.id);
 
     expect(
-      candidates.find(({ id }) => id === candidate.id)?.bookable_days,
+      candidates.find(({ id }) => id === candidate.id)?.bookableDays,
     ).toEqual(["Saturday"]);
   });
 });

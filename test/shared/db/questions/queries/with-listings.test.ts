@@ -124,7 +124,7 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("getAnswerSelectionTotals returns the stored times_selected", async () => {
       const { a, q } = await seedAnswer();
-      await answerAggregates.update(a.id, { times_selected: 9 });
+      await answerAggregates.update(a.id, { timesSelected: 9 });
       const totals = await getAnswerSelectionTotals([q.id]);
       expect(totals.get(a.id)).toBe(9);
     });
@@ -140,7 +140,7 @@ describeWithEnv("custom questions", { db: true }, () => {
     test("getAnswerAggregateRecalculation flags drift from attendee answers", async () => {
       const { a } = await seedSelectedAnswer();
       // Force the stored total out of step with the one real selection.
-      await answerAggregates.update(a.id, { times_selected: 42 });
+      await answerAggregates.update(a.id, { timesSelected: 42 });
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
       expect(recalc.times_selected.current).toBe(42);
@@ -149,9 +149,9 @@ describeWithEnv("custom questions", { db: true }, () => {
 
     test("answerAggregates.reset rebuilds the stored total", async () => {
       const { a } = await seedSelectedAnswer();
-      await answerAggregates.update(a.id, { times_selected: 42 });
+      await answerAggregates.update(a.id, { timesSelected: 42 });
 
-      await answerAggregates.reset(a.id, ["times_selected"]);
+      await answerAggregates.reset(a.id, ["timesSelected"]);
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
       expect(recalc.times_selected.current).toBe(1);
