@@ -33,11 +33,11 @@ mechanisms to copy:
   whole family). For structured values, compose `v.object` schemas into a
   discriminated union with `v.variant("kind", […])` and a single `v.is` guard —
   `src/shared/bulk-email-targets/types.ts` is the reference.
-- **Declarative tables.** `defineTable`/`defineIdTable`
-  (`src/shared/db/table.ts`, `src/shared/db/define-id-table.ts`): a `columns`
-  config built from the `col.*` builders (`col.boolean`, `col.encrypted`,
-  `col.generated`, …) drives serialization, encryption, and the derived `Input`
-  type. Never hand-write row mapping.
+- **Declarative tables.** The schema in `src/shared/db/migrations/schema/`
+  declares each table, and `CODECS` in `src/shared/db/codecs/columns.ts`
+  declares how each column is stored. The client encodes each write and decodes
+  each builder read. `src/shared/db/record-table.ts` reads and writes one row
+  by its id. Do not write row mapping by hand.
 - **Config-driven CRUD.** `defineRecord` (`src/shared/rest/record.ts`) declares
   one admin record: its table, its read set, its one write rule, its commands,
   and the page route that gives both doors their audience. `recordPages`
@@ -173,7 +173,7 @@ files.
 ## Well-named files
 
 The filename states the concept; the concept fills the file.
-`largest-remainder.ts`, `phone.ts`, `slug.ts`, `define-id-table.ts`,
+`largest-remainder.ts`, `phone.ts`, `slug.ts`, `record-table.ts`,
 `request-cache.ts`, `keyed-cache.ts` — you can guess each file's exports from
 its name and vice versa. Function names carry contracts the same way: the `Raw`
 suffix on `getAttendeesRaw`/`getAttendeeRaw` means "PII still encrypted —
@@ -212,7 +212,7 @@ differs from a library's, write a thin adapter; do not re-implement:
 
 - `src/fp.ts` — `unique`, `uniqueBy`, `mapNotNullish`, `sumOf`, `chunk` are
   one-line curried adapters over `@std/collections`.
-- `src/shared/db/table.ts` — `toCamelCase`/`toSnakeCase` delegate to valibot's
+- `src/shared/column-names.ts` — `toCamelCase`/`toSnakeCase` delegate to valibot's
   case actions rather than bespoke regexes.
 - `src/shared/timezone.ts` — all DST/offset math is `Temporal`;
   `src/shared/currency.ts` gets currency symbols and decimal places from
@@ -236,7 +236,7 @@ function takes the data.
 - `balanceOf(account)` → `(transfers) => number` and friends
   (`src/shared/ledger/project.ts`) — curried projections that compose.
 - At larger scale the same shape becomes the config-driven factories:
-  `defineTable`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
+  `defineRecord`, `defineCrudApi`, `defineForm`, and `cachedClientFactory`
   (`src/shared/payment-helpers.ts`).
 
 ## Readable by the coverage merge
@@ -283,9 +283,9 @@ startup budget and a limited subrequest budget
 rules, with their reference implementations:
 
 - **Nothing heavy at module load.** Entry points only register the handler
-  (`src/edge.ts`); app boot runs `once()` on the _first request_
-  (`src/serve-app.ts`). Module-load work is fine only when pure and cheap (for
-  example `defineTable` building its schemas once).
+  (`src/edge.ts`). App boot runs `once()` on the _first request_
+  (`src/serve-app.ts`). Module-load work is fine only when it is pure and cheap.
+  For example, `tables` makes its table handles once.
 - **A foundation module must not reach the database.** `#shared/env.ts`,
   `#shared/now.ts` and the crypto modules load before anything else, so a new
   import in one of them can close a ring back to itself. Whichever module the
@@ -324,7 +324,7 @@ rules, with their reference implementations:
   (`src/shared/i18n.ts`), so rendering is a plain format call.
 - **Respect the subrequest budget.** Fixed-cost designs like
   `src/shared/limits.ts` (one SELECT plus one batch regardless of batch size),
-  `UPDATE … RETURNING` instead of update-then-select (`src/shared/db/table.ts`),
+  `UPDATE … RETURNING` instead of update-then-select (`src/shared/db/record-table.ts`),
   and `queryBatch` for multi-read round-trips. Bunny has a hard limit of 50
   subrequests per request. One libsql `execute`, batch, transaction
   begin/statement/commit/rollback, or external fetch counts as one; statements
@@ -353,8 +353,8 @@ reads, batches vs interactive transactions). Beyond those, copy these shapes:
   `listing_attendees`
   (`src/shared/db/migrations/2026-06-16_listing_aggregates.ts`), so listing
   reads never sum attendee rows.
-- **One-round-trip patterns.** `UPDATE … RETURNING *` in
-  `src/shared/db/table.ts`; `queryBatch`/`executeBatchWithResults` in
+- **One-round-trip patterns.** `UPDATE … RETURNING` in
+  `src/shared/db/record-table.ts`; `queryBatch`/`executeBatchWithResults` in
   `src/shared/db/client.ts`; keyset pagination for unbounded reads
   (`src/shared/db/backup.ts` with `BACKUP_PAGE_SIZE`).
 
@@ -382,9 +382,9 @@ require decryption:
   answer their questions without touching a ciphertext — the same discipline as
   "Select only needed columns", applied to plaintext-in-memory.
 - **Declarative encryption at the column layer.**
-  `col.encrypted`/`col.encryptedText` in `src/shared/db/table.ts` decrypt
-  lazily, per present column; a new encrypted column is declared, not
-  hand-wired.
+  The `sealed` codecs in `src/shared/db/codecs/` decrypt each column that a
+  read selects. Declare a new encrypted column in `CODECS`. Do not wire it by
+  hand.
 - **Keys are request-scoped and short-lived.** The session private key is
   fail-closed per request (`src/shared/session-private-key.ts`) and decrypt
   caches are TTL-bounded to seconds (`src/shared/crypto/keys.ts`).
