@@ -2,11 +2,12 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { ENCRYPTION_PREFIX } from "#crypto/encryption.ts";
+import { hmacHash } from "#crypto/hashing.ts";
 import { HYBRID_PREFIX } from "#crypto/hybrid.ts";
-
 import { ACTIVITY_LOG_BACKFILL_COMPLETE } from "#db/activity-log-backfill.ts";
-import { executeBatch } from "#db/client.ts";
+import { execute, executeBatch } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
+import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import {
   ACTIVITY_LOG_BACKFILL_BATCH,
   MAINTENANCE_PRUNE_BATCH,
@@ -18,6 +19,8 @@ import type {
 } from "#shared/maintenance/definition.ts";
 import { MAINTENANCE_TASKS } from "#shared/maintenance/registry.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
+import { squareApi } from "#shared/square/api.ts";
+import { SQUARE_LINK_EXPIRY_BATCH } from "#shared/square/limits.ts";
 import {
   insertLoginAttempt,
   insertStrings,
@@ -28,6 +31,7 @@ import {
   rawActivityMessage,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { configureSquare } from "#test-utils/square/fixtures.ts";
 
 const taskNamed = (name: string): MaintenanceTaskDeclaration => {
   const task = MAINTENANCE_TASKS.find((candidate) => candidate.name === name);
@@ -165,14 +169,6 @@ describeWithEnv("maintenance registry", { db: true }, () => {
   });
 
   test("the Square link expiry task runs its check and asks for more when full", async () => {
-    const { configureSquare } = await import("#test-utils/square/fixtures.ts");
-    const { execute } = await import("#db/client.ts");
-    const { stageSquareLinkEnd } = await import("#db/square-link-ends.ts");
-    const { hmacHash } = await import("#crypto/hashing.ts");
-    const { squareApi } = await import("#shared/square/api.ts");
-    const { SQUARE_LINK_EXPIRY_BATCH } = await import(
-      "#shared/square/limits.ts"
-    );
     await configureSquare();
     for (let index = 0; index < SQUARE_LINK_EXPIRY_BATCH; index++) {
       const id = `sq_task_${index}`;
