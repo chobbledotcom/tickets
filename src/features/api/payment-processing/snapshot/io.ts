@@ -12,6 +12,7 @@ import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { LISTING_ROW, type ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { among, or } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlNames } from "#db/sql.ts";
@@ -80,10 +81,10 @@ const snapshotStatements = (
     sql`SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${eventGroup} LIMIT 1) AS has_legs,
         (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ${eventGroup} LIMIT 1) AS owner_attendee_id`,
     listingStatement(listingIds),
-    sql`SELECT id, name, hide_package_listings
-       FROM groups AS groupRow
-       WHERE ${selectIn("groupRow.id", groupIds)} AND groupRow.is_package = 1
-       ORDER BY groupRow.id`,
+    from(tables.groups)
+      .where({ id: groupIds, is_package: 1 })
+      .sortedBy("id")
+      .pick("id", "name", "hide_package_listings"),
     sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
         (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
           WHERE listingPrice.listing_id = groupListing.listing_id
@@ -101,16 +102,28 @@ const snapshotStatements = (
         AND listingPrice.price_type = 'group_day'
         AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
        WHERE ${selectIn("groupListing.group_id", groupIds)}`,
-    sql`SELECT parent_listing_id, child_listing_id
-       FROM listing_parents AS listingParent
-       WHERE ${selectIn("listingParent.parent_listing_id", listingIds)}
-          OR ${selectIn("listingParent.child_listing_id", listingIds)}
-       ORDER BY parent_listing_id, child_listing_id`,
-    sql`SELECT modifier.id, modifier.name, modifier.calc_kind, modifier.calc_value,
-        modifier.direction, modifier.min_visits, modifier.scope, modifier.trigger
-       FROM modifiers AS modifier
-       WHERE ${selectIn("modifier.id", modifierIds)} AND modifier.active = 1
-       ORDER BY modifier.id`,
+    from(tables.listing_parents)
+      .where((edge) =>
+        or(
+          among(edge.parent_listing_id, listingIds),
+          among(edge.child_listing_id, listingIds),
+        ),
+      )
+      .sortedBy("parent_listing_id", "child_listing_id")
+      .pick("parent_listing_id", "child_listing_id"),
+    from(tables.modifiers)
+      .where({ active: 1, id: modifierIds })
+      .sortedBy("id")
+      .pick(
+        "id",
+        "name",
+        "calc_kind",
+        "calc_value",
+        "direction",
+        "min_visits",
+        "scope",
+        "trigger",
+      ),
     sql`SELECT modifierListing.modifier_id, modifierListing.listing_id
        FROM modifier_listings AS modifierListing
         JOIN modifiers AS modifier
@@ -125,8 +138,9 @@ const snapshotStatements = (
          AND modifier.scope = 'groups'
         JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
         WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
-    sql`SELECT visits FROM contact_preferences
-       WHERE ${selectIn("contact_hash", contactHashes)}`,
+    from(tables.contact_preferences)
+      .where({ contact_hash: contactHashes })
+      .pick("visits"),
     from(tables.attendee_statuses)
       .where({ is_public_default: 1 })
       .sortedBy("sort_order", "id")
