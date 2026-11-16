@@ -43,6 +43,7 @@ import {
   type WritePlan,
   type WriteVerdict,
 } from "#shared/rest/record.ts";
+import { gatedByFeature } from "#shared/rest/resource-feature.ts";
 import type { Result } from "#shared/result.ts";
 import type { AdminLevel, AdminSession } from "#types";
 
@@ -439,7 +440,7 @@ export const recordApi = <
   );
   const routes = config.overrides ?? {};
 
-  return {
+  return gatedByFeature(entry, {
     [`GET /api/admin/${name}`]: routes.list ?? standard.list,
     [`GET /api/admin/${name}/:${paramName}`]: routes.get ?? standard.get,
     [`POST /api/admin/${name}`]: routes.create ?? standard.create,
@@ -447,5 +448,5 @@ export const recordApi = <
     [`DELETE /api/admin/${name}/:${paramName}`]:
       routes.delete ?? standard.delete,
     ...declaredRoutes(),
-  };
+  });
 };

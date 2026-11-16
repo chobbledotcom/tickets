@@ -12,11 +12,11 @@ import type { SqlStatement } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { seedChoiceAndTextQuestions } from "#test/shared/db/questions/helpers.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createBooking } from "#test-utils/db-helpers/attendees.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
+import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   type QuestionBooking,

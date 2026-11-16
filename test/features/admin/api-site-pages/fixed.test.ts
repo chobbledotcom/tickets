@@ -12,7 +12,7 @@ import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { apiRequest } from "#test-utils/session.ts";
 import { settingsAsStored } from "#test-utils/settings.ts";
 

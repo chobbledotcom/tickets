@@ -6,6 +6,7 @@ import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { CatalogInput } from "#shared/records/catalog-input.ts";
 import type {
   FieldSpecs,
+  KeyAccess,
   OptionalFieldsInput,
 } from "#shared/rest/field-specs.ts";
 
@@ -92,6 +93,25 @@ export const LISTING_FIELDS = [
   },
 ] as const satisfies FieldSpecs;
 /* jscpd:ignore-end */
+
+/** The body keys of a listing write that link other records. They are not
+ *  columns, so no field kind reads them. Each one carries the same access
+ *  rule as a field. Only an owner assigns attribute options. */
+export const LISTING_LINK_KEYS = [
+  {
+    feature: "attributes",
+    key: "attribute_option_ids",
+    lockedFor: ["nonOwner"],
+  },
+  { key: "child_listing_ids" },
+  { key: "group_ids" },
+] as const satisfies readonly KeyAccess[];
+
+/** Every key of a listing write that carries an access rule. */
+export const LISTING_WRITE_KEYS: readonly KeyAccess[] = [
+  ...LISTING_FIELDS,
+  ...LISTING_LINK_KEYS,
+];
 
 /** Listing input fields for create/update (camelCase). */
 export interface ListingInput

@@ -10,6 +10,7 @@ import {
 } from "#shared/listings-actions.ts";
 import {
   LISTING_FIELDS,
+  LISTING_WRITE_KEYS,
   type ListingInput,
 } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
@@ -69,11 +70,10 @@ const parseOptionalIdArray = (
 /** Read the listing fields and the join-table id arrays before building the
  * listing input. Each field's kind carries its value rule, so a hand-built
  * body cannot set max_attendees 0 or a negative min_quantity. A field that
- * the writer cannot set is refused. Attribute assignment is owner-only in the
- * dashboard: the listing choice post runs under OWNER_FORM and the attributes
- * resource under OWNER_API. The JSON field is therefore owner-only too. A
- * write that carries it without an owner session is refused, and one without
- * the field keeps the writer's normal listing access. An omitted id array
+ * the writer cannot set is refused, a link key included. Attribute assignment
+ * is owner-only in the dashboard, and it needs the attributes feature. The
+ * link key declares both rules. A write without the key keeps the writer's
+ * normal listing access. An omitted id array
  * stays undefined: persistListingJoins skips the link write for it, so an
  * unrelated update never restores a stale set. `existing` is null on
  * create. */
@@ -83,17 +83,11 @@ const withParsedJoinIds = <Read extends ApiFields>(
   existing: ListingWithCount | null,
   build: (fields: Read) => Promise<Result<ListingInput>>,
 ): Promise<Result<ListingInput>> => {
-  if (
-    body.attribute_option_ids !== undefined &&
-    session?.adminLevel !== "owner"
-  ) {
-    return Promise.resolve(errorResult("attribute_option_ids is owner-only"));
-  }
   const fields = readBody(
     LISTING_FIELDS,
     body,
     existing,
-    closedFieldsFor(LISTING_FIELDS, session?.adminLevel),
+    closedFieldsFor(LISTING_WRITE_KEYS, session?.adminLevel),
   );
   if (!fields.ok) return Promise.resolve(fields);
   const groupIds = parseOptionalIdArray(body.group_ids, "group_ids");

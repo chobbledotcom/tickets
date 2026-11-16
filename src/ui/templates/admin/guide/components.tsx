@@ -9,6 +9,7 @@
 import { t } from "#i18n";
 import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { sectionsRenderer } from "#templates/components/aggregate-sections.tsx";
+import { LabelledBlock } from "#templates/components/labelled-block.tsx";
 import { PageBlock } from "#templates/components/page-structure.tsx";
 import type { TitledBlock } from "#templates/components/titled-block.ts";
 
@@ -55,14 +56,11 @@ export const ExampleCode = ({
   label: Child;
   code: string;
 }): JSX.Element => (
-  <>
-    <p>
-      <strong>{label}</strong>
-    </p>
+  <LabelledBlock label={label}>
     <pre>
       <code>{code}</code>
     </pre>
-  </>
+  </LabelledBlock>
 );
 
 /** Data-driven FAQ entry: question and answer HTML come from guide.q.* / guide.a.* keys.

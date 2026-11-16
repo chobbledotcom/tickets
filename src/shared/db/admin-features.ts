@@ -26,6 +26,7 @@ import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
 import { range } from "#fp";
 import {
   ADMIN_FEATURES,
+  ADMIN_FEATURES_BY_KEY,
   type AdminFeatureDefinition,
   type AdminFeatureKey,
   type EnabledFeatures,
@@ -41,14 +42,6 @@ import { CONFIG_KEYS } from "#shared/settings/keys.ts";
 
 const StoredValueSchema = v.object({ value: v.string() });
 const JSON_WRITE_ATTEMPTS = 8;
-
-type AdminFeaturesByKey = {
-  [Feature in AdminFeatureDefinition as Feature["key"]]: Feature;
-};
-
-const FEATURES_BY_KEY = Object.fromEntries(
-  ADMIN_FEATURES.map((feature) => [feature.key, feature]),
-) as AdminFeaturesByKey;
 
 const requireSettingCondition = abortUnless(
   sql`settings (key, value)`,
@@ -99,7 +92,7 @@ const writeAdminFeatureEnabled = async (
   key: AdminFeatureKey,
   enabled: boolean,
 ): Promise<boolean> => {
-  const inUseSql = FEATURES_BY_KEY[key].inUseSql;
+  const inUseSql = ADMIN_FEATURES_BY_KEY[key].inUseSql;
   const stored = await featureField(key, enabled).write(
     !enabled && inUseSql ? sql`NOT (${inUseSql})` : sql`TRUE`,
     parseEnabledFeatures,
@@ -158,7 +151,9 @@ const logisticsDisableStatements = (
     );
   }
   statements.push(
-    requireSettingCondition(sql`NOT (${FEATURES_BY_KEY.logistics.inUseSql})`),
+    requireSettingCondition(
+      sql`NOT (${ADMIN_FEATURES_BY_KEY.logistics.inUseSql})`,
+    ),
   );
   statements.push(featureWriteStatement("logistics", false, sql`TRUE`));
   statements.push(

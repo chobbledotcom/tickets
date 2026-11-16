@@ -5,7 +5,7 @@ import { it as test } from "@std/testing/bdd";
 import { getSitePageById } from "#db/site-pages.ts";
 import { renderMarkdown } from "#shared/markdown.ts";
 import { assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { adminFormPost, apiRequest } from "#test-utils/session.ts";
 import { findPage } from "./site-pages/helpers.ts";
 

@@ -4,8 +4,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { handleRequest } from "#routes";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { describeWithRecordFeatures as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { createTestApiKeyToken } from "#test-utils/session.ts";
 
 // Absolute project root, derived from this file's location rather than the

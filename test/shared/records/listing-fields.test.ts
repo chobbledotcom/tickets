@@ -3,7 +3,11 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  LISTING_LINK_KEYS,
+  LISTING_WRITE_KEYS,
+} from "#shared/records/listing-fields.ts";
 import {
   type ClosedReason,
   closedFields,
@@ -12,15 +16,20 @@ import {
 
 /** A writer on a site with the given features off and the given locks on. */
 const accessOf = (
-  off: readonly ("builder" | "logistics" | "subscriptions")[],
-  on: readonly ("demo" | "editor")[],
+  off: readonly ("attributes" | "builder" | "logistics" | "subscriptions")[],
+  on: readonly ("demo" | "editor" | "nonOwner")[],
 ): WriteAccess => ({
   features: {
+    attributes: !off.includes("attributes"),
     builder: !off.includes("builder"),
     logistics: !off.includes("logistics"),
     subscriptions: !off.includes("subscriptions"),
   },
-  locks: { demo: on.includes("demo"), editor: on.includes("editor") },
+  locks: {
+    demo: on.includes("demo"),
+    editor: on.includes("editor"),
+    nonOwner: on.includes("nonOwner"),
+  },
 });
 
 /** The closed fields of one writer, in declaration order. */
@@ -95,5 +104,47 @@ describe("listing and group fields", () => {
         accessOf(["builder", "logistics"], ["demo", "editor"]),
       ),
     ]).toEqual([[], []]);
+  });
+});
+
+describe("the listing link keys", () => {
+  test("only attribute options need a feature, and only an owner assigns them", () => {
+    expect(LISTING_LINK_KEYS).toEqual([
+      {
+        feature: "attributes",
+        key: "attribute_option_ids",
+        lockedFor: ["nonOwner"],
+      },
+      { key: "child_listing_ids" },
+      { key: "group_ids" },
+    ]);
+  });
+
+  test("the write keys are the fields, then the link keys", () => {
+    expect(LISTING_WRITE_KEYS).toEqual([
+      ...LISTING_FIELDS,
+      ...LISTING_LINK_KEYS,
+    ]);
+  });
+
+  test("attributes off closes the attribute options for an owner", () => {
+    expect([
+      ...closedFields(LISTING_WRITE_KEYS, accessOf(["attributes"], [])),
+    ]).toEqual([["attribute_option_ids", "attributes"]]);
+  });
+
+  test("the feature that is off is the reason before the owner-only rule", () => {
+    expect([
+      ...closedFields(
+        LISTING_WRITE_KEYS,
+        accessOf(["attributes"], ["nonOwner"]),
+      ),
+    ]).toEqual([["attribute_option_ids", "attributes"]]);
+  });
+
+  test("a manager cannot set the attribute options on a site with every feature on", () => {
+    expect([
+      ...closedFields(LISTING_WRITE_KEYS, accessOf([], ["nonOwner"])),
+    ]).toEqual([["attribute_option_ids", "nonOwner"]]);
   });
 });

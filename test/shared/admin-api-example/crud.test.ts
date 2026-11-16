@@ -9,7 +9,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
 import { compact } from "#fp";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { fieldOfKey } from "#shared/rest/field-specs.ts";
@@ -19,7 +18,13 @@ import {
   AdminListingSchema,
 } from "#test-utils/api-schemas.ts";
 import { isOwnerRole } from "#types";
-import { documented, freshTotals, isBlank, jsonLeaves } from "./helpers.ts";
+import {
+  ADMIN_API_ENDPOINTS,
+  documented,
+  freshTotals,
+  isBlank,
+  jsonLeaves,
+} from "./helpers.ts";
 
 /** A stored datetime says which timezone it is in. Storage appends "Z" to one
  * that does not, which is a guess we should never document. */

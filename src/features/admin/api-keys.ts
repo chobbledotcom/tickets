@@ -8,6 +8,7 @@ import { adminDestinationAt, adminPattern } from "#shared/admin-surface.ts";
  * Admin API key management routes
  */
 
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { createActionHandler } from "#routes/admin/actions.ts";
 import {
@@ -25,8 +26,9 @@ import { pageGuardFor } from "#routes/auth.ts";
 import { applyFlash } from "#routes/csrf.ts";
 import { htmlResponse } from "#routes/response.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
+import { adminApiEndpoints } from "#shared/admin-api-example.ts";
 import { type ApiKeyDisplay, apiKeyRecord } from "#shared/records/api-keys.ts";
+import { writeAccessFor } from "#shared/records/write-access.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
 import { asRequestRoute } from "#shared/rest/route-adapters.ts";
 import {
@@ -124,7 +126,14 @@ const handleApiDocsGet: TypedRouteHandler<"GET /admin/api-keys/docs"> = (
 ) =>
   pageGuardFor(adminDestinationAt("/admin/api-keys/docs"))(request, (session) =>
     htmlResponse(
-      adminApiDocsPage(session, PUBLIC_API_ENDPOINTS, ADMIN_API_ENDPOINTS),
+      adminApiDocsPage(
+        session,
+        PUBLIC_API_ENDPOINTS,
+        adminApiEndpoints({
+          access: writeAccessFor(session.adminLevel),
+          features: settings.features,
+        }),
+      ),
     ),
   );
 

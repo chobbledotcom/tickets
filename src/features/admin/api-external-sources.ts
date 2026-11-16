@@ -6,12 +6,11 @@
  * every external id are sealed with the owner key, so only an admin session
  * reads them.
  *
- * Every route answers 403 while the External sources feature is off, so the
- * setting decides whether the API is there at all.
+ * The resource belongs to the External sources feature, so the shared gate
+ * refuses every route while that feature is off.
  */
 
 /* jscpd:ignore-start -- imports */
-import { mapValues } from "@std/collections";
 import * as v from "valibot";
 import { logActivity } from "#db/activity-log.ts";
 import {
@@ -42,9 +41,7 @@ import {
   type ExternalSourceLink,
 } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
-import { settings } from "#db/settings.ts";
 import { requiredMapValue } from "#fp";
-import { t } from "#i18n";
 import { verifyIdentifierOrJsonError } from "#routes/admin/confirmation.ts";
 import { apiErrorResponse } from "#routes/api/cors.ts";
 import { withAuth } from "#routes/auth.ts";
@@ -53,7 +50,6 @@ import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { externalSourceRecord } from "#shared/records/external-sources.ts";
-import { featureGate } from "#shared/response-steps.ts";
 import {
   apiEntityGate,
   requireEntityField,
@@ -326,43 +322,27 @@ const handleLinkDelete = withExistingLink(async ({ body, link, source }) => {
   return jsonResponse({ status: "ok" });
 });
 
-/** While the External sources feature is off, every route answers the same
- *  refusal. Wrapping the route map keeps that gate in one place, the way the
- *  built-sites section gates its own routes. */
-const externalSourcesGate = featureGate(
-  () => settings.features.externalSources,
-  () => apiErrorResponse(t("features.external_sources.disabled"), 403),
-);
-
-const externalSourcesOnly =
-  (handler: RouteHandlerFn): RouteHandlerFn =>
-  (request, params) =>
-    externalSourcesGate(() => handler(request, params));
-
-export const externalSourceApiRoutes = mapValues(
-  recordApi<
-    (typeof ADMIN_API_RESOURCES)["external-sources"],
-    RecordShapeOf<ExternalSource, ExternalSourceInput>
-  >(externalSourceRecord, {
-    childHandlers: {
-      links: {
-        create: handleLinkCreate,
-        delete: handleLinkDelete,
-        update: handleLinkUpdate,
-      },
+export const externalSourceApiRoutes = recordApi<
+  (typeof ADMIN_API_RESOURCES)["external-sources"],
+  RecordShapeOf<ExternalSource, ExternalSourceInput>
+>(externalSourceRecord, {
+  childHandlers: {
+    links: {
+      create: handleLinkCreate,
+      delete: handleLinkDelete,
+      update: handleLinkUpdate,
     },
-    customHandlers: {
-      linkLookup: handleLinkLookup,
-      linkSearch: handleLinkSearch,
-      links: handleLinkList,
-    },
-    toCreateInput: (body) =>
-      okResult({ name: body.name, urlPattern: body.url_pattern }),
-    toUpdateInput: (body, existing) =>
-      okResult({
-        name: body.name ?? existing.name,
-        urlPattern: body.url_pattern ?? existing.url_pattern,
-      }),
-  }),
-  externalSourcesOnly,
-);
+  },
+  customHandlers: {
+    linkLookup: handleLinkLookup,
+    linkSearch: handleLinkSearch,
+    links: handleLinkList,
+  },
+  toCreateInput: (body) =>
+    okResult({ name: body.name, urlPattern: body.url_pattern }),
+  toUpdateInput: (body, existing) =>
+    okResult({
+      name: body.name ?? existing.name,
+      urlPattern: body.url_pattern ?? existing.url_pattern,
+    }),
+});
