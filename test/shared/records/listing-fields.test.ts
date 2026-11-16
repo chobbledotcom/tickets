@@ -2,6 +2,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import {
   LISTING_FIELDS,
@@ -147,4 +148,82 @@ describe("the listing link keys", () => {
       ...closedFields(LISTING_WRITE_KEYS, accessOf([], ["nonOwner"])),
     ]).toEqual([["attribute_option_ids", "nonOwner"]]);
   });
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const DEFAULTS_AND_FLOORS = [
+  "active: stores true",
+  `bookable_days: stores ${JSON.stringify(VALID_DAY_NAMES)}`,
+  "duration_days: stores 1",
+  'fields: stores "email"',
+  "initial_site_months: stores 0, from 0",
+  'listing_type: stores "standard"',
+  "max_attendees: stores undefined, from 1",
+  "maximum_days_after: stores 90, from 0",
+  "max_price: stores 0",
+  "max_quantity: stores 1, from 1",
+  "minimum_days_before: stores 1, from 0",
+  "min_quantity: stores 1, from 1",
+  "months_per_unit: stores 0, from 0",
+  'recurring_interval: stores ""',
+  "recurring_price: stores 0",
+  "unit_price: stores 0",
+];
+/* jscpd:ignore-end */
+
+test("each listing field that names a stored default or a smallest count names this one", () => {
+  const declared = LISTING_FIELDS.flatMap((field) => {
+    const { default: stored, min } = {
+      default: undefined,
+      min: undefined,
+      ...field,
+    };
+    if (stored === undefined && min === undefined) return [];
+    const floor = min === undefined ? "" : `, from ${min}`;
+    return [`${field.key}: stores ${JSON.stringify(stored)}${floor}`];
+  });
+
+  expect(declared).toEqual(DEFAULTS_AND_FLOORS);
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
+const LISTING_KEYS = [
+  "active",
+  "assign_built_site",
+  "bookable_alone",
+  "bookable_days",
+  "can_pay_more",
+  "closes_at",
+  "customisable_days",
+  "date",
+  "day_prices",
+  "description",
+  "duration_days",
+  "fields",
+  "hidden",
+  "initial_site_months",
+  "listing_type",
+  "location",
+  "max_attendees",
+  "maximum_days_after",
+  "max_price",
+  "max_quantity",
+  "minimum_days_before",
+  "min_quantity",
+  "months_per_unit",
+  "name",
+  "non_transferable",
+  "purchase_only",
+  "recurring_interval",
+  "recurring_price",
+  "thank_you_url",
+  "unit_price",
+  "use_defaults",
+  "uses_logistics",
+  "webhook_url",
+];
+/* jscpd:ignore-end */
+
+test("the listing fields name these keys, in this order", () => {
+  expect(LISTING_FIELDS.map((field) => field.key)).toEqual(LISTING_KEYS);
 });
