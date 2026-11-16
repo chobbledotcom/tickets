@@ -110,14 +110,14 @@ export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
 
 /** Open the sealed image values of one card. */
 const openCard = async ({
-  image_alt_text,
-  image_thumb_url,
-  image_url,
+  imageAltText,
+  imageThumbUrl,
+  imageUrl,
   ...summary
 }: NewsPostSummary & SealedItemImages): Promise<NewsPostCard> => ({
   ...summary,
   ...(await openItemImages(
-    { image_alt_text, image_thumb_url, image_url },
+    { imageAltText, imageThumbUrl, imageUrl },
     `news post ${summary.id}`,
   )),
 });

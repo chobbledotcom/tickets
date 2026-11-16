@@ -14,8 +14,8 @@ import { tables } from "#db/select/tables.ts";
  * `getIds` (ascending), replace with `setIds` (deduped). */
 export const userAgents = linkTableSide(
   tables.user_logistics_agents,
-  "user_id",
-  "agent_id",
+  "userId",
+  "agentId",
 );
 
 /** The users assigned to drive a logistics agent, keyed by agent id — the
@@ -23,6 +23,6 @@ export const userAgents = linkTableSide(
  * deleting it). */
 export const agentUsers = linkTableSide(
   tables.user_logistics_agents,
-  "agent_id",
-  "user_id",
+  "agentId",
+  "userId",
 );

@@ -18,7 +18,7 @@ export type HolidayInput = FieldsInput<typeof HOLIDAY_FIELDS>;
 /** Every holiday in start order, cached for the request. The name is
  * decrypted by its codec. */
 export const holidays = requestCachedRows(tables.holidays, (rows) =>
-  rows.sortedBy("start_date").everyColumn(),
+  rows.sortedBy("startDate").everyColumn(),
 );
 
 /**
@@ -28,5 +28,5 @@ export const holidays = requestCachedRows(tables.holidays, (rows) =>
 export const getActiveHolidays = async (): Promise<Holiday[]> => {
   const today = todayInTz(settings.timezone);
   const all = await holidays.getAll();
-  return filter((h: Holiday) => h.end_date >= today)(all);
+  return filter((h: Holiday) => h.endDate >= today)(all);
 };

@@ -114,7 +114,7 @@ export const rowBySlugIndex =
 
 /** The values of a slugged write: never the blind index, which the write
  *  computes from the slug. */
-type WithoutIndex<Values> = Omit<Values, "slug_index">;
+type WithoutIndex<Values> = Omit<Values, "slugIndex">;
 
 /** The write surface {@link freshSlugIndexWrites} hands back for one table.
  * The blind index is always computed inside, never passed in, so `slug` and
@@ -184,7 +184,7 @@ export const freshSlugIndexWrites = <
             {
               ...values,
               ...(await writtenColumns(tx)),
-              slug_index: slugIndex,
+              slugIndex,
             } as NewRecord<Name>,
             { when: wholeCondition(unclaimed(slugIndex, undefined)) },
           ),
@@ -197,7 +197,7 @@ export const freshSlugIndexWrites = <
         (_tx, values, slugIndex) =>
           recordsOf(table).updateStatement(
             id,
-            { ...values, slug_index: slugIndex } as RecordChanges<Name>,
+            { ...values, slugIndex } as RecordChanges<Name>,
             () => wholeCondition(unclaimed(slugIndex, id)),
           ),
         // The failed update cannot tell a missing row from a slug conflict,

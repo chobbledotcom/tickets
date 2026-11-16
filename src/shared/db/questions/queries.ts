@@ -96,14 +96,14 @@ const groupJoinedRows = (rows: JoinedRow[]): QuestionWithAnswers[] =>
               {
                 active: row.a_active!,
                 id: row.a_id,
-                question_id: row.a_question_id!,
-                sort_order: row.a_sort_order!,
+                questionId: row.a_question_id!,
+                sortOrder: row.a_sort_order!,
                 text: row.a_text!,
               },
             ],
       ),
-      assign_all: first.q_assign_all,
-      display_type: first.q_display_type,
+      assignAll: first.q_assign_all,
+      displayType: first.q_display_type,
       id,
       text: first.q_text,
     };
@@ -112,7 +112,7 @@ const groupJoinedRows = (rows: JoinedRow[]): QuestionWithAnswers[] =>
 /** Keep only questions that have at least one answer */
 const withAnswers = filter(
   (q: QuestionWithAnswers) =>
-    q.display_type === "free_text" || q.answers.length > 0,
+    q.displayType === "free_text" || q.answers.length > 0,
 );
 
 /** Fetch questions with their answers, keeping only the ones the read

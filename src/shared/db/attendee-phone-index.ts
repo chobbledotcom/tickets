@@ -19,9 +19,9 @@ export const setAttendeePhoneIndexIfEmpty = async (
   if (!phoneIndex) return;
   // The `phone_index: ""` condition scopes the write to a not-yet-set row.
   await execute(
-    update(tables.attendees, { phone_index: phoneIndex }).where({
+    update(tables.attendees, { phoneIndex }).where({
       id: attendeeId,
-      phone_index: "",
+      phoneIndex: "",
     }),
   );
 };

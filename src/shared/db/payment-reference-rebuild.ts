@@ -128,16 +128,16 @@ const attendeePiiPaymentIds = async (
   }
   const blobs = await queryAllPrimary<{
     id: number;
-    pii_blob: OwnerKeyEncrypted | "";
+    piiBlob: OwnerKeyEncrypted | "";
   }>(sealedContactsOf(attendeeIds));
   return new Map(
     await Promise.all(
       blobs.map(
         async (row): Promise<[number, string]> => [
           row.id,
-          row.pii_blob === ""
+          row.piiBlob === ""
             ? ""
-            : (await decryptPiiBlob(row.pii_blob, privateKey, true)).payment_id,
+            : (await decryptPiiBlob(row.piiBlob, privateKey, true)).payment_id,
         ],
       ),
     ),
@@ -172,9 +172,9 @@ const referenceWrite = (
   stored: StoredPaymentReference,
 ): SqlStatement =>
   update(tables.processed_payments, {
-    payment_reference: stored.encrypted,
-    payment_reference_index: stored.index,
-  }).where({ payment_reference_index: "", payment_session_id: sessionId });
+    paymentReference: stored.encrypted,
+    paymentReferenceIndex: stored.index,
+  }).where({ paymentReferenceIndex: "", paymentSessionId: sessionId });
 
 /** The provider the owner states for each row, keyed by payment session id.
  * A row that already names its provider needs no entry. */

@@ -7,6 +7,7 @@
  */
 
 import * as v from "valibot";
+import type { DecodedRowOf } from "#db/select/tables.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 
 /** A custom multiple-choice question */
@@ -28,27 +29,21 @@ export const requireQuestionDisplayType = (
   throw new Error(questionDisplayTypeError);
 };
 
-export interface Question {
-  assign_all: boolean;
-  display_type: QuestionDisplayType;
-  id: number;
-  text: string; // encrypted
-}
+export type Question = Pick<
+  DecodedRowOf<"questions">,
+  "assignAll" | "displayType" | "id" | "text"
+>;
 
-/** An answer option for a question */
-export interface Answer {
-  /** Deactivated answers are hidden on the public booking form. The admin
-   * edit form still shows one an attendee already selected, so it isn't
-   * silently dropped on the next save. */
-  active: boolean;
-  id: number;
-  question_id: number;
-  sort_order: number;
-  text: string; // encrypted
-}
+/** An answer option for a question. The public booking form hides an answer
+ *  that is not active. The admin edit form still shows one that an attendee
+ *  already selected, so the next save keeps it. */
+export type Answer = Pick<
+  DecodedRowOf<"answers">,
+  "active" | "id" | "questionId" | "sortOrder" | "text"
+>;
 
 /** Question with its answer options (decrypted). Every read carries
- *  `assign_all`; a hand-built row says which switch state it stands for. */
+ *  `assignAll`; a hand-built row says which switch state it stands for. */
 export type QuestionWithAnswers = Question & {
   answers: Answer[];
 };

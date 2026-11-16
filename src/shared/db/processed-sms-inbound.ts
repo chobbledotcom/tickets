@@ -19,7 +19,7 @@ export const claimProcessedSmsInbound = async (
   if (webhookId === "") return true;
   const stmt = insertInto(
     tables.processed_sms_inbound,
-    { created: nowIso(), webhook_id: webhookId },
+    { created: nowIso(), webhookId },
     { or: "IGNORE" },
   );
   return executeChangedRow(stmt);

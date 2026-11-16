@@ -48,13 +48,13 @@ export const insertRefundConfirmation = async (
   const [confirmationResult] = await transaction.batch([
     insertInto(
       tables.refund_confirmations,
-      { attendee_id: input.attendeeId, created: nowIso(), identity },
+      { attendeeId: input.attendeeId, created: nowIso(), identity },
       { or: "IGNORE" },
     ).returning("identity"),
     ...referenceIndexes.map((referenceIndex) =>
       insertInto(
         tables.refund_confirmation_references,
-        { confirmation_identity: identity, reference_index: referenceIndex },
+        { confirmationIdentity: identity, referenceIndex },
         { or: "IGNORE" },
       ),
     ),

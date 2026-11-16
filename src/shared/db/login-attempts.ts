@@ -47,20 +47,20 @@ const recordAttemptStatement = (values: LoginAttemptValues): SqlStatement =>
     {
       attempts: 1,
       ip: values.hashedIp,
-      last_attempt: values.now,
-      locked_until: lockAt(literal(1), values),
+      lastAttempt: values.now,
+      lockedUntil: lockAt(literal(1), values),
     },
     {
       onConflict: {
         on: ["ip"],
         set: (row) => ({
           attempts: plus(row.attempts, 1),
-          last_attempt: values.now,
-          locked_until: lockAt(plus(row.attempts, 1), values),
+          lastAttempt: values.now,
+          lockedUntil: lockAt(plus(row.attempts, 1), values),
         }),
       },
     },
-  ).returning("locked_until");
+  ).returning("lockedUntil");
 
 /** The values one recorded attempt carries. */
 interface LoginAttemptValues {

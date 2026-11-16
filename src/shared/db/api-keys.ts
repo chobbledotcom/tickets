@@ -43,10 +43,10 @@ export const createApiKey = async (
   const wrappedDataKey = await wrapKeyWithToken(dataKey, apiKey);
   const row = await records.api_keys.insert({
     created: nowIso(),
-    key_index: keyIndex,
+    keyIndex: keyIndex,
     name,
-    user_id: userId,
-    wrapped_data_key: wrappedDataKey,
+    userId: userId,
+    wrappedDataKey: wrappedDataKey,
   });
   return { apiKey, id: row.id };
 };
@@ -61,15 +61,15 @@ export const getApiKeyByToken = async (
 ): Promise<Omit<ApiKey, "name"> | null> =>
   readOneRow(
     // The auth path never shows the name, so it is neither read nor decrypted.
-    apiKeys({ key_index: await hmacHash(token) })
+    apiKeys({ keyIndex: await hmacHash(token) })
       .limit(1)
       .pick(
         "id",
-        "user_id",
-        "key_index",
-        "wrapped_data_key",
+        "userId",
+        "keyIndex",
+        "wrappedDataKey",
         "created",
-        "last_used",
+        "lastUsed",
       ),
   );
 
@@ -82,14 +82,14 @@ export const getApiKeysForUser = async (
   Array<{ id: number; name: string; created: string; lastUsed: string }>
 > => {
   const decrypted = await readRows(
-    apiKeys({ user_id: userId })
+    apiKeys({ userId: userId })
       .sortedBy("id")
-      .pick("id", "name", "created", "last_used"),
+      .pick("id", "name", "created", "lastUsed"),
   );
   return decrypted.map((row) => ({
     created: row.created,
     id: row.id,
-    lastUsed: row.last_used,
+    lastUsed: row.lastUsed,
     name: row.name,
   }));
 };
@@ -104,7 +104,7 @@ export const findApiKeyForUser = async (
   id: number,
   userId: number,
 ): Promise<ApiKeyName | null> =>
-  readOneRow(apiKeys({ id, user_id: userId }).limit(1).pick("id", "name"));
+  readOneRow(apiKeys({ id, userId: userId }).limit(1).pick("id", "name"));
 
 /**
  * Delete an API key by ID (must belong to the given user).
@@ -113,7 +113,7 @@ export const deleteApiKey = async (
   id: number,
   userId: number,
 ): Promise<boolean> =>
-  executeChangedRow(deleteFrom(tables.api_keys).where({ id, user_id: userId }));
+  executeChangedRow(deleteFrom(tables.api_keys).where({ id, userId }));
 
 /**
  * Update last_used timestamp for an API key.
@@ -122,5 +122,5 @@ export const deleteApiKey = async (
 export const touchApiKeyLastUsed = async (id: number): Promise<void> => {
   const override = getTouchOverride();
   if (override) throw override;
-  await execute(update(tables.api_keys, { last_used: nowIso() }).where({ id }));
+  await execute(update(tables.api_keys, { lastUsed: nowIso() }).where({ id }));
 };

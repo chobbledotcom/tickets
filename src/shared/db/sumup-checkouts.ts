@@ -66,15 +66,15 @@ export const storeSumupCheckout = async (
   ]);
   await execute(
     insertInto(tables.sumup_checkouts, {
-      created_at: nowIso(),
+      createdAt: nowIso(),
       metadata: ciphertext,
       // No checkout id yet, so there is nothing to ask SumUp about and nothing
       // to schedule. Both land together when creation succeeds.
-      next_check_at: null,
-      recovery_state: "staged",
-      reference_index: referenceIndex,
-      sumup_id: "",
-      wrapped_key: wrappedKey,
+      nextCheckAt: null,
+      recoveryState: "staged",
+      referenceIndex,
+      sumupId: "",
+      wrappedKey,
     }),
   );
 };
@@ -98,11 +98,11 @@ export const setSumupCheckoutId = async (
 ): Promise<void> => {
   const changed = await changeSumupCheckouts(
     {
-      next_check_at: isoAfter(SUMUP_FIRST_CHECK_MS),
-      recovery_state: recoveryMoveTo("staged", "checkout_created"),
-      sumup_id: sumupId,
+      nextCheckAt: isoAfter(SUMUP_FIRST_CHECK_MS),
+      recoveryState: recoveryMoveTo("staged", "checkout_created"),
+      sumupId,
     },
-    { recovery_state: "staged", reference_index: await hmacHash(reference) },
+    { recoveryState: "staged", referenceIndex: await hmacHash(reference) },
   );
   // The hosted URL must never reach a customer while this checkout's
   // callbacks are still refused as unknown. Creation fails here — before the

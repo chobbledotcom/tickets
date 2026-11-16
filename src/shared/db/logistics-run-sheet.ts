@@ -306,18 +306,18 @@ export const setLegDone = async (
     // crafted delivery form can't mark a hidden ghost's drop-off/collection done.
     update(
       tables.listing_attendees,
-      isStart ? { start_done: mark } : { end_done: mark },
+      isStart ? { startDone: mark } : { endDone: mark },
     ).where((row) => [
       ...attendeeListingRows(attendeeId, listingId)(row),
       equal(
         valued<string | null>(
           isStart
-            ? sql`DATE(${row.start_at})`
-            : sql`DATE(${row.end_at}, '-1 day')`,
+            ? sql`DATE(${row.startAt})`
+            : sql`DATE(${row.endAt}, '-1 day')`,
         ),
         date,
       ),
-      among(isStart ? row.start_agent_id : row.end_agent_id, agentIds),
+      among(isStart ? row.startAgentId : row.endAgentId, agentIds),
       greaterThan(row.quantity, 0),
     ]),
   );

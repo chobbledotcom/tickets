@@ -30,8 +30,8 @@ import type { SitePage } from "#types";
 /** The nav columns of every page: id, slug, name, sort_order and hidden.
  * Only slug and name are decrypted. */
 const navRowsRead = from(tables.site_pages)
-  .sortedBy("sort_order", "id")
-  .pick("hidden", "id", "name", "slug", "sort_order");
+  .sortedBy("sortOrder", "id")
+  .pick("hidden", "id", "name", "slug", "sortOrder");
 
 // Request-scoped cache over those columns: computed once per request, and
 // cleared on any write to site_pages.
@@ -98,7 +98,7 @@ export const createSitePage = (
   sitePageWrites.create(
     input,
     async (tx) => ({
-      sort_order: await sitePageOrder.next({ transaction: tx }),
+      sortOrder: await sitePageOrder.next({ transaction: tx }),
     }),
     transaction,
   );

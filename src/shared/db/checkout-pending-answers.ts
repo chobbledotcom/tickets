@@ -42,17 +42,17 @@ export const stageCheckoutAnswers = async (
     insertInto(
       tables.checkout_pending_answers,
       {
-        created_at: nowIso(),
-        link_ends_at: linkEndsAt,
+        createdAt: nowIso(),
+        linkEndsAt,
         sealed: await encrypt(
           stringRecordJson.write(texts, "checkout answers"),
         ),
-        session_index: await hmacHash(sessionId),
+        sessionIndex: await hmacHash(sessionId),
       },
       {
         onConflict: {
-          on: ["session_index"],
-          take: ["sealed", "created_at", "link_ends_at"],
+          on: ["sessionIndex"],
+          take: ["sealed", "createdAt", "linkEndsAt"],
         },
       },
     ),
@@ -91,5 +91,5 @@ export const dropCheckoutAnswersStatement = async (
   sessionId: string,
 ): Promise<SqlStatement> =>
   deleteFrom(tables.checkout_pending_answers).where({
-    session_index: await hmacHash(sessionId),
+    sessionIndex: await hmacHash(sessionId),
   });

@@ -17,7 +17,7 @@ import {
 } from "#db/client.ts";
 import type { TableHandle, TableName } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
-import { type ColumnName, deleteFrom, rowsWith } from "#db/write.ts";
+import { type ColumnName, columnSql, deleteFrom, rowsWith } from "#db/write.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -92,8 +92,8 @@ const linkRowsStatement = (
   valueColumn: string,
   condition: SqlStatement,
 ): SqlStatement => {
-  const key = sqlName(keyColumn);
-  const value = sqlName(valueColumn);
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
   return sql`SELECT ${key} AS key_id, ${value} AS value_id
           FROM ${sqlName(table)}
          WHERE ${condition}
@@ -113,7 +113,7 @@ const byKeysStatement = (
     table,
     keyColumn,
     valueColumn,
-    sql`${sqlName(keyColumn)} IN (${sqlList(keyIds)})`,
+    sql`${columnSql(keyColumn)} IN (${sqlList(keyIds)})`,
   );
 
 /** Bucket link rows under their key. Every requested key comes back, including
@@ -166,8 +166,8 @@ export const linkTableSide: OverLinkTable<
 ) => {
   const table = handle.name;
   const linkTable = sqlName(table);
-  const key = sqlName(keyColumn);
-  const value = sqlName(valueColumn);
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
 
   const clearStatement = (keyId: number): SqlStatement =>
     deleteFrom(handle).where(rowsWith(handle, keyColumn, keyId));
@@ -276,9 +276,7 @@ export const selfLinkTableSides: OverLinkTable<SelfLinkTableSides> = (
         table,
         keyColumn,
         valueColumn,
-        sql`${sqlName(keyColumn)} IN (${boundIds}) OR ${sqlName(
-          valueColumn,
-        )} IN (${boundIds})`,
+        sql`${columnSql(keyColumn)} IN (${boundIds}) OR ${columnSql(valueColumn)} IN (${boundIds})`,
       ),
     );
     for (const { key_id, value_id } of rows) {

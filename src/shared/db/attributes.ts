@@ -53,8 +53,8 @@ export const { children: attributeOptionsOrder, list: attributesOrder } =
 
 export const listingAttributeOptions = linkTableSide(
   tables.listing_attribute_options,
-  "listing_id",
-  "option_id",
+  "listingId",
+  "optionId",
 );
 
 /** The columns of an attribute and of one of its options. The client decodes
@@ -65,10 +65,10 @@ const ATTRIBUTE_COLUMNS = (() => {
   return pickedColumns({
     attribute_id: attribute.id,
     attribute_name: attribute.name,
-    attribute_sort_order: attribute.sort_order,
-    option_attribute_id: option.attribute_id,
+    attribute_sort_order: attribute.sortOrder,
+    option_attribute_id: option.attributeId,
     option_id: option.id,
-    option_sort_order: option.sort_order,
+    option_sort_order: option.sortOrder,
     option_text: option.text,
   });
 })();
@@ -96,16 +96,16 @@ const rowOption = (row: JoinedAttributeRow): AttributeOption | null =>
   row.option_id === null
     ? null
     : {
-        attribute_id: row.option_attribute_id!,
+        attributeId: row.option_attribute_id!,
         id: row.option_id,
-        sort_order: row.option_sort_order!,
+        sortOrder: row.option_sort_order!,
         text: row.option_text!,
       };
 
 const rowAttribute = (row: JoinedAttributeRow): Attribute => ({
   id: row.attribute_id,
   name: row.attribute_name,
-  sort_order: row.attribute_sort_order,
+  sortOrder: row.attribute_sort_order,
 });
 
 const collectUniqueAttributes = (
@@ -212,9 +212,7 @@ export const getAttributeId = async (id: number): Promise<number | null> =>
   (await queryOne(records.attributes.byId(id).limit(1).pick("id")))?.id ?? null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
-  queryIdColumn(
-    from(tables.attributes).sortedBy("sort_order", "id").pick("id"),
-  );
+  queryIdColumn(from(tables.attributes).sortedBy("sortOrder", "id").pick("id"));
 
 /** The submitted option ids the site has. Unknown ids drop out. The order
  * and any duplicates of the submitted list are kept. */
@@ -258,13 +256,13 @@ export const getAttributeListingUse = async (
 ): Promise<AttributeListingUse> => {
   const rows = await readRows(
     from(tables.listing_attribute_options, { listing: {}, option: {} })
-      .where((link) => equal(link.option.attribute_id, attributeId))
-      .sortedBy("option_id", "listing_id")
+      .where((link) => equal(link.option.attributeId, attributeId))
+      .sortedBy("optionId", "listingId")
       .select((link) => ({
         active: link.listing.active,
         id: link.listing.id,
         name: link.listing.name,
-        option_id: link.option_id,
+        option_id: link.optionId,
       })),
   );
   type OptionListingRow = (typeof rows)[number];
@@ -295,7 +293,7 @@ export const deleteAttribute = (attributeId: number): Promise<void> =>
   executeBatch([
     ...optionRemoval(
       from(tables.attribute_options)
-        .where({ attribute_id: attributeId })
+        .where({ attributeId })
         .values((option) => option.id),
     ),
     deleteFrom(tables.attributes).where({ id: attributeId }),

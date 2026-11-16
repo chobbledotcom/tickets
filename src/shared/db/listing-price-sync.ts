@@ -22,7 +22,7 @@ import { chunk } from "#fp";
  *  from. `unit_price` may be NULL (mirrored as 0). */
 const ListingPriceSourceRowSchema = v.object({
   id: v.number(),
-  unit_price: v.nullable(v.number()),
+  unitPrice: v.nullable(v.number()),
 });
 
 /** The source check every guarded write shares: only a numeric or NULL
@@ -36,12 +36,12 @@ const numericUnitPrice = (unitPrice: SqlStatement): Expr<boolean> =>
  *  still write a clean mirror. */
 const guardedBaseDelete = (listingId: number) =>
   deleteFrom(tables.listing_prices).where((price) => [
-    equal(price.listing_id, listingId),
-    equal(price.price_type, PRICE_TYPE_BASE),
+    equal(price.listingId, listingId),
+    equal(price.priceType, PRICE_TYPE_BASE),
     from(tables.listings)
       .where((listing) => [
         equal(listing.id, listingId),
-        numericUnitPrice(listing.unit_price),
+        numericUnitPrice(listing.unitPrice),
       ])
       .exists(),
   ]);
@@ -75,7 +75,7 @@ export const syncListingPricesForIds = async (
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
     const statements = [
-      records.listings.byId(page).pick("id", "unit_price"),
+      records.listings.byId(page).pick("id", "unitPrice"),
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
     ];
     const results = await batchOnScope(statements, transaction);

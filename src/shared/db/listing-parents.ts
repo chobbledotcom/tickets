@@ -43,8 +43,8 @@ import type { ListingWithCount } from "#types";
  * the discovery, feed, and listing-save paths ask for both. */
 const listingEdges = selfLinkTableSides(
   tables.listing_parents,
-  "parent_listing_id",
-  "child_listing_id",
+  "parentListingId",
+  "childListingId",
 );
 
 /** A parent's chooseable children, keyed by parent id (relationship only):

@@ -38,7 +38,8 @@ import {
 } from "#shared/site-pages/target.ts";
 import type { SitePageItem, SitePageItemType } from "#types";
 
-const SELECT_COLS = sql`page_id, item_type, item_id, sort_order`;
+const SELECT_COLS = sql`page_id AS pageId, item_type AS itemType, item_id AS itemId,
+  sort_order AS sortOrder`;
 
 /** One item on one page — the composite key the edge table is unique on. */
 const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
@@ -162,7 +163,7 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
       ),
     );
     // Single-parent: the page must not already be nested elsewhere.
-    if (pageEdges.some((e) => e.item_id === itemId)) return false;
+    if (pageEdges.some((e) => e.itemId === itemId)) return false;
     // Acyclic: nesting it here must not close a loop (self or ancestor).
     // The walk needs only the child → parent edge map — never a page row.
     const parentByChild = pageParentMapFromEdges(pageEdges);
@@ -176,10 +177,10 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
   });
   await tx.execute(
     insertInto(tables.site_page_items, {
-      item_id: itemId,
-      item_type: itemType,
-      page_id: pageId,
-      sort_order: next,
+      itemId,
+      itemType,
+      pageId,
+      sortOrder: next,
     }),
   );
   return true;
@@ -223,7 +224,7 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    deleteFrom(tables.site_page_items).where({ page_id: pageId }),
+    deleteFrom(tables.site_page_items).where({ pageId }),
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
     deleteFrom(tables.site_pages).where({ id: pageId }),

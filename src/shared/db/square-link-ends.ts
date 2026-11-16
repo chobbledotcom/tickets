@@ -84,11 +84,11 @@ export const stageSquareLinkEnd = async (
   const state = squareLinkEndMoveTo("unwritten", "checkout_created");
   await execute(
     insertInto(tables.square_link_ends, {
-      created_at: nowIso(),
-      link_ends_at: linkEndsAt,
-      next_attempt_at: linkEndsAt,
-      sealed_handle: sealedHandle,
-      session_index: sessionIndex,
+      createdAt: nowIso(),
+      linkEndsAt,
+      nextAttemptAt: linkEndsAt,
+      sealedHandle,
+      sessionIndex,
       state,
     }),
   );
@@ -103,11 +103,11 @@ const moveRowAsRead = async (
 ): Promise<boolean> =>
   executeChangedRow(
     update(tables.square_link_ends, {
-      next_attempt_at: nextAttemptAt,
+      nextAttemptAt,
       state,
     }).where({
-      next_attempt_at: row.claimedAt,
-      session_index: row.sessionIndex,
+      nextAttemptAt: row.claimedAt,
+      sessionIndex: row.sessionIndex,
       state: row.state,
     }),
   );
@@ -162,7 +162,7 @@ const deleteSquareLinkEnd = async (
 ): Promise<boolean> =>
   executeChangedRow(
     deleteFrom(tables.square_link_ends).where({
-      session_index: sessionIndex,
+      sessionIndex,
       state,
       ...(claimedAt === undefined ? {} : { next_attempt_at: claimedAt }),
     }),

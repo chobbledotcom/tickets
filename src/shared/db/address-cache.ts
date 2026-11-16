@@ -87,9 +87,9 @@ export const storeCachedAddresses = async (
         results: await encrypt(
           cachedAddressesJson.write(addresses, "address_cache.results"),
         ),
-        search_index: searchIndex,
+        searchIndex,
       },
-      { onConflict: { on: ["search_index"], take: ["results", "created"] } },
+      { onConflict: { on: ["searchIndex"], take: ["results", "created"] } },
     ),
   );
 };

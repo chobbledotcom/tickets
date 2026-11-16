@@ -62,8 +62,8 @@ const priceDimensionDelete =
   (priceType: string) =>
   (listingId: number): SqlStatement =>
     deleteFrom(tables.listing_prices).where({
-      listing_id: listingId,
-      price_type: priceType,
+      listingId,
+      priceType,
     });
 
 /** A SINGLE multi-row INSERT over the managed price rows, or no statement when
@@ -80,7 +80,7 @@ const multiInsertPriceStatements = (
 const priceIdLike = (
   price: Node<"listing_prices">,
   pattern: string,
-): Expr<boolean> => wholeCondition(sql`${price.price_id} LIKE ${pattern}`);
+): Expr<boolean> => wholeCondition(sql`${price.priceId} LIKE ${pattern}`);
 
 /** The delete-then-insert statements that make a package group's `group_day`
  * rows exactly match the submitted members — a full replace per group, so a
@@ -97,16 +97,16 @@ export const groupDayPriceStatements = (
       parseDayPrices(member.dayPrices || {}),
     )) {
       rows.push({
-        listing_id: member.listingId,
-        price_id: groupDayPriceId(groupId, days),
-        price_type: PRICE_TYPE_GROUP_DAY,
-        unit_price: price,
+        listingId: member.listingId,
+        priceId: groupDayPriceId(groupId, days),
+        priceType: PRICE_TYPE_GROUP_DAY,
+        unitPrice: price,
       });
     }
   }
   return [
     deleteFrom(tables.listing_prices).where((stored) => [
-      equal(stored.price_type, PRICE_TYPE_GROUP_DAY),
+      equal(stored.priceType, PRICE_TYPE_GROUP_DAY),
       priceIdLike(stored, groupDayPriceId(groupId, "%")),
     ]),
     ...multiInsertPriceStatements(rows),
@@ -134,16 +134,16 @@ export const groupFlatPriceStatements = (
     member.price === null || member.price === undefined
       ? null
       : {
-          listing_id: member.listingId,
-          price_id: String(groupId),
-          price_type: PRICE_TYPE_GROUP,
-          unit_price: member.price,
+          listingId: member.listingId,
+          priceId: String(groupId),
+          priceType: PRICE_TYPE_GROUP,
+          unitPrice: member.price,
         },
   )(members);
   return [
     deleteFrom(tables.listing_prices).where({
-      price_id: String(groupId),
-      price_type: PRICE_TYPE_GROUP,
+      priceId: String(groupId),
+      priceType: PRICE_TYPE_GROUP,
     }),
     ...multiInsertPriceStatements(rows),
   ];
@@ -166,14 +166,14 @@ export const removeGroupPricesStatement = (
   if (groupIds.length === 0 || listingIds.length === 0) return null;
   const idText = groupIds.map(String);
   return deleteFrom(tables.listing_prices).where((price) => [
-    among(price.listing_id, listingIds),
+    among(price.listingId, listingIds),
     or(
       and(
-        equal(price.price_type, literal(PRICE_TYPE_GROUP)),
-        among(price.price_id, idText),
+        equal(price.priceType, literal(PRICE_TYPE_GROUP)),
+        among(price.priceId, idText),
       ),
       and(
-        equal(price.price_type, literal(PRICE_TYPE_GROUP_DAY)),
+        equal(price.priceType, literal(PRICE_TYPE_GROUP_DAY)),
         // Each group's group_day price_ids are "<groupId>/<n>". The trailing
         // "/" keeps the LIKE exact: group 1's "1/%" never matches "12/3".
         or(...groupIds.map((id) => priceIdLike(price, `${id}/%`))),
@@ -267,10 +267,10 @@ export const dayCountPriceStatements = (
 ): SqlStatement[] => {
   const rows = Object.entries(parseDayPrices(dayPrices || {})).map(
     ([days, price]): PriceRow => ({
-      listing_id: listingId,
-      price_id: days,
-      price_type: PRICE_TYPE_DAY_COUNT,
-      unit_price: price,
+      listingId: listingId,
+      priceId: days,
+      priceType: PRICE_TYPE_DAY_COUNT,
+      unitPrice: price,
     }),
   );
   return [
@@ -282,8 +282,8 @@ export const dayCountPriceStatements = (
 /** One `listing_prices` `day_count` row: the day count it prices and its
  * per-unit price. */
 const DayCountPriceRowSchema = v.object({
-  price_id: v.string(),
-  unit_price: v.number(),
+  priceId: v.string(),
+  unitPrice: v.number(),
 });
 
 /** One listing's per-day-count prices from its `day_count` rows, as a
@@ -295,12 +295,12 @@ export const getListingDayPrices = async (
 ): Promise<DayPrices> => {
   const result = await execute(
     from(tables.listing_prices)
-      .where({ listing_id: listingId, price_type: PRICE_TYPE_DAY_COUNT })
-      .pick("price_id", "unit_price"),
+      .where({ listingId, priceType: PRICE_TYPE_DAY_COUNT })
+      .pick("priceId", "unitPrice"),
   );
   const dayPrices: DayPrices = {};
   for (const row of v.parse(v.array(DayCountPriceRowSchema), result.rows)) {
-    dayPrices[Number(row.price_id)] = row.unit_price;
+    dayPrices[Number(row.priceId)] = row.unitPrice;
   }
   return parseDayPrices(dayPrices);
 };

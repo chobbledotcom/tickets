@@ -13,8 +13,8 @@ export type SluggedContentInput = {
 /** The columns of the shared content fields. */
 export const contentValues = (input: Required<SluggedContentInput>) => ({
   content: input.content,
-  meta_description: input.metaDescription,
-  meta_title: input.metaTitle,
+  metaDescription: input.metaDescription,
+  metaTitle: input.metaTitle,
   name: input.name,
   slug: input.slug,
 });

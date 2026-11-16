@@ -48,7 +48,7 @@ import type {
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
 
-/** The stored modifier row. `total_revenue` is not a column: every loader
+/** The stored modifier row. `totalRevenue` is not a column: every loader
  * projects it from the transfers ledger ({@link modifierRevenueSubquery}). */
 export type ModifierRow = DecodedRowOf<"modifiers">;
 
@@ -84,17 +84,17 @@ const STORED_COLUMNS = everyColumnPicked(tables.modifiers, "modifiers");
  * surrounding query (always qualified — `modifiers.id` — because the correlated
  * subquery's FROM is `transfers`, which also has an `id`). Reused by every
  * modifier loader so revenue is read from the ledger in exactly one place,
- * never off the now-dropped column. The trailing `AS total_revenue` names the
+ * never off the now-dropped column. The trailing `AS totalRevenue` names the
  * projected column.
  */
 const modifierRevenueSubquery = (): SqlStatement =>
-  sql`${accountBalanceSubquery("modifier", MODIFIER_ROW.id)} AS total_revenue`;
+  sql`${accountBalanceSubquery("modifier", MODIFIER_ROW.id)} AS totalRevenue`;
 
-/** A modifier row with the ledger-projected total_revenue its loader selected.
+/** A modifier row with the ledger-projected totalRevenue its loader selected.
  * SQLite can give the sum back as a bigint. */
 const withRevenue = (
-  row: ModifierRow & { total_revenue: number | bigint },
-): Modifier => ({ ...row, total_revenue: Number(row.total_revenue) });
+  row: ModifierRow & { totalRevenue: number | bigint },
+): Modifier => ({ ...row, totalRevenue: Number(row.totalRevenue) });
 
 const modifierSelect = (parts: readonly Condition[]): SqlStatement =>
   STORED_COLUMNS.decoded(
@@ -102,7 +102,7 @@ const modifierSelect = (parts: readonly Condition[]): SqlStatement =>
   );
 
 /** The rows of a modifier read. */
-type StoredModifier = ModifierRow & { total_revenue: number | bigint };
+type StoredModifier = ModifierRow & { totalRevenue: number | bigint };
 
 /** Read the modifiers the clauses select, decrypted, oldest first. */
 const queryModifiersWhere = async (
@@ -130,7 +130,7 @@ export const getActiveModifiers = async (tx?: TxScope): Promise<Modifier[]> => {
 };
 
 /** Get a single modifier by id, decrypted, with its ledger-projected
- * total_revenue — the single-row read the admin edit/recalculate pages use, so
+ * totalRevenue — the single-row read the admin edit/recalculate pages use, so
  * they see the projected figure rather than the dropped column (the bare
  * a plain read of the table returns only the stored {@link ModifierRow}). */
 export const getModifier = async (id: number): Promise<Modifier | null> => {
@@ -140,7 +140,7 @@ export const getModifier = async (id: number): Promise<Modifier | null> => {
   return row ? withRevenue(row) : null;
 };
 
-export const MODIFIER_AGGREGATE_FIELDS = ["total_uses", "usage_count"] as const;
+export const MODIFIER_AGGREGATE_FIELDS = ["totalUses", "usageCount"] as const;
 
 export type ModifierAggregateField = (typeof MODIFIER_AGGREGATE_FIELDS)[number];
 
@@ -150,7 +150,7 @@ export type ModifierAggregateRecalculation =
   AggregateRecalculation<ModifierAggregateField>;
 
 /** The modifier count aggregates as they would be if rebuilt from usage rows.
- * Takes the stored {@link ModifierRow} — total_revenue is no longer a
+ * Takes the stored {@link ModifierRow} — totalRevenue is no longer a
  * recalculable aggregate (it projects from the ledger), so only the counts are
  * compared. */
 export const getModifierAggregateRecalculation = async (
@@ -158,16 +158,16 @@ export const getModifierAggregateRecalculation = async (
 ): Promise<ModifierAggregateRecalculation> => {
   const row = await requireOne<ModifierAggregateValues>(
     sql`SELECT
-       COALESCE(SUM(quantity), 0) AS total_uses,
-       COUNT(*) AS usage_count
+       COALESCE(SUM(quantity), 0) AS totalUses,
+       COUNT(*) AS usageCount
      FROM modifier_usages
      WHERE modifier_id = ${modifier.id}`,
   );
   return {
-    total_uses: { current: modifier.total_uses, recalculated: row.total_uses },
-    usage_count: {
-      current: modifier.usage_count,
-      recalculated: row.usage_count,
+    totalUses: { current: modifier.totalUses, recalculated: row.totalUses },
+    usageCount: {
+      current: modifier.usageCount,
+      recalculated: row.usageCount,
     },
   };
 };
@@ -186,8 +186,8 @@ export const adjustModifierRevenue = inOwnTx(ledgerTx.correct.modifierRevenue);
 /** Write the operator's typed modifier aggregates, or rebuild chosen ones from
  * the usage rows they count. */
 export const modifierAggregates = aggregateRepairs(tables.modifiers, {
-  total_uses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
-  usage_count: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
+  totalUses: sql`COALESCE((SELECT SUM(quantity) FROM modifier_usages WHERE modifier_id = modifiers.id), 0)`,
+  usageCount: sql`(SELECT COUNT(*) FROM modifier_usages WHERE modifier_id = modifiers.id)`,
 });
 
 /** The listings a "listings"-scoped modifier is charged on, keyed by modifier
@@ -195,16 +195,16 @@ export const modifierAggregates = aggregateRepairs(tables.modifiers, {
  * on save (deduped, idempotent). */
 export const modifierListings = linkTableSide(
   tables.modifier_listings,
-  "modifier_id",
-  "listing_id",
+  "modifierId",
+  "listingId",
 );
 
 /** The groups a "groups"-scoped modifier is charged on, keyed by modifier id —
  * same shape as {@link modifierListings}. */
 export const modifierGroups = linkTableSide(
   tables.modifier_groups,
-  "modifier_id",
-  "group_id",
+  "modifierId",
+  "groupId",
 );
 
 type ModifierListingLinkRow = { listing_id: number; modifier_id: number };
@@ -257,9 +257,7 @@ export const getModifierGroupListingIdsByModifierId =
 /** Answer ids an "answer"-triggered modifier is linked to (for the admin
  * editor) — i.e. the answers whose modifier_id points at this modifier. */
 export const getModifierAnswerIds = (modifierId: number): Promise<number[]> =>
-  queryIdColumn(
-    from(tables.answers).where({ modifier_id: modifierId }).pick("id"),
-  );
+  queryIdColumn(from(tables.answers).where({ modifierId }).pick("id"));
 
 /** Point the given answers at an "answer"-triggered modifier (and clear any
  * answers previously pointing at it), so saving the editor is idempotent and
@@ -271,11 +269,11 @@ export const setModifierAnswers = (
   answerIds: number[],
 ): Promise<void> =>
   executeBatch([
-    update(tables.answers, { modifier_id: null }).where({
-      modifier_id: modifierId,
+    update(tables.answers, { modifierId: null }).where({
+      modifierId,
     }),
     ...answerIds.map((id) =>
-      update(tables.answers, { modifier_id: modifierId }).where({ id }),
+      update(tables.answers, { modifierId }).where({ id }),
     ),
   ]);
 
@@ -290,11 +288,11 @@ export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
         from(tables.answers)
           .where((answer) => [
             among(answer.id, answerIds),
-            notEqual(answer.modifier_id, null),
+            notEqual(answer.modifierId, null),
           ])
-          .pick("id", "modifier_id"),
+          .pick("id", "modifierId"),
       )
-    ).flatMap(({ id, modifier_id }) =>
-      modifier_id === null ? [] : [[id, [modifier_id]] as const],
+    ).flatMap(({ id, modifierId }) =>
+      modifierId === null ? [] : [[id, [modifierId]] as const],
     ),
   );

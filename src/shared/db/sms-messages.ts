@@ -33,10 +33,10 @@ export const recordSmsMessage = async (input: {
 }): Promise<void> => {
   await execute(
     insertInto(tables.sms_messages, {
-      attendee_id: input.attendeeId,
+      attendeeId: input.attendeeId,
       created: nowIso(),
-      listing_id: input.listingId,
-      provider_id: input.providerId,
+      listingId: input.listingId,
+      providerId: input.providerId,
     }),
   );
 };

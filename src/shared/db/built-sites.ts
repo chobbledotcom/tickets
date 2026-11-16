@@ -44,17 +44,17 @@ const siteColumns = (
   input: Partial<BuiltSitePlainFields> & Partial<BuiltSiteBlobInput>,
 ) => ({
   ...plainColumnValues(input),
-  site_data: buildSiteDataBlobFromInput(input),
+  siteData: buildSiteDataBlobFromInput(input),
 });
 
 /** Convert a stored row to a BuiltSite. */
 const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
-  const blob = parseSiteDataBlob(row.site_data);
+  const blob = parseSiteDataBlob(row.siteData);
   return {
     ...(Object.fromEntries(
       builtSitePlainColumns.map((column) => [
         column.siteKey,
-        column.fromRow(row[column.dbKey] as never),
+        column.fromRow(row[column.siteKey] as never),
       ]),
     ) as BuiltSitePlainFields),
     ...blobToSiteFields(blob),
@@ -120,7 +120,7 @@ const storeBuiltSiteChanges = async (
           ...changes,
           siteDataRevision: existing.siteDataRevision + 1,
         }),
-        (site) => equal(site.site_data_revision, existing.siteDataRevision),
+        (site) => equal(site.siteDataRevision, existing.siteDataRevision),
       ),
     ),
   );
@@ -207,7 +207,7 @@ export const getBuiltSiteByRenewalTokenIndex = (
   tokenIndex: string,
 ): Promise<BuiltSite | null> =>
   builtSiteOrNull(
-    records.built_sites.findWhere({ renewal_token_index: tokenIndex }),
+    records.built_sites.findWhere({ renewalTokenIndex: tokenIndex }),
   );
 
 /** Update built site renewal state: token index, deadline, and renewal blob together */

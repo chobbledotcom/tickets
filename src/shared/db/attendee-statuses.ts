@@ -96,12 +96,12 @@ export type StatusDeleteBlocker = Exclude<
  *  the delete can proceed (freely, or through a reassign choice). The delete
  *  command refuses in exactly this order. The delete page predicts it. */
 export const statusDeleteBlocker = (
-  status: Pick<AttendeeStatus, "is_paid_default" | "is_public_default">,
+  status: Pick<AttendeeStatus, "isPaidDefault" | "isPublicDefault">,
   anotherStatusExists: boolean,
 ): StatusDeleteBlocker | null => {
   if (!anotherStatusExists) return "last_status";
-  if (status.is_public_default) return "public_default";
-  if (status.is_paid_default) return "paid_default";
+  if (status.isPublicDefault) return "public_default";
+  if (status.isPaidDefault) return "paid_default";
   return null;
 };
 
@@ -130,7 +130,7 @@ export const statusDeleteProspects = async (
  * encrypted, and its codec decrypts it. */
 export const attendeeStatuses = requestCachedRows(
   tables.attendee_statuses,
-  (rows) => rows.sortedBy("sort_order", "id").everyColumn(),
+  (rows) => rows.sortedBy("sortOrder", "id").everyColumn(),
 );
 
 export const attendeeStatusOrder = defineOrderedCollection({
@@ -153,7 +153,7 @@ export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
 
 /** Get the status carrying a required default flag. */
 const getFlaggedStatus =
-  (flag: "is_public_default" | "is_paid_default") =>
+  (flag: "isPublicDefault" | "isPaidDefault") =>
   async (): Promise<AttendeeStatus> =>
     requireValue(
       await findStatus((item) => item[flag]),
@@ -162,11 +162,11 @@ const getFlaggedStatus =
 
 /** The status new public bookings start in. */
 export const requirePublicDefaultStatus: () => Promise<AttendeeStatus> =
-  getFlaggedStatus("is_public_default");
+  getFlaggedStatus("isPublicDefault");
 
 /** The status an attendee moves to once a reservation balance is paid. */
 export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
-  getFlaggedStatus("is_paid_default");
+  getFlaggedStatus("isPaidDefault");
 
 /** The id of the public-default status. */
 export const requirePublicStatusId = async (): Promise<number> =>
@@ -182,7 +182,7 @@ export const publicDefaultStatusOf = (
   statuses: readonly AttendeeStatus[],
 ): AttendeeStatus =>
   requireValue(
-    statuses.find((status) => status.is_public_default),
+    statuses.find((status) => status.isPublicDefault),
     "No public default status is configured",
   );
 
@@ -191,11 +191,11 @@ export const publicDefaultStatusOf = (
 const statusDefaults = (id: number) =>
   from(tables.attendee_statuses)
     .where({ id })
-    .pick("is_paid_default", "is_public_default", "sort_order");
+    .pick("isPaidDefault", "isPublicDefault", "sortOrder");
 
 type DefaultRow = Pick<
   AttendeeStatus,
-  "is_paid_default" | "is_public_default" | "sort_order"
+  "isPaidDefault" | "isPublicDefault" | "sortOrder"
 >;
 
 const executeStatusWrite = async (
@@ -218,10 +218,10 @@ const defaultChangeError = (
   current: DefaultRow,
   input: AttendeeStatusWriteInput,
 ): AttendeeStatusSaveError | null => {
-  if (current.is_public_default && !input.isPublicDefault) {
+  if (current.isPublicDefault && !input.isPublicDefault) {
     return "public_default_required";
   }
-  return current.is_paid_default && !input.isPaidDefault
+  return current.isPaidDefault && !input.isPaidDefault
     ? "paid_default_required"
     : null;
 };
@@ -232,7 +232,7 @@ const clearChosenDefaults = async (
   input: AttendeeStatusWriteInput,
 ): Promise<void> => {
   const clearDefault = async (
-    column: "is_public_default" | "is_paid_default",
+    column: "isPublicDefault" | "isPaidDefault",
   ): Promise<void> => {
     await executeStatusWrite(
       tx,
@@ -243,10 +243,10 @@ const clearChosenDefaults = async (
     );
   };
   if (input.isPublicDefault) {
-    await clearDefault("is_public_default");
+    await clearDefault("isPublicDefault");
   }
   if (input.isPaidDefault) {
-    await clearDefault("is_paid_default");
+    await clearDefault("isPaidDefault");
   }
 };
 
@@ -292,7 +292,7 @@ const saveStatus = (
             tables.attendee_statuses,
             input,
           ) as NewRecord<"attendee_statuses">),
-          sort_order: sortOrder,
+          sortOrder,
         }),
       ),
     );
@@ -333,7 +333,7 @@ const heldCountThrough = async (
   statusId: number,
 ): Promise<number> => {
   const rows = await readRows(
-    from(tables.attendees).where({ status_id: statusId }).count(),
+    from(tables.attendees).where({ statusId }).count(),
   );
   return Number(rows[0]!.count);
 };
@@ -365,8 +365,8 @@ const reassignHeldAttendees = async (
   const names = await reassignNameRows(tx, id, reassignTo);
   if (names === null) return null;
   await tx.execute(
-    update(tables.attendees, { status_id: reassignTo }).where({
-      status_id: id,
+    update(tables.attendees, { statusId: reassignTo }).where({
+      statusId: id,
     }),
   );
   await logActivity(
@@ -436,16 +436,16 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
   );
   if (existing.length > 0) return;
   const status = await records.attendee_statuses.insert({
-    is_paid_default: true,
-    is_public_default: true,
-    is_reservation: false,
+    isPaidDefault: true,
+    isPublicDefault: true,
+    isReservation: false,
     name: DEFAULT_ATTENDEE_STATUS_NAME,
-    reservation_amount: "0",
-    sort_order: 0,
+    reservationAmount: "0",
+    sortOrder: 0,
   });
   await execute(
-    update(tables.attendees, { status_id: status.id }).where({
-      status_id: null,
+    update(tables.attendees, { statusId: status.id }).where({
+      statusId: null,
     }),
   );
 };

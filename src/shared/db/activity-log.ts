@@ -44,10 +44,10 @@ export type StoredLogMessage = OwnerKeyEncrypted | EnvKeyEncrypted;
 
 /** Activity log entry as callers see it: the message decrypted to plaintext. */
 export interface ActivityLogEntry {
-  attendee_id: number | null;
+  attendeeId: number | null;
   created: string;
   id: number;
-  listing_id: number | null;
+  listingId: number | null;
   message: string;
 }
 
@@ -137,11 +137,11 @@ export const logActivities = async (
     activities.map(async (activity) => {
       const line = await sealedLine(activity, publicKey);
       return insertInto(tables.activity_log, {
-        attendee_id: activity.attendeeId ?? null,
+        attendeeId: activity.attendeeId ?? null,
         created: nowIso(),
-        listing_id: line.listingId,
+        listingId: line.listingId,
         message: line.message,
-      }).returning("id", "created", "attendee_id", "listing_id");
+      }).returning("id", "created", "attendeeId", "listingId");
     }),
   );
   const results = await batchOnScope(statements, transaction);
@@ -211,9 +211,9 @@ export const bookingActivityStatements = (
 ): SqlStatement[] =>
   activities.map((activity) =>
     insertInto(tables.activity_log, {
-      attendee_id: valued<number | null>(attendeeByToken(tokenIndex)),
+      attendeeId: valued<number | null>(attendeeByToken(tokenIndex)),
       created: nowIso(),
-      listing_id: activity.listingId,
+      listingId: activity.listingId,
       message: activity.message,
     }),
   );
@@ -245,7 +245,7 @@ const queryActivityLog = async (
   decryptLogRows(
     await readRows(
       // A null listing means "every listing", which is no filter at all.
-      newestEntries(listingId === null ? {} : { listing_id: listingId }, limit),
+      newestEntries(listingId === null ? {} : { listingId }, limit),
     ),
   );
 
@@ -271,9 +271,7 @@ export const getAttendeeActivityLog = async (
   attendeeId: number,
   limit = 100,
 ): Promise<ActivityLogEntry[]> =>
-  decryptLogRows(
-    await readRows(newestEntries({ attendee_id: attendeeId }, limit)),
-  );
+  decryptLogRows(await readRows(newestEntries({ attendeeId }, limit)));
 
 /** Result type for listing + activity log batch query */
 export type ListingWithActivityLog = {
@@ -291,7 +289,7 @@ export const getListingWithActivityLogOrNull = async (
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
     listingReader.statement({ where: { ids: [listingId] } }),
-    newestEntries({ listing_id: listingId }, limit),
+    newestEntries({ listingId }, limit),
   ]);
 
   const listingRow = resultRows<ListingRecordRow>(results[0]!)[0];

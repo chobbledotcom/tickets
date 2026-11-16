@@ -69,25 +69,25 @@ const unresolved = valued<boolean>(UNRESOLVED_RESERVATION);
 export const unresolvedSessionRow =
   (sessionId: string, ...more: Condition[]) =>
   (payment: Node<"processed_payments">): Condition[] => [
-    equal(payment.payment_session_id, sessionId),
+    equal(payment.paymentSessionId, sessionId),
     unresolved,
     ...more,
   ];
 
 /** Processed payment record */
 export type ProcessedPayment = {
-  payment_session_id: string;
-  attendee_id: number | null;
-  processed_at: string;
+  paymentSessionId: string;
+  attendeeId: number | null;
+  processedAt: string;
   /** Encrypted "+"-joined ticket tokens; "" while none are stored. */
-  ticket_tokens: EnvKeyEncrypted | "";
+  ticketTokens: EnvKeyEncrypted | "";
   /** Encrypted payment-row state carrying an outcome once a session reaches a
    * handled terminal failure (refund issued, sold out, price changed, …); ""
    * while a row is in-progress or finalized. The message can embed an
    * encrypted-at-rest listing name, so the whole state is encrypted too. */
-  failure_data: EnvKeyEncrypted | "";
+  failureData: EnvKeyEncrypted | "";
   /** Provider-specific refundable payment reference (e.g. Stripe pi_...). */
-  payment_reference: OwnerKeyEncrypted | "";
+  paymentReference: OwnerKeyEncrypted | "";
 };
 
 const FAILURE_DATA_CONTEXT = "processed_payments.failure_data";
@@ -130,7 +130,7 @@ export const deleteAllStaleReservations = async (): Promise<number> => {
   const result = await execute(
     deleteFrom(tables.processed_payments).where((payment) => [
       unresolved,
-      lessThan(payment.processed_at, cutoff),
+      lessThan(payment.processedAt, cutoff),
     ]),
   );
   return result.rowsAffected;
@@ -153,36 +153,36 @@ export const reserveSession = async (
     insertInto(
       tables.processed_payments,
       {
-        attendee_id: null,
-        payment_session_id: sessionId,
-        processed_at: claimedAt,
+        attendeeId: null,
+        paymentSessionId: sessionId,
+        processedAt: claimedAt,
       },
       {
         onConflict: {
-          on: ["payment_session_id"],
+          on: ["paymentSessionId"],
           set: () => ({
-            attendee_id: null,
-            failure_data: blank.failureData,
-            payment_reference: "",
-            payment_reference_index: "",
-            protected_state: blank.protectedState,
-            ticket_tokens: "",
+            attendeeId: null,
+            failureData: blank.failureData,
+            paymentReference: "",
+            paymentReferenceIndex: "",
+            protectedState: blank.protectedState,
+            ticketTokens: "",
           }),
-          take: ["processed_at"],
+          take: ["processedAt"],
           where: (row) =>
-            and(unresolved, lessThan(row.processed_at, staleBefore)),
+            and(unresolved, lessThan(row.processedAt, staleBefore)),
         },
       },
-    ).returning("payment_session_id"),
+    ).returning("paymentSessionId"),
     from(tables.processed_payments)
-      .where({ payment_session_id: sessionId })
+      .where({ paymentSessionId: sessionId })
       .pick(
-        "payment_session_id",
-        "attendee_id",
-        "processed_at",
-        "ticket_tokens",
-        "failure_data",
-        "payment_reference",
+        "paymentSessionId",
+        "attendeeId",
+        "processedAt",
+        "ticketTokens",
+        "failureData",
+        "paymentReference",
       ),
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -213,7 +213,7 @@ export const finalizeSessionIfUnresolved = async (
 ): Promise<void> => {
   if (paymentReference === null) {
     await execute(
-      update(tables.processed_payments, { attendee_id: attendeeId }).where(
+      update(tables.processed_payments, { attendeeId }).where(
         unresolvedSessionRow(sessionId),
       ),
     );
@@ -227,9 +227,9 @@ export const finalizeSessionIfUnresolved = async (
   await withTransaction(async (tx) => {
     const finalized = await tx.execute(
       update(tables.processed_payments, {
-        attendee_id: attendeeId,
-        payment_reference: storedReference.encrypted,
-        payment_reference_index: storedReference.index,
+        attendeeId,
+        paymentReference: storedReference.encrypted,
+        paymentReferenceIndex: storedReference.index,
       }).where(unresolvedSessionRow(sessionId, valued(referenceClaim))),
     );
     if (finalized.rowsAffected > 0) return;
@@ -265,7 +265,7 @@ export const prepareSessionFailure = async (
   failure: StoredPaymentFailure,
 ): Promise<PreparedSessionFailure> => ({
   statement: update(tables.processed_payments, {
-    failure_data: await encrypt(storedSessionFailure(failure)),
+    failureData: await encrypt(storedSessionFailure(failure)),
   }).where(unresolvedSessionRow(sessionId)),
 });
 
@@ -312,11 +312,11 @@ export const advanceStoredOutcomeOnce = async (
   const toState = storedSessionFailure(to);
   const changed = await execute(
     update(tables.processed_payments, {
-      failure_data: await encrypt(toState),
+      failureData: await encrypt(toState),
     }).where({
-      attendee_id: null,
-      failure_data: fence,
-      payment_session_id: sessionId,
+      attendeeId: null,
+      failureData: fence,
+      paymentSessionId: sessionId,
     }),
   );
   if (changed.rowsAffected === 1) return;
@@ -399,7 +399,7 @@ export const decryptSessionTokens = async (
  * Clear stored ticket tokens for a session (after redirect has consumed them)
  */
 export const clearSessionTokens = sessionIdWrite((sessionId) =>
-  update(tables.processed_payments, { ticket_tokens: "" }).where({
-    payment_session_id: sessionId,
+  update(tables.processed_payments, { ticketTokens: "" }).where({
+    paymentSessionId: sessionId,
   }),
 );

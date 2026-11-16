@@ -1,8 +1,10 @@
 /** Atomic storage for the one provider-refund authority. */
 
 import type { ResultSet } from "@libsql/client";
+import { pick } from "@std/collections";
 import { execute, queryAll, queryOne, resultRows } from "#db/client.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
+import { pickedColumns } from "#db/picked-columns.ts";
 import {
   and,
   type Expr,
@@ -13,10 +15,10 @@ import {
   or,
   valued,
 } from "#db/select/expression.ts";
-import { from } from "#db/select/query.ts";
+import { from, tableNode } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlName, sqlNames } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
 import { type Money, sameMoney } from "#payment/money.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
@@ -49,31 +51,38 @@ export type RefundAuthorityVersion = Pick<
 >;
 
 type StoredRefundAuthorityRow = {
-  callback_replay_index: string | null;
-  captured_amount: number;
+  callbackReplayIndex: string | null;
+  capturedAmount: number;
   currency: Money["currency"];
   id: number;
   provider: PaymentProviderType;
-  reference_index: string;
-  refunded_amount: number;
-  refund_revision: number;
-  refund_state: string;
+  referenceIndex: string;
+  refundedAmount: number;
+  refundRevision: number;
+  refundState: string;
 };
 
 /** The columns of one refund authority that a read or a write gives back. */
 export const REFUND_AUTHORITY_COLUMN_NAMES = [
   "id",
   "provider",
-  "reference_index",
-  "callback_replay_index",
-  "captured_amount",
+  "referenceIndex",
+  "callbackReplayIndex",
+  "capturedAmount",
   "currency",
-  "refunded_amount",
-  "refund_state",
-  "refund_revision",
+  "refundedAmount",
+  "refundState",
+  "refundRevision",
 ] as const;
 
-const REFUND_AUTHORITY_COLUMNS = sqlNames(REFUND_AUTHORITY_COLUMN_NAMES);
+/** The same columns for a hand-written read of the table under the word
+ *  `charge`, each under its field name as `returning` gives it. */
+const REFUND_AUTHORITY_COLUMNS = pickedColumns(
+  pick(
+    tableNode(tables.payment_charges, "charge"),
+    REFUND_AUTHORITY_COLUMN_NAMES,
+  ),
+).list;
 
 /** No other charge holds the callback identity. */
 const noOtherCallbackOwner = (
@@ -84,8 +93,8 @@ const noOtherCallbackOwner = (
     from(tables.payment_charges)
       .as("callbackOwner")
       .where((owner) => [
-        equal(owner.callback_replay_index, callbackReplayIndex),
-        notEqual(owner.reference_index, referenceIndex),
+        equal(owner.callbackReplayIndex, callbackReplayIndex),
+        notEqual(owner.referenceIndex, referenceIndex),
       ])
       .exists(),
   );
@@ -95,20 +104,17 @@ const callbackOrElse = (
   charge: Node<"payment_charges">,
   fallback: Operand<string | null>,
 ): Expr<string | null> =>
-  valued(sql`COALESCE(${charge.callback_replay_index}, ${fallback})`);
+  valued(sql`COALESCE(${charge.callbackReplayIndex}, ${fallback})`);
 
 const authorityRow = (row: StoredRefundAuthorityRow): RefundAuthorityRow => ({
-  callbackReplayIndex: row.callback_replay_index,
-  captured: { amount: Number(row.captured_amount), currency: row.currency },
+  callbackReplayIndex: row.callbackReplayIndex,
+  captured: { amount: Number(row.capturedAmount), currency: row.currency },
   id: Number(row.id),
   provider: row.provider,
-  referenceIndex: row.reference_index,
-  refunded: { amount: Number(row.refunded_amount), currency: row.currency },
-  revision: Number(row.refund_revision),
-  state: readRefundAuthorityState(
-    row.refund_state,
-    `payment_charges ${row.id}`,
-  ),
+  referenceIndex: row.referenceIndex,
+  refunded: { amount: Number(row.refundedAmount), currency: row.currency },
+  revision: Number(row.refundRevision),
+  state: readRefundAuthorityState(row.refundState, `payment_charges ${row.id}`),
 });
 
 const oneAuthority = (
@@ -127,8 +133,8 @@ const loadRefundAuthority = async (
 ): Promise<RefundAuthorityRow | null> => {
   const row = await queryOne<StoredRefundAuthorityRow>(
     sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
-       FROM payment_charges
-      WHERE ${sqlName(field)} = ${value}`,
+       FROM payment_charges AS charge
+      WHERE ${sqlName(`charge.${field}`)} = ${value}`,
   );
   return row === null ? null : authorityRow(row);
 };
@@ -160,8 +166,8 @@ const loadRefundCallbackBinding = async ({
 }: RefundCallbackBinding): Promise<RefundAuthorityRow | null> => {
   const owners = await queryAll<StoredRefundAuthorityRow>(
     sql`SELECT ${REFUND_AUTHORITY_COLUMNS}
-       FROM payment_charges
-      WHERE reference_index = ${referenceIndex} OR callback_replay_index = ${callbackReplayIndex}`,
+       FROM payment_charges AS charge
+      WHERE charge.reference_index = ${referenceIndex} OR charge.callback_replay_index = ${callbackReplayIndex}`,
   );
   if (owners.length === 0) return null;
   if (owners.length === 1) {
@@ -184,11 +190,11 @@ export const bindRefundCallbackIfChargeExists = async (
 ): Promise<RefundAuthorityRow | null> => {
   const { callbackReplayIndex, referenceIndex } = binding;
   const statement = update(tables.payment_charges, (charge) => ({
-    callback_replay_index: callbackOrElse(charge, callbackReplayIndex),
+    callbackReplayIndex: callbackOrElse(charge, callbackReplayIndex),
   }))
     .where((charge) => [
-      equal(charge.reference_index, referenceIndex),
-      equal(charge.callback_replay_index, null),
+      equal(charge.referenceIndex, referenceIndex),
+      equal(charge.callbackReplayIndex, null),
       noOtherCallbackOwner(callbackReplayIndex, referenceIndex),
     ])
     .returning(...REFUND_AUTHORITY_COLUMN_NAMES);
@@ -253,45 +259,45 @@ const prepareRefundAuthorityWrite = async (
   const statement = insertInto(
     tables.payment_charges,
     {
-      callback_replay_index:
+      callbackReplayIndex:
         input.callbackReplayIndex === undefined
           ? null
           : input.callbackReplayIndex,
       capability: input.state.request.capability,
-      captured_amount: input.captured.amount,
-      created_at: input.now,
+      capturedAmount: input.captured.amount,
+      createdAt: input.now,
       currency: input.captured.currency,
-      next_refund_action_at: refundNextActionAt(input.state),
-      observed_at: input.now,
+      nextRefundActionAt: refundNextActionAt(input.state),
+      observedAt: input.now,
       provider: input.reference.provider,
-      provider_reference: stored.encrypted,
-      reference_index: stored.index,
-      refund_local_state: refundLocalMirror(input.state),
-      refund_revision: 1,
-      refund_state: writeRefundAuthorityState(input.state),
-      refund_state_name: refundStateMirror(input.state),
-      refunded_amount: 0,
-      updated_at: input.now,
+      providerReference: stored.encrypted,
+      referenceIndex: stored.index,
+      refundedAmount: 0,
+      refundLocalState: refundLocalMirror(input.state),
+      refundRevision: 1,
+      refundState: writeRefundAuthorityState(input.state),
+      refundStateName: refundStateMirror(input.state),
+      updatedAt: input.now,
     },
     {
       onConflict: {
         set: (row, excluded) => ({
-          callback_replay_index: callbackOrElse(
+          callbackReplayIndex: callbackOrElse(
             row,
-            excluded.callback_replay_index,
+            excluded.callbackReplayIndex,
           ),
         }),
         where: (row, excluded) =>
           and(
-            equal(row.reference_index, excluded.reference_index),
+            equal(row.referenceIndex, excluded.referenceIndex),
             or(
-              equal(excluded.callback_replay_index, null),
-              equal(row.callback_replay_index, null),
-              equal(row.callback_replay_index, excluded.callback_replay_index),
+              equal(excluded.callbackReplayIndex, null),
+              equal(row.callbackReplayIndex, null),
+              equal(row.callbackReplayIndex, excluded.callbackReplayIndex),
             ),
             noOtherCallbackOwner(
-              excluded.callback_replay_index,
-              excluded.reference_index,
+              excluded.callbackReplayIndex,
+              excluded.referenceIndex,
             ),
           ),
       },

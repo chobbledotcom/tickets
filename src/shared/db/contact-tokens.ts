@@ -44,12 +44,12 @@ export type WebhookBookingSource = BookingSource | "unknown";
 export type BookingToken = { source: BookingSource; token: string };
 
 /** Plaintext booking-count columns that the keyless public paths can touch. */
-type BookingCountColumn = "public_booking_count" | "admin_booking_count";
+type BookingCountColumn = "publicBookingCount" | "adminBookingCount";
 
 /** The plaintext booking-count column for each source. */
 const BOOKING_COLUMN: Record<BookingSource, BookingCountColumn> = {
-  admin: "admin_booking_count",
-  public: "public_booking_count",
+  admin: "adminBookingCount",
+  public: "publicBookingCount",
 };
 
 /** One-character tag stored before each ticket token in the encrypted list. */
@@ -153,7 +153,7 @@ const bookingActivityStatement = async (
     {
       where: (row) =>
         equal(
-          valued<number>(sql`INSTR(${row.attendee_tokens_blob}, ${marker})`),
+          valued<number>(sql`INSTR(${row.attendeeTokensBlob}, ${marker})`),
           0,
         ),
     },
@@ -165,7 +165,7 @@ const appendedTokens = (
   row: Node<"contact_preferences">,
   excluded: Node<"contact_preferences">,
 ): Expr<string> =>
-  valued(sql`${row.attendee_tokens_blob} || ${excluded.attendee_tokens_blob}`);
+  valued(sql`${row.attendeeTokensBlob} || ${excluded.attendeeTokensBlob}`);
 
 /** The counters of a contact row that one booking adds to. */
 type CountedColumn = "visits" | BookingCountColumn;
@@ -189,19 +189,19 @@ const tokenAppend = (
   insertInto(
     tables.contact_preferences,
     {
-      attendee_tokens_blob: encrypted,
-      contact_hash: hash,
-      last_activity: nowMs(),
+      attendeeTokensBlob: encrypted,
+      contactHash: hash,
+      lastActivity: nowMs(),
       ...countedValues(counted, () => 1),
     },
     {
       onConflict: {
-        on: ["contact_hash"],
+        on: ["contactHash"],
         set: (row, excluded) => ({
-          attendee_tokens_blob: appendedTokens(row, excluded),
+          attendeeTokensBlob: appendedTokens(row, excluded),
           ...countedValues(counted, (column) => plus(row[column], 1)),
         }),
-        take: ["last_activity"],
+        take: ["lastActivity"],
         ...guard,
       },
     },
@@ -275,18 +275,18 @@ const addBookingToken = async (
  *  caller transaction the read sees that transaction's own writes. */
 /** The sealed ticket tokens of one contact. */
 const tokenBlobOf = (hash: string) =>
-  preferenceOf(hash).pick("attendee_tokens_blob");
+  preferenceOf(hash).pick("attendeeTokensBlob");
 
 const loadTokenBlob = async (
   hash: string,
   transaction?: TxScope,
 ): Promise<string | null> => {
   const row = transaction
-    ? resultRows<{ attendee_tokens_blob: string }>(
+    ? resultRows<{ attendeeTokensBlob: string }>(
         await transaction.execute(tokenBlobOf(hash)),
       )[0]
-    : await queryOne<{ attendee_tokens_blob: string }>(tokenBlobOf(hash));
-  return row?.attendee_tokens_blob ?? null;
+    : await queryOne<{ attendeeTokensBlob: string }>(tokenBlobOf(hash));
+  return row?.attendeeTokensBlob ?? null;
 };
 
 /** Split a loaded token blob, treating a missing or empty blob as no tokens. */
@@ -370,11 +370,11 @@ const removeBookingToken = async (
   await writeTokenStatement(
     transaction,
     update(tables.contact_preferences, (row) => ({
-      attendee_tokens_blob: valued<string>(
-        sql`REPLACE(${row.attendee_tokens_blob}, ${`${match.raw}\n`}, '')`,
+      attendeeTokensBlob: valued<string>(
+        sql`REPLACE(${row.attendeeTokensBlob}, ${`${match.raw}\n`}, '')`,
       ),
-      last_activity: nowMs(),
-    })).where({ contact_hash: hash }),
+      lastActivity: nowMs(),
+    })).where({ contactHash: hash }),
   );
   return removed.source;
 };

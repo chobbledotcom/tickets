@@ -63,15 +63,15 @@ const recordFailureStatement = (values: TokenFailureValues): SqlStatement => {
     tables.token_attempts,
     {
       ip: values.hashedIp,
-      last_attempt: now,
-      locked_until: valued(
+      lastAttempt: now,
+      lockedUntil: valued(
         sql`CASE WHEN ${firstFull} THEN ${lockDeadline} ELSE NULL END`,
       ),
-      recent_tokens: when([[firstFull, "[]"]], newTokens),
-      window_start: now,
+      recentTokens: when([[firstFull, "[]"]], newTokens),
+      windowStart: now,
     },
     { onConflict: { on: ["ip"], set: laterFailure(values) } },
-  ).returning("locked_until");
+  ).returning("lockedUntil");
 };
 
 /** The changes to the stored row of an IP that failed before. */
@@ -79,11 +79,11 @@ const laterFailure =
   (values: TokenFailureValues) =>
   (row: Node<"token_attempts">): Changes<"token_attempts"> => {
     const { lockDeadline, newTokens, now, tokenLimit, windowMs } = values;
-    const tumbled = lessThan(row.window_start, now - windowMs);
+    const tumbled = lessThan(row.windowStart, now - windowMs);
 
     /** The stored tokens that still count: the saved set while the window is
      * live, an empty set once the window has tumbled. */
-    const liveTokens = when<string>([[tumbled, "[]"]], row.recent_tokens);
+    const liveTokens = when<string>([[tumbled, "[]"]], row.recentTokens);
 
     /** The live tokens and this request's tokens as one set (UNION removes
      * duplicates, so retries of a known token never grow the set). */
@@ -100,20 +100,20 @@ const laterFailure =
     const mergedJson = valued<string>(
       sql`(SELECT json_group_array(hashedToken.value) FROM ${unionTokens})`,
     );
-    const lockIsActive = greaterThan(row.locked_until, now);
+    const lockIsActive = greaterThan(row.lockedUntil, now);
     return {
-      last_attempt: now,
-      locked_until: valued(
-        sql`CASE WHEN ${lockIsActive} THEN ${row.locked_until} WHEN ${mergedFull} THEN ${lockDeadline} ELSE NULL END`,
+      lastAttempt: now,
+      lockedUntil: valued(
+        sql`CASE WHEN ${lockIsActive} THEN ${row.lockedUntil} WHEN ${mergedFull} THEN ${lockDeadline} ELSE NULL END`,
       ),
-      recent_tokens: when<string>(
+      recentTokens: when<string>(
         [
-          [lockIsActive, row.recent_tokens],
+          [lockIsActive, row.recentTokens],
           [mergedFull, "[]"],
         ],
         mergedJson,
       ),
-      window_start: when([[tumbled, now]], row.window_start),
+      windowStart: when([[tumbled, now]], row.windowStart),
     };
   };
 

@@ -113,7 +113,7 @@ const parseChoiceAnswer: AnswerParser = (form, question, parsed, optional) => {
 };
 
 const parseQuestionAnswer: AnswerParser = (form, question, parsed, optional) =>
-  question.display_type === "free_text"
+  question.displayType === "free_text"
     ? parseFreeTextAnswer(form, question, parsed, optional)
     : parseChoiceAnswer(form, question, parsed, optional);
 

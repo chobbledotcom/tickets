@@ -29,10 +29,10 @@ const activationOf = async (password: string) => {
   ]);
   return {
     columns: {
-      invite_code_hash: encryptedEmpty,
-      invite_expiry: encryptedEmpty,
-      kek_version: 2,
-      password_hash: encryptedHash,
+      inviteCodeHash: encryptedEmpty,
+      inviteExpiry: encryptedEmpty,
+      kekVersion: 2,
+      passwordHash: encryptedHash,
     },
     passwordHash,
   };
@@ -50,8 +50,8 @@ const passwordWrapUpdate =
   ) =>
     update(tables.users, {
       ...changes,
-      kek_version: 2,
-      wrapped_data_key: await wrapDataKeyForPassword(
+      kekVersion: 2,
+      wrappedDataKey: await wrapDataKeyForPassword(
         dataKey,
         password,
         passwordHash,
@@ -77,8 +77,8 @@ export const acceptInvite = async (
   const { columns, passwordHash } = await activationOf(password);
   const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
   const accept = passwordWrapUpdate(
-    (user) => notEqual(user.invite_wrapped_data_key, null),
-    { ...columns, invite_wrapped_data_key: null },
+    (user) => notEqual(user.inviteWrappedDataKey, null),
+    { ...columns, inviteWrappedDataKey: null },
   );
   return executeChangedRow(
     await accept(userId, dataKey, password, passwordHash),
@@ -99,11 +99,11 @@ export const activateKeylessUser = async (
 ): Promise<boolean> => {
   const { columns } = await activationOf(password);
   return executeChangedRow(
-    update(tables.users, columns).where({ id: userId, password_hash: "" }),
+    update(tables.users, columns).where({ id: userId, passwordHash: "" }),
   );
 };
 
-const v2Migration = passwordWrapUpdate((user) => lessThan(user.kek_version, 2));
+const v2Migration = passwordWrapUpdate((user) => lessThan(user.kekVersion, 2));
 
 /**
  * Wrap the DATA_KEY of a v1 user under the password-bound (v2) KEK. The login

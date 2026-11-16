@@ -68,7 +68,7 @@ export const groups = tableCache(
   createKeyedCache<Group>({
     fetchAll: () => readRows(from(tables.groups).sortedBy("id").everyColumn()),
     idOf: (g) => g.id,
-    keyOf: (g) => g.slug_index,
+    keyOf: (g) => g.slugIndex,
     ttlMs: GROUPS_CACHE_TTL_MS,
   }),
 );
@@ -214,9 +214,9 @@ type AnyOf = (ids: readonly number[]) => Promise<boolean>;
 export const anyHiddenPackageGroup: AnyOf = (groupIds) =>
   readExists(
     from(tables.groups).where({
-      hide_package_listings: 1,
+      hidePackageListings: 1,
       id: groupIds,
-      is_package: 1,
+      isPackage: 1,
     }),
   );
 
@@ -226,8 +226,8 @@ export const anyHiddenPackageGroup: AnyOf = (groupIds) =>
 export const anyListingInPackageGroup: AnyOf = (listingIds) =>
   readExists(
     from(tables.group_listings, { group: {} }).where((member) => [
-      among(member.listing_id, listingIds),
-      equal(member.group.is_package, 1),
+      among(member.listingId, listingIds),
+      equal(member.group.isPackage, 1),
     ]),
   );
 
@@ -240,7 +240,7 @@ export const anyListingInPackageGroup: AnyOf = (listingIds) =>
  * every package save (group form, add-listings, listing form/API, catalog
  * import) turns an unpackageable member into its user-facing message. */
 export const packageMembersError = async (
-  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
+  listings: readonly { id: number; canPayMore: boolean; name: string }[],
   hideListings: boolean | undefined,
 ): Promise<string | null> => {
   const listingIds = listings.map((listing) => listing.id);
@@ -281,8 +281,8 @@ export const cloneGroupMembershipStatement = (member: {
   quantity: number;
 }): SqlStatement =>
   insertInto(tables.group_listings, {
-    group_id: idOfSlug(tables.groups, member.groupSlugIndex),
-    listing_id: idOfSlug(tables.listings, member.listingSlugIndex),
+    groupId: idOfSlug(tables.groups, member.groupSlugIndex),
+    listingId: idOfSlug(tables.listings, member.listingSlugIndex),
     quantity: member.quantity,
   });
 
@@ -294,7 +294,7 @@ const idOfSlug = (
 ): Expr<number> =>
   valued(
     from(table)
-      .where((row) => equal(row.slug_index, slugIndex))
+      .where((row) => equal(row.slugIndex, slugIndex))
       .scalar((row) => row.id),
   );
 
@@ -324,8 +324,8 @@ const listingGroupDiffStatements = (
   if (toRemove.length > 0) {
     statements.push(
       deleteFrom(tables.group_listings).where({
-        group_id: toRemove,
-        listing_id: listingId,
+        groupId: toRemove,
+        listingId,
       }),
     );
     // Drop the listing's package price overrides for the groups it is leaving —
@@ -337,7 +337,7 @@ const listingGroupDiffStatements = (
   statements.push(
     ...insertingAll(
       tables.group_listings,
-      toAdd.map((groupId) => ({ group_id: groupId, listing_id: listingId })),
+      toAdd.map((groupId) => ({ groupId, listingId })),
       { or: "IGNORE" },
     ),
   );
@@ -416,11 +416,11 @@ const groupFlatPriceSubquery = (groupIdExpr: SqlStatement): SqlStatement =>
   sql`(SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
       WHERE listingPrice.listing_id = groupListing.listing_id
         AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
-        AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS package_price`;
+        AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS packagePrice`;
 
 /**
- * Every membership row for a group, carrying its `package_price` override and
- * per-package `quantity`. A `null` `package_price` means "no override — use the
+ * Every membership row for a group, carrying its `packagePrice` override and
+ * per-package `quantity`. A `null` `packagePrice` means "no override — use the
  * listing's own price", `0` means explicitly free in this package, and a
  * positive value overrides the price; `quantity` defaults to 1. The override is
  * read from the `group` dimension of `listing_prices`; `quantity` from the
@@ -444,12 +444,12 @@ export const packageMemberMaps = (
 ): { prices: Map<number, number>; quantities: Map<number, number> } => ({
   prices: new Map(
     rows.flatMap((row) =>
-      row.package_price === null
+      row.packagePrice === null
         ? []
-        : [[row.listing_id, row.package_price] as const],
+        : [[row.listingId, row.packagePrice] as const],
     ),
   ),
-  quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
+  quantities: new Map(rows.map((row) => [row.listingId, row.quantity])),
 });
 
 /** What a package charges for its members: the flat override + quantity maps
@@ -509,14 +509,14 @@ export const getGroupPackagePricesByGroupIds = async (
     ? new Map()
     : Map.groupBy(
         await queryAll<GroupListing>(
-          sql`SELECT groupListing.group_id, groupListing.listing_id,
+          sql`SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId,
             ${groupFlatPriceSubquery(sql`groupListing.group_id`)},
             groupListing.quantity
        FROM group_listings AS groupListing
       WHERE groupListing.group_id IN (${sqlList(groupIds)})
    ORDER BY groupListing.listing_id ASC`,
         ),
-        (row) => row.group_id,
+        (row) => row.groupId,
       );
 
 /** The statement that copies a source listing's per-package `quantity` onto a
@@ -532,24 +532,24 @@ const copyPackageOverridesStatement = (
   const sourceMemberships = () =>
     from(tables.group_listings)
       .as("sourceMembership")
-      .where({ listing_id: sourceListingId });
+      .where({ listingId: sourceListingId });
   return update(tables.group_listings, (clone) => ({
     // The WHERE keeps only groups that the source is in, so one row is there.
     quantity: valued<number>(
       sourceMemberships()
-        .where((source) => equal(source.group_id, clone.group_id))
+        .where((source) => equal(source.groupId, clone.groupId))
         .scalar((source) => source.quantity),
     ),
   })).where((clone) => [
-    equal(clone.listing_id, newListingId),
+    equal(clone.listingId, newListingId),
     inQuery(
-      clone.group_id,
-      sourceMemberships().values((source) => source.group_id),
+      clone.groupId,
+      sourceMemberships().values((source) => source.groupId),
     ),
     inQuery(
-      clone.group_id,
+      clone.groupId,
       from(tables.groups)
-        .where({ is_package: 1 })
+        .where({ isPackage: 1 })
         .values((group) => group.id),
     ),
   ]);
@@ -592,7 +592,7 @@ export const copyPackageMemberOverridesTx = async (
 /** Reset-every-member-to-default-quantity statement (quantity 1). The flat price
  * overrides are cleared separately via {@link groupFlatPriceStatements}. */
 const clearMembersStatement = (groupId: number) =>
-  update(tables.group_listings, { quantity: 1 }).where({ group_id: groupId });
+  update(tables.group_listings, { quantity: 1 }).where({ groupId });
 
 /** The single CASE-UPDATE that applies each valid member's `quantity`, resetting
  * every other member to the default (quantity 1) via the ELSE branch. One
@@ -606,12 +606,12 @@ const memberQuantityStatement = (
   update(tables.group_listings, (member) => ({
     quantity: when(
       valid.map(({ listingId, quantity }) => [
-        equal(member.listing_id, listingId),
+        equal(member.listingId, listingId),
         quantity ?? 1,
       ]),
       1,
     ),
-  })).where({ group_id: groupId });
+  })).where({ groupId });
 
 /** Keep only the submitted members that are CURRENT members of the group, so a
  * stale or crafted id is ignored rather than wiping real overrides, and collapse
@@ -698,8 +698,8 @@ export const setGroupListingsActive = async (
       inQuery(
         listing.id,
         from(tables.group_listings)
-          .where({ group_id: groupId })
-          .values((member) => member.listing_id),
+          .where({ groupId })
+          .values((member) => member.listingId),
       ),
   );
   const result =

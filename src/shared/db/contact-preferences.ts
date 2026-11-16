@@ -76,7 +76,7 @@ const run = async (statement: SqlStatement): Promise<void> => {
 
 /** The stored row of one contact. */
 export const preferenceOf = (hash: string) =>
-  from(tables.contact_preferences).where({ contact_hash: hash });
+  from(tables.contact_preferences).where({ contactHash: hash });
 
 export const isHashUnsubscribed = async (hash: string): Promise<boolean> => {
   const row = await queryOne<{ unsubscribed: number }>(
@@ -89,12 +89,12 @@ export const unsubscribeHash = (hash: string): Promise<void> =>
   run(
     insertInto(
       tables.contact_preferences,
-      { contact_hash: hash, last_activity: nowMs(), unsubscribed: 1 },
+      { contactHash: hash, lastActivity: nowMs(), unsubscribed: 1 },
       {
         onConflict: {
-          on: ["contact_hash"],
+          on: ["contactHash"],
           set: () => ({ unsubscribed: 1 }),
-          take: ["last_activity"],
+          take: ["lastActivity"],
         },
       },
     ),
@@ -103,17 +103,17 @@ export const unsubscribeHash = (hash: string): Promise<void> =>
 export const resubscribeHash = (hash: string): Promise<void> =>
   run(
     update(tables.contact_preferences, {
-      last_activity: nowMs(),
+      lastActivity: nowMs(),
       unsubscribed: 0,
-    }).where({ contact_hash: hash }),
+    }).where({ contactHash: hash }),
   );
 
 export const getUnsubscribedHashSet = (): Promise<Set<string>> =>
   queryColumnSet(
     from(tables.contact_preferences)
       .where({ unsubscribed: 1 })
-      .pick("contact_hash"),
-    "contact_hash",
+      .pick("contactHash"),
+    "contactHash",
   );
 
 export const getVisits = async (hash: string): Promise<number> => {
@@ -128,7 +128,7 @@ export const getVisits = async (hash: string): Promise<number> => {
  * callers report "erased" versus "nothing on file" without a prior lookup. */
 export const forgetContact = async (hash: string): Promise<number> => {
   const result = await execute(
-    deleteFrom(tables.contact_preferences).where({ contact_hash: hash }),
+    deleteFrom(tables.contact_preferences).where({ contactHash: hash }),
   );
   return result.rowsAffected;
 };
@@ -208,16 +208,16 @@ const loadStatsBlobs = async (
 ): Promise<Map<string, OwnerKeyEncrypted | "">> => {
   const rows = await queryAll(
     from(tables.contact_preferences)
-      .where({ contact_hash: hashes })
-      .pick("contact_hash", "stats_blob"),
+      .where({ contactHash: hashes })
+      .pick("contactHash", "statsBlob"),
   );
-  return new Map(rows.map((r) => [r.contact_hash, r.stats_blob]));
+  return new Map(rows.map((r) => [r.contactHash, r.statsBlob]));
 };
 
 type CountColumnsRow = {
   visits: number;
-  public_booking_count: number;
-  admin_booking_count: number;
+  publicBookingCount: number;
+  adminBookingCount: number;
 };
 
 type ContactCountFields = Pick<
@@ -230,14 +230,14 @@ type ContactCountFields = Pick<
 const countFieldsFromRow = (
   row: CountColumnsRow | null,
 ): ContactCountFields => ({
-  adminBookingCount: row?.admin_booking_count ?? 0,
-  publicBookingCount: row?.public_booking_count ?? 0,
+  adminBookingCount: row?.adminBookingCount ?? 0,
+  publicBookingCount: row?.publicBookingCount ?? 0,
   visits: row?.visits ?? 0,
 });
 
 /** One contact's stored row: the plaintext counters plus the owner-encrypted
  * note. */
-type ContactRow = CountColumnsRow & { stats_blob: OwnerKeyEncrypted | "" };
+type ContactRow = CountColumnsRow & { statsBlob: OwnerKeyEncrypted | "" };
 
 export const getContactRecord: ContactRecordLoader = async (
   hash,
@@ -246,13 +246,13 @@ export const getContactRecord: ContactRecordLoader = async (
   const row = await queryOne<ContactRow>(
     preferenceOf(hash).pick(
       "visits",
-      "public_booking_count",
-      "admin_booking_count",
-      "stats_blob",
+      "publicBookingCount",
+      "adminBookingCount",
+      "statsBlob",
     ),
   );
   return {
-    ...(await parseStats(row?.stats_blob ?? "", privateKey)),
+    ...(await parseStats(row?.statsBlob ?? "", privateKey)),
     ...countFieldsFromRow(row),
   };
 };
@@ -267,8 +267,8 @@ export const getContactCountFields = async (
   const row = await queryOne<CountColumnsRow>(
     preferenceOf(hash).pick(
       "visits",
-      "public_booking_count",
-      "admin_booking_count",
+      "publicBookingCount",
+      "adminBookingCount",
     ),
   );
   return countFieldsFromRow(row);
@@ -343,17 +343,17 @@ const saveStats = async (
   insertInto(
     tables.contact_preferences,
     {
-      contact_hash: hash,
-      last_activity: lastActivity,
-      stats_blob: await encryptWithOwnerKey(
+      contactHash: hash,
+      lastActivity,
+      statsBlob: await encryptWithOwnerKey(
         statsJson.write(statsToBlob(stats), "contact_preferences.stats_blob"),
         settings.publicKey,
       ),
     },
     {
       onConflict: {
-        on: ["contact_hash"],
-        take: ["stats_blob", "last_activity"],
+        on: ["contactHash"],
+        take: ["statsBlob", "lastActivity"],
       },
     },
   );
@@ -408,22 +408,22 @@ export const saveContactRecord = async (
     insertInto(
       tables.contact_preferences,
       {
-        admin_booking_count: record.adminBookingCount,
-        contact_hash: hash,
-        last_activity: nowMs(),
-        public_booking_count: record.publicBookingCount,
-        stats_blob: blob,
+        adminBookingCount: record.adminBookingCount,
+        contactHash: hash,
+        lastActivity: nowMs(),
+        publicBookingCount: record.publicBookingCount,
+        statsBlob: blob,
         visits: record.visits,
       },
       {
         onConflict: {
-          on: ["contact_hash"],
+          on: ["contactHash"],
           take: [
             "visits",
-            "public_booking_count",
-            "admin_booking_count",
-            "stats_blob",
-            "last_activity",
+            "publicBookingCount",
+            "adminBookingCount",
+            "statsBlob",
+            "lastActivity",
           ],
         },
       },

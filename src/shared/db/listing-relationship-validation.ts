@@ -16,8 +16,8 @@ import {
 } from "#shared/listing-parents-rules.ts";
 import type { DayPrices } from "#types";
 
-type EdgeListingRow = Omit<EdgeListing, "day_prices"> & {
-  bookable_alone: boolean;
+type EdgeListingRow = Omit<EdgeListing, "dayPrices"> & {
+  bookableAlone: boolean;
 };
 
 type AddOnScopeRow = {
@@ -40,14 +40,10 @@ const listingById = (
   }
   return new Map(
     rows.map(
-      ({ bookable_alone, ...listing }) =>
+      (listing) =>
         [
           listing.id,
-          {
-            ...listing,
-            bookableAlone: bookable_alone,
-            day_prices: dayPrices.get(listing.id) ?? {},
-          },
+          { ...listing, dayPrices: dayPrices.get(listing.id) ?? {} },
         ] as const,
     ),
   );
@@ -102,13 +98,13 @@ const relationshipErrorTx = async (
       .pick(
         "id",
         "name",
-        "listing_type",
-        "months_per_unit",
-        "customisable_days",
-        "duration_days",
-        "bookable_alone",
-        "assign_built_site",
-        "min_quantity",
+        "listingType",
+        "monthsPerUnit",
+        "customisableDays",
+        "durationDays",
+        "bookableAlone",
+        "assignBuiltSite",
+        "minQuantity",
       ),
     sql`SELECT listingPrice.listing_id, listingPrice.price_id,
                    listingPrice.unit_price

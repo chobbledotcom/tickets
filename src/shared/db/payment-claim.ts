@@ -193,9 +193,9 @@ export const paymentRowStateStatement = async (
 ): Promise<SqlStatement> => {
   const stored = await paymentRowStateValues(state);
   return update(tables.processed_payments, {
-    failure_data: stored.failureData,
-    protected_state: stored.protectedState,
-  }).where({ failure_data: row.slot, payment_session_id: row.sessionId });
+    failureData: stored.failureData,
+    protectedState: stored.protectedState,
+  }).where({ failureData: row.slot, paymentSessionId: row.sessionId });
 };
 
 /** The exact row transitions made under one durable claim. */

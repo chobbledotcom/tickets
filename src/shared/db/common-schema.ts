@@ -39,15 +39,16 @@ export const aggregateRepairs = <
   table: TableHandle<Name>,
   recount: Record<F, SqlStatement>,
 ): AggregateRepairs<F> => {
-  // TypeScript cannot match the columns of a type parameter to the mapped
-  // `Changes` type. `F extends ColumnName<Name>` holds the column names.
+  // TypeScript cannot match the fields of a type parameter to the mapped
+  // `Changes` type, or see `id` among them. `TableWithId` and
+  // `F extends ColumnName<Name>` hold both.
   const write = async (
     entityId: number,
     changes: Readonly<Record<string, number | SqlStatement>>,
   ): Promise<void> => {
     await execute(
       update(table, changes as Changes<Name>).where(
-        rowsWith(table, "id", entityId),
+        rowsWith(table, "id" as ColumnName<Name>, entityId),
       ),
     );
   };

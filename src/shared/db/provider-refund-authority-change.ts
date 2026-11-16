@@ -60,21 +60,21 @@ const changeRefundAuthorityStatement = (
 ): SqlStatement => {
   requireRefundMoney(row, money);
   return update(tables.payment_charges, {
-    captured_amount: money.captured.amount,
+    capturedAmount: money.captured.amount,
     currency: money.captured.currency,
-    next_refund_action_at: refundNextActionAt(state),
-    observed_at: now,
-    refund_local_state: refundLocalMirror(state),
-    refund_revision: row.revision + 1,
-    refund_state: writeRefundAuthorityState(
+    nextRefundActionAt: refundNextActionAt(state),
+    observedAt: now,
+    refundedAmount: money.refunded.amount,
+    refundLocalState: refundLocalMirror(state),
+    refundRevision: row.revision + 1,
+    refundState: writeRefundAuthorityState(
       state,
       "payment_charges.refund_state",
     ),
-    refund_state_name: refundStateMirror(state),
-    refunded_amount: money.refunded.amount,
-    updated_at: now,
+    refundStateName: refundStateMirror(state),
+    updatedAt: now,
   })
-    .where({ id: row.id, refund_revision: row.revision })
+    .where({ id: row.id, refundRevision: row.revision })
     .returning(...REFUND_AUTHORITY_COLUMN_NAMES);
 };
 

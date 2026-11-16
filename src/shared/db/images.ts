@@ -77,7 +77,7 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
     tables: imageUseTables,
   });
 
-export type OrderedImage = Image & { sort_order: number };
+export type OrderedImage = Image & { sortOrder: number };
 
 /** Every image, newest first. */
 export const getAllImages = allRowsNewestFirst(tables.images);
@@ -108,9 +108,9 @@ export const itemImageValues = (
   itemType: ImageUseItemType,
   itemIdExpr: SqlStatement,
 ): { [Value in keyof ItemImageColumns]: Expr<EnvKeyEncrypted | ""> } => ({
-  image_alt_text: firstImageValue(itemType, itemIdExpr, "alt_text"),
-  image_thumb_url: firstImageValue(itemType, itemIdExpr, "filename_thumb"),
-  image_url: firstImageValue(itemType, itemIdExpr, "filename"),
+  imageAltText: firstImageValue(itemType, itemIdExpr, "alt_text"),
+  imageThumbUrl: firstImageValue(itemType, itemIdExpr, "filename_thumb"),
+  imageUrl: firstImageValue(itemType, itemIdExpr, "filename"),
 });
 
 /** The same values as a column list for a read written by hand. */
@@ -125,23 +125,23 @@ export const openItemImages = async (
   sealed: SealedItemImages,
   source: string,
 ): Promise<ItemImageColumns> => ({
-  image_alt_text:
-    sealed.image_alt_text === "" ? "" : await decrypt(sealed.image_alt_text),
-  image_thumb_url: await decryptImageFilenameOrEmpty(
-    sealed.image_thumb_url,
+  imageAltText:
+    sealed.imageAltText === "" ? "" : await decrypt(sealed.imageAltText),
+  imageThumbUrl: await decryptImageFilenameOrEmpty(
+    sealed.imageThumbUrl,
     `${source} thumbnail image`,
   ),
-  image_url: await decryptImageFilenameOrEmpty(
-    sealed.image_url,
+  imageUrl: await decryptImageFilenameOrEmpty(
+    sealed.imageUrl,
     `${source} image`,
   ),
 });
 
 /** The id and the files of an image, for a read that names its own columns. */
 const imageFileColumns = columnsNamed([
-  "alt_text",
+  "altText",
   "filename",
-  "filename_thumb",
+  "filenameThumb",
   "id",
 ]);
 
@@ -153,7 +153,7 @@ const imagesOfItem = (itemType: ImageUseItemType, itemId: number) =>
     .where(() =>
       imageUseTargets.where(imageUseTargets.of(itemType)(itemId), "imageUse"),
     )
-    .orderBy((use) => [use.sort_order, use.image_id]);
+    .orderBy((use) => [use.sortOrder, use.imageId]);
 
 export const getImageFilenamesForItem = async (
   itemType: ImageUseItemType,
@@ -164,11 +164,11 @@ export const getImageFilenamesForItem = async (
       .limit(1)
       .select((use) => imageFileColumns(use.image)),
   );
-  if (!image) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
+  if (!image) return { imageAltText: "", imageThumbUrl: "", imageUrl: "" };
   return {
-    image_alt_text: image.alt_text,
-    image_thumb_url: image.filename_thumb,
-    image_url: image.filename,
+    imageAltText: image.altText,
+    imageThumbUrl: image.filenameThumb,
+    imageUrl: image.filename,
   };
 };
 
@@ -180,16 +180,16 @@ export const getImagesForItem = (
     imagesOfItem(itemType, itemId).select((use) => ({
       ...imageFileColumns(use.image),
       name: use.image.name,
-      sort_order: use.sort_order,
+      sortOrder: use.sortOrder,
     })),
   );
 
 /** The columns of one link between an image and a record. */
 const imageUseColumns = columnsNamed([
-  "image_id",
-  "item_id",
-  "item_type",
-  "sort_order",
+  "imageId",
+  "itemId",
+  "itemType",
+  "sortOrder",
 ]);
 
 /** The item links of several images, keyed by image id. One query covers the
@@ -201,12 +201,12 @@ export const getImageUsesForImages = async (
   if (imageIds.length === 0) return new Map();
   const rows = await readRows(
     from(tables.image_uses)
-      .where((use) => among(use.image_id, imageIds))
-      .orderBy((use) => [use.image_id, use.item_type, use.item_id])
+      .where((use) => among(use.imageId, imageIds))
+      .orderBy((use) => [use.imageId, use.itemType, use.itemId])
       .select(imageUseColumns),
   );
   return groupToMap(
-    (use: ImageUse) => use.image_id,
+    (use: ImageUse) => use.imageId,
     (use: ImageUse) => use,
   )(rows);
 };
@@ -220,8 +220,8 @@ export const {
 } = onReplicaAndPrimary(
   (imageId: number) =>
     from(tables.image_uses)
-      .where((use) => equal(use.image_id, imageId))
-      .orderBy((use) => [use.item_type, use.item_id])
+      .where((use) => equal(use.imageId, imageId))
+      .orderBy((use) => [use.itemType, use.itemId])
       .select(imageUseColumns),
   (uses): ImageUse[] => uses,
 );
@@ -262,10 +262,10 @@ const linkImageStatement = (
   insertInto(
     tables.image_uses,
     {
-      image_id: imageId,
-      item_id: target.id,
-      item_type: target.kind,
-      sort_order: sortOrder,
+      imageId,
+      itemId: target.id,
+      itemType: target.kind,
+      sortOrder,
     },
     {
       or: "IGNORE",
@@ -317,7 +317,7 @@ const clearStaleImageUseTargetsStatement = (
 ): SqlStatement => {
   const kept = targets.map((target) => and(...imageUseTargets.where(target)));
   return deleteFrom(tables.image_uses).where((use) => [
-    equal(use.image_id, imageId),
+    equal(use.imageId, imageId),
     kept.length === 0 ? true : not(or(...kept)),
   ]);
 };
@@ -367,9 +367,9 @@ const insertImage = async (
   const [image] = resultRows(
     await transaction.execute(
       await records.images.insertStatement({
-        alt_text: input.altText ?? "",
+        altText: input.altText ?? "",
         filename: input.filename,
-        filename_thumb: input.filenameThumb,
+        filenameThumb: input.filenameThumb,
         name: input.name,
       }),
     ),

@@ -25,7 +25,7 @@ export type InvoiceRow = DecodedRowOf<"invoices">;
 /** The columns a list page needs: no sealed body, and no token. */
 export type InvoiceSummary = Pick<
   InvoiceRow,
-  "attendee_id" | "created" | "id" | "status"
+  "attendeeId" | "created" | "id" | "status"
 >;
 
 /** A new invoice to store, in the domain's own words. */
@@ -46,7 +46,7 @@ const summariesNewestFirst = (
     from(tables.invoices)
       .where(where)
       .orderBy((invoice) => [desc(invoice.id)])
-      .pick("attendee_id", "created", "id", "status"),
+      .pick("attendeeId", "created", "id", "status"),
   );
 
 /** Every invoice, newest first, without its sealed body. */
@@ -57,20 +57,20 @@ export const getInvoices = (): Promise<InvoiceSummary[]> =>
 export const getOpenInvoice = (
   attendeeId: number,
 ): Promise<InvoiceRow | null> =>
-  records.invoices.findWhere({ attendee_id: attendeeId, status: "new" });
+  records.invoices.findWhere({ attendeeId, status: "new" });
 
 /** The attendee's invoices, newest first, without their sealed bodies. The
  *  booking's info table reads the newest one. */
 export const getAttendeeInvoices = (
   attendeeId: number,
 ): Promise<InvoiceSummary[]> =>
-  summariesNewestFirst({ attendee_id: attendeeId });
+  summariesNewestFirst({ attendeeId: attendeeId });
 
 /** The invoice a share link names, or null when the token matches none. */
 export const getInvoiceByShareToken = async (
   token: string,
 ): Promise<InvoiceRow | null> =>
-  records.invoices.findWhere({ share_token_index: await hmacHash(token) });
+  records.invoices.findWhere({ shareTokenIndex: await hmacHash(token) });
 
 /** The next free invoice number, which the create form prefills. */
 export const nextInvoiceNumber = async (): Promise<number> => {
@@ -98,12 +98,12 @@ export const createInvoice = async ({
     hmacHash(shareToken),
   ]);
   const invoice = await records.invoices.insert({
-    attendee_id: attendeeId,
+    attendeeId: attendeeId,
     body,
     created,
     id,
-    share_token: sealedToken,
-    share_token_index: shareTokenIndex,
+    shareToken: sealedToken,
+    shareTokenIndex: shareTokenIndex,
     status: "new",
   });
   return { invoice, shareToken };
@@ -131,7 +131,7 @@ export const markOpenInvoicesPaidStatement = (
   expectedAmount: number,
 ): SqlStatement =>
   update(tables.invoices, { status: "paid" }).where((invoice) => [
-    equal(invoice.attendee_id, attendeeId),
+    equal(invoice.attendeeId, attendeeId),
     equal(invoice.status, "new"),
     equal(owed, expectedAmount),
   ]);

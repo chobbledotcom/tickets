@@ -87,11 +87,11 @@ const moveSumupRecoveryRow = (
   nextCheckAt: string | null,
 ): Promise<number> =>
   changeSumupCheckouts(
-    { next_check_at: nextCheckAt, recovery_state: recoveryState },
+    { nextCheckAt: nextCheckAt, recoveryState: recoveryState },
     {
-      next_check_at: checkout.checkedAt,
-      recovery_state: checkout.state,
-      reference_index: checkout.referenceIndex,
+      nextCheckAt: checkout.checkedAt,
+      recoveryState: checkout.state,
+      referenceIndex: checkout.referenceIndex,
     },
   );
 

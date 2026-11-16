@@ -51,10 +51,10 @@ export const claimScanOperation =
         tables.processed_scan_operations,
         {
           created: nowIso(),
-          listing_ids: JSON.stringify([...delivery.listingIds]),
-          operation_id: delivery.operationId,
+          listingIds: JSON.stringify([...delivery.listingIds]),
+          operationId: delivery.operationId,
           quantity: delivery.quantity,
-          token_hash: delivery.tokenHash,
+          tokenHash: delivery.tokenHash,
         },
         { or: "IGNORE" },
       ),
@@ -77,9 +77,9 @@ export const settleScanOperation = async (
 ): Promise<void> => {
   await tx.execute(
     update(tables.processed_scan_operations, {
-      listing_ids: JSON.stringify([...landed.listingIds]),
+      listingIds: JSON.stringify([...landed.listingIds]),
       quantity: landed.quantity,
-    }).where({ operation_id: operationId, token_hash: tokenHash }),
+    }).where({ operationId, tokenHash }),
   );
 };
 
@@ -93,12 +93,12 @@ export const deliveredScanOperation = async (
 ): Promise<DeliveredScanOperation | null> => {
   const row = await queryOne(
     from(tables.processed_scan_operations)
-      .where({ operation_id: operationId, token_hash: tokenHash })
-      .pick("listing_ids", "quantity"),
+      .where({ operationId, tokenHash })
+      .pick("listingIds", "quantity"),
   );
   if (!row) return null;
   return {
-    listingIds: JSON.parse(row.listing_ids) as number[],
+    listingIds: JSON.parse(row.listingIds) as number[],
     quantity: row.quantity,
   };
 };

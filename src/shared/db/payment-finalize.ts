@@ -64,10 +64,10 @@ const buildFinalizeStatements = async ({
     // indexes, so a row can never carry one without the other — a refund claim
     // looks rows up by it to find another row holding the same money.
     update(tables.processed_payments, {
-      attendee_id: attendeeId,
-      payment_reference: referenceWrite.stored?.encrypted ?? "",
-      payment_reference_index: referenceWrite.stored?.index ?? "",
-      ticket_tokens: await encryptTicketTokens(ticketTokens),
+      attendeeId,
+      paymentReference: referenceWrite.stored?.encrypted ?? "",
+      paymentReferenceIndex: referenceWrite.stored?.index ?? "",
+      ticketTokens: await encryptTicketTokens(ticketTokens),
     }).where(
       unresolvedSessionRow(
         sessionId,

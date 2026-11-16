@@ -22,7 +22,11 @@ import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
 
-const USER_COLUMNS = sql`id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key`;
+const USER_COLUMNS = sql`id, username_hash AS usernameHash, username_index AS usernameIndex,
+  password_hash AS passwordHash, wrapped_data_key AS wrappedDataKey,
+  admin_level AS adminLevel, invite_code_hash AS inviteCodeHash,
+  invite_expiry AS inviteExpiry, kek_version AS kekVersion,
+  invite_wrapped_data_key AS inviteWrappedDataKey`;
 
 const USER_SELECT = sql`SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
 
@@ -36,14 +40,14 @@ const fetchUsersByIndex = (keys: string[]): Promise<User[]> =>
 
 export type UserDisplayFields = Pick<
   User,
-  "admin_level" | "id" | "username_hash"
+  "adminLevel" | "id" | "usernameHash"
 >;
 
 const USER_DISPLAY_SELECT = from(tables.users)
   .sortedBy("id")
-  .pick("id", "username_hash", "admin_level");
+  .pick("id", "usernameHash", "adminLevel");
 
-export type UserAuthFields = Pick<User, "admin_level" | "id">;
+export type UserAuthFields = Pick<User, "adminLevel" | "id">;
 
 /**
  * Users change rarely and there are few of them, so the cache loads the whole
@@ -58,7 +62,7 @@ const usersCache = createKeyedCache<User>({
   fetchAll: () => queryAll<User>(USER_SELECT),
   fetchByKeys: fetchUsersByIndex,
   idOf: (u) => u.id,
-  keyOf: (u) => u.username_index,
+  keyOf: (u) => u.usernameIndex,
   ttlMs: USERS_CACHE_TTL_MS,
 });
 /**
@@ -128,15 +132,15 @@ const buildUserInsert = async (
     : null;
 
   const values = {
-    admin_level: encryptedAdminLevel,
-    invite_code_hash: encryptedInviteCode,
-    invite_expiry: encryptedInviteExpiry,
-    invite_wrapped_data_key: opts.inviteWrappedDataKey,
-    kek_version: opts.kekVersion,
-    password_hash: encryptedPasswordHash,
-    username_hash: encryptedUsername,
-    username_index: usernameIndex,
-    wrapped_data_key: opts.wrappedDataKey,
+    adminLevel: encryptedAdminLevel,
+    inviteCodeHash: encryptedInviteCode,
+    inviteExpiry: encryptedInviteExpiry,
+    inviteWrappedDataKey: opts.inviteWrappedDataKey,
+    kekVersion: opts.kekVersion,
+    passwordHash: encryptedPasswordHash,
+    usernameHash: encryptedUsername,
+    usernameIndex,
+    wrappedDataKey: opts.wrappedDataKey,
   };
   return {
     statement: insertInto(tables.users, values).returning("id"),
@@ -249,7 +253,7 @@ export const getUserAuthFieldsById = async (
   id: number,
 ): Promise<UserAuthFields | null> =>
   (
-    await queryAll(records.users.byId(id).limit(1).pick("id", "admin_level"))
+    await queryAll(records.users.byId(id).limit(1).pick("id", "adminLevel"))
   )[0] ?? null;
 
 /**
@@ -272,8 +276,8 @@ export const verifyUserPassword = async (
   user: User,
   password: string,
 ): Promise<PasswordHash | null> => {
-  if (!user.password_hash) return null;
-  const decryptedHash = await decrypt(user.password_hash);
+  if (!user.passwordHash) return null;
+  const decryptedHash = await decrypt(user.passwordHash);
   const isValid = await verifyPassword(password, decryptedHash);
   return isValid ? decryptedHash : null;
 };
@@ -282,9 +286,9 @@ export const verifyUserPassword = async (
  * Decrypt a user's admin level
  */
 export const decryptAdminLevel = async (
-  user: Pick<User, "admin_level">,
+  user: Pick<User, "adminLevel">,
 ): Promise<AdminLevel> => {
-  const level = await decrypt(user.admin_level);
+  const level = await decrypt(user.adminLevel);
   if (!isAdminLevel(level)) {
     throw new Error(`Invalid admin level: ${level}`);
   }
@@ -295,8 +299,8 @@ export const decryptAdminLevel = async (
  * Decrypt a user's username
  */
 export const decryptUsername = (
-  user: Pick<User, "username_hash">,
-): Promise<string> => decrypt(user.username_hash);
+  user: Pick<User, "usernameHash">,
+): Promise<string> => decrypt(user.usernameHash);
 
 /** The deletes that remove users with their sessions, API keys, and logistics
  *  agent links. */
@@ -322,8 +326,8 @@ export const getUserByInviteCode = async (
   const users = await getAllUsers();
 
   for (const user of users) {
-    if (!user.invite_code_hash) continue;
-    const decryptedHash = await decrypt(user.invite_code_hash);
+    if (!user.inviteCodeHash) continue;
+    const decryptedHash = await decrypt(user.inviteCodeHash);
     if (decryptedHash === codeHash) return user;
   }
 
@@ -340,14 +344,14 @@ export const hashInviteCode = (code: string): Promise<string> =>
  * Check if a user's invite is still valid (not expired, has invite code)
  */
 export const isInviteValid = async (user: User): Promise<boolean> => {
-  if (!user.invite_code_hash) return false;
+  if (!user.inviteCodeHash) return false;
 
-  const decryptedHash = await decrypt(user.invite_code_hash);
+  const decryptedHash = await decrypt(user.inviteCodeHash);
   if (!decryptedHash) return false;
 
-  if (!user.invite_expiry) return false;
+  if (!user.inviteExpiry) return false;
 
-  const decryptedExpiry = await decrypt(user.invite_expiry);
+  const decryptedExpiry = await decrypt(user.inviteExpiry);
   if (!decryptedExpiry) return false;
   return new Date(decryptedExpiry) > now();
 };
@@ -357,7 +361,7 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
  * Callers should skip this for users who have already set a password.
  */
 export const isInviteExpired = async (user: User): Promise<boolean> =>
-  user.invite_code_hash !== null && !(await isInviteValid(user));
+  user.inviteCodeHash !== null && !(await isInviteValid(user));
 
 /**
  * Delete invited users whose invite has expired and who never activated. This

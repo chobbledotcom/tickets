@@ -13,7 +13,7 @@ import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 import { nowMs } from "#shared/now.ts";
 
-type StoredLockout = { locked_until: number | null };
+type StoredLockout = { lockedUntil: number | null };
 
 /** The tables that lock an IP out. */
 type AttemptTable = "login_attempts" | "token_attempts";
@@ -30,7 +30,7 @@ export const makeAttemptRecorder =
   ): ((values: T) => Promise<boolean>) =>
   async (values: T): Promise<boolean> =>
     (await executeReturningRow<StoredLockout>(buildStatement(values)))
-      .locked_until !== null;
+      .lockedUntil !== null;
 
 /** Whether the IP's row in an attempts table holds an active lockout. Reads
  * only the lockout column; a missing row (no attempts yet) reads as not
@@ -40,9 +40,9 @@ export const isIpLockedOut = async (
   hashedIp: string,
 ): Promise<boolean> => {
   const row = await queryOne<StoredLockout>(
-    sql`SELECT locked_until FROM ${sqlName(table)} WHERE ip = ${hashedIp}`,
+    sql`SELECT locked_until AS lockedUntil FROM ${sqlName(table)} WHERE ip = ${hashedIp}`,
   );
-  return lockoutActive(table, hashedIp, row?.locked_until);
+  return lockoutActive(table, hashedIp, row?.lockedUntil);
 };
 
 /** Build the "forget this IP" action for an attempts table: delete the IP's
@@ -69,7 +69,7 @@ export const lockoutActive = async (
   await execute(
     deleteFrom(tables[table]).where({
       ip: hashedIp,
-      locked_until: lockedUntil,
+      lockedUntil,
     }),
   );
   return false;

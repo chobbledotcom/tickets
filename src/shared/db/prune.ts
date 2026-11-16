@@ -185,7 +185,7 @@ const orphanStatements = (): PruneStatement[] => {
   return [...attendeesRemoval(orphanIds)];
 };
 
-type InviteCandidate = Pick<User, "id" | "invite_expiry">;
+type InviteCandidate = Pick<User, "id" | "inviteExpiry">;
 
 type InvitePage = {
   checkpoint: string | null;
@@ -207,7 +207,7 @@ const expiredInvitePage = async (
 ): Promise<InvitePage> => {
   const position = checkpointId(checkpoint);
   const rows = await queryAll<InviteCandidate>(
-    sql`SELECT id, invite_expiry FROM users
+    sql`SELECT id, invite_expiry AS inviteExpiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
@@ -219,7 +219,7 @@ const expiredInvitePage = async (
   const cutoff = now().getTime();
   const inviteStates = await Promise.all(
     candidates.map(async (row) => ({
-      expired: new Date(await decrypt(row.invite_expiry!)).getTime() < cutoff,
+      expired: new Date(await decrypt(row.inviteExpiry!)).getTime() < cutoff,
       id: row.id,
     })),
   );
@@ -239,9 +239,9 @@ const inviteStatements = (ids: number[]): PruneStatement[] => {
     from(tables.users)
       .where((user) => [
         among(user.id, ids),
-        equal(user.wrapped_data_key, null),
-        equal(user.password_hash, ""),
-        notEqual(user.invite_expiry, null),
+        equal(user.wrappedDataKey, null),
+        equal(user.passwordHash, ""),
+        notEqual(user.inviteExpiry, null),
       ])
       .values((user) => user.id),
   );

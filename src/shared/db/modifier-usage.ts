@@ -33,10 +33,10 @@ export const modifierUsedQuantities = async (
     (
       await readRows(
         from(tables.modifier_usages)
-          .where({ modifier_id: ids })
-          .groupBy((usage) => [usage.modifier_id])
+          .where({ modifierId: ids })
+          .groupBy((usage) => [usage.modifierId])
           .select((usage) => ({
-            modifier_id: usage.modifier_id,
+            modifier_id: usage.modifierId,
             used: orZero(sum(usage.quantity)),
           })),
       )
@@ -87,10 +87,10 @@ export const usageInsert = (
   insertInto(
     tables.modifier_usages,
     {
-      amount_applied: usage.amountApplied,
-      attendee_id: valued<number>(attendeeId),
+      amountApplied: usage.amountApplied,
+      attendeeId: valued<number>(attendeeId),
       created: nowIso(),
-      modifier_id: usage.modifierId,
+      modifierId: usage.modifierId,
       quantity: usage.quantity,
     },
     { when: valued<boolean>(guard) },
