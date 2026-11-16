@@ -38,8 +38,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
     });
 
     test("is a no-op for a non-existent session", async () => {
-      await releaseReservation("cs_nonexistent");
-      // No error thrown — verified by reaching here
+      await expect(
+        releaseReservation("cs_nonexistent"),
+      ).resolves.toBeUndefined();
     });
   });
 

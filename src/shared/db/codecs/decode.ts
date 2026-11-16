@@ -9,10 +9,10 @@ import { type ColumnCodec, converts } from "#db/codecs/kinds.ts";
 import { sourcesOf } from "#db/select/sources.ts";
 import type {
   DecodedRowOf,
+  RowOf,
   TableHandle,
   TableName,
 } from "#db/select/tables.ts";
-import type { Changes } from "#db/write.ts";
 
 /** A codec as the runner holds it, whatever its types. */
 type Converter = Readonly<{
@@ -74,12 +74,25 @@ export const decodeResults = (
     results.map((result, index) => decodeResult(statements[index]!, result)),
   );
 
+/** The stored values of some new values, column for column. */
+export type Encoded<
+  Name extends TableName,
+  Values extends Partial<DecodedRowOf<Name>>,
+> = {
+  readonly [Column in keyof Values]: Column extends keyof RowOf<Name>
+    ? RowOf<Name>[Column] | Extract<Values[Column], undefined>
+    : never;
+};
+
 /** The stored values of some new values. Each column with a codec is encoded,
  *  and the others pass as they are. */
-export const encoded = async <Name extends TableName>(
+export const encoded = async <
+  Name extends TableName,
+  const Values extends Partial<DecodedRowOf<Name>>,
+>(
   table: TableHandle<Name>,
-  values: Partial<DecodedRowOf<Name>>,
-): Promise<Changes<Name>> =>
+  values: Values,
+): Promise<Encoded<Name, Values>> =>
   Object.fromEntries(
     await Promise.all(
       Object.entries(values).map(async ([column, value]) => {
@@ -92,4 +105,4 @@ export const encoded = async <Name extends TableName>(
         ];
       }),
     ),
-  ) as Changes<Name>;
+  ) as Encoded<Name, Values>;
