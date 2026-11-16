@@ -25,8 +25,8 @@ import { extractIntentFromMetadata } from "#routes/api/payment-processing/metada
 import {
   type HeldRefundTarget,
   loadRefundResume,
+  requireRefundClaim,
   storedPlaceholderOutcome,
-  unclaimedChargeMessage,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   NOTHING_TO_REFUND,
@@ -185,9 +185,7 @@ const resumeRejectedPlan = async (
   if (refunded && failure.refunded !== true) {
     await markRejectionRefunded(work);
   }
-  if (!refunded && search.rows.length === 0) {
-    throw new Error(unclaimedChargeMessage(rejection.sessionId));
-  }
+  if (!refunded) requireRefundClaim(rejection.sessionId, search.rows);
   return { kind: "settled", refunded };
 };
 

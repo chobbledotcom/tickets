@@ -872,7 +872,7 @@
   "src/shared/payments.ts": [
     {
       "path": [{ "name": "CheckoutIntent" }],
-      "fields": ["date", "dayCount"]
+      "fields": ["balanceAttendeeId", "date", "dayCount"]
     },
     {
       "path": [{ "name": "PaymentProvider" }],
