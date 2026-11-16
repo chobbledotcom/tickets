@@ -11,7 +11,6 @@ import {
 } from "#db/subscriptions.ts";
 import { map, requiredMapValue, unique } from "#fp";
 import { t } from "#i18n";
-import { isCancellable } from "#payment/subscription-machine-spec.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { createIdEntityHandler } from "#routes/entity.ts";
 import { adminRedirect, errorRedirect } from "#routes/response.ts";
@@ -69,27 +68,28 @@ const handleSubscriptionsGet = authPageAt("subscriptions")(
     }),
 );
 
-/** What the owner reads after each cancel result, and whether Stripe ended
- * the subscription. */
-const CANCEL_ANSWERS: Record<OwnerCancel, { ended: boolean; message: string }> =
-  {
-    behind: { ended: true, message: "subscriptions.success.cancelled_behind" },
-    cancelled: { ended: true, message: "subscriptions.success.cancelled" },
-    not_cancelled: {
-      ended: false,
-      message: "subscriptions.error.not_cancelled",
-    },
-  };
+/** What the owner reads after each cancel result, and whether this request
+ * stopped the subscription at Stripe. */
+const CANCEL_ANSWERS: Record<
+  OwnerCancel,
+  { message: string; stopped: boolean }
+> = {
+  behind: { message: "subscriptions.success.cancelled_behind", stopped: true },
+  cancelled: { message: "subscriptions.success.cancelled", stopped: true },
+  ended: { message: "subscriptions.error.ended", stopped: false },
+  not_cancelled: {
+    message: "subscriptions.error.not_cancelled",
+    stopped: false,
+  },
+};
 
 const handleSubscriptionCancelPost = createIdEntityHandler(
   getSubscribedRowOrNull,
 )(formGuardAt("/admin/subscriptions/:id/cancel"))(async (row) => {
-  const listPath = adminPath("subscriptions", {});
-  if (!isCancellable(row.subscription_status)) {
-    return errorRedirect(listPath, t("subscriptions.error.ended"));
-  }
   const answer = CANCEL_ANSWERS[await cancelOwnerSubscription(row)];
-  if (!answer.ended) return errorRedirect(listPath, t(answer.message));
+  if (!answer.stopped) {
+    return errorRedirect(adminPath("subscriptions", {}), t(answer.message));
+  }
   await logActivity(
     `Subscription ${row.subscription_id} cancelled`,
     row.listing_id,
