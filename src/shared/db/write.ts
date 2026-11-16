@@ -103,8 +103,10 @@ const nodeOfWrite = <Name extends TableName>(
   table: TableHandle<Name>,
 ): Node<Name> => tableNode(table, table.name);
 
-/** The column of a field, as SQL. */
-const columnSql = (field: string): SqlStatement => sqlName(columnName(field));
+/** The column of a field, as SQL. Hand-written SQL that a caller names by
+ *  field uses this too. */
+export const columnSql = (field: string): SqlStatement =>
+  sqlName(columnName(field));
 
 /** The column of a field, read under the field name. */
 const fieldAs = (field: string): SqlStatement =>
