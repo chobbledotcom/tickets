@@ -35,7 +35,6 @@ import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
 import { fieldById, map, mapNotNullish, mapParallel, reduce } from "#fp";
-import { camelCaseKeys } from "#shared/column-names.ts";
 import { legMatches, sumLegs } from "#shared/ledger/legs.ts";
 import type { AccountRef } from "#shared/ledger/types.ts";
 import type {
@@ -606,7 +605,7 @@ const bookingInsertStatement = (
   booking: ListingAttendeeRow,
 ): SqlStatement =>
   insertInto(tables.listing_attendees, {
-    ...camelCaseKeys(copiedBookingColumns(booking)),
+    ...copiedBookingColumns(booking),
     attendeeId: targetId,
     // A quantity-0 line carries no check-in, so a ghost cannot arrive checked in.
     checkedIn: booking.quantity > 0 ? booking.checked_in : 0,
