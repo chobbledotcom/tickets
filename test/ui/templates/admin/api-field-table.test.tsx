@@ -2,6 +2,7 @@ import { beforeAll, describe, it as test } from "@std/testing/bdd";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
 import { FieldTable } from "#templates/admin/api-field-table.tsx";
 import { adminApiDocsPage } from "#templates/admin/api-keys.tsx";
+import { ADMIN_API_ENDPOINTS } from "#test/shared/admin-api-example/helpers.ts";
 import {
   OWNER_SESSION,
   setupAdminPageTest,
@@ -10,7 +11,6 @@ import {
   expectIncludesAll,
   tableRowContaining,
 } from "#test-utils/assertions.ts";
-import { ADMIN_API_ENDPOINTS } from "../../../shared/admin-api-example/helpers.ts";
 
 describe("FieldTable", () => {
   beforeAll(setupAdminPageTest);
