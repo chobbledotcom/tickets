@@ -329,8 +329,8 @@ const handleDuplicateGroupPost = groupFormPost(
     const idBySlugIndex = new Map(
       (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
     );
-    // The clones above went through the batch, not through createListing. Sync their `base` price rows
-    // explicitly, or a priced clone has no matching base row until it is edited.
+    // The batch wrote the clones, not createListing. Sync their `base` price
+    // rows here, or a priced clone has no base row until an edit.
     await syncListingPricesForIds([...idBySlugIndex.values()]);
     const idMap = new Map(
       cloneInputs.map(({ sourceId, input }) => [

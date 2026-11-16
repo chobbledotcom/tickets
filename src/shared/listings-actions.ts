@@ -458,8 +458,8 @@ export const toggleListingActive = async (
         );
         if (refusal !== null) return { error: refusal };
       }
-      // The toggle's row write joins the guard's tx. The price mirror and the activity log join it too: a
-      // failure in either rolls the toggle back, so a retry re-runs all three.
+      // The row write, the price mirror and the activity log all join the tx of
+      // the guard. A failure in one rolls all three back, so a retry runs all.
       await tx.execute(
         await updateRowStatement(tables.listings, listingId, { active }),
       );

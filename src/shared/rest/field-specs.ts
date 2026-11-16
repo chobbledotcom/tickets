@@ -132,11 +132,6 @@ export type ByInputKey<
   Values extends Record<FieldKind, unknown>,
 > = { [Each in Field as InputKey<Each["key"]>]: Values[Each["kind"]] };
 
-/** The stored row the fields declare, with its id. */
-export type FieldsRow<Fields extends FieldSpecs> = FieldsStored<Fields> & {
-  id: number;
-};
-
 /** The write input the fields declare, keyed in camelCase. */
 export type FieldsInput<Fields extends FieldSpecs> = ByInputKey<
   Fields[number],

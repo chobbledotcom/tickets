@@ -293,10 +293,6 @@
       "fields": ["id"]
     },
     {
-      "path": [{ "name": "ActivityLogInput" }],
-      "fields": ["attendeeId", "listingId", "message"]
-    },
-    {
       "path": [{ "name": "ListingWithActivityLog" }],
       "fields": ["listing"]
     }
@@ -335,12 +331,6 @@
       "fields": ["kind"]
     }
   ],
-  "src/shared/db/attributes.ts": [
-    {
-      "path": [{ "name": "AttributeOption" }],
-      "fields": ["attribute_id"]
-    }
-  ],
   "src/shared/db/backup.ts": [
     {
       "path": [{ "name": "BackupInspection" }],
@@ -363,18 +353,6 @@
     {
       "path": [{ "name": "BuiltSiteFormInput" }],
       "fields": ["dbProvider", "hostingProvider", "updates"]
-    },
-    {
-      "path": [{ "name": "BuiltSiteInput" }],
-      "fields": ["siteData"]
-    },
-    {
-      "path": [{ "name": "BuiltSitePlainInput" }],
-      "fields": ["assignable", "assignedAttendeeId", "assignedListingId", "readOnlyFrom", "renewalTokenIndex", "updates"]
-    },
-    {
-      "path": [{ "name": "BuiltSiteRow" }],
-      "fields": ["assignable", "assigned_attendee_id", "assigned_listing_id", "read_only_from", "renewal_token_index", "site_data_revision", "updates"]
     }
   ],
   "src/shared/db/common-schema.ts": [
@@ -425,12 +403,6 @@
     {
       "path": [{ "name": "ListingGroupMembership" }],
       "fields": ["active"]
-    }
-  ],
-  "src/shared/db/news-posts.ts": [
-    {
-      "path": [{ "name": "NewsPostInput" }],
-      "fields": ["created"]
     }
   ],
   "src/shared/db/notes/types.ts": [
@@ -501,18 +473,6 @@
     {
       "path": [{ "name": "SettingsData" }],
       "fields": ["auto_purge_orphans", "booking_fee", "calendar_feeds_enabled", "calendar_feeds_group_by", "contact_form_enabled", "country", "currency", "external_order_enabled", "order_enabled", "orphan_purge_retention", "payment_provider", "payment_provider_setting", "phone_prefix", "show_public_api", "square_sandbox", "superuser_choice", "theme", "timezone", "underline_links"]
-    }
-  ],
-  "src/shared/db/site-pages.ts": [
-    {
-      "path": [{ "name": "SitePageInput" }],
-      "fields": ["sortOrder"]
-    }
-  ],
-  "src/shared/db/slugged-content-input.ts": [
-    {
-      "path": [{ "name": "SluggedContentInput" }],
-      "fields": ["slugIndex"]
     }
   ],
   "src/shared/db/sms-messages.ts": [

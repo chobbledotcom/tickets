@@ -5,18 +5,15 @@
  */
 
 import type { TableHandle } from "#db/select/tables.ts";
+import type { CollectionCache } from "#fp";
 import {
-  type CacheInvalidation,
   type DependsOnEntry,
   registerCache,
   registerDependencies,
 } from "#shared/cache-registry.ts";
 
 /** What a cache must give for the registry to clear it and count it. */
-type ClearableCache = {
-  invalidate: (cause?: CacheInvalidation) => void;
-  size: () => number;
-};
+type ClearableCache = Pick<CollectionCache<unknown>, "invalidate" | "size">;
 
 /** Register `cache` against `table` and the tables in `dependsOn`. A
  *  `whenColumns` entry clears the cache on an update of those columns only.

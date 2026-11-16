@@ -18,7 +18,7 @@ import {
   type FieldSpec,
   type FieldSpecs,
   type FieldsInput,
-  type FieldsRow,
+  type FieldsStored,
   type ShownField,
 } from "#shared/rest/field-specs.ts";
 import { apiRefusal, fieldValueSchema } from "#shared/rest/field-values.ts";
@@ -215,8 +215,10 @@ export const bodyMappers = <const Fields extends readonly OpenField[]>(
 ) => ({
   toCreateInput: (body: Record<string, unknown>) =>
     readOpenBody(fields, body, null),
-  toUpdateInput: (body: Record<string, unknown>, stored: FieldsRow<Fields>) =>
-    readOpenBody(fields, body, stored),
+  toUpdateInput: (
+    body: Record<string, unknown>,
+    stored: FieldsStored<Fields>,
+  ) => readOpenBody(fields, body, stored),
 });
 
 /** Read the fields that one checked form showed. A field the page did not

@@ -2,7 +2,7 @@
  *  links to its record. Any other field shows its stored text. */
 
 import type {
-  FieldsRow,
+  FieldsStored,
   ShownField,
   ShownKind,
 } from "#shared/rest/field-specs.ts";
@@ -39,8 +39,8 @@ const KIND_COLUMNS: Record<
 export const fieldTableColumns = <const Fields extends readonly ShownField[]>(
   fields: Fields,
   editHref: (row: { id: number }) => string,
-): TableColumn<FieldsRow<Fields>>[] =>
+): TableColumn<FieldsStored<Fields>>[] =>
   // Every declared row is a stored row, so each column reads it.
   fields.map((field) =>
     KIND_COLUMNS[field.kind](field, (row) => String(row[field.key]), editHref),
-  ) as TableColumn<FieldsRow<Fields>>[];
+  ) as TableColumn<FieldsStored<Fields>>[];

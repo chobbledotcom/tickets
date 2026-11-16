@@ -1,6 +1,5 @@
 {
   "test/features/admin/api-attendees.test.ts": 2,
-  "test/features/admin/api-groups/create.test.ts": 3,
   "test/features/admin/api-groups/delete.test.ts": 2,
   "test/features/admin/api-holidays.test.ts": 2,
   "test/features/admin/parity/groups.test.ts": 2,

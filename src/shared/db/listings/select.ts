@@ -5,9 +5,8 @@
  *
  * The whole record is read on purpose: every caller here builds a
  * `ListingWithCount`, which needs the money, day-price and image values. A read
- * that does not need them should select its own narrow column list with
- * `table.read.pick` instead, as `catalog.ts` and the group-membership
- * picker in `groups.ts` do.
+ * that does not need them picks its own columns with the builder, as
+ * `catalog.ts` and `groups/candidates.ts` do.
  */
 
 import {
@@ -29,6 +28,7 @@ import {
 import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import type { ListingWithCount } from "#types";
 
 /** The listing row of a statement that names the table
  *  `listings AS listing`. */
@@ -156,8 +156,8 @@ export const listingReader = {
  * worked-out values, before the projected values are opened and before any
  * inherited defaults are overlaid. */
 export type ListingRecordRow = DecodedRowOf<"listings"> &
-  SealedItemImages & {
-    attendee_count: number;
+  SealedItemImages &
+  Pick<ListingWithCount, "attendee_count"> & {
     cost: number | bigint;
     day_prices: string;
     income: number | bigint;
