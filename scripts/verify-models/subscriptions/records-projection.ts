@@ -6,6 +6,7 @@
 import { assert } from "@std/assert";
 import * as v from "valibot";
 import { executeBatch } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   getSubscribedRowOrNull,
   getSubscribedRows,
@@ -69,10 +70,7 @@ export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
       await seedBooking({ attendeeId, id, listingId, plan, quantity });
       // Different dates give each stored row a distinct slot on the same listing.
       await executeBatch([
-        {
-          args: [`2026-03-${String(id).padStart(2, "0")}T00:00:00Z`, id],
-          sql: "UPDATE listing_attendees SET start_at = ? WHERE id = ?",
-        },
+        sql`UPDATE listing_attendees SET start_at = ${`2026-03-${String(id).padStart(2, "0")}T00:00:00Z`} WHERE id = ${id}`,
       ]);
       universe.push({
         attendee_id: attendeeId,
@@ -135,10 +133,7 @@ export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
     ["invalid-status", "month", "unknown"],
   ]) {
     await executeBatch([
-      {
-        args: [interval!, status!],
-        sql: "UPDATE listing_attendees SET recurring_interval = ?, subscription_status = ? WHERE id = 999",
-      },
+      sql`UPDATE listing_attendees SET recurring_interval = ${interval!}, subscription_status = ${status!} WHERE id = 999`,
     ]);
     invalid.push({
       attempt: 1,

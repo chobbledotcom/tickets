@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { checkoutFacts } from "#scripts/verify-models/subscriptions/checkout.ts";
 
 const requestScenarios = Array.from(
@@ -11,9 +12,9 @@ const requestScenarios = Array.from(
 const allScenarios = [...requestScenarios, "local-41", "local-42", "local-43"];
 
 /** Runs one statement on the stored rows before the producer reads them. */
-const storedWrite = (sql: string) => ({
+const storedWrite = (statement: SqlStatement) => ({
   stored: async () => {
-    await executeBatch([{ args: [], sql }]);
+    await executeBatch([statement]);
   },
 });
 
@@ -92,7 +93,7 @@ describe("subscription checkout boundary faults", () => {
   test("a stored amount rewrite remains seven units wrong after the real edits", async () => {
     const facts = await checkoutFacts(
       storedWrite(
-        "UPDATE listing_attendees SET recurring_price = recurring_price + 7 WHERE subscription_id <> ''",
+        sql`UPDATE listing_attendees SET recurring_price = recurring_price + 7 WHERE subscription_id <> ''`,
       ),
     );
     expectExcess(
@@ -106,7 +107,7 @@ describe("subscription checkout boundary faults", () => {
   test("plans written onto ordinary rows remain wrongly attributed", async () => {
     const facts = await checkoutFacts(
       storedWrite(
-        "UPDATE listing_attendees SET subscription_id = 'sub_wrong_row' WHERE recurring_price = 0",
+        sql`UPDATE listing_attendees SET subscription_id = 'sub_wrong_row' WHERE recurring_price = 0`,
       ),
     );
     expect(
@@ -229,7 +230,7 @@ describe("subscription checkout boundary faults", () => {
     await expect(
       checkoutFacts(
         storedWrite(
-          "DELETE FROM listing_attendees WHERE subscription_id <> ''",
+          sql`DELETE FROM listing_attendees WHERE subscription_id <> ''`,
         ),
       ),
     ).rejects.toBeInstanceOf(Error);

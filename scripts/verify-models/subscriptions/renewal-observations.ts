@@ -1,11 +1,12 @@
 import { stub } from "@std/testing/mock";
 import { LedgerConflictError } from "#accounting/conflicts.ts";
 import { eventGroup, legReference } from "#accounting/refs.ts";
-import { selectTransfers } from "#accounting/rows.ts";
+import { byColumnIn, selectTransfers } from "#accounting/rows.ts";
 import { execute, queryBatch, queryOnePrimary } from "#db/client.ts";
 import { notNullGuardFailure } from "#db/query.ts";
+import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { type CheckedRow, getSubscribedRowOrNull } from "#db/subscriptions.ts";
-import { inList } from "#db/where-clauses.ts";
+
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
   denoEnvironment,
@@ -51,10 +52,9 @@ type CurrentRow = {
 
 const currentRowOrNull = (id: number): Promise<CurrentRow | null> =>
   queryOnePrimary(
-    `SELECT booking.id, booking.attendee_id, booking.listing_id,
+    sql`SELECT booking.id, booking.attendee_id, booking.listing_id,
             booking.subscription_id, booking.subscription_status
-       FROM listing_attendees AS booking WHERE booking.id = ?`,
-    [id],
+       FROM listing_attendees AS booking WHERE booking.id = ${id}`,
   );
 
 /** Blank role values mean no leg of that kind. Counts retain duplicates. */
@@ -175,10 +175,9 @@ const changeIdentity = async (
     },
   } as const;
   const { column, value } = changes[change];
-  await execute(`UPDATE listing_attendees SET ${column} = ? WHERE id = ?`, [
-    value,
-    row.id,
-  ]);
+  await execute(
+    sql`UPDATE listing_attendees SET ${sqlName(column)} = ${value} WHERE id = ${row.id}`,
+  );
 };
 
 const recordOutcome = (write: () => Promise<void>): Promise<string> =>
@@ -199,9 +198,9 @@ const recordOutcome = (write: () => Promise<void>): Promise<string> =>
 
 const setWriteFault = (): Promise<unknown> =>
   execute(
-    `CREATE TRIGGER model_renewal_fault BEFORE INSERT ON transfers
+    sql`CREATE TRIGGER model_renewal_fault BEFORE INSERT ON transfers
    WHEN NEW.kind = 'sale'
-   BEGIN SELECT RAISE(ABORT, '${WRITE_FAULT}'); END`,
+   BEGIN SELECT RAISE(ABORT, ${sqlLiteral(WRITE_FAULT)}); END`,
   );
 
 /** The snapshots surround the actual recordObserved call and its one atomic batch. */
@@ -236,12 +235,13 @@ export const observePass = async (
   });
   const inputs = await invoiceEvidence(scenario, attempt, row, invoices);
   const readLegs = () =>
-    selectTransfers(queryBatch, {
-      where: inList(
+    selectTransfers(
+      queryBatch,
+      byColumnIn(
         "event_group",
         inputs.map((invoice) => invoice.expectedGroup),
       ),
-    });
+    );
   const before = await currentRowOrNull(row.id);
   const beforeLegs = await readLegs();
   if (pass.fault) await setWriteFault();
@@ -258,7 +258,7 @@ export const observePass = async (
   try {
     outcome = await recordOutcome(write);
   } finally {
-    if (pass.fault) await execute("DROP TRIGGER model_renewal_fault");
+    if (pass.fault) await execute(sql`DROP TRIGGER model_renewal_fault`);
     setEnvironmentValue(
       denoEnvironment,
       "TEST_EXPECT_ERROR",

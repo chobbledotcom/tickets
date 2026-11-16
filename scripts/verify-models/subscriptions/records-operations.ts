@@ -19,6 +19,7 @@ import {
   PaymentRowsBusyError,
 } from "#db/payment-admit-move.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
   applyAttendeeMerge,
@@ -140,14 +141,8 @@ const seed = async (input: RecordScenario, keys: Keys) => {
     });
   }
   await executeBatch([
-    {
-      args: [],
-      sql: "UPDATE listing_attendees SET ledger_event_group = CASE WHEN id = 2 THEN 'extra' ELSE 'plan' END",
-    },
-    {
-      args: [],
-      sql: "INSERT INTO transfers (id,source_type,source_id,dest_type,dest_id,amount,occurred_at,recorded_at,reference,event_group,kind) VALUES (1,'external','world','attendee','1',47,1,1,'model-cash','extra','payment'),(2,'attendee','1','revenue','12',47,1,1,'model-sale','extra','sale')",
-    },
+    sql`UPDATE listing_attendees SET ledger_event_group = CASE WHEN id = 2 THEN 'extra' ELSE 'plan' END`,
+    sql`INSERT INTO transfers (id,source_type,source_id,dest_type,dest_id,amount,occurred_at,recorded_at,reference,event_group,kind) VALUES (1,'external','world','attendee','1',47,1,1,'model-cash','extra','payment'),(2,'attendee','1','revenue','12',47,1,1,'model-sale','extra','sale')`,
   ]);
   return protectedAttendee;
 };
@@ -255,10 +250,7 @@ const merge = async (input: RecordScenario, keys: Keys) => {
 const prepareDeleteRace = async (input: RecordScenario) => {
   if (input.operation !== "delete-race") return;
   await executeBatch([
-    {
-      args: [],
-      sql: "UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1",
-    },
+    sql`UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1`,
   ]);
   const preview = await loadPaymentMoveSnapshot([1]);
   assert(
@@ -266,10 +258,7 @@ const prepareDeleteRace = async (input: RecordScenario) => {
     "Race preview must permit deletion",
   );
   await executeBatch([
-    {
-      args: [],
-      sql: "UPDATE listing_attendees SET subscription_status = 'active' WHERE id = 1",
-    },
+    sql`UPDATE listing_attendees SET subscription_status = 'active' WHERE id = 1`,
   ]);
 };
 

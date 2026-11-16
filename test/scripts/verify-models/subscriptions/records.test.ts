@@ -2,6 +2,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute, executeBatch } from "#db/client.ts";
+import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
 import { withSubscriptionDb } from "#scripts/verify-models/subscriptions/environment.ts";
 import {
   collectRecordFacts,
@@ -28,13 +29,9 @@ const scenario = (operation: string, status = "active", quantity = 0) => {
 };
 
 /** Runs one record scenario after one write that the scenario does not expect. */
-const scenarioAfterWrite = (
-  operation: string,
-  sql: string,
-  args: (string | number)[] = [],
-) =>
+const scenarioAfterWrite = (operation: string, statement: SqlStatement) =>
   runRecordScenario(scenario(operation), async () => {
-    await execute(sql, args);
+    await execute(statement);
   });
 
 type ParsedFact = Record<string, string | boolean | number>;
@@ -199,7 +196,7 @@ describe("subscription record production facts", () => {
   test("exposes wrong persisted identity and amount before extraction", async () => {
     const fact = await scenarioAfterWrite(
       "merge-move",
-      "UPDATE listing_attendees SET subscription_id = 'sub_wrong', recurring_price = 999 WHERE listing_id = 11",
+      sql`UPDATE listing_attendees SET subscription_id = 'sub_wrong', recurring_price = 999 WHERE listing_id = 11`,
     );
     expect(fact.subscription).toBe("sub_wrong");
     expect(fact.price).toBe(999);
@@ -207,20 +204,20 @@ describe("subscription record production facts", () => {
     expect(fact.expectedPrice).toBe(731);
   });
 
-  for (const [title, sql, expected] of [
+  for (const [title, statement, expected] of [
     [
       "retains actual partial refusal rather than an expected safe state",
-      "UPDATE attendees SET email_pending = 1 WHERE id = 1",
+      sql`UPDATE attendees SET email_pending = 1 WHERE id = 1`,
       { recordsUnchanged: false },
     ],
     [
       "exposes a changed ledger amount on a refused delete",
-      "UPDATE transfers SET amount = 48 WHERE id = 1",
+      sql`UPDATE transfers SET amount = 48 WHERE id = 1`,
       { moneyCorrect: false, moneyUnchanged: false },
     ],
   ] as const) {
     test(title, async () => {
-      const fact = await scenarioAfterWrite("delete", sql);
+      const fact = await scenarioAfterWrite("delete", statement);
       expect(fact).toMatchObject({ accepted: false, ...expected });
     });
   }
@@ -229,11 +226,8 @@ describe("subscription record production facts", () => {
     const facts = await withSubscriptionDb(() =>
       projectionFacts(async () => {
         await executeBatch([
-          { args: [], sql: "DELETE FROM listing_attendees WHERE id = 1" },
-          {
-            args: [],
-            sql: "UPDATE listing_attendees SET attendee_id = 999 WHERE id = 2",
-          },
+          sql`DELETE FROM listing_attendees WHERE id = 1`,
+          sql`UPDATE listing_attendees SET attendee_id = 999 WHERE id = 2`,
         ]);
       }),
     );
@@ -256,7 +250,7 @@ describe("subscription record production facts", () => {
     for (const operation of ["edit-drop", "delete", "merge-drop-source"]) {
       const fact = await scenarioAfterWrite(
         operation,
-        "DELETE FROM listing_attendees WHERE id = 1",
+        sql`DELETE FROM listing_attendees WHERE id = 1`,
       );
       expect(fact.accepted).toBe(false);
       expect(fact.expectedPresent).toBe(true);
@@ -274,8 +268,7 @@ describe("subscription record production facts", () => {
     ] as const) {
       const fact = await scenarioAfterWrite(
         "merge-move",
-        `UPDATE listing_attendees SET ${column} = ? WHERE listing_id = 11`,
-        [value],
+        sql`UPDATE listing_attendees SET ${sqlName(column)} = ${value} WHERE listing_id = 11`,
       );
       expect(fact.accepted).toBe(true);
       expect(fact.present).toBe(true);
@@ -293,15 +286,12 @@ describe("subscription record production facts", () => {
     const facts = await withSubscriptionDb(() =>
       projectionFacts(async () => {
         await executeBatch([
-          {
-            args: [],
-            sql: `INSERT INTO listing_attendees
+          sql`INSERT INTO listing_attendees
         (id,attendee_id,listing_id,quantity,start_at,recurring_price,recurring_tax,
          recurring_interval,subscription_id,subscription_status)
         SELECT 201,attendee_id,listing_id,quantity,'2026-04-01',recurring_price,
                recurring_tax,recurring_interval,subscription_id,subscription_status
           FROM listing_attendees WHERE id = 1`,
-          },
         ]);
       }),
     );

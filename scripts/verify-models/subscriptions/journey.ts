@@ -6,6 +6,7 @@ import { stub } from "@std/testing/mock";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { execute, executeBatch, queryAllPrimary } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { getSubscribedRows, type SubscribedRow } from "#db/subscriptions.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { subscriptionStartOf } from "#shared/stripe/subscription.ts";
@@ -85,7 +86,7 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
     listingId: listing + 1,
     quantity: 0,
   });
-  await execute("DELETE FROM listing_attendees WHERE id IN (50000, 50001)");
+  await execute(sql`DELETE FROM listing_attendees WHERE id IN (50000, 50001)`);
   const observed = await observeCheckout(example, {});
   const { request } = observed;
   const lines = withSubscriptionPlan(
@@ -97,9 +98,7 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
     example.policy,
   );
   await executeBatch(
-    lines.map((line) =>
-      buildCapacityCheckedInsert(line, (bind) => bind(attendee)),
-    ),
+    lines.map((line) => buildCapacityCheckedInsert(line, attendee)),
   );
   const capture = async (
     phase: string,
@@ -135,8 +134,7 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
   };
   const first = await capture("stored");
   await execute(
-    "UPDATE listings SET recurring_price = 9999, recurring_interval = 'year' WHERE id = ?",
-    [listing],
+    sql`UPDATE listings SET recurring_price = 9999, recurring_interval = 'year' WHERE id = ${listing}`,
   );
   await settings.update.tax({
     mode: "calculate_from_total",
@@ -231,13 +229,12 @@ export const failedJourneyFacts = async (): Promise<
     await checkoutPublicKey(),
     "none",
     async (attempt) => {
-      const rows = await queryAllPrimary<SubscribedRow>({
-        args: [observed.start.id],
-        sql: `SELECT booking.id, booking.attendee_id, booking.listing_id, booking.quantity,
+      const rows = await queryAllPrimary<SubscribedRow>(
+        sql`SELECT booking.id, booking.attendee_id, booking.listing_id, booking.quantity,
               booking.recurring_price, booking.recurring_tax, booking.recurring_interval,
               booking.subscription_id, booking.subscription_status
-         FROM listing_attendees AS booking WHERE booking.subscription_id = ?`,
-      });
+         FROM listing_attendees AS booking WHERE booking.subscription_id = ${observed.start.id}`,
+      );
       const row = requireValue(
         rows[0],
         "The failed join lost its retained plan",

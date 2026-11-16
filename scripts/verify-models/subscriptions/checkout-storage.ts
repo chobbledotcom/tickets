@@ -6,6 +6,7 @@ import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { executeBatch, queryAll } from "#db/client.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
@@ -68,14 +69,8 @@ const seedPlanBookings = async (
     quantity: 0,
   });
   await executeBatch([
-    {
-      args: [attendee],
-      sql: "INSERT INTO attendees (id, created) VALUES (?, '2026-01-01T00:00:00.000Z')",
-    },
-    {
-      args: [start.listingId, start.listingId + 1],
-      sql: "UPDATE listings SET active = 1 WHERE id IN (?, ?)",
-    },
+    sql`INSERT INTO attendees (id, created) VALUES (${attendee}, '2026-01-01T00:00:00.000Z')`,
+    sql`UPDATE listings SET active = 1 WHERE id IN (${start.listingId}, ${start.listingId + 1})`,
   ]);
   const subscribedBooking: SeededBooking = {
     listingId: start.listingId,
@@ -95,7 +90,7 @@ const seedPlanBookings = async (
   ];
   await executeBatch(
     withSubscriptionPlan(bookings, observed, policy).map((booking) =>
-      buildCapacityCheckedInsert(booking, (bind) => bind(attendee)),
+      buildCapacityCheckedInsert(booking, attendee),
     ),
   );
   const rate = policy.mode === "none" ? 0 : policy.rateBasisPoints;
@@ -181,8 +176,7 @@ const readPlanBookings = async (
   stage: string,
 ): Promise<CheckoutFacts["plans"]> => {
   const rows = await queryAll<Stored>(
-    "SELECT id, attendee_id, listing_id, quantity, recurring_price, recurring_tax, recurring_interval, subscription_id, subscription_status FROM listing_attendees WHERE attendee_id IN (?, ?) ORDER BY id",
-    [attendee, other],
+    sql`SELECT id, attendee_id, listing_id, quantity, recurring_price, recurring_tax, recurring_interval, subscription_id, subscription_status FROM listing_attendees WHERE attendee_id IN (${attendee}, ${other}) ORDER BY id`,
   );
   if (rows.length !== expected.length)
     throw new Error("Stored checkout row coverage is incomplete");

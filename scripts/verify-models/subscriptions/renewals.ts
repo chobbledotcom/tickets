@@ -2,6 +2,7 @@
 
 import { execute } from "#db/client.ts";
 import { settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -77,7 +78,7 @@ export const renewalFacts = async (
     };
     if (corruption === "stored_vat")
       await execute(
-        `CREATE TRIGGER model_corrupt_renewal_vat AFTER INSERT ON transfers
+        sql`CREATE TRIGGER model_corrupt_renewal_vat AFTER INSERT ON transfers
      WHEN NEW.kind = 'vat' AND NEW.source_id = '1'
      BEGIN UPDATE transfers SET amount = amount + 1 WHERE id = NEW.id; END`,
       );

@@ -1,5 +1,6 @@
 /** Owner snapshots, exact refusal handling, and local provider boundaries. */
 import { execute } from "#db/client.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import {
   type CheckedRow,
   getSubscribedRowOrNull,
@@ -59,29 +60,31 @@ const replaceOwnerSnapshot = async (
   switch (change) {
     case "status":
       await execute(
-        "UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1",
+        sql`UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1`,
       );
       break;
     case "attendee":
       await execute(
-        "INSERT INTO attendees (id, created) VALUES (2, '2026-03-01T00:00:00.000Z')",
+        sql`INSERT INTO attendees (id, created) VALUES (2, '2026-03-01T00:00:00.000Z')`,
       );
       await execute(
-        "UPDATE listing_attendees SET attendee_id = 2 WHERE id = 1",
+        sql`UPDATE listing_attendees SET attendee_id = 2 WHERE id = 1`,
       );
       break;
     case "listing":
       await seedBooking({ attendeeId: 2, id: 2, listingId: 2, quantity: 0 });
-      await execute("DELETE FROM listing_attendees WHERE id = 2");
-      await execute("UPDATE listing_attendees SET listing_id = 2 WHERE id = 1");
+      await execute(sql`DELETE FROM listing_attendees WHERE id = 2`);
+      await execute(
+        sql`UPDATE listing_attendees SET listing_id = 2 WHERE id = 1`,
+      );
       break;
     case "subscription":
       await execute(
-        "UPDATE listing_attendees SET subscription_id = 'sub_replaced' WHERE id = 1",
+        sql`UPDATE listing_attendees SET subscription_id = 'sub_replaced' WHERE id = 1`,
       );
       break;
     case "id":
-      await execute("UPDATE listing_attendees SET id = 2 WHERE id = 1");
+      await execute(sql`UPDATE listing_attendees SET id = 2 WHERE id = 1`);
       return 2;
   }
   return 1;
@@ -109,8 +112,8 @@ export const prepareOwnerSnapshot = async (
   );
   const storedId = await replaceOwnerSnapshot(sample.change);
   if (sample.ledgerFault)
-    await execute(`CREATE TRIGGER model_cancel_fault BEFORE INSERT ON transfers
-    WHEN NEW.kind = 'sale' BEGIN SELECT RAISE(ABORT, '${LEDGER_FAULT}'); END`);
+    await execute(sql`CREATE TRIGGER model_cancel_fault BEFORE INSERT ON transfers
+    WHEN NEW.kind = 'sale' BEGIN SELECT RAISE(ABORT, ${sqlLiteral(LEDGER_FAULT)}); END`);
   const before = requireValue(
     await getSubscribedRowOrNull(storedId),
     "Owner before row missing",
@@ -208,7 +211,7 @@ type Tamper = (sample: OwnerCase, fault: CancellationFault) => Promise<void>;
 const tamperOwnerStatus: Tamper = async (sample, fault) => {
   if (fault === "local-end-without-money" && sample.ledgerFault)
     await execute(
-      "UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1",
+      sql`UPDATE listing_attendees SET subscription_status = 'canceled' WHERE id = 1`,
     );
 };
 

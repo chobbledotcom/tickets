@@ -3,6 +3,7 @@
  */
 import type { TransferEndpoints } from "#accounting/rows.ts";
 import { queryAll, queryAllPrimary } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import {
   liveBookingOfAttendees,
   liveListingRefusal,
@@ -53,16 +54,16 @@ const CONFLICTS = [
 ];
 
 const readMoney = () =>
-  queryAll<TransferEndpoints>("SELECT * FROM transfers ORDER BY id");
+  queryAll<TransferEndpoints>(sql`SELECT * FROM transfers ORDER BY id`);
 
 export const readRecordSnapshot = async () =>
   JSON.stringify(
     await Promise.all([
-      queryAll("SELECT * FROM attendees ORDER BY id"),
-      queryAll("SELECT * FROM listing_attendees ORDER BY id"),
-      queryAll("SELECT * FROM listings ORDER BY id"),
+      queryAll(sql`SELECT * FROM attendees ORDER BY id`),
+      queryAll(sql`SELECT * FROM listing_attendees ORDER BY id`),
+      queryAll(sql`SELECT * FROM listings ORDER BY id`),
       queryAll(
-        "SELECT * FROM attendee_answers ORDER BY attendee_id, question_id",
+        sql`SELECT * FROM attendee_answers ORDER BY attendee_id, question_id`,
       ),
       readMoney(),
     ]),
@@ -196,7 +197,7 @@ export const readRecordOutcome = async (
   stage: RecordStageOutcome,
 ): Promise<RecordFacts["operations"][number]> => {
   const rows = await queryAll<StoredBooking>(
-    "SELECT * FROM listing_attendees ORDER BY id",
+    sql`SELECT * FROM listing_attendees ORDER BY id`,
   );
   const expected = expectedShape(input, before.protectedAttendee);
   const observed = protectedRow(rows, input, expected.expectedAttendee);

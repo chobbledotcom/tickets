@@ -2,6 +2,7 @@
 import { execute } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { placeholderRefund } from "#payment/placeholder-refund.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import type { MalformedRejection } from "#payment/validated-session.ts";
@@ -181,12 +182,12 @@ export const executeCheckoutAttempt = async (
 ): Promise<CheckoutAttemptResult> => {
   const interrupted = sample.interruption && attempt === 1;
   if (interrupted)
-    await execute(`CREATE TRIGGER model_checkout_fault BEFORE INSERT ON transfers
+    await execute(sql`CREATE TRIGGER model_checkout_fault BEFORE INSERT ON transfers
     WHEN NEW.kind = 'refund_cash' BEGIN SELECT RAISE(ABORT, 'model_checkout_ledger_fault'); END`);
   try {
     return await invokeCheckout(sample, rejection, entrypoint);
   } finally {
-    if (interrupted) await execute("DROP TRIGGER model_checkout_fault");
+    if (interrupted) await execute(sql`DROP TRIGGER model_checkout_fault`);
   }
 };
 
@@ -201,16 +202,16 @@ export const tamperCheckoutReadback = async (
     sample.protected === "anchorless" &&
     attempt === 2
   )
-    await execute("DELETE FROM listing_attendees WHERE subscription_id = ?", [
-      (sample.observedStart ?? checkoutStart(sample.start)).id,
-    ]);
+    await execute(
+      sql`DELETE FROM listing_attendees WHERE subscription_id = ${(sample.observedStart ?? checkoutStart(sample.start)).id}`,
+    );
   if (sample.scenario !== "retry" || attempt !== 3) return;
   switch (fault) {
     case "false-local-completion":
-      await execute("DELETE FROM transfers WHERE kind = 'refund_cash'");
+      await execute(sql`DELETE FROM transfers WHERE kind = 'refund_cash'`);
       break;
     case "duplicate-refund":
-      await execute(`INSERT INTO transfers (source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_group, posted_by)
+      await execute(sql`INSERT INTO transfers (source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_group, posted_by)
         SELECT source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference || '_duplicate', event_group || '_duplicate', kind, memo, reverses_group, posted_by FROM transfers WHERE kind = 'refund_cash'`);
       break;
   }
@@ -226,7 +227,7 @@ export const removeCheckoutAnchor = async (
     (await findHeldAnchor(checkoutReference, CHECKOUT_SESSION)).held,
     "Anchorless fixture has no anchor to remove",
   );
-  await execute("DELETE FROM processed_payments WHERE payment_session_id = ?", [
-    anchor.record.sessionId,
-  ]);
+  await execute(
+    sql`DELETE FROM processed_payments WHERE payment_session_id = ${anchor.record.sessionId}`,
+  );
 };

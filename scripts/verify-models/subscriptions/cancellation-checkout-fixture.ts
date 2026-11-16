@@ -11,6 +11,7 @@ import {
 } from "#db/processed-payments.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
 import { ALL_SETTINGS_KEYS, CONFIG_KEYS, settings } from "#db/settings.ts";
+import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
 import { findHeldAnchor } from "#routes/api/payment-processing/placeholder-resume.ts";
@@ -58,7 +59,7 @@ export const seedCheckout = async (publicKey: string): Promise<void> => {
   await settings.loadKeys(ALL_SETTINGS_KEYS);
   await ensureDefaultAttendeeStatus();
   await seedBooking({ attendeeId: 1, id: 1, listingId: 1, quantity: 0 });
-  await execute("DELETE FROM listing_attendees WHERE id = 1");
+  await execute(sql`DELETE FROM listing_attendees WHERE id = 1`);
 };
 
 /** A signed unreadable order is still ours, but cannot create plan rows. */
@@ -104,8 +105,7 @@ export const seedHonouredCheckout = async (
     quantity: 1,
   });
   await execute(
-    "UPDATE listing_attendees SET ledger_event_group = ? WHERE id = 2",
-    [await bookingEventGroup(CHECKOUT_SESSION)],
+    sql`UPDATE listing_attendees SET ledger_event_group = ${await bookingEventGroup(CHECKOUT_SESSION)} WHERE id = 2`,
   );
   await postTransferGroups([
     await mapBooking({
@@ -118,7 +118,7 @@ export const seedHonouredCheckout = async (
       occurredAt: MODEL_TIME,
     }),
   ]);
-  if (orphaned) await execute("DELETE FROM listing_attendees WHERE id = 2");
+  if (orphaned) await execute(sql`DELETE FROM listing_attendees WHERE id = 2`);
 };
 
 export type CheckoutProbe = CancellationProbe & {
@@ -185,8 +185,7 @@ export const withCheckoutProvider: CancellationProvider<
     probe.heldAtCancel = held.held === null ? 0 : 1;
     probe.planAtCancel = (
       await queryAll(
-        "SELECT id FROM listing_attendees WHERE subscription_id = ? AND quantity = 0",
-        [start.id],
+        sql`SELECT id FROM listing_attendees WHERE subscription_id = ${start.id} AND quantity = 0`,
       )
     ).length;
     if (fault === "refund-before-confirmed-end") {
@@ -281,7 +280,7 @@ export const checkoutReadback = async (
     recurring_tax: number;
     recurring_interval: string;
   }>(
-    "SELECT id, attendee_id, listing_id, subscription_id, subscription_status, quantity, recurring_price, recurring_tax, recurring_interval FROM listing_attendees WHERE subscription_id != ''",
+    sql`SELECT id, attendee_id, listing_id, subscription_id, subscription_status, quantity, recurring_price, recurring_tax, recurring_interval FROM listing_attendees WHERE subscription_id != ''`,
   );
   const plan = plans[0];
   const anchors = await findHeldAnchor(checkoutReference, CHECKOUT_SESSION);
@@ -289,11 +288,10 @@ export const checkoutReadback = async (
     await paymentReferenceIndex(checkoutReference),
   );
   const legs = await queryAll<{ amount: number; kind: string }>(
-    "SELECT amount, kind FROM transfers",
+    sql`SELECT amount, kind FROM transfers`,
   );
   const callback = await queryOne<ProcessedPayment>(
-    "SELECT * FROM processed_payments WHERE payment_session_id = ?",
-    [CHECKOUT_SESSION],
+    sql`SELECT * FROM processed_payments WHERE payment_session_id = ${CHECKOUT_SESSION}`,
   );
   const failure =
     callback === null ? null : await parseSessionFailure(callback.failure_data);

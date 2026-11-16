@@ -1,5 +1,6 @@
 /** Execute owner cancellation and the guarded SQL against real stored plans. */
 import { execute, queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getSubscribedRowOrNull, statusWrite } from "#db/subscriptions.ts";
 import type {
   CancellationFacts,
@@ -65,7 +66,7 @@ const ownerReadback = async (
     amount: number;
     kind: string;
     event_group: string;
-  }>("SELECT amount, kind, event_group FROM transfers");
+  }>(sql`SELECT amount, kind, event_group FROM transfers`);
   const first = await cancellationInvoiceEvidence(legs, "in_final_a");
   const second = await cancellationInvoiceEvidence(legs, "in_final_b");
   const payment = cancellationLedgerSummary(legs, "payment");
@@ -166,7 +167,7 @@ const guardedWrite = async ({
     { ...row, subscription_status: snapshot },
     target,
   );
-  const result = await execute(statement.sql, statement.args);
+  const result = await execute(statement);
   if (
     fault === "stale-overwrite" &&
     snapshot === "active" &&
@@ -174,8 +175,7 @@ const guardedWrite = async ({
     target === "active"
   )
     await execute(
-      "UPDATE listing_attendees SET subscription_status = ? WHERE id = ?",
-      [target, id],
+      sql`UPDATE listing_attendees SET subscription_status = ${target} WHERE id = ${id}`,
     );
   const stored = requireValue(
     await getSubscribedRowOrNull(id),

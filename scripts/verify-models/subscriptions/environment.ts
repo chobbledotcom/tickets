@@ -5,6 +5,7 @@ import { createClient } from "@libsql/client";
 import { encrypt, setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { executeBatch, setDb } from "#db/client.ts";
 import { rebuildWipedSchema } from "#db/migrations.ts";
+import { sql } from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
@@ -81,36 +82,13 @@ export type BookingSeed = {
 export const seedBooking = async (seed: BookingSeed): Promise<void> => {
   const plan = seed.plan;
   await executeBatch([
-    {
-      args: [seed.attendeeId, MODEL_TIME],
-      sql: "INSERT OR IGNORE INTO attendees (id, created) VALUES (?, ?)",
-    },
-    {
-      args: [
-        seed.listingId,
-        MODEL_TIME,
-        await encrypt(`Model ticket ${seed.listingId}`),
-      ],
-      sql: `INSERT OR IGNORE INTO listings (id, created, max_attendees, name)
-            VALUES (?, ?, 10000, ?)`,
-    },
-    {
-      args: [
-        seed.id,
-        seed.attendeeId,
-        seed.listingId,
-        seed.quantity,
-        plan?.amount ?? 0,
-        plan?.tax ?? 0,
-        plan?.interval ?? "",
-        plan?.id ?? "",
-        plan?.status ?? "",
-      ],
-      sql: `INSERT INTO listing_attendees
+    sql`INSERT OR IGNORE INTO attendees (id, created) VALUES (${seed.attendeeId}, ${MODEL_TIME})`,
+    sql`INSERT OR IGNORE INTO listings (id, created, max_attendees, name)
+            VALUES (${seed.listingId}, ${MODEL_TIME}, 10000, ${await encrypt(`Model ticket ${seed.listingId}`)})`,
+    sql`INSERT INTO listing_attendees
               (id, attendee_id, listing_id, quantity, recurring_price,
                recurring_tax, recurring_interval, subscription_id, subscription_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    },
+            VALUES (${seed.id}, ${seed.attendeeId}, ${seed.listingId}, ${seed.quantity}, ${plan?.amount ?? 0}, ${plan?.tax ?? 0}, ${plan?.interval ?? ""}, ${plan?.id ?? ""}, ${plan?.status ?? ""})`,
   ]);
 };
 
