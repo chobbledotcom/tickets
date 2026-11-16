@@ -25,7 +25,7 @@ import type {
   TableName,
   TableWithId,
 } from "#db/select/tables.ts";
-import type { RowsStatement } from "#db/sql.ts";
+import type { Read, RowsStatement } from "#db/sql.ts";
 import {
   type ColumnName,
   deleteFrom,
@@ -80,18 +80,21 @@ const rowRead = <Name extends TableWithId>(
 ): RowsStatement<DecodedRowOf<Name>> =>
   rowById(table, id).everyColumn() as RowsStatement<DecodedRowOf<Name>>;
 
+/** The row with this id as `readOne` reads it, or null when there is none. */
+const findRowWith =
+  (readOne: <Row>(read: Read<Row>) => Promise<Row | null>) =>
+  <Name extends TableWithId>(
+    table: TableHandle<Name>,
+    id: number,
+  ): Promise<DecodedRowOf<Name> | null> =>
+    readOne(rowRead(table, id));
+
 /** The row with this id, or null when there is none. */
-export const findRow = <Name extends TableWithId>(
-  table: TableHandle<Name>,
-  id: number,
-): Promise<DecodedRowOf<Name> | null> => readOneRow(rowRead(table, id));
+export const findRow = findRowWith(readOneRow);
 
 /** The row with this id, read on the primary. A write that reads its own
  *  row back uses this, because a replica can lag behind the write. */
-export const findRowPrimary = <Name extends TableWithId>(
-  table: TableHandle<Name>,
-  id: number,
-): Promise<DecodedRowOf<Name> | null> => queryOnePrimary(rowRead(table, id));
+export const findRowPrimary = findRowWith(queryOnePrimary);
 
 /** Whether the table has a row with this id. */
 export const hasRow = <Name extends TableWithId>(
