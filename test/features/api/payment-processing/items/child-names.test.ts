@@ -89,7 +89,7 @@ const childOrder = async (
   return intent;
 };
 
-const checkChildName = async (
+const assertChildName = async (
   { path, safeName }: (typeof cases)[number],
   state: "inactive" | "closed" | "active",
 ): Promise<void> => {
@@ -137,7 +137,8 @@ const checkChildName = async (
 describeWithEnv("paid child names", { db: true }, () => {
   for (const scenario of cases) {
     for (const state of ["inactive", "closed", "active"] as const) {
-      test(`${state}: ${scenario.name}`, () => checkChildName(scenario, state));
+      test(`${state}: ${scenario.name}`, () =>
+        assertChildName(scenario, state));
     }
   }
 });

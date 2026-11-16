@@ -31,7 +31,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       await assertApiDeleteOk(`/api/admin/groups/${group.id}`, "To Delete");
 
       const all = await groups.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeUndefined();
+      expect(all.map((g) => g.id)).not.toContain(group.id);
     });
 
     test("resets listings to ungrouped on delete", async () => {
@@ -70,7 +70,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
 
       const row = await findRow(tables.groups, group.id);
-      expect(row).toBeDefined();
+      expect(row?.id).toBe(group.id);
     });
 
     test("returns 404 for non-existent group", async () => {
@@ -128,7 +128,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         expect(response.status).toBe(403);
 
         const all = await groups.getAll();
-        expect(all.find((g) => g.id === group.id)).toBeDefined();
+        expect(all.map((g) => g.id)).toContain(group.id);
       }
     });
 
@@ -144,7 +144,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       expect(response.status).toBe(200);
 
       const all = await groups.getAll();
-      expect(all.find((g) => g.id === group.id)).toBeUndefined();
+      expect(all.map((g) => g.id)).not.toContain(group.id);
     });
   });
 });

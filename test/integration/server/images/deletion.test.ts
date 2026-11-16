@@ -72,8 +72,8 @@ describeWithEnv(
           csrfToken,
         );
         expect(
-          fetchCalls.find((url) => url.includes("listing-image.jpg")),
-        ).toBeUndefined();
+          fetchCalls.filter((url) => url.includes("listing-image.jpg")),
+        ).toEqual([]);
 
         const deleted = await getListingWithCount(listing.id);
         expect(deleted).toBeNull();
@@ -110,8 +110,8 @@ describeWithEnv(
           csrfToken,
         );
         expect(
-          fetchCalls.find((url) => url.includes("both-image.jpg")),
-        ).toBeUndefined();
+          fetchCalls.filter((url) => url.includes("both-image.jpg")),
+        ).toEqual([]);
         expect(
           fetchCalls.find((url) => url.includes("both-attachment.pdf")),
         ).not.toBeUndefined();

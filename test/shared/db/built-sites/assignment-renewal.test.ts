@@ -99,7 +99,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     const parsed = parseSiteDataBlob(
       JSON.stringify({ n: "Old Site", u: "old.b-cdn.net", v: 1 }),
     );
-    expect(parsed.rt).toBeUndefined();
+    expect(Object.keys(parsed)).not.toContain("rt");
   });
 
   test("CRUD edits preserve renewal state", async () => {

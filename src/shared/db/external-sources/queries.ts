@@ -19,7 +19,6 @@ import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto, update } from "#db/write.ts";
-import { snakeCaseKeys } from "#shared/column-names.ts";
 /* jscpd:ignore-start -- imports */
 import { bindFirst } from "#shared/fp-bind.ts";
 import { nowIso } from "#shared/now.ts";
@@ -219,6 +218,15 @@ const prepareLinkWrite = async (
   return okResult(input);
 };
 
+/** The columns that a prepared link write stores. */
+const linkColumns = (input: ExternalLinkInput) => ({
+  external_id: input.externalId,
+  external_id_index: input.externalIdIndex,
+  link_id: input.linkId,
+  link_type: input.linkType,
+  source_id: input.sourceId,
+});
+
 /** Run one link write inside the transaction that checks it. The callback
  *  stores the prepared columns and answers with the value to return. */
 const withPreparedLinkWrite = <T>(
@@ -243,7 +251,7 @@ export const createExternalSourceLink = (
     const statement = insertInto(
       tables.external_source_links,
       await encoded(tables.external_source_links, {
-        ...snakeCaseKeys(input),
+        ...linkColumns(input),
         created: nowIso(),
       }),
     ).returning("created", "id");
@@ -251,7 +259,7 @@ export const createExternalSourceLink = (
       resultRows(await tx.execute(statement))[0],
       "The external source link insert returned no row",
     );
-    return { ...snakeCaseKeys(input), ...row };
+    return { ...linkColumns(input), ...row };
   });
 
 /** Store a changed link. The caller re-reads the row it answers with. Like
@@ -268,7 +276,7 @@ export const updateExternalSourceLink = (
       await tx.execute(
         update(
           tables.external_source_links,
-          await encoded(tables.external_source_links, snakeCaseKeys(input)),
+          await encoded(tables.external_source_links, linkColumns(input)),
         ).where({ id: link.id }),
       );
       return true;

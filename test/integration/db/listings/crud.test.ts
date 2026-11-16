@@ -22,10 +22,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       expect(listing.id).toBe(1);
       expect(listing.name).toBe("My Test Listing");
-      expect(listing.slug).toBeDefined();
+      expect(listing.slug).toMatch(/^[a-z0-9-]+$/);
       expect(listing.max_attendees).toBe(100);
       expect(listing.thank_you_url).toBe("https://example.com/thanks");
-      expect(listing.created).toBeDefined();
+      expect(Number.isNaN(Date.parse(listing.created))).toBe(false);
       expect(listing.unit_price).toBe(0);
     });
 

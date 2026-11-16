@@ -309,7 +309,7 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
       apiRequest(`/api/admin/groups/${group.id}`),
       200,
       (body) => {
-        expect(body.group.package_members).toBeUndefined();
+        expect(Object.keys(body.group)).not.toContain("package_members");
       },
     );
   });

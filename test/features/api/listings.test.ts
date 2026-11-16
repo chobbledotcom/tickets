@@ -251,7 +251,7 @@ describePublicApi(() => {
       const listing = await createTestListing();
       const { body } = await fetchListingBySlug(listing.slug);
       const apiListing = v.parse(PublicListingDetailSchema, body.listing);
-      expect(apiListing.availableDates).toBeUndefined();
+      expect(Object.keys(apiListing)).not.toContain("availableDates");
     });
 
     test("returns null image fields for a listing with no image", async () => {

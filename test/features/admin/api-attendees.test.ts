@@ -50,8 +50,8 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
         });
         expect(body.attendee.id).toBeGreaterThan(0);
         // The answer never leaks the sealed blob or its blind index.
-        expect(body.attendee.pii_blob).toBeUndefined();
-        expect(body.attendee.ticket_token_index).toBeUndefined();
+        expect(Object.keys(body.attendee)).not.toContain("pii_blob");
+        expect(Object.keys(body.attendee)).not.toContain("ticket_token_index");
       },
     );
     const attendeeId = created.attendee.id as number;
@@ -180,11 +180,9 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     const writeoff = legs.find(
       (leg) => leg.kind === "manual_attendee_writeoff",
     );
-    expect(charge).toBeDefined();
-    expect(charge!.amount).toBe(250);
+    expect(charge?.amount).toBe(250);
     expect(charge!.destination.type).toBe("writeoff");
-    expect(writeoff).toBeDefined();
-    expect(writeoff!.amount).toBe(100);
+    expect(writeoff?.amount).toBe(100);
     expect(writeoff!.source.type).toBe("writeoff");
   });
 
