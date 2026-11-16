@@ -119,6 +119,9 @@ Then(
       CUSTOMER,
     );
     expect(asked.mode).toBe("subscription");
+    // The buyer pays the ticket price today, so the button must offer a
+    // subscription and not a free trial.
+    expect(asked.submit_type).toBe("subscribe");
     expect(chargedNow(asked)).toBe(minorUnits(now));
     expect(chargedAgain(asked)).toEqual([
       { interval, quantity: 1, unitAmount: minorUnits(again) },

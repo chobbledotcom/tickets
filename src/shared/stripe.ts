@@ -152,6 +152,17 @@ const createCheckoutSession = async (
 };
 
 /**
+ * The checkout fields that a subscription order always sends, with the button
+ * request required, so a subscription checkout cannot leave it out.
+ */
+type StripeSubscriptionCheckoutParams = Pick<
+  StripeCheckoutSessionCreateParams,
+  "line_items" | "mode" | "subscription_data"
+> & {
+  submit_type: NonNullable<StripeCheckoutSessionCreateParams["submit_type"]>;
+};
+
+/**
  * The changes a subscription line makes to a checkout. The recurring line
  * charges the whole quantity as one unit, so VAT rounds once on the whole
  * amount. The trial holds it back for one period, and the one-time lines
@@ -163,10 +174,7 @@ const subscriptionParams = (
   currency: string,
   policy: TaxPolicy,
   lineItems: readonly StripeCheckoutLineItemParams[],
-): Pick<
-  StripeCheckoutSessionCreateParams,
-  "line_items" | "mode" | "submit_type" | "subscription_data"
-> => ({
+): StripeSubscriptionCheckoutParams => ({
   line_items: [
     ...lineItems,
     {

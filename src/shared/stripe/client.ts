@@ -78,8 +78,9 @@ export interface StripeCheckoutSessionCreateParams {
     "card" &
       NonNullable<OfficialCheckoutParams["payment_method_types"]>[number],
   ];
-  /** Only in subscription mode. Stripe labels its button for the kind of
-   *  purchase, and it calls a held-back recurring price a free trial. */
+  /** Stripe accepts this field in payment mode too. The site sets it only on
+   *  a subscription checkout, where Stripe labels a held-back recurring price
+   *  as a free trial. */
   submit_type?: Extract<OfficialCheckoutParams["submit_type"], "subscribe">;
   /** Only in subscription mode. The trial holds the recurring price back
    *  for one period, while the one-time lines charge at once. */
