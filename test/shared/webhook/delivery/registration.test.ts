@@ -239,8 +239,8 @@ describeWithEnv("logAndNotifyRegistration", { db: true }, () => {
     const entry = (await getAllActivityLog()).find((e) =>
       e.message.startsWith("Attendee registered for"),
     );
-    expect(entry?.attendee_id).toBe(7);
-    expect(entry?.listing_id).toBe(listing.id);
+    expect(entry?.attendeeId).toBe(7);
+    expect(entry?.listingId).toBe(listing.id);
   });
 });
 

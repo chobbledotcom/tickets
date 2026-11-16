@@ -72,7 +72,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map([[m.id, 1]]));
     // Session finalized atomically: attendee_id set in the same batch.
     const session = await getProcessedPayment("sess_batch_ok");
-    expect(session!.attendee_id).toBe(attendeeId);
+    expect(session!.attendeeId).toBe(attendeeId);
     expect(
       await queryOne<{ pii_payment_session_id: string }>(
         sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${attendeeId}`,
@@ -118,7 +118,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
 
     await expectNothingWritten(listing.id, 0);
     expect(
-      (await getProcessedPayment("sess_mismatched_payment"))!.attendee_id,
+      (await getProcessedPayment("sess_mismatched_payment"))!.attendeeId,
     ).toBe(null);
   });
 
@@ -152,7 +152,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
     await expectNothingWritten(listing.id, 0);
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map());
-    expect((await getProcessedPayment("sess_batch_soldout"))!.attendee_id).toBe(
+    expect((await getProcessedPayment("sess_batch_soldout"))!.attendeeId).toBe(
       null,
     );
   });
@@ -316,7 +316,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     await expectNothingWritten(listing.id, plan.legs.length);
     expect(
-      (await getProcessedPayment("sess_batch_existing_ledger"))!.attendee_id,
+      (await getProcessedPayment("sess_batch_existing_ledger"))!.attendeeId,
     ).toBe(null);
   });
 });

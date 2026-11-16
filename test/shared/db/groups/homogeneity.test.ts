@@ -29,9 +29,9 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
     const customMembers = await getListingsByGroupId(customGroup.id);
     expect(
       checkGroupListingSettings(customMembers, (members) => members, {
-        customisable_days: false,
+        customisableDays: false,
         id: 0,
-        listing_type: "standard",
+        listingType: "standard",
       }),
     ).toEqual({
       error: t("error.group_customisable_days_expected"),
@@ -47,9 +47,9 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
     const fixedMembers = await getListingsByGroupId(group.id);
     expect(
       checkGroupListingSettings(fixedMembers, (members) => members, {
-        customisable_days: true,
+        customisableDays: true,
         id: 0,
-        listing_type: "standard",
+        listingType: "standard",
       }),
     ).toEqual({
       error: t("error.group_customisable_days_unexpected"),
@@ -70,7 +70,7 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
       checkGroupListingSettings(
         await getListingsByGroupId(group.id),
         (members) => members,
-        { customisable_days: false, id: 0, listing_type: "standard" },
+        { customisableDays: false, id: 0, listingType: "standard" },
       ),
     ).toEqual({
       error: t("error.group_listing_type_mismatch", { type: "daily" }),
@@ -92,9 +92,9 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
     const members = await getListingsByGroupId(group.id);
     expect(
       checkGroupListingSettings(members, (rows) => rows, {
-        customisable_days: true,
+        customisableDays: true,
         id: 0,
-        listing_type: "standard",
+        listingType: "standard",
       }),
     ).toEqual({
       group: members,
@@ -104,13 +104,13 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
 
   test("a matching candidate carries no why", () => {
     const members = [
-      { customisable_days: true, id: 1, listing_type: "standard" as const },
+      { customisableDays: true, id: 1, listingType: "standard" as const },
     ];
     expect(
       groupCandidateBlockedError(members, {
-        customisable_days: true,
+        customisableDays: true,
         id: 9,
-        listing_type: "standard",
+        listingType: "standard",
       }),
     ).toBeNull();
   });
@@ -118,8 +118,8 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
   test("a customisable-days clash says which way the candidates differ", () => {
     const pickWhy = (memberDays: boolean, candidateDays: boolean): string =>
       groupCandidateBlockedError(
-        [{ customisable_days: memberDays, id: 1, listing_type: "standard" }],
-        { customisable_days: candidateDays, id: 9, listing_type: "standard" },
+        [{ customisableDays: memberDays, id: 1, listingType: "standard" }],
+        { customisableDays: candidateDays, id: 9, listingType: "standard" },
       )!;
 
     expect(pickWhy(false, true)).toBe(t("groups.candidate_days_blocked_fixed"));
@@ -131,8 +131,8 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
   test("a type clash names the candidate's type and the group's", () => {
     expect(
       groupCandidateBlockedError(
-        [{ customisable_days: false, id: 1, listing_type: "standard" }],
-        { customisable_days: false, id: 9, listing_type: "daily" },
+        [{ customisableDays: false, id: 1, listingType: "standard" }],
+        { customisableDays: false, id: 9, listingType: "daily" },
       ),
     ).toBe(
       t("groups.candidate_type_blocked", {
@@ -148,9 +148,9 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
         undefined,
         (members) => members ?? [],
         {
-          customisable_days: false,
+          customisableDays: false,
           id: 9,
-          listing_type: "daily",
+          listingType: "daily",
         },
       ),
     ).toEqual({
@@ -162,7 +162,7 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
 });
 
 type IllListed = readonly {
-  customisable_days: boolean;
+  customisableDays: boolean;
   id: number;
-  listing_type: "daily";
+  listingType: "daily";
 }[];

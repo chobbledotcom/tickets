@@ -52,8 +52,8 @@ describeWithEnv("registration follow-up failures", { db: true }, () => {
         logAndNotifyRegistration(
           [
             makeEntry({
-              assign_built_site: true,
-              initial_site_months: 1,
+              assignBuiltSite: true,
+              initialSiteMonths: 1,
             }),
           ],
           { source: "public" },

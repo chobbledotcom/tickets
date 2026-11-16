@@ -34,7 +34,7 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       await releaseReservation("cs_finalized_no_delete");
 
       const record = await getProcessedPayment("cs_finalized_no_delete");
-      expect(record?.attendee_id).toBe(ctx.attendeeId);
+      expect(record?.attendeeId).toBe(ctx.attendeeId);
     });
 
     test("is a no-op for a non-existent session", async () => {
@@ -84,9 +84,9 @@ describeWithEnv("processed-payments / staleness", { db: true }, () => {
       );
 
       expect(await deleteAllStaleReservations()).toBe(0);
-      expect(
-        (await getProcessedPayment("cs_finalized_bulk"))?.attendee_id,
-      ).toBe(ctx.attendeeId);
+      expect((await getProcessedPayment("cs_finalized_bulk"))?.attendeeId).toBe(
+        ctx.attendeeId,
+      );
     });
 
     test("returns 0 when no stale reservations exist", async () => {

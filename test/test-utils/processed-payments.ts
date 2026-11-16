@@ -40,8 +40,8 @@ export const getProcessedPayment = (
 export const expectSessionFailed = async (sessionId: string): Promise<void> => {
   const record = await getProcessedPayment(sessionId);
   if (!record) throw new Error(`Processed payment ${sessionId} was not stored`);
-  expect(record.attendee_id).toBeNull();
-  const failureData: unknown = record.failure_data;
+  expect(record.attendeeId).toBeNull();
+  const failureData: unknown = record.failureData;
   assert(
     typeof failureData === "string",
     `Processed payment ${sessionId} failure data was not a string`,

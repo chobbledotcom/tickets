@@ -282,10 +282,8 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(created.payment_id).toBe(paymentId);
 
     const session = await getProcessedPayment(sessionId);
-    expect(session!.attendee_id).toBe(created.id);
-    expect(await decryptSessionTokens(session!.ticket_tokens)).toBe(
-      ticketToken,
-    );
+    expect(session!.attendeeId).toBe(created.id);
+    expect(await decryptSessionTokens(session!.ticketTokens)).toBe(ticketToken);
     const privateKey = await getTestPrivateKey();
     await expectProcessedPaymentReference(
       created.id,

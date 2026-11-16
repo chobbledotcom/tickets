@@ -44,7 +44,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
 
     expect(entry.id).toBe(1);
     expect(entry.message).toBe("Test action");
-    expect(entry.listing_id).toBeNull();
+    expect(entry.listingId).toBeNull();
     expect(entry.created).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
     );
@@ -60,7 +60,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
       listing.id,
     );
 
-    expect(entry.listing_id).toBe(listing.id);
+    expect(entry.listingId).toBe(listing.id);
     expect(entry.message).toBe("Created listing 'Test Listing'");
   });
 
@@ -117,7 +117,7 @@ describeWithEnv("db > activity log", { db: true }, () => {
     const entries = await withTestSession(() => getAttendeeActivityLog(0));
     expect(entries).toHaveLength(1);
     expect(entries[0]!.message).toBe("Balance paid");
-    expect(entries[0]!.attendee_id).toBe(0);
+    expect(entries[0]!.attendeeId).toBe(0);
   });
 
   test("getListingActivityLog returns entries for specific listing", async () => {

@@ -50,14 +50,14 @@ describe("resolvePurchaseUnit", () => {
     for (const months_per_unit of [0, -1, 1.5]) {
       expect(
         resolvePurchaseUnit(
-          { assign_built_site: false, months_per_unit },
+          { assignBuiltSite: false, months_per_unit },
           { renewal: true },
         ),
       ).toEqual({ kind: "tickets" });
     }
     expect(
       resolvePurchaseUnit(
-        { assign_built_site: false, months_per_unit: undefined },
+        { assignBuiltSite: false, monthsPerUnit: undefined },
         { renewal: true },
       ),
     ).toEqual({ kind: "tickets" });

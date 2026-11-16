@@ -25,8 +25,8 @@ const edges = (
 const listing = (
   name: string,
   canPayMore = false,
-): { name: string; can_pay_more: boolean } => ({
-  can_pay_more: canPayMore,
+): { name: string; canPayMore: boolean } => ({
+  canPayMore: canPayMore,
   name,
 });
 
@@ -213,8 +213,8 @@ describe("packageGroups", () => {
   test("keeps only package groups", () => {
     expect(
       packageGroups([
-        { id: 1, is_package: false },
-        { id: 2, is_package: true },
+        { id: 1, isPackage: false },
+        { id: 2, isPackage: true },
       ]),
     ).toEqual([{ id: 2, is_package: true }]);
   });

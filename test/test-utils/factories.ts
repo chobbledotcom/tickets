@@ -387,7 +387,7 @@ export const makeTestListing = (
   overrides: Partial<EmailListing> = {},
 ): EmailListing => ({
   active: true,
-  assign_built_site: false,
+  assignBuiltSite: false,
   attendeeCount: 10,
   canPayMore: false,
   customisableDays: false,

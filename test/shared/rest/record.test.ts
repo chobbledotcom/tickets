@@ -162,7 +162,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     });
     expect(
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]),
     ).toEqual([[1, "Widget 'Linked' created"]]);
@@ -170,7 +170,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await record.remove(1)).toEqual({ kind: "deleted" });
     expect(
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]),
     ).toEqual([
@@ -231,7 +231,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
   test("a write logged after commit names its row only when linked", async () => {
     const logLines = async () =>
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]);
     const linked = widgetRecord({

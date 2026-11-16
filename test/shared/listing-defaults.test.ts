@@ -43,9 +43,9 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     // A read that selects some columns must come back with those columns'
     // effective values, and must not gain the ones it never asked for.
     const narrow = {
-      bookable_days: ["Sunday"],
+      bookableDays: ["Sunday"],
       id: 1,
-      use_defaults: true,
+      useDefaults: true,
     };
 
     const resolved = resolveListingDefaults(narrow, fullDefaults, true);

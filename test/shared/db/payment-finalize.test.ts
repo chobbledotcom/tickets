@@ -46,8 +46,8 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     );
 
     const finalized = await getProcessedPayment("free-finalize");
-    expect(finalized?.attendee_id).toBe(attendeeId);
-    expect(finalized?.payment_reference).toBe("");
+    expect(finalized?.attendeeId).toBe(attendeeId);
+    expect(finalized?.paymentReference).toBe("");
     // The blind index stays empty with its reference, so a refund claim can
     // never match this row by an index that names no stored money.
     const { payment_reference_index } = await requireOne<{
@@ -56,7 +56,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
       sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"free-finalize"}`,
     );
     expect(payment_reference_index).toBe("");
-    expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
+    expect(await decryptSessionTokens(finalized!.ticketTokens)).toBe(
       "free-token",
     );
   });
@@ -99,8 +99,8 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
       ),
     );
     const finalized = await getProcessedPayment("already-finalized");
-    expect(finalized!.attendee_id).toBe(attendeeId);
-    expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
+    expect(finalized!.attendeeId).toBe(attendeeId);
+    expect(await decryptSessionTokens(finalized!.ticketTokens)).toBe(
       "first-token",
     );
     await expectProcessedPaymentReference(

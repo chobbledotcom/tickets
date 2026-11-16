@@ -19,11 +19,11 @@ const plainFields = {
 test("maps every plain site field to its column", () => {
   expect(plainColumnValues(plainFields)).toEqual({
     assignable: 1,
-    assigned_attendee_id: 42,
-    assigned_listing_id: 7,
-    read_only_from: "2027-01-01T00:00:00Z",
-    renewal_token_index: "renewal-index",
-    site_data_revision: 3,
+    assignedAttendeeId: 42,
+    assignedListingId: 7,
+    readOnlyFrom: "2027-01-01T00:00:00Z",
+    renewalTokenIndex: "renewal-index",
+    siteDataRevision: 3,
     updates: "beta",
   });
 });
@@ -38,9 +38,9 @@ test("maps false and null plain values without dropping them", () => {
     }),
   ).toEqual({
     assignable: 0,
-    assigned_attendee_id: null,
-    assigned_listing_id: null,
-    renewal_token_index: null,
+    assignedAttendeeId: null,
+    assignedListingId: null,
+    renewalTokenIndex: null,
   });
   expect(
     plainColumnValues({
@@ -49,27 +49,27 @@ test("maps false and null plain values without dropping them", () => {
       renewalTokenIndex: "",
     }),
   ).toEqual({
-    assigned_attendee_id: 0,
-    read_only_from: "",
-    renewal_token_index: "",
+    assignedAttendeeId: 0,
+    readOnlyFrom: "",
+    renewalTokenIndex: "",
   });
 });
 
 test("converts plain database values back to site fields", () => {
   const row = {
     assignable: 1,
-    assigned_attendee_id: 42,
-    assigned_listing_id: 7,
-    database_key_rotation_started: 1,
-    read_only_from: "date",
-    renewal_token_index: "index",
-    site_data_revision: 3,
+    assignedAttendeeId: 42,
+    assignedListingId: 7,
+    databaseKeyRotationStarted: 1,
+    readOnlyFrom: "date",
+    renewalTokenIndex: "index",
+    siteDataRevision: 3,
     updates: "alpha",
   } as const;
   const fields = Object.fromEntries(
     builtSitePlainColumns.map((column) => [
       column.siteKey,
-      column.fromRow(row[column.dbKey] as never),
+      column.fromRow(row[column.siteKey] as never),
     ]),
   );
   expect(fields).toEqual({

@@ -31,7 +31,7 @@ describe("capacity rules", () => {
         expect(
           applicableCapacityRules({
             customisable_days,
-            listing_type: "standard",
+            listingType: "standard",
           }),
         ).toEqual(new Set(["dateLessCap", ...UNIVERSAL]));
       }
@@ -40,7 +40,7 @@ describe("capacity rules", () => {
     test("a daily listing counts its own cap per occupied date", () => {
       for (const customisable_days of [false, true]) {
         expect(
-          applicableCapacityRules({ customisable_days, listing_type: "daily" }),
+          applicableCapacityRules({ customisable_days, listingType: "daily" }),
         ).toEqual(new Set(["perDateCap", ...UNIVERSAL]));
       }
     });
@@ -49,7 +49,7 @@ describe("capacity rules", () => {
   describe("hasDateLessCap", () => {
     test("true exactly for the facets carrying the dateLessCap rule", () => {
       for (const facet of allCapacityFacets()) {
-        expect(hasDateLessCap(facet)).toBe(facet.listing_type === "standard");
+        expect(hasDateLessCap(facet)).toBe(facet.listingType === "standard");
       }
     });
   });
@@ -97,7 +97,7 @@ describe("capacity rules", () => {
 
     test("rejects a rule whose applicability depends on customisable days", () => {
       const rules: CapacityRule[] = [
-        { appliesTo: (facet) => facet.customisable_days, key: "perDateCap" },
+        { appliesTo: (facet) => facet.customisableDays, key: "perDateCap" },
       ];
       expect(() => listingTypesWithRule("perDateCap", rules)).toThrow(
         "cannot be keyed by listing type alone",

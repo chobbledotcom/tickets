@@ -48,27 +48,27 @@ describe("booking model — day-count support", () => {
   describe("childDaysFromParent", () => {
     test("uses the customisable value when the buyer chooses the day count", () => {
       const parent = {
-        customisable_days: true,
-        duration_days: 5,
-        listing_type: "standard" as const,
+        customisableDays: true,
+        durationDays: 5,
+        listingType: "standard" as const,
       };
       expect(childDaysFromParent(parent, 1, 2)).toBe(1);
     });
 
     test("uses the parent's fixed duration for a daily parent", () => {
       const parent = {
-        customisable_days: false,
-        duration_days: 5,
-        listing_type: "daily" as const,
+        customisableDays: false,
+        durationDays: 5,
+        listingType: "daily" as const,
       };
       expect(childDaysFromParent<number | null>(parent, null, 99)).toBe(5);
     });
 
     test("uses the standard value for a non-daily, non-customisable parent", () => {
       const parent = {
-        customisable_days: false,
-        duration_days: 5,
-        listing_type: "standard" as const,
+        customisableDays: false,
+        durationDays: 5,
+        listingType: "standard" as const,
       };
       expect(childDaysFromParent(parent, 1, 2)).toBe(2);
     });
@@ -78,9 +78,9 @@ describe("booking model — day-count support", () => {
     test("null when the buyer chooses the day count", () => {
       expect(
         fixedParentDays({
-          customisable_days: true,
-          duration_days: 5,
-          listing_type: "standard",
+          customisableDays: true,
+          durationDays: 5,
+          listingType: "standard",
         }),
       ).toBeNull();
     });
@@ -88,9 +88,9 @@ describe("booking model — day-count support", () => {
     test("the normalized duration for a daily parent", () => {
       expect(
         fixedParentDays({
-          customisable_days: false,
-          duration_days: 5,
-          listing_type: "daily",
+          customisableDays: false,
+          durationDays: 5,
+          listingType: "daily",
         }),
       ).toBe(5);
     });
@@ -98,9 +98,9 @@ describe("booking model — day-count support", () => {
     test("the normalized (clamped) duration for a standard parent", () => {
       expect(
         fixedParentDays({
-          customisable_days: false,
-          duration_days: 200,
-          listing_type: "standard",
+          customisableDays: false,
+          durationDays: 200,
+          listingType: "standard",
         }),
       ).toBe(90);
     });

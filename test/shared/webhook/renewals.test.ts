@@ -101,7 +101,7 @@ const renewWithPush = async (
 
 /** The renewal lines in the activity log. */
 const renewalLogEntries = async (): Promise<
-  { message: string; listing_id: number | null }[]
+  { message: string; listingId: number | null }[]
 > =>
   (await getAllActivityLog()).filter((entry) =>
     entry.message.startsWith("Renewal of"),
@@ -152,7 +152,7 @@ describeWithEnv(
         true,
       );
 
-      expect((await renewalLogEntry())?.listing_id).toBe(111);
+      expect((await renewalLogEntry())?.listingId).toBe(111);
     });
 
     test("refuses an order whose listing is not a renewal tier", async () => {

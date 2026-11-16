@@ -204,7 +204,7 @@ export const createTwoListingsSharingOnePlace = async (
 export type SoldPackageMember = {
   attendeeId: number;
   group: Group;
-  member: { id: number; max_attendees: number; name: string; slug: string };
+  member: { id: number; maxAttendees: number; name: string; slug: string };
 };
 
 /** Create one sold package member. The flag controls its package-path name. */

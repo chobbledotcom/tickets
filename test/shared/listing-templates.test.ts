@@ -21,9 +21,9 @@ const src = (
   logistics: boolean,
 ) => ({
   date: dated ? "2024-06-01T10:00:00Z" : "",
-  listing_type: (daily ? "daily" : "standard") as "daily" | "standard",
-  purchase_only: purchaseable,
-  uses_logistics: logistics,
+  listingType: (daily ? "daily" : "standard") as "daily" | "standard",
+  purchaseOnly: purchaseable,
+  usesLogistics: logistics,
 });
 
 const dims = (

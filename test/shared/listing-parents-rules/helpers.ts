@@ -2,14 +2,14 @@ import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 
 /** A minimal compatible edge listing; `over` layers the field a test varies. */
 export const edgeListing = (over: Partial<EdgeListing> = {}): EdgeListing => ({
-  assign_built_site: false,
-  customisable_days: false,
-  day_prices: {},
-  duration_days: 1,
+  assignBuiltSite: false,
+  customisableDays: false,
+  dayPrices: {},
+  durationDays: 1,
   id: 1,
-  listing_type: "standard",
-  min_quantity: 1,
-  months_per_unit: 0,
+  listingType: "standard",
+  minQuantity: 1,
+  monthsPerUnit: 0,
   name: "Test",
   ...over,
 });

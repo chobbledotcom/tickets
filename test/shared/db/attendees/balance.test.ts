@@ -128,8 +128,8 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     );
 
     const row = await getProcessedPayment("balance-ref-ok");
-    expect(row?.attendee_id).toBe(attendeeId);
-    assert(!row!.payment_reference.includes("pi_balance_ok"));
+    expect(row?.attendeeId).toBe(attendeeId);
+    assert(!row!.paymentReference.includes("pi_balance_ok"));
     await expectRefundReferences(attendeeId, ["pi_balance_ok"]);
   });
 
@@ -162,7 +162,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     ).rejects.toThrow();
 
     const row = await getProcessedPayment("balance-held");
-    expect(row?.attendee_id).toBe(null);
+    expect(row?.attendeeId).toBe(null);
     await expectRefundReferences(attendeeId, []);
   });
 
@@ -193,7 +193,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     ).rejects.toThrow();
 
     expect(
-      (await getProcessedPayment("balance-alias-refused"))?.attendee_id,
+      (await getProcessedPayment("balance-alias-refused"))?.attendeeId,
     ).toBe(null);
   });
 
@@ -215,8 +215,8 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
 
     expect(result).toEqual({ reason: "amount_mismatch", settled: false });
     const row = await getProcessedPayment("balance-ref-mismatch");
-    expect(row?.attendee_id).toBe(null);
-    expect(row?.payment_reference).toBe("");
+    expect(row?.attendeeId).toBe(null);
+    expect(row?.paymentReference).toBe("");
   });
 
   test("is idempotent once the balance is cleared", async () => {
