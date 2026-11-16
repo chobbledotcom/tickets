@@ -34,9 +34,18 @@ describe("documented attribute endpoints", () => {
     ]);
   });
 
-  test("every route names the owner as its only caller", () => {
+  test("the record routes follow the owner-only wording, and every option route names the owner", () => {
+    const descriptions = DOCS.map(({ description }) => description);
+
+    expect(descriptions.slice(0, 5)).toEqual([
+      "List all attributes (owner only)",
+      "Get an attribute by ID (owner only)",
+      "Create an attribute (owner only)",
+      "Update an attribute (owner only, all fields optional)",
+      "Delete an attribute (owner only, requires name confirmation)",
+    ]);
     expect(
-      DOCS.filter(({ description }) => !description.includes("(owner only")),
+      descriptions.slice(5).filter((text) => !text.includes("(owner only")),
     ).toEqual([]);
   });
 
