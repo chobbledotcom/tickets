@@ -11,17 +11,22 @@ import {
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
 
-/** A subscribed row always holds its whole plan: the booking path writes the
- * plan, the id and the status together. */
-const SubscribedRowSchema = v.object({
+/** The columns that each read of a subscribed row needs. */
+const PLAN_ENTRIES = {
   attendee_id: v.number(),
   listing_id: v.number(),
-  quantity: v.number(),
-  recurring_interval: RecurringIntervalSchema,
   recurring_price: v.number(),
   recurring_tax: v.number(),
   subscription_id: v.pipe(v.string(), v.minLength(1)),
   subscription_status: SubscriptionStatusSchema,
+};
+
+/** A subscribed row always holds its whole plan: the booking path writes the
+ * plan, the id and the status together. */
+const SubscribedRowSchema = v.object({
+  ...PLAN_ENTRIES,
+  quantity: v.number(),
+  recurring_interval: RecurringIntervalSchema,
 });
 
 export type SubscribedRow = v.InferOutput<typeof SubscribedRowSchema>;
@@ -44,15 +49,7 @@ export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
   );
 
 /** A row the scheduled check watches: the plan it read, and where it lives. */
-const CheckedRowSchema = v.object({
-  attendee_id: v.number(),
-  id: v.number(),
-  listing_id: v.number(),
-  recurring_price: v.number(),
-  recurring_tax: v.number(),
-  subscription_id: v.pipe(v.string(), v.minLength(1)),
-  subscription_status: SubscriptionStatusSchema,
-});
+const CheckedRowSchema = v.object({ ...PLAN_ENTRIES, id: v.number() });
 
 export type CheckedRow = v.InferOutput<typeof CheckedRowSchema>;
 
