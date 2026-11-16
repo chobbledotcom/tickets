@@ -7,55 +7,38 @@ import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
+import {
+  expectApiRecord,
+  type JsonBody,
+  postJson,
+  requestAs,
+} from "#test-utils/api/admin-json.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
-  apiRequest,
   createTestAgentSession,
   createTestEditorSession,
-  requestAsSession,
 } from "#test-utils/session.ts";
 
-/** Send a new group to the admin API with an API key. */
-const postGroup = (body: Record<string, unknown>): Promise<Response> =>
-  apiRequest("/api/admin/groups", { body, method: "POST" });
+const GROUPS = "/api/admin/groups";
 
-/** The group that the admin API gives back. */
-interface ApiGroup {
-  description: string;
-  hidden: boolean;
-  id: number;
-  max_attendees: number;
-  name: string;
-  slug: string;
-  terms_and_conditions: string;
-}
+/** Send a new group to the admin API with an API key. */
+const postGroup = (body: JsonBody): Promise<Response> => postJson(GROUPS, body);
 
 /** Create a group through the admin API and check the group it gives back. */
 const createGroup = (
-  body: Record<string, unknown>,
-  check: (group: ApiGroup) => void = () => {},
-): Promise<{ group: ApiGroup }> =>
-  assertJson<{ group: ApiGroup }>(postGroup(body), 201, (response) =>
-    check(response.group),
-  );
+  body: JsonBody,
+  check?: (group: JsonBody) => void,
+): Promise<JsonBody> => expectApiRecord("group")(postGroup(body), 201, check);
 
 /** Send a new group named `name` to the admin API as a cookie session. */
 const postGroupAs = async (cookie: string, name: string): Promise<Response> =>
-  handleRequest(
-    requestAsSession(
-      "/api/admin/groups",
-      { cookie, csrfToken: await signCsrfToken() },
-      {
-        body: JSON.stringify({ name }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      },
-    ),
-  );
+  requestAs({ cookie, csrfToken: await signCsrfToken() }, GROUPS, {
+    body: { name },
+    method: "POST",
+  });
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("POST /api/admin/groups", () => {
@@ -205,9 +188,9 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("auto-generates unique slug", async () => {
       const result1 = await createGroup({ name: "Slug Test 1" });
       const result2 = await createGroup({ name: "Slug Test 2" });
-      expect(result1.group.slug).toMatch(/^[0-9a-h]{5}$/);
-      expect(result2.group.slug).toMatch(/^[0-9a-h]{5}$/);
-      expect(result1.group.slug).not.toBe(result2.group.slug);
+      expect(result1.slug).toMatch(/^[0-9a-h]{5}$/);
+      expect(result2.slug).toMatch(/^[0-9a-h]{5}$/);
+      expect(result1.slug).not.toBe(result2.slug);
     });
   });
 });
