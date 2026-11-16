@@ -3,10 +3,17 @@
 import type { SqlStatement } from "#db/sql.ts";
 
 declare const STORED: unique symbol;
+declare const FILL: unique symbol;
 
-/** A column's type in SQL, and the value a stored row holds in that column. */
-export type ColumnKind<Stored> = SqlStatement & {
+/** Whether a new row must name a value for the column. A column that can hold
+ *  nothing, or that has a starting value, is `optional`. */
+export type Filling = "given" | "optional";
+
+/** A column's type in SQL, the value a stored row holds in that column, and
+ *  whether a new row must give that value. */
+export type ColumnKind<Stored, Fill extends Filling = "given"> = SqlStatement & {
   readonly [STORED]: Stored;
+  readonly [FILL]: Fill;
 };
 
 export type Column = readonly [name: string, type: SqlStatement];

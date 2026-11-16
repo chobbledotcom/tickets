@@ -12,7 +12,11 @@ import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
-import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
+import type {
+  Column,
+  ColumnKind,
+  Filling,
+} from "#db/migrations/schema/types.ts";
 import type { ImageUseItemType, Modifier, SitePageItemType } from "#types";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
@@ -25,7 +29,15 @@ type ColumnOf<Name extends TableName> = Extract<
   readonly [Name, unknown]
 >[1]["columns"][number];
 
-type StoredIn<Kind> = Kind extends ColumnKind<infer Stored> ? Stored : never;
+type StoredIn<Kind> =
+  Kind extends ColumnKind<infer Stored, Filling> ? Stored : never;
+
+/** The columns of a table that a new row can leave out. */
+type OptionalColumnOf<Name extends TableName> = {
+  [Each in ColumnOf<Name> as Each[1] extends ColumnKind<unknown, "optional">
+    ? Each[0]
+    : never]: true;
+};
 
 /** The row of a table as its column types alone give it. */
 type DeclaredRow<Name extends TableName> = {
@@ -80,6 +92,18 @@ export type RowOf<Name extends TableName> = [Unfit] extends [never]
         : StoredAt<DeclaredRow<Name>, Column>;
     }
   : never;
+
+/** A new row of a table: every column that the database cannot fill, and any
+ *  of the others. */
+export type NewRowOf<Name extends TableName> = {
+  [Column in keyof RowOf<Name> as Column extends keyof OptionalColumnOf<Name>
+    ? never
+    : Column]: RowOf<Name>[Column];
+} & {
+  [Column in keyof RowOf<Name> as Column extends keyof OptionalColumnOf<Name>
+    ? Column
+    : never]?: RowOf<Name>[Column];
+};
 
 /** The referring columns of a table, and the table each one points at. */
 type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES
