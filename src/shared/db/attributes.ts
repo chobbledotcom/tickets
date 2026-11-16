@@ -20,7 +20,7 @@ import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
 import { rowsById } from "#db/record-table.ts";
 import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
-import { rowsForIds } from "#db/rows-for-ids.ts";
+import { readForIds, rowsForIds } from "#db/rows-for-ids.ts";
 import { equal } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
@@ -224,11 +224,9 @@ export const attributeOptionIdsIn = async (
 ): Promise<number[]> => {
   const unique = [...new Set(submitted)];
   const found = new Set(
-    unique.length === 0
-      ? []
-      : await queryIdColumn(
-          rowsById(tables.attribute_options, unique).pick("id"),
-        ),
+    await readForIds(unique, () =>
+      queryIdColumn(rowsById(tables.attribute_options, unique).pick("id")),
+    ),
   );
   return filter((id: number) => found.has(id))(submitted);
 };

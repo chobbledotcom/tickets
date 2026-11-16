@@ -24,6 +24,7 @@ import { queryOne } from "#db/client.ts";
 import { columnFrom } from "#db/query.ts";
 import { readExists, readRows } from "#db/read.ts";
 import { rowsById } from "#db/record-table.ts";
+import { readForIds } from "#db/rows-for-ids.ts";
 import { greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -362,13 +363,13 @@ export const getAttendeesByIds = (
   ids: number[],
   kind?: AttendeeKindFilter,
 ): Promise<Attendee[]> =>
-  ids.length === 0
-    ? Promise.resolve([])
-    : loadAttendeeRows({
-        join: "left",
-        owedScope: "booking",
-        where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
-      });
+  readForIds(ids, () =>
+    loadAttendeeRows({
+      join: "left",
+      owedScope: "booking",
+      where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
+    }),
+  );
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name

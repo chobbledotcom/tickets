@@ -9,7 +9,6 @@
 import * as v from "valibot";
 import { hmacHash } from "#crypto/hashing.ts";
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import type {
@@ -21,6 +20,7 @@ import type {
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import type { DayRange } from "#db/capacity.ts";
 import { queryAll, queryOne } from "#db/client.ts";
+import { readForIds } from "#db/rows-for-ids.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
 import { map } from "#fp";
@@ -262,16 +262,16 @@ export const getAllAttendeePiiBlobs = (): Promise<OwnerKeyEncrypted[]> =>
 export const getAttendeePiiBlobsForListings = (
   listingIds: number[],
 ): Promise<OwnerKeyEncrypted[]> =>
-  listingIds.length === 0
-    ? Promise.resolve([])
-    : // quantity > 0: only attendees with a real line on these listings — a
-      // no-quantity sentinel line doesn't make someone an "attendee of X".
-      selectAudiencePiiBlobs(
-        sql`id IN (
+  // quantity > 0: only attendees with a real line on these listings. A
+  // no-quantity sentinel line does not make someone an attendee of the listing.
+  readForIds(listingIds, () =>
+    selectAudiencePiiBlobs(
+      sql`id IN (
        SELECT DISTINCT attendee_id FROM listing_attendees
        WHERE listing_id IN (${sqlList(listingIds)}) AND quantity > 0
      )`,
-      );
+    ),
+  );
 
 /**
  * Get the encrypted PII blobs for attendees whose booking on one listing covers

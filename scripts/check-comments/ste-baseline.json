@@ -477,8 +477,7 @@
     "long-sentence": 7,
     "banned-modal": 3,
     "semicolon": 4,
-    "participle": 1,
-    "contraction": 1
+    "participle": 1
   },
   "src/shared/db/attendees/queries.ts": {
     "long-sentence": 11,

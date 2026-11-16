@@ -58,6 +58,9 @@ const SLUG_TABLE_BY_TYPE: Record<SitePageItemType, SlugTable> = {
 const SLUG_TABLES: readonly SlugTable[] = Object.values(SLUG_TABLE_BY_TYPE);
 
 type SlugOwnerTable = SlugTable | "news_posts";
+
+/** The one row that keeps its own slug: the entity being edited. */
+type SlugExclusion = { table: SlugTable; id: number };
 type SlugOwner = { table: SlugOwnerTable; excludeId?: number };
 
 /** SQL condition that is true only while no listed row owns `slugIndex`.
@@ -82,7 +85,7 @@ export const unclaimedSlugCondition = (
 /** Atomic availability condition for the shared listing/group/page namespace. */
 export const unclaimedSiteSlugCondition = (
   slugIndex: string,
-  exclude?: { table: SlugTable; id: number },
+  exclude?: SlugExclusion,
 ): SqlStatement =>
   unclaimedSlugCondition(
     slugIndex,
@@ -221,7 +224,7 @@ export const freshSlugIndexWrites = <
  */
 export const isSlugTakenAnywhere = async (
   slug: string,
-  exclude?: { table: SlugTable; id: number },
+  exclude?: SlugExclusion,
 ): Promise<boolean> => {
   const slugIndex = await hmacHash(slug);
   const available = unclaimedSiteSlugCondition(slugIndex, exclude);

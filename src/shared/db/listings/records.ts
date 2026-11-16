@@ -42,6 +42,7 @@ import {
   type ListingWithCount,
 } from "#types";
 import {
+  type GetListingsQuery,
   getListingRows,
   type ListingRecordRow,
   type ListingWhere,
@@ -88,13 +89,19 @@ export const decryptListingWithCount = async (
     settings.features.logistics,
   );
 
+/** The listing rows that `query` reads, each opened by `decrypt`. */
+const openedListingRows =
+  (decrypt: (row: ListingRecordRow) => Promise<ListingWithCount>) =>
+  async (query: GetListingsQuery): Promise<ListingWithCount[]> =>
+    mapParallel(decrypt)(await getListingRows(query));
+
 /** Read requested listings' stored values without overlaying inherited defaults. */
-export const getStoredListingsWithCountsByIds = async (
+export const getStoredListingsWithCountsByIds = (
   ids: readonly number[],
-): Promise<ListingWithCount[]> => {
-  const rows = await getListingRows({ where: { ids: [...ids] } });
-  return mapParallel(decryptStoredListingWithCount)(rows);
-};
+): Promise<ListingWithCount[]> =>
+  openedListingRows(decryptStoredListingWithCount)({
+    where: { ids: [...ids] },
+  });
 
 /** Read one listing's stored values without overlaying inherited defaults. */
 export const getStoredListingWithCount = async (
@@ -104,12 +111,10 @@ export const getStoredListingWithCount = async (
 
 /** Read listing records in newest-first order, with inherited defaults overlaid
  * — the shared tail of the cache's three fetches. */
-const getListingsWithCounts = async (
+const getListingsWithCounts = (
   where: ListingWhere,
-): Promise<ListingWithCount[]> => {
-  const rows = await getListingRows({ order: "created_desc", where });
-  return mapParallel(decryptListingWithCount)(rows);
-};
+): Promise<ListingWithCount[]> =>
+  openedListingRows(decryptListingWithCount)({ order: "created_desc", where });
 
 const LISTINGS_CACHE_TTL_MS = 30_000;
 const listingsCache = tableCache(

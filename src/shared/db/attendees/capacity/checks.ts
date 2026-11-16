@@ -107,11 +107,18 @@ const roomFor = (line: LineBooking): Expr<boolean> =>
         line.durationDays,
       );
 
-/** Check several capacity conditions in one query. */
-export const checkLinesCapacity = async (
+/** A capacity check over the lines of one order. `excludeAttendeeId` names the
+ *  attendee whose own lines do not count against the capacity. */
+type LinesCheck<Answer> = (
   bookings: LineBooking[],
   excludeAttendeeId?: number,
-): Promise<boolean[]> => {
+) => Promise<Answer>;
+
+/** Check several capacity conditions in one query. */
+export const checkLinesCapacity: LinesCheck<boolean[]> = async (
+  bookings,
+  excludeAttendeeId,
+) => {
   if (bookings.length === 0) return [];
   const conditions = bookings.map((booking) =>
     capacityConditionFor(booking, excludeAttendeeId),
@@ -127,10 +134,10 @@ export const checkLinesCapacity = async (
 
 /** The listings whose lines do not fit right now, in one query. The
  * attendee-edit preflight names its culprit with this. */
-export const unfitListingIds = async (
-  bookings: LineBooking[],
-  excludeAttendeeId?: number,
-): Promise<number[]> => {
+export const unfitListingIds: LinesCheck<number[]> = async (
+  bookings,
+  excludeAttendeeId,
+) => {
   const fits = await checkLinesCapacity(bookings, excludeAttendeeId);
   return unique(
     bookings.filter((_, index) => !fits[index]!).map((line) => line.listingId),

@@ -6,6 +6,7 @@
 
 import { pick } from "@std/collections";
 import { t } from "#i18n";
+import { type CamelCased, camelCaseKeys } from "#shared/column-names.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -169,17 +170,10 @@ type SeoContentValues = {
   name: string;
 };
 
-type SeoContentInput = {
-  content: string;
-  metaDescription: string;
-  metaTitle: string;
-  name: string;
-};
-
 /** The validated SEO/content columns shared by create and update. */
-export const seoContentInput = (values: SeoContentValues): SeoContentInput => ({
-  content: values.content,
-  metaDescription: values.meta_description,
-  metaTitle: values.meta_title,
-  name: values.name,
-});
+export const seoContentInput = (
+  values: SeoContentValues,
+): CamelCased<SeoContentValues> =>
+  camelCaseKeys(
+    pick(values, ["content", "meta_description", "meta_title", "name"]),
+  );

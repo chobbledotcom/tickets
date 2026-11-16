@@ -89,18 +89,16 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
     sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
   );
 
+/** The page and the item that one page-item change names. */
+type PageItem = [pageId: number, itemType: SitePageItemType, itemId: number];
+
 type PageItemChange<T> = (
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
-  transaction?: TxScope,
+  ...args: [...PageItem, transaction?: TxScope]
 ) => Promise<T>;
 
 type PageItemChangeInTransaction<T> = (
   transaction: TxScope,
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
+  ...item: PageItem
 ) => Promise<T>;
 
 /** Give a page-item change the caller's transaction, or open its own. A simple
@@ -109,11 +107,7 @@ type PageItemChangeInTransaction<T> = (
 const pageItemChange =
   <T>(
     change: PageItemChangeInTransaction<T>,
-    direct?: (
-      pageId: number,
-      itemType: SitePageItemType,
-      itemId: number,
-    ) => Promise<T>,
+    direct?: (...item: PageItem) => Promise<T>,
   ): PageItemChange<T> =>
   (pageId, itemType, itemId, transaction) =>
     transaction === undefined && direct

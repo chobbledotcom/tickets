@@ -8,6 +8,7 @@ import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
 import type { TaxAssessment } from "#shared/tax/types.ts";
 
@@ -28,19 +29,19 @@ export const readTaxAssessments = async (
     from(tables.booking_tax_assessments)
       .where((assessment) => among(assessment.attendee_id, attendeeIds))
       .sortedBy("booking_group", "revision")
-      .select((assessment) => ({
-        assessment: assessment.assessment,
-        attendeeId: assessment.attendee_id,
-        bookingGroup: assessment.booking_group,
-        eventGroup: assessment.event_group,
-        kind: assessment.state,
-        occurredAt: assessment.occurred_at,
-        revision: assessment.revision,
-      })),
+      .pick(
+        "assessment",
+        "attendee_id",
+        "booking_group",
+        "event_group",
+        "occurred_at",
+        "revision",
+        "state",
+      ),
   );
-  return rows.map(({ assessment, kind, revision, ...stored }) => ({
-    ...stored,
-    state: { assessment, kind, revision },
+  return rows.map(({ assessment, revision, state, ...stored }) => ({
+    ...camelCaseKeys(stored),
+    state: { assessment, kind: state, revision },
   }));
 };
 
