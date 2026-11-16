@@ -424,14 +424,14 @@ src/shared/rest/record-pages.ts::recordPages.confirmedDelete.render~1jop8vb  ??�
 # record-api.ts: a resource declares its children and custom routes as an object
 # or leaves them out. Every config default it reads is an array, an object, or a
 # function, so no operand is falsy-but-present.
-src/shared/rest/record-api.ts::declaredRecords~1k64ef7  ??→|| audited:1ffzijz # records is an object or undefined; an object is never falsy, so ?? and || pick the same value
-src/shared/rest/record-api.ts::recordApi.stripKeys~0dyd9rx  ??→|| audited:1ffzijz # config.stripKeys is an array or undefined; an array is never falsy, and an empty array strips nothing either way
-src/shared/rest/record-api.ts::recordApi.routes~102ig5u  ??→|| audited:1ffzijz # config.overrides is an object or undefined; an object is never falsy, so ?? and || pick the same value
-src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%60~1o2oy72  ??→|| audited:1ffzijz # routes.list is a route handler function or undefined; a function is never falsy
-src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0a388jo  ??→|| audited:1ffzijz # routes.get is a route handler function or undefined; a function is never falsy
-src/shared/rest/record-api.ts::recordApi.%60POST%20%2fapi%2fadmin%2f$%7bname%7d%60~09o99ta  ??→|| audited:1ffzijz # routes.create is a route handler function or undefined; a function is never falsy
-src/shared/rest/record-api.ts::recordApi.%60PUT%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0tnvf8c  ??→|| audited:1ffzijz # routes.update is a route handler function or undefined; a function is never falsy
-src/shared/rest/record-api.ts::recordApi.%60DELETE%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~1xjrlr0  ??→|| audited:1ffzijz # routes.delete is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::declaredRecords~1k64ef7  ??→|| audited:05jupxa # records is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.stripKeys~0dyd9rx  ??→|| audited:05jupxa # config.stripKeys is an array or undefined; an array is never falsy, and an empty array strips nothing either way
+src/shared/rest/record-api.ts::recordApi.routes~102ig5u  ??→|| audited:05jupxa # config.overrides is an object or undefined; an object is never falsy, so ?? and || pick the same value
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%60~1o2oy72  ??→|| audited:05jupxa # routes.list is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60GET%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0a388jo  ??→|| audited:05jupxa # routes.get is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60POST%20%2fapi%2fadmin%2f$%7bname%7d%60~09o99ta  ??→|| audited:05jupxa # routes.create is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60PUT%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~0tnvf8c  ??→|| audited:05jupxa # routes.update is a route handler function or undefined; a function is never falsy
+src/shared/rest/record-api.ts::recordApi.%60DELETE%20%2fapi%2fadmin%2f$%7bname%7d%2f%3a$%7bparamName%7d%60~1xjrlr0  ??→|| audited:05jupxa # routes.delete is a route handler function or undefined; a function is never falsy
 
 # svg-ticket.ts: an empty match group and a missing one both become "".
 src/shared/svg-ticket.ts::extractSvgContent~1wmrkda  ??→|| audited:135uwno # innerMatch[1] is a string or undefined, and both fall back to ""
