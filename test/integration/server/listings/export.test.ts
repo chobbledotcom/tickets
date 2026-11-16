@@ -3,9 +3,6 @@ import { parse } from "@std/csv";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import {
   expectCsvDownloadHeaders,
   expectIncludesAll,
@@ -15,6 +12,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -201,21 +199,13 @@ describeWithEnv("server listings > export", { db: true }, () => {
       );
 
       // Create question, answers, and assign to listing
-      const q = await insertRow(tables.questions, {
-        display_type: "radio",
+      const {
+        answers: [a1],
+      } = await seedQuestion({
+        answers: ["Small", "Large"],
+        listingIds: [listing.id],
         text: "Shirt Size",
       });
-      const a1 = await insertRow(tables.answers, {
-        question_id: q.id,
-        sort_order: 0,
-        text: "Small",
-      });
-      await insertRow(tables.answers, {
-        question_id: q.id,
-        sort_order: 1,
-        text: "Large",
-      });
-      await listingQuestions.setIds(listing.id, [q.id]);
       await saveAttendeeAnswers(new Map([[attendee.id, [a1.id]]]));
 
       const csv = await fetchListingExportCsv(listing.id, cookie);

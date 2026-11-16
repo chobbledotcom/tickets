@@ -19,7 +19,6 @@ import { modifierUsedQuantities } from "#db/modifier-usage.ts";
 import { decryptSessionTokens } from "#db/processed-payments.ts";
 import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
 import { insertRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
@@ -35,6 +34,10 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson, expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
@@ -123,21 +126,17 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     const sessionId = "cs_lost_committed_result";
     const email = "recovered@example.com";
     const phone = "+447700900123";
-    const question = await insertRow(tables.questions, {
-      display_type: "radio",
+    const {
+      answers: [answer],
+      question,
+    } = await seedQuestion({
+      answers: ["Recovered"],
+      listingIds: [listing.id],
       text: "Recovery answer?",
     });
-    const answer = await insertRow(tables.answers, {
-      question_id: question.id,
-      sort_order: 1,
-      text: "Recovered",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
-    const textQuestion = await insertRow(tables.questions, {
-      display_type: "free_text",
-      text: "Anything else?",
-    });
-    await listingQuestions.setIds(listing.id, [question.id, textQuestion.id]);
+    const [textQuestion] = await freeTextQuestionsOn(listing.id, [
+      "Anything else?",
+    ]);
     // Stage the buyer's typed answer the way the checkout session does, so
     // the completion reads it before the batch opens, and intern the text
     // the way the submit path does, so the answer ref points at the

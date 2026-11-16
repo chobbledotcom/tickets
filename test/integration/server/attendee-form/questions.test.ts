@@ -4,14 +4,15 @@ import { describe, it as test } from "@std/testing/bdd";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildAttendeeEditForm } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminFormPost, testCookie } from "#test-utils/session.ts";
 
@@ -32,27 +33,22 @@ describeWithEnv(
           name: "QB Event",
         });
 
-        const qA = await insertRow(tables.questions, {
-          display_type: "radio",
+        const {
+          answers: [aA],
+          question: qA,
+        } = await seedQuestion({
+          answers: ["Medium"],
+          listingIds: [eventA.id],
           text: "Shirt size?",
         });
-        const aA = await insertRow(tables.answers, {
-          question_id: qA.id,
-          sort_order: 0,
-          text: "Medium",
-        });
-        await listingQuestions.setIds(eventA.id, [qA.id]);
-
-        const qB = await insertRow(tables.questions, {
-          display_type: "radio",
+        const {
+          answers: [aB],
+          question: qB,
+        } = await seedQuestion({
+          answers: ["Vegan"],
+          listingIds: [eventB.id],
           text: "Meal choice?",
         });
-        const aB = await insertRow(tables.answers, {
-          question_id: qB.id,
-          sort_order: 0,
-          text: "Vegan",
-        });
-        await listingQuestions.setIds(eventB.id, [qB.id]);
 
         const created = await attendeesApi.createAttendeeAtomic({
           bookings: [
@@ -141,21 +137,14 @@ describeWithEnv(
           maxAttendees: 10,
           name: "Shared",
         });
-        const q = await insertRow(tables.questions, {
-          display_type: "radio",
+        const {
+          answers: [a1, a2],
+          question: q,
+        } = await seedQuestion({
+          answers: ["S", "L"],
+          listingIds: [event.id],
           text: "Size?",
         });
-        const a1 = await insertRow(tables.answers, {
-          question_id: q.id,
-          sort_order: 0,
-          text: "S",
-        });
-        const a2 = await insertRow(tables.answers, {
-          question_id: q.id,
-          sort_order: 1,
-          text: "L",
-        });
-        await listingQuestions.setIds(event.id, [q.id]);
 
         const makeAttendee = async (name: string, email: string) => {
           const result = await attendeesApi.createAttendeeAtomic({
@@ -194,11 +183,9 @@ describeWithEnv(
         maxAttendees: 10,
         name: "Free text listing",
       });
-      const question = await insertRow(tables.questions, {
-        display_type: "free_text",
-        text: "Access needs?",
-      });
-      await listingQuestions.setIds(listing.id, [question.id]);
+      const [question] = await freeTextQuestionsOn(listing.id, [
+        "Access needs?",
+      ]);
       const created = await attendeesApi.createAttendeeAtomic({
         bookings: [{ listingId: listing.id, quantity: 1 }],
         email: "free-text@example.com",

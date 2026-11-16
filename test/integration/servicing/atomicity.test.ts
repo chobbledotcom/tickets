@@ -11,8 +11,6 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,6 +18,10 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import {
   createServicingHold,
@@ -56,25 +58,17 @@ const attachTextAndChoiceQuestions = async (
   choiceQuestionId: number;
   choiceAnswerId: number;
 }> => {
-  const { questionListings } = await import("#db/questions/queries.ts");
-  const textQuestion = await insertRow(tables.questions, {
-    assign_all: false,
-    display_type: "free_text",
-    text: "Boiler notes?",
-  });
-  const choiceQuestion = await insertRow(tables.questions, {
-    assign_all: false,
-    display_type: "radio",
+  const [textQuestion] = await freeTextQuestionsOn(listingId, [
+    "Boiler notes?",
+  ]);
+  const {
+    answers: [choiceAnswer],
+    question: choiceQuestion,
+  } = await seedQuestion({
+    answers: ["Vaillant"],
+    listingIds: [listingId],
     text: "Boiler model?",
   });
-  const choiceAnswer = await insertRow(tables.answers, {
-    question_id: choiceQuestion.id,
-    sort_order: 0,
-    text: "Vaillant",
-  });
-  for (const q of [textQuestion.id, choiceQuestion.id]) {
-    await questionListings.setIds(q, [listingId]);
-  }
   return {
     choiceAnswerId: choiceAnswer.id,
     choiceQuestionId: choiceQuestion.id,

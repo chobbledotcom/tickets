@@ -3,9 +3,6 @@ import { it as test } from "@std/testing/bdd";
 import { getAllActivityLog } from "#db/activity-log.ts";
 import { moveTickets } from "#db/attendees/update.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -13,6 +10,10 @@ import {
   createTestAttendeeDirect,
 } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { adminGet, withTestSession } from "#test-utils/session.ts";
 
 describeWithEnv("the listing CSV export", { db: true }, () => {
@@ -102,28 +103,17 @@ describeWithEnv("the listing CSV export", { db: true }, () => {
       "alice@example.com",
     );
     await createTestAttendeeDirect(listing.id, "Bob", "bob@example.com");
-    const question = await insertRow(tables.questions, {
-      display_type: "free_text",
-      text: "Dietary needs?",
-    });
-    const choiceQuestion = await insertRow(tables.questions, {
-      display_type: "radio",
+    const [question] = await freeTextQuestionsOn(listing.id, [
+      "Dietary needs?",
+    ]);
+    const {
+      answers: [aisle],
+    } = await seedQuestion({
+      answers: ["Aisle"],
+      listingIds: [listing.id],
       text: "Seat?",
     });
-    const aisle = await insertRow(tables.answers, {
-      question_id: choiceQuestion.id,
-      sort_order: 0,
-      text: "Aisle",
-    });
-    const unanswered = await insertRow(tables.questions, {
-      display_type: "free_text",
-      text: "Allergies?",
-    });
-    await listingQuestions.setIds(listing.id, [
-      question.id,
-      choiceQuestion.id,
-      unanswered.id,
-    ]);
+    await freeTextQuestionsOn(listing.id, ["Allergies?"]);
     await saveAttendeeAnswers(
       new Map([
         [

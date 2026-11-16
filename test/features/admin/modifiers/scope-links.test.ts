@@ -8,8 +8,6 @@ import {
   modifierGroups,
   modifierListings,
 } from "#db/modifiers.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { matchKey } from "#shared/keys.ts";
 import {
   expectFlashRedirect,
@@ -19,6 +17,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   createAcceptanceTests,
@@ -153,16 +152,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       question: string,
       answer: string,
     ): Promise<{ questionId: number; answerId: number }> => {
-      const q = await insertRow(tables.questions, {
-        display_type: "radio",
-        text: question,
-      });
-      const a = await insertRow(tables.answers, {
-        question_id: q.id,
-        sort_order: 0,
-        text: answer,
-      });
-      return { answerId: a.id, questionId: q.id };
+      const seeded = await seedQuestion({ answers: [answer], text: question });
+      return { answerId: seeded.answers[0].id, questionId: seeded.question.id };
     };
 
     test("edit page lists linkable answers for an answer-triggered modifier", async () => {

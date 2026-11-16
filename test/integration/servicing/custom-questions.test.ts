@@ -16,15 +16,11 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
-import {
-  getQuestionsWithListingIds,
-  questionListings,
-} from "#db/questions/queries.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { getQuestionsWithListingIds } from "#db/questions/queries.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
   createServicingHold,
   updateServicingEvent,
@@ -34,20 +30,15 @@ import {
 const attachQuestion = async (
   listingId: number,
 ): Promise<{ questionId: number; answerId: number }> => {
-  const question = await insertRow(tables.questions, {
-    assign_all: false,
-    display_type: "radio",
+  const {
+    answers: [answer],
+    question,
+  } = await seedQuestion({
+    answers: ["Vaillant"],
+    listingIds: [listingId],
     text: "Boiler model?",
   });
-  const answer = await insertRow(tables.answers, {
-    question_id: question.id,
-    sort_order: 0,
-    text: "Vaillant",
-  });
-  await questionListings.setIds(question.id, [listingId]);
-  const questionId = question.id;
-  const answerId = answer.id;
-  return { answerId, questionId };
+  return { answerId: answer.id, questionId: question.id };
 };
 
 const answersFor = (attendeeId: number) =>

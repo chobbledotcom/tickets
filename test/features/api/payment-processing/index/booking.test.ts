@@ -10,10 +10,7 @@ import {
   stageCheckoutAnswers,
 } from "#db/checkout-pending-answers.ts";
 import { execute, queryOne } from "#db/client.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { stageSquareLinkEnd } from "#db/square-link-ends.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
@@ -23,6 +20,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { dropAttendeeBookings } from "#test-utils/db-helpers/booking-shapes.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { createFreeTextQuestion } from "#test-utils/db-helpers/questions.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { useFetchStub } from "#test-utils/mocks.ts";
@@ -159,16 +157,14 @@ describeWithEnv("payment processing booking outcomes", { db: true }, () => {
   test("creates and answers a paid booking in three database calls", async () => {
     const id = "cs_direct_answered_booking_budget";
     const { data, listing } = await singleListingPayment(id, 1000);
-    const question = await insertRow(tables.questions, {
-      display_type: "select",
+    const {
+      answers: [answer],
+    } = await seedQuestion({
+      answers: ["Soup"],
+      displayType: "select",
+      listingIds: [listing.id],
       text: "Meal?",
     });
-    const answer = await insertRow(tables.answers, {
-      question_id: question.id,
-      sort_order: 0,
-      text: "Soup",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
     data.intent.listingAnswerIds = { [String(listing.id)]: [answer.id] };
     await expectBookedInThreeCalls(id, data);
   });
