@@ -5,6 +5,7 @@ import {
   firstRecurringChargeAt,
   planOfStart,
   recurringCharge,
+  renewalTax,
   type SubscriptionStart,
   vatInRecurringPayment,
 } from "#shared/subscriptions/plan.ts";
@@ -86,5 +87,14 @@ describe("subscription plan", () => {
       tax: 200,
     });
     expect(planOfStart(start, NO_TAX).tax).toBe(0);
+  });
+
+  test("a renewal of the planned amount carries the planned VAT", () => {
+    expect(renewalTax({ price: 600, tax: 100 }, 600)).toBe(100);
+  });
+
+  test("a renewal of another amount keeps the same share of VAT", () => {
+    expect(renewalTax({ price: 600, tax: 100 }, 303)).toBe(51);
+    expect(renewalTax({ price: 600, tax: 0 }, 900)).toBe(0);
   });
 });

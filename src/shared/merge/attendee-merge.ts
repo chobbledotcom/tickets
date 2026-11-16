@@ -1,11 +1,3 @@
-/**
- * Attendee merge service — single orchestration point for merge rules.
- *
- * Two-step flow:
- * 1. buildAttendeeMergeDiff: compute a diff between target and source
- * 2. applyAttendeeMerge: apply explicit decisions from the admin
- */
-
 import { attendeeAccount, revenueAccount } from "#accounting/accounts.ts";
 import { writeoffAdjustmentInserts } from "#accounting/adjustments.ts";
 import { KIND } from "#accounting/kinds.ts";
@@ -47,6 +39,7 @@ import type {
   MergeBookingChoice,
 } from "#shared/merge/attendee-merge-types.ts";
 import { copiedBookingColumns } from "#shared/merge/booking-copy.ts";
+import { droppedSubscriptionErrors } from "#shared/merge/subscription-rows.ts";
 import { nowIso } from "#shared/now.ts";
 
 // ---------------------------------------------------------------------------
@@ -446,6 +439,9 @@ export const validateAttendeeMergeDecision = (
     ...answerDecisionErrors(diff, decision),
     ...bookingDecisionErrors(diff, decision),
     ...strandedPaymentErrors(diff, decision),
+    ...droppedSubscriptionErrors(diff.bookingItems, (item) =>
+      copiesSourceBooking(item, decision),
+    ),
   ];
 
   return errors.length > 0 ? { errors, valid: false } : { valid: true };

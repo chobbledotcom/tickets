@@ -140,3 +140,13 @@ export const vatInRecurringPayment = (
     { mode: "calculate_from_total", rateBasisPoints: policy.rateBasisPoints },
   ).taxAmount;
 };
+
+/** The VAT inside one paid renewal. A payment of the planned amount carries
+ * the planned VAT. Any other amount keeps the same share of VAT. */
+export const renewalTax = (
+  plan: { price: number; tax: number },
+  paid: number,
+): number => {
+  if (paid === plan.price) return plan.tax;
+  return Math.round((paid * plan.tax) / plan.price);
+};
