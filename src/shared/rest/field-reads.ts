@@ -2,7 +2,7 @@
  *  form, and from a stored row into a catalogue transfer. */
 
 import * as v from "valibot";
-import { toCamelCase } from "#shared/column-names.ts";
+import { fieldName, toCamelCase } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
 import {
@@ -174,8 +174,8 @@ const fieldOfBody = (
       ? errorResult(`${field.key} is required`)
       : BODY_READS[field.kind](field, body, null);
   }
-  // A stored row holds a column for each of its declared fields.
-  const kept = (stored as Record<string, unknown>)[field.key];
+  // A stored row holds a field for each of its declared fields.
+  const kept = (stored as Record<string, unknown>)[fieldName(field.key)];
   return BODY_READS[field.kind](field, body, kept);
 };
 
@@ -303,8 +303,8 @@ export const transferValues = <const Fields extends FieldSpecs>(
     fields,
     (field) => toCamelCase(field.key),
     (field) => {
-      // A stored row holds a column for each of its declared fields.
-      const value = (row as Record<string, unknown>)[field.key];
+      // A stored row holds a field for each of its declared fields.
+      const value = (row as Record<string, unknown>)[fieldName(field.key)];
       const skip = TRANSFER_SKIPS[field.kind];
       return withheld.has(field.key) || value === undefined || skip?.(value)
         ? undefined

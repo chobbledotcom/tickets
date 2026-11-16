@@ -119,18 +119,18 @@ export type KindOf<Fields extends FieldSpecs, Key> = Extract<
   { key: Key }
 >["kind"];
 
-/** The stored value of every declared field, keyed by column. */
-export type FieldsStored<Fields extends FieldSpecs> = ByFieldKind<
-  Fields,
-  StoredValue
->;
-
 /** One value per field of the union, keyed by input name. `Values` names
  *  the value each kind gives. */
 export type ByInputKey<
   Field extends FieldSpec,
   Values extends Record<FieldKind, unknown>,
 > = { [Each in Field as InputKey<Each["key"]>]: Values[Each["kind"]] };
+
+/** The stored value of every declared field, keyed by its row field. */
+export type FieldsStored<Fields extends FieldSpecs> = ByInputKey<
+  Fields[number],
+  StoredValue
+>;
 
 /** The write input the fields declare, keyed in camelCase. */
 export type FieldsInput<Fields extends FieldSpecs> = ByInputKey<
