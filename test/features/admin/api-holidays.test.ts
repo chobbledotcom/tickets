@@ -11,6 +11,7 @@ import {
   type JsonBody,
   postJson,
   putJson,
+  requestAsManager,
 } from "#test-utils/api/admin-json.ts";
 import {
   assertApiDeleteOk,
@@ -23,7 +24,6 @@ import { createTestHoliday } from "#test-utils/db-helpers/holidays.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,
-  createTestManagerSession,
   requestAsSession,
   testCookie,
   testCsrfToken,
@@ -324,42 +324,28 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
   // reject managers too (a cookie-authenticated manager would otherwise reach
   // owner-gated operations through the API).
   describe("owner-only authorization", () => {
-    const managerSession = async () => ({
-      cookie: await createTestManagerSession(),
-      csrfToken: await testCsrfToken(),
-    });
-
     test("rejects a manager listing holidays with 403 Forbidden", async () => {
-      const res = await handleRequest(
-        requestAsSession(HOLIDAYS, await managerSession()),
-      );
-      expect(res.status).toBe(403);
-      expect((await res.json()).error).toBe("Forbidden");
+      await expectApiError(requestAsManager(HOLIDAYS), 403, "Forbidden");
     });
 
     test("rejects a manager creating a holiday with 403", async () => {
-      const res = await handleRequest(
-        requestAsSession(HOLIDAYS, await managerSession(), {
-          body: JSON.stringify({
-            end_date: "2025-12-26",
-            name: "Blocked",
-            start_date: "2025-12-25",
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        }),
-      );
+      const res = await requestAsManager(HOLIDAYS, {
+        body: {
+          end_date: "2025-12-26",
+          name: "Blocked",
+          start_date: "2025-12-25",
+        },
+        method: "POST",
+      });
       expect(res.status).toBe(403);
       expect(await holidays.getAll()).toEqual([]);
     });
 
     test("rejects a manager deleting a holiday with 403", async () => {
       const holiday = await createTestHoliday({ name: "Locked" });
-      const res = await handleRequest(
-        requestAsSession(holidayPath(holiday.id), await managerSession(), {
-          method: "DELETE",
-        }),
-      );
+      const res = await requestAsManager(holidayPath(holiday.id), {
+        method: "DELETE",
+      });
       expect(res.status).toBe(403);
       // The manager's delete was blocked, so the holiday still exists.
       expect((await findRow(tables.holidays, holiday.id))?.name).toBe("Locked");
