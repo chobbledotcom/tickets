@@ -267,8 +267,9 @@ export type ItemImageColumns = {
 };
 
 /** A stored listing: its row, its first image, and its per-day-count prices
- * from `listing_prices`. */
-export type Listing = DecodedRowOf<"listings"> &
+ * from `listing_prices`. A read gives the booked quantity as
+ * {@link ListingWithCount.attendeeCount}. */
+export type Listing = Omit<DecodedRowOf<"listings">, "bookedQuantity"> &
   ItemImageColumns & { dayPrices: DayPrices };
 
 export type Image = DecodedRowOf<"images">;
