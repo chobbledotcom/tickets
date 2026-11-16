@@ -12,6 +12,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { transfersByEventGroup } from "#accounting/queries.ts";
 import { repointAttendeeStatements } from "#accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { bookingRowDelete } from "#db/attendees/booking-row-delete.ts";
 import {
   attendeeRemovalStatements,
   checkoutStageDeleteStatements,
@@ -638,17 +639,10 @@ const applyBookingDecisions = (
       );
       bookingsMoved++;
     } else if (choice === "take_source" && item.targetBooking) {
-      // Replace the target booking with the source booking — only the one
-      // slot the decision names: a listing booked through several paths keeps
-      // its other package/standalone rows.
+      // Replace the target booking with the source booking, in the one slot
+      // that the decision names.
       deleteTargetBookingStatements.push(
-        deleteFrom(tables.listing_attendees).where({
-          attendee_id: targetId,
-          listing_id: item.listingId,
-          package_group_id: item.packageGroupId,
-          parent_listing_id: item.parentListingId,
-          start_at: item.startAt,
-        }),
+        bookingRowDelete(targetId, item.sourceBooking),
       );
       insertStatements.push(
         bookingInsertStatement(targetId, item.sourceBooking),

@@ -15,7 +15,13 @@ import {
 } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
 import { readExists, readOneRow, readRows } from "#db/read.ts";
-import { among, type Condition, equal, named } from "#db/select/expression.ts";
+import {
+  among,
+  type Condition,
+  desc,
+  equal,
+  named,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node, Query } from "#db/select/shape.ts";
 import type {
@@ -116,6 +122,16 @@ export const namesByIds =
           .pick("id", "name"),
       ),
     );
+
+/** Every whole row of the table, newest first. A newer row has a higher id. */
+export const allRowsNewestFirst = <Name extends TableWithId>(
+  table: TableHandle<Name>,
+): Promise<DecodedRowOf<Name>[]> =>
+  readRows(
+    from(table)
+      .orderBy(() => [desc(named<number>(`${table.singular}.id`))])
+      .everyColumn() as RowsStatement<DecodedRowOf<Name>>,
+  );
 
 /** The first whole row that `where` keeps, or null when it keeps none. */
 export const findRowWhere = <Name extends TableName>(

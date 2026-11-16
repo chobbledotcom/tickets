@@ -9,6 +9,7 @@
  * attach through the shared `image_uses` table with item_type 'news'.
  */
 
+import { pick } from "@std/collections";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
 import {
@@ -36,17 +37,13 @@ import {
   freshSlugIndexWrites,
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
-import {
-  contentValues,
-  type SluggedContentInput,
-} from "#db/slugged-content-input.ts";
+import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { deleteFrom } from "#db/write.ts";
 import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
-import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 import type { NewsPost, NewsPostCard, NewsPostSummary } from "#types";
@@ -63,13 +60,8 @@ const newestFirst = from(tables.news_posts)
   .orderBy((post) => [desc(post.created), desc(post.id)]);
 
 /** The summary columns of a post. */
-const summaryColumns = (post: Node<"news_posts">) => ({
-  created: post.created,
-  id: post.id,
-  name: post.name,
-  slug: post.slug,
-  snippet: post.snippet,
-});
+const summaryColumns = (post: Node<"news_posts">) =>
+  pick(post, ["created", "id", "name", "slug", "snippet"]);
 
 const unclaimedNewsSlugCondition = (
   slugIndex: BlindIndex,
@@ -184,11 +176,8 @@ export const createNewsPost = async (
       },
     });
     const written = await newsPostWrites.create(
-      async () => ({
-        ...contentValues({ ...input, slug }),
-        created,
-        snippet: input.snippet,
-      }),
+      { ...input, slug },
+      async () => ({ created }),
       tx,
     );
     // The slug search above runs in the same transaction, so the slug is free.
@@ -204,18 +193,12 @@ export const createNewsPost = async (
 const newsPostWrites = freshSlugIndexWrites(
   tables.news_posts,
   unclaimedNewsSlugCondition,
+  (input: NewsPostWriteInput & { slug: string }) => ({
+    snippet: input.snippet,
+  }),
 );
 
-export const updateNewsPost = async (
-  id: number,
-  input: NewsPostWriteInput & { slug: string },
-  transaction?: TxScope,
-): Promise<Result<NewsPost, "notFound" | "slugTaken">> =>
-  newsPostWrites.update(
-    id,
-    { ...contentValues(input), snippet: input.snippet },
-    transaction,
-  );
+export const updateNewsPost = newsPostWrites.update;
 
 /** Delete a post and its image links in one batch (images themselves stay in
  * the library — only the uses are pruned, as with listing/group deletion). */

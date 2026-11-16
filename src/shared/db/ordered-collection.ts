@@ -253,3 +253,15 @@ export const insertScopedOrderedRow =
         await log(transaction);
       },
     );
+
+/** The order of a list of rows that starts at 1, and the order of the child
+ *  rows inside each row of the list. Each child row names its row of the list
+ *  in `scope`. */
+export const listWithChildOrders = <Scope extends string>(
+  list: string,
+  children: string,
+  scope: Scope,
+) => ({
+  children: defineOrderedCollection({ key: "id", scope, table: children }),
+  list: defineOrderedCollection({ key: "id", start: 1, table: list }),
+});

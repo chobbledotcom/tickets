@@ -5,20 +5,20 @@
  * ids only. Display code resolves those ids back to ordered attribute groups.
  */
 
-import { removalWithChildren } from "#db/child-rows.ts";
+import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
 import {
   executeBatch,
   queryAll,
-  queryAllPrimary,
   queryIdColumn,
   queryOne,
   type TxScope,
 } from "#db/client.ts";
 import { linkTableSide } from "#db/link-table.ts";
 import type { ListingOption } from "#db/listings/catalog.ts";
-import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { listWithChildOrders } from "#db/ordered-collection.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
+import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import { equal } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
@@ -46,17 +46,8 @@ export type AttributeWithOptions = Attribute & {
 
 export type ListingAttributesById = Map<number, AttributeWithOptions[]>;
 
-export const attributesOrder = defineOrderedCollection({
-  key: "id",
-  start: 1,
-  table: "attributes",
-});
-
-export const attributeOptionsOrder = defineOrderedCollection({
-  key: "id",
-  scope: "attribute_id",
-  table: "attribute_options",
-});
+export const { children: attributeOptionsOrder, list: attributesOrder } =
+  listWithChildOrders("attributes", "attribute_options", "attribute_id");
 
 export const listingAttributeOptions = linkTableSide(
   tables.listing_attribute_options,
@@ -207,25 +198,19 @@ const attributeFromRows = (
   rows: JoinedAttributeRow[],
 ): AttributeWithOptions | null => groupAttributeRows(rows)[0] ?? null;
 
-/** The joined attribute rows for one id, on the replica (normal reads) or the
- * primary (read-your-writes after a write). */
-const attributeRows = (id: number, primary: boolean) =>
-  (primary ? queryAllPrimary : queryAll)<JoinedAttributeRow>(
-    attributeJoinedSql(id),
-  );
-
-const attributeWithOptions =
-  (primary: boolean) =>
-  async (id: number): Promise<AttributeWithOptions | null> =>
-    attributeFromRows(await attributeRows(id, primary));
-
-/** One attribute with its options, read normally. A replica can serve it. */
-export const getAttributeWithOptions = attributeWithOptions(false);
-
-/** The same read pinned to the primary. A write sequence that creates an
- * attribute and then its first option cannot miss the row the create just
- * made. */
-export const getAttributeWithOptionsOnPrimary = attributeWithOptions(true);
+/** One attribute with its options. A write sequence creates an attribute and
+ * then its first option. The primary version cannot miss the row that the
+ * create just made. */
+export const {
+  onPrimary: getAttributeWithOptionsOnPrimary,
+  onReplica: getAttributeWithOptions,
+} = onReplicaAndPrimary(
+  (readAll) =>
+    async (id: number): Promise<AttributeWithOptions | null> =>
+      attributeFromRows(
+        await readAll<JoinedAttributeRow>(attributeJoinedSql(id)),
+      ),
+);
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
   (
@@ -314,8 +299,7 @@ const optionRemoval = removalWithChildren(tables.attribute_options, [
   [tables.listing_attribute_options, "option_id"],
 ]);
 
-export const deleteAttributeOption = (optionId: number): Promise<void> =>
-  executeBatch(optionRemoval(optionId));
+export const deleteAttributeOption = inOneBatch(optionRemoval);
 
 export const deleteAttribute = (attributeId: number): Promise<void> =>
   executeBatch([

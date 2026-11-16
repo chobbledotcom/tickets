@@ -9,13 +9,8 @@
 /* jscpd:ignore-start -- imports */
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import { removalWithChildren } from "#db/child-rows.ts";
-import {
-  executeBatch,
-  resultRows,
-  type TxScope,
-  withTransaction,
-} from "#db/client.ts";
+import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
+import { resultRows, type TxScope, withTransaction } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
 import { readRows } from "#db/read.ts";
 import { deleteRow, findRow, findRowWhere } from "#db/record-table.ts";
@@ -58,12 +53,11 @@ export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
 
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */
-const sourceRemoval = removalWithChildren(tables.external_sources, [
-  [tables.external_source_links, "source_id"],
-]);
-
-export const deleteExternalSource = (id: number): Promise<void> =>
-  executeBatch(sourceRemoval(id));
+export const deleteExternalSource = inOneBatch(
+  removalWithChildren(tables.external_sources, [
+    [tables.external_source_links, "source_id"],
+  ]),
+);
 
 /** The links that `where` keeps, oldest first. */
 const linksIdOrder = (where: Matching<Node<"external_source_links">>) =>

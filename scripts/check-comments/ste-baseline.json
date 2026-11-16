@@ -836,10 +836,6 @@
     "banned-modal": 1,
     "semicolon": 3
   },
-  "src/shared/db/questions/delete.ts": {
-    "contraction": 2,
-    "long-sentence": 1
-  },
   "src/shared/db/questions/parsing.ts": {
     "semicolon": 7,
     "contraction": 2,
@@ -1052,7 +1048,7 @@
     "semicolon": 3
   },
   "src/shared/merge/attendee-merge.ts": {
-    "long-sentence": 18,
+    "long-sentence": 17,
     "semicolon": 5,
     "banned-modal": 3,
     "participle": 1,

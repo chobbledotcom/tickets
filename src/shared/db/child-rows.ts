@@ -4,6 +4,7 @@
  * no child outlives its parent.
  */
 
+import { executeBatch } from "#db/client.ts";
 import {
   type Condition,
   equal,
@@ -35,3 +36,9 @@ export const removalWithChildren =
     [...children, [table, "id"] as const].map(([rows, column]) =>
       deleteFrom(rows).where(() => holdsOneOf(`${rows.name}.${column}`, ids)),
     );
+
+/** Run the deletes of one row and its child rows as one batch. */
+export const inOneBatch =
+  (removal: (id: number) => Write<TableName>[]) =>
+  (id: number): Promise<void> =>
+    executeBatch(removal(id));

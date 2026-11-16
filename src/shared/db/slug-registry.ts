@@ -26,7 +26,18 @@ import {
 } from "#db/record-table.ts";
 import { wholeCondition } from "#db/select/expression.ts";
 import type { DecodedRowOf, TableHandle } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlJoin, sqlList, sqlName } from "#db/sql.ts";
+import {
+  contentValues,
+  type SluggedContentInput,
+} from "#db/slugged-content-input.ts";
+import {
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  sqlJoin,
+  sqlList,
+  sqlName,
+} from "#db/sql.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import type { SitePageItemType } from "#types";
 
@@ -97,16 +108,18 @@ type WithoutIndex<Values> = Omit<Values, "slug_index">;
 /** The write surface {@link freshSlugIndexWrites} hands back for one table.
  * The blind index is always computed inside, never passed in, so `slug` and
  * `slug_index` move together. */
-type SluggedContentWrites<Name extends SluggedTable> = {
+type SluggedContentWrites<
+  Name extends SluggedTable,
+  Input extends Required<SluggedContentInput>,
+> = {
   create: (
-    values: (
-      tx: TxScope,
-    ) => Promise<WithoutIndex<NewRecord<Name>> & { slug: string }>,
+    input: Input,
+    writtenColumns: (tx: TxScope) => Promise<WithoutIndex<RecordChanges<Name>>>,
     transaction?: TxScope,
   ) => Promise<Result<DecodedRowOf<Name>, "slugTaken">>;
   update: (
     id: number,
-    changes: WithoutIndex<RecordChanges<Name>> & { slug: string },
+    input: Input,
     transaction?: TxScope,
   ) => Promise<Result<DecodedRowOf<Name>, "notFound" | "slugTaken">>;
 };
@@ -115,50 +128,82 @@ type SluggedContentWrites<Name extends SluggedTable> = {
  * computed here from the slug (never caller-supplied), so `slug` and
  * `slug_index` move together, and every write carries the unclaimed-slug
  * condition, so a create or a rename stays unique in the namespace that
- * condition checks. */
-export const freshSlugIndexWrites = <Name extends SluggedTable>(
+ * condition checks. An update writes the shared content fields of its input,
+ * and the columns of the table's own fields that `ownColumns` gives. A create
+ * also writes the columns that `writtenColumns` gives inside its transaction. */
+export const freshSlugIndexWrites = <
+  Name extends SluggedTable,
+  Input extends Required<SluggedContentInput>,
+>(
   table: TableHandle<Name>,
   unclaimed: UnclaimedSlugCondition,
-): SluggedContentWrites<Name> => ({
-  create: (values, transaction) =>
+  ownColumns: (input: Input) => WithoutIndex<RecordChanges<Name>>,
+): SluggedContentWrites<Name, Input> => {
+  /** Run one write of `input` with its fresh blind index, and answer from the
+   *  row that the write gives back, if any. */
+  const slugWrite = <Answer>(
+    input: Input,
+    transaction: TxScope | undefined,
+    write: (
+      tx: TxScope,
+      values: WithoutIndex<RecordChanges<Name>>,
+      slugIndex: BlindIndex,
+    ) => Promise<RowsStatement<DecodedRowOf<Name>>>,
+    answer: (
+      row: DecodedRowOf<Name> | undefined,
+      tx: TxScope,
+    ) => Promise<Answer> | Answer,
+  ): Promise<Answer> =>
     useTransaction(transaction, async (tx) => {
-      const given = await values(tx);
-      const slugIndex = await hmacHash(given.slug);
-      const [created] = resultRows(
-        await tx.execute(
-          await insertRowStatement(
+      const slugIndex = await hmacHash(input.slug);
+      const values = { ...contentValues(input), ...ownColumns(input) };
+      const [row] = resultRows(
+        await tx.execute(await write(tx, values, slugIndex)),
+      );
+      return answer(row, tx);
+    });
+  return {
+    create: (input, writtenColumns, transaction) =>
+      slugWrite(
+        input,
+        transaction,
+        async (tx, values, slugIndex) =>
+          insertRowStatement(
             table,
             // The values name every column but the index, which is added here.
-            { ...given, slug_index: slugIndex } as NewRecord<Name>,
+            {
+              ...values,
+              ...(await writtenColumns(tx)),
+              slug_index: slugIndex,
+            } as NewRecord<Name>,
             { when: wholeCondition(unclaimed(slugIndex, undefined)) },
           ),
-        ),
-      );
-      return created === undefined
-        ? errorResult("slugTaken")
-        : okResult(created);
-    }),
-  update: (id, changes, transaction) =>
-    useTransaction(transaction, async (tx) => {
-      const slugIndex = await hmacHash(changes.slug);
-      const [updated] = resultRows(
-        await tx.execute(
-          await updateRowStatement(
+        (row) => (row === undefined ? errorResult("slugTaken") : okResult(row)),
+      ),
+    update: (id, input, transaction) =>
+      slugWrite(
+        input,
+        transaction,
+        (_tx, values, slugIndex) =>
+          updateRowStatement(
             table,
             id,
-            { ...changes, slug_index: slugIndex } as RecordChanges<Name>,
+            { ...values, slug_index: slugIndex } as RecordChanges<Name>,
             () => wholeCondition(unclaimed(slugIndex, id)),
           ),
-        ),
-      );
-      if (updated) return okResult(updated);
-      // The failed update cannot tell a missing row from a slug conflict,
-      // so only this rejection path reads the row.
-      return errorResult(
-        (await existsOn(tx, rowById(table, id))) ? "slugTaken" : "notFound",
-      );
-    }),
-});
+        // The failed update cannot tell a missing row from a slug conflict,
+        // so only this rejection path reads the row.
+        async (row, tx) =>
+          row
+            ? okResult(row)
+            : errorResult(
+                (await existsOn(tx, rowById(table, id)))
+                  ? "slugTaken"
+                  : "notFound",
+              ),
+      ),
+  };
+};
 
 /**
  * Is `slug` already used by any listing, group, or page? `exclude` skips one row

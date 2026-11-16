@@ -15,8 +15,8 @@ import type {
   PasswordHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
-import { removalWithChildren } from "#db/child-rows.ts";
-import { execute, executeBatch, insertedRowId, queryAll } from "#db/client.ts";
+import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
+import { execute, insertedRowId, queryAll } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
 import { equal, lessThan, notEqual } from "#db/select/expression.ts";
@@ -433,8 +433,7 @@ export const userRemoval = removalWithChildren(tables.users, [
 /**
  * Delete a user and all their sessions and API keys
  */
-export const deleteUser = (userId: number): Promise<void> =>
-  executeBatch(userRemoval(userId));
+export const deleteUser = inOneBatch(userRemoval);
 
 /**
  * Find a user by invite code hash

@@ -22,10 +22,7 @@ import {
   type UnclaimedSlugCondition,
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
-import {
-  contentValues,
-  type SluggedContentInput,
-} from "#db/slugged-content-input.ts";
+import type { SluggedContentInput } from "#db/slugged-content-input.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { tableCache } from "#db/table-cache.ts";
 import { requestCache } from "#shared/request-cache.ts";
@@ -98,6 +95,7 @@ const unclaimedPageSlug: UnclaimedSlugCondition = (slugIndex, id) =>
 const sitePageWrites = freshSlugIndexWrites(
   tables.site_pages,
   unclaimedPageSlug,
+  (input: SitePageWriteInput) => ({ hidden: input.hidden }),
 );
 
 export const createSitePage = (
@@ -105,9 +103,8 @@ export const createSitePage = (
   transaction?: TxScope,
 ): Promise<Result<SitePage, "slugTaken">> =>
   sitePageWrites.create(
+    input,
     async (tx) => ({
-      ...contentValues(input),
-      hidden: input.hidden,
       sort_order: await sitePageOrder.next({ transaction: tx }),
     }),
     transaction,
@@ -116,15 +113,6 @@ export const createSitePage = (
 /** Update a page's editable fields (all but id/sort_order) — every field, every
  * time (the edit form posts them all), with the blind index recomputed from the
  * slug here so a renamed slug stays findable/reservable. */
-export const updateSitePage = async (
-  id: number,
-  input: SitePageWriteInput,
-  transaction?: TxScope,
-): Promise<Result<SitePage, "notFound" | "slugTaken">> =>
-  sitePageWrites.update(
-    id,
-    { ...contentValues(input), hidden: input.hidden },
-    transaction,
-  );
+export const updateSitePage = sitePageWrites.update;
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */

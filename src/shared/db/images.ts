@@ -2,12 +2,12 @@
  * First-class uploaded images and their ordered item links.
  */
 
+import { pick } from "@std/collections";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { removalWithChildren } from "#db/child-rows.ts";
 import {
   executeBatch,
-  queryAllPrimary,
   resultRows,
   type TxScope,
   useTransaction,
@@ -15,6 +15,7 @@ import {
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { readOneRow, readRows } from "#db/read.ts";
 import {
+  allRowsNewestFirst,
   findRow,
   insertRowStatement,
   rowValuesOf,
@@ -26,10 +27,10 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
+import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import {
   among,
   and,
-  desc,
   type Expr,
   equal,
   not,
@@ -92,11 +93,7 @@ export type OrderedImage = Image & { sort_order: number };
 
 /** Every image, newest first. */
 export const getAllImages = (): Promise<Image[]> =>
-  readRows(
-    from(tables.images)
-      .orderBy((image) => [desc(image.id)])
-      .everyColumn(),
-  );
+  allRowsNewestFirst(tables.images);
 
 export const getImageById = (id: number): Promise<Image | null> =>
   findRow(tables.images, id);
@@ -161,6 +158,10 @@ export const openItemImages = async (
   ),
 });
 
+/** The id and the files of an image, for a read that names its own columns. */
+const imageFileColumns = (image: Node<"images">) =>
+  pick(image, ["alt_text", "filename", "filename_thumb", "id"]);
+
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
  * they open, so they say it once here. */
@@ -178,12 +179,7 @@ export const getImageFilenamesForItem = async (
   const image = await readOneRow(
     imagesOfItem(itemType, itemId)
       .limit(1)
-      .select((use) => ({
-        alt_text: use.image.alt_text,
-        filename: use.image.filename,
-        filename_thumb: use.image.filename_thumb,
-        id: use.image.id,
-      })),
+      .select((use) => imageFileColumns(use.image)),
   );
   if (!image) return { image_alt_text: "", image_thumb_url: "", image_url: "" };
   return {
@@ -199,22 +195,15 @@ export const getImagesForItem = (
 ): Promise<OrderedImage[]> =>
   readRows(
     imagesOfItem(itemType, itemId).select((use) => ({
-      alt_text: use.image.alt_text,
-      filename: use.image.filename,
-      filename_thumb: use.image.filename_thumb,
-      id: use.image.id,
+      ...imageFileColumns(use.image),
       name: use.image.name,
       sort_order: use.sort_order,
     })),
   );
 
 /** The columns of one link between an image and a record. */
-const imageUseColumns = (use: Node<"image_uses">) => ({
-  image_id: use.image_id,
-  item_id: use.item_id,
-  item_type: use.item_type,
-  sort_order: use.sort_order,
-});
+const imageUseColumns = (use: Node<"image_uses">) =>
+  pick(use, ["image_id", "item_id", "item_type", "sort_order"]);
 
 /** The item links of several images, keyed by image id. One query covers the
  *  whole list. An image with no links has no entry. The links of one image
@@ -235,23 +224,22 @@ export const getImageUsesForImages = async (
   )(rows);
 };
 
-/** One image's links, on the replica (normal reads) or the primary (the
- *  answer to a write that just committed them). */
-const imageUsesForImage =
-  (primary: boolean) =>
-  (imageId: number): Promise<ImageUse[]> => {
-    const read = from(tables.image_uses)
-      .where((use) => equal(use.image_id, imageId))
-      .orderBy((use) => [use.item_type, use.item_id])
-      .select(imageUseColumns);
-    return primary ? queryAllPrimary<ImageUse>(read) : readRows<ImageUse>(read);
-  };
-
-export const getImageUsesForImage = imageUsesForImage(false);
-
-/** The same links from the primary, so a lagging replica cannot answer a
- *  write with the links it replaced. */
-export const getImageUsesForImageOnPrimary = imageUsesForImage(true);
+/** The links of one image. The primary version answers a write that just
+ *  committed them, so a lagging replica cannot answer with the links that it
+ *  replaced. */
+export const {
+  onPrimary: getImageUsesForImageOnPrimary,
+  onReplica: getImageUsesForImage,
+} = onReplicaAndPrimary(
+  (readAll) =>
+    (imageId: number): Promise<ImageUse[]> =>
+      readAll(
+        from(tables.image_uses)
+          .where((use) => equal(use.image_id, imageId))
+          .orderBy((use) => [use.item_type, use.item_id])
+          .select(imageUseColumns),
+      ),
+);
 
 /** The links a write submits that name no stored record of their kind. The
  *  check runs inside the write's transaction, so a record deleted between the

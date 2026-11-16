@@ -6,13 +6,13 @@
  * The `modifier_id` column links an answer to the price modifier it triggers.
  */
 
-import { execute, queryAllPrimary, queryOne, requireOne } from "#db/client.ts";
+import { execute, queryOne, requireOne } from "#db/client.ts";
 import {
   type AggregateRecalculation,
   type AggregateValues,
   aggregateRepairs,
 } from "#db/common-schema.ts";
-import { readRows } from "#db/read.ts";
+import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
@@ -32,25 +32,23 @@ export type AnswerAggregateRecalculation =
 /** The stored selection total (times_selected) for every answer of the given
  * questions, keyed by answer id. Reads the trigger-maintained column directly
  * rather than scanning attendee_answers. One query covers a question list, so
- * the admin API answers each answer's total without a read per question. */
-const answerSelectionTotalsWith =
-  (primary: boolean) =>
-  async (questionIds: number[]): Promise<Map<number, number>> => {
-    const read = from(tables.answers)
-      .where({ question_id: questionIds })
-      .pick("id", "times_selected");
-    return fieldById("times_selected")(
-      primary ? await queryAllPrimary(read) : await readRows(read),
-    );
-  };
-
-/** The totals for a page a replica read served. */
-export const getAnswerSelectionTotals = answerSelectionTotalsWith(false);
-
-/** The same totals pinned to the primary, for the answer a write just made.
- *  A lagging replica does not hold that row, so its total has no value. */
-export const getAnswerSelectionTotalsOnPrimary =
-  answerSelectionTotalsWith(true);
+ * the admin API answers each answer's total without a read per question. The
+ * primary version serves the answer a write just made: a lagging replica does
+ * not hold that row, so its total has no value. */
+export const {
+  onPrimary: getAnswerSelectionTotalsOnPrimary,
+  onReplica: getAnswerSelectionTotals,
+} = onReplicaAndPrimary(
+  (readAll) =>
+    async (questionIds: number[]): Promise<Map<number, number>> =>
+      fieldById("times_selected")(
+        await readAll(
+          from(tables.answers)
+            .where({ question_id: questionIds })
+            .pick("id", "times_selected"),
+        ),
+      ),
+);
 
 /** The answer's stored times_selected together with the value it would hold if
  * rebuilt from attendee_answers, so the edit page can flag (and the recalculate

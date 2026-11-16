@@ -10,20 +10,17 @@ import type {
 const passthrough = <T>(value: T): T => value;
 const nullable = <T>(value: T | null): T | null => value ?? null;
 
-/** A plain column that stores the value of the site as it is. */
+/** A plain column that stores the value of the site through `convert`, the
+ *  same way in both directions. */
 const plainColumn = <
   DbKey extends string,
   SiteKey extends keyof BuiltSite & string,
-  Value extends string | number,
+  Value,
 >(
   dbKey: DbKey,
   siteKey: SiteKey,
-) => ({
-  dbKey,
-  fromRow: passthrough<Value>,
-  siteKey,
-  toInput: passthrough<Value>,
-});
+  convert: (value: Value) => Value,
+) => ({ dbKey, fromRow: convert, siteKey, toInput: convert });
 
 /** The app↔db mappings every 0/1 boolean column shares. */
 const boolFlagMappings = {
@@ -37,100 +34,39 @@ export const builtSitePlainColumns = [
     ...boolFlagMappings,
     siteKey: "assignable",
   },
-  {
-    dbKey: "assigned_attendee_id",
-    fromRow: nullable<number>,
-    siteKey: "assignedAttendeeId",
-    toInput: nullable<number>,
-  },
-  {
-    dbKey: "assigned_listing_id",
-    fromRow: nullable<number>,
-    siteKey: "assignedListingId",
-    toInput: nullable<number>,
-  },
-  plainColumn<
+  plainColumn("assigned_attendee_id", "assignedAttendeeId", nullable<number>),
+  plainColumn("assigned_listing_id", "assignedListingId", nullable<number>),
+  plainColumn(
     "database_key_rotation_started",
     "databaseKeyRotationStarted",
-    number
-  >("database_key_rotation_started", "databaseKeyRotationStarted"),
-  plainColumn<"read_only_from", "readOnlyFrom", string>(
-    "read_only_from",
-    "readOnlyFrom",
+    passthrough<number>,
   ),
-  {
-    dbKey: "renewal_token_index",
-    fromRow: nullable<string>,
-    siteKey: "renewalTokenIndex",
-    toInput: nullable<string>,
-  },
-  plainColumn<"site_data_revision", "siteDataRevision", number>(
-    "site_data_revision",
-    "siteDataRevision",
-  ),
-  {
-    dbKey: "updates",
-    fromRow: passthrough<UpdateTier>,
-    siteKey: "updates",
-    toInput: passthrough<UpdateTier>,
-  },
+  plainColumn("read_only_from", "readOnlyFrom", passthrough<string>),
+  plainColumn("renewal_token_index", "renewalTokenIndex", nullable<string>),
+  plainColumn("site_data_revision", "siteDataRevision", passthrough<number>),
+  plainColumn("updates", "updates", passthrough<UpdateTier>),
 ] as const;
 
+/** One field of the site data blob. It names its short key in the blob and the
+ *  site field that it fills. It says whether every blob holds it, and the
+ *  value that it takes when the blob leaves it out. */
+const blobColumn = <Value extends string | null>(
+  blobKey: string,
+  siteKey: keyof BuiltSite & string,
+  required: boolean,
+  defaultValue: Value,
+) => ({ blobKey, defaultValue, required, siteKey });
+
 export const builtSiteBlobColumns = [
-  {
-    blobKey: "n",
-    defaultValue: "",
-    required: true,
-    siteKey: "name",
-  },
-  {
-    blobKey: "u",
-    defaultValue: "",
-    required: true,
-    siteKey: "siteUrl",
-  },
-  {
-    blobKey: "d",
-    defaultValue: "",
-    required: false,
-    siteKey: "dbUrl",
-  },
-  {
-    blobKey: "t",
-    defaultValue: "",
-    required: false,
-    siteKey: "dbToken",
-  },
-  {
-    blobKey: "s",
-    defaultValue: "",
-    required: false,
-    siteKey: "hostingId",
-  },
-  {
-    blobKey: "hp",
-    defaultValue: "bunny" as HostingProvider,
-    required: false,
-    siteKey: "hostingProvider",
-  },
-  {
-    blobKey: "dp",
-    defaultValue: "bunny" as DbProvider,
-    required: false,
-    siteKey: "dbProvider",
-  },
-  {
-    blobKey: "rt",
-    defaultValue: null,
-    required: false,
-    siteKey: "renewalToken",
-  },
-  {
-    blobKey: "sk",
-    defaultValue: null,
-    required: false,
-    siteKey: "scheduledTaskKey",
-  },
+  blobColumn("n", "name", true, ""),
+  blobColumn("u", "siteUrl", true, ""),
+  blobColumn("d", "dbUrl", false, ""),
+  blobColumn("t", "dbToken", false, ""),
+  blobColumn("s", "hostingId", false, ""),
+  blobColumn<HostingProvider>("hp", "hostingProvider", false, "bunny"),
+  blobColumn<DbProvider>("dp", "dbProvider", false, "bunny"),
+  blobColumn("rt", "renewalToken", false, null),
+  blobColumn("sk", "scheduledTaskKey", false, null),
 ] as const;
 
 /** The plain columns of the site fields that `input` names. Each column maps
