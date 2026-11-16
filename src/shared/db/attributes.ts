@@ -5,8 +5,6 @@
  * ids only. Display code resolves those ids back to ordered attribute groups.
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import type { StoredRowOf } from "#db/chosen-columns.ts";
 import {
   executeBatch,
   queryAll,
@@ -15,19 +13,15 @@ import {
   queryOne,
   type TxScope,
 } from "#db/client.ts";
-import type { NamedSortOrderInput } from "#db/common-schema.ts";
-import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { linkTableSide } from "#db/link-table.ts";
-import {
-  type ListingOption,
-  listingOptionColumns,
-} from "#db/listings/table.ts";
+import type { ListingOption } from "#db/listings/table.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { inQuery } from "#db/select/expression.ts";
-import { from } from "#db/select/query.ts";
-import { tables } from "#db/select/tables.ts";
+import { pickedColumns } from "#db/picked-columns.ts";
+import { readRows } from "#db/read.ts";
+import { equal, inQuery } from "#db/select/expression.ts";
+import { from, tableNode } from "#db/select/query.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
-import { col, defineTable } from "#db/table.ts";
 import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom } from "#db/write.ts";
 import {
@@ -40,55 +34,16 @@ import {
   unique,
   uniqueBy,
 } from "#fp";
-import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
-import type { FieldsRow } from "#shared/rest/field-specs.ts";
-import type { Listing } from "#types";
 
-export type Attribute = FieldsRow<typeof ATTRIBUTE_FIELDS> & {
-  sort_order: number;
-};
+export type Attribute = DecodedRowOf<"attributes">;
 
-export type AttributeOption = {
-  attribute_id: number;
-  id: number;
-  sort_order: number;
-  text: string;
-};
+export type AttributeOption = DecodedRowOf<"attribute_options">;
 
 export type AttributeWithOptions = Attribute & {
   options: AttributeOption[];
 };
 
 export type ListingAttributesById = Map<number, AttributeWithOptions[]>;
-
-type AttributeOptionInput = {
-  attributeId: number;
-  sortOrder: number;
-  text: string;
-};
-
-export const attributesTable = defineTable<Attribute, NamedSortOrderInput>({
-  name: "attributes",
-  primaryKey: "id",
-  schema: {
-    ...fieldColumnsWithId("attributes", ATTRIBUTE_FIELDS)(encrypt, decrypt),
-    sort_order: col.withDefault(() => 0),
-  },
-});
-
-export const attributeOptionsTable = defineTable<
-  AttributeOption,
-  AttributeOptionInput
->({
-  name: "attribute_options",
-  primaryKey: "id",
-  schema: {
-    attribute_id: col.simple<number>(),
-    id: col.generated<number>(),
-    sort_order: col.simple<number>(),
-    text: col.encrypted(encrypt, decrypt),
-  },
-});
 
 export const attributesOrder = defineOrderedCollection({
   key: "id",
@@ -108,13 +63,21 @@ export const listingAttributeOptions = linkTableSide(
   "option_id",
 );
 
-const ATTRIBUTE_COLS = sql`attribute.id AS attribute_id,
-       attribute.name AS attribute_name,
-       attribute.sort_order AS attribute_sort_order,
-       attributeOption.id AS option_id,
-       attributeOption.attribute_id AS option_attribute_id,
-       attributeOption.text AS option_text,
-       attributeOption.sort_order AS option_sort_order`;
+/** The columns of an attribute and of one of its options. The client decodes
+ * the name and the text. */
+const ATTRIBUTE_COLUMNS = (() => {
+  const attribute = tableNode(tables.attributes, "attribute");
+  const option = tableNode(tables.attribute_options, "attributeOption");
+  return pickedColumns({
+    attribute_id: attribute.id,
+    attribute_name: attribute.name,
+    attribute_sort_order: attribute.sort_order,
+    option_attribute_id: option.attribute_id,
+    option_id: option.id,
+    option_sort_order: option.sort_order,
+    option_text: option.text,
+  });
+})();
 
 type JoinedAttributeRow = {
   attribute_id: number;
@@ -130,7 +93,7 @@ type SelectedAttributeRow = JoinedAttributeRow & {
   listing_id: number;
 };
 
-type DecryptedAttributeRows = {
+type CollectedAttributeRows = {
   attributes: Map<number, Attribute>;
   options: Map<number, AttributeOption>;
 };
@@ -167,45 +130,27 @@ const collectUniqueOptions = (
   return option && !acc.has(option.id) ? acc.set(option.id, option) : acc;
 };
 
-/** Decrypt one `[id, entity]` pair through its table, and keep the id. */
-const decryptPair =
-  <Entity>(fromDb: (entity: Entity) => Promise<Entity>) =>
-  async ([id, entity]: [number, Entity]): Promise<[number, Entity]> =>
-    [id, await fromDb(entity)] as const;
-
-const decryptAttributeRows = async (
+/** Each attribute and each option of the rows, by id. */
+const collectAttributeRows = (
   rows: JoinedAttributeRow[],
-): Promise<DecryptedAttributeRows> => {
-  const [attributes, options] = await Promise.all([
-    Promise.all(
-      map(decryptPair(attributesTable.fromDb))([
-        ...reduce(collectUniqueAttributes, new Map<number, Attribute>())(rows),
-      ]),
-    ),
-    Promise.all(
-      map(decryptPair(attributeOptionsTable.fromDb))([
-        ...reduce(
-          collectUniqueOptions,
-          new Map<number, AttributeOption>(),
-        )(rows),
-      ]),
-    ),
-  ]);
-  return {
-    attributes: new Map(attributes),
-    options: new Map(options),
-  };
-};
+): CollectedAttributeRows => ({
+  attributes: reduce(collectUniqueAttributes, new Map<number, Attribute>())(
+    rows,
+  ),
+  options: reduce(collectUniqueOptions, new Map<number, AttributeOption>())(
+    rows,
+  ),
+});
 
 const buildAttributeGroups = (
   rows: JoinedAttributeRow[],
-  decrypted: DecryptedAttributeRows,
+  collected: CollectedAttributeRows,
 ): AttributeWithOptions[] => [
   ...reduce(
     (acc: Map<number, AttributeWithOptions>, row: JoinedAttributeRow) => {
       const group = acc.get(row.attribute_id) ?? {
         ...requiredMapValue(
-          decrypted.attributes,
+          collected.attributes,
           row.attribute_id,
           `Attribute ${row.attribute_id} missing`,
         ),
@@ -214,7 +159,7 @@ const buildAttributeGroups = (
       if (row.option_id !== null) {
         group.options.push(
           requiredMapValue(
-            decrypted.options,
+            collected.options,
             row.option_id,
             `Option ${row.option_id} missing`,
           ),
@@ -226,38 +171,40 @@ const buildAttributeGroups = (
   )(rows).values(),
 ];
 
-const groupAttributeRows = async (
+const groupAttributeRows = (
   rows: JoinedAttributeRow[],
-): Promise<AttributeWithOptions[]> =>
-  buildAttributeGroups(rows, await decryptAttributeRows(rows));
+): AttributeWithOptions[] =>
+  buildAttributeGroups(rows, collectAttributeRows(rows));
 
 export const getAllAttributesWithOptions = async (): Promise<
   AttributeWithOptions[]
 > =>
   groupAttributeRows(
     await queryAll<JoinedAttributeRow>(
-      sql`SELECT ${ATTRIBUTE_COLS}
+      ATTRIBUTE_COLUMNS.decoded(
+        sql`SELECT ${ATTRIBUTE_COLUMNS.list}
          FROM attributes AS attribute
          LEFT JOIN attribute_options AS attributeOption
            ON attributeOption.attribute_id = attribute.id
         ORDER BY attribute.sort_order, attribute.id,
                  attributeOption.sort_order, attributeOption.id`,
+      ),
     ),
   );
 
 const attributeJoinedSql = (
   id: number,
-): SqlStatement => sql`SELECT ${ATTRIBUTE_COLS}
+): SqlStatement =>
+  ATTRIBUTE_COLUMNS.decoded(sql`SELECT ${ATTRIBUTE_COLUMNS.list}
        FROM attributes AS attribute
        LEFT JOIN attribute_options AS attributeOption
          ON attributeOption.attribute_id = attribute.id
       WHERE attribute.id = ${id}
-      ORDER BY attributeOption.sort_order, attributeOption.id`;
+      ORDER BY attributeOption.sort_order, attributeOption.id`);
 
-const attributeFromRows = async (
+const attributeFromRows = (
   rows: JoinedAttributeRow[],
-): Promise<AttributeWithOptions | null> =>
-  (await groupAttributeRows(rows))[0] ?? null;
+): AttributeWithOptions | null => groupAttributeRows(rows)[0] ?? null;
 
 /** The joined attribute rows for one id, on the replica (normal reads) or the
  * primary (read-your-writes after a write). */
@@ -319,39 +266,32 @@ export const missingAttributeOptionIds = async (
   return [...new Set(submitted)].filter((id) => !found.has(id));
 };
 
-type OptionListingRow = StoredRowOf<
-  Listing,
-  typeof listingOptionColumns.columns
-> & {
-  id: number;
-  option_id: number;
-};
-
 export type AttributeListingUse = {
   /** The ids of the listings that selected each option, keyed by option id.
    * Options no listing uses are absent from the map. */
   listingIdsByOption: Map<number, number[]>;
-  /** The distinct listings behind those ids in id order, names decrypted. */
+  /** The distinct listings behind those ids in id order. */
   listings: ListingOption[];
 };
 
 /** Which listings selected each of an attribute's options, in one read: the
  * per-option listing ids plus each used listing's id, name, and active flag.
- * Only the names of listings that actually use the attribute are decrypted. */
+ * Only the names of listings that actually use the attribute are read. */
 export const getAttributeListingUse = async (
   attributeId: number,
 ): Promise<AttributeListingUse> => {
-  const rows = await queryAll<OptionListingRow>(
-    sql`SELECT listingAttribute.option_id,
-            ${listingOptionColumns.columnsSql("listing")}
-       FROM listing_attribute_options AS listingAttribute
-       JOIN attribute_options AS attributeOption
-         ON attributeOption.id = listingAttribute.option_id
-       JOIN listings AS listing
-         ON listing.id = listingAttribute.listing_id
-      WHERE attributeOption.attribute_id = ${attributeId}
-      ORDER BY listingAttribute.option_id, listingAttribute.listing_id`,
+  const rows = await readRows(
+    from(tables.listing_attribute_options, { listing: {}, option: {} })
+      .where((link) => equal(link.option.attribute_id, attributeId))
+      .sortedBy("option_id", "listing_id")
+      .select((link) => ({
+        active: link.listing.active,
+        id: link.listing.id,
+        name: link.listing.name,
+        option_id: link.option_id,
+      })),
   );
+  type OptionListingRow = (typeof rows)[number];
   const usedListings = sort(
     (a: OptionListingRow, b: OptionListingRow) => a.id - b.id,
   )(uniqueBy((row: OptionListingRow) => row.id)(rows));
@@ -360,7 +300,11 @@ export const getAttributeListingUse = async (
       (row: OptionListingRow) => row.option_id,
       (row) => row.id,
     )(rows),
-    listings: await listingOptionColumns.readAll(usedListings),
+    listings: usedListings.map(({ active, id, name }) => ({
+      active,
+      id,
+      name,
+    })),
   };
 };
 
@@ -391,7 +335,8 @@ const selectedOptionRows = (
   listingIds.length === 0
     ? Promise.resolve([])
     : queryAll<SelectedAttributeRow>(
-        sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLS}
+        ATTRIBUTE_COLUMNS.decoded(
+          sql`SELECT listingAttribute.listing_id, ${ATTRIBUTE_COLUMNS.list}
            FROM listing_attribute_options AS listingAttribute
            JOIN attribute_options AS attributeOption
              ON attributeOption.id = listingAttribute.option_id
@@ -401,6 +346,7 @@ const selectedOptionRows = (
           ORDER BY listingAttribute.listing_id,
                    attribute.sort_order, attribute.id,
                    attributeOption.sort_order, attributeOption.id`,
+        ),
       );
 
 const selectedRowsForListing = groupToMap<
@@ -416,11 +362,11 @@ export const getSelectedAttributesForListings = async (
   listingIds: number[],
 ): Promise<ListingAttributesById> => {
   const rows = await selectedOptionRows(unique(listingIds));
-  const decrypted = await decryptAttributeRows(rows);
+  const collected = collectAttributeRows(rows);
   return new Map(
     map(
       ([listingId, listingRows]: [number, JoinedAttributeRow[]]) =>
-        [listingId, buildAttributeGroups(listingRows, decrypted)] as const,
+        [listingId, buildAttributeGroups(listingRows, collected)] as const,
     )([...selectedRowsForListing(rows)]),
   );
 };

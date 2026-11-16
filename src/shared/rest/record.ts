@@ -8,10 +8,20 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import type { TxScope } from "#db/client.ts";
+import {
+  deleteRow,
+  findRow,
+  findRowPrimary,
+  hasRow,
+  insertRowStatement,
+  type NewRecord,
+  type RecordChanges,
+  updateRowStatement,
+} from "#db/record-table.ts";
+import type { TableHandle, TableName, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
-import type { Table } from "#db/table.ts";
-import { byPrimaryKey } from "#db/table-reader.ts";
 import { refusingTheWriteOn } from "#db/transaction.ts";
+import { toCamelCase } from "#shared/column-names.ts";
 import {
   type AdminRecord,
   type AnswersOf,
@@ -23,6 +33,7 @@ import {
   type RecordActor,
   type RecordShape,
   type RecordSpec,
+  type RecordTableOf,
   type RecordWrites,
   type RowOf,
   recordSurfaceOf,
@@ -40,17 +51,31 @@ import { okResult } from "#shared/result.ts";
 
 export * from "#shared/rest/record-contract.ts";
 
+/** The row values that a record input names. A form names each column in
+ * camelCase, so each input key that names a column of the table becomes that
+ * column. A key that names no column, such as side data for a join write, is
+ * left out. */
+export const rowValuesOf = <Name extends TableName>(
+  table: TableHandle<Name>,
+  input: object,
+): RecordChanges<Name> => {
+  const named: Readonly<Record<string, unknown>> = { ...input };
+  return Object.fromEntries(
+    table.columns.flatMap(([column]) => {
+      const value = named[toCamelCase(column)];
+      return value === undefined ? [] : [[column, value]];
+    }),
+  ) as RecordChanges<Name>;
+};
+
 /** Read one row by its key, from the replica for a page read and from the
- * primary when a write must see its own row. */
+ * primary when a write must see its own row. The record's row holds every
+ * column of the table, and a record that reads more declares its own load. */
 const defaultLoad =
   (primary: boolean) =>
-  <Row extends { id: number }, Input, FullRow extends Row>(
-    table: Table<Row, Input>,
-  ) =>
-  (id: number, _actor?: RecordActor): Promise<FullRow | null> =>
-    primary
-      ? (table.findByIdPrimary!(id) as Promise<FullRow | null>)
-      : (table.read.one(byPrimaryKey(table, id)) as Promise<FullRow | null>);
+  <FullRow>(table: TableHandle<TableWithId>) =>
+  async (id: number, _actor?: RecordActor): Promise<FullRow | null> =>
+    (await (primary ? findRowPrimary : findRow)(table, id)) as FullRow | null;
 
 /** The activity line for one named row change. */
 export const logNameActivity =
@@ -144,6 +169,7 @@ const buildRecord = <Shape extends RecordShape>(
   type Input = InputOf<Shape>;
   type FullRow = FullRowOf<Shape>;
   type State = StateOf<Shape>;
+  type RecordTable = TableHandle<RecordTableOf<Shape>>;
   const surface = recordSurfaceOf(spec.surface);
   const rule = spec.rule ?? acceptInput;
   const getAll =
@@ -163,18 +189,16 @@ const buildRecord = <Shape extends RecordShape>(
             `The record for ${surface.list} declares no load read`,
           );
         }
-      : defaultLoad(false)<Row, Input, FullRow>(spec.table));
+      : defaultLoad(false)<FullRow>(spec.table));
   const loadAfterWrite =
     spec.loadAfterWrite ??
     spec.reads?.onePrimary ??
-    (spec.table === undefined
-      ? load
-      : defaultLoad(true)<Row, Input, FullRow>(spec.table));
+    (spec.table === undefined ? load : defaultLoad(true)<FullRow>(spec.table));
   const storedValues = (row: FullRow): Row =>
     spec.storedValues ? spec.storedValues(row) : row;
 
   /** The table a generated write needs. A command record can omit it. */
-  const requireTable = (): Table<Row, Input> => {
+  const requireTable = (): RecordTable => {
     if (spec.table === undefined) {
       throw new Error(`The record for ${surface.list} declares no table`);
     }
@@ -185,9 +209,6 @@ const buildRecord = <Shape extends RecordShape>(
   type StatementFor<Input> = (
     value: Input,
   ) => SqlStatement | Promise<SqlStatement>;
-
-  /** The plain table write a generated write uses when it has no joins. */
-  type PlainWriteFor<Row, Input> = (value: Input) => Promise<Row | null>;
 
   /** The activity line every write commits with the row. */
   const logWrite =
@@ -236,10 +257,9 @@ const buildRecord = <Shape extends RecordShape>(
       : { value: undefined as Prepared };
 
   /** The statement builders, plan, and verb one generated write runs. */
-  type WriteSteps<Row, Input, Prepared, State> = {
+  type WriteSteps<Input, Prepared, State> = {
     plan: WritePlan<Prepared, State> | undefined;
     statementFor: StatementFor<Input>;
-    plainWriteFor: PlainWriteFor<Row, Input>;
     verb: string;
   };
 
@@ -248,7 +268,7 @@ const buildRecord = <Shape extends RecordShape>(
   const runWrite = async <Prepared>(
     input: Input,
     existing: FullRow | null,
-    steps: WriteSteps<Row, Input, Prepared, State>,
+    steps: WriteSteps<Input, Prepared, State>,
   ): Promise<WriteVerdict<FullRow>> => {
     const ruled = await rule(
       input,
@@ -274,8 +294,6 @@ const buildRecord = <Shape extends RecordShape>(
           steps.verb,
           existing === null,
         ),
-        plainWrite: () =>
-          steps.plainWriteFor(ruled.value) as Promise<FullRow | null>,
         readBack: loadAfterWrite,
         readState: spec.readState,
         tableName: requireTable().name,
@@ -292,7 +310,7 @@ const buildRecord = <Shape extends RecordShape>(
 
   type LoadedRow =
     | { kind: "not-found" }
-    | { kind: "loaded"; row: FullRow; table: Table<Row, Input> };
+    | { kind: "loaded"; row: FullRow; table: RecordTable };
 
   /** Read the row an update or delete works on. A table record reads the
    * primary, so a write sees its own row rather than a stale replica. */
@@ -313,7 +331,7 @@ const buildRecord = <Shape extends RecordShape>(
   const withWriteRow = async <Answer>(
     id: number,
     actor: RecordActor | undefined,
-    run: (row: FullRow, table: Table<Row, Input>) => Promise<Answer>,
+    run: (row: FullRow, table: RecordTable) => Promise<Answer>,
   ): Promise<Answer | { kind: "not-found" }> => {
     const current = await loadForWrite(id, actor);
     return current.kind === "not-found"
@@ -324,9 +342,14 @@ const buildRecord = <Shape extends RecordShape>(
   const create: AdminRecord<Shape>["create"] = (input, plan) => {
     const table = requireTable();
     return runWrite(input, null, {
-      plainWriteFor: (value) => table.insert(value),
       plan,
-      statementFor: (value) => table.insertStatement!(value),
+      statementFor: (value) =>
+        insertRowStatement(
+          table,
+          // The rule checked the input of a new row, so it names every column
+          // that the table cannot fill.
+          rowValuesOf(table, value as object) as NewRecord<RecordTable["name"]>,
+        ),
       verb: "created",
     });
   };
@@ -334,9 +357,9 @@ const buildRecord = <Shape extends RecordShape>(
   const update: AdminRecord<Shape>["update"] = async (id, input, plan, actor) =>
     withWriteRow(id, actor, (existing, table) =>
       runWrite(input, existing, {
-        plainWriteFor: (value) => table.update(id, value) as Promise<Row>,
         plan,
-        statementFor: (value) => table.updateStatement!(id, value),
+        statementFor: (value) =>
+          updateRowStatement(table, id, rowValuesOf(table, value as object)),
         verb: "updated",
       }),
     );
@@ -347,11 +370,11 @@ const buildRecord = <Shape extends RecordShape>(
     input: unknown,
     actor: RecordActor | undefined,
     existing: FullRow,
-    table: Table<Row, Input>,
+    table: RecordTable,
   ): Promise<DeleteVerdict> => {
     // The confirmation page loaded the row earlier. Re-check it here so a
     // row deleted between that page and this request answers not-found.
-    if (!(await table.read.exists(byPrimaryKey(table, id)))) {
+    if (!(await hasRow(table, id))) {
       return { kind: "not-found" };
     }
     const refusal = spec.deleteRefusal
@@ -361,7 +384,7 @@ const buildRecord = <Shape extends RecordShape>(
     if (spec.onDelete) {
       await spec.onDelete(id, input, actor);
     } else {
-      await table.deleteById(id);
+      await deleteRow(table, id);
     }
     await logActivity(
       `${spec.activityName} '${spec.nameOf(existing)}' deleted`,

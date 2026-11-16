@@ -5,7 +5,9 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
+import { insertRowStatement, type NewRecord } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
+import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import {
   type SqlStatement,
   sql,
@@ -232,10 +234,8 @@ export type ScopedOrderedRowInsert<Input> = (
  * A failed order write or log rolls the insert back with it.
  */
 export const insertScopedOrderedRow =
-  <Input>(
-    table: {
-      insertStatement: (input: Input) => Promise<SqlStatement>;
-    },
+  <Name extends TableWithId>(
+    table: TableHandle<Name>,
     order: {
       append: (operation: {
         key: number;
@@ -243,10 +243,10 @@ export const insertScopedOrderedRow =
         transaction: TxScope;
       }) => Promise<void>;
     },
-  ): ScopedOrderedRowInsert<Input> =>
-  async (scope, input, log) =>
+  ): ScopedOrderedRowInsert<NewRecord<Name>> =>
+  async (scope, values, log) =>
     writeRowInTransaction(
-      await table.insertStatement(input),
+      await insertRowStatement(table, values),
       null,
       async (transaction, id) => {
         await order.append({ key: id, scope, transaction });

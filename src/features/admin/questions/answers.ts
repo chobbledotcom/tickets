@@ -20,7 +20,9 @@ import {
 import { deleteAnswer } from "#db/questions/delete.ts";
 import { findAnswerById } from "#db/questions/parsing.ts";
 import { getQuestionWithAnswers } from "#db/questions/queries.ts";
-import { answersOrder, answersTable } from "#db/questions/tables.ts";
+import { answersOrder } from "#db/questions/tables.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -64,7 +66,7 @@ export type QuestionIdParams = { id: number };
 export const redirectToQuestion = redirectToDetail("question");
 
 /** Insert an answer and place it in its question's order, atomically. */
-const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
+const addAnswerRow = insertScopedOrderedRow(tables.answers, answersOrder);
 
 /** Add one answer to a question, in its order, and log it. The one add the
  *  HTML route and the JSON API route share. */
@@ -74,7 +76,7 @@ export const addAnswerWithLog = async (
 ): Promise<void> => {
   await addAnswerRow(
     questionId,
-    { questionId, sortOrder: 0, text },
+    { question_id: questionId, sort_order: 0, text },
     (transaction) =>
       logActivity(
         `Answer '${text}' added to question ${questionId}`,
@@ -92,7 +94,7 @@ export const updateAnswerWithLog = async (
   answer: Answer,
   patch: { active?: boolean; text: string },
 ): Promise<void> => {
-  await answersTable.update(answer.id, patch);
+  await updateRow(tables.answers, answer.id, patch);
   await logActivity(
     `Answer '${patch.text}' updated in question ${question.id}`,
   );

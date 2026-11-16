@@ -17,7 +17,9 @@ import {
   listingQuestions,
   questionListings,
 } from "#db/questions/queries.ts";
-import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
+import { questionsOrder } from "#db/questions/tables.ts";
+import { updateRowStatement } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
@@ -95,7 +97,7 @@ const handleQuestionListings = entityFormById(
     const assignAll = form.get("assign_all") === "on";
     const listingIds = form.getNumberArray("listing_ids");
     await writeRowInTransaction(
-      await questionsTable.updateStatement(id, { assignAll }),
+      await updateRowStatement(tables.questions, id, { assign_all: assignAll }),
       id,
       (tx) => questionListings.setIdsTx(tx, id, listingIds),
     );

@@ -1,69 +1,20 @@
 /**
- * Table definitions for custom questions and their answers. The
+ * The write input and the orders of custom questions and their answers. The
  * `listing_questions` link table is declared in `questions/queries.ts`, beside
  * the membership joins that consume it.
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import type {
-  Answer,
-  Question,
-  QuestionDisplayType,
-} from "#db/question-types.ts";
-import { col, defineTable } from "#db/table.ts";
+import type { QuestionDisplayType } from "#db/question-types.ts";
 
-/** Shared column defs for tables with an encrypted text column */
-const generatedId = col.generated<number>();
-const encryptedText = col.encrypted(encrypt, decrypt);
-const questionIdAndSortOrder = {
-  question_id: col.simple<number>(),
-  sort_order: col.simple<number>(),
-};
-
-/** The writable fields one question row write carries. */
+/** The writable fields one question row write carries. The `sort_order`
+ * column is not one of them: only the ordered-row helpers write it, so a
+ * generic write cannot break the order. */
 export type QuestionInput = {
   assignAll?: boolean;
   displayType: QuestionDisplayType;
   text: string;
 };
-
-// `questions` has a `sort_order` column in the schema (the global question
-// order the booking form and admin list render). It is deliberately absent
-// from `questionsTable`'s `schema` here. Writes to `sort_order` are managed
-// through the shared ordered-row helpers. Reads consume it via raw
-// `ORDER BY question.sort_order` clauses in `questions/queries.ts`, never
-// through `questionsTable.fromDb`. Keeping it out of the `defineTable` schema
-// stops accidental writes through the generic insert/update path that
-// bypasses the swap helpers' ordering invariants.
-export const questionsTable = defineTable<Question, QuestionInput>({
-  name: "questions",
-  primaryKey: "id",
-  schema: {
-    assign_all: col.boolean(false),
-    display_type: col.simple<QuestionDisplayType>(),
-    id: generatedId,
-    text: encryptedText,
-  },
-});
-
-type AnswerInput = {
-  questionId: number;
-  text: string;
-  sortOrder: number;
-  active?: boolean;
-};
-
-export const answersTable = defineTable<Answer, AnswerInput>({
-  name: "answers",
-  primaryKey: "id",
-  schema: {
-    active: col.boolean(true),
-    id: generatedId,
-    ...questionIdAndSortOrder,
-    text: encryptedText,
-  },
-});
 
 export const questionsOrder = defineOrderedCollection({
   key: "id",

@@ -85,6 +85,11 @@ type CodecMap = {
 export const CODECS = {
   activity_log: { message: typed<OwnerKeyEncrypted | EnvKeyEncrypted>() },
   answers: { active: yesNo, text: sealed },
+  answers_at_booking: {
+    answer_text: nullable(sealed),
+    free_text: typed<OwnerKeyEncrypted | null>(),
+    question_text: sealed,
+  },
   api_keys: {
     key_index: typed<BlindIndex>(),
     name: sealed,

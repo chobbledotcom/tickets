@@ -6,7 +6,11 @@
 
 import type { TransactionStateReader, TxScope } from "#db/client.ts";
 import type { OrderedCollection } from "#db/ordered-collection.ts";
-import type { Table } from "#db/table.ts";
+import type {
+  DecodedRowOf,
+  TableHandle,
+  TableWithId,
+} from "#db/select/tables.ts";
 import type { AuthSession } from "#routes/auth.ts";
 import type { AdminApiResource } from "#shared/admin-api-resources.ts";
 import type {
@@ -207,6 +211,20 @@ export type StateOf<Shape extends RecordShape> = Shape extends {
   ? State
   : never;
 
+/** The tables that a generated write of this record can change: a table
+ * whose decoded row holds every value of the record's row, or one whose
+ * decoded row the record's row holds with values that its reads add. */
+export type RecordTableOf<Shape extends RecordShape> = Extract<
+  {
+    [Name in TableWithId]: DecodedRowOf<Name> extends RowOf<Shape>
+      ? Name
+      : RowOf<Shape> extends DecodedRowOf<Name>
+        ? Name
+        : never;
+  }[TableWithId],
+  TableWithId
+>;
+
 /** The one write rule. `input` is what the caller sent, already converted to
  * the record's input shape at the door. `stored` is the stored row on update
  * and null on create. The rule normalizes the input, or refuses it with the
@@ -316,7 +334,8 @@ export interface RecordSpec<Shape extends RecordShape>
   /** Where the record lives: the record area that declares its routes and
    * its audience, or the route ids of a record outside a record area. */
   readonly surface: RecordAreaId | RecordSurface;
-  readonly table?: Table<RowOf<Shape>, InputOf<Shape>>;
+  /** The table that the generated writes change. */
+  readonly table?: TableHandle<RecordTableOf<Shape>>;
   /** A record whose writes go through a domain boundary rather than its table
    * statement gives its three commands here. Each command applies `rule`
    * itself, so the one rule still holds at both doors. */

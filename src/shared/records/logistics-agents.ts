@@ -8,6 +8,8 @@ import {
   type LogisticsAgentInput,
   logisticsAgents,
 } from "#db/logistics-agents.ts";
+import { deleteRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
@@ -22,8 +24,8 @@ export const logisticsAgentRecord = defineNamedRowRecord<
   onDelete: async (id) => {
     await clearLogisticsAgentReferences(id);
     await agentUsers.clear(id);
-    await logisticsAgents.table.deleteById(id);
+    await deleteRow(tables.logistics_agents, id);
   },
   surface: "settingsLogistics",
-  table: logisticsAgents.table,
+  table: tables.logistics_agents,
 });

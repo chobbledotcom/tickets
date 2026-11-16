@@ -4,7 +4,6 @@ import {
   type AttributeWithOptions,
   attributeOptionIdsIn,
   attributeOptionsOrder,
-  attributeOptionsTable,
   attributesOrder,
   deleteAttributeOption,
   getAttributeId,
@@ -14,6 +13,8 @@ import {
   listingAttributeOptions,
 } from "#db/attributes.ts";
 import type { TxScope } from "#db/client.ts";
+import { updateRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   flatCollectionSwap,
   insertScopedOrderedRow,
@@ -138,7 +139,7 @@ export const deleteAttributeOptionWithLog = async (
 
 /** Insert an option and place it in its attribute's order, atomically. */
 const addOptionRow = insertScopedOrderedRow(
-  attributeOptionsTable,
+  tables.attribute_options,
   attributeOptionsOrder,
 );
 
@@ -150,7 +151,7 @@ export const addAttributeOptionWithLog = async (
 ): Promise<void> => {
   await addOptionRow(
     attribute.id,
-    { attributeId: attribute.id, sortOrder: 0, text },
+    { attribute_id: attribute.id, sort_order: 0, text },
     (transaction) =>
       logAttributeOptionActivity(text, "added to", attribute, transaction),
   );
@@ -163,7 +164,7 @@ export const renameAttributeOptionWithLog = async (
   option: AttributeOption,
   text: string,
 ): Promise<void> => {
-  await attributeOptionsTable.update(option.id, { text });
+  await updateRow(tables.attribute_options, option.id, { text });
   await logAttributeOptionActivity(text, "updated in", attribute);
 };
 

@@ -2,29 +2,30 @@
  * Holidays table operations
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { fieldColumnsWithId } from "#db/field-columns.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { sql } from "#db/sql.ts";
-import { defineCachedListTable } from "#db/table.ts";
+import { tableCache } from "#db/table-cache.ts";
 import { filter } from "#fp";
-import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
-import type { FieldsInput, FieldsRow } from "#shared/rest/field-specs.ts";
+import type { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { requestCache } from "#shared/request-cache.ts";
+import type { FieldsInput } from "#shared/rest/field-specs.ts";
 import { todayInTz } from "#shared/timezone.ts";
 
-export type Holiday = FieldsRow<typeof HOLIDAY_FIELDS>;
+export type Holiday = DecodedRowOf<"holidays">;
 
 /** The dates carry the `DateString` a boundary checks before a write. */
 export type HolidayInput = FieldsInput<typeof HOLIDAY_FIELDS>;
 
-/** Cached holidays table: name is encrypted, dates are plaintext. Writes
- * auto-invalidate the cache. */
-export const holidays = defineCachedListTable<Holiday, HolidayInput>({
-  name: "holidays",
-  orderBy: sql`start_date ASC`,
-  primaryKey: "id",
-  schema: fieldColumnsWithId("holidays", HOLIDAY_FIELDS)(encrypt, decrypt),
-});
+/** Every holiday in start order, cached for the request. The name is
+ * decrypted by its codec. */
+export const holidays = tableCache(
+  tables.holidays,
+  requestCache(() =>
+    readRows(from(tables.holidays).sortedBy("start_date").everyColumn()),
+  ),
+);
 
 /**
  * Get active holidays (end_date >= today) for date computation (from cache).

@@ -7,25 +7,22 @@
  * holidays).
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import { idAndEncryptedNameSchema } from "#db/common-schema.ts";
-import { sql } from "#db/sql.ts";
-import { defineCachedListTable } from "#db/table.ts";
-import type { LogisticsAgent } from "#types";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { tableCache } from "#db/table-cache.ts";
+import { requestCache } from "#shared/request-cache.ts";
 
 /** Logistics agent input fields for create/update (camelCase). */
 export type LogisticsAgentInput = {
   name: string;
 };
 
-/** Cached logistics_agents table: name is encrypted, id is generated. Writes
- * auto-invalidate the cache. */
-export const logisticsAgents = defineCachedListTable<
-  LogisticsAgent,
-  LogisticsAgentInput
->({
-  name: "logistics_agents",
-  orderBy: sql`id ASC`,
-  primaryKey: "id",
-  schema: idAndEncryptedNameSchema(encrypt, decrypt),
-});
+/** Every logistics agent in id order, cached for the request. The name is
+ * decrypted by its codec. */
+export const logisticsAgents = tableCache(
+  tables.logistics_agents,
+  requestCache(() =>
+    readRows(from(tables.logistics_agents).sortedBy("id").everyColumn()),
+  ),
+);

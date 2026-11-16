@@ -1,45 +1,15 @@
 import { eventGroup } from "#accounting/refs.ts";
-import type { TxScope } from "#db/client.ts";
+import { queryAllPrimary, type TxScope } from "#db/client.ts";
+import { encoded } from "#db/codecs/decode.ts";
 import { abortUnless } from "#db/guarded-writes.ts";
-import { notNullGuardFailureAt, rowsByIdsPrimary } from "#db/query.ts";
-import { type SqlSlot, type SqlStatement, sql, sqlNames } from "#db/sql.ts";
-import { col, defineTable } from "#db/table.ts";
+import { notNullGuardFailureAt } from "#db/query.ts";
+import { among, type Operand } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { refundTax, type TaxState } from "#shared/tax/transitions.ts";
-import { type TaxAssessment, TaxAssessmentSchema } from "#shared/tax/types.ts";
-
-interface AssessmentRow {
-  assessment: TaxAssessment;
-  attendee_id: number;
-  booking_group: string;
-  event_group: string;
-  occurred_at: string;
-  revision: number;
-  state: TaxState["kind"];
-}
-interface AssessmentInput {
-  assessment: TaxAssessment;
-  attendeeId: number;
-  bookingGroup: string;
-  eventGroup: string;
-  occurredAt: string;
-  revision: number;
-  state: TaxState["kind"];
-}
-const table = defineTable<AssessmentRow, AssessmentInput>({
-  name: "booking_tax_assessments",
-  primaryKey: "event_group",
-  schema: {
-    assessment: col.json(TaxAssessmentSchema, {
-      context: "Booking tax assessment",
-    }),
-    attendee_id: col.simple(),
-    booking_group: col.simple(),
-    event_group: col.simple(),
-    occurred_at: col.simple(),
-    revision: col.simple(),
-    state: col.simple(),
-  },
-});
+import type { TaxAssessment } from "#shared/tax/types.ts";
 
 export type StoredTaxAssessment = {
   bookingGroup: string;
@@ -53,15 +23,14 @@ export type StoredTaxAssessment = {
 export const readTaxAssessments = async (
   attendeeIds: readonly number[],
 ): Promise<StoredTaxAssessment[]> => {
-  const rows = await rowsByIdsPrimary<AssessmentRow>(
-    [...attendeeIds],
-    (ids) =>
-      sql`SELECT ${sqlNames(table.columns)} FROM booking_tax_assessments WHERE attendee_id IN (${ids}) ORDER BY booking_group, revision`,
+  if (attendeeIds.length === 0) return [];
+  const rows = await queryAllPrimary(
+    from(tables.booking_tax_assessments)
+      .where((assessment) => among(assessment.attendee_id, attendeeIds))
+      .sortedBy("booking_group", "revision")
+      .everyColumn(),
   );
-  return Promise.all(
-    rows.map(async (raw) => {
-      const row = await table.fromDb(raw);
-      return {
+  return rows.map((row) => ({
         attendeeId: row.attendee_id,
         bookingGroup: row.booking_group,
         eventGroup: row.event_group,
@@ -71,9 +40,7 @@ export const readTaxAssessments = async (
           kind: row.state,
           revision: row.revision,
         },
-      };
-    }),
-  );
+  }));
 };
 
 export const taxRevisionGroup = (
@@ -94,35 +61,39 @@ export const taxRevisionFence = (
 ): SqlStatement =>
   sql`COALESCE((SELECT MAX(assessment.revision) FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = ${bookingGroup} AND assessment.attendee_id = ${attendeeId}), -1) = ${revision}`;
 
-export const taxStateInsert = (
+export const taxStateInsert = async (
   record: StoredTaxAssessment,
 ): Promise<SqlStatement> =>
-  table.insertStatement({
-    assessment: record.state.assessment,
-    attendeeId: record.attendeeId,
-    bookingGroup: record.bookingGroup,
-    eventGroup: record.eventGroup,
-    occurredAt: record.occurredAt,
-    revision: record.state.revision,
-    state: record.state.kind,
-  });
+  insertInto(
+    tables.booking_tax_assessments,
+    await encoded(tables.booking_tax_assessments, {
+      assessment: record.state.assessment,
+      attendee_id: record.attendeeId,
+      booking_group: record.bookingGroup,
+      event_group: record.eventGroup,
+      occurred_at: record.occurredAt,
+      revision: record.state.revision,
+      state: record.state.kind,
+    }),
+  );
 
 export const initialTaxAssessmentStatement = async (
   bookingGroup: string,
   assessment: TaxAssessment,
   occurredAt: string,
-  attendeeId: SqlSlot,
-): Promise<SqlStatement> => {
-  const values = await table.toDbValues({
-    assessment,
-    bookingGroup,
-    eventGroup: bookingGroup,
-    occurredAt,
-    revision: 0,
-    state: "active",
+  attendeeId: Operand<number>,
+): Promise<SqlStatement> =>
+  insertInto(tables.booking_tax_assessments, {
+    ...(await encoded(tables.booking_tax_assessments, {
+      assessment,
+      booking_group: bookingGroup,
+      event_group: bookingGroup,
+      occurred_at: occurredAt,
+      revision: 0,
+      state: "active",
+    })),
+    attendee_id: attendeeId,
   });
-  return sql`INSERT INTO booking_tax_assessments (booking_group, revision, attendee_id, event_group, state, assessment, occurred_at) SELECT ${values.booking_group!}, 0, ${attendeeId}, ${values.event_group!}, 'active', ${values.assessment!}, ${values.occurred_at!}`;
-};
 
 export const postInitialTaxAssessmentTx = async (
   tx: TxScope,
