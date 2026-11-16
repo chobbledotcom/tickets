@@ -4,9 +4,10 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { insertRow } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { addPageItem } from "#db/site-page-items.ts";
-import { sitePages } from "#db/site-pages.ts";
 import { sql } from "#db/sql.ts";
 import { publicNavModel, publicNavProps } from "#routes/public/site-nav.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
@@ -22,11 +23,11 @@ import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const addPage = async (name: string, slug: string, sortOrder: number) =>
-  sitePages.table.insert({
+  insertRow(tables.site_pages, {
     name,
     slug,
-    slugIndex: await hmacHash(slug),
-    sortOrder,
+    slug_index: await hmacHash(slug),
+    sort_order: sortOrder,
   });
 
 const targetKey = (type: "group" | "listing", id: number): TargetKey =>

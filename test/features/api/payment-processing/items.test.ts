@@ -208,7 +208,6 @@ describeWithEnv("paid item validation", { db: true }, () => {
     if (allocation) allocation.qty = 2;
     child!.q = 2;
     child!.p = 400;
-    const { listingsTable } = await import("#db/listings/records.ts");
     await updateListing(child!.e, { maxQuantity: 1 });
     const snapshot = await loadPaidOrderSnapshot(
       "cs_items_hidden_maximum",

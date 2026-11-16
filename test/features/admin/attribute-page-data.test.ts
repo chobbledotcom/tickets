@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { AttributeOption } from "#db/attributes.ts";
-import type { ListingOption } from "#db/listings/table.ts";
+import type { ListingOption } from "#db/listings/catalog.ts";
 import {
   attributeListingRows,
   optionListingCounts,

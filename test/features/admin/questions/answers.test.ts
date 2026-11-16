@@ -84,7 +84,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("rejects adding an answer to a free-text question", async () => {
-      const { questionsTable } = await import("#db/questions/tables.ts");
       const { getQuestionWithAnswers } = await import(
         "#db/questions/queries.ts"
       );

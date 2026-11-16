@@ -9,8 +9,6 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import type { ModifierInput } from "#db/modifiers.ts";
-import { insertRow } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import {
@@ -35,7 +33,7 @@ import {
   expectSingleTicketSvg,
 } from "#test-utils/email.ts";
 import { awaitTestRequest, useFetchStub } from "#test-utils/mocks.ts";
-import { setupAnswerTier } from "#test-utils/modifiers.ts";
+import { insertModifier, setupAnswerTier } from "#test-utils/modifiers.ts";
 import { setPublicReservation } from "#test-utils/reservation/helpers.ts";
 import { enablePublicSite } from "#test-utils/settings.ts";
 
@@ -64,7 +62,7 @@ const expectReturningBuyerRejectedForEmail = async (
     maxAttendees: 50,
     unitPrice,
   });
-  await insertRow(tables.modifiers, { ...modifier, min_visits: 1 });
+  await insertModifier({ ...modifier, minVisits: 1 });
   await createTestAttendeeDirect(
     listing.id,
     "Returning Buyer",

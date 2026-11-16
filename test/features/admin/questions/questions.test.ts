@@ -291,7 +291,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
 
       // Verify the question was updated
-      const { questionsTable } = await import("#db/questions/tables.ts");
       const updated = await findRow(tables.questions, id);
       expect(updated!.text).toBe("After edit");
     });
@@ -314,7 +313,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("does not update a question when enabling the feature fails", async () => {
-      const { questionsTable } = await import("#db/questions/tables.ts");
       const question = await insertRow(tables.questions, {
         display_type: "radio",
         text: "Before?",
@@ -364,7 +362,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     });
 
     test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
-      const { questionsTable } = await import("#db/questions/tables.ts");
       const q = await insertRow(tables.questions, {
         display_type: "free_text",
         text: "Notes?",
@@ -384,7 +381,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("does not let a choice question be converted to free-text", async () => {
       const id = await createQuestion("Colour?");
-      const { questionsTable } = await import("#db/questions/tables.ts");
       await adminFormPost(`/admin/questions/${id}/edit`, {
         display_type: "free_text",
         text: "Colour?",

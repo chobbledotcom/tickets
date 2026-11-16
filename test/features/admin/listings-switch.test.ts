@@ -14,9 +14,11 @@ import {
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
-import { inputFor } from "#test/shared/listings-actions/helpers.ts";
+import {
+  inputFor,
+  storedInputFor,
+} from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -42,17 +44,6 @@ const setCapacity = (listingId: number, max: number) =>
   queryAll(
     sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${listingId}`,
   );
-
-/** A would-be daily input over the stored row: the row's own fields with the
- * caller's submitted daily fields on top. */
-const wouldBeInput = (
-  stored: ListingWithCount,
-  overrides: Partial<ListingInput> = {},
-): ListingInput => ({
-  ...(listingsTable.rowToInput(stored) as ListingInput),
-  groupIds: [],
-  ...overrides,
-});
 
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
@@ -136,7 +127,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     });
     const offered = await wouldBeStartDates(
       stored,
-      wouldBeInput(stored, {
+      await storedInputFor(stored.id, {
         bookableDays: ["Monday", "Tuesday"],
         customisableDays: false,
         durationDays: 1,
@@ -181,7 +172,10 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
       await holidays.getAll(),
     );
     expect(
-      await wouldBeStartDates(stored, wouldBeInput(stored, submitted)),
+      await wouldBeStartDates(
+        stored,
+        await storedInputFor(stored.id, submitted),
+      ),
     ).toEqual(expected);
   });
 
@@ -192,7 +186,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     );
     const fits = await probeAssignDates(
       listing,
-      wouldBeInput(listing, { listingType: "daily" }),
+      await storedInputFor(listing.id, { listingType: "daily" }),
       ["2026-11-05", "2026-11-06"],
       1,
       1,
@@ -220,7 +214,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     // row count (2) would wrongly fit.
     const fits = await probeAssignDates(
       listing,
-      wouldBeInput(listing, { listingType: "daily" }),
+      await storedInputFor(listing.id, { listingType: "daily" }),
       [day],
       5,
       1,
@@ -233,7 +227,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const taken = await createTestListing({ name: "Taken" });
     // The same blind slug index as the other listing: the probe's row write
     // violates the unique index, and the failure is no capacity verdict.
-    const clash = wouldBeInput(listing, {
+    const clash = await storedInputFor(listing.id, {
       slug: taken.slug,
       slugIndex: taken.slug_index,
     });

@@ -49,8 +49,8 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(pkg.maxPurchasable).toBe(5);
     // The merged member field setting, so a client knows what to submit.
     expect(pkg.fields).toBe("email");
-    expect(pkg.availableDates).toBeUndefined();
-    expect(pkg.dayCounts).toBeUndefined();
+    expect(pkg).not.toHaveProperty("availableDates");
+    expect(pkg).not.toHaveProperty("dayCounts");
     expect(pkg.members).toEqual([
       { name: "Fixed Kit A", quantity: 2, slug: expect.any(String) },
       { name: "Fixed Kit B", quantity: 1, slug: expect.any(String) },
@@ -129,7 +129,7 @@ describeWithEnv("API package detail", { db: true }, () => {
       { days: 1, priceMinor: 1500 },
       { days: 2, priceMinor: 2400 },
     ]);
-    expect(pkg.priceMinor).toBeUndefined();
+    expect(pkg).not.toHaveProperty("priceMinor");
     expect(Array.isArray(pkg.availableDates)).toBe(true);
     expect(pkg.availableDates.length).toBeGreaterThan(0);
   });
@@ -152,12 +152,11 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    const { groups } = await import("#db/groups.ts");
     await updateRow(tables.groups, group.id, { hide_package_listings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
-    expect(hidden.members).toBeUndefined();
+    expect(hidden).not.toHaveProperty("members");
     expect(hidden.name).toBe("Parent Kit");
   });
 
@@ -228,13 +227,12 @@ describeWithEnv("API package detail", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    const { groups } = await import("#db/groups.ts");
     await updateRow(tables.groups, group.id, { hide_package_listings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
-    expect(pkg.members).toBeUndefined();
+    expect(pkg).not.toHaveProperty("members");
     expect(pkg.fields).toBe("email,phone");
   });
 

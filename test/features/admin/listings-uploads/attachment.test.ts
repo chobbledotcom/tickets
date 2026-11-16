@@ -6,7 +6,10 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { requireOne } from "#db/client.ts";
 import { updateListing } from "#db/listings/records.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { processUploadsAndRedirect } from "#routes/admin/listings-uploads.ts";
 import { MAX_ATTACHMENT_SIZE } from "#shared/limits.ts";
 import { ATTACHMENT_ERROR_MESSAGES } from "#shared/storage.ts";
@@ -43,10 +46,12 @@ const leaflet = (bytes = 3): File =>
 const storedAttachment = async (
   id: number,
 ): Promise<{ name: string; url: string }> => {
-  const row = await listingsTable.read
-    .pick(["attachment_name", "attachment_url"])
-    .one({ id });
-  return { name: row!.attachment_name, url: row!.attachment_url };
+  const row = await requireOne(
+    from(tables.listings)
+      .where({ id })
+      .pick("attachment_name", "attachment_url"),
+  );
+  return { name: row.attachment_name, url: row.attachment_url };
 };
 
 /** Upload `entry` against a fresh listing and hand back both what the operator

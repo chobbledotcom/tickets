@@ -4,11 +4,14 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import {
   apiRequest,
   createTestAgentSession,
@@ -28,9 +31,9 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         (body) => {
           expect(body.group.name).toBe("New Group");
           expect(body.group.id).toBeGreaterThan(0);
-          expect(body.group.slug).toBeDefined();
+          expect(body.group.slug).toMatch(/^[0-9a-h]{5}$/);
           expect(body.group.max_attendees).toBe(0);
-          expect(body.group.slug_index).toBeUndefined();
+          expect(body.group).not.toHaveProperty("slug_index");
         },
       );
     });
@@ -80,7 +83,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       );
       expect(response.status).toBe(403);
       const all = await groups.getAll();
-      expect(all.find((g) => g.name === "Agent Made Group")).toBeUndefined();
+      expect(all.map((g) => g.name)).not.toContain("Agent Made Group");
     });
 
     test("returns 400 when the name is longer than 250 characters", async () => {
@@ -110,26 +113,26 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
       // a transaction on the primary, the API read it back with a plain "read"-mode
       // plain read, which Turso can serve from a replica lagging the commit —
       // returning null and crashing on `row.id`. The read-back now uses the
-      // primary-pinned `findByIdPrimary`. Stub the optional replica read to
-      // miss the row — the create must still succeed.
-      const readStub = stub(groups.table.read, "one", () =>
-        Promise.resolve(null),
+      // primary-pinned `findRowPrimary`. A replica read of one group by id
+      // misses the row. The create must still succeed.
+      const db = getDb();
+      const realExecute = db.execute.bind(db);
+      using _replica = stub(db, "execute", (statement: SqlStatement) =>
+        statement.sql.includes("FROM groups AS groupRow WHERE groupRow.id =")
+          ? Promise.resolve(emptyResultSet())
+          : realExecute(statement),
       );
-      try {
-        await assertJson(
-          apiRequest("/api/admin/groups", {
-            body: { name: "Lagged API Group" },
-            method: "POST",
-          }),
-          201,
-          (body) => {
-            expect(body.group.name).toBe("Lagged API Group");
-            expect(body.group.id).toBeGreaterThan(0);
-          },
-        );
-      } finally {
-        readStub.restore();
-      }
+      await assertJson(
+        apiRequest("/api/admin/groups", {
+          body: { name: "Lagged API Group" },
+          method: "POST",
+        }),
+        201,
+        (body) => {
+          expect(body.group.name).toBe("Lagged API Group");
+          expect(body.group.id).toBeGreaterThan(0);
+        },
+      );
     });
 
     test("creates group with all fields", async () => {
@@ -278,8 +281,8 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         }),
         201,
       );
-      expect(result1.group.slug).toBeDefined();
-      expect(result2.group.slug).toBeDefined();
+      expect(result1.group.slug).toMatch(/^[0-9a-h]{5}$/);
+      expect(result2.group.slug).toMatch(/^[0-9a-h]{5}$/);
       expect(result1.group.slug).not.toBe(result2.group.slug);
     });
   });

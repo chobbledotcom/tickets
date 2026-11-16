@@ -260,7 +260,6 @@ describeWithEnv(
 describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
   const agentUserWithVan = async (username: string) => {
     const { enableFeature } = await import("#test-utils/settings.ts");
-    const { logisticsAgents } = await import("#db/logistics-agents.ts");
     await enableFeature("logistics");
     const van = await insertRow(tables.logistics_agents, { name: "Van 1" });
     await adminFormPost(LIST_PATH, {

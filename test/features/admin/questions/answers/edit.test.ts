@@ -30,7 +30,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     /** Insert an "answer"-trigger modifier directly and return its id. */
     const createAnswerModifier = async (name: string): Promise<number> => {
-      const { modifiersTable } = await import("#db/modifiers.ts");
       const m = await insertRow(tables.modifiers, {
         calc_kind: "fixed",
         calc_value: 5,
@@ -195,7 +194,6 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects linking a modifier that isn't answer-triggered", async () => {
       const qId = await createQuestion("Wrong trigger question");
       const aId = await addAnswer(qId, "Pick");
-      const { modifiersTable } = await import("#db/modifiers.ts");
       const automatic = await insertRow(tables.modifiers, {
         calc_kind: "fixed",
         calc_value: 5,

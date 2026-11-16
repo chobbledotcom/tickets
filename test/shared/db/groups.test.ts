@@ -543,14 +543,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Bundle",
         slug: "bundle-disp",
       });
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Bundle",
-        slug: "hidden-bundle-disp",
-      });
-      await updateRow(tables.groups, hidden.id, {
-        hide_package_listings: true,
-      });
+      const hidden = await createHiddenPackageGroup("Hidden Bundle");
       const regular = await createTestGroup({
         name: "Regular",
         slug: "regular-disp",

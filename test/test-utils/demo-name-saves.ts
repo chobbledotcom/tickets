@@ -3,6 +3,9 @@
 
 import { expect } from "@std/expect";
 import { afterEach, it as test } from "@std/testing/bdd";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import type { tables } from "#db/select/tables.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import type { TestFormValues } from "#test-utils/form-values.ts";
@@ -20,7 +23,7 @@ export type DemoNameSaves = {
   createPath: string;
   fields: (name: string) => TestFormValues;
   /** The table the create form writes. The test starts it empty. */
-  table: { read: { many: () => Promise<{ name: string }[]> } };
+  table: typeof tables.groups | typeof tables.holidays;
   edit: NameSave;
 };
 
@@ -28,7 +31,7 @@ export const describeDemoNameSaves = (spec: DemoNameSaves): void => {
   const { label, samples, realName, typedName, edit } = spec;
   const create: NameSave = async (name) => {
     await adminFormPost(spec.createPath, spec.fields(name));
-    const [created] = await spec.table.read.many();
+    const [created] = await readRows(from(spec.table).pick("name"));
     return created?.name;
   };
   describeWithEnv(label, { db: true }, () => {

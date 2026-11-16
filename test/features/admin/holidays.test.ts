@@ -7,7 +7,6 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
 import { findRow } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
@@ -93,7 +92,7 @@ describeDemoNameSaves({
   label: "holiday saves in demo mode",
   realName: "Real Day",
   samples: DEMO_HOLIDAY_NAMES,
-  table: holidays.table,
+  table: tables.holidays,
   typedName: "Typed Day",
 });
 

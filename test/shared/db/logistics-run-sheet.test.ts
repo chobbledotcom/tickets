@@ -64,12 +64,11 @@ const makeBooking = async (opts: {
   return { attendeeId, listingId };
 };
 
-const insertVanAndOther = async (): Promise<{
-  van: number;
-  other: number;
-}> => ({
-  other: (await insertRow(tables.logistics_agents, { name: "Other" })).id,
-  van: (await insertRow(tables.logistics_agents, { name: "Van" })).id,
+const insertAgent = async (name: string): Promise<number> =>
+  (await insertRow(tables.logistics_agents, { name })).id;
+const insertVanAndOther = async () => ({
+  other: await insertAgent("Other"),
+  van: await insertAgent("Van"),
 });
 
 /** The one van pair every dual-path fixture stamps on its booking rows. */
