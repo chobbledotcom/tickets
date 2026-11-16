@@ -7,7 +7,7 @@ import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 
-const ID_LIST = { form: "listOf", of: { form: "wholeNumber", min: 1 } };
+const ID_LIST = { form: "list_of", of: { form: "whole_number", min: 1 } };
 const UPDATE_SLUG = { limits: [], only: "update", value: { form: "text" } };
 
 describe("declared write fields", () => {
@@ -40,7 +40,7 @@ describe("declared write fields", () => {
       package_members: {
         limits: [],
         value: {
-          form: "listOf",
+          form: "list_of",
           of: {
             form: "object",
             names: ["day_prices", "listing_id", "price", "quantity"],

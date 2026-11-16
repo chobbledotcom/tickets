@@ -24,14 +24,14 @@ describe("FieldTable", () => {
             key: "closes_at",
             limits: [],
             required: false,
-            value: { form: "orNull", of: { form: "time" } },
+            value: { form: "or_null", of: { form: "time" } },
           },
           {
             defaultJson: "1",
             key: "max_quantity",
             limits: ["demo", "editor"],
             required: true,
-            value: { form: "wholeNumber", min: 1 },
+            value: { form: "whole_number", min: 1 },
           },
           {
             defaultJson: null,
@@ -39,7 +39,7 @@ describe("FieldTable", () => {
             limits: ["owner"],
             required: false,
             value: {
-              form: "listOf",
+              form: "list_of",
               of: { form: "object", names: ["item_id", "item_type"] },
             },
           },

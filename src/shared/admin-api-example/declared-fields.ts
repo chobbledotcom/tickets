@@ -27,7 +27,7 @@ type ExtraFields<Body, Fields extends FieldSpecs> = Record<
 /** A body key that links records by id. */
 const idList = (limits: readonly FieldLimit[] = []): ExtraField => ({
   limits,
-  value: { form: "listOf", of: { form: "wholeNumber", min: 1 } },
+  value: { form: "list_of", of: { form: "whole_number", min: 1 } },
 });
 
 /** The slug an update can change. A create makes its own. */
@@ -47,7 +47,7 @@ const PACKAGE_MEMBER_KEYS = {
 } satisfies Record<keyof PackageMemberBody, true>;
 
 const PACKAGE_MEMBERS: ValueForm = {
-  form: "listOf",
+  form: "list_of",
   of: { form: "object", names: Object.keys(PACKAGE_MEMBER_KEYS) },
 };
 

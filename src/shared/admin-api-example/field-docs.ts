@@ -18,21 +18,21 @@ import { ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
 
 /** The form of one field's value. The docs page has one text for each form. */
 export type ValueForm =
-  | { form: "contactFields" }
+  | { form: "contact_fields" }
   | { form: "date" }
-  | { form: "dayPrices" }
-  | { form: "listOf"; of: ValueForm }
+  | { form: "day_prices" }
+  | { form: "list_of"; of: ValueForm }
   | { form: "number" }
   | { form: "object"; names: readonly string[] }
-  | { form: "oneOf"; names: readonly string[] }
-  | { form: "orEmpty"; of: ValueForm }
-  | { form: "orNull"; of: ValueForm }
+  | { form: "one_of"; names: readonly string[] }
+  | { form: "or_empty"; of: ValueForm }
+  | { form: "or_null"; of: ValueForm }
   | { form: "price" }
   | { form: "switch" }
   | { form: "text" }
   | { form: "time" }
-  | { form: "wholeNumber"; min: number }
-  | { form: "wholeNumberRange"; max: number; min: number };
+  | { form: "whole_number"; min: number }
+  | { form: "whole_number_range"; max: number; min: number };
 
 /** Why some writers cannot set a field. */
 export type FieldLimit = ClosedReason | "owner";
@@ -60,26 +60,26 @@ const TEXT: ValueForm = { form: "text" };
 
 /** The value form of each field kind. */
 const KIND_FORMS: Record<FieldKind, (field: FieldSpec) => ValueForm> = {
-  contactFields: () => ({ form: "contactFields" }),
-  count: (field) => ({ form: "wholeNumber", min: field.min ?? 0 }),
+  contactFields: () => ({ form: "contact_fields" }),
+  count: (field) => ({ form: "whole_number", min: field.min ?? 0 }),
   date: () => ({ form: "date" }),
-  datetime: () => ({ form: "orEmpty", of: TIME }),
-  dayPrices: () => ({ form: "dayPrices" }),
+  datetime: () => ({ form: "or_empty", of: TIME }),
+  dayPrices: () => ({ form: "day_prices" }),
   durationDays: () => ({
-    form: "wholeNumberRange",
+    form: "whole_number_range",
     max: MAX_DURATION_DAYS,
     min: 1,
   }),
-  listingType: () => ({ form: "oneOf", names: ListingTypeSchema.options }),
+  listingType: () => ({ form: "one_of", names: ListingTypeSchema.options }),
   name: () => TEXT,
-  optionalDatetime: () => ({ form: "orNull", of: TIME }),
+  optionalDatetime: () => ({ form: "or_null", of: TIME }),
   price: () => ({ form: "price" }),
   privateText: () => TEXT,
   switch: () => ({ form: "switch" }),
   text: () => TEXT,
   weekdays: () => ({
-    form: "listOf",
-    of: { form: "oneOf", names: VALID_DAY_NAMES },
+    form: "list_of",
+    of: { form: "one_of", names: VALID_DAY_NAMES },
   }),
 };
 
@@ -167,11 +167,11 @@ export const schemaForm = (schema: v.GenericSchema): ValueForm => {
   const known = schema as BodyValueSchema;
   switch (known.type) {
     case "array":
-      return { form: "listOf", of: schemaForm(known.item) };
+      return { form: "list_of", of: schemaForm(known.item) };
     case "boolean":
       return { form: "switch" };
     case "nullable":
-      return { form: "orNull", of: schemaForm(known.wrapped) };
+      return { form: "or_null", of: schemaForm(known.wrapped) };
     case "number":
       return { form: "number" };
     case "object":
@@ -179,7 +179,7 @@ export const schemaForm = (schema: v.GenericSchema): ValueForm => {
     case "optional":
       return schemaForm(known.wrapped);
     case "picklist":
-      return { form: "oneOf", names: known.options };
+      return { form: "one_of", names: known.options };
     case "string":
       return TEXT;
     default:

@@ -226,6 +226,7 @@ describe("attendee refund confirmation pages", () => {
       OWNER_SESSION,
     );
     expectIncludesAll(html, [
+      '<input name="resend_sides" type="hidden" value="email">',
       "Re-send Notification: John Doe",
       'action="/admin/attendees/1/resend-notification"',
       "This will re-send the registration notification for this attendee.",

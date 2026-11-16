@@ -94,7 +94,7 @@ describe("documented request fields", () => {
       key: "closes_at",
       limits: [],
       required: false,
-      value: { form: "orNull", of: { form: "time" } },
+      value: { form: "or_null", of: { form: "time" } },
     });
   });
 
@@ -159,30 +159,30 @@ describe("documented request fields", () => {
   test("each kind of field shows the form of its value", () => {
     const form = (key: string) => rowOf(listingCreate(), key).value;
 
-    expect(form("max_attendees")).toEqual({ form: "wholeNumber", min: 1 });
-    expect(form("date")).toEqual({ form: "orEmpty", of: { form: "time" } });
+    expect(form("max_attendees")).toEqual({ form: "whole_number", min: 1 });
+    expect(form("date")).toEqual({ form: "or_empty", of: { form: "time" } });
     expect(form("duration_days")).toEqual({
-      form: "wholeNumberRange",
+      form: "whole_number_range",
       max: MAX_DURATION_DAYS,
       min: 1,
     });
     expect(form("listing_type")).toEqual({
-      form: "oneOf",
+      form: "one_of",
       names: ["standard", "daily"],
     });
     expect(form("bookable_days")).toEqual({
-      form: "listOf",
-      of: { form: "oneOf", names: VALID_DAY_NAMES },
+      form: "list_of",
+      of: { form: "one_of", names: VALID_DAY_NAMES },
     });
     expect(form("group_ids")).toEqual({
-      form: "listOf",
-      of: { form: "wholeNumber", min: 1 },
+      form: "list_of",
+      of: { form: "whole_number", min: 1 },
     });
     expect(
       ["day_prices", "fields", "unit_price", "hidden", "location"].map(
         (key) => form(key).form,
       ),
-    ).toEqual(["dayPrices", "contactFields", "price", "switch", "text"]);
+    ).toEqual(["day_prices", "contact_fields", "price", "switch", "text"]);
     expect(
       rowOf(rowsOf("POST", "/api/admin/holidays"), "start_date").value,
     ).toEqual({ form: "date" });
@@ -197,7 +197,7 @@ describe("documented request fields", () => {
         key: "seats",
         limits: [],
         required: false,
-        value: { form: "wholeNumber", min: 0 },
+        value: { form: "whole_number", min: 0 },
       },
     ]);
   });
@@ -213,7 +213,7 @@ describe("documented request fields", () => {
       sorted([...keysOf(update), "package_members", "slug"]),
     );
     expect(rowOf(groupCreate, "package_members").value).toEqual({
-      form: "listOf",
+      form: "list_of",
       of: {
         form: "object",
         names: ["day_prices", "listing_id", "price", "quantity"],
@@ -236,7 +236,7 @@ describe("documented request fields", () => {
         limits: [],
         required: true,
         value: {
-          form: "oneOf",
+          form: "one_of",
           names: QUESTION_DISPLAY_TYPES,
         },
       },
@@ -261,7 +261,7 @@ describe("documented request fields", () => {
     ]);
     expect(keysOf(update)).toEqual(["alt_text", "items", "name"]);
     expect(rowOf(update, "items").value).toEqual({
-      form: "listOf",
+      form: "list_of",
       of: { form: "object", names: ["item_id", "item_type"] },
     });
   });
@@ -270,7 +270,7 @@ describe("documented request fields", () => {
     const update = rowsOf("PUT", "/api/admin/site-pages/:pageId");
 
     expect(rowOf(update, "parent").value).toEqual({
-      form: "orNull",
+      form: "or_null",
       of: { form: "number" },
     });
     expect(keysOf(rowsOf("POST", "/api/admin/site-pages"))).not.toContain(
