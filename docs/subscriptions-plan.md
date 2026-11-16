@@ -134,10 +134,13 @@ amount.
 
 ### Checkout
 
-When the order holds a subscription ticket, the Stripe session changes in three
+When the order holds a subscription ticket, the Stripe session changes in four
 ways:
 
 - `mode` is `subscription`.
+- `submit_type` is `subscribe`. Stripe labels a checkout that holds a
+  recurring price back as a free trial. The site sells no free trial: the
+  buyer pays the ticket price today.
 - One recurring line joins the current one-time lines. Its quantity is `1`,
   and its amount is the recurring price times the ticket quantity. Under the
   `add_to_total` mode the amount also includes VAT. VAT rounds once, on the
@@ -367,6 +370,8 @@ contract and the code together.
 5. `trial_end` must be 48 hours or more ahead. All three frequencies pass.
 6. stripe-mock at the pinned version can serve these calls, or the tests need
    fixtures.
+7. A session with `submit_type` `subscribe` shows a button for a
+   subscription, and its button holds no trial wording.
 
 ## Pull requests
 

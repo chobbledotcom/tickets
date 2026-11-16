@@ -165,7 +165,7 @@ const subscriptionParams = (
   lineItems: readonly StripeCheckoutLineItemParams[],
 ): Pick<
   StripeCheckoutSessionCreateParams,
-  "line_items" | "mode" | "subscription_data"
+  "line_items" | "mode" | "submit_type" | "subscription_data"
 > => ({
   line_items: [
     ...lineItems,
@@ -184,6 +184,9 @@ const subscriptionParams = (
     },
   ],
   mode: "subscription",
+  // Stripe labels a trial checkout as a free trial. The buyer pays the
+  // ticket price today, so the button must offer a subscription.
+  submit_type: "subscribe",
   subscription_data: {
     metadata: { listing_id: String(item.listingId) },
     trial_end: firstRecurringChargeAt(nowSeconds(), item.recurring.interval),

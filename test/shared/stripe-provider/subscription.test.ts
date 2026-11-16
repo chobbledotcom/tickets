@@ -101,7 +101,7 @@ const atCheckoutTime = async (
 };
 
 describeStripe("Stripe subscription checkout", () => {
-  test("adds the recurring line and holds it back for one period", async () => {
+  test("adds the recurring line, holds it back, and asks for the subscribe button", async () => {
     await atCheckoutTime(async (oneOff) => {
       const ordinary = await sentParams(
         checkoutIntent({ items: [oneOff], taxPolicy: ADDED }),
@@ -128,6 +128,9 @@ describeStripe("Stripe subscription checkout", () => {
         ],
         metadata: subscribed.metadata,
         mode: "subscription",
+        // The buyer pays today, so Stripe must not label the button after the
+        // held-back recurring price.
+        submit_type: "subscribe",
         subscription_data: {
           metadata: { listing_id: "7" },
           trial_end: firstRecurringChargeAt(NOW_MS / 1000, "month"),
@@ -135,6 +138,7 @@ describeStripe("Stripe subscription checkout", () => {
       });
       expect(ordinary.mode).toBe("payment");
       expect(Object.keys(ordinary)).not.toContain("subscription_data");
+      expect(Object.keys(ordinary)).not.toContain("submit_type");
     });
   });
 
