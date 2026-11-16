@@ -12,16 +12,12 @@ import {
   packagedGroup,
   putGroup,
 } from "#test/features/admin/groups/helpers.ts";
+import { requestAsManager } from "#test-utils/api/admin-json.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
-import {
-  apiRequest,
-  createTestManagerSession,
-  requestAsSession,
-  testCsrfToken,
-} from "#test-utils/session.ts";
+import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("GET /api/admin/groups", () => {
@@ -117,12 +113,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
   describe("manager authorization", () => {
     test("allows a manager to list groups", async () => {
       await createTestGroup({ name: "Manager-visible" });
-      const res = await handleRequest(
-        requestAsSession("/api/admin/groups", {
-          cookie: await createTestManagerSession(),
-          csrfToken: await testCsrfToken(),
-        }),
-      );
+      const res = await requestAsManager("/api/admin/groups");
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.groups.length).toBe(1);
