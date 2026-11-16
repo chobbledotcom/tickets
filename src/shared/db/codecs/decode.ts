@@ -13,6 +13,7 @@ import type {
   TableHandle,
   TableName,
 } from "#db/select/tables.ts";
+import { columnName } from "#shared/column-names.ts";
 
 /** A codec as the runner holds it, whatever its types. */
 type Converter = Readonly<{
@@ -95,10 +96,10 @@ export const encoded = async <
 ): Promise<Encoded<Name, Values>> =>
   Object.fromEntries(
     await Promise.all(
-      Object.entries(values).map(async ([column, value]) => {
-        const codec = converterOrNull(table.name, column);
+      Object.entries(values).map(async ([field, value]) => {
+        const codec = converterOrNull(table.name, columnName(field));
         return [
-          column,
+          field,
           codec === null || value === null || value === undefined
             ? value
             : await codec.encode(value as never),

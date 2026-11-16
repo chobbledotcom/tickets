@@ -37,11 +37,11 @@ import {
   sql,
   sqlCommas,
   sqlName,
-  sqlNames,
   sqlRows,
 } from "#db/sql.ts";
+import { columnName } from "#shared/column-names.ts";
 
-/** The name of a column of a table. */
+/** The name of a field of a table: a column as the code names it. */
 export type ColumnName<Name extends TableName> = keyof RowOf<Name> & string;
 
 /** A value to write to a column: its stored value, or SQL of that type. */
@@ -103,6 +103,13 @@ const nodeOfWrite = <Name extends TableName>(
   table: TableHandle<Name>,
 ): Node<Name> => tableNode(table, table.name);
 
+/** The column of a field, as SQL. */
+const columnSql = (field: string): SqlStatement => sqlName(columnName(field));
+
+/** The column of a field, read under the field name. */
+const fieldAs = (field: string): SqlStatement =>
+  sql`${columnSql(field)} AS ${sqlName(field)}`;
+
 /** The entries of `values` that hold a value. */
 const given = (values: object): [string, unknown][] =>
   Object.entries(values).filter(([, value]) => value !== undefined);
@@ -110,7 +117,7 @@ const given = (values: object): [string, unknown][] =>
 /** One `column = value` for each change. */
 const assignments = (changes: object): SqlStatement[] =>
   given(changes).map(
-    ([column, value]) => sql`${sqlName(column)} = ${value as InValue}`,
+    ([field, value]) => sql`${columnSql(field)} = ${value as InValue}`,
   );
 
 /** Give a statement its `returning` step. */
@@ -121,7 +128,7 @@ const writing = <Name extends TableName>(
   Object.defineProperty(statement, "returning", {
     value: (...columns: readonly string[]) =>
       withColumnsOf(
-        sql`${statement} RETURNING ${sqlNames(columns)}`,
+        sql`${statement} RETURNING ${sqlCommas(columns.map(fieldAs))}`,
         table.name,
         columns,
       ),
@@ -133,7 +140,9 @@ const conflictTail = <Name extends TableName>(
   conflict: Conflict<Name>,
 ): SqlStatement => {
   const target =
-    conflict.on === undefined ? sql`` : sql`(${sqlNames(conflict.on)})`;
+    conflict.on === undefined
+      ? sql``
+      : sql`(${sqlCommas(conflict.on.map(columnSql))})`;
   if (conflict.nothing === true) {
     return sql` ON CONFLICT${target} DO NOTHING`;
   }
@@ -141,7 +150,7 @@ const conflictTail = <Name extends TableName>(
   const excluded = tableNode(table, "excluded");
   const taken = (conflict.take ?? []).map(
     (column) =>
-      sql`${sqlName(column)} = ${(excluded as Record<string, SqlStatement>)[column]!}`,
+      sql`${columnSql(column)} = ${(excluded as Record<string, SqlStatement>)[column]!}`,
   );
   const changes = [
     ...taken,
@@ -202,7 +211,7 @@ export const insertInto = <Name extends TableName>(
       : conflictTail(table, options.onConflict);
   return writing(
     table,
-    sql`INSERT${or} INTO ${sqlName(table.name)} (${sqlNames(columns)}) ${source}${conflict}`,
+    sql`INSERT${or} INTO ${sqlName(table.name)} (${sqlCommas(columns.map(columnSql))}) ${source}${conflict}`,
   );
 };
 
@@ -245,7 +254,7 @@ export const rowsWith =
     value: InValue,
   ): WriteWhere<Name> =>
   () =>
-    equal(named(`${table.name}.${column}`), value);
+    equal(named(`${table.name}.${columnName(column)}`), value);
 
 /** The conditions of a write. An empty match changes every row, so a
  *  write that means every row says so with `everyRow`. */

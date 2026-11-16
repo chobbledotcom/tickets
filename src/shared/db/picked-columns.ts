@@ -33,19 +33,12 @@ export const pickedColumns = (
   };
 };
 
-/** Every column of `table` under `word`, for a hand-written read of whole rows
+/** Every field of `table` under `word`, for a hand-written read of whole rows
  *  with values worked out beside them. */
 export const everyColumnPicked = (
   table: TableHandle<TableName>,
   word: string,
-): PickedColumns => {
-  const node: Readonly<Record<string, SqlStatement>> = tableNode(table, word);
-  return pickedColumns(
-    Object.fromEntries(
-      table.columns.map(([column]) => [column, node[column]!]),
-    ),
-  );
-};
+): PickedColumns => pickedColumns(tableNode(table, word));
 
 /** The columns of a builder read that these keys of its node name. */
 export const columnsNamed =

@@ -9,14 +9,16 @@ const camelCaseSchema = v.pipe(v.string(), v.toCamelCase());
 export const toCamelCase = (s: string): string => v.parse(camelCaseSchema, s);
 
 /** A column name as the code names it: `min_visits` becomes `minVisits`. */
-type CamelWord<Name extends string> = Name extends `${infer Head}_${infer Tail}`
-  ? `${Head}${Capitalize<CamelWord<Tail>>}`
-  : Name;
+export type CamelWord<Name extends string> =
+  Name extends `${infer Head}_${infer Tail}`
+    ? `${Head}${Capitalize<CamelWord<Tail>>}`
+    : Name;
 
 /** A code name as the column names it: `minVisits` becomes `min_visits`. */
-type SnakeWord<Name extends string> = Name extends `${infer Head}${infer Tail}`
-  ? `${Head extends Lowercase<Head> ? Head : `_${Lowercase<Head>}`}${SnakeWord<Tail>}`
-  : Name;
+export type SnakeWord<Name extends string> =
+  Name extends `${infer Head}${infer Tail}`
+    ? `${Head extends Lowercase<Head> ? Head : `_${Lowercase<Head>}`}${SnakeWord<Tail>}`
+    : Name;
 
 /** A row with each key as the code names it. */
 export type CamelCased<Row> = {
@@ -37,18 +39,21 @@ const renamedKeys = (
     Object.entries(record).map(([key, value]) => [rename(key), value]),
   );
 
-/** A row with each key as the code names it. Each word after an underscore
- *  starts with a capital letter. */
-export const camelCaseKeys = <Row extends object>(row: Row): CamelCased<Row> =>
-  renamedKeys(row, (key) =>
-    key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase()),
-  ) as CamelCased<Row>;
+/** A column name as the code names it. Each word after an underscore starts
+ *  with a capital letter. */
+export const fieldName = (column: string): string =>
+  column.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
-/** A record with each key as the column names it. Each capital letter becomes
- *  an underscore and the small letter. */
+/** A code name as the column names it. Each capital letter becomes an
+ *  underscore and the small letter. */
+export const columnName = (field: string): string =>
+  field.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+/** A row with each key as the code names it. */
+export const camelCaseKeys = <Row extends object>(row: Row): CamelCased<Row> =>
+  renamedKeys(row, fieldName) as CamelCased<Row>;
+
+/** A record with each key as the column names it. */
 export const snakeCaseKeys = <Input extends object>(
   input: Input,
-): SnakeCased<Input> =>
-  renamedKeys(input, (key) =>
-    key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
-  ) as SnakeCased<Input>;
+): SnakeCased<Input> => renamedKeys(input, columnName) as SnakeCased<Input>;

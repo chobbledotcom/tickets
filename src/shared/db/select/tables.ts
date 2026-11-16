@@ -18,6 +18,13 @@ import type {
   ColumnKind,
   Filling,
 } from "#db/migrations/schema/types.ts";
+import {
+  type CamelCased,
+  type CamelWord,
+  columnName,
+  fieldName,
+  type SnakeWord,
+} from "#shared/column-names.ts";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -80,31 +87,45 @@ type RowThrough<Name extends TableName, Stored extends boolean> = [
     }
   : never;
 
-/** The row a table stores: each column, and the value it holds. */
-export type RowOf<Name extends TableName> = RowThrough<Name, true>;
+/** The row a table stores, under its column names. Only SQL text and the
+ *  codecs name a column this way. */
+type StoredColumns<Name extends TableName> = RowThrough<Name, true>;
 
-/** The row the code reads: each column through its codec. */
-export type DecodedRowOf<Name extends TableName> = RowThrough<Name, false>;
+/** The row a table stores: each field, and the value it holds. */
+export type RowOf<Name extends TableName> = CamelCased<StoredColumns<Name>>;
 
-/** A new row of a table: every column that the database cannot fill, and any
+/** The row the code reads: each field through its codec. */
+export type DecodedRowOf<Name extends TableName> = CamelCased<
+  RowThrough<Name, false>
+>;
+
+/** A new row of a table: every field that the database cannot fill, and any
  *  of the others. */
-export type NewRowOf<Name extends TableName> = {
-  [Column in keyof RowOf<Name> as Column extends keyof OptionalColumnOf<Name>
+export type NewRowOf<Name extends TableName> = CamelCased<{
+  [Column in keyof StoredColumns<Name> as Column extends keyof OptionalColumnOf<Name>
     ? never
-    : Column]: RowOf<Name>[Column];
-} & {
-  [Column in keyof RowOf<Name> as Column extends keyof OptionalColumnOf<Name>
-    ? Column
-    : never]?: RowOf<Name>[Column];
-};
+    : Column]: StoredColumns<Name>[Column];
+}> &
+  Partial<
+    CamelCased<{
+      [Column in keyof StoredColumns<Name> as Column extends keyof OptionalColumnOf<Name>
+        ? Column
+        : never]: StoredColumns<Name>[Column];
+    }>
+  >;
 
 /** The referring columns of a table, and the table each one points at. */
 type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES
   ? (typeof REFERENCES)[Name]
   : Record<never, never>;
 
-/** The name a join uses for a referring column: the column without `_id`. */
-type JoinKey<ColumnName> = ColumnName extends `${infer Key}_id` ? Key : never;
+/** The name a join uses for a referring column: the field without `Id`. */
+type JoinKey<ColumnName> = ColumnName extends `${infer Key}_id`
+  ? CamelWord<Key>
+  : never;
+
+/** The referring column behind a join key. */
+type ReferringColumn<Key extends string> = `${SnakeWord<Key>}_id`;
 
 /** The names a join can follow from a table. */
 export type ReferenceOf<Name extends TableName> = JoinKey<
@@ -115,11 +136,14 @@ export type ReferenceOf<Name extends TableName> = JoinKey<
 export type TargetOf<
   Name extends TableName,
   Key extends ReferenceOf<Name>,
-> = ReferencesOf<Name>[`${Key}_id` & keyof ReferencesOf<Name>] & TableName;
+> = ReferencesOf<Name>[ReferringColumn<Key> & keyof ReferencesOf<Name>] &
+  TableName;
 
 /** Whether the referring column can hold nothing. */
 export type IsOptional<Name extends TableName, Key extends ReferenceOf<Name>> =
-  null extends StoredAt<RowOf<Name>, `${Key}_id`> ? true : false;
+  null extends StoredAt<StoredColumns<Name>, ReferringColumn<Key>>
+    ? true
+    : false;
 
 /** The references of `From` that point at `To`. */
 export type ReferenceTo<From extends TableName, To extends TableName> = {
@@ -206,10 +230,23 @@ export type TableHandle<Name extends string = TableName> = {
   readonly columns: readonly Column[];
 };
 
+/** Refuse a column whose field name does not lead back to it. The code names
+ *  each column by its field, so a pair of names must convert both ways. */
+const refuseLossyName = ([column]: Column): void => {
+  if (columnName(fieldName(column)) !== column) {
+    throw new Error(
+      `The column ${column} has no field name that converts back to it.`,
+    );
+  }
+};
+
 const handleOf = ([name, table]: (typeof TYPED_SCHEMA)[number]): [
   string,
   TableHandle,
-] => [name, { columns: table.columns, name, singular: SINGULAR[name] }];
+] => {
+  for (const column of table.columns) refuseLossyName(column);
+  return [name, { columns: table.columns, name, singular: SINGULAR[name] }];
+};
 
 /** Every declared table, by name. */
 export const tables = Object.fromEntries(TYPED_SCHEMA.map(handleOf)) as {
@@ -235,7 +272,7 @@ export const referenceOf = (
   table: TableHandle<string>,
   key: string,
 ): Reference => {
-  const column = `${key}_id`;
+  const column = `${columnName(key)}_id`;
   const declared = table.columns.find(([name]) => name === column);
   if (declared === undefined) {
     throw new Error(`${table.name} has no ${column} column to join along`);

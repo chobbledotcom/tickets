@@ -56,6 +56,7 @@ import {
   sqlJoin,
   sqlName,
 } from "#db/sql.ts";
+import { fieldName } from "#shared/column-names.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 
 type NodeFn<Root, Result> = (node: Root) => Result;
@@ -108,7 +109,7 @@ const nodeOf = (
   plan.aliases.push(alias);
   return Object.fromEntries(
     table.columns.map(([name]) => [
-      name,
+      fieldName(name),
       fromColumn(column(alias, name), { column: name, table: table.name }),
     ]),
   );
@@ -291,7 +292,10 @@ const query = <Root, First>(
     everyColumn: () =>
       named((node) =>
         Object.fromEntries(
-          table.columns.map(([column]) => [column, columnOf(node, column)]),
+          table.columns.map(([column]) => {
+            const field = fieldName(column);
+            return [field, columnOf(node, field)];
+          }),
         ),
       ) as RowsStatement<Picked<First, ColumnOf<First>>>,
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),

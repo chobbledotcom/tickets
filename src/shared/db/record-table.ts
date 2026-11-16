@@ -47,7 +47,7 @@ import {
   type Write,
 } from "#db/write.ts";
 import { fieldById } from "#fp";
-import { toCamelCase } from "#shared/column-names.ts";
+import { fieldName } from "#shared/column-names.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
 import { nowIso } from "#shared/now.ts";
 import { newRowDefaults } from "#shared/rest/field-defaults.ts";
@@ -70,7 +70,7 @@ const givingRow = <Name extends TableName>(
   write: Write<Name>,
 ): RowsStatement<DecodedRowOf<Name>> =>
   write.returning(
-    ...(table.columns.map(([column]) => column) as [
+    ...(table.columns.map(([column]) => fieldName(column)) as [
       ColumnName<Name>,
       ...ColumnName<Name>[],
     ]),
@@ -94,7 +94,7 @@ const withId =
 const wholeRows = <Name extends TableName>(
   query: Query<Node<Name>>,
 ): RowsStatement<DecodedRowOf<Name>> =>
-  query.everyColumn() as RowsStatement<DecodedRowOf<Name>>;
+  query.everyColumn() as unknown as RowsStatement<DecodedRowOf<Name>>;
 
 /** The read of the row with this id, or of the rows with these ids. */
 const rowsById = <Name extends TableWithId>(
@@ -247,13 +247,12 @@ const updateRow = firstRowOf(updateRowStatement, () => null);
 
 /** Remove the row with this id. */
 const deleteRow: ByRowId<"removed"> = async (table, id) => {
-  await execute(deleteFrom(table).where(rowsWith(table, "id", id)));
+  await execute(deleteFrom(table).where(withId(table.name, id)));
 };
 
-/** The row values that a record input names. A form names each column in
- * camelCase, so each input key that names a column of the table becomes that
- * column. A key that names no column, such as side data for a join write, is
- * left out. */
+/** The row values that a record input names: each input key that is a field
+ *  of the table. A key that names no field, such as side data for a join
+ *  write, is left out. */
 export const rowValuesOf = <Name extends TableName>(
   table: TableHandle<Name>,
   input: object,
@@ -261,8 +260,8 @@ export const rowValuesOf = <Name extends TableName>(
   const named: Readonly<Record<string, unknown>> = { ...input };
   return definedValuesBy(
     table.columns,
-    ([column]) => column,
-    ([column]) => named[toCamelCase(column)],
+    ([column]) => fieldName(column),
+    ([column]) => named[fieldName(column)],
   ) as RecordChanges<Name>;
 };
 

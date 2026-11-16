@@ -7,6 +7,7 @@
 
 import type { InStatement } from "@libsql/client";
 import type { SqlStatement } from "#db/sql.ts";
+import { columnName } from "#shared/column-names.ts";
 
 /** A column of a declared table. */
 export type Source = Readonly<{ table: string; column: string }>;
@@ -48,16 +49,18 @@ export const sourcesOf = (
 ): readonly (readonly [string, Source])[] =>
   typeof statement === "string" ? [] : (readSources.get(statement) ?? []);
 
-/** Mark a statement whose rows are the named columns of `table`, such as a
+/** Mark a statement whose rows are the named fields of `table`, such as a
  *  write that returns the rows it wrote. */
 export const withColumnsOf = <Statement extends SqlStatement>(
   statement: Statement,
   table: string,
-  columns: readonly string[],
+  fields: readonly string[],
 ): Statement => {
   readSources.set(
     statement,
-    columns.map((column) => [column, { column, table }] as const),
+    fields.map(
+      (field) => [field, { column: columnName(field), table }] as const,
+    ),
   );
   return statement;
 };
