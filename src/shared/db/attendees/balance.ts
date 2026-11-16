@@ -24,16 +24,17 @@ import { logActivity } from "#db/activity-log.ts";
 import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { remainingBalanceFromLedger } from "#db/attendees/select.ts";
-import {
-  executeBatchWithResults,
-  queryBatch,
-  queryOne,
-  resultRows,
-} from "#db/client.ts";
+import { executeBatchWithResults, queryOne } from "#db/client.ts";
 import { markOpenInvoicesPaidStatement } from "#db/invoices.ts";
+import { readBatch } from "#db/read.ts";
 import { tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import {
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  typedSql,
+} from "#db/sql.ts";
 import { compact, mapParallel, sumOf } from "#fp";
 import { formatCurrency } from "#shared/currency.ts";
 import { nowIso } from "#shared/now.ts";
@@ -103,11 +104,20 @@ type OrderRow = {
   listing_name: EnvKeyEncrypted | null;
 };
 
-const attendeeOrderMoneyStatement = (attendeeId: number): SqlStatement => {
+/** The money of an order, as its one row gives it. */
+type OrderMoneyRow = {
+  amount_paid: number;
+  full_price: number;
+  reservation_subtotal: number;
+};
+
+const attendeeOrderMoneyStatement = (attendeeId: number) => {
   const id = String(attendeeId);
-  return sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
+  return typedSql<RowsStatement<OrderMoneyRow>>(
+    sql`SELECT ${externalCashBalanceSubquery("attendee", id)} AS amount_paid,
                ${orderTotalSubquery("attendee", id)} AS full_price,
-               ${reservationSubtotalSubquery("attendee", id)} AS reservation_subtotal`;
+               ${reservationSubtotalSubquery("attendee", id)} AS reservation_subtotal`,
+  );
 };
 
 const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
@@ -123,11 +133,12 @@ const orderLineFromRow = async (row: OrderRow): Promise<OrderLine | null> =>
 export const getAttendeeOrderSummary = async (
   attendeeId: number,
 ): Promise<OrderSummary> => {
-  const [orderResult, paidResult] = await queryBatch([
+  const [rows, [paidRow]] = await readBatch([
     // quantity > 0: a no-quantity sentinel line is not an order line. The pay
     // page must show, and check out against, a real product, never a lower-id
     // ghost.
-    sql`SELECT listingAttendee.listing_id,
+    typedSql<RowsStatement<OrderRow>>(
+      sql`SELECT listingAttendee.listing_id,
             listingAttendee.package_group_id,
             listingAttendee.quantity,
             listing.name AS listing_name
@@ -135,16 +146,12 @@ export const getAttendeeOrderSummary = async (
        LEFT JOIN listings AS listing ON listing.id = listingAttendee.listing_id
       WHERE listingAttendee.attendee_id = ${attendeeId} AND listingAttendee.quantity > 0
       ORDER BY listingAttendee.id`,
+    ),
     attendeeOrderMoneyStatement(attendeeId),
   ]);
-  const rows = resultRows<OrderRow>(orderResult!);
   // The scalar SELECT has no FROM clause, so SQLite always returns one row.
-  const paidRow = resultRows<{
-    amount_paid: number;
-    full_price: number;
-    reservation_subtotal: number;
-  }>(paidResult!)[0]!;
-  const depositPaid = Number(paidRow.amount_paid);
+  const money = paidRow!;
+  const depositPaid = Number(money.amount_paid);
 
   // The LEFT JOIN keeps dangling booking rows visible so we can preserve the
   // previous behavior of dropping lines whose listing has since been deleted.
@@ -152,9 +159,9 @@ export const getAttendeeOrderSummary = async (
 
   return {
     depositPaid,
-    fullPrice: Number(paidRow.full_price),
+    fullPrice: Number(money.full_price),
     lines,
-    reservationSubtotal: Number(paidRow.reservation_subtotal),
+    reservationSubtotal: Number(money.reservation_subtotal),
     totalQuantity: sumOf((l: OrderLine) => l.quantity)(lines),
   };
 };

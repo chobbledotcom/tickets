@@ -13,7 +13,7 @@ import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
 import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
-import type { ImageUseItemType, SitePageItemType } from "#types";
+import type { ImageUseItemType, Modifier, SitePageItemType } from "#types";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -38,7 +38,11 @@ type DeclaredRow<Name extends TableName> = {
 type StoredValues = {
   attendees: { pii_blob: OwnerKeyEncrypted | "" };
   contact_preferences: { stats_blob: OwnerKeyEncrypted | "" };
+  groups: { name: EnvKeyEncrypted };
   image_uses: { item_type: ImageUseItemType };
+  modifiers: Pick<Modifier, "calc_kind" | "direction" | "scope" | "trigger"> & {
+    name: EnvKeyEncrypted;
+  };
   site_page_items: { item_type: SitePageItemType };
   system_notes: { note: EnvKeyEncrypted | OwnerKeyEncrypted };
   users: { admin_level: EnvKeyEncrypted; username_hash: EnvKeyEncrypted };

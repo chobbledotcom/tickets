@@ -6,16 +6,24 @@ import {
 import { lineGroupIds } from "#booking/signed-metadata.ts";
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { queryBatch, resultRows } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { imageFilenameSubqueries } from "#db/images.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { LISTING_ROW, type ListingRecordRow } from "#db/listings/select.ts";
 import { rawListingsTable } from "#db/listings/table.ts";
+import { readBatch } from "#db/read.ts";
 import { among, or } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList, sqlName, sqlNames } from "#db/sql.ts";
+import {
+  type RowsStatement,
+  type SqlStatement,
+  sql,
+  sqlList,
+  sqlName,
+  sqlNames,
+  typedSql,
+} from "#db/sql.ts";
 import { unique } from "#fp";
 import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/build.ts";
 import type {
@@ -73,19 +81,22 @@ const snapshotStatements = (
   eventGroup: string,
   intent: BookingIntent,
   contactHashes: string[],
-): SqlStatement[] => {
+) => {
   const listingIds = unique(intent.items.map((item) => item.e));
   const groupIds = [...lineGroupIds(intent.items)];
   const modifierIds = unique(intent.modifiers.map((ref) => ref.i));
   return [
-    sql`SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${eventGroup} LIMIT 1) AS has_legs,
+    typedSql<RowsStatement<LedgerRow>>(
+      sql`SELECT EXISTS(SELECT 1 FROM transfers WHERE event_group = ${eventGroup} LIMIT 1) AS has_legs,
         (SELECT attendee_id FROM listing_attendees WHERE ledger_event_group = ${eventGroup} LIMIT 1) AS owner_attendee_id`,
-    listingStatement(listingIds),
+    ),
+    typedSql<RowsStatement<ListingRecordRow>>(listingStatement(listingIds)),
     from(tables.groups)
       .where({ id: groupIds, is_package: 1 })
       .sortedBy("id")
       .pick("id", "name", "hide_package_listings"),
-    sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+    typedSql<RowsStatement<GroupListing>>(
+      sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
         (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
           WHERE listingPrice.listing_id = groupListing.listing_id
             AND listingPrice.price_type = 'group'
@@ -93,7 +104,9 @@ const snapshotStatements = (
        FROM group_listings AS groupListing
        WHERE ${selectIn("groupListing.group_id", groupIds)}
        ORDER BY groupListing.group_id, groupListing.listing_id`,
-    sql`SELECT groupListing.group_id, listingPrice.listing_id,
+    ),
+    typedSql<RowsStatement<RawDayPriceRow>>(
+      sql`SELECT groupListing.group_id, listingPrice.listing_id,
         CAST(SUBSTR(listingPrice.price_id, LENGTH(CAST(groupListing.group_id AS TEXT)) + 2) AS INTEGER) AS days,
         listingPrice.unit_price
        FROM group_listings AS groupListing
@@ -102,6 +115,7 @@ const snapshotStatements = (
         AND listingPrice.price_type = 'group_day'
         AND listingPrice.price_id LIKE (groupListing.group_id || '/%')
        WHERE ${selectIn("groupListing.group_id", groupIds)}`,
+    ),
     from(tables.listing_parents)
       .where((edge) =>
         or(
@@ -124,7 +138,8 @@ const snapshotStatements = (
         "scope",
         "trigger",
       ),
-    sql`SELECT modifierListing.modifier_id, modifierListing.listing_id
+    typedSql<RowsStatement<ModifierScopeRow>>(
+      sql`SELECT modifierListing.modifier_id, modifierListing.listing_id
        FROM modifier_listings AS modifierListing
         JOIN modifiers AS modifier
           ON modifier.id = modifierListing.modifier_id
@@ -138,6 +153,7 @@ const snapshotStatements = (
          AND modifier.scope = 'groups'
         JOIN group_listings AS groupListing ON groupListing.group_id = modifierGroup.group_id
         WHERE ${selectIn("modifierGroup.modifier_id", modifierIds)}`,
+    ),
     from(tables.contact_preferences)
       .where({ contact_hash: contactHashes })
       .pick("visits"),
@@ -145,17 +161,13 @@ const snapshotStatements = (
       .where({ is_public_default: 1 })
       .sortedBy("sort_order", "id")
       .pick("id"),
-  ];
+  ] as const;
 };
 
 type RawGroupRow = {
   hide_package_listings: number;
   id: number;
   name: EnvKeyEncrypted;
-};
-type ChildEdgeRow = {
-  child_listing_id: number;
-  parent_listing_id: number;
 };
 type LedgerRow = {
   has_legs: number;
@@ -181,12 +193,6 @@ type RawDayPriceRow = ListingIdRow & {
   days: number;
   group_id: number;
   unit_price: number;
-};
-type PublicStatusRow = {
-  id: number;
-};
-type VisitCountRow = {
-  visits: number;
 };
 
 const mapListings = async (
@@ -239,45 +245,37 @@ export const loadPaidOrderSnapshot = async (
     usableContactHashes(intent),
   ]);
   const [
-    ledgerResult,
-    listingsResult,
-    groupsResult,
-    membershipsResult,
-    dayPricesResult,
-    childEdgesResult,
-    modifiersResult,
-    modifierScopesResult,
-    visitCountsResult,
-    publicStatusesResult,
-  ] = await queryBatch(snapshotStatements(eventGroup, intent, contactHashes));
-  const ledger = resultRows<LedgerRow>(ledgerResult!)[0]!;
+    [ledger],
+    listings,
+    groups,
+    memberships,
+    dayPriceRows,
+    childEdges,
+    modifiers,
+    modifierScopes,
+    visitCounts,
+    publicStatuses,
+  ] = await readBatch(snapshotStatements(eventGroup, intent, contactHashes));
+  // The ledger read has no FROM clause, so it always gives one row.
+  const { has_legs, owner_attendee_id } = ledger!;
   const rows: SnapshotRows = {
-    childEdges: resultRows<ChildEdgeRow>(childEdgesResult!).map((row) => ({
+    childEdges: childEdges.map((row) => ({
       childId: row.child_listing_id,
       parentId: row.parent_listing_id,
     })),
-    groups: await mapGroups(resultRows<RawGroupRow>(groupsResult!)),
-    ledger: {
-      hasLegs: ledger.has_legs === 1,
-      ownerAttendeeId: ledger.owner_attendee_id,
-    },
-    listings: await mapListings(resultRows<ListingRecordRow>(listingsResult!)),
-    memberships: resultRows<GroupListing>(membershipsResult!),
-    modifierScopes: resultRows<ModifierScopeRow>(modifierScopesResult!).map(
-      (row) => ({
-        listingId: row.listing_id,
-        modifierId: row.modifier_id,
-      }),
-    ),
-    modifiers: await mapModifiers(resultRows<RawModifierRow>(modifiersResult!)),
-    publicStatusIds: resultRows<PublicStatusRow>(publicStatusesResult!).map(
-      (row) => row.id,
-    ),
-    visitCounts: resultRows<VisitCountRow>(visitCountsResult!).map(
-      (row) => row.visits,
-    ),
+    groups: await mapGroups(groups),
+    ledger: { hasLegs: has_legs === 1, ownerAttendeeId: owner_attendee_id },
+    listings: await mapListings(listings),
+    memberships,
+    modifierScopes: modifierScopes.map((row) => ({
+      listingId: row.listing_id,
+      modifierId: row.modifier_id,
+    })),
+    modifiers: await mapModifiers(modifiers),
+    publicStatusIds: publicStatuses.map((row) => row.id),
+    visitCounts: visitCounts.map((row) => row.visits),
   };
-  const dayPrices = resultRows<RawDayPriceRow>(dayPricesResult!).map(
+  const dayPrices = dayPriceRows.map(
     (row): SnapshotDayPriceRow => ({
       days: row.days,
       groupId: row.group_id,

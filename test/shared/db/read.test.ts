@@ -4,10 +4,17 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { readExists, readOneRow, readRows } from "#db/read.ts";
+import {
+  readBatch,
+  readBatchPrimary,
+  readExists,
+  readOneRow,
+  readRows,
+} from "#db/read.ts";
 import { among } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
+import { type RowsStatement, sql, typedSql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -92,3 +99,38 @@ describe("readExists of a read that no row can pass", () => {
     );
   });
 });
+
+for (const [name, run] of Object.entries({ readBatch, readBatchPrimary })) {
+  describeWithEnv(name, { db: true }, () => {
+    test("gives the rows of each read in the order of the reads", async () => {
+      const [first, second] = await twoListingIds();
+
+      const [none, ids, [counted], plain] = await run([
+        listingIds([]),
+        listingIds([second, first]),
+        typedSql<RowsStatement<{ total: number }>>(
+          sql`SELECT COUNT(*) AS total FROM listings`,
+        ),
+        sql`SELECT 7 AS seven`,
+      ]);
+      const firstId: number = ids[0]!.id;
+      const total: number = counted!.total;
+      // @ts-expect-error a statement that names no row gives rows of no type
+      const seven: number = plain[0];
+
+      expect({ firstId, ids, none, seven, total }).toEqual({
+        firstId: first,
+        ids: [{ id: first }, { id: second }],
+        none: [],
+        seven: { seven: 7 },
+        total: 2,
+      });
+    });
+
+    test("refuses a statement that writes", async () => {
+      await expect(run([sql`DELETE FROM listings`])).rejects.toThrow(
+        "Read-only batch executors accept only SELECT statements: DELETE FROM listings",
+      );
+    });
+  });
+}

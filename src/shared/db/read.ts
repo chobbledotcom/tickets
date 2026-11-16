@@ -3,10 +3,16 @@
  * conditions no row can pass costs no round trip.
  */
 
-import { queryAll } from "#db/client.ts";
+import {
+  type BatchExecutor,
+  queryAll,
+  queryBatch,
+  queryBatchPrimary,
+  resultRows,
+} from "#db/client.ts";
 import { matchesNothing } from "#db/select/expression.ts";
 import type { Query } from "#db/select/shape.ts";
-import type { Read } from "#db/sql.ts";
+import type { Read, RowsStatement, SqlStatement } from "#db/sql.ts";
 
 /** Every row that the read keeps. */
 export const readRows = <Row>(read: Read<Row>): Promise<Row[]> =>
@@ -21,3 +27,29 @@ export const readOneRow = async <Row>(read: Read<Row>): Promise<Row | null> =>
 export const readExists = async (
   query: Query<unknown, never>,
 ): Promise<boolean> => (await readOneRow(query.probe())) !== null;
+
+/** The rows of each read of a batch, in the order of the reads. A statement
+ *  that names no row gives rows of no known type. */
+type RowsOfEach<Reads extends readonly SqlStatement[]> = {
+  -readonly [Index in keyof Reads]: Reads[Index] extends RowsStatement<
+    infer Row
+  >
+    ? Row[]
+    : unknown[];
+};
+
+const batchReader =
+  (run: BatchExecutor) =>
+  async <const Reads extends readonly SqlStatement[]>(
+    reads: Reads,
+  ): Promise<RowsOfEach<Reads>> =>
+    (await run([...reads])).map((result) =>
+      resultRows(result),
+    ) as RowsOfEach<Reads>;
+
+/** Every read of a batch in one round trip. Each read keeps its place, so a
+ *  read that no row can pass still runs. */
+export const readBatch = batchReader(queryBatch);
+
+/** {@link readBatch} for a caller that must read its own writes. */
+export const readBatchPrimary = batchReader(queryBatchPrimary);

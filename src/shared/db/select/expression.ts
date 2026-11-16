@@ -16,6 +16,7 @@ import {
   sqlList,
   sqlLiteral,
   sqlName,
+  typedSql,
 } from "#db/sql.ts";
 
 declare const VALUE: unique symbol;
@@ -36,7 +37,7 @@ export type Condition = Expr<boolean> | boolean;
 
 /** Name the type of the value that hand-written SQL gives. */
 export const valued = <Value>(statement: SqlStatement): Expr<Value> =>
-  statement as Expr<Value>;
+  typedSql(statement);
 
 /** A column that code over any table names by text. A read of one known
  *  table takes its columns from the node of the table instead. */
