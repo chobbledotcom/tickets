@@ -254,6 +254,7 @@ group. The invoice id is the stable identity.
 | Ledger write | The status write fails | The status is stale | The next run |
 | Nothing | The Stripe cancel call fails | No local change. The owner sees an error. | The owner |
 | Stripe cancelled | The status write fails | The status is stale | The scheduled check |
+| Stripe cancelled | The paid invoice read fails | The row keeps its status. The owner reads that Stripe cancelled and that the page is behind. | The scheduled check |
 
 ### Retry and replay table
 

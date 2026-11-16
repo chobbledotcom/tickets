@@ -37,14 +37,19 @@ export const endFailedCheckoutSubscription = async (
   }
 };
 
+/** What an owner cancel did. `behind` means that Stripe ended the subscription
+ * and the row does not hold the end yet. */
+export type OwnerCancel = "cancelled" | "behind" | "not_cancelled";
+
 /** Cancel at once and record the last paid renewals. A refused cancel reads
  * the current status so concurrent callers get the same result. */
 export const cancelOwnerSubscription = async (
   row: CheckedRow,
-): Promise<boolean> => {
+): Promise<OwnerCancel> => {
   const subscription = await readForSubscriptionOrNull(row, cancelOrRead);
-  if (subscription === null) return false;
+  if (subscription === null) return "not_cancelled";
   const observed = subscription.status;
-  await recordObserved(row, observed);
-  return SUBSCRIPTION_NODE_OF[observed] === "ended";
+  const recorded = await recordObserved(row, observed);
+  if (SUBSCRIPTION_NODE_OF[observed] !== "ended") return "not_cancelled";
+  return recorded ? "cancelled" : "behind";
 };

@@ -18,7 +18,10 @@ import { adminRedirect, errorRedirect } from "#routes/response.ts";
 import { authPageAt, formGuardAt } from "#routes/route-gates.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
-import { cancelOwnerSubscription } from "#shared/subscriptions/cancellation.ts";
+import {
+  cancelOwnerSubscription,
+  type OwnerCancel,
+} from "#shared/subscriptions/cancellation.ts";
 import {
   adminSubscriptionsPage,
   type SubscriberRow,
@@ -66,6 +69,18 @@ const handleSubscriptionsGet = authPageAt("subscriptions")(
     }),
 );
 
+/** What the owner reads after each cancel result, and whether Stripe ended
+ * the subscription. */
+const CANCEL_ANSWERS: Record<OwnerCancel, { ended: boolean; message: string }> =
+  {
+    behind: { ended: true, message: "subscriptions.success.cancelled_behind" },
+    cancelled: { ended: true, message: "subscriptions.success.cancelled" },
+    not_cancelled: {
+      ended: false,
+      message: "subscriptions.error.not_cancelled",
+    },
+  };
+
 const handleSubscriptionCancelPost = createIdEntityHandler(
   getSubscribedRowOrNull,
 )(formGuardAt("/admin/subscriptions/:id/cancel"))(async (row) => {
@@ -73,20 +88,14 @@ const handleSubscriptionCancelPost = createIdEntityHandler(
   if (!isCancellable(row.subscription_status)) {
     return errorRedirect(listPath, t("subscriptions.error.ended"));
   }
-  if (!(await cancelOwnerSubscription(row))) {
-    return errorRedirect(listPath, t("subscriptions.error.not_cancelled"));
-  }
+  const answer = CANCEL_ANSWERS[await cancelOwnerSubscription(row)];
+  if (!answer.ended) return errorRedirect(listPath, t(answer.message));
   await logActivity(
     `Subscription ${row.subscription_id} cancelled`,
     row.listing_id,
     row.attendee_id,
   );
-  return adminRedirect(
-    "subscriptions",
-    {},
-    t("subscriptions.success.cancelled"),
-    true,
-  );
+  return adminRedirect("subscriptions", {}, t(answer.message), true);
 });
 
 export const adminHandlers = defineAdminRoutes({

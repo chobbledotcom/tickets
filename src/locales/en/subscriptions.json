@@ -6,6 +6,7 @@
   "subscriptions.cancel.warning": "Warning: cancelling stops every later payment at once. It refunds nothing, and the booking stays.",
   "subscriptions.cancel.button": "Cancel subscription",
   "subscriptions.success.cancelled": "Subscription cancelled.",
+  "subscriptions.success.cancelled_behind": "Stripe cancelled the subscription. This page will show it after the next check.",
   "subscriptions.error.ended": "This subscription has already ended.",
   "subscriptions.error.not_cancelled": "Stripe did not cancel the subscription. Please try again.",
   "subscriptions.column.subscriber": "Subscriber",

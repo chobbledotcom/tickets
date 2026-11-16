@@ -9,7 +9,10 @@ import { execute, queryBatch, queryOne } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { CANCELLABLE_STATUSES } from "#payment/subscription-machine-spec.ts";
-import type { StripeSubscription } from "#shared/stripe/schemas.ts";
+import type {
+  StripePaidInvoice,
+  StripeSubscription,
+} from "#shared/stripe/schemas.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import { expectRedirectWithFlash } from "#test-utils/assertions/redirect.ts";
@@ -48,8 +51,15 @@ const refused = (): Promise<SubscriptionRead> =>
  * Each paid invoice list holds one renewal. */
 type StripeAnswers = {
   cancel: (id: string) => Promise<SubscriptionRead>;
+  invoices?: () => Promise<ProviderRead<StripePaidInvoice[]>>;
   read?: (id: string) => Promise<SubscriptionRead>;
 };
+
+const oneRenewal = (): Promise<ProviderRead<StripePaidInvoice[]>> =>
+  Promise.resolve({
+    resource: [stripePaidInvoice({ id: "in_renewal" })],
+    status: "found",
+  });
 
 type CancelMocks = {
   cancel: Stub;
@@ -64,11 +74,10 @@ const withStripe = (
   withMocks(
     () => ({
       cancel: stub(stripeApi, "cancelSubscription", answers.cancel),
-      invoices: stub(stripeApi, "readPaidInvoices", () =>
-        Promise.resolve({
-          resource: [stripePaidInvoice({ id: "in_renewal" })],
-          status: "found" as const,
-        }),
+      invoices: stub(
+        stripeApi,
+        "readPaidInvoices",
+        answers.invoices ?? oneRenewal,
       ),
       read: stub(stripeApi, "readSubscription", answers.read ?? refused),
     }),
@@ -170,6 +179,33 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
       expect(askedAbout(mocks.invoices)).toEqual([]);
     });
     expect(await statusOf(ada)).toBe("trialing");
+  });
+
+  test("says that the page is behind when Stripe cancels and the invoice read fails", async () => {
+    const ada = await subscribe("Ada", MONTHLY);
+    using _error = stub(console, "error", () => {});
+    await withStripe(
+      {
+        cancel: found("canceled"),
+        invoices: () =>
+          Promise.resolve({ reason: "timeout", status: "unavailable" }),
+      },
+      async () => {
+        expectBack(
+          "Stripe cancelled the subscription. This page will show it after the next check.",
+          true,
+        )(await ownerCancel(ada));
+      },
+    );
+    expect(await statusOf(ada)).toBe("trialing");
+    expect(await wasActivityLogged("Subscription sub_ada cancelled")).toBe(
+      true,
+    );
+
+    await withStripe({ cancel: refused, read: found("canceled") }, async () => {
+      expectCancelled(await ownerCancel(ada));
+    });
+    expect(await statusOf(ada)).toBe("canceled");
   });
 
   test("keeps the cancel when the check writes a live status first", async () => {
