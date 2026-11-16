@@ -149,6 +149,19 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
     });
   });
 
+  /** Stripe refuses the cancel and reports `status`. The owner reads the
+   * answer, and the row stores that status. */
+  const refusedCancelStores = async (
+    row: Awaited<ReturnType<typeof subscribe>>,
+    status: Parameters<typeof found>[0],
+    expectAnswer: typeof expectCancelled,
+  ): Promise<void> => {
+    await withStripe({ cancel: refused, read: found(status) }, async () => {
+      expectAnswer(await ownerCancel(row));
+    });
+    expect(await statusOf(row)).toBe(status);
+  };
+
   test("stores the end that Stripe reports when it refuses the cancel", async () => {
     const ada = await subscribe("Ada", MONTHLY);
     await withStripe(
@@ -163,10 +176,7 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
 
   test("stores a live status that Stripe reports after it refuses the cancel", async () => {
     const ada = await subscribe("Ada", MONTHLY);
-    await withStripe({ cancel: refused, read: found("past_due") }, async () => {
-      expectNotCancelled(await ownerCancel(ada));
-    });
-    expect(await statusOf(ada)).toBe("past_due");
+    await refusedCancelStores(ada, "past_due", expectNotCancelled);
     expect(await wasActivityLogged("Subscription sub_ada cancelled")).toBe(
       false,
     );
@@ -202,10 +212,7 @@ describeWithEnv("server (cancel a subscription)", { db: true }, () => {
       true,
     );
 
-    await withStripe({ cancel: refused, read: found("canceled") }, async () => {
-      expectCancelled(await ownerCancel(ada));
-    });
-    expect(await statusOf(ada)).toBe("canceled");
+    await refusedCancelStores(ada, "canceled", expectCancelled);
   });
 
   test("keeps the cancel when the check writes a live status first", async () => {
