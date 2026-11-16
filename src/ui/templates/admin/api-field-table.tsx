@@ -16,7 +16,8 @@ import { translatedTableColumn } from "#templates/components/translated-table-co
  *  its own words. */
 const valueText = (value: ValueForm): string =>
   t(`api_keys.fields.value.${value.form}`, {
-    ...value,
+    ...("min" in value ? { min: value.min } : {}),
+    ...("max" in value ? { max: value.max } : {}),
     ...("of" in value ? { of: valueText(value.of) } : {}),
     ...("names" in value ? { names: value.names.join(", ") } : {}),
   });

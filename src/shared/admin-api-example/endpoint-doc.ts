@@ -9,7 +9,7 @@ import {
   type AdminApiResource,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
-import { EXTRA_FIELDS } from "./extra-fields.ts";
+import { DECLARED_FIELDS } from "./declared-fields.ts";
 import {
   type FieldDocRow,
   type FieldDocs,
@@ -148,17 +148,18 @@ export const choiceWriteDocs = <
   });
 };
 
-/** The field rows of one resource. A field list in the resource table gives
- *  them, with the body keys the list does not declare. Otherwise the two
- *  body schemas in the table give them. */
+/** The field rows of one resource. Its declared field list gives them, with
+ *  the body keys the list does not declare. Otherwise the two body schemas
+ *  in the resource table give them. */
 const resourceFieldDocs = (entry: AdminApiResource): FieldDocs => {
-  if (entry.fields !== undefined) {
-    return specFieldDocs(entry.fields, EXTRA_FIELDS[entry.path]);
+  const declared = DECLARED_FIELDS[entry.path];
+  if (declared !== undefined) {
+    return specFieldDocs(declared.fields, declared.extras);
   }
   const { createBodySchema, updateBodySchema } = entry;
   if (createBodySchema === undefined || updateBodySchema === undefined) {
     throw new Error(
-      `The resource table gives ${entry.label} no field list and no body schemas`,
+      `${entry.label} has no declared field list and no body schemas`,
     );
   }
   return {

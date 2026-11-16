@@ -1,7 +1,8 @@
 /**
- * The write body keys that no field list declares: the linked id lists, the
- * package members, and the slug an update can change. Each record is checked
- * against its body type, so a new body key without a row is a compile error.
+ * The write fields that field lists declare, by resource. Each resource also
+ * names the body keys outside its list: the linked id lists, the package
+ * members, and the slug an update can change. Those keys are checked against
+ * the body type, so a new body key without a row is a compile error.
  */
 
 import type {
@@ -9,8 +10,11 @@ import type {
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
 import type { UpdateListingBody } from "#routes/admin/api-listing-body.ts";
-import type { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import type { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
+import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
+import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 import type { ExtraField, FieldLimit, ValueForm } from "./field-docs.ts";
 
@@ -60,10 +64,20 @@ const GROUP_EXTRA_FIELDS = {
   slug: UPDATE_SLUG,
 } satisfies ExtraFields<UpdateGroupBody, typeof GROUP_FIELDS>;
 
-/** The extra body keys of each resource that has them, by resource path. */
-export const EXTRA_FIELDS: Readonly<
-  Record<string, Readonly<Record<string, ExtraField>>>
-> = {
-  groups: GROUP_EXTRA_FIELDS,
-  listings: LISTING_EXTRA_FIELDS,
+/** The write fields one resource declares: its field list, and the body keys
+ *  outside the list. */
+type DeclaredFields = {
+  extras: Readonly<Record<string, ExtraField>>;
+  fields: FieldSpecs;
+};
+
+/** The declared write fields of each resource that has a field list, by
+ *  resource path. A resource that is absent here declares its fields in the
+ *  body schemas of the resource table. */
+export const DECLARED_FIELDS: Readonly<Record<string, DeclaredFields>> = {
+  "attendee-statuses": { extras: {}, fields: STATUS_FIELDS },
+  attributes: { extras: {}, fields: ATTRIBUTE_FIELDS },
+  groups: { extras: GROUP_EXTRA_FIELDS, fields: GROUP_FIELDS },
+  holidays: { extras: {}, fields: HOLIDAY_FIELDS },
+  listings: { extras: LISTING_EXTRA_FIELDS, fields: LISTING_FIELDS },
 };

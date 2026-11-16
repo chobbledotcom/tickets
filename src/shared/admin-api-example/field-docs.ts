@@ -122,7 +122,7 @@ const byKey = (rows: FieldDocRow[]): FieldDocRow[] =>
 /** The field rows of a resource that a field list declares. */
 export const specFieldDocs = (
   fields: FieldSpecs,
-  extras: Readonly<Record<string, ExtraField>> = {},
+  extras: Readonly<Record<string, ExtraField>>,
 ): FieldDocs => {
   const declared = fields.map(createRow);
   const extra = Object.entries(extras).map(([key, field]) => ({

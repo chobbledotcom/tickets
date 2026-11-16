@@ -237,6 +237,22 @@ describe("attendee refund confirmation pages", () => {
     assert(!html.includes('class="danger"'));
   });
 
+  test("the resend-notification page offers the three send choices when a webhook exists", () => {
+    const html = adminResendNotificationPage(
+      { attendee: testAttendee(), hasWebhook: true },
+      OWNER_SESSION,
+    );
+
+    expectIncludesAll(html, [
+      "<p><strong>Choose what to re-send:</strong></p>" +
+        '<label><input checked name="resend_sides" type="radio" value="email">The email</label>' +
+        '<label><input name="resend_sides" type="radio" value="webhooks">The webhook</label>' +
+        '<label><input name="resend_sides" type="radio" value="both">The email and the webhook</label>',
+    ]);
+    // The radio carries the choice, so no hidden field repeats it.
+    assert(!html.includes('type="hidden" value="email"'));
+  });
+
   test("the refund-all page warns per the count and the blocker's reason", () => {
     const listing = testListingWithCount({ id: 5, name: "Camp" });
     const blocked = adminRefundAllAttendeesPage(

@@ -194,21 +194,21 @@ describe("endpoint docs", () => {
     ]);
   });
 
-  test("a resource with a field list documents the list, with any extra body keys of its path", () => {
-    const fields = [{ key: "name", kind: "name" }] as const;
-    const [, , plainCreate] = docsOf({ ...TOUR, fields });
-    const [, , create, update] = docsOf({ ...TOUR, fields, path: "groups" });
+  test("a resource with a declared field list documents the list and its extra body keys", () => {
+    const [, , create, update] = docsOf({ ...TOUR, path: "holidays" });
+    const [, , groupCreate, groupUpdate] = docsOf({ ...TOUR, path: "groups" });
 
-    expect(plainCreate?.fields).toEqual([textRow("name")]);
-    expect(fieldKeys(create)).toEqual(["name", "package_members"]);
-    expect(fieldKeys(update)).toEqual(["name", "package_members", "slug"]);
+    expect(fieldKeys(create)).toEqual(["end_date", "name", "start_date"]);
+    expect(fieldKeys(update)).toEqual(["end_date", "name", "start_date"]);
+    expect(fieldKeys(groupCreate)).toContain("package_members");
+    expect(fieldKeys(groupCreate)).not.toContain("slug");
+    expect(fieldKeys(groupUpdate)).toContain("slug");
   });
 
   test("a resource with no field list and no pair of body schemas stops the docs", () => {
     const { attendees } = ADMIN_API_RESOURCES;
     const oneSchema = v.object({});
-    const refusal =
-      "The resource table gives Attendee no field list and no body schemas";
+    const refusal = "Attendee has no declared field list and no body schemas";
 
     for (const entry of [
       attendees,

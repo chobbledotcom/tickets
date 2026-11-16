@@ -189,7 +189,7 @@ describe("documented request fields", () => {
   });
 
   test("a count with no smallest value of its own starts at zero", () => {
-    const { create } = specFieldDocs([{ key: "seats", kind: "count" }]);
+    const { create } = specFieldDocs([{ key: "seats", kind: "count" }], {});
 
     expect(create).toEqual([
       {
@@ -203,7 +203,7 @@ describe("documented request fields", () => {
   });
 
   test("a group write names its package members by their keys", () => {
-    const { create, update } = specFieldDocs(GROUP_FIELDS);
+    const { create, update } = specFieldDocs(GROUP_FIELDS, {});
     const groupCreate = rowsOf("POST", "/api/admin/groups");
 
     expect(keysOf(groupCreate)).toEqual(
