@@ -173,8 +173,8 @@ export const insertOrphanAttendee = async (
   const result = await getDb().execute(
     insertInto(tables.attendees, {
       created,
-      pii_blob: "",
-      ticket_token_index: `${tokenPrefix}-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `${tokenPrefix}-${crypto.randomUUID()}`,
     }) as never,
   );
   return Number(result.lastInsertRowid);

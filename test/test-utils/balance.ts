@@ -69,9 +69,9 @@ const makeOwingAttendee =
       thankYouUrl: "https://example.com",
     });
     const status = await records.attendee_statuses.insert({
-      is_reservation: isReservation,
+      isReservation: isReservation,
       name: statusName,
-      reservation_amount: reservationAmount,
+      reservationAmount: reservationAmount,
     });
     const attendeeId = await bookAttendeeOwing(
       listing.id,

@@ -90,7 +90,7 @@ export const createHiddenPackageGroup = async (
   // Return the updated row. The object from before the update still says the
   // package shows its members, so a caller reading the flag reads a stale one.
   return (await records.groups.update(group.id, {
-    hide_package_listings: true,
+    hidePackageListings: true,
   })) as Group;
 };
 

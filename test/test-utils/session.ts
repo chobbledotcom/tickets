@@ -187,11 +187,11 @@ export const createTestAgentSession = async (
   const userId = await createUserWithSession(
     username,
     {
-      admin_level: await enc("agent"),
-      password_hash: passwordHashEnc,
-      username_hash: await enc(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: userWrappedKey,
+      adminLevel: await enc("agent"),
+      passwordHash: passwordHashEnc,
+      usernameHash: await enc(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: userWrappedKey,
     },
     {
       csrfToken: "agent-csrf",
@@ -229,12 +229,12 @@ export const createTestEditorSession = async (
   const userId = await createUserWithSession(
     username,
     {
-      admin_level: await enc("editor"),
-      kek_version: 2,
-      password_hash: await enc(await hashPassword(password)),
-      username_hash: await enc(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: null,
+      adminLevel: await enc("editor"),
+      kekVersion: 2,
+      passwordHash: await enc(await hashPassword(password)),
+      usernameHash: await enc(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: null,
     },
     { csrfToken: "editor-csrf", token, wrappedKey: null },
   );

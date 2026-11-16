@@ -15,13 +15,13 @@ export const insertRefundConfirmationFixture = async (
   const identity = `confirmation-${crypto.randomUUID()}`;
   const referenceIndex = `reference-${crypto.randomUUID()}`;
   const confirmation = insertInto(tables.refund_confirmations, {
-    attendee_id: attendeeId,
+    attendeeId: attendeeId,
     created: nowIso(),
     identity,
   });
   const reference = insertInto(tables.refund_confirmation_references, {
-    confirmation_identity: identity,
-    reference_index: referenceIndex,
+    confirmationIdentity: identity,
+    referenceIndex: referenceIndex,
   });
   await executeBatch([confirmation, reference]);
   return { identity, referenceIndex };

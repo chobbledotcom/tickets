@@ -4,10 +4,10 @@ import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** A hand-built holiday row, for tests that sort or fold without a database. */
 export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
-  end_date: "2026-12-25",
+  endDate: "2026-12-25",
   id: 1,
   name: "Test Holiday",
-  start_date: "2026-12-25",
+  startDate: "2026-12-25",
   ...overrides,
 });
 
@@ -61,9 +61,9 @@ export const updateTestHoliday = async (
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
     {
-      end_date: updates.endDate ?? existing.end_date,
+      end_date: updates.endDate ?? existing.endDate,
       name: updates.name ?? existing.name,
-      start_date: updates.startDate ?? existing.start_date,
+      start_date: updates.startDate ?? existing.startDate,
     },
     () => storedHoliday(holidayId),
     "update holiday",

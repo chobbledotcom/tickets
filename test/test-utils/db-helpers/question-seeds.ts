@@ -31,15 +31,15 @@ export const seedQuestion = async <const Texts extends readonly string[] = []>({
   text,
 }: QuestionSeed<Texts>): Promise<SeededQuestion<Texts>> => {
   const question = await records.questions.insert({
-    display_type: displayType,
+    displayType: displayType,
     text,
   });
   const rows: Answer[] = [];
   for (const [sortOrder, answerText] of (answers ?? []).entries()) {
     rows.push(
       await records.answers.insert({
-        question_id: question.id,
-        sort_order: sortOrder,
+        questionId: question.id,
+        sortOrder: sortOrder,
         text: answerText,
       }),
     );

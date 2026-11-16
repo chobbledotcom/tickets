@@ -11,7 +11,7 @@ export const listingRowStatement = async (
 ): Promise<SqlStatement> =>
   insertInto(tables.listings, {
     created: "2024-01-01T00:00:00Z",
-    max_attendees: 100,
+    maxAttendees: 100,
     name: await encrypt(name),
     ...values,
   });

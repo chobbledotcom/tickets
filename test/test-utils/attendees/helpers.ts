@@ -164,17 +164,17 @@ export const setupListingWithQuestion = async (
     "john@example.com",
   );
   const q = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text: questionText,
   });
   const a1 = await records.answers.insert({
-    question_id: q.id,
-    sort_order: 0,
+    questionId: q.id,
+    sortOrder: 0,
     text: a1Text,
   });
   const a2 = await records.answers.insert({
-    question_id: q.id,
-    sort_order: 1,
+    questionId: q.id,
+    sortOrder: 1,
     text: a2Text,
   });
   await listingQuestions.setIds(listing.id, [q.id]);

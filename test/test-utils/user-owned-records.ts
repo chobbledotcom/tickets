@@ -26,11 +26,11 @@ export const addUserOwnedAccessRecords = async (
   await getDb().execute(
     insertInto(tables.api_keys, {
       created: "2026-07-19T00:00:00.000Z",
-      key_index: `${label}-key-index` as BlindIndex,
-      last_used: "",
+      keyIndex: `${label}-key-index` as BlindIndex,
+      lastUsed: "",
       name: await encrypt(`${label} key`),
-      user_id: userId,
-      wrapped_data_key: `${label}-wrapped-key` as WrappedKey,
+      userId: userId,
+      wrappedDataKey: `${label}-wrapped-key` as WrappedKey,
     }),
   );
 };

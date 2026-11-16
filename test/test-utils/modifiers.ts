@@ -164,12 +164,12 @@ export const setupAnswerTier = async (
 ): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
   const { listingQuestions } = await import("#db/questions/queries.ts");
   const question = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text: "T-shirt size?",
   });
   const answer = await records.answers.insert({
-    question_id: question.id,
-    sort_order: 0,
+    questionId: question.id,
+    sortOrder: 0,
     text: "Small",
   });
   await listingQuestions.setIds(listing.id, [question.id]);

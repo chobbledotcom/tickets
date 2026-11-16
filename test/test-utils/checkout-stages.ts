@@ -9,11 +9,11 @@ export const insertCheckoutStage = (
 ): Promise<unknown> =>
   getDb().execute(
     insertInto(tables.checkout_stages, {
-      attendee_id: attendeeId,
-      created_at: "2026-07-15T12:00:00.000Z",
-      payment_session_id: paymentSessionId,
+      attendeeId: attendeeId,
+      createdAt: "2026-07-15T12:00:00.000Z",
+      paymentSessionId: paymentSessionId,
       provider: "stripe",
       state: "open",
-      ticket_tokens: "[]",
+      ticketTokens: "[]",
     }),
   );

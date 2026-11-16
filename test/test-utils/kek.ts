@@ -50,12 +50,12 @@ export const seedV1User = async (
   const wrapped = await wrapKey(dataKey, await deriveKEK(passwordHash));
   await getDb().execute(
     insertInto(tables.users, {
-      admin_level: await encrypt("manager"),
-      kek_version: 1,
-      password_hash: await encrypt(passwordHash),
-      username_hash: await encrypt(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: wrapped,
+      adminLevel: await encrypt("manager"),
+      kekVersion: 1,
+      passwordHash: await encrypt(passwordHash),
+      usernameHash: await encrypt(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: wrapped,
     }),
   );
   invalidateUsersCache();

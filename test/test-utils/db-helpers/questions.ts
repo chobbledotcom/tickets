@@ -11,12 +11,12 @@ export const createQuestionWithAnswer = async (
   assignedTo: number[] = [],
 ): Promise<{ answerId: number; questionId: number }> => {
   const question = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text: "Choose one",
   });
   const answer = await records.answers.insert({
-    question_id: question.id,
-    sort_order: 0,
+    questionId: question.id,
+    sortOrder: 0,
     text: "Chosen",
   });
   if (assignedTo.length > 0) {
@@ -31,7 +31,7 @@ export const createFreeTextQuestion = async (
   assignedTo: number[] = [],
 ): Promise<number> => {
   const question = await records.questions.insert({
-    display_type: "free_text",
+    displayType: "free_text",
     text: "Anything else?",
   });
   if (assignedTo.length > 0) {

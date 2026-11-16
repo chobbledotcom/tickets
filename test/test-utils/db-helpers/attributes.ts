@@ -22,8 +22,8 @@ export const createTestAttributeOption = (
   sortOrder = 0,
 ): Promise<AttributeOption> =>
   records.attribute_options.insert({
-    attribute_id: attributeId,
-    sort_order: sortOrder,
+    attributeId: attributeId,
+    sortOrder: sortOrder,
     text,
   });
 

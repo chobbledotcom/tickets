@@ -26,10 +26,7 @@ export type RecalculatedListingTotals = {
 export const recalculateListingAggregates = async (
   listingId: number,
 ): Promise<RecalculatedListingTotals> => {
-  await listingAggregates.reset(listingId, [
-    "booked_quantity",
-    "tickets_count",
-  ]);
+  await listingAggregates.reset(listingId, ["bookedQuantity", "ticketsCount"]);
   const recalc = await getListingAggregateRecalculation(
     (await getListingWithCount(listingId))!,
   );

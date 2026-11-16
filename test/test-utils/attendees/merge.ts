@@ -109,15 +109,15 @@ export const mergePairWithQuestion = async (
 }> => {
   const { listing1, listing2, target, source, sourceToken } = await mergePair();
   const q = await records.questions.insert({
-    display_type: "radio",
+    displayType: "radio",
     text: questionText,
   });
   const answers: Answer[] = [];
   for (const [index, text] of answerTexts.entries()) {
     answers.push(
       await records.answers.insert({
-        question_id: q.id,
-        sort_order: index,
+        questionId: q.id,
+        sortOrder: index,
         text,
       }),
     );

@@ -56,11 +56,11 @@ export const createKeyedRoleSession = async (
   const userId = await createUserWithSession(
     named.username,
     {
-      admin_level: await enc(role),
-      password_hash: "",
-      username_hash: await enc(named.username),
-      username_index: await hmacHash(named.username),
-      wrapped_data_key: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
+      adminLevel: await enc(role),
+      passwordHash: "",
+      usernameHash: await enc(named.username),
+      usernameIndex: await hmacHash(named.username),
+      wrappedDataKey: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
     },
     {
       csrfToken: named.csrfToken,
