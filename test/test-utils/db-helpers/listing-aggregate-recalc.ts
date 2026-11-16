@@ -31,7 +31,7 @@ export const recalculateListingAggregates = async (
     (await getListingWithCount(listingId))!,
   );
   await getDb().execute(
-    sql`UPDATE listings SET booked_quantity = ${recalc.booked_quantity.recalculated}, tickets_count = ${recalc.tickets_count.recalculated} WHERE id = ${listingId}`,
+    sql`UPDATE listings SET booked_quantity = ${recalc.bookedQuantity.recalculated}, tickets_count = ${recalc.ticketsCount.recalculated} WHERE id = ${listingId}`,
   );
   invalidateListingsCache();
   return { after: await getListingWithCount(listingId), recalc };
@@ -41,10 +41,10 @@ export const recalculateListingAggregates = async (
  *  servicing hold counts toward booked_quantity alone. */
 export const expectListingAggregateSplit = (
   { after, recalc }: RecalculatedListingTotals,
-  split: { booked_quantity: number; tickets_count: number },
+  split: { bookedQuantity: number; ticketsCount: number },
 ): void => {
-  expect(recalc.booked_quantity.recalculated).toBe(split.booked_quantity);
-  expect(recalc.tickets_count.recalculated).toBe(split.tickets_count);
-  expect(after?.attendeeCount).toBe(split.booked_quantity);
-  expect(after?.ticketsCount).toBe(split.tickets_count);
+  expect(recalc.bookedQuantity.recalculated).toBe(split.bookedQuantity);
+  expect(recalc.ticketsCount.recalculated).toBe(split.ticketsCount);
+  expect(after?.attendeeCount).toBe(split.bookedQuantity);
+  expect(after?.ticketsCount).toBe(split.ticketsCount);
 };

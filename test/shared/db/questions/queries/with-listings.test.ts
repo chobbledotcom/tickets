@@ -143,8 +143,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       await answerAggregates.update(a.id, { timesSelected: 42 });
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
-      expect(recalc.times_selected.current).toBe(42);
-      expect(recalc.times_selected.recalculated).toBe(1);
+      expect(recalc.timesSelected.current).toBe(42);
+      expect(recalc.timesSelected.recalculated).toBe(1);
     });
 
     test("answerAggregates.reset rebuilds the stored total", async () => {
@@ -154,8 +154,8 @@ describeWithEnv("custom questions", { db: true }, () => {
       await answerAggregates.reset(a.id, ["timesSelected"]);
 
       const recalc = await getAnswerAggregateRecalculation(a.id);
-      expect(recalc.times_selected.current).toBe(1);
-      expect(recalc.times_selected.recalculated).toBe(1);
+      expect(recalc.timesSelected.current).toBe(1);
+      expect(recalc.timesSelected.recalculated).toBe(1);
     });
   });
 });

@@ -27,10 +27,10 @@ const UNIVERSAL = [
 describe("capacity rules", () => {
   describe("applicableCapacityRules", () => {
     test("a standard listing counts its own cap as one running total", () => {
-      for (const customisable_days of [false, true]) {
+      for (const customisableDays of [false, true]) {
         expect(
           applicableCapacityRules({
-            customisable_days,
+            customisableDays,
             listingType: "standard",
           }),
         ).toEqual(new Set(["dateLessCap", ...UNIVERSAL]));
@@ -38,9 +38,9 @@ describe("capacity rules", () => {
     });
 
     test("a daily listing counts its own cap per occupied date", () => {
-      for (const customisable_days of [false, true]) {
+      for (const customisableDays of [false, true]) {
         expect(
-          applicableCapacityRules({ customisable_days, listingType: "daily" }),
+          applicableCapacityRules({ customisableDays, listingType: "daily" }),
         ).toEqual(new Set(["perDateCap", ...UNIVERSAL]));
       }
     });
@@ -183,10 +183,10 @@ describe("capacity rules", () => {
   describe("allCapacityFacets", () => {
     test("covers every listing type × customisable days combination", () => {
       expect(allCapacityFacets()).toEqual([
-        { customisable_days: false, listing_type: "standard" },
-        { customisable_days: true, listing_type: "standard" },
-        { customisable_days: false, listing_type: "daily" },
-        { customisable_days: true, listing_type: "daily" },
+        { customisableDays: false, listingType: "standard" },
+        { customisableDays: true, listingType: "standard" },
+        { customisableDays: false, listingType: "daily" },
+        { customisableDays: true, listingType: "daily" },
       ]);
     });
   });

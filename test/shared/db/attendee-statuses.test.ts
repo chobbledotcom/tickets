@@ -119,7 +119,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     );
     attendeeStatuses.invalidate();
     await expect(requirePublicStatusId()).rejects.toThrow(
-      "No attendee status has the required is_public_default flag",
+      "No attendee status has the required isPublicDefault flag",
     );
   });
 
@@ -218,12 +218,12 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     const statuses = await attendeeStatuses.getAll();
     expect(statuses).toHaveLength(1);
     expect(statuses[0]).toMatchObject({
-      is_paid_default: true,
-      is_public_default: true,
-      is_reservation: false,
+      isPaidDefault: true,
+      isPublicDefault: true,
+      isReservation: false,
       name: DEFAULT_ATTENDEE_STATUS_NAME,
-      reservation_amount: "0",
-      sort_order: 0,
+      reservationAmount: "0",
+      sortOrder: 0,
     });
     const backfilled = await getDb().execute(
       sql`SELECT status_id FROM attendees WHERE id = ${attendeeId}`,
@@ -258,24 +258,24 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
         ok: true,
         value: {
           id: first.id,
-          is_paid_default: true,
-          is_public_default: true,
-          is_reservation: false,
+          isPaidDefault: true,
+          isPublicDefault: true,
+          isReservation: false,
           name: "First",
-          reservation_amount: "0",
-          sort_order: 0,
+          reservationAmount: "0",
+          sortOrder: 0,
         },
       },
       {
         ok: true,
         value: {
           id: second.id,
-          is_paid_default: true,
-          is_public_default: true,
-          is_reservation: false,
+          isPaidDefault: true,
+          isPublicDefault: true,
+          isReservation: false,
           name: "Second",
-          reservation_amount: "0",
-          sort_order: 0,
+          reservationAmount: "0",
+          sortOrder: 0,
         },
       },
     ]);
@@ -346,12 +346,12 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
       ok: true,
       value: {
         id: candidate.id,
-        is_paid_default: false,
-        is_public_default: true,
-        is_reservation: false,
+        isPaidDefault: false,
+        isPublicDefault: true,
+        isReservation: false,
         name: "Candidate",
-        reservation_amount: "0",
-        sort_order: 0,
+        reservationAmount: "0",
+        sortOrder: 0,
       },
     });
     expect(await staleEdit).toEqual({

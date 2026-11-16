@@ -31,16 +31,16 @@ describeWithEnv("db > listing aggregates", { db: true }, () => {
       const listing = await createListingWithDriftedTotals();
       const recalculation = await recalculationFor(listing.id);
       expect(recalculation).toEqual({
-        booked_quantity: { current: 9, recalculated: 1 },
-        tickets_count: { current: 5, recalculated: 1 },
+        bookedQuantity: { current: 9, recalculated: 1 },
+        ticketsCount: { current: 5, recalculated: 1 },
       });
     });
 
     test("reads zero from a listing nobody booked", async () => {
       const listing = await createTestListing({ maxAttendees: 10 });
       const recalculation = await recalculationFor(listing.id);
-      expect(recalculation.booked_quantity.recalculated).toBe(0);
-      expect(recalculation.tickets_count.recalculated).toBe(0);
+      expect(recalculation.bookedQuantity.recalculated).toBe(0);
+      expect(recalculation.ticketsCount.recalculated).toBe(0);
     });
   });
 

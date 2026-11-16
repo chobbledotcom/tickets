@@ -24,7 +24,7 @@ export const navPage = (id: number, sortOrder = 0): SitePageNavRow => ({
 /** One "this page contains that thing" link. */
 export const navEdge = (
   pageId: number,
-  type: SitePageItem["item_type"],
+  type: SitePageItem["itemType"],
   itemId: number,
   sortOrder = 0,
 ): SitePageItem => ({

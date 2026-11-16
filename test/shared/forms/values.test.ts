@@ -1,6 +1,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { entityToFieldValues } from "#shared/forms/values.ts";
+import { testListing } from "#test-utils/factories.ts";
 import { field } from "#test-utils/field.ts";
 
 describe("entityToFieldValues", () => {
@@ -82,5 +83,25 @@ describe("entityToFieldValues", () => {
     expect(entityToFieldValues({ a: true }, [fields[0]!], {})).toEqual({
       a: "true",
     });
+  });
+
+  test("a form box with a multi-word name reads the camelCase field of the row", () => {
+    const listing = testListing({
+      maxAttendees: 40,
+      thankYouUrl: "https://example.com/done",
+    });
+    const boxes = [
+      field({ label: "Max attendees", name: "max_attendees" }),
+      field({ label: "Thank you URL", name: "thank_you_url" }),
+    ];
+    expect(entityToFieldValues(listing, boxes, {})).toEqual({
+      max_attendees: "40",
+      thank_you_url: "https://example.com/done",
+    });
+    expect(
+      entityToFieldValues(listing, boxes, {
+        maxAttendees: (row) => row.maxAttendees * 2,
+      }).max_attendees,
+    ).toBe(80);
   });
 });

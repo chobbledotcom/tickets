@@ -40,8 +40,8 @@ describeWithEnv("db > group storage contracts", { db: true }, () => {
     const inserted = await insertMinimalGroup("Default Flags");
     expect(await records.groups.find(inserted.id)).toMatchObject({
       hidden: false,
-      hide_package_listings: false,
-      is_package: false,
+      hidePackageListings: false,
+      isPackage: false,
     });
   });
 
@@ -169,8 +169,8 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
 
     expect(
       (await getGroupPackagePrices(group.id))
-        .map(({ listing_id, quantity }): [number, number] => [
-          listing_id,
+        .map(({ listingId, quantity }): [number, number] => [
+          listingId,
           quantity,
         ])
         .toSorted(([left], [right]) => left - right),

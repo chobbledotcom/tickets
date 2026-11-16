@@ -280,9 +280,7 @@ describeWithEnv("db > settle attendee balance", { db: true }, () => {
     attendeeStatuses.invalidate();
     await expect(
       settleAttendeeBalance(attendeeId, 1500, settle()),
-    ).rejects.toThrow(
-      "No attendee status has the required is_paid_default flag",
-    );
+    ).rejects.toThrow("No attendee status has the required isPaidDefault flag");
     const state = await getAttendeeBalanceState(attendeeId);
     expect(state?.remainingBalance).toBe(1500);
   });

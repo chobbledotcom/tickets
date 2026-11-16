@@ -260,7 +260,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     );
     // An entry that names no quantity includes one of that member.
     const namedRow = (await getGroupPackagePrices(group.id)).find(
-      ({ listing_id }) => listing_id === named.id,
+      ({ listingId }) => listingId === named.id,
     );
     if (!namedRow) throw new Error("The named member has no membership row");
     expect(namedRow.quantity).toBe(1);
@@ -271,7 +271,7 @@ describeWithEnv("db > groups > set group memberships", { db: true }, () => {
     // to "no override".
     expect(await getTestPackagePrices(group.id)).toEqual(new Map());
     const rows = await getGroupPackagePrices(group.id);
-    expect(sorted(rows.map(({ listing_id }) => listing_id))).toEqual(
+    expect(sorted(rows.map(({ listingId }) => listingId))).toEqual(
       sorted([named.id, other.id]),
     );
     expect(rows.map(({ quantity }) => quantity)).toEqual([1, 1]);

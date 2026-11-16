@@ -47,10 +47,10 @@ describe("resolvePurchaseUnit", () => {
     // A renewal page only offers qualifying tiers, so a listing that prices
     // no positive whole months per unit cannot be renewed: its units stay
     // what they are.
-    for (const months_per_unit of [0, -1, 1.5]) {
+    for (const monthsPerUnit of [0, -1, 1.5]) {
       expect(
         resolvePurchaseUnit(
-          { assignBuiltSite: false, months_per_unit },
+          { assignBuiltSite: false, monthsPerUnit },
           { renewal: true },
         ),
       ).toEqual({ kind: "tickets" });

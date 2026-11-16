@@ -208,8 +208,8 @@ describeWithEnv(
       const recalc = await getListingAggregateRecalculation(stored);
       // Trigger-maintained values and a from-scratch recompute must agree, so
       // the repair page never reports a ghost line as drift.
-      expect(recalc.tickets_count).toEqual({ current: 1, recalculated: 1 });
-      expect(recalc.booked_quantity).toEqual({ current: 3, recalculated: 3 });
+      expect(recalc.ticketsCount).toEqual({ current: 1, recalculated: 1 });
+      expect(recalc.bookedQuantity).toEqual({ current: 3, recalculated: 3 });
 
       await listingAggregates.reset(listing.id, [
         "bookedQuantity",
