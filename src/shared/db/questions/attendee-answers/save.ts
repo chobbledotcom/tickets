@@ -71,7 +71,7 @@ type AttendeeRef = {
 
 const idsRef: AttendeeRef = {
   delete: (attendeeIds) =>
-    deleteFrom(tables.attendee_answers).where({ attendee_id: attendeeIds }),
+    deleteFrom(tables.attendee_answers).where({ attendeeId: attendeeIds }),
   idOf: (attendeeId) => attendeeId,
 };
 
@@ -81,7 +81,7 @@ const bookedRef = (tokenIndex: string): AttendeeRef => {
   const attendee = attendeeByToken(tokenIndex);
   return {
     delete: () =>
-      deleteFrom(tables.attendee_answers).where({ attendee_id: attendee }),
+      deleteFrom(tables.attendee_answers).where({ attendeeId: attendee }),
     idOf: () => attendee,
   };
 };

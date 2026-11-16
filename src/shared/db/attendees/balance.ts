@@ -220,16 +220,16 @@ export const settleAttendeeBalance = async (
     // the expected amount. A mismatched or already-settled balance matches 0
     // rows.
     update(tables.attendees, (attendee) => ({
-      status_id: attendee.status_id,
+      statusId: attendee.statusId,
     })).where(whileOwed()),
     // Lifecycle move: only reservations advance to the paid default. Other
     // statuses are operator-owned and stay put once their balance is cleared.
-    update(tables.attendees, { status_id: paid.id }).where(
+    update(tables.attendees, { statusId: paid.id }).where(
       whileOwed((attendee) =>
         inQuery(
-          attendee.status_id,
+          attendee.statusId,
           from(tables.attendee_statuses)
-            .where({ is_reservation: 1 })
+            .where({ isReservation: 1 })
             .values((status) => status.id),
         ),
       ),

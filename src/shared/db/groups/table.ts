@@ -12,11 +12,11 @@ import { requiredMapValue } from "#fp";
 /** The listing ids in a group, and the reverse listing-to-groups side. */
 export const groupListings = linkTableSide(
   tables.group_listings,
-  "group_id",
-  "listing_id",
+  "groupId",
+  "listingId",
 );
 export const listingGroups = {
-  ...linkTableSide(tables.group_listings, "listing_id", "group_id"),
+  ...linkTableSide(tables.group_listings, "listingId", "groupId"),
   /** Read one of this side's guaranteed batch entries. */
   idsFor: (
     idsByListing: ReadonlyMap<number, number[]>,

@@ -40,10 +40,10 @@ const writeNote = async (
     tables.system_notes,
     {
       created: nowIso(),
-      entity_id: target.id,
-      entity_type: target.kind,
+      entityId: target.id,
+      entityType: target.kind,
       note: await sealNote(type, note),
-      system_name: name === null ? null : storedSystemNoteName(name),
+      systemName: name === null ? null : storedSystemNoteName(name),
       type,
     },
     name === null ? {} : { or: "IGNORE" },
@@ -84,11 +84,11 @@ const notes = () => from(tables.system_notes).as("system_notes");
 /** The columns of a note that is still sealed. */
 const SEALED_NOTE = [
   "id",
-  "entity_type",
-  "entity_id",
+  "entityType",
+  "entityId",
   "type",
   "note",
-  "system_name",
+  "systemName",
   "created",
 ] as const;
 
@@ -98,7 +98,7 @@ const noteRowsWhere = (where: readonly Condition[]): Promise<SystemNoteRow[]> =>
   readRows<SystemNoteRow>(
     notes()
       .where(() => where)
-      .orderBy((note) => [note.entity_id, note.id])
+      .orderBy((note) => [note.entityId, note.id])
       .pick(...SEALED_NOTE),
   );
 

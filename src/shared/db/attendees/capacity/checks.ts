@@ -39,11 +39,11 @@ const subscriptionPlanColumns = (
   plan === undefined
     ? {}
     : {
-        recurring_interval: plan.interval,
-        recurring_price: plan.amount,
-        recurring_tax: plan.tax,
-        subscription_id: plan.id,
-        subscription_status: plan.status,
+        recurringInterval: plan.interval,
+        recurringPrice: plan.amount,
+        recurringTax: plan.tax,
+        subscriptionId: plan.id,
+        subscriptionStatus: plan.status,
       };
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
@@ -78,14 +78,14 @@ export const buildCapacityCheckedInsert = (
   return insertInto(
     tables.listing_attendees,
     {
-      attendee_id: attendeeId,
-      end_at: endAt,
-      listing_id: listingId,
-      order_token: orderToken,
-      package_group_id: packageGroupId,
-      parent_listing_id: parentListingId,
+      attendeeId,
+      endAt,
+      listingId,
+      orderToken,
+      packageGroupId,
+      parentListingId,
       quantity,
-      start_at: startAt,
+      startAt,
       ...subscriptionPlanColumns(booking.subscription),
     },
     conditions.every((condition) => condition === true)
@@ -153,7 +153,7 @@ export const checkListingAvailability = async (
 ): Promise<boolean> => {
   const listing = await getListingWithCount(listingId);
   if (!listing) throw new Error(`Listing not found: ${listingId}`);
-  const checkDate = capacityDateFor(listing.listing_type, date);
+  const checkDate = capacityDateFor(listing.listingType, date);
   return (
     await checkLinesCapacity([
       { date: checkDate, durationDays, listingId, quantity },
@@ -205,8 +205,9 @@ export const checkBatchAvailabilityImpl = async (
       items,
     );
     const listingRows = await queryAll<ListingCapacityRow>(
-      sql`SELECT listing.id, listing.max_attendees, listing.listing_type,
-            listing.booked_quantity as attendee_count
+      sql`SELECT listing.id, listing.max_attendees AS maxAttendees,
+            listing.listing_type AS listingType,
+            listing.booked_quantity AS attendeeCount
        FROM listings AS listing
       WHERE listing.id IN (${sqlList(listingIds)})`,
     );

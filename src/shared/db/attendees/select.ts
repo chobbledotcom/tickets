@@ -77,19 +77,19 @@ export const BOOKING_ROW = bookingRow("listingAttendee");
 
 /** What a booking row tells the refunded projection. */
 export const refundedRowOf = (row: BookingRow): RefundedRowExprs => ({
-  attendeeId: row.attendee_id,
-  eventGroup: row.ledger_event_group,
-  listingId: row.listing_id,
+  attendeeId: row.attendeeId,
+  eventGroup: row.ledgerEventGroup,
+  listingId: row.listingId,
   placeholderWhen: equal(row.quantity, literal(0)),
 });
 
 /** Each side of a refund leg, and the side of the leg it gives back: the
  *  money returns along the same accounts. */
 const MIRRORED_SIDES = [
-  ["source_type", "dest_type"],
-  ["source_id", "dest_id"],
-  ["dest_type", "source_type"],
-  ["dest_id", "source_id"],
+  ["sourceType", "destType"],
+  ["sourceId", "destId"],
+  ["destType", "sourceType"],
+  ["destId", "sourceId"],
 ] as const;
 
 const legExists = (test: LegTest): Expr<boolean> =>
@@ -108,7 +108,7 @@ export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
         equal(leg.kind, literal(KIND.refundSale)),
         onAccount("source", REVENUE, listing)(leg),
         onAccount("dest", ATTENDEE, attendeeId)(leg),
-        equal(leg.reverses_group, eventGroup),
+        equal(leg.reversesGroup, eventGroup),
       );
   const saleCameBack = legExists(saleRefund(listingId));
   // A free line has no sale of its own, so it reads the order as a whole:
@@ -118,16 +118,16 @@ export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
   // plus a booking fee, or a surcharge) must not read refunded off an empty
   // sale set, so the reversal itself is the positive evidence.
   const orderWasReversed = legExists((leg) =>
-    and(isRefund(leg), equal(leg.reverses_group, eventGroup)),
+    and(isRefund(leg), equal(leg.reversesGroup, eventGroup)),
   );
   const unreturnedSale = ledgerLegs()
     .as("unreturned")
     .where((sale) => [
       equal(sale.kind, literal(KIND.sale)),
       onAccount("source", ATTENDEE, attendeeId)(sale),
-      equal(sale.dest_type, literal(REVENUE)),
-      equal(sale.event_group, eventGroup),
-      not(ledgerLegs().as("returned").where(saleRefund(sale.dest_id)).exists()),
+      equal(sale.destType, literal(REVENUE)),
+      equal(sale.eventGroup, eventGroup),
+      not(ledgerLegs().as("returned").where(saleRefund(sale.destId)).exists()),
     ]);
   const orderFullyReturned = not(unreturnedSale.exists());
   const cashCameBack = legExists((leg) =>
@@ -138,17 +138,17 @@ export const refundedForBooking = (row: RefundedRowExprs): Expr<boolean> => {
   );
   const unreturnedChainLeg = from(tables.booking_tax_assessments)
     .join("chain", tables.transfers, (assessment) =>
-      equal(assessment.chain.event_group, assessment.event_group),
+      equal(assessment.chain.eventGroup, assessment.eventGroup),
     )
     .where((assessment) => [
-      equal(assessment.booking_group, eventGroup),
+      equal(assessment.bookingGroup, eventGroup),
       not(isRefund(assessment.chain)),
       not(
         ledgerLegs()
           .as("returned")
           .where((refund) => [
             isRefund(refund),
-            equal(refund.reverses_group, assessment.chain.event_group),
+            equal(refund.reversesGroup, assessment.chain.eventGroup),
             equal(refund.amount, assessment.chain.amount),
             ...MIRRORED_SIDES.map(([back, out]) =>
               equal(refund[back], assessment.chain[out]),
@@ -181,9 +181,9 @@ export const refundedFromLedger = (row: RefundedRowExprs): SqlStatement =>
  * amount without losing a penny.
  */
 export const pricePaidFromLedger = (row: BookingRow): SqlStatement => {
-  const attendeeId = row.attendee_id;
-  const listingId = row.listing_id;
-  const eventGroup = row.ledger_event_group;
+  const attendeeId = row.attendeeId;
+  const listingId = row.listingId;
+  const eventGroup = row.ledgerEventGroup;
   const rowId = row.id;
   const saleTotal = bookingSaleTotalSubquery(attendeeId, listingId, eventGroup);
   const siblingQuantity = (
@@ -192,9 +192,9 @@ export const pricePaidFromLedger = (row: BookingRow): SqlStatement => {
     from(tables.listing_attendees)
       .as("sibling")
       .where((sibling) => [
-        equal(sibling.attendee_id, attendeeId),
-        equal(sibling.listing_id, listingId),
-        equal(sibling.ledger_event_group, eventGroup),
+        equal(sibling.attendeeId, attendeeId),
+        equal(sibling.listingId, listingId),
+        equal(sibling.ledgerEventGroup, eventGroup),
         upTo(sibling),
       ])
       .aggregate((sibling) => orZero(sum(sibling.quantity)));
@@ -384,18 +384,18 @@ const whereConditions = (where: AttendeeWhere): Condition[] => [
   given(where.attendeeIdsSubquery, (chosen) =>
     inStatement(ATTENDEE_ROW.id, chosen),
   ),
-  given(where.listingIds, (ids) => among(BOOKING_ROW.listing_id, ids)),
+  given(where.listingIds, (ids) => among(BOOKING_ROW.listingId, ids)),
   where.realLinesOnly ? greaterThan(BOOKING_ROW.quantity, literal(0)) : true,
   given(where.upcomingFrom, (day) =>
     wholeCondition(
-      sql`(${BOOKING_ROW.start_at} IS NULL OR DATE(${BOOKING_ROW.start_at}) >= ${day})`,
+      sql`(${BOOKING_ROW.startAt} IS NULL OR DATE(${BOOKING_ROW.startAt}) >= ${day})`,
     ),
   ),
   given(where.dailyRange, ({ after, before }) =>
     and(
-      equal(LISTING_ROW.listing_type, literal("daily")),
-      lessThan(BOOKING_ROW.start_at, before),
-      greaterThan(BOOKING_ROW.end_at, after),
+      equal(LISTING_ROW.listingType, literal("daily")),
+      lessThan(BOOKING_ROW.startAt, before),
+      greaterThan(BOOKING_ROW.endAt, after),
     ),
   ),
 ];
@@ -413,12 +413,12 @@ const attendeesWithBookings = (
   const booked: Query<unknown, never> = withLines(
     "listingAttendee",
     tables.listing_attendees,
-    (attendee) => equal(attendee.listingAttendee.attendee_id, attendee.id),
+    (attendee) => equal(attendee.listingAttendee.attendeeId, attendee.id),
   );
   return where.dailyRange === undefined
     ? booked
     : booked.join("listing", tables.listings, (row) =>
-        equal(BOOKING_ROW.listing_id, row.listing.id),
+        equal(BOOKING_ROW.listingId, row.listing.id),
       );
 };
 

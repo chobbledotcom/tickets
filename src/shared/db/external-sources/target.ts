@@ -57,7 +57,7 @@ export const repointExternalLinksStatement = (
   sourceId: number,
   targetId: number,
 ): SqlStatement =>
-  update(tables.external_source_links, { link_id: targetId }).where({
-    link_id: sourceId,
-    link_type: kind,
+  update(tables.external_source_links, { linkId: targetId }).where({
+    linkId: sourceId,
+    linkType: kind,
   });

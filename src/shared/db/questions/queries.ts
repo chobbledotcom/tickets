@@ -31,13 +31,13 @@ import { filter, map, reduce } from "#fp";
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
   tables.listing_questions,
-  "question_id",
-  "listing_id",
+  "questionId",
+  "listingId",
 );
 export const listingQuestions = linkTableSide(
   tables.listing_questions,
-  "listing_id",
-  "question_id",
+  "listingId",
+  "questionId",
 );
 
 /** Every question with its answers. A question with no answer stays. */
@@ -54,20 +54,20 @@ type QuestionNode = NodeOf<QuestionRead>;
 /** The order every question list comes back in: the operator's arrangement,
  *  then each question's answers in theirs. */
 const inQuestionOrder = (question: QuestionNode) => [
-  question.sort_order,
+  question.sortOrder,
   question.id,
-  question.answer.sort_order,
+  question.answer.sortOrder,
 ];
 
 /** The columns of a joined row. */
 const joinedColumns = (question: QuestionNode) => ({
   a_active: question.answer.active,
   a_id: question.answer.id,
-  a_question_id: question.answer.question_id,
-  a_sort_order: question.answer.sort_order,
+  a_question_id: question.answer.questionId,
+  a_sort_order: question.answer.sortOrder,
   a_text: question.answer.text,
-  q_assign_all: question.assign_all,
-  q_display_type: question.display_type,
+  q_assign_all: question.assignAll,
+  q_display_type: question.displayType,
   q_id: question.id,
   q_text: question.text,
 });
@@ -77,7 +77,7 @@ type JoinedRow = Out<ReturnType<typeof joinedColumns>>;
 
 /** The question asks every listing. */
 const asksEveryListing = (question: QuestionNode): Expr<boolean> =>
-  equal(question.assign_all, literal(1));
+  equal(question.assignAll, literal(1));
 
 const joinedRowsOf = (read: QuestionRead) =>
   read.orderBy(inQuestionOrder).select(joinedColumns);
@@ -136,14 +136,14 @@ export const getQuestionsForListing = async (
         questionsWithAnswers()
           .leftJoin("listingQuestion", tables.listing_questions, (question) =>
             and(
-              equal(question.listingQuestion.question_id, question.id),
-              equal(question.listingQuestion.listing_id, listingId),
+              equal(question.listingQuestion.questionId, question.id),
+              equal(question.listingQuestion.listingId, listingId),
             ),
           )
           .where((question) =>
             or(
               asksEveryListing(question),
-              notEqual(question.listingQuestion.listing_id, null),
+              notEqual(question.listingQuestion.listingId, null),
             ),
           ),
       ),
@@ -187,7 +187,7 @@ export const getQuestionsWithListingIds = async (
 
   const assignments = () =>
     from(tables.listing_questions).where((assigned) =>
-      among(assigned.listing_id, listingIds),
+      among(assigned.listingId, listingIds),
     );
   const rows = await queryAll(
     questionsWithAnswers()
@@ -196,16 +196,16 @@ export const getQuestionsWithListingIds = async (
           asksEveryListing(question),
           inQuery(
             question.id,
-            assignments().values((assigned) => assigned.question_id),
+            assignments().values((assigned) => assigned.questionId),
           ),
         ),
       )
       .orderBy(inQuestionOrder)
       .select((question) => {
         const listings = assignments()
-          .where((assigned) => equal(assigned.question_id, question.id))
+          .where((assigned) => equal(assigned.questionId, question.id))
           .scalar((assigned) =>
-            valued<string>(sql`GROUP_CONCAT(${assigned.listing_id})`),
+            valued<string>(sql`GROUP_CONCAT(${assigned.listingId})`),
           );
         return {
           ...joinedColumns(question),

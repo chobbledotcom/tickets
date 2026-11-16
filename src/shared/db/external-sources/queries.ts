@@ -65,18 +65,18 @@ const linkFilter = async (
 ): Promise<Matching<Node<"external_source_links">>> => {
   if (filter.kind === "external") {
     return {
-      external_id_index: await externalLinkIndex(sourceId, filter.externalId),
-      source_id: sourceId,
+      externalIdIndex: await externalLinkIndex(sourceId, filter.externalId),
+      sourceId,
     };
   }
   if (filter.kind === "target") {
     return {
-      link_id: filter.linkId,
-      link_type: filter.linkType,
-      source_id: sourceId,
+      linkId: filter.linkId,
+      linkType: filter.linkType,
+      sourceId,
     };
   }
-  return { source_id: sourceId };
+  return { sourceId };
 };
 
 /** One source's links, oldest first. */
@@ -91,7 +91,7 @@ export const listExternalSourceLinks = async (
 export const listExternalLinksForTarget = (
   target: ExternalLinkTarget,
 ): Promise<ExternalSourceLink[]> =>
-  readRows(linksIdOrder({ link_id: target.id, link_type: target.kind }));
+  readRows(linksIdOrder({ linkId: target.id, linkType: target.kind }));
 
 /** One link found by its external id, with the source that holds it. */
 export type ExternalLinkMatch = {
@@ -119,7 +119,7 @@ export const lookupExternalLinks = async (
   );
   const stored = await readRows(
     from(tables.external_source_links)
-      .where((link) => among(link.external_id_index, indexes))
+      .where((link) => among(link.externalIdIndex, indexes))
       .sortedBy("id")
       .everyColumn(),
   );
@@ -127,8 +127,8 @@ export const lookupExternalLinks = async (
   return stored.map((link) => ({
     link,
     source: requireValue(
-      byId.get(link.source_id),
-      `External source ${link.source_id} is missing`,
+      byId.get(link.sourceId),
+      `External source ${link.sourceId} is missing`,
     ),
   }));
 };
@@ -139,7 +139,7 @@ export const getExternalSourceLink = (
 ): Promise<ExternalSourceLink | null> =>
   records.external_source_links.findWhere({
     id: linkId,
-    source_id: sourceId,
+    sourceId,
   });
 
 /** One link a caller just asked to read or write. Its absence is a broken
@@ -214,15 +214,6 @@ const prepareLinkWrite = async (
   return okResult(input);
 };
 
-/** The columns that a prepared link write stores. */
-const linkColumns = (input: ExternalLinkInput) => ({
-  external_id: input.externalId,
-  external_id_index: input.externalIdIndex,
-  link_id: input.linkId,
-  link_type: input.linkType,
-  source_id: input.sourceId,
-});
-
 /** Run one link write inside the transaction that checks it. The callback
  *  stores the prepared columns and answers with the value to return. */
 const withPreparedLinkWrite = <T>(
@@ -247,7 +238,7 @@ export const createExternalSourceLink = (
     const statement = insertInto(
       tables.external_source_links,
       await encoded(tables.external_source_links, {
-        ...linkColumns(input),
+        ...input,
         created: nowIso(),
       }),
     ).returning("created", "id");
@@ -255,7 +246,7 @@ export const createExternalSourceLink = (
       resultRows(await tx.execute(statement))[0],
       "The external source link insert returned no row",
     );
-    return { ...linkColumns(input), ...row };
+    return { ...input, ...row };
   });
 
 /** Store a changed link. The caller re-reads the row it answers with. Like
@@ -265,14 +256,14 @@ export const updateExternalSourceLink = (
   write: ExternalLinkWrite,
 ): Promise<Result<true>> =>
   withPreparedLinkWrite<true>(
-    link.source_id,
+    link.sourceId,
     write,
     link.id,
     async (tx, input) => {
       await tx.execute(
         update(
           tables.external_source_links,
-          await encoded(tables.external_source_links, linkColumns(input)),
+          await encoded(tables.external_source_links, input),
         ).where({ id: link.id }),
       );
       return true;

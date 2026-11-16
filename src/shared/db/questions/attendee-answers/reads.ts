@@ -231,13 +231,13 @@ export const getAttendeeAnswersByQuestion = async (
   const rows = await readRows(
     from(tables.attendee_answers)
       .join("choice", tables.answers, (given) =>
-        equal(given.choice.id, given.answer_id),
+        equal(given.choice.id, given.answerId),
       )
-      .where({ attendee_id: attendeeId })
+      .where({ attendeeId })
       .select((given) => ({
         answerId: given.choice.id,
         answerText: given.choice.text,
-        questionId: given.choice.question_id,
+        questionId: given.choice.questionId,
       })),
   );
   return new Map(

@@ -43,8 +43,8 @@ export type PendingNotificationSide = "email" | "webhooks";
 
 /** The flag column each side owns. */
 const FLAG_COLUMN = {
-  email: "email_pending",
-  webhooks: "webhooks_pending",
+  email: "emailPending",
+  webhooks: "webhooksPending",
 } as const satisfies Record<PendingNotificationSide, ColumnName<"attendees">>;
 
 /** The change that sets one side's flag. */
@@ -115,8 +115,8 @@ export const claimOutstandingNotificationFlags = async (
     if (claimed.length > 0) {
       await tx.execute(
         update(tables.attendees, {
-          email_pending: PENDING_NOTIFICATION.none,
-          webhooks_pending: PENDING_NOTIFICATION.none,
+          emailPending: PENDING_NOTIFICATION.none,
+          webhooksPending: PENDING_NOTIFICATION.none,
         }).where({ id: attendeeId }),
       );
     }

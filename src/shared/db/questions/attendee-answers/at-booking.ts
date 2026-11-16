@@ -163,10 +163,10 @@ const COMPARED_TEXTS = (() => {
   const booked = tableNode(tables.answers_at_booking, "booked");
   return pickedColumns({
     answer_text: tableNode(tables.answers, "givenChoice").text,
-    booked_answer_text: booked.answer_text,
-    booked_free_text: booked.free_text,
-    booked_question_text: booked.question_text,
-    free_text: tableNode(tables.strings, "givenString").encrypted_text,
+    booked_answer_text: booked.answerText,
+    booked_free_text: booked.freeText,
+    booked_question_text: booked.questionText,
+    free_text: tableNode(tables.strings, "givenString").encryptedText,
     question_text: tableNode(tables.questions, "question").text,
   });
 })();

@@ -52,8 +52,8 @@ const restoreListingContributions = (
 ): SqlStatement[] =>
   contributions.map((row) =>
     update(tables.listings, (listing) => ({
-      booked_quantity: plus(listing.booked_quantity, row.booked_quantity),
-      tickets_count: plus(listing.tickets_count, row.tickets_count),
+      bookedQuantity: plus(listing.bookedQuantity, row.booked_quantity),
+      ticketsCount: plus(listing.ticketsCount, row.tickets_count),
     })).where({ id: row.listing_id }),
   );
 

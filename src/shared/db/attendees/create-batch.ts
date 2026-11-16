@@ -173,8 +173,8 @@ export const writeAsLedgerBatch = async (
     plan.legs.length > 0
       ? [
           update(tables.listing_attendees, {
-            ledger_event_group: plan.bookingGroup,
-          }).where({ attendee_id: attendeeId, ledger_event_group: "" }),
+            ledgerEventGroup: plan.bookingGroup,
+          }).where({ attendeeId, ledgerEventGroup: "" }),
         ]
       : [];
   const assessment = await initialTaxAssessmentStatement(

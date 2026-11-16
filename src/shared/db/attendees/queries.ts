@@ -234,8 +234,8 @@ type LineTest<Listings> = (
 /** The booking rows of an attendee on one listing, or on one of several. */
 const linesOf = (attendeeId: number, listings: number | number[]) =>
   from(tables.listing_attendees).where({
-    attendee_id: attendeeId,
-    listing_id: listings,
+    attendeeId,
+    listingId: listings,
   });
 
 /**
@@ -297,9 +297,7 @@ export const hasPaidLine: LineTest<number[]> = (attendeeId, listingIds) =>
   readExists(
     linesOf(attendeeId, listingIds).where((line) =>
       ledgerLegs()
-        .where(
-          saleLeg(line.attendee_id, line.listing_id, line.ledger_event_group),
-        )
+        .where(saleLeg(line.attendeeId, line.listingId, line.ledgerEventGroup))
         .exists(),
     ),
   );
@@ -384,13 +382,13 @@ export const getAttendeeNamesByIds = async (
   new Map(
     await Promise.all(
       (await readRows(sealedContactsOf(ids))).map(
-        async ({ id, pii_blob }) =>
+        async ({ id, piiBlob }) =>
           [
             id,
             // A stored attendee always holds owner-key ciphertext.
             (
               await decryptPiiBlob(
-                pii_blob as OwnerKeyEncrypted,
+                piiBlob as OwnerKeyEncrypted,
                 privateKey,
                 false,
               )

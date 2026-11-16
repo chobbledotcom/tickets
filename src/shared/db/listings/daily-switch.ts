@@ -40,7 +40,7 @@ export interface AssignPlan {
  * booking on that date spans. */
 export const wouldBeStaySpanDays = (input: ListingInput): number => {
   const fields = dayPriceFieldsFromInput(input);
-  return fields.customisable_days ? 1 : fields.duration_days;
+  return fields.customisableDays ? 1 : fields.durationDays;
 };
 
 /** One undated booking of a listing: its row key and the places it holds. */
@@ -58,9 +58,9 @@ const storedTypeTx = async (
   listingId: number,
 ): Promise<string> => {
   const results = await tx.batch([
-    records.listings.byId(listingId).pick("listing_type"),
+    records.listings.byId(listingId).pick("listingType"),
   ]);
-  return resultRows<{ listing_type: string }>(results[0]!)[0]!.listing_type;
+  return resultRows<{ listingType: string }>(results[0]!)[0]!.listingType;
 };
 
 /** The rows that block a switch: a booking whose day nobody set and whose

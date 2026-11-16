@@ -57,7 +57,7 @@ export const moveTickets = (
       await tx.batch(
         changed.map((line) =>
           update(tables.listing_attendees, {
-            checked_in: line.checked_in,
+            checkedIn: line.checked_in,
           }).where({ id: line.id }),
         ),
       );
@@ -71,8 +71,8 @@ export const incrementAttachmentDownloads = async (
 ): Promise<void> => {
   await execute(
     update(tables.listing_attendees, (line) => ({
-      attachment_downloads: plus(line.attachment_downloads, 1),
-    })).where({ attendee_id: attendeeId, listing_id: listingId }),
+      attachmentDownloads: plus(line.attachmentDownloads, 1),
+    })).where({ attendeeId, listingId: listingId }),
   );
 };
 
@@ -102,12 +102,12 @@ export const recomputeListingBookingRanges = async (
   const duration = clampDurationDays(durationDays);
   await execute(
     update(tables.listing_attendees, (line) => ({
-      end_at: valued<string>(
-        sql`REPLACE(datetime(${line.start_at}, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'`,
+      endAt: valued<string>(
+        sql`REPLACE(datetime(${line.startAt}, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'`,
       ),
     })).where((line) => [
-      equal(line.listing_id, listingId),
-      notEqual(line.start_at, null),
+      equal(line.listingId, listingId),
+      notEqual(line.startAt, null),
     ]),
   );
 };
@@ -232,10 +232,8 @@ export const checkGroupCapAfterDurationChange = async (
   listingId: number,
   groupId: number,
 ): Promise<string | null> => {
-  const cap = await queryAll(
-    records.groups.byId(groupId).pick("max_attendees"),
-  );
-  const groupLimit = cap[0]!.max_attendees;
+  const cap = await queryAll(records.groups.byId(groupId).pick("maxAttendees"));
+  const groupLimit = cap[0]!.maxAttendees;
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<GroupBookingRow>(

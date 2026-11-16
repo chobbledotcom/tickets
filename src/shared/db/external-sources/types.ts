@@ -9,6 +9,7 @@
 
 import * as v from "valibot";
 import type { BlindIndex } from "#crypto/sealed.ts";
+import type { DecodedRowOf } from "#db/select/tables.ts";
 
 /** The kinds of record a link can point at. */
 export const ExternalLinkKindSchema = v.picklist([
@@ -54,14 +55,9 @@ export const ExternalUrlPatternSchema = v.pipe(
   ),
 );
 
-/** A stored source, opened for an admin. `url_pattern` is the source's own
+/** A stored source, opened for an admin. `urlPattern` is the source's own
  *  address format for one external id. */
-export type ExternalSource = {
-  created: string;
-  id: number;
-  name: string;
-  url_pattern: string;
-};
+export type ExternalSource = DecodedRowOf<"external_sources">;
 
 /** The fields a source write carries. */
 export type ExternalSourceInput = {
@@ -69,18 +65,10 @@ export type ExternalSourceInput = {
   urlPattern: string;
 };
 
-/** A stored link, opened for an admin. `external_id_index` is the blind index
+/** A stored link, opened for an admin. `externalIdIndex` is the blind index
  *  that finds the row without decrypting, so it never reaches a response. A
  *  link made before the other system named the record holds no id. */
-export type ExternalSourceLink = {
-  created: string;
-  external_id: string | null;
-  external_id_index: BlindIndex | null;
-  id: number;
-  link_id: number;
-  link_type: ExternalLinkKind;
-  source_id: number;
-};
+export type ExternalSourceLink = DecodedRowOf<"external_source_links">;
 
 /** One link a caller asks to store. An absent external id means the other
  *  system has not named the record yet. */

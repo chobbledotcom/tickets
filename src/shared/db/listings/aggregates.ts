@@ -40,11 +40,11 @@ export const getListingAggregateRecalculation = async (
   );
   return {
     booked_quantity: {
-      current: listing.attendee_count,
+      current: listing.attendeeCount,
       recalculated: row.booked_quantity,
     },
     tickets_count: {
-      current: listing.tickets_count,
+      current: listing.ticketsCount,
       recalculated: row.tickets_count,
     },
   };
@@ -59,8 +59,8 @@ export const adjustListingIncome = (
 /** Write the operator's typed listing aggregates, or rebuild chosen ones from
  * the booking rows they count. */
 export const listingAggregates = aggregateRepairs(tables.listings, {
-  booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
-  tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
+  bookedQuantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
+  ticketsCount: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(
     sql`listingAttendee.quantity`,
     sql`listingAttendee.attendee_id`,
   )})`,

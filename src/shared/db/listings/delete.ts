@@ -17,15 +17,15 @@ export const deleteListing = async (
   listingId: number,
   tx?: TxScope,
 ): Promise<void> => {
-  const ofListing = { listing_id: listingId };
+  const ofListing = { listingId };
   const statements: SqlStatement[] = [
     deleteFrom(tables.listing_attendees).where(ofListing),
     deleteFrom(tables.listing_questions).where(ofListing),
     deleteFrom(tables.listing_attribute_options).where(ofListing),
     deleteFrom(tables.listing_parents).where((link) =>
       or(
-        equal(link.parent_listing_id, listingId),
-        equal(link.child_listing_id, listingId),
+        equal(link.parentListingId, listingId),
+        equal(link.childListingId, listingId),
       ),
     ),
     deleteFrom(tables.group_listings).where(ofListing),

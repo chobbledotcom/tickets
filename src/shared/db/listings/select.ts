@@ -54,7 +54,7 @@ const storedListingColumns = (): SqlStatement => {
        COALESCE((SELECT json_group_object(listingPrice.price_id, listingPrice.unit_price)
          FROM listing_prices AS listingPrice
          WHERE listingPrice.listing_id = ${idExpression}
-           AND listingPrice.price_type = 'day_count'), '{}') AS day_prices,
+           AND listingPrice.price_type = 'day_count'), '{}') AS dayPrices,
        ${imageFilenameSubqueries("listing", idExpression)}`;
 };
 
@@ -64,7 +64,7 @@ const storedListingColumns = (): SqlStatement => {
  * marks the read with {@link decodedListingRead}. */
 export const listingColumns = (): SqlStatement =>
   sql`${storedListingColumns()},
-       listing.booked_quantity AS attendee_count`;
+       listing.booked_quantity AS attendeeCount`;
 
 /**
  * A declarative filter for a listing read. Each present field adds one WHERE
@@ -104,8 +104,8 @@ const MEMBERSHIP_ROW = tableNode(tables.group_listings, "groupListing");
 
 const whereConditions = (where: ListingWhere): Condition[] => [
   given(where.ids, (ids) => among(LISTING_ROW.id, ids)),
-  given(where.slugIndexes, (indexes) => among(LISTING_ROW.slug_index, indexes)),
-  given(where.inGroups, (groups) => among(MEMBERSHIP_ROW.group_id, groups)),
+  given(where.slugIndexes, (indexes) => among(LISTING_ROW.slugIndex, indexes)),
+  given(where.inGroups, (groups) => among(MEMBERSHIP_ROW.groupId, groups)),
   where.activeOnly ? equal(LISTING_ROW.active, literal(1)) : true,
 ];
 
@@ -139,7 +139,7 @@ const listingStatement = (query: GetListingsQuery): SqlStatement => {
           .orderBy(() => order)
           .columns(
             (member) =>
-              sql`json_group_array(${member.group_id}) AS group_ids, ${listingColumns()}`,
+              sql`json_group_array(${member.groupId}) AS group_ids, ${listingColumns()}`,
           ),
   );
 };
@@ -157,9 +157,9 @@ export const listingReader = {
  * inherited defaults are overlaid. */
 export type ListingRecordRow = DecodedRowOf<"listings"> &
   SealedItemImages &
-  Pick<ListingWithCount, "attendee_count"> & {
+  Pick<ListingWithCount, "attendeeCount"> & {
     cost: number | bigint;
-    day_prices: string;
+    dayPrices: string;
     income: number | bigint;
   };
 

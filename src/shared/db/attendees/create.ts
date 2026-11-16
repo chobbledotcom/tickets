@@ -53,13 +53,13 @@ export const buildAttendeeInsert = (
 ): SqlStatement =>
   insertInto(tables.attendees, {
     created: enc.created,
-    email_pending: order.emailPending ?? PENDING_NOTIFICATION.none,
+    emailPending: order.emailPending ?? PENDING_NOTIFICATION.none,
     kind: order.kind ?? ATTENDEE_KIND,
-    pii_blob: enc.encryptedPiiBlob,
-    pii_payment_session_id: piiPaymentSessionId,
-    status_id: order.statusId,
-    ticket_token_index: enc.ticketTokenIndex,
-    webhooks_pending: order.webhooksPending ?? PENDING_NOTIFICATION.none,
+    piiBlob: enc.encryptedPiiBlob,
+    piiPaymentSessionId,
+    statusId: order.statusId,
+    ticketTokenIndex: enc.ticketTokenIndex,
+    webhooksPending: order.webhooksPending ?? PENDING_NOTIFICATION.none,
   });
 
 const contactInfoFromInput = (input: AttendeeInput): ContactInfo => ({

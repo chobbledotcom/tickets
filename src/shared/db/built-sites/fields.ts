@@ -1,4 +1,5 @@
 import type { RecordChanges } from "#db/record-table.ts";
+import type { DecodedRowOf } from "#db/select/tables.ts";
 import type {
   BuiltSite,
   BuiltSitePlainFields,
@@ -10,17 +11,15 @@ import type {
 const passthrough = <T>(value: T): T => value;
 const nullable = <T>(value: T | null): T | null => value ?? null;
 
+/** A field that the site and its stored row both name. */
+type PlainKey = keyof BuiltSite & keyof DecodedRowOf<"built_sites"> & string;
+
 /** A plain column that stores the value of the site through `convert`, the
  *  same way in both directions. */
-const plainColumn = <
-  DbKey extends string,
-  SiteKey extends keyof BuiltSite & string,
-  Value,
->(
-  dbKey: DbKey,
+const plainColumn = <SiteKey extends PlainKey, Value>(
   siteKey: SiteKey,
   convert: (value: Value) => Value,
-) => ({ dbKey, fromRow: convert, siteKey, toInput: convert });
+) => ({ fromRow: convert, siteKey, toInput: convert });
 
 /** The app↔db mappings every 0/1 boolean column shares. */
 const boolFlagMappings = {
@@ -30,21 +29,16 @@ const boolFlagMappings = {
 
 export const builtSitePlainColumns = [
   {
-    dbKey: "assignable",
     ...boolFlagMappings,
-    siteKey: "assignable",
+    siteKey: "assignable" satisfies PlainKey,
   },
-  plainColumn("assigned_attendee_id", "assignedAttendeeId", nullable<number>),
-  plainColumn("assigned_listing_id", "assignedListingId", nullable<number>),
-  plainColumn(
-    "database_key_rotation_started",
-    "databaseKeyRotationStarted",
-    passthrough<number>,
-  ),
-  plainColumn("read_only_from", "readOnlyFrom", passthrough<string>),
-  plainColumn("renewal_token_index", "renewalTokenIndex", nullable<string>),
-  plainColumn("site_data_revision", "siteDataRevision", passthrough<number>),
-  plainColumn("updates", "updates", passthrough<UpdateTier>),
+  plainColumn("assignedAttendeeId", nullable<number>),
+  plainColumn("assignedListingId", nullable<number>),
+  plainColumn("databaseKeyRotationStarted", passthrough<number>),
+  plainColumn("readOnlyFrom", passthrough<string>),
+  plainColumn("renewalTokenIndex", nullable<string>),
+  plainColumn("siteDataRevision", passthrough<number>),
+  plainColumn("updates", passthrough<UpdateTier>),
 ] as const;
 
 /** One field of the site data blob. It names its short key in the blob and the
@@ -78,6 +72,6 @@ export const plainColumnValues = (
     builtSitePlainColumns.flatMap((column) => {
       if (!Object.hasOwn(input, column.siteKey)) return [];
       const value = input[column.siteKey] as never;
-      return [[column.dbKey, column.toInput(value)]];
+      return [[column.siteKey, column.toInput(value)]];
     }),
   ) as RecordChanges<"built_sites">;

@@ -63,12 +63,12 @@ const noQuantityResetColumns = (
 ): Changes<"listing_attendees"> =>
   quantity === 0
     ? {
-        end_agent_id: null,
-        end_done: 0,
-        end_time: "",
-        start_agent_id: null,
-        start_done: 0,
-        start_time: "",
+        endAgentId: null,
+        endDone: 0,
+        endTime: "",
+        startAgentId: null,
+        startDone: 0,
+        startTime: "",
       }
     : {};
 
@@ -238,10 +238,10 @@ export const updateStatementFor = (
   const { startAt, endAt } = lineRange(line);
   // A smaller quantity also lowers the admitted count, so it never exceeds it.
   const changes = update(tables.listing_attendees, (row) => ({
-    checked_in: valued<number>(sql`MIN(${row.checked_in}, ${line.quantity})`),
-    end_at: endAt,
+    checkedIn: valued<number>(sql`MIN(${row.checkedIn}, ${line.quantity})`),
+    endAt,
     quantity: line.quantity,
-    start_at: startAt,
+    startAt,
     ...noQuantityResetColumns(line.quantity),
   }));
   const slot = inBookingSlot(attendeeId, {

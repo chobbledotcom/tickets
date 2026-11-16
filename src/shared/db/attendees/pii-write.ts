@@ -17,7 +17,7 @@ export const attendeePiiWriteStatements = async (
     settings.publicKey,
   );
   return [
-    update(tables.attendees, { pii_blob: encryptedPiiBlob }).where({
+    update(tables.attendees, { piiBlob: encryptedPiiBlob }).where({
       id: attendeeId,
     }),
   ];

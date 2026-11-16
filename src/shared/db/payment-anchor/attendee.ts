@@ -71,13 +71,13 @@ export const prepareClaimedAttendeePaymentAnchor = async (
       statement: insertInto(
         tables.processed_payments,
         {
-          attendee_id: attendeeId,
-          failure_data: state.failureData,
-          payment_reference: stored.encrypted,
-          payment_reference_index: stored.index,
-          payment_session_id: sessionId,
-          processed_at: heldSince,
-          protected_state: state.protectedState,
+          attendeeId,
+          failureData: state.failureData,
+          paymentReference: stored.encrypted,
+          paymentReferenceIndex: stored.index,
+          paymentSessionId: sessionId,
+          processedAt: heldSince,
+          protectedState: state.protectedState,
         },
         {
           when: and(
@@ -86,8 +86,8 @@ export const prepareClaimedAttendeePaymentAnchor = async (
               from(tables.processed_payments)
                 .as("payment")
                 .where({
-                  attendee_id: attendeeId,
-                  payment_reference_index: matchingIndexes,
+                  attendeeId,
+                  paymentReferenceIndex: matchingIndexes,
                 })
                 .exists(),
             ),

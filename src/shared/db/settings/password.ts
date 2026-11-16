@@ -51,9 +51,9 @@ export const updateUserPassword = async (
   );
   await execute(
     update(tables.users, {
-      kek_version: 2,
-      password_hash: encryptedNewHash,
-      wrapped_data_key: newWrappedDataKey,
+      kekVersion: 2,
+      passwordHash: encryptedNewHash,
+      wrappedDataKey: newWrappedDataKey,
     }).where({ id: userId }),
   );
   await deleteAllSessions();

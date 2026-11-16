@@ -21,19 +21,19 @@ const paidAttendeeOf = (sessionId: string): Expr<number | null> =>
   from(tables.processed_payments)
     .as("payment")
     .where((payment) => [
-      equal(payment.payment_session_id, sessionId),
-      notEqual(payment.attendee_id, null),
-      notEqual(payment.payment_reference, literal("")),
-      notEqual(payment.payment_reference_index, literal("")),
+      equal(payment.paymentSessionId, sessionId),
+      notEqual(payment.attendeeId, null),
+      notEqual(payment.paymentReference, literal("")),
+      notEqual(payment.paymentReferenceIndex, literal("")),
     ])
-    .scalar((payment) => payment.attendee_id);
+    .scalar((payment) => payment.attendeeId);
 
 /** Qualify one session as the provenance pointer for the attendee it paid.
  * Both the booking-time write and the legacy rebuild run this same rule. */
 export const provenancePointerStatement = (sessionId: string): SqlStatement =>
-  update(tables.attendees, { pii_payment_session_id: sessionId }).where(
+  update(tables.attendees, { piiPaymentSessionId: sessionId }).where(
     (attendee) => [
-      equal(attendee.pii_payment_session_id, null),
+      equal(attendee.piiPaymentSessionId, null),
       equal(paidAttendeeOf(sessionId), attendee.id),
     ],
   );

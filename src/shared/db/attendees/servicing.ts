@@ -674,12 +674,12 @@ export const recordServiceCost = async (
         tables.service_costs,
         {
           created: nowIso(),
-          listing_id: input.listingId,
+          listingId: input.listingId,
           memo: encryptedMemo,
-          occurred_at: input.occurredAt,
-          servicing_attendee_id: input.servicingId,
+          occurredAt: input.occurredAt,
+          servicingAttendeeId: input.servicingId,
           // The guard keeps the one transfer of this unique reference.
-          transfer_id: valued<number>(posted.scalar((leg) => leg.id)),
+          transferId: valued<number>(posted.scalar((leg) => leg.id)),
         },
         { or: "IGNORE", when: posted.exists() },
       ),

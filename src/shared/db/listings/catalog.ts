@@ -25,11 +25,7 @@ export type ListingOption = Pick<
 
 export type ListingOfferFlags = Pick<
   Listing,
-  | "active"
-  | "assign_built_site"
-  | "hidden"
-  | "months_per_unit"
-  | "purchase_only"
+  "active" | "assignBuiltSite" | "hidden" | "monthsPerUnit" | "purchaseOnly"
 >;
 
 type ListingPickerRow = ListingOfferFlags & { name: string };
@@ -37,10 +33,10 @@ type ListingPickerRow = ListingOfferFlags & { name: string };
 /** The columns that decide whether one listing can be offered. */
 const OFFER_FLAG_COLUMNS = [
   "active",
-  "assign_built_site",
+  "assignBuiltSite",
   "hidden",
-  "months_per_unit",
-  "purchase_only",
+  "monthsPerUnit",
+  "purchaseOnly",
 ] as const;
 
 /** Every listing in id order. */
@@ -76,8 +72,8 @@ const catalogVisible = (hiddenDefault: boolean | undefined): Expr<boolean> => {
   const shown = equal(LISTING_ROW.hidden, literal(0));
   if (hiddenDefault === undefined) return shown;
   const inheriting = and(
-    equal(LISTING_ROW.use_defaults, literal(1)),
-    equal(LISTING_ROW.months_per_unit, literal(0)),
+    equal(LISTING_ROW.useDefaults, literal(1)),
+    equal(LISTING_ROW.monthsPerUnit, literal(0)),
   );
   return hiddenDefault ? and(shown, not(inheriting)) : or(inheriting, shown);
 };
@@ -90,16 +86,14 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
         equal(LISTING_ROW.active, literal(1)),
         // A built-site plan is booked on its own checkout page, so the external
         // order widget — which cannot carry the site-setup flow — never lists it.
-        equal(LISTING_ROW.assign_built_site, literal(0)),
+        equal(LISTING_ROW.assignBuiltSite, literal(0)),
         catalogVisible(settings.listingDefaults.hidden),
         // A child listing is only offered on its own when it says it can be.
         or(
-          equal(LISTING_ROW.bookable_alone, literal(1)),
+          equal(LISTING_ROW.bookableAlone, literal(1)),
           notInQuery(
             LISTING_ROW.id,
-            from(tables.listing_parents).values(
-              (edge) => edge.child_listing_id,
-            ),
+            from(tables.listing_parents).values((edge) => edge.childListingId),
           ),
         ),
       ])
@@ -107,10 +101,10 @@ export const getCatalogListings = async (): Promise<CatalogSourceListing[]> => {
         "id",
         "slug",
         "name",
-        "unit_price",
-        "listing_type",
-        "customisable_days",
-        "can_pay_more",
+        "unitPrice",
+        "listingType",
+        "customisableDays",
+        "canPayMore",
       ),
   );
   return rows.map((row) => ({

@@ -63,7 +63,7 @@ export const claimBuiltSiteStatement = (
     assignable: 0,
     assigned_attendee_id: attendeeId,
     assigned_listing_id: listingId,
-    site_data_revision: plus(site.site_data_revision, 1),
+    site_data_revision: plus(site.siteDataRevision, 1),
   })).where((site) => [
     equal(site.assignable, 1),
     equal(site.id, firstAssignableCandidate(candidateIds)),

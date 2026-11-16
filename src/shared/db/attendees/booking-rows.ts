@@ -18,10 +18,7 @@ type BookingTest = (row: Node<"listing_attendees">) => Condition[];
 /** The test that keeps the rows of the attendee on the listing. */
 export const attendeeListingRows =
   (attendeeId: number, listingId: number): BookingTest =>
-  (row) => [
-    equal(row.attendee_id, attendeeId),
-    equal(row.listing_id, listingId),
-  ];
+  (row) => [equal(row.attendeeId, attendeeId), equal(row.listingId, listingId)];
 
 /** The test that keeps the row of the attendee in the slot of `booking`. A
  *  listing booked through several paths has one row in each slot. */
@@ -29,9 +26,9 @@ export const inBookingSlot =
   (attendeeId: number, booking: BookingSlot): BookingTest =>
   (row) => [
     ...attendeeListingRows(attendeeId, booking.listing_id)(row),
-    equal(row.package_group_id, booking.package_group_id),
-    equal(row.parent_listing_id, booking.parent_listing_id),
-    equal(row.start_at, booking.start_at),
+    equal(row.packageGroupId, booking.package_group_id),
+    equal(row.parentListingId, booking.parent_listing_id),
+    equal(row.startAt, booking.start_at),
   ];
 
 /** The delete of the attendee's row in the slot of `booking`, and of no other

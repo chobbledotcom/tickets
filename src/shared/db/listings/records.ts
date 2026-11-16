@@ -55,10 +55,10 @@ const dayPricesJson = json(DayPricesSchema, "listings.day_prices");
 /** Open the projected values of a listing read and work out its profit. */
 const decryptStoredListingWithCount = async ({
   cost,
-  day_prices,
-  image_alt_text,
-  image_thumb_url,
-  image_url,
+  dayPrices,
+  imageAltText,
+  imageThumbUrl,
+  imageUrl,
   income,
   ...stored
 }: ListingRecordRow): Promise<ListingWithCount> => {
@@ -67,14 +67,14 @@ const decryptStoredListingWithCount = async ({
   return {
     ...stored,
     ...(await openItemImages(
-      { image_alt_text, image_thumb_url, image_url },
+      { imageAltText, imageThumbUrl, imageUrl },
       `listing ${stored.id}`,
     )),
     cost: costAmount,
-    day_prices: await dayPricesJson.decode(day_prices, stored.id),
+    dayPrices: await dayPricesJson.decode(dayPrices, stored.id),
     income: incomeAmount,
     profit: incomeAmount - costAmount,
-    tickets_count: Number(stored.tickets_count),
+    ticketsCount: Number(stored.ticketsCount),
   };
 };
 
@@ -126,7 +126,7 @@ const listingsCache = tableCache(
     fetchByKeys: (slugIndexes) =>
       getListingsWithCounts({ slugIndexes: slugIndexes as BlindIndex[] }),
     idOf: (listing) => listing.id,
-    keyOf: (listing) => listing.slug_index,
+    keyOf: (listing) => listing.slugIndex,
     ttlMs: LISTINGS_CACHE_TTL_MS,
   }),
   [
@@ -141,9 +141,9 @@ const listingsCache = tableCache(
   ],
 );
 const EMPTY_LISTING_IMAGE: ItemImageColumns = {
-  image_alt_text: "",
-  image_thumb_url: "",
-  image_url: "",
+  imageAltText: "",
+  imageThumbUrl: "",
+  imageUrl: "",
 };
 
 const withDayPrices = async (
@@ -151,11 +151,11 @@ const withDayPrices = async (
   provided: DayPrices | undefined,
   projectedImage?: ItemImageColumns,
 ): Promise<Listing> => {
-  const [day_prices, imageFilenames] = await Promise.all([
+  const [dayPrices, imageFilenames] = await Promise.all([
     provided ?? getListingDayPrices(row.id),
     projectedImage ?? getImageFilenamesForItem("listing", row.id),
   ]);
-  return { ...row, ...imageFilenames, day_prices };
+  return { ...row, ...imageFilenames, dayPrices };
 };
 
 /** The values of a new listing from the form input. */

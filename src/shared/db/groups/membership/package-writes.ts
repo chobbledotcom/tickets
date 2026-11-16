@@ -23,7 +23,7 @@ import { listingGroups } from "#db/groups/table.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
 import { removeGroupPricesStatement } from "#db/listing-prices.ts";
 import { records } from "#db/record-table.ts";
-import { tables } from "#db/select/tables.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   refusingTheWriteOn,
@@ -95,10 +95,10 @@ const requireNotSoldHiddenPackageTx = async (
   }
 };
 
-export type PackageFlags = {
-  hide_package_listings: boolean;
-  is_package: boolean;
-};
+export type PackageFlags = Pick<
+  DecodedRowOf<"groups">,
+  "hidePackageListings" | "isPackage"
+>;
 
 /** Reads only the flags that package write guards need. */
 export const readPackageFlagsTxOrNull = async (
@@ -107,7 +107,7 @@ export const readPackageFlagsTxOrNull = async (
 ): Promise<PackageFlags | null> =>
   resultRows(
     await tx.execute(
-      records.groups.byId(id).pick("is_package", "hide_package_listings"),
+      records.groups.byId(id).pick("isPackage", "hidePackageListings"),
     ),
   )[0] ?? null;
 
@@ -124,7 +124,7 @@ const requirePackageGuardsTx = async (
 ): Promise<void> => {
   await requirePackageGroupMembersTx(tx, groupId, judgeStoredQuantities);
   const wasHiddenPackage =
-    flags?.is_package === true && flags.hide_package_listings === true;
+    flags?.isPackage === true && flags.hidePackageListings === true;
   await requireNotSoldHiddenPackageTx(
     tx,
     groupId,
@@ -170,7 +170,7 @@ const groupListingAssignmentStatements = (
   listingIds.map((listingId) =>
     insertInto(
       tables.group_listings,
-      { group_id: groupId, listing_id: listingId },
+      { groupId, listingId: listingId },
       {
         or: "IGNORE",
         when: records.listings.byId(listingId).exists(),
@@ -276,8 +276,8 @@ export const removeListingsFromGroup: MembershipWrite = membershipWrite(
     if (orphanError) return orphanError;
     await tx.batch([
       deleteFrom(tables.group_listings).where({
-        group_id: groupId,
-        listing_id: ids,
+        groupId,
+        listingId: ids,
       }),
       ...compact([removeGroupPricesStatement(ids, [groupId])]),
     ]);

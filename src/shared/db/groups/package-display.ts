@@ -18,7 +18,7 @@ export type PackageDisplay = { name: string; hideListings: boolean };
 /** The sold booking rows that hold the package id of this group. */
 const soldPackageLines = (groupId: number) =>
   from(tables.listing_attendees)
-    .where({ package_group_id: groupId })
+    .where({ packageGroupId: groupId })
     .where((line) => greaterThan(line.quantity, 0));
 
 /** Whether any sold booking still holds this group's package id. */
@@ -43,14 +43,14 @@ export const getPackageDisplaysByIds = async (
   const packageGroups = await readRows(
     groupsAmong(
       [...new Set(groupIds)].filter((groupId) => groupId > 0),
-      (group) => equal(group.is_package, 1),
-    ).pick("id", "hide_package_listings", "name"),
+      (group) => equal(group.isPackage, 1),
+    ).pick("id", "hidePackageListings", "name"),
   );
   return new Map(
     packageGroups.map((group) => [
       group.id,
       {
-        hideListings: group.hide_package_listings,
+        hideListings: group.hidePackageListings,
         name: group.name,
       },
     ]),

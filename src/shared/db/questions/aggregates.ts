@@ -42,9 +42,9 @@ export const {
 } = onReplicaAndPrimary(
   (questionIds: number[]) =>
     from(tables.answers)
-      .where({ question_id: questionIds })
-      .pick("id", "times_selected"),
-  fieldById("times_selected"),
+      .where({ questionId: questionIds })
+      .pick("id", "timesSelected"),
+  fieldById("timesSelected"),
 );
 
 /** The answer's stored times_selected together with the value it would hold if
@@ -67,7 +67,7 @@ export const getAnswerAggregateRecalculation = async (
 /** Write the operator's typed selection total, or rebuild it from the actual
  * attendee_answers rows. */
 export const answerAggregates = aggregateRepairs(tables.answers, {
-  times_selected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
+  timesSelected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
 });
 
 /** Get the price-modifier id a single answer triggers, or null when it has
@@ -76,10 +76,8 @@ export const answerAggregates = aggregateRepairs(tables.answers, {
 export const getAnswerModifierId = async (
   answerId: number,
 ): Promise<number | null> => {
-  const row = await queryOne(
-    records.answers.byId(answerId).pick("modifier_id"),
-  );
-  return row?.modifier_id ?? null;
+  const row = await queryOne(records.answers.byId(answerId).pick("modifierId"));
+  return row?.modifierId ?? null;
 };
 
 /** Point a single answer at an "answer"-trigger modifier, or clear the link
@@ -89,7 +87,5 @@ export const setAnswerModifier = async (
   answerId: number,
   modifierId: number | null,
 ): Promise<void> => {
-  await execute(
-    update(tables.answers, { modifier_id: modifierId }).where({ id: answerId }),
-  );
+  await execute(update(tables.answers, { modifierId }).where({ id: answerId }));
 };

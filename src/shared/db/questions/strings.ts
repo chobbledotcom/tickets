@@ -43,9 +43,9 @@ export type StringIdByText = Map<string, number>;
  */
 export const pairStringIds = (
   rows: readonly { text: string; textIndex: string }[],
-  found: readonly { id: number; text_index: string }[],
+  found: readonly { id: number; textIndex: string }[],
 ): StringIdByText => {
-  const idByIndex = new Map(found.map((row) => [row.text_index, row.id]));
+  const idByIndex = new Map(found.map((row) => [row.textIndex, row.id]));
   return new Map(
     rows.map((row) => {
       const id = idByIndex.get(row.textIndex);
@@ -107,8 +107,8 @@ export const internWriteStatements = (
       tables.strings,
       rows.map((row) => ({
         created,
-        encrypted_text: row.encrypted,
-        text_index: row.textIndex,
+        encryptedText: row.encrypted,
+        textIndex: row.textIndex,
       })),
       { or: "IGNORE" },
     ),
@@ -119,7 +119,7 @@ export const internWriteStatements = (
     // only thing that removes strings). Refreshing a row that is reused now —
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
-    update(tables.strings, { created }).where({ text_index: indexes }),
+    update(tables.strings, { created }).where({ textIndex: indexes }),
   ];
 };
 
@@ -140,11 +140,9 @@ export const internStringRows = async (
   const indexes = textIndexes(rows);
   const selectResult = await runInternStatements([
     ...internWriteStatements(rows),
-    from(tables.strings)
-      .where({ text_index: indexes })
-      .pick("id", "text_index"),
+    from(tables.strings).where({ textIndex: indexes }).pick("id", "textIndex"),
   ]);
-  const found = resultRows<{ id: number; text_index: string }>(selectResult);
+  const found = resultRows<{ id: number; textIndex: string }>(selectResult);
   return pairStringIds(rows, found);
 };
 

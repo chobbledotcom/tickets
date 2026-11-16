@@ -26,16 +26,16 @@ const CANDIDATE_COLUMNS = [
   "name",
   "active",
   "date",
-  "listing_type",
-  "bookable_days",
-  "customisable_days",
-  "duration_days",
-  "minimum_days_before",
-  "maximum_days_after",
+  "listingType",
+  "bookableDays",
+  "customisableDays",
+  "durationDays",
+  "minimumDaysBefore",
+  "maximumDaysAfter",
   // The form sorts daily listings by their next bookable date, which reads the
   // three availability fields above — all inheritable, so the row carries the
   // inheritance flag and the site settings are applied before it is returned.
-  "use_defaults",
+  "useDefaults",
 ] as const;
 
 /**
@@ -47,8 +47,8 @@ export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
   const memberIds = from(tables.group_listings)
-    .where((member) => equal(member.group_id, groupId))
-    .values((member) => member.listing_id);
+    .where((member) => equal(member.groupId, groupId))
+    .values((member) => member.listingId);
   const rows = await readRows(
     from(tables.listings)
       .where((listing) => notInQuery(listing.id, memberIds))
@@ -58,7 +58,7 @@ export const getListingsNotInGroup = async (
   return rows.map((row) => {
     // The flag has done its job once the settings are applied; leaving it on the
     // candidate would invite a second, pointless overlay.
-    const { use_defaults: _resolved, ...candidate } = resolveListingDefaults(
+    const { useDefaults: _resolved, ...candidate } = resolveListingDefaults(
       resolveListingDate(row),
       settings.listingDefaults,
       settings.features.logistics,
