@@ -52,14 +52,9 @@ describe("subscription machine", () => {
     ]);
   });
 
-  test("moves a live row by the status Stripe reports", () => {
-    expect([
-      checkedStatusNode("trialing", "active"),
-      checkedStatusNode("past_due", "canceled"),
-    ]).toEqual(["live", "ended"]);
-  });
-
-  test("refuses to check a subscription that already ended", () => {
+  test("moves a live row by the status Stripe reports, and refuses an ended row", () => {
+    expect(checkedStatusNode("trialing", "active")).toBe("live");
+    expect(checkedStatusNode("past_due", "canceled")).toBe("ended");
     expect(() => checkedStatusNode("canceled", "active")).toThrow(
       "A canceled subscription refuses the scheduled check",
     );

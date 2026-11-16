@@ -241,9 +241,9 @@ fingerprint. The ratchet accepts those places while the baseline's total falls.
 A baseline whose total rises still fails.
 
 Each TypeScript scan skips import and re-export statements through its
-`ignorePattern` list. The list also skips a destructured dynamic import,
-`const { name } = await import("…");`. Source files carry no ignore markers
-around imports.
+`ignorePattern` list. Each list apart from the test scan's also skips a
+destructured dynamic import, `const { name } = await import("…");`. Source
+files carry no ignore markers around imports.
 
 With literals ignored, two long lists of strings match, for example two word
 lists of the band-name generator. A list of strings is data, and no helper can

@@ -14,48 +14,61 @@ interface ScanPromise {
   /** The committed baseline the scan fails against, or null when it holds none
    * and relies on jscpd's own exit code instead. */
   baseline: string | null;
+  /** The scan skips the destructured dynamic imports that load a module on
+   * first use. The test scan reads them: the pattern gives its recorded
+   * clones new fingerprints. */
+  skipsLazyImports: boolean;
   /** The scan treats names, literals and annotations as noise, so a renamed
    * copy is a clone. jscpd labels it `renamed`, and a `kind` filter would hide
    * it. */
   strict: boolean;
-  /** The scan reads TypeScript, so it skips import and re-export statements,
-   * and the destructured dynamic imports that load a module on first use. */
+  /** The scan reads TypeScript, so it skips import and re-export statements. */
   typescript: boolean;
 }
+
+const LAZY_IMPORT_PATTERN =
+  "(?m)^\\s*const\\s+\\{[^}]*\\}\\s*=\\s*await\\s+import\\([^)]*\\);";
 
 const scans: Record<string, ScanPromise> = {
   "cfg/jscpd.css.json": {
     baseline: null,
+    skipsLazyImports: false,
     strict: false,
     typescript: false,
   },
   "cfg/jscpd.helpers.json": {
     baseline: "cfg/.jscpd.helpers-baseline.json",
+    skipsLazyImports: true,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.json": {
     baseline: "cfg/.jscpd.baseline.json",
+    skipsLazyImports: true,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.renamed.json": {
     baseline: "cfg/.jscpd.renamed-baseline.json",
+    skipsLazyImports: true,
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.specs.json": {
     baseline: "cfg/.jscpd.specs-baseline.json",
+    skipsLazyImports: true,
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.support.json": {
     baseline: "cfg/.jscpd.support-baseline.json",
+    skipsLazyImports: true,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.test.json": {
     baseline: "cfg/.jscpd.test-baseline.json",
+    skipsLazyImports: false,
     strict: true,
     typescript: true,
   },
@@ -157,24 +170,43 @@ describe("strict jscpd scans", () => {
   });
 });
 
+/** The ignore list that one TypeScript scan must hold. */
+const ignoreListOf = (skipsLazyImports: boolean): string[] => [
+  "(?m)^import\\s[^;]*;",
+  "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;",
+  ...(skipsLazyImports ? [LAZY_IMPORT_PATTERN] : []),
+];
+
 describe("typescript jscpd scans", () => {
-  test("share one import-statement ignore list", async () => {
-    const declared: string[] = [];
+  test("declare the TypeScript format exactly when they read it", async () => {
+    const declared = declaredScans.filter(([, promise]) => promise.typescript);
     const readsTypescript: string[] = [];
-    for (const [name, { typescript }] of declaredScans) {
-      if (typescript) declared.push(name);
+    for (const [name] of declaredScans) {
       if ((await readScanFormats(name)).includes("typescript")) {
         readsTypescript.push(name);
       }
     }
-    expect(readsTypescript).toEqual(declared);
-    for (const name of declared) {
-      expect((await readConfig(name)).ignorePattern, name).toEqual([
-        "(?m)^import\\s[^;]*;",
-        "(?m)^export\\s+(type\\s+)?(\\*|\\{[^}]*\\})(\\s+as\\s+\\w+)?\\s+from\\s[^;]*;",
-        "(?m)^\\s*const\\s+\\{[^}]*\\}\\s*=\\s*await\\s+import\\([^)]*\\);",
-      ]);
-    }
+    expect(readsTypescript).toEqual(declared.map(([name]) => name));
+  });
+
+  test("share one import-statement ignore list, and all but the test scan skip lazy imports", async () => {
+    const typescript = declaredScans.filter(
+      ([, promise]) => promise.typescript,
+    );
+    expect(
+      await Promise.all(
+        typescript.map(
+          async ([name]) => (await readConfig(name)).ignorePattern,
+        ),
+      ),
+    ).toEqual(
+      typescript.map(([, promise]) => ignoreListOf(promise.skipsLazyImports)),
+    );
+    expect(
+      typescript
+        .filter(([, promise]) => !promise.skipsLazyImports)
+        .map(([name]) => name),
+    ).toEqual(["cfg/jscpd.test.json"]);
   });
 });
 
