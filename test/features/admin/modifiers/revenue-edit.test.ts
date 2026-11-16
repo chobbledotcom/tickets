@@ -240,8 +240,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await insertModifierUsage(id, 1, 2, 1000);
       await modifierAggregates.update(id, {
-        total_uses: 9,
-        usage_count: 5,
+        totalUses: 9,
+        usageCount: 5,
       });
 
       const response = await adminGet(`/admin/modifiers/recalculate/${id}`);
@@ -262,8 +262,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       await insertModifierUsage(id, 1, 2, 1000);
       await modifierAggregates.update(id, {
-        total_uses: 9,
-        usage_count: 5,
+        totalUses: 9,
+        usageCount: 5,
       });
 
       const { response } = await adminFormPost(

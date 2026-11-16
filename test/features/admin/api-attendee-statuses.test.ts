@@ -31,16 +31,15 @@ const RESERVATION_ONLY =
 
 const createStatus = async (
   name: string,
-  flags: { is_public_default?: boolean; is_paid_default?: boolean } = {},
 ): Promise<{ id: number; name: string }> =>
-  records.attendee_statuses.insert({ name, ...flags });
+  records.attendee_statuses.insert({ name });
 
 /** A reservation status that holds a quarter of the price. */
 const createQuarterHold = () =>
   records.attendee_statuses.insert({
-    is_reservation: true,
+    isReservation: true,
     name: "Reserved",
-    reservation_amount: "25%",
+    reservationAmount: "25%",
   });
 
 /** The status that every new site starts with. */
@@ -160,7 +159,7 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       );
 
       const defaults = (await attendeeStatuses.getAll()).filter(
-        (status) => status.is_public_default,
+        (status) => status.isPublicDefault,
       );
       expect(defaults.map((status) => status.name)).toEqual(["New default"]);
     });

@@ -29,21 +29,21 @@ export const statuses = (): AttendeeStatus[] => [
     id: 4,
     // The public default is not the paid default, so a mutant that resolves
     // the selection with the wrong flag cannot pass.
-    is_paid_default: false,
-    is_public_default: true,
-    is_reservation: false,
+    isPaidDefault: false,
+    isPublicDefault: true,
+    isReservation: false,
     name: "Confirmed",
-    reservation_amount: "0",
-    sort_order: 1,
+    reservationAmount: "0",
+    sortOrder: 1,
   },
   {
     id: 9,
-    is_paid_default: true,
-    is_public_default: false,
-    is_reservation: false,
+    isPaidDefault: true,
+    isPublicDefault: false,
+    isReservation: false,
     name: "Cancelled",
-    reservation_amount: "0",
-    sort_order: 2,
+    reservationAmount: "0",
+    sortOrder: 2,
   },
 ];
 

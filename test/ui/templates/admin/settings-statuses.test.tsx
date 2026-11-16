@@ -19,22 +19,22 @@ import { withEnv } from "#test-utils/env.ts";
 
 const RESERVED_STATUS: AttendeeStatus = {
   id: 7,
-  is_paid_default: true,
-  is_public_default: true,
-  is_reservation: true,
+  isPaidDefault: true,
+  isPublicDefault: true,
+  isReservation: true,
   name: "Reserved",
-  reservation_amount: "25%",
-  sort_order: 0,
+  reservationAmount: "25%",
+  sortOrder: 0,
 };
 
 const PLAIN_STATUS: AttendeeStatus = {
   id: 8,
-  is_paid_default: false,
-  is_public_default: false,
-  is_reservation: false,
+  isPaidDefault: false,
+  isPublicDefault: false,
+  isReservation: false,
   name: "Checked in",
-  reservation_amount: "0",
-  sort_order: 1,
+  reservationAmount: "0",
+  sortOrder: 1,
 };
 
 describe("attendee status templates", () => {
@@ -191,12 +191,12 @@ describe("the delete page of a status attendees hold", () => {
 
   const BUSY_STATUS: AttendeeStatus = {
     id: 9,
-    is_paid_default: false,
-    is_public_default: false,
-    is_reservation: false,
+    isPaidDefault: false,
+    isPublicDefault: false,
+    isReservation: false,
     name: "Busy",
-    reservation_amount: "0",
-    sort_order: 2,
+    reservationAmount: "0",
+    sortOrder: 2,
   };
   const OTHER_STATUS: AttendeeStatus = { ...PLAIN_STATUS, id: 8 };
 

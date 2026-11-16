@@ -60,8 +60,8 @@ describeWithEnv(
       );
       expect(response.status).toBe(302);
       const kept = (await records.groups.find(group.id))!;
-      expect(kept.is_package).toBe(true);
-      expect(kept.hide_package_listings).toBe(true);
+      expect(kept.isPackage).toBe(true);
+      expect(kept.hidePackageListings).toBe(true);
     });
 
     test("form and API updates catch a hide of a sold package after request validation", async () => {
@@ -114,8 +114,8 @@ describeWithEnv(
           });
         }
         const kept = await records.groups.find(group.id);
-        expect(kept?.is_package).toBe(true);
-        expect(kept?.hide_package_listings).toBe(true);
+        expect(kept?.isPackage).toBe(true);
+        expect(kept?.hidePackageListings).toBe(true);
       }
     });
 
@@ -154,7 +154,7 @@ describeWithEnv(
 
       // After the explicit reveal, the API delete un-groups as before.
       await records.groups.update(group.id, {
-        hide_package_listings: false,
+        hidePackageListings: false,
       });
       await assertJson(
         apiRequest(`/api/admin/groups/${group.id}`, {

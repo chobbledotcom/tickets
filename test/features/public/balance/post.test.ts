@@ -22,9 +22,9 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
     const reservation = await records.attendee_statuses.insert({
-      is_reservation: true,
+      isReservation: true,
       name: "Reserved",
-      reservation_amount: "10%",
+      reservationAmount: "10%",
     });
     // No quantity > 0 line means nothing real to pay into, so the balance is not
     // publicly payable — checkout must not start against a phantom listing.

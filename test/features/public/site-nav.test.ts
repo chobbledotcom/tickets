@@ -25,8 +25,8 @@ const addPage = async (name: string, slug: string, sortOrder: number) =>
   records.site_pages.insert({
     name,
     slug,
-    slug_index: await hmacHash(slug),
-    sort_order: sortOrder,
+    slugIndex: await hmacHash(slug),
+    sortOrder,
   });
 
 const targetKey = (type: "group" | "listing", id: number): TargetKey =>

@@ -30,9 +30,9 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
     );
     await client.execute(
       insertInto(tables.processed_payments, {
-        attendee_id: 1,
-        payment_session_id: "ps_test_123",
-        processed_at: "2024-01-01T00:00:00Z",
+        attendeeId: 1,
+        paymentSessionId: "ps_test_123",
+        processedAt: "2024-01-01T00:00:00Z",
       }),
     );
 

@@ -86,7 +86,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
 
   test("pre-fills a reservation status's fields when editing", async () => {
     const reserved = await records.attendee_statuses.insert({
-      is_reservation: true,
+      isReservation: true,
       name: "Reserved",
       reservation_amount: "25%",
     });

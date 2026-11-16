@@ -30,8 +30,8 @@ const attributeWithOptions = (
 ): AttributeWithOptions => ({
   id,
   name,
-  options: [{ attribute_id: id, id: id * 10, sort_order: 0, text: optionText }],
-  sort_order: 0,
+  options: [{ attributeId: id, id: id * 10, sortOrder: 0, text: optionText }],
+  sortOrder: 0,
 });
 
 describe("ticketPage — packages", () => {

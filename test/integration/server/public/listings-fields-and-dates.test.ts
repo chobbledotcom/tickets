@@ -218,7 +218,7 @@ describeWithEnv(
           minimumDaysBefore: 0,
           name: "Hidden Daily Member",
         });
-        await records.groups.update(pkg.id, { hide_package_listings: true });
+        await records.groups.update(pkg.id, { hidePackageListings: true });
         await bookAttendee(member, { date, quantity: 1 });
         await createTestListing({ maxAttendees: 50, name: "Plain Listing" });
 

@@ -381,7 +381,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const { createFlexPackage } = await import("#test-utils/packages.ts");
     const { parseFlashCookie } = await import("#test-utils/assertions.ts");
     const { group } = await createFlexPackage("Hush Kit", "hush-kit");
-    await records.groups.update(group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     // Neither member offers a 5-day span, so the submit bounces with the
     // day-count error — which must name the PACKAGE, never a hidden member.

@@ -197,17 +197,14 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       // the prune must never touch an account that has been set up.
       await getDb().execute(
         insertInto(tables.users, {
-          admin_level: await encrypt("manager"),
-          invite_expiry: await encrypt(
+          adminLevel: await encrypt("manager"),
+          inviteExpiry: await encrypt(
             new Date(Date.now() - 1000).toISOString(),
           ),
-          invite_wrapped_data_key: await wrapKeyWithToken(
-            dataKey,
-            "pw-set-code",
-          ),
-          password_hash: await encrypt("pbkdf2:1000:c2FsdA==:aGFzaA=="),
-          username_hash: await encrypt("has-password"),
-          username_index: await hmacHash("has-password"),
+          inviteWrappedDataKey: await wrapKeyWithToken(dataKey, "pw-set-code"),
+          passwordHash: await encrypt("pbkdf2:1000:c2FsdA==:aGFzaA=="),
+          usernameHash: await encrypt("has-password"),
+          usernameIndex: await hmacHash("has-password"),
         }),
       );
       invalidateUsersCache();

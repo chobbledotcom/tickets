@@ -71,9 +71,9 @@ describeWithEnv("removing a listing's attachment", { db: true }, () => {
     )(response);
     expect(
       await readOneRow(
-        from(tables.listings).where({ id: listing.id }).pick("attachment_url"),
+        from(tables.listings).where({ id: listing.id }).pick("attachmentUrl"),
       ),
-    ).toEqual({ attachment_url: "https://example.test/leaflet.pdf" });
+    ).toEqual({ attachmentUrl: "https://example.test/leaflet.pdf" });
   });
 
   test("reports success when there was nothing to remove", async () => {

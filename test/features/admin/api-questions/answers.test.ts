@@ -62,7 +62,7 @@ const answerCall = (
 const createQuestion = (
   text: string,
   displayType: "free_text" | "radio" = "radio",
-) => records.questions.insert({ display_type: displayType, text });
+) => records.questions.insert({ displayType, text });
 
 describeWithEnv("Admin API - Question answers", { db: true }, () => {
   describe("POST /api/admin/questions/:questionId/answers", () => {

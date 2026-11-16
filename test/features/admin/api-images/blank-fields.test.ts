@@ -25,7 +25,7 @@ describeWithEnv(
       await assertJson(putImage(image.id, { alt_text: "" }), 200, (body) => {
         expect(body.image.alt_text).toBe("");
       });
-      expect((await records.images.find(image.id))?.alt_text).toBe("");
+      expect((await records.images.find(image.id))?.altText).toBe("");
     });
   },
 );

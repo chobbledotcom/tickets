@@ -64,7 +64,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
   test("saves a text answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
     const question = await records.questions.insert({
-      display_type: "free_text",
+      displayType: "free_text",
       text: "Add detail",
     });
     const stringId = (await getOrCreateStringIds(["The saved detail"])).get(

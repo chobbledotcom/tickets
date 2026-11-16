@@ -70,7 +70,7 @@ describeWithEnv(
 
     test("a hidden package booking completes (member name never leaks in the flow)", async () => {
       const { group, listing } = await setupPackage();
-      await records.groups.update(group.id, { hide_package_listings: true });
+      await records.groups.update(group.id, { hidePackageListings: true });
       // A normal hidden-package session: it processes, exercising the path that
       // suppresses member names in any failure message for hidden packages.
       await runWebhook(
@@ -85,7 +85,7 @@ describeWithEnv(
 
     test("a standalone session completes after its listing joins a concealing package", async () => {
       const { group, listing } = await setupPackage();
-      await records.groups.update(group.id, { hide_package_listings: true });
+      await records.groups.update(group.id, { hidePackageListings: true });
       await runWebhook(
         {
           amount_total: 5000,

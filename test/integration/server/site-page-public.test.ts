@@ -314,7 +314,7 @@ describeWithEnv("server (public site pages)", { db: true }, () => {
       const page = await makePage("hidden-member");
       const group = await createTestGroup({ isPackage: true, name: "Bundle" });
       await records.groups.update(group.id, {
-        hide_package_listings: true,
+        hidePackageListings: true,
         is_package: true,
       });
       const member = await createTestListing({

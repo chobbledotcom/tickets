@@ -22,7 +22,7 @@ describePackageBooking(() => {
     const hidden = await fixedPackage("Secret Kit", "secret-kit");
     const { child } = await twoChildAddons(hidden.a, "Secret Kit");
     await records.groups.update(hidden.group.id, {
-      hide_package_listings: true,
+      hidePackageListings: true,
     });
 
     const intents: import("#shared/payments.ts").CheckoutIntent[] = [];

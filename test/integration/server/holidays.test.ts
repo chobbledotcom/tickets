@@ -156,8 +156,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       test(testName, async () => {
         const holiday = await createTestHoliday({ endDate, name, startDate });
         expect(holiday.name).toBe(name);
-        expect(holiday.start_date).toBe(startDate);
-        expect(holiday.end_date).toBe(endDate);
+        expect(holiday.startDate).toBe(startDate);
+        expect(holiday.endDate).toBe(endDate);
       });
     }
 
@@ -261,8 +261,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       endDate: "2026-12-27",
     });
     expect(updated.name).toBe("Christmas");
-    expect(updated.start_date).toBe(holiday.start_date);
-    expect(updated.end_date).toBe("2026-12-27");
+    expect(updated.startDate).toBe(holiday.startDate);
+    expect(updated.endDate).toBe("2026-12-27");
   });
 
   describe("getActiveHolidays", () => {
@@ -302,9 +302,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "#templates/admin/holidays.tsx"
       );
       const holiday = testHoliday({
-        end_date: "2026-01-02",
+        endDate: "2026-01-02",
         name: "Test",
-        start_date: "2026-01-01",
+        startDate: "2026-01-01",
       });
       const values = holidayToFieldValues(holiday);
       expect(values.name).toBe("Test");

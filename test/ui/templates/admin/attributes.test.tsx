@@ -25,16 +25,16 @@ const ATTRIBUTE: AttributeWithOptions = {
   id: 1,
   name: "Colour",
   options: [
-    { attribute_id: 1, id: 10, sort_order: 0, text: "Red" },
-    { attribute_id: 1, id: 11, sort_order: 1, text: "Blue" },
+    { attributeId: 1, id: 10, sortOrder: 0, text: "Red" },
+    { attributeId: 1, id: 11, sortOrder: 1, text: "Blue" },
   ],
-  sort_order: 0,
+  sortOrder: 0,
 };
 const ATTRIBUTE_B: AttributeWithOptions = {
   id: 2,
   name: "Size",
   options: [],
-  sort_order: 1,
+  sortOrder: 1,
 };
 const OPTION: AttributeOption = ATTRIBUTE.options[0]!;
 

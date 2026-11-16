@@ -192,7 +192,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         200,
         (row) => {
           expect(row.name).toBe("New Name");
-          expect(row.start_date).toBe(holiday.start_date);
+          expect(row.start_date).toBe(holiday.startDate);
         },
       );
     });
@@ -257,7 +257,7 @@ describeWithEnv("Admin API - Holidays", { db: true }, () => {
         (row) => expect(row.start_date).toBe("2027-06-01"),
       );
       expect(
-        (await holidays.getAll()).find((h) => h.id === holiday.id)?.start_date,
+        (await holidays.getAll()).find((h) => h.id === holiday.id)?.startDate,
       ).toBe("2027-06-01");
     });
 

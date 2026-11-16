@@ -35,8 +35,8 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
 
     const row = await storedHoliday();
     expect(row.name).toBe("Pinned Page Holiday");
-    expect(row.start_date).toBe("2027-01-01");
-    expect(row.end_date).toBe("2027-01-02");
+    expect(row.startDate).toBe("2027-01-01");
+    expect(row.endDate).toBe("2027-01-02");
   });
 
   test("page create refuses end before start with the shared message", async () => {

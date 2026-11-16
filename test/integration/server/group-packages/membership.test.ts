@@ -48,7 +48,7 @@ const postChildrenForm = async (
 /** Hide the members' names inside `groupId`, so a member that gates children
  *  would leak them. */
 const hidePackageNames = async (groupId: number): Promise<void> => {
-  await records.groups.update(groupId, { hide_package_listings: true });
+  await records.groups.update(groupId, { hidePackageListings: true });
 };
 
 /** Write a listing through the JSON API and assert the 400 error it names.

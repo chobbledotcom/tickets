@@ -58,10 +58,10 @@ const insertPaymentWorkOrphan = async (): Promise<number> => {
   const attendeeId = await insertOrphan(oldIso());
   await getDb().execute(
     insertInto(tables.processed_payments, {
-      attendee_id: attendeeId,
-      payment_session_id: `privacy-page-${attendeeId}`,
-      processed_at: oldIso(),
-      protected_state: CLAIM_MIRROR,
+      attendeeId,
+      paymentSessionId: `privacy-page-${attendeeId}`,
+      processedAt: oldIso(),
+      protectedState: CLAIM_MIRROR,
     }),
   );
   return attendeeId;
@@ -134,9 +134,9 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       const paymentSessionId = `privacy-recovery-${attendee.id}`;
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: attendee.id,
-          payment_session_id: paymentSessionId,
-          processed_at: oldIso(),
+          attendeeId: attendee.id,
+          paymentSessionId,
+          processedAt: oldIso(),
         }),
       );
       await putRowState(

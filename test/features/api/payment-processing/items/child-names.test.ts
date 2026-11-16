@@ -56,7 +56,7 @@ const childOrder = async (
   const [parent, child] = intent.items;
   const allocation = intent.allocations?.[0];
   assert(parent?.r !== undefined && child && allocation);
-  await records.groups.update(parent.r, { hide_package_listings: true });
+  await records.groups.update(parent.r, { hidePackageListings: true });
 
   if (path === "offered" || path === "named-parent") {
     const named = await createTestGroup({ isPackage: true });

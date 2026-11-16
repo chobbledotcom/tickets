@@ -62,9 +62,9 @@ describeWithEnv("attendee form template data", { db: true }, () => {
 
   test("a new reservation with no order does not show an unpaid-balance warning", async () => {
     const status = await records.attendee_statuses.insert({
-      is_reservation: true,
+      isReservation: true,
       name: "New reservation",
-      reservation_amount: "25%",
+      reservationAmount: "25%",
     });
 
     expect((await dataForStatus(status)).balanceNotice).toBeNull();
@@ -72,7 +72,7 @@ describeWithEnv("attendee form template data", { db: true }, () => {
 
   test("a new paid attendee with no order does not show an owing warning", async () => {
     const status = await records.attendee_statuses.insert({
-      is_paid_default: true,
+      isPaidDefault: true,
       name: "Paid before booking",
     });
 

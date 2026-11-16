@@ -8,9 +8,9 @@ import {
 } from "#routes/admin/attribute-page-data.ts";
 
 const option = (id: number, text: string): AttributeOption => ({
-  attribute_id: 1,
+  attributeId: 1,
   id,
-  sort_order: id,
+  sortOrder: id,
   text,
 });
 

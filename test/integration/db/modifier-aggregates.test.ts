@@ -52,8 +52,8 @@ describeWithEnv(
     };
     const makeModifier = () =>
       records.modifiers.insert({
-        calc_kind: "fixed",
-        calc_value: 5,
+        calcKind: "fixed",
+        calcValue: 5,
         direction: "charge",
         name: "Add-on",
       });
@@ -133,8 +133,8 @@ describeWithEnv(
       const m = await makeModifier();
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
       await modifierAggregates.update(m.id, {
-        total_uses: 9,
-        usage_count: 9,
+        totalUses: 9,
+        usageCount: 9,
       });
 
       await modifierAggregates.reset(m.id, [...MODIFIER_AGGREGATE_FIELDS]);
@@ -208,8 +208,8 @@ describeWithEnv(
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
 
       await modifierAggregates.update(m.id, {
-        total_uses: 8,
-        usage_count: 4,
+        totalUses: 8,
+        usageCount: 4,
       });
 
       expect(await aggregates(m.id)).toEqual({
@@ -225,8 +225,8 @@ describeWithEnv(
         [2, 2],
       ]);
       await modifierAggregates.update(m.id, {
-        total_uses: 8,
-        usage_count: 4,
+        totalUses: 8,
+        usageCount: 4,
       });
 
       const stale = (await records.modifiers.find(m.id))!;
@@ -235,7 +235,7 @@ describeWithEnv(
         usage_count: { current: 4, recalculated: 2 },
       });
 
-      await modifierAggregates.reset(m.id, ["total_uses"]);
+      await modifierAggregates.reset(m.id, ["totalUses"]);
 
       expect(await aggregates(m.id)).toEqual({
         total_uses: 5,

@@ -47,11 +47,9 @@ const storedAttachment = async (
   id: number,
 ): Promise<{ name: string; url: string }> => {
   const row = await requireOne(
-    from(tables.listings)
-      .where({ id })
-      .pick("attachment_name", "attachment_url"),
+    from(tables.listings).where({ id }).pick("attachmentName", "attachmentUrl"),
   );
-  return { name: row.attachment_name, url: row.attachment_url };
+  return { name: row.attachmentName, url: row.attachmentUrl };
 };
 
 /** Upload `entry` against a fresh listing and hand back both what the operator

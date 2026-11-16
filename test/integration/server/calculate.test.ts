@@ -122,7 +122,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
       "no longer available",
     );
 
-    await records.modifiers.update(modifierId, { min_visits: 1 });
+    await records.modifiers.update(modifierId, { minVisits: 1 });
     assert(
       !(await quoteTicketHtml(listing.slug, selection)).includes(
         "no longer available",

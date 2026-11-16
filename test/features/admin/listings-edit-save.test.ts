@@ -89,12 +89,12 @@ describeWithEnv("db > edit save path duration warnings", { db: true }, () => {
     // createTestGroup's maxAttendees override does not survive the create
     // form, so the caps are set the way the edit path itself sets them.
     await execute(
-      update(tables.groups, { max_attendees: 10 }).where({
+      update(tables.groups, { maxAttendees: 10 }).where({
         id: dayLaterOverflow.id,
       }),
     );
     await execute(
-      update(tables.groups, { max_attendees: 10 }).where({
+      update(tables.groups, { maxAttendees: 10 }).where({
         id: dayEarlierOverflow.id,
       }),
     );

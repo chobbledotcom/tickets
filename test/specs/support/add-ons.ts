@@ -75,8 +75,8 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
 ) => {
   const group = await publicSiteGroup({ isPackage: true, name: bundle });
   await records.groups.update(group.id, {
-    hide_package_listings: true,
-    is_package: true,
+    hidePackageListings: true,
+    isPackage: true,
   });
   rememberListing(
     world,

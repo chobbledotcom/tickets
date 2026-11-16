@@ -232,7 +232,7 @@ const readBundle = (world: TicketsWorld, name: string) =>
 export const isStillABundle: AsksAboutOneThing = async (world, name) => {
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
-  return stillThere(await readBundle(world, name), name).is_package;
+  return stillThere(await readBundle(world, name), name).isPackage;
 };
 
 /** What the bundle charges for one part, or nothing when the organiser set no

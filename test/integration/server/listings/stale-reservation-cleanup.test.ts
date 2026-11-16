@@ -25,16 +25,16 @@ describeWithEnv(
         const staleTime = new Date(Date.now() - 6 * 60 * 1000).toISOString();
         await getDb().execute(
           insertInto(tables.processed_payments, {
-            attendee_id: null,
-            payment_session_id: "cs_stale_admin_test",
-            processed_at: staleTime,
+            attendeeId: null,
+            paymentSessionId: "cs_stale_admin_test",
+            processedAt: staleTime,
           }),
         );
         await getDb().execute(
           insertInto(tables.processed_payments, {
-            attendee_id: null,
-            payment_session_id: "cs_fresh_cleanup_test",
-            processed_at: new Date().toISOString(),
+            attendeeId: null,
+            paymentSessionId: "cs_fresh_cleanup_test",
+            processedAt: new Date().toISOString(),
           }),
         );
 
@@ -65,9 +65,9 @@ describeWithEnv(
         // Insert a fresh reservation (just now)
         await getDb().execute(
           insertInto(tables.processed_payments, {
-            attendee_id: null,
-            payment_session_id: "cs_fresh_admin_test",
-            processed_at: new Date().toISOString(),
+            attendeeId: null,
+            paymentSessionId: "cs_fresh_admin_test",
+            processedAt: new Date().toISOString(),
           }),
         );
 

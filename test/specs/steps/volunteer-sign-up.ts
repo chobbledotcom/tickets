@@ -43,8 +43,8 @@ Given(
       rememberListing(this, name, listing);
     }
     const question = await records.questions.insert({
-      assign_all: true,
-      display_type: "free_text",
+      assignAll: true,
+      displayType: "free_text",
       text: ACCESS_QUESTION,
     });
     this.groupSlug = group.slug;

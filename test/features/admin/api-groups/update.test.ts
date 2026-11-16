@@ -172,7 +172,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         "max_attendees has an invalid value",
       );
 
-      expect((await records.groups.find(group.id))?.max_attendees).toBe(12);
+      expect((await records.groups.find(group.id))?.maxAttendees).toBe(12);
     });
 
     test("returns 404 for non-existent group", async () => {

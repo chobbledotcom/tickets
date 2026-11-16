@@ -103,7 +103,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
         {
           end_date: "2026-12-27",
           name: "Christmas",
-          start_date: holiday.start_date,
+          start_date: holiday.startDate,
         },
       );
       await expectFlashRedirect(

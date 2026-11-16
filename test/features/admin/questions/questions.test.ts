@@ -313,7 +313,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("does not update a question when enabling the feature fails", async () => {
       const question = await records.questions.insert({
-        display_type: "radio",
+        displayType: "radio",
         text: "Before?",
       });
       await enableFeature("questions");
@@ -360,7 +360,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("keeps a free-text question free-text, ignoring a submitted choice type", async () => {
       const q = await records.questions.insert({
-        display_type: "free_text",
+        displayType: "free_text",
         text: "Notes?",
       });
       const { response } = await adminFormPost(
@@ -372,7 +372,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "Question updated",
       )(response);
       const updated = await records.questions.find(q.id);
-      expect(updated!.display_type).toBe("free_text");
+      expect(updated!.displayType).toBe("free_text");
       expect(updated!.text).toBe("Notes updated");
     });
 
@@ -383,7 +383,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         text: "Colour?",
       });
       const updated = await records.questions.find(id);
-      expect(updated!.display_type).toBe("radio");
+      expect(updated!.displayType).toBe("radio");
     });
 
     test("returns 404 for non-existent question on edit", async () => {

@@ -257,9 +257,9 @@ describeWithEnv(
 
         const [image] = await getAllImages();
         expect(image?.name).toBe("New library image");
-        expect(image?.alt_text).toBe("Alt New library image");
+        expect(image?.altText).toBe("Alt New library image");
         expect(image?.filename).toMatch(/\.webp$/);
-        expect(image?.filename_thumb).toMatch(/\.webp$/);
+        expect(image?.filenameThumb).toMatch(/\.webp$/);
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );

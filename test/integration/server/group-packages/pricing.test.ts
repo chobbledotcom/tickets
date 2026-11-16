@@ -64,7 +64,7 @@ describeWithEnv(
       )(response);
 
       const saved = (await records.groups.find(group.id))!;
-      expect(saved.is_package).toBe(true);
+      expect(saved.isPackage).toBe(true);
       const prices = await getTestPackagePrices(group.id);
       expect(prices.get(a.id)).toBe(1250);
       // Blank input is stored as 0 (no override), so it's absent from the map.
@@ -160,7 +160,7 @@ describeWithEnv(
         hide_package_listings: "1",
         is_package: "1",
       });
-      expect((await records.groups.find(group.id))!.hide_package_listings).toBe(
+      expect((await records.groups.find(group.id))!.hidePackageListings).toBe(
         true,
       );
     });
@@ -231,7 +231,7 @@ describeWithEnv(
         is_package: "1",
         [`package_price_${a.id}`]: "9.00",
       });
-      expect((await records.groups.find(group.id))!.is_package).toBe(true);
+      expect((await records.groups.find(group.id))!.isPackage).toBe(true);
 
       // Re-submit without the checkbox: flag clears and overrides reset to 0.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
@@ -239,7 +239,7 @@ describeWithEnv(
         [`package_price_${a.id}`]: "9.00",
       });
       const saved = (await records.groups.find(group.id))!;
-      expect(saved.is_package).toBe(false);
+      expect(saved.isPackage).toBe(false);
       expect((await getTestPackagePrices(group.id)).size).toBe(0);
     });
 

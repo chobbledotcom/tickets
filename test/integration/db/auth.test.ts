@@ -267,7 +267,7 @@ describeWithEnv("db > auth", { db: true }, () => {
         insertInto(tables.login_attempts, {
           attempts: MAX_LOGIN_ATTEMPTS,
           ip: ipHash,
-          locked_until: Date.now() - 1000,
+          lockedUntil: Date.now() - 1000,
         }),
       );
 
@@ -284,7 +284,7 @@ describeWithEnv("db > auth", { db: true }, () => {
         insertInto(tables.login_attempts, {
           attempts: MAX_LOGIN_ATTEMPTS - 1,
           ip: await hmacHash(ip),
-          locked_until: null,
+          lockedUntil: null,
         }),
       );
 

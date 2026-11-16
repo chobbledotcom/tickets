@@ -14,10 +14,10 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const holiday: Holiday = {
-  end_date: "2026-12-26",
+  endDate: "2026-12-26",
   id: 42,
   name: "Christmas",
-  start_date: "2026-12-25",
+  startDate: "2026-12-25",
 };
 
 describe("holiday templates", () => {

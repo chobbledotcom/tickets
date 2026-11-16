@@ -209,11 +209,11 @@ describeWithEnv(
       const slugIndex = await hmacHash("ro-group");
       const group = await records.groups.insert({
         hidden: false,
-        max_attendees: 0,
+        maxAttendees: 0,
         name: "Read Only Group",
         slug: "ro-group",
-        slug_index: slugIndex,
-        terms_and_conditions: "",
+        slugIndex,
+        termsAndConditions: "",
       });
       const roListing = await createListing({
         maxAttendees: 50,

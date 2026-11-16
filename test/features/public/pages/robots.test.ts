@@ -99,7 +99,7 @@ describeWithEnv(
         name: "Robots Hidden Pkg",
       });
       await records.groups.update(hiddenPackage.id, {
-        hide_package_listings: true,
+        hidePackageListings: true,
       });
       const visiblePackage = await createTestGroup({
         hidden: false,

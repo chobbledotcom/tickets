@@ -27,15 +27,15 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await client.execute(
       insertInto(tables.answers, {
         id: 1,
-        question_id: 1,
+        questionId: 1,
         text: "Encrypted answer" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
       insertInto(tables.listing_questions, {
         id: 1,
-        listing_id: 1,
-        question_id: 1,
+        listingId: 1,
+        questionId: 1,
       }),
     );
 
@@ -70,8 +70,8 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
     await client.execute(
       insertInto(tables.listing_questions, {
         id: 1,
-        listing_id: 1,
-        question_id: 1,
+        listingId: 1,
+        questionId: 1,
       }),
     );
 

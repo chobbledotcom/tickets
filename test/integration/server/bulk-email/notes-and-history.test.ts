@@ -234,7 +234,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
         name: "Confirmed",
       });
       await execute(
-        update(tables.attendees, { status_id: status.id }).where({
+        update(tables.attendees, { statusId: status.id }).where({
           id: first.id,
         }),
       );

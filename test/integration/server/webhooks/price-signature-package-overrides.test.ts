@@ -193,7 +193,7 @@ describeWithEnv(
       const metadata = packageMetadata(group.id, listing.id, 1500);
       // The package flag is cleared, so the member revalidates at its 5000 base
       // price and the 1500 the buyer signed no longer matches.
-      await records.groups.update(group.id, { is_package: false });
+      await records.groups.update(group.id, { isPackage: false });
       await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
     });
 

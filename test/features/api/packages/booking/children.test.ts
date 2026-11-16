@@ -16,7 +16,7 @@ describePackageBooking(() => {
       const { a, group } = await fixedPackage("Mix Kit", "mix-kit");
       const { child } = await twoChildAddons(a, "Mix Kit");
       await records.groups.update(group.id, {
-        hide_package_listings: concealed,
+        hidePackageListings: concealed,
       });
 
       // Member A books 2 units per package; a single chosen add-on undershoots.

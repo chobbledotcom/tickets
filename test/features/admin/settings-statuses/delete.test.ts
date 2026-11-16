@@ -214,7 +214,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     // A second status, so the default is not also the last one left.
     await create("Elsewhere");
     const defaulted = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_public_default,
+      (one) => one.isPublicDefault,
     )!;
 
     const html = await (
@@ -232,7 +232,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
   test("a paid default's delete page names the paid prerequisite", async () => {
     await create("Own Public Default", { is_public_default: "1" });
     const paid = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_paid_default && !one.is_public_default,
+      (one) => one.isPaidDefault && !one.isPublicDefault,
     )!;
 
     const html = await (await adminGet(`${PATH}/${paid.id}/delete`)).text();

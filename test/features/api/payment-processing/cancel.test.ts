@@ -182,7 +182,7 @@ describeWithEnv("the page a cancelled checkout lands on", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    await records.groups.update(group.id, { is_package: false });
+    await records.groups.update(group.id, { isPackage: false });
 
     const { html } = await renderCancelPage(packageLine(member.id, group.id));
 

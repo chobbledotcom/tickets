@@ -167,9 +167,9 @@ describe("test-utils — stubs, caches & request mocks", () => {
         insertInto(tables.listings, {
           created: "2024-01-01",
           fields: "email",
-          max_attendees: 10,
+          maxAttendees: 10,
           slug: await encrypt("old"),
-          slug_index: await hmacHash("old"),
+          slugIndex: await hmacHash("old"),
         }),
       );
       resetDb();

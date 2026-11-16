@@ -160,7 +160,7 @@ describeWithEnv("selected package names", { db: true }, () => {
 
   test("a nonconcealing package keeps its child's name", async () => {
     const { child, group, parent } = await packageParent();
-    await records.groups.update(group.id, { hide_package_listings: false });
+    await records.groups.update(group.id, { hidePackageListings: false });
     const visible = await getGroupById(group.id);
     if (!visible) throw new Error("Package is missing");
     const ctx = await ticketContext([parent.id], visible);

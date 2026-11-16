@@ -16,12 +16,12 @@ const attendeeStatus = (
   overrides: Partial<AttendeeStatus> = {},
 ): AttendeeStatus => ({
   id: 1,
-  is_paid_default: false,
-  is_public_default: true,
-  is_reservation: false,
+  isPaidDefault: false,
+  isPublicDefault: true,
+  isReservation: false,
   name: "Confirmed",
-  reservation_amount: "0",
-  sort_order: 0,
+  reservationAmount: "0",
+  sortOrder: 0,
   ...overrides,
 });
 
@@ -89,10 +89,10 @@ describe("attendee page blocks", () => {
           attendeeStatus(),
           attendeeStatus({
             id: 2,
-            is_paid_default: true,
-            is_public_default: false,
+            isPaidDefault: true,
+            isPublicDefault: false,
             name: "Paid",
-            sort_order: 1,
+            sortOrder: 1,
           }),
         ],
         [OWNER_NOTE],

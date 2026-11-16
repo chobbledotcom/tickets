@@ -105,9 +105,9 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       ).toISOString();
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: null,
-          payment_session_id: "cs_stale_recovery",
-          processed_at: staleTime,
+          attendeeId: null,
+          paymentSessionId: "cs_stale_recovery",
+          processedAt: staleTime,
         }),
       );
 
@@ -140,9 +140,9 @@ describeWithEnv("processed-payments / locking", { db: true }, () => {
       ).toISOString();
       await getDb().execute(
         insertInto(tables.processed_payments, {
-          attendee_id: null,
-          payment_session_id: sessionId,
-          processed_at: staleTime,
+          attendeeId: null,
+          paymentSessionId: sessionId,
+          processedAt: staleTime,
         }),
       );
       const callerCount = 4;

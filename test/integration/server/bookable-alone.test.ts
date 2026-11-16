@@ -155,9 +155,9 @@ describeWithEnv(
         await updateTestListing(solo.id, { bookableAlone: false });
         expect(
           await readRows(
-            from(tables.listings).where({ id: solo.id }).pick("bookable_alone"),
+            from(tables.listings).where({ id: solo.id }).pick("bookableAlone"),
           ),
-        ).toEqual([{ bookable_alone: false }]);
+        ).toEqual([{ bookableAlone: false }]);
       });
     });
   },

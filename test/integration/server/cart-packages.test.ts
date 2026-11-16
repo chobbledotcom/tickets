@@ -204,7 +204,7 @@ describeWithEnv(
         "mystery-box",
         "Secret Widget",
       );
-      await records.groups.update(group.id, { hide_package_listings: true });
+      await records.groups.update(group.id, { hidePackageListings: true });
       const solo = await createTestListing({ name: "Lantern", unitPrice: 0 });
 
       const html = await pageHtml(`${group.slug}+${member.slug}+${solo.slug}`);

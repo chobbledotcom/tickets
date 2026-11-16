@@ -93,10 +93,10 @@ describe("adminDashboardPage", () => {
       "all",
       [
         {
-          end_date: "2026-12-26",
+          endDate: "2026-12-26",
           id: 1,
           name: "Winter Break",
-          start_date: "2026-12-24",
+          startDate: "2026-12-24",
         },
       ],
     );

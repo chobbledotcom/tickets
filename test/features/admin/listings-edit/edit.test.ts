@@ -272,7 +272,7 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
     await bookAttendee(stretched, { date: "2026-09-01", quantity: 6 });
     await bookAttendee(neighbour, { date: "2026-09-02", quantity: 6 });
     await execute(
-      update(tables.groups, { max_attendees: 10 }).where({ id: group.id }),
+      update(tables.groups, { maxAttendees: 10 }).where({ id: group.id }),
     );
 
     const { response } = await adminMultipartPost(

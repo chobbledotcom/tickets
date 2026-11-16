@@ -71,9 +71,9 @@ describeWithEnv(
 
       const newReservation = () =>
         records.attendee_statuses.insert({
-          is_reservation: true,
+          isReservation: true,
           name: "Reserved",
-          reservation_amount: "10%",
+          reservationAmount: "10%",
         });
 
       const getEdit = async (id: number): Promise<string> => {

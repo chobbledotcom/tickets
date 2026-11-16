@@ -177,7 +177,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
       "stale@example.com",
       "Stale Buyer",
     );
-    await records.groups.update(group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     try {
       await assertJson(

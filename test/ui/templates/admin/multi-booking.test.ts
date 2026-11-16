@@ -188,10 +188,8 @@ describe("adminListingsPage multi-booking link", () => {
     const venue = (optionId: number) => ({
       id: 10,
       name: "Venue",
-      options: [
-        { attribute_id: 10, id: optionId, sort_order: 0, text: "Hall" },
-      ],
-      sort_order: 0,
+      options: [{ attributeId: 10, id: optionId, sortOrder: 0, text: "Hall" }],
+      sortOrder: 0,
     });
     const html = adminListingsPage(
       [

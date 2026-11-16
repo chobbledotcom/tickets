@@ -40,11 +40,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const encHash = await encrypt(hash);
       await getDb().execute(
         insertInto(tables.users, {
-          admin_level: await encrypt("manager"),
-          password_hash: encHash,
-          username_hash: await encrypt("manager"),
-          username_index: "manager-idx-unique",
-          wrapped_data_key: (await getUserByUsername(TEST_ADMIN_USERNAME))!
+          adminLevel: await encrypt("manager"),
+          passwordHash: encHash,
+          usernameHash: await encrypt("manager"),
+          usernameIndex: "manager-idx-unique",
+          wrappedDataKey: (await getUserByUsername(TEST_ADMIN_USERNAME))!
             .wrapped_data_key,
         }),
       );
@@ -171,11 +171,11 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
         insertInto(tables.users, {
-          admin_level: await encrypt("manager"),
-          password_hash: "",
-          username_hash: await encrypt("formmanager"),
-          username_index: managerIdx,
-          wrapped_data_key: null,
+          adminLevel: await encrypt("manager"),
+          passwordHash: "",
+          usernameHash: await encrypt("formmanager"),
+          usernameIndex: managerIdx,
+          wrappedDataKey: null,
         }),
       );
       invalidateUsersCache();

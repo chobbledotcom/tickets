@@ -136,11 +136,11 @@ describeWithEnv("API key authentication", { db: true }, () => {
       await getDb().execute(
         insertInto(tables.api_keys, {
           created: new Date().toISOString(),
-          key_index: keyIndex,
-          last_used: "",
+          keyIndex,
+          lastUsed: "",
           name: await encrypt("Ghost"),
-          user_id: 9999,
-          wrapped_data_key: "dummy" as WrappedKey,
+          userId: 9999,
+          wrappedDataKey: "dummy" as WrappedKey,
         }),
       );
       await getDb().execute(sql`PRAGMA foreign_keys = ON`);

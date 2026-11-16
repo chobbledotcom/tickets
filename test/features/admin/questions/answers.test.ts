@@ -87,7 +87,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         "#db/questions/queries.ts"
       );
       const q = await records.questions.insert({
-        display_type: "free_text",
+        displayType: "free_text",
         text: "Notes?",
       });
       const { response } = await adminFormPost(

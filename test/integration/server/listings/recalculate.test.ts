@@ -48,8 +48,8 @@ describeWithEnv(
           2,
         );
         await listingAggregates.update(listing.id, {
-          booked_quantity: 9,
-          tickets_count: 5,
+          bookedQuantity: 9,
+          ticketsCount: 5,
         });
 
         const response = await adminGet(
@@ -89,8 +89,8 @@ describeWithEnv(
           listingId: listing.id,
         });
         await listingAggregates.update(listing.id, {
-          booked_quantity: 9,
-          tickets_count: 5,
+          bookedQuantity: 9,
+          ticketsCount: 5,
         });
 
         const { response } = await adminFormPost(

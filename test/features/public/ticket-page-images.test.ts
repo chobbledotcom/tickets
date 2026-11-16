@@ -74,7 +74,7 @@ describeWithEnv("the ticket page's image references", { db: true }, () => {
     const poster = await makeImage("Poster");
     const listing = await createTestListing({ name: "Kayak Tour" });
     const question = await records.questions.insert({
-      display_type: "free_text",
+      displayType: "free_text",
       text: `![Poster](img#${poster.id})`,
     });
     await questionListings.setIds(question.id, [listing.id]);

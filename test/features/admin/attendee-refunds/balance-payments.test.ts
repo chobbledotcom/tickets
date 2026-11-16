@@ -55,9 +55,9 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     unitPrice: 1500,
   });
   const status = await records.attendee_statuses.insert({
-    is_reservation: false,
+    isReservation: false,
     name: "Confirmed",
-    reservation_amount: "0",
+    reservationAmount: "0",
   });
   const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 0, quantity: 1 }],
@@ -94,9 +94,9 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     unitPrice: 10000,
   });
   const status = await records.attendee_statuses.insert({
-    is_reservation: true,
+    isReservation: true,
     name: "Reserved",
-    reservation_amount: "20%",
+    reservationAmount: "20%",
   });
   const created = await attendeesApi.createAttendeeAtomic({
     bookings: [{ listingId: listing.id, pricePaid: 2000, quantity: 1 }],

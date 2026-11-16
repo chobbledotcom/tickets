@@ -52,12 +52,12 @@ describe("isNoQuantityLine / isRetainedLine", () => {
 describe("resolveStatusId", () => {
   const status = (id: number, isPublicDefault: boolean): AttendeeStatus => ({
     id,
-    is_paid_default: false,
-    is_public_default: isPublicDefault,
-    is_reservation: false,
+    isPaidDefault: false,
+    isPublicDefault,
+    isReservation: false,
     name: `Status ${id}`,
-    reservation_amount: "0",
-    sort_order: id,
+    reservationAmount: "0",
+    sortOrder: id,
   });
 
   test("keeps an explicitly chosen status", () => {

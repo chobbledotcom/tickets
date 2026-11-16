@@ -60,9 +60,9 @@ const reservedAttendee = async () => {
     thankYouUrl: "https://example.com",
   });
   const reservation = await records.attendee_statuses.insert({
-    is_reservation: true,
+    isReservation: true,
     name: "Reserved",
-    reservation_amount: "10%",
+    reservationAmount: "10%",
   });
   return owedAttendee(listing.id, reservation.id, 1500);
 };
@@ -198,9 +198,9 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       thankYouUrl: "https://example.com",
     });
     const confirmed = await records.attendee_statuses.insert({
-      is_reservation: false,
+      isReservation: false,
       name: "Confirmed",
-      reservation_amount: "0",
+      reservationAmount: "0",
     });
     const attendeeId = await owedAttendee(listing.id, confirmed.id, 1500, 0);
     await expectHtml(await adminGet(`/admin/attendees/${attendeeId}/ledger`), {

@@ -151,7 +151,7 @@ describeWithEnv("API package detail", { db: true }, () => {
     expect(parentMember.children).toHaveLength(1);
     expect(parentMember.children[0].name).toBe("Kit Addon");
 
-    await records.groups.update(group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
     const { package: hidden } = await (
       await apiGet(`/api/packages/${group.slug}`)
     ).json();
@@ -226,7 +226,7 @@ describeWithEnv("API package detail", { db: true }, () => {
       unitPrice: 0,
     });
     await listingChildren.setIds(a.id, [child.id]);
-    await records.groups.update(group.id, { hide_package_listings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     const { package: pkg } = await (
       await apiGet(`/api/packages/${group.slug}`)
