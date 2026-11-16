@@ -1,12 +1,19 @@
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
-import { executeUpdate, resetAggregates } from "#db/client.ts";
+import { execute } from "#db/client.ts";
 import {
   createKeyedCache,
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#db/keyed-cache.ts";
+import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { type ColumnDef, col, type Table } from "#db/table.ts";
+import {
+  type Changes,
+  type ColumnName,
+  rowsWith,
+  update,
+} from "#db/write.ts";
 import {
   type DependsOnEntry,
   registerCache,
@@ -69,16 +76,34 @@ export type AggregateRepairs<F extends string> = {
  * recounts each one for the row `<table>.id`. Every family declares its table
  * and per-column recount here rather than writing the same two wrappers again.
  */
-export const aggregateRepairs = <F extends string>(
-  table: string,
+export const aggregateRepairs = <
+  Name extends TableWithId,
+  F extends ColumnName<Name>,
+>(
+  table: TableHandle<Name>,
   recount: Record<F, SqlStatement>,
-): AggregateRepairs<F> => ({
-  reset: (entityId, fields) =>
-    resetAggregates(table, entityId, fields, recount),
-  update: async (entityId, values) => {
-    await executeUpdate(table, { ...values }, { id: entityId });
-  },
-});
+): AggregateRepairs<F> => {
+  // TypeScript cannot match the columns of a type parameter to the mapped
+  // `Changes` type. `F extends ColumnName<Name>` holds the column names.
+  const write = async (
+    entityId: number,
+    changes: Readonly<Record<string, number | SqlStatement>>,
+  ): Promise<void> => {
+    await execute(
+      update(table, changes as Changes<Name>).where(rowsWith(table, "id", entityId)),
+    );
+  };
+  return {
+    reset: async (entityId, fields) => {
+      if (fields.length === 0) return;
+      await write(
+        entityId,
+        Object.fromEntries(fields.map((field) => [field, recount[field]])),
+      );
+    },
+    update: (entityId, values) => write(entityId, values),
+  };
+};
 
 export type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
 export type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;

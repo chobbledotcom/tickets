@@ -49,7 +49,7 @@ const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
  * atomic with the row delete — no dangling public-nav entry).
  */
 export const clearItemEdgesStatement =
-  sitePageItemTargets.deleteFrom("site_page_items");
+  sitePageItemTargets.deleteFrom(tables.site_page_items);
 
 export const sitePageItemOrder = defineOrderedCollection({
   key: ["item_type", "item_id"] as const,

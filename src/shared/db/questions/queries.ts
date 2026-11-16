@@ -30,12 +30,12 @@ import { filter, map, mapParallel, reduce } from "#fp";
 
 /** Direct question-to-listing assignments, viewed from either side. */
 export const questionListings = linkTableSide(
-  "listing_questions",
+  tables.listing_questions,
   "question_id",
   "listing_id",
 );
 export const listingQuestions = linkTableSide(
-  "listing_questions",
+  tables.listing_questions,
   "listing_id",
   "question_id",
 );

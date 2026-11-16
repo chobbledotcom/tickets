@@ -11,6 +11,7 @@ import {
   ticketCountPredicateFor,
   ticketCountSumExpr,
 } from "#db/migrations/schema/listing-aggregates.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import type { ListingWithCount } from "#types";
 
@@ -57,8 +58,8 @@ export const adjustListingIncome = (
 
 /** Write the operator's typed listing aggregates, or rebuild chosen ones from
  * the booking rows they count. */
-export const listingAggregates = aggregateRepairs<ListingAggregateField>(
-  "listings",
+export const listingAggregates = aggregateRepairs(
+  tables.listings,
   {
     booked_quantity: sql`COALESCE((SELECT SUM(listingAttendee.quantity) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id), 0)`,
     tickets_count: sql`(SELECT COUNT(*) FROM listing_attendees AS listingAttendee WHERE listingAttendee.listing_id = listings.id AND ${ticketCountPredicateFor(

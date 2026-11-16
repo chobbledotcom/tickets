@@ -9,14 +9,16 @@
  */
 
 import {
-  deleteByField,
+
+  execute,
   executeBatch,
   queryAll,
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
+import { type ColumnName, deleteFrom, rowsWith } from "#db/write.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -144,19 +146,23 @@ type ReadIdsByKeys = (
 ) => Promise<LinkedIdsByKey>;
 
 /** Build the helpers for one direction through a link table. */
-export const linkTableSide = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
+export const linkTableSide = <Name extends TableName>(
+  handle: TableHandle<Name>,
+  keyColumn: ColumnName<Name>,
+  valueColumn: ColumnName<Name>,
   readIdsByKeys: ReadIdsByKeys = oneDirectionReader(
-    table,
+    handle.name,
     keyColumn,
     valueColumn,
   ),
 ): LinkTableSide => {
+  const table = handle.name;
   const linkTable = sqlName(table);
   const key = sqlName(keyColumn);
   const value = sqlName(valueColumn);
+
+  const clearStatement = (keyId: number): SqlStatement =>
+    deleteFrom(handle).where(rowsWith(handle, keyColumn, keyId));
 
   // One multi-row INSERT regardless of id count, so a replace is always two
   // statements and a transactional caller stays clear of the round-trip guard.
@@ -178,13 +184,15 @@ export const linkTableSide = (
   ): SqlStatement[] => {
     const deduped = dedupe(ids);
     return [
-      deleteFrom(table, { [keyColumn]: keyId }),
+      clearStatement(keyId),
       ...(deduped.length > 0 ? [insertStatement(keyId, deduped)] : []),
     ];
   };
 
   const linkSide: LinkTableSide = {
-    clear: (keyId) => deleteByField(table, keyColumn, keyId),
+    clear: async (keyId) => {
+      await execute(clearStatement(keyId));
+    },
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
       await tx.execute(
         sql`INSERT INTO ${linkTable} (${key}, ${value})
@@ -243,11 +251,12 @@ const emptyBothDirections = (
  * the same records costs one round trip rather than two. Rows come back ordered
  * by key then value, which leaves every list here ascending.
  */
-export const selfLinkTableSides = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
+export const selfLinkTableSides = <Name extends TableName>(
+  handle: TableHandle<Name>,
+  keyColumn: ColumnName<Name>,
+  valueColumn: ColumnName<Name>,
 ): SelfLinkTableSides => {
+  const table = handle.name;
   const fetchBothDirections = async (
     ids: number[],
   ): Promise<Map<number, BothDirections>> => {
@@ -288,13 +297,13 @@ export const selfLinkTableSides = (
 
   return {
     pointedAtBy: linkTableSide(
-      table,
+      handle,
       valueColumn,
       keyColumn,
       directionReader("pointedAtBy"),
     ),
     pointsAt: linkTableSide(
-      table,
+      handle,
       keyColumn,
       valueColumn,
       directionReader("pointsAt"),

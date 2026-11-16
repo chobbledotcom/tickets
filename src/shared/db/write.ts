@@ -14,6 +14,8 @@ import {
   and,
   type Condition,
   type Expr,
+  equal,
+  named,
   matching,
   type Operand,
   valued,
@@ -222,6 +224,17 @@ const sourceOf = (
 export type WriteWhere<Name extends TableName> =
   | Matching<Node<Name>>
   | ((row: Node<Name>) => Condition | readonly Condition[]);
+
+/** The rows whose `column` holds `value`, for code over any table. A type
+ *  parameter cannot name its columns in a match. */
+export const rowsWith =
+  <Name extends TableName>(
+    table: TableHandle<Name>,
+    column: ColumnName<Name>,
+    value: InValue,
+  ): WriteWhere<Name> =>
+  () =>
+    equal(named(`${table.name}.${column}`), value);
 
 /** The conditions of a write. An empty match would change every row, which a
  *  write says with `everyRow` instead. */

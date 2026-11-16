@@ -18,7 +18,8 @@ import {
   named,
 } from "#db/select/expression.ts";
 import { type SqlSlot, type SqlStatement, sql, sqlName } from "#db/sql.ts";
-import { deleteWhere } from "#db/where-clauses.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
+import { deleteFrom } from "#db/write.ts";
 
 /** One record: what kind of thing it is, and which one of that kind. */
 export interface RecordTarget<Kind extends string> {
@@ -51,11 +52,13 @@ interface RecordTargetConfig<Kind extends string> {
 /** The vocabulary one domain gets for naming and querying its records. */
 export interface RecordTargets<Kind extends string> {
   /** Delete the rows of the records another query chooses. */
-  deleteChosenBy: (
-    table: string,
+  deleteChosenBy: <Name extends TableName>(
+    table: TableHandle<Name>,
   ) => (kind: Kind, idsQuery: SqlStatement) => SqlStatement;
   /** Delete one record's rows from `table` (a trusted constant). */
-  deleteFrom: (table: string) => (target: RecordTarget<Kind>) => SqlStatement;
+  deleteFrom: <Name extends TableName>(
+    table: TableHandle<Name>,
+  ) => (target: RecordTarget<Kind>) => SqlStatement;
   /** A condition that only holds while this kind of record still exists. */
   existsSql: (kind: Kind, id: SqlSlot) => SqlStatement;
   /** The record a key names. Refuses a key this domain did not mint, because
@@ -119,8 +122,9 @@ export const defineRecordTarget = <Kind extends string>({
 
   return {
     deleteChosenBy: (table) => (kind, idsQuery) =>
-      deleteWhere(table)(whereChosenBy(kind, idsQuery)),
-    deleteFrom: (table) => (target) => deleteWhere(table)(where(target)),
+      deleteFrom(table).where(() => whereChosenBy(kind, idsQuery)),
+    deleteFrom: (table) => (target) =>
+      deleteFrom(table).where(() => where(target)),
     existsSql: (kind, id) => {
       if (!tables) {
         throw new Error(

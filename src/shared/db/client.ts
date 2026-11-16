@@ -8,13 +8,11 @@
 import type {
   Client,
   InStatement,
-  InValue,
   ResultSet,
   Transaction,
   TransactionMode,
 } from "@libsql/client";
 import { createDatabaseClient } from "#db/database-client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import {
   beginTransaction,
@@ -30,18 +28,13 @@ import {
 } from "#db/query-log.ts";
 import {
   type Read,
-  type SqlSlot,
   type SqlStatement,
   sql,
-  sqlCommas,
-  sqlJoin,
   sqlName,
-  sqlNames,
 } from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
-import { equalityClauses } from "#db/where-clauses.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
@@ -415,69 +408,6 @@ export const countRows = async (table: string): Promise<number> => {
   return row.n;
 };
 
-/** One delete-rows-matching-a-field target: which table, matched on which
- * field, for which value. */
-export type DeleteByFieldTarget = {
-  table: string;
-  field: string;
-  value: InValue;
-};
-
-/** Build the DELETE statement for one {@link DeleteByFieldTarget} — for batches
- * that mix these deletes with other statements. */
-export const deleteByFieldStatement = ({
-  table,
-  field,
-  value,
-}: DeleteByFieldTarget): SqlStatement => deleteFrom(table, { [field]: value });
-
-/** Delete rows matching a field value */
-export const deleteByField = async (
-  table: string,
-  field: string,
-  value: InValue,
-): Promise<void> => {
-  await execute(deleteByFieldStatement({ field, table, value }));
-};
-
-/** Delete rows from multiple tables in a single batch transaction */
-export const deleteByFieldBatch = (
-  deletes: DeleteByFieldTarget[],
-): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
-
-/**
- * Delete one row and the rows that point at it, children first, in one batch.
- * Each child names the column that holds the parent's id.
- */
-export const deleteWithChildren =
-  (
-    table: string,
-    children: readonly { field: string; table: string }[],
-  ): ((id: number) => Promise<void>) =>
-  (id) =>
-    deleteByFieldBatch([
-      ...children.map((child) => ({ ...child, value: id })),
-      { field: "id", table, value: id },
-    ]);
-
-/**
- * Reset selected aggregate columns. Each column's recount is an expression
- * that reads the id of the row it sits on, as `<table>.id`.
- */
-export const resetAggregates = async <T extends string>(
-  table: string,
-  entityId: InValue,
-  fields: readonly T[],
-  recount: Record<T, SqlStatement>,
-): Promise<void> => {
-  if (fields.length === 0) return;
-  const resets = sqlCommas(
-    fields.map((field) => sql`${sqlName(field)} = ${recount[field]}`),
-  );
-  await execute(
-    sql`UPDATE ${sqlName(table)} SET ${resets} WHERE id = ${entityId}`,
-  );
-};
 
 /**
  * Execute a batch with optional query logging, then invalidate caches for every
@@ -779,62 +709,3 @@ export const insertedRowId = (
     )})`,
   );
 };
-
-/** Build an INSERT that starts with `opening`, from a column-to-value record. */
-const insertStartingWith =
-  (opening: SqlStatement) =>
-  (
-    table: string,
-    values: Record<string, SqlSlot>,
-    returningColumn?: string,
-  ): SqlStatement => {
-    const columns = sqlNames(Object.keys(values));
-    const slots = sqlCommas(
-      Object.values(values).map((value) => sql`${value}`),
-    );
-    const written = sql`${opening} ${sqlName(table)} (${columns}) VALUES (${slots})`;
-    return returningColumn === undefined
-      ? written
-      : sql`${written} RETURNING ${sqlName(returningColumn)}`;
-  };
-
-/**
- * Build an INSERT statement from a table name and column-to-value record. A
- * value that is itself a statement goes into the SQL as written, which is how
- * a column takes an expression such as `last_insert_rowid()`.
- *
- * Pass `returningColumn` when the caller needs a value back from the written
- * row, such as a generated key read with {@link insertedRowId}.
- */
-export const insert = insertStartingWith(sql`INSERT INTO`);
-
-/**
- * {@link insert}, dropping a row whose unique key is already stored instead of
- * raising a constraint error. This is the once-only latch resumable flows lean
- * on: a replayed write re-derives the same key and lands nowhere. It silences
- * every conflict on the statement, so use it only where the unique key IS the
- * idempotency rule.
- */
-export const insertOrIgnore = insertStartingWith(sql`INSERT OR IGNORE INTO`);
-
-/**
- * Build an UPDATE statement, the WHERE record ANDed as equality checks. A SET
- * value can be a statement, such as a counter increment. A write needing a
- * richer guard — `IS NULL`, an inequality, a subquery — keeps its own SQL
- * rather than bending this one.
- */
-export const update = (
-  table: string,
-  set: Record<string, SqlSlot>,
-  where: Record<string, InValue>,
-): SqlStatement =>
-  sql`UPDATE ${sqlName(table)} SET ${sqlCommas(
-    equalityClauses(set),
-  )} WHERE ${sqlJoin(equalityClauses(where), sql` AND `)}`;
-
-/** Build the {@link update} statement and run it in one call — the executing
- * form for the single-statement call sites (batch and transactional callers
- * use {@link update} itself). */
-export const executeUpdate = (
-  ...parts: Parameters<typeof update>
-): Promise<ResultSet> => execute(update(...parts));

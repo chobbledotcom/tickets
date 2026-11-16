@@ -310,7 +310,7 @@ const linkImageStatement = (
 
 /** Clear every image link of one record. */
 export const clearImageUsesForItemStatement =
-  imageUseTargets.deleteFrom("image_uses");
+  imageUseTargets.deleteFrom(tables.image_uses);
 
 export const setImagesForItem = (
   itemType: ImageUseItemType,

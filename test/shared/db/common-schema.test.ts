@@ -4,6 +4,7 @@ import { queryOne } from "#db/client.ts";
 import { aggregateRepairs, cachedEntityTable } from "#db/common-schema.ts";
 import type { Answer } from "#db/question-types.ts";
 import { answersTable } from "#db/questions/tables.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import {
   getAllCacheStats,
@@ -74,7 +75,7 @@ describe("cachedEntityTable", () => {
 });
 
 describeWithEnv("aggregateRepairs", { db: true }, () => {
-  const answerRepairs = aggregateRepairs<"times_selected">("answers", {
+  const answerRepairs = aggregateRepairs(tables.answers, {
     // Read the row's id, then ignore it: this proves the factory passes the
     // caller's own SQL through rather than knowing anything about answers.
     times_selected: sql`COALESCE((SELECT 33 WHERE answers.id > 0), 0)`,

@@ -78,8 +78,8 @@ export const getAnswerAggregateRecalculation = async (
 
 /** Write the operator's typed selection total, or rebuild it from the actual
  * attendee_answers rows. */
-export const answerAggregates = aggregateRepairs<AnswerAggregateField>(
-  "answers",
+export const answerAggregates = aggregateRepairs(
+  tables.answers,
   {
     times_selected: sql`COALESCE((SELECT COUNT(*) FROM attendee_answers WHERE answer_id = answers.id), 0)`,
   },

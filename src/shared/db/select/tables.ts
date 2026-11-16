@@ -268,3 +268,8 @@ export const tableNamed = (name: string): TableHandle => {
   }
   return tables[name as TableName];
 };
+
+/** The tables whose rows have an `id` column. */
+export type TableWithId = {
+  [Name in TableName]: "id" extends keyof RowOf<Name> ? Name : never;
+}[TableName];

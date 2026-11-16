@@ -8,11 +8,12 @@
  */
 
 import { linkTableSide } from "#db/link-table.ts";
+import { tables } from "#db/select/tables.ts";
 
 /** The logistics agents assigned to a user, keyed by user id: read with
  * `getIds` (ascending), replace with `setIds` (deduped). */
 export const userAgents = linkTableSide(
-  "user_logistics_agents",
+  tables.user_logistics_agents,
   "user_id",
   "agent_id",
 );
@@ -21,7 +22,7 @@ export const userAgents = linkTableSide(
  * reverse side. `clear` removes every user link to an agent (used before
  * deleting it). */
 export const agentUsers = linkTableSide(
-  "user_logistics_agents",
+  tables.user_logistics_agents,
   "agent_id",
   "user_id",
 );

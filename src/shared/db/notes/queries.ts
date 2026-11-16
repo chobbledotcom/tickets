@@ -216,4 +216,4 @@ export const deleteNotes = async (
 export const noteDeleteStatement: (
   entity: NoteEntity,
   idsQuery: SqlStatement,
-) => SqlStatement = noteTargets.deleteChosenBy("system_notes");
+) => SqlStatement = noteTargets.deleteChosenBy(tables.system_notes);

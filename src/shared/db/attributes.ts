@@ -103,7 +103,7 @@ export const attributeOptionsOrder = defineOrderedCollection({
 });
 
 export const listingAttributeOptions = linkTableSide(
-  "listing_attribute_options",
+  tables.listing_attribute_options,
   "listing_id",
   "option_id",
 );

@@ -18,7 +18,7 @@ import { update } from "#db/write.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
-const LINK_TABLE = "external_source_links";
+const LINK_TABLE = tables.external_source_links;
 
 /** The columns a link stores its record target in. */
 const LINK_COLUMNS = { id: "link_id", kind: "link_type" };

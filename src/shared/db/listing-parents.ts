@@ -16,6 +16,7 @@ import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
@@ -41,7 +42,7 @@ import type { ListingWithCount } from "#types";
  * so one read answers "who are my children" and "whose child am I" together —
  * the discovery, feed, and listing-save paths ask for both. */
 const listingEdges = selfLinkTableSides(
-  "listing_parents",
+  tables.listing_parents,
   "parent_listing_id",
   "child_listing_id",
 );
