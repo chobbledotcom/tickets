@@ -4,6 +4,7 @@
 
 import { decrypt } from "#crypto/encryption.ts";
 import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
+import { removalWithChildren } from "#db/child-rows.ts";
 import {
   executeBatch,
   queryAllPrimary,
@@ -16,6 +17,7 @@ import { readOneRow, readRows } from "#db/read.ts";
 import {
   findRow,
   insertRowStatement,
+  rowValuesOf,
   updateRowStatement,
 } from "#db/record-table.ts";
 import {
@@ -87,17 +89,6 @@ export const imageUseTargets: RecordTargets<ImageUseItemType> =
   });
 
 export type OrderedImage = Image & { sort_order: number };
-
-/** The columns of an image write. */
-const imageValues = (input: Partial<ImageInput>) =>
-  Object.fromEntries(
-    Object.entries({
-      alt_text: input.altText,
-      filename: input.filename,
-      filename_thumb: input.filenameThumb,
-      name: input.name,
-    }).filter(([, value]) => value !== undefined),
-  );
 
 /** Every image, newest first. */
 export const getAllImages = (): Promise<Image[]> =>
@@ -436,17 +427,24 @@ export const updateImageRecord = async (
     async (tx) =>
       resultRows(
         await tx.execute(
-          await updateRowStatement(tables.images, id, imageValues(input)),
+          await updateRowStatement(
+            tables.images,
+            id,
+            rowValuesOf(tables.images, input),
+          ),
         ),
       )[0] ?? null,
     transaction,
   );
 };
 
+const imageRemoval = removalWithChildren(tables.images, [
+  [tables.image_uses, "image_id"],
+]);
+
 export const deleteImageRecord = async (imageId: number): Promise<void> => {
   await executeBatch([
-    deleteFrom(tables.image_uses).where({ image_id: imageId }),
-    deleteFrom(tables.images).where({ id: imageId }),
+    ...imageRemoval(imageId),
     // The shared version is the signal every isolate reads, so a deletion
     // here drops the cached URLs the other isolates still hold.
     settingsVersionIncrement(),

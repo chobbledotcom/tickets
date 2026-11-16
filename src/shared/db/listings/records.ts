@@ -12,20 +12,19 @@ import {
   getListingDayPrices,
 } from "#db/listing-prices.ts";
 import { LISTING_AGGREGATE_WRITE_COLUMNS } from "#db/migrations/schema/listing-aggregates.ts";
-import { readRows } from "#db/read.ts";
 import {
   insertRow,
   type NewRecord,
+  namesByIds,
   newRowValuesOf,
   rowValuesOf,
   updateRow,
 } from "#db/record-table.ts";
-import { from } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
 import { tableCache } from "#db/table-cache.ts";
-import { byId, fieldById, mapParallel } from "#fp";
+import { byId, mapParallel } from "#fp";
 import {
   resolveListingDate,
   resolveListingDefaults,
@@ -208,16 +207,7 @@ export const getListingsById = async (): Promise<
 
 /** Read and decrypt the names of these listings without loading full
  * records. */
-export const listingNamesByIds = async (
-  ids: readonly number[],
-): Promise<Map<number, string>> =>
-  fieldById("name")(
-    await readRows(
-      from(tables.listings)
-        .where({ id: [...ids] })
-        .pick("id", "name"),
-    ),
-  );
+export const listingNamesByIds = namesByIds(tables.listings);
 
 /** Read required listings in input order through the shared cache path. */
 export const requireListingsWithCountsByIds = async (

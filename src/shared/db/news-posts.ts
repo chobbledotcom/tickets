@@ -26,8 +26,8 @@ import {
   openItemImages,
   type SealedItemImages,
 } from "#db/images.ts";
-import { readOneRow, readRows } from "#db/read.ts";
-import { findRow } from "#db/record-table.ts";
+import { readRows } from "#db/read.ts";
+import { findRow, findRowWhere } from "#db/record-table.ts";
 import { desc } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
@@ -156,12 +156,7 @@ export const getNewsPostById = (id: number): Promise<NewsPost | null> =>
 export const getNewsPostBySlugIndex = (
   slugIndex: BlindIndex,
 ): Promise<NewsPost | null> =>
-  readOneRow(
-    from(tables.news_posts)
-      .where({ slug_index: slugIndex })
-      .limit(1)
-      .everyColumn(),
-  );
+  findRowWhere(tables.news_posts, { slug_index: slugIndex });
 
 /** Create a post, stamping `created` now (the admin flow) or at a pinned time
  * (tests/restore), and deriving its immutable `/news` permalink from that date

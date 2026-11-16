@@ -25,10 +25,10 @@ import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,
   SnapshotGroupRow,
-  SnapshotModifierRow,
   SnapshotRows,
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import type { GroupListing, ListingWithCount } from "#types";
 
 const selectIn = (
@@ -180,29 +180,6 @@ const mapGroup = (row: GroupRow): SnapshotGroupRow => ({
   name: row.name,
 });
 
-type ModifierRow = Pick<
-  DecodedRowOf<"modifiers">,
-  | "calc_kind"
-  | "calc_value"
-  | "direction"
-  | "id"
-  | "min_visits"
-  | "name"
-  | "scope"
-  | "trigger"
->;
-
-const mapModifier = (row: ModifierRow): SnapshotModifierRow => ({
-  calcKind: row.calc_kind,
-  calcValue: row.calc_value,
-  direction: row.direction,
-  id: row.id,
-  minVisits: row.min_visits,
-  name: row.name,
-  scope: row.scope,
-  trigger: row.trigger,
-});
-
 export const loadPaidOrderSnapshot = async (
   eventId: string,
   intent: BookingIntent,
@@ -234,21 +211,11 @@ export const loadPaidOrderSnapshot = async (
     ledger: { hasLegs: has_legs === 1, ownerAttendeeId: owner_attendee_id },
     listings: await mapListings(listings),
     memberships,
-    modifierScopes: modifierScopes.map((row) => ({
-      listingId: row.listing_id,
-      modifierId: row.modifier_id,
-    })),
-    modifiers: modifiers.map(mapModifier),
+    modifierScopes: modifierScopes.map(camelCaseKeys),
+    modifiers: modifiers.map(camelCaseKeys),
     publicStatusIds: publicStatuses.map((row) => row.id),
     visitCounts: visitCounts.map((row) => row.visits),
   };
-  const dayPrices = dayPriceRows.map(
-    (row): SnapshotDayPriceRow => ({
-      days: row.days,
-      groupId: row.group_id,
-      listingId: row.listing_id,
-      unitPrice: row.unit_price,
-    }),
-  );
+  const dayPrices: SnapshotDayPriceRow[] = dayPriceRows.map(camelCaseKeys);
   return buildPaidOrderSnapshot(intent.modifiers, rows, dayPrices);
 };

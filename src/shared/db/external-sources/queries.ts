@@ -9,6 +9,7 @@
 /* jscpd:ignore-start -- imports */
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
+import { removalWithChildren } from "#db/child-rows.ts";
 import {
   executeBatch,
   resultRows,
@@ -16,14 +17,15 @@ import {
   withTransaction,
 } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
-import { readOneRow, readRows } from "#db/read.ts";
-import { deleteRow } from "#db/record-table.ts";
+import { readRows } from "#db/read.ts";
+import { deleteRow, findRow, findRowWhere } from "#db/record-table.ts";
 import { among } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteFrom, insertInto, type NewValues, update } from "#db/write.ts";
+import { insertInto, update } from "#db/write.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -52,15 +54,16 @@ export const getAllExternalSources = (): Promise<ExternalSource[]> =>
   readRows(from(tables.external_sources).sortedBy("id").everyColumn());
 
 export const getExternalSource = (id: number): Promise<ExternalSource | null> =>
-  readOneRow(from(tables.external_sources).where({ id }).everyColumn());
+  findRow(tables.external_sources, id);
 
 /** Delete one source and its links in one batch, so no link outlives the
  *  source that names its place. */
+const sourceRemoval = removalWithChildren(tables.external_sources, [
+  [tables.external_source_links, "source_id"],
+]);
+
 export const deleteExternalSource = (id: number): Promise<void> =>
-  executeBatch([
-    deleteFrom(tables.external_source_links).where({ source_id: id }),
-    deleteFrom(tables.external_sources).where({ id }),
-  ]);
+  executeBatch(sourceRemoval(id));
 
 /** The links that `where` keeps, oldest first. */
 const linksIdOrder = (where: Matching<Node<"external_source_links">>) =>
@@ -145,11 +148,10 @@ export const getExternalSourceLink = (
   sourceId: number,
   linkId: number,
 ): Promise<ExternalSourceLink | null> =>
-  readOneRow(
-    from(tables.external_source_links)
-      .where({ id: linkId, source_id: sourceId })
-      .everyColumn(),
-  );
+  findRowWhere(tables.external_source_links, {
+    id: linkId,
+    source_id: sourceId,
+  });
 
 /** One link a caller just asked to read or write. Its absence is a broken
  *  read-your-writes path, so the caller fails loudly. */
@@ -223,15 +225,6 @@ const prepareLinkWrite = async (
   return okResult(input);
 };
 
-/** The columns that one link write stores. */
-const linkColumns = (input: ExternalLinkInput) => ({
-  external_id: input.externalId,
-  external_id_index: input.externalIdIndex,
-  link_id: input.linkId,
-  link_type: input.linkType,
-  source_id: input.sourceId,
-});
-
 /** Run one link write inside the transaction that checks it. The callback
  *  stores the prepared columns and answers with the value to return. */
 const withPreparedLinkWrite = <T>(
@@ -255,17 +248,16 @@ export const createExternalSourceLink = (
     // The row is the input, plus the keys that SQLite made.
     const statement = insertInto(
       tables.external_source_links,
-      // The values name every column but the id, which SQLite makes.
-      (await encoded(tables.external_source_links, {
-        ...linkColumns(input),
+      await encoded(tables.external_source_links, {
+        ...snakeCaseKeys(input),
         created: nowIso(),
-      })) as NewValues<"external_source_links">,
+      }),
     ).returning("created", "id");
     const row = requireValue(
       resultRows(await tx.execute(statement))[0],
       "The external source link insert returned no row",
     );
-    return { ...linkColumns(input), ...row };
+    return { ...snakeCaseKeys(input), ...row };
   });
 
 /** Store a changed link. The caller re-reads the row it answers with. Like
@@ -282,7 +274,7 @@ export const updateExternalSourceLink = (
       await tx.execute(
         update(
           tables.external_source_links,
-          await encoded(tables.external_source_links, linkColumns(input)),
+          await encoded(tables.external_source_links, snakeCaseKeys(input)),
         ).where({ id: link.id }),
       );
       return true;

@@ -14,13 +14,14 @@ import {
   type TxScope,
 } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
-import { readExists, readOneRow } from "#db/read.ts";
-import { type Condition, equal, named } from "#db/select/expression.ts";
+import { readExists, readOneRow, readRows } from "#db/read.ts";
+import { among, type Condition, equal, named } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import type { Node, Query } from "#db/select/shape.ts";
+import type { Matching, Node, Query } from "#db/select/shape.ts";
 import type {
   DecodedRowOf,
   NewRowOf,
+  RowOf,
   TableHandle,
   TableName,
   TableWithId,
@@ -36,6 +37,7 @@ import {
   rowsWith,
   update,
 } from "#db/write.ts";
+import { fieldById } from "#fp";
 import { toCamelCase } from "#shared/column-names.ts";
 import { nowIso } from "#shared/now.ts";
 import { newRowDefaults } from "#shared/rest/field-defaults.ts";
@@ -96,6 +98,35 @@ export const findRow = findRowWith(readOneRow);
 /** The row with this id, read on the primary. A write that reads its own
  *  row back uses this, because a replica can lag behind the write. */
 export const findRowPrimary = findRowWith(queryOnePrimary);
+
+/** The tables whose rows have an `id` and a `name`. */
+type TableWithName = {
+  [Name in TableWithId]: "name" extends keyof RowOf<Name> ? Name : never;
+}[TableWithId];
+
+/** The name of each row with one of these ids, by id. The read opens only the
+ *  name, so a label never loads the whole row. */
+export const namesByIds =
+  (table: TableHandle<TableWithName>) =>
+  async (ids: readonly number[]): Promise<Map<number, string>> =>
+    fieldById("name")(
+      await readRows(
+        from(table)
+          .where(() => among(named<number>(`${table.singular}.id`), [...ids]))
+          .pick("id", "name"),
+      ),
+    );
+
+/** The first whole row that `where` keeps, or null when it keeps none. */
+export const findRowWhere = <Name extends TableName>(
+  table: TableHandle<Name>,
+  where: Matching<Node<Name>>,
+): Promise<DecodedRowOf<Name> | null> =>
+  readOneRow(
+    from(table).where(where).limit(1).everyColumn() as RowsStatement<
+      DecodedRowOf<Name>
+    >,
+  );
 
 /** Whether the table has a row with this id. */
 export const hasRow = <Name extends TableWithId>(

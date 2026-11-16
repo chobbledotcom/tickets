@@ -6,8 +6,13 @@ import { encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import { generateSecureToken } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
-import { readOneRow, readRows } from "#db/read.ts";
-import { deleteRow, findRow, insertRow } from "#db/record-table.ts";
+import { readRows } from "#db/read.ts";
+import {
+  deleteRow,
+  findRow,
+  findRowWhere,
+  insertRow,
+} from "#db/record-table.ts";
 import { type Counted, desc, type Expr, equal } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
@@ -58,12 +63,7 @@ export const getInvoices = (): Promise<InvoiceSummary[]> =>
 export const getOpenInvoice = (
   attendeeId: number,
 ): Promise<InvoiceRow | null> =>
-  readOneRow(
-    from(tables.invoices)
-      .where({ attendee_id: attendeeId, status: "new" })
-      .limit(1)
-      .everyColumn(),
-  );
+  findRowWhere(tables.invoices, { attendee_id: attendeeId, status: "new" });
 
 /** The attendee's invoices, newest first, without their sealed bodies. The
  *  booking's info table reads the newest one. */
@@ -76,12 +76,7 @@ export const getAttendeeInvoices = (
 export const getInvoiceByShareToken = async (
   token: string,
 ): Promise<InvoiceRow | null> =>
-  readOneRow(
-    from(tables.invoices)
-      .where({ share_token_index: await hmacHash(token) })
-      .limit(1)
-      .everyColumn(),
-  );
+  findRowWhere(tables.invoices, { share_token_index: await hmacHash(token) });
 
 /** The next free invoice number, which the create form prefills. */
 export const nextInvoiceNumber = async (): Promise<number> => {

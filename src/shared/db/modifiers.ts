@@ -27,6 +27,7 @@ import { linkTableSide } from "#db/link-table.ts";
 import { everyColumnPicked } from "#db/picked-columns.ts";
 import type { ListsByIds } from "#db/query.ts";
 import { readRows } from "#db/read.ts";
+import { namesByIds } from "#db/record-table.ts";
 import {
   among,
   type Condition,
@@ -38,7 +39,7 @@ import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { update } from "#db/write.ts";
-import { emptyListsFor, fieldById, requiredMapValue } from "#fp";
+import { emptyListsFor, requiredMapValue } from "#fp";
 import type {
   CalcKind,
   ModifierDirection,
@@ -114,16 +115,7 @@ export const getAllModifiers = (): Promise<Modifier[]> =>
   queryModifiersWhere([]);
 
 /** Read and decrypt names only for the requested modifier ids. */
-export const getModifierNamesByIds = async (
-  ids: readonly number[],
-): Promise<Map<number, string>> =>
-  fieldById("name")(
-    await readRows(
-      from(tables.modifiers)
-        .where({ id: [...ids] })
-        .pick("id", "name"),
-    ),
-  );
+export const getModifierNamesByIds = namesByIds(tables.modifiers);
 
 /** Get the active modifiers, decrypted, ordered by id. An optional transaction
  * reads the same rows through it, so a reachability guard inside a write

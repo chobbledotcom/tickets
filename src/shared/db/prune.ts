@@ -6,17 +6,12 @@ import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
-import {
-  among,
-  equal,
-  inQuery,
-  inStatement,
-  notEqual,
-} from "#db/select/expression.ts";
+import { among, equal, inStatement, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
+import { userRemoval } from "#db/users.ts";
 import { deleteFrom } from "#db/write.ts";
 import {
   refundAuthorityPrunableSql,
@@ -246,26 +241,16 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const unactivatedIds = from(tables.users)
-    .where((user) => [
-      among(user.id, ids),
-      equal(user.wrapped_data_key, null),
-      equal(user.password_hash, ""),
-      notEqual(user.invite_expiry, null),
-    ])
-    .values((user) => user.id);
-  return [
-    deleteFrom(tables.api_keys).where((key) =>
-      inQuery(key.user_id, unactivatedIds),
-    ),
-    deleteFrom(tables.sessions).where((session) =>
-      inQuery(session.user_id, unactivatedIds),
-    ),
-    deleteFrom(tables.user_logistics_agents).where((link) =>
-      inQuery(link.user_id, unactivatedIds),
-    ),
-    deleteFrom(tables.users).where((user) => inQuery(user.id, unactivatedIds)),
-  ];
+  return userRemoval(
+    from(tables.users)
+      .where((user) => [
+        among(user.id, ids),
+        equal(user.wrapped_data_key, null),
+        equal(user.password_hash, ""),
+        notEqual(user.invite_expiry, null),
+      ])
+      .values((user) => user.id),
+  );
 };
 
 const lastResultIndexes = (batches: PruneStatement[][]): number[] =>

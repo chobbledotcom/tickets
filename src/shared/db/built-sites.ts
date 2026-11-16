@@ -4,11 +4,12 @@
  */
 
 import { execute, resultRows } from "#db/client.ts";
-import { readOneRow, readRows } from "#db/read.ts";
+import { readRows } from "#db/read.ts";
 import {
   deleteRow,
   findRow,
   findRowPrimary,
+  findRowWhere,
   insertRow,
   updateRowStatement,
 } from "#db/record-table.ts";
@@ -68,6 +69,14 @@ const rowToBuiltSite = (row: BuiltSiteRow): BuiltSite => {
   };
 };
 
+/** The built site of the row that a read found, or null when it found none. */
+const builtSiteOrNull = async (
+  found: Promise<BuiltSiteRow | null>,
+): Promise<BuiltSite | null> => {
+  const row = await found;
+  return row ? rowToBuiltSite(row) : null;
+};
+
 /** Every built site, in name order, cached for the request. */
 export const builtSites = tableCache(
   tables.built_sites,
@@ -82,20 +91,14 @@ export const builtSites = tableCache(
 );
 
 /** The built site with this id, or null. */
-export const findBuiltSiteById = async (
-  id: number,
-): Promise<BuiltSite | null> => {
-  const row = await findRow(tables.built_sites, id);
-  return row ? rowToBuiltSite(row) : null;
-};
+export const findBuiltSiteById = (id: number): Promise<BuiltSite | null> =>
+  builtSiteOrNull(findRow(tables.built_sites, id));
 
 /** The built site with this id, read from the primary, or null. */
-export const findBuiltSiteByIdPrimary = async (
+export const findBuiltSiteByIdPrimary = (
   id: number,
-): Promise<BuiltSite | null> => {
-  const row = await findRowPrimary(tables.built_sites, id);
-  return row ? rowToBuiltSite(row) : null;
-};
+): Promise<BuiltSite | null> =>
+  builtSiteOrNull(findRowPrimary(tables.built_sites, id));
 
 /** The built site with this id, read from the primary. Throws when the row
  * is gone, because every caller holds an id it just read or wrote. */
@@ -209,17 +212,12 @@ export const getAssignableBuiltSites = async (): Promise<BuiltSite[]> => {
 };
 
 /** Look up a built site by renewal token index (HMAC blind index) */
-export const getBuiltSiteByRenewalTokenIndex = async (
+export const getBuiltSiteByRenewalTokenIndex = (
   tokenIndex: string,
-): Promise<BuiltSite | null> => {
-  const row = await readOneRow(
-    from(tables.built_sites)
-      .where({ renewal_token_index: tokenIndex })
-      .limit(1)
-      .everyColumn(),
+): Promise<BuiltSite | null> =>
+  builtSiteOrNull(
+    findRowWhere(tables.built_sites, { renewal_token_index: tokenIndex }),
   );
-  return row ? rowToBuiltSite(row) : null;
-};
 
 /** Update built site renewal state: token index, deadline, and renewal blob together */
 export const updateBuiltSiteRenewalState = (

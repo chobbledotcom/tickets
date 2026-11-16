@@ -13,8 +13,8 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { readOneRow, readRows } from "#db/read.ts";
-import { findRow } from "#db/record-table.ts";
+import { readRows } from "#db/read.ts";
+import { findRow, findRowWhere } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
@@ -67,12 +67,7 @@ export const existingSitePageIdsStatement = (
 export const getSitePageBySlugIndex = (
   slugIndex: BlindIndex,
 ): Promise<SitePage | null> =>
-  readOneRow(
-    from(tables.site_pages)
-      .where({ slug_index: slugIndex })
-      .limit(1)
-      .everyColumn(),
-  );
+  findRowWhere(tables.site_pages, { slug_index: slugIndex });
 
 /** One full page by id (the admin edit read). */
 export const getSitePageById = (id: number): Promise<SitePage | null> =>

@@ -15,6 +15,7 @@ import type {
   PasswordHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
+import { removalWithChildren } from "#db/child-rows.ts";
 import { execute, executeBatch, insertedRowId, queryAll } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
@@ -23,7 +24,7 @@ import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 import { tableCache } from "#db/table-cache.ts";
-import { deleteFrom, insertInto, update } from "#db/write.ts";
+import { insertInto, update } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
@@ -421,17 +422,19 @@ export const migrateUserToV2Kek = async (
   );
 };
 
+/** The deletes that remove users with their sessions, API keys, and logistics
+ *  agent links. */
+export const userRemoval = removalWithChildren(tables.users, [
+  [tables.api_keys, "user_id"],
+  [tables.sessions, "user_id"],
+  [tables.user_logistics_agents, "user_id"],
+]);
+
 /**
  * Delete a user and all their sessions and API keys
  */
-export const deleteUser = async (userId: number): Promise<void> => {
-  await executeBatch([
-    deleteFrom(tables.api_keys).where({ user_id: userId }),
-    deleteFrom(tables.sessions).where({ user_id: userId }),
-    deleteFrom(tables.user_logistics_agents).where({ user_id: userId }),
-    deleteFrom(tables.users).where({ id: userId }),
-  ]);
-};
+export const deleteUser = (userId: number): Promise<void> =>
+  executeBatch(userRemoval(userId));
 
 /**
  * Find a user by invite code hash

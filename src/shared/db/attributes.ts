@@ -5,6 +5,7 @@
  * ids only. Display code resolves those ids back to ordered attribute groups.
  */
 
+import { removalWithChildren } from "#db/child-rows.ts";
 import {
   executeBatch,
   queryAll,
@@ -18,7 +19,7 @@ import type { ListingOption } from "#db/listings/catalog.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
-import { equal, inQuery } from "#db/select/expression.ts";
+import { equal } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -308,26 +309,23 @@ export const getAttributeListingUse = async (
   };
 };
 
-export const deleteAttributeOption = (optionId: number): Promise<void> =>
-  executeBatch([
-    deleteFrom(tables.listing_attribute_options).where({ option_id: optionId }),
-    deleteFrom(tables.attribute_options).where({ id: optionId }),
-  ]);
+/** The deletes that remove attribute options with their listing links. */
+const optionRemoval = removalWithChildren(tables.attribute_options, [
+  [tables.listing_attribute_options, "option_id"],
+]);
 
-export const deleteAttribute = async (attributeId: number): Promise<void> => {
-  await executeBatch([
-    deleteFrom(tables.listing_attribute_options).where((link) =>
-      inQuery(
-        link.option_id,
-        from(tables.attribute_options)
-          .where({ attribute_id: attributeId })
-          .values((option) => option.id),
-      ),
+export const deleteAttributeOption = (optionId: number): Promise<void> =>
+  executeBatch(optionRemoval(optionId));
+
+export const deleteAttribute = (attributeId: number): Promise<void> =>
+  executeBatch([
+    ...optionRemoval(
+      from(tables.attribute_options)
+        .where({ attribute_id: attributeId })
+        .values((option) => option.id),
     ),
-    deleteFrom(tables.attribute_options).where({ attribute_id: attributeId }),
     deleteFrom(tables.attributes).where({ id: attributeId }),
   ]);
-};
 
 const selectedOptionRows = (
   listingIds: number[],

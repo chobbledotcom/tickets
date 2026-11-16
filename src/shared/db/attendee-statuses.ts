@@ -21,13 +21,15 @@ import { readRows } from "#db/read.ts";
 import {
   insertRow,
   insertRowStatement,
+  type NewRecord,
+  rowValuesOf,
   updateRowStatement,
 } from "#db/record-table.ts";
 import { among, equal, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { CountRow } from "#db/select/shape.ts";
 import { type DecodedRowOf, tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { type RowsStatement, type SqlStatement, sql } from "#db/sql.ts";
 import { tableCache } from "#db/table-cache.ts";
 import { deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
@@ -141,15 +143,6 @@ export const attendeeStatuses = tableCache(
     ),
   ),
 );
-
-/** The columns of a status that the owner form writes. */
-const statusValues = (input: AttendeeStatusWriteInput) => ({
-  is_paid_default: input.isPaidDefault,
-  is_public_default: input.isPublicDefault,
-  is_reservation: input.isReservation,
-  name: input.name,
-  reservation_amount: input.reservationAmount,
-});
 
 export const attendeeStatusOrder = defineOrderedCollection({
   key: "id",
@@ -268,6 +261,16 @@ const clearChosenDefaults = async (
   }
 };
 
+/** The status row that a write gives back. */
+const writtenStatus = async (
+  tx: TxScope,
+  write: RowsStatement<AttendeeStatus>,
+): Promise<AttendeeStatus> =>
+  requireValue(
+    resultRows(await tx.execute(write))[0],
+    "The status write gave back no row",
+  );
+
 const saveStatus = (
   id: number | null,
   input: AttendeeStatusWriteInput,
@@ -278,35 +281,33 @@ const saveStatus = (
       const error = defaultChangeError(current, input);
       if (error !== null) return errorResult(error);
       await clearChosenDefaults(tx, id, input);
-      await tx.execute(
-        await updateRowStatement(
-          tables.attendee_statuses,
-          id,
-          statusValues(input),
+      return okResult(
+        await writtenStatus(
+          tx,
+          await updateRowStatement(
+            tables.attendee_statuses,
+            id,
+            rowValuesOf(tables.attendee_statuses, input),
+          ),
         ),
       );
-      return okResult({
-        id,
-        is_paid_default: input.isPaidDefault,
-        is_public_default: input.isPublicDefault,
-        is_reservation: input.isReservation,
-        name: input.name,
-        reservation_amount: input.reservationAmount,
-        sort_order: current.sort_order,
-      });
     }
 
     await clearChosenDefaults(tx, null, input);
     const sortOrder = await attendeeStatusOrder.next({ transaction: tx });
-    const [status] = resultRows(
-      await tx.execute(
+    return okResult(
+      await writtenStatus(
+        tx,
         await insertRowStatement(tables.attendee_statuses, {
-          ...statusValues(input),
+          // The status rule checked that the input names every field.
+          ...(rowValuesOf(
+            tables.attendee_statuses,
+            input,
+          ) as NewRecord<"attendee_statuses">),
           sort_order: sortOrder,
         }),
       ),
     );
-    return okResult(requireValue(status, "The status insert gave back no row"));
   });
 
 /** Reads the two statuses a reassign touches — the row being emptied and the
