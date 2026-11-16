@@ -23,6 +23,7 @@ import { stubRefundPayment } from "#test-utils/webhooks/stripe.ts";
 import {
   checkoutListingId,
   deliver,
+  EXPECTED_PLACEHOLDER,
   expectActions,
   expectPlan,
   expectStatuses,
@@ -96,44 +97,53 @@ describeWithEnv("subscription checkout replay recovery", { db: true }, () => {
     });
   }
 
+  test("fails each delivery while a paid checkout names no charge, then books it", async () => {
+    await setupStripe();
+    const listingId = await checkoutListingId();
+    const started = startedCheckout(listingId);
+    started.invoice = stripeFirstInvoice();
+    started.invoice.payments.data = [];
+    await withCheckoutActions(
+      started,
+      (id) => Promise.resolve(observedSubscription(id, "canceled")),
+      async ({ cancel, refund }) => {
+        await expectStatuses(deliver, 503, 503);
+        expect(await getProcessedPayment(SESSION_ID)).toBeNull();
+        expect(await storedPlans(listingId)).toEqual([]);
+
+        started.invoice = stripeFirstInvoice();
+        await expectStatuses(deliver, 302);
+        await expectPlan(listingId, { ...EXPECTED_PLACEHOLDER, quantity: 2 });
+        expectActions(cancel, refund, 0, 0);
+      },
+    );
+  });
+
   for (const readableAmount of [false, true]) {
-    test(`ends an anchorless rejected plan before acknowledging a ${readableAmount ? "readable" : "still malformed"} replay`, async () => {
+    test(`fails each delivery when a stored unpaid checkout later names a paid charge with a ${readableAmount ? "readable" : "still malformed"} amount`, async () => {
       await setupStripe();
       const listingId = await checkoutListingId();
       const started = startedCheckout(listingId);
-      started.invoice = stripeFirstInvoice();
-      started.invoice.payments.data = [];
-      let canEnd = false;
+      started.session.amount_total = null;
+      started.session.payment_status = "unpaid";
       await withCheckoutActions(
         started,
-        async (id) => {
-          await expectPlan(listingId);
-          expect((await heldAnchor()).rows).toEqual([]);
-          return canEnd
-            ? observedSubscription(id, "canceled")
-            : refusedCancellation();
-        },
+        (id) => Promise.resolve(observedSubscription(id, "canceled")),
         async ({ cancel, refund }) => {
-          await expectStatuses(deliver, 503);
+          await expectStatuses(deliver, 400);
           const owner = await placeholderOwner(listingId);
           expect(await failure()).toMatchObject({
             completion: { code: "malformed_charge" },
           });
-          // Stripe now identifies the charge. Only the readable-amount variant
-          // enters normal placeholder resume; the other stays a rejection.
-          started.invoice = stripeFirstInvoice();
-          if (!readableAmount) started.session.amount_total = null;
-          await expectStatuses(deliver, 503);
-          expectActions(cancel, refund, 2, 0);
-          expect(await placeholderOwner(listingId)).toBe(owner);
+          expect((await heldAnchor()).rows).toEqual([]);
+          expectActions(cancel, refund, 1, 0);
 
-          canEnd = true;
-          await expectStatuses(deliver, readableAmount ? 200 : 400);
-          await expectStatuses(deliver, readableAmount ? 200 : 400);
-          expectActions(cancel, refund, 4, 0);
+          started.session.payment_status = "paid";
+          if (readableAmount) started.session.amount_total = 2000;
+          await expectStatuses(deliver, 503, 503);
+          expectActions(cancel, refund, 1, 0);
           await expectPlan(listingId);
           expect(await placeholderOwner(listingId)).toBe(owner);
-          expect((await heldAnchor()).rows).toEqual([]);
           expect((await failure()).refunded).not.toBe(true);
           expect(await allTransfers()).toEqual([]);
         },

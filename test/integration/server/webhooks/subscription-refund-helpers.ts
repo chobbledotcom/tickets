@@ -24,7 +24,6 @@ import {
 import { mockRequest } from "#test-utils/mocks.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
-  stripeFirstInvoice,
   stripeSubscription,
   subscriptionItems,
 } from "#test-utils/stripe/fixtures.ts";
@@ -159,21 +158,20 @@ export const withCheckoutActions = async (
 
 export const withRejectedCheckout = (
   listingId: number,
-  reason: "malformed charge" | "blank reference",
+  reason: "malformed charge" | "unpaid malformed charge",
   foreign: boolean,
   body: (session: Partial<StripeCheckoutSession>) => Promise<void>,
 ): Promise<void> => {
   const started = startedCheckout(listingId);
-  started.session.amount_total = reason === "malformed charge" ? null : 2000;
+  started.session.amount_total = null;
   if (foreign) {
     requireValue(
       started.session.metadata,
       "Checkout metadata not found",
     ).price_proof = `2000.${"A".repeat(44)}`;
   }
-  if (reason === "blank reference") {
-    started.invoice = stripeFirstInvoice();
-    started.invoice.payments.data = [];
+  if (reason === "unpaid malformed charge") {
+    started.session.payment_status = "unpaid";
   }
   return withSubscriptionStarted(started, () => body(started.session));
 };

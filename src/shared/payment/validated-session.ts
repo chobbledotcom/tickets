@@ -14,17 +14,18 @@ import type {
 import { isPaymentProvider, isRecord } from "#types";
 
 /**
- * Both refusal types retain metadata and the observed subscription. The callback
- * must prove ownership before it stops future charges. Only a
- * `malformed_charge` can name captured money to refund.
+ * Both refusal types retain metadata. The callback must prove ownership before
+ * it stops future charges. Only a `malformed_charge` can name captured money
+ * to refund. Only it can carry an observed subscription. A paid subscription
+ * session with no charge reference throws at the boundary.
  */
 export type SessionRejection = {
   metadata: SessionMetadata;
-  createdAt?: string;
-  subscription?: ValidatedPaymentSession["subscription"];
 } & (
   | {
+      createdAt?: string;
       reason: "malformed_charge";
+      subscription?: ValidatedPaymentSession["subscription"];
       paymentReference: string;
       provider: PaymentProviderType;
       refundable: boolean;
@@ -110,7 +111,7 @@ const malformedChargeRejection = (
   provider: PaymentProviderType,
   paid: boolean,
   metadata: SessionMetadata,
-): SessionRejection => ({
+): MalformedRejection => ({
   metadata: extractSessionMetadata(metadata),
   paymentReference,
   provider,
@@ -120,10 +121,10 @@ const malformedChargeRejection = (
 });
 
 const withRejectedSubscription = (
-  rejection: SessionRejection,
+  rejection: MalformedRejection,
   subscription: ValidatedPaymentSession["subscription"],
   createdAt: string | undefined,
-): SessionRejection => {
+): MalformedRejection => {
   if (subscription !== undefined) {
     rejection.subscription = subscription;
     if (createdAt !== undefined) rejection.createdAt = createdAt;
@@ -156,6 +157,16 @@ export const validatedPaymentSession = (fields: {
   if (!isResourceId(fields.id)) {
     throw new Error("Payment session has an invalid provider resource id");
   }
+  // The first invoice of a paid subscription names its charge. Without that
+  // name the site can refund nothing, so the delivery fails and the provider
+  // sends it again.
+  if (
+    fields.subscription !== undefined &&
+    fields.paymentStatus === "paid" &&
+    !isResourceId(fields.paymentReference)
+  ) {
+    throw new Error(`Paid subscription session ${fields.id} names no charge`);
+  }
   const charge = money(fields.amountTotal, fields.currency);
   if (charge === null) {
     logError({
@@ -186,16 +197,12 @@ export const validatedPaymentSession = (fields: {
       code: ErrorCode.PAYMENT_SESSION,
       detail: `Paid session ${fields.id} is missing its provider resource id`,
     });
-    return withRejectedSubscription(
-      {
-        metadata: extractSessionMetadata(fields.metadata),
-        provider: fields.provider,
-        reason: "blank_reference",
-        sessionId: fields.id,
-      },
-      fields.subscription,
-      fields.createdAt,
-    );
+    return {
+      metadata: extractSessionMetadata(fields.metadata),
+      provider: fields.provider,
+      reason: "blank_reference",
+      sessionId: fields.id,
+    };
   }
   return {
     amountTotal: charge.amount,

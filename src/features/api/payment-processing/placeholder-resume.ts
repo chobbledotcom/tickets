@@ -258,6 +258,12 @@ export const loadRefundResume = async (
   };
 };
 
+/** A failed subscription checkout that was stored without a charge keeps no
+ * refund claim. A paid charge on it later is a state for a person to
+ * investigate, so each delivery fails. */
+export const unclaimedChargeMessage = (sessionId: string): string =>
+  `Failed subscription checkout ${sessionId} names a paid charge that has no refund claim`;
+
 /**
  * A redelivered session whose stored outcome can carry the completion
  * marker: finish whatever tail is still open and answer with the result.
@@ -290,15 +296,13 @@ export const resumePlaceholderSession = async (
       spec,
     });
   }
-  if (search.rows.length === 0) {
-    // A rejected checkout with no charge identity can keep the plan but no
-    // payment anchor. It must still end before a now-readable replay acks it.
-    await endFailedCheckoutSubscription(session.subscription);
-  }
   // No held claim: the tail is done except, possibly, the final words. A
   // crash between the release and the advance leaves the pending outcome on
   // a refund the durable authority knows completed.
   if (stored.refunded === true) return null;
+  if (search.rows.length === 0 && session.subscription !== undefined) {
+    throw new Error(unclaimedChargeMessage(session.id));
+  }
   if (!search.rows.some((row) => row.refundStateName === "completed")) {
     return null;
   }

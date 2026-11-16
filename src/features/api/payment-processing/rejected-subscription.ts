@@ -19,13 +19,14 @@ import {
   type TaggedPaymentReference,
   taggedPaymentReference,
 } from "#payment/provider-reference.ts";
-import type { SessionRejection } from "#payment/validated-session.ts";
+import type { MalformedRejection } from "#payment/validated-session.ts";
 import { attendeeBaseFields } from "#routes/api/payment-processing/create.ts";
 import { extractIntentFromMetadata } from "#routes/api/payment-processing/metadata.ts";
 import {
   type HeldRefundTarget,
   loadRefundResume,
   storedPlaceholderOutcome,
+  unclaimedChargeMessage,
 } from "#routes/api/payment-processing/placeholder-resume.ts";
 import {
   NOTHING_TO_REFUND,
@@ -56,7 +57,7 @@ type RejectedCheckout = {
   intent: BookingIntent;
   occurredAt: string;
   reference: TaggedPaymentReference | null;
-  rejection: SessionRejection;
+  rejection: MalformedRejection;
   spec: PlaceholderRefund;
 };
 
@@ -184,8 +185,8 @@ const resumeRejectedPlan = async (
   if (refunded && failure.refunded !== true) {
     await markRejectionRefunded(work);
   }
-  if (search.rows.length === 0) {
-    await endFailedCheckoutSubscription(rejection.subscription);
+  if (!refunded && search.rows.length === 0) {
+    throw new Error(unclaimedChargeMessage(rejection.sessionId));
   }
   return { kind: "settled", refunded };
 };
@@ -214,7 +215,7 @@ const refundStoredRejection = async (
 };
 
 const settleOwnedRejection = async (
-  rejection: SessionRejection,
+  rejection: MalformedRejection,
   reservation: ReserveSessionResult,
 ): Promise<RejectionOutcome> => {
   if (await checkoutWasHonoured(rejection.sessionId)) {
@@ -233,10 +234,9 @@ const settleOwnedRejection = async (
       rejection.createdAt,
       "Stripe subscription checkout has no creation time",
     ),
-    reference:
-      rejection.reason === "malformed_charge" && rejection.refundable
-        ? taggedPaymentReference(rejection.provider, rejection.paymentReference)
-        : null,
+    reference: rejection.refundable
+      ? taggedPaymentReference(rejection.provider, rejection.paymentReference)
+      : null,
     rejection,
     spec: placeholderRefund("malformed_charge")(
       `Provider reported subscription session ${rejection.sessionId} in a form the site could not read`,
@@ -255,8 +255,8 @@ const settleOwnedRejection = async (
 };
 
 /** A rejected checkout must keep its plan before Stripe stops future charges. */
-export const settleRejectedSubscription: RejectionHandler = ownedRejection(
-  (rejection) =>
+export const settleRejectedSubscription: RejectionHandler<MalformedRejection> =
+  ownedRejection((rejection) =>
     withRejectedSession(rejection.sessionId, (reservation) => {
       if (!reservation.reserved && reservation.existing.attendee_id !== null) {
         return NOTHING_TO_REFUND;
@@ -266,4 +266,4 @@ export const settleRejectedSubscription: RejectionHandler = ownedRejection(
       }
       return settleOwnedRejection(rejection, reservation);
     }),
-);
+  );

@@ -63,7 +63,10 @@ const STORED_OUTCOME = {
  * quantity-0 ghost and Money legs so the authority records mechanically.
  */
 export const settleRejectedCharge: RejectionHandler = async (rejection) => {
-  if (rejection.subscription !== undefined) {
+  if (
+    rejection.reason === "malformed_charge" &&
+    rejection.subscription !== undefined
+  ) {
     return settleRejectedSubscription(rejection);
   }
   const outcome = await refundRejectedCharge(rejection);

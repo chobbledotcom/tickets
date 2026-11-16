@@ -169,8 +169,12 @@ and the failure marker let a retry finish the same work. Stripe must confirm
 that the subscription ended before the site refunds or acknowledges completion.
 
 The row keeps its original status until the scheduled check records any paid
-renewals and the ended status. A missing charge reference creates no refund
-anchor. Unreadable signed metadata supplies no valid booking slots or tax
+renewals and the ended status. An unpaid checkout with an unreadable amount
+names no charge, so it creates no refund anchor. A paid checkout must name its
+charge on the first invoice. If it does not, the delivery throws and stores
+nothing, and Stripe sends the delivery again. If a checkout that was stored
+without a charge later names a paid charge, each delivery throws: a person must
+investigate that payment. Unreadable signed metadata supplies no valid booking slots or tax
 policy. That path confirms cancellation but cannot store those unavailable facts.
 
 ### Valid states
@@ -247,6 +251,8 @@ group. The invoice id is the stable identity.
 | --- | --- | --- | --- |
 | Nothing | Stripe refuses the session | The current checkout error. No booking. | The buyer |
 | Stripe took the first payment | The subscription read fails at completion | The current retry answer. No booking yet. | Webhook redelivery and the success redirect |
+| Stripe took the first payment | The first invoice names no charge | The delivery throws. Nothing is stored. The error reaches the log. | Webhook redelivery and the success redirect |
+| An unpaid checkout was stored with no charge | The session later names a paid charge | Each delivery throws. The error reaches the log. | The owner investigates the payment |
 | The booking cannot proceed | Stripe does not confirm cancellation | The quantity-zero row keeps the plan. The refund waits. | Webhook redelivery and the success redirect |
 | Stripe took the first payment | The booking write fails | The current payment recovery path | The current path |
 | Nothing | The scheduled read fails for one row | That row keeps its status. The batch continues. | The next run |
