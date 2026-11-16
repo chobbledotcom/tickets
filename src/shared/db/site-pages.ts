@@ -12,7 +12,7 @@
 import { resultRows, type TxScope } from "#db/client.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
-import { findRow } from "#db/record-table.ts";
+import { findRow, rowsById } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
@@ -57,7 +57,7 @@ export const sitePageOrder = defineOrderedCollection({
  * for the writes it makes next. */
 export const existingSitePageIdsStatement = (
   ids: readonly number[],
-): SqlStatement => from(tables.site_pages).where({ id: ids }).pick("id");
+): SqlStatement => rowsById(tables.site_pages, ids).pick("id");
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
 export const getSitePageBySlugIndex = rowBySlugIndex(tables.site_pages);

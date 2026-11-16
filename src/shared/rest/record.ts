@@ -14,8 +14,7 @@ import {
   findRowPrimary,
   hasRow,
   insertRowStatement,
-  type NewRecord,
-  newRowValuesOf,
+  newRecordOf,
   rowValuesOf,
   updateRowStatement,
 } from "#db/record-table.ts";
@@ -329,13 +328,7 @@ const buildRecord = <Shape extends RecordShape>(
       statementFor: (value) =>
         insertRowStatement(
           table,
-          // The rule checked the input of a new row. With the starting values,
-          // it names every column that the table cannot fill.
-          newRowValuesOf(
-            table,
-            value as object,
-            spec.fieldDefaults,
-          ) as NewRecord<RecordTable["name"]>,
+          newRecordOf(table, spec.fieldDefaults)(value as object),
         ),
       verb: "created",
     });

@@ -16,6 +16,7 @@ import {
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
 import { queryBatchPrimary, resultRows } from "#db/client.ts";
+import { rowsById } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import type { SqlStatement } from "#db/sql.ts";
@@ -111,7 +112,7 @@ const batchProbePrefixes = (
 const buildFactsStatements = (
   listingIds: readonly number[],
 ): SqlStatement[] => [
-  from(tables.listings).where({ id: listingIds }).pick("id", "listing_type"),
+  rowsById(tables.listings, listingIds).pick("id", "listing_type"),
   from(tables.group_listings)
     .where({ listing_id: listingIds })
     .pick("listing_id", "group_id"),

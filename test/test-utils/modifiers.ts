@@ -5,7 +5,7 @@ import {
   type ModifierInput,
   setModifierAnswers,
 } from "#db/modifiers.ts";
-import { insertRow, type NewRecord, newRowValuesOf } from "#db/record-table.ts";
+import { insertRow, newRecordOf } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql, sqlCommas, sqlName } from "#db/sql.ts";
 
@@ -14,13 +14,13 @@ export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
   insertRow(
     tables.modifiers,
     // The defaults name every required column.
-    newRowValuesOf(tables.modifiers, {
+    newRecordOf(tables.modifiers)({
       calcKind: "fixed",
       calcValue: 5,
       direction: "charge",
       name: "Add-on",
       ...overrides,
-    }) as NewRecord<"modifiers">,
+    }),
   );
 
 /** Set behavioural columns the base create form doesn't expose (trigger,

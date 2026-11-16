@@ -4,6 +4,7 @@ import {
   paymentRowStateValues,
   type RowSettlement,
 } from "#db/payment-claim.ts";
+import { rowsById } from "#db/record-table.ts";
 import { and, not } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -80,7 +81,7 @@ export const prepareClaimedAttendeePaymentAnchor = async (
         },
         {
           when: and(
-            from(tables.attendees).where({ id: attendeeId }).exists(),
+            rowsById(tables.attendees, attendeeId).exists(),
             not(
               from(tables.processed_payments)
                 .as("payment")

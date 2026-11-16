@@ -9,6 +9,7 @@
 import * as v from "valibot";
 import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
+import { rowsById } from "#db/record-table.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
 import { type Expr, equal, wholeCondition } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
@@ -74,7 +75,7 @@ export const syncListingPricesForIds = async (
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
     const statements = [
-      from(tables.listings).where({ id: page }).pick("id", "unit_price"),
+      rowsById(tables.listings, page).pick("id", "unit_price"),
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
     ];
     const results = await batchOnScope(statements, transaction);

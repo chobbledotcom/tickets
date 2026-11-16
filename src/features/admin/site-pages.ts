@@ -1,3 +1,4 @@
+import { rowsById } from "#db/record-table.ts";
 import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 
 /**
@@ -15,7 +16,6 @@ import { defineAdminRoutes, orderRoutes } from "#routes/admin/route-tables.ts";
 import { getNonStandaloneChildIds } from "#db/listing-parents.ts";
 import { getListingOfferFlags } from "#db/listings/catalog.ts";
 import { readExists } from "#db/read.ts";
-import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import {
   addPageItem,
@@ -173,7 +173,7 @@ const isEligibleTarget = async (
   }
   if (type === "group") {
     // Single-row check: no name decryption, never the whole table.
-    return readExists(from(tables.groups).where({ id: itemId }));
+    return readExists(rowsById(tables.groups, itemId));
   }
   return eligibleChildPages((await loadPageForest()).forest, pageId).some(
     (p) => p.id === itemId,

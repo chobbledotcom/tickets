@@ -170,6 +170,12 @@ const appendedTokens = (
 /** The counters of a contact row that one booking adds to. */
 type CountedColumn = "visits" | BookingCountColumn;
 
+/** Each counted column, with the value that `count` gives it. */
+const countedValues = <Value>(
+  counted: readonly CountedColumn[],
+  count: (column: CountedColumn) => Value,
+) => Object.fromEntries(counted.map((column) => [column, count(column)]));
+
 /** The write of one contact row with a token entry. A stored row keeps its
  *  tokens and gets the new entry after them. Each column in `counted` starts
  *  at 1, or adds 1 to the stored count. A stored row changes only where the
@@ -186,16 +192,14 @@ const tokenAppend = (
       attendee_tokens_blob: encrypted,
       contact_hash: hash,
       last_activity: nowMs(),
-      ...Object.fromEntries(counted.map((column) => [column, 1])),
+      ...countedValues(counted, () => 1),
     },
     {
       onConflict: {
         on: ["contact_hash"],
         set: (row, excluded) => ({
           attendee_tokens_blob: appendedTokens(row, excluded),
-          ...Object.fromEntries(
-            counted.map((column) => [column, plus(row[column], 1)]),
-          ),
+          ...countedValues(counted, (column) => plus(row[column], 1)),
         }),
         take: ["last_activity"],
         ...guard,

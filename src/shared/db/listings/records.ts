@@ -16,7 +16,7 @@ import {
   insertRow,
   type NewRecord,
   namesByIds,
-  newRowValuesOf,
+  newRecordOf,
   rowValuesOf,
   updateRow,
 } from "#db/record-table.ts";
@@ -153,15 +153,9 @@ const withDayPrices = async (
   return { ...row, ...imageFilenames, day_prices };
 };
 
-/** The values of a new listing from the form input: each field the input
- * leaves out takes its declared default. */
-export const newListingValues = (input: ListingInput): NewRecord<"listings"> =>
-  // The listing rule checked that the input names every required field.
-  newRowValuesOf(
-    tables.listings,
-    input,
-    LISTING_FIELDS,
-  ) as NewRecord<"listings">;
+/** The values of a new listing from the form input. */
+export const newListingValues: (input: ListingInput) => NewRecord<"listings"> =
+  newRecordOf(tables.listings, LISTING_FIELDS);
 
 /** Store a new listing, then sync its prices. */
 export const createListing = async (input: ListingInput): Promise<Listing> => {

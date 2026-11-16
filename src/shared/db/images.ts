@@ -18,6 +18,7 @@ import {
   allRowsNewestFirst,
   findRow,
   insertRowStatement,
+  rowsById,
   rowValuesOf,
   updateRowStatement,
 } from "#db/record-table.ts";
@@ -280,7 +281,7 @@ const linkImageStatement = (
     {
       or: "IGNORE",
       when: and(
-        from(tables.images).where({ id: imageId }).exists(),
+        rowsById(tables.images, imageId).exists(),
         wholeCondition(imageUseTargets.existsSql(target.kind, target.id)),
       ),
     },

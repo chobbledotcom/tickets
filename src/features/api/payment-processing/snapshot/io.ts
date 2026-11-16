@@ -10,7 +10,7 @@ import {
 import { readBatch } from "#db/read.ts";
 import { among, or } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
-import { type DecodedRowOf, tables } from "#db/select/tables.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   type RowsStatement,
   type SqlStatement,
@@ -24,7 +24,6 @@ import { buildPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/
 import type {
   PaidOrderSnapshot,
   SnapshotDayPriceRow,
-  SnapshotGroupRow,
   SnapshotRows,
 } from "#routes/api/payment-processing/snapshot/types.ts";
 import type { BookingIntent } from "#shared/booking-intent.ts";
@@ -78,7 +77,11 @@ const snapshotStatements = (
     from(tables.groups)
       .where({ id: groupIds, is_package: 1 })
       .sortedBy("id")
-      .pick("id", "name", "hide_package_listings"),
+      .select((group) => ({
+        hideListings: group.hide_package_listings,
+        id: group.id,
+        name: group.name,
+      })),
     typedSql<RowsStatement<GroupListing>>(
       sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
         (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
@@ -169,17 +172,6 @@ const mapListings = async (
 ): Promise<ListingWithCount[]> =>
   Promise.all(rows.map(decryptListingWithCount));
 
-type GroupRow = Pick<
-  DecodedRowOf<"groups">,
-  "hide_package_listings" | "id" | "name"
->;
-
-const mapGroup = (row: GroupRow): SnapshotGroupRow => ({
-  hideListings: row.hide_package_listings,
-  id: row.id,
-  name: row.name,
-});
-
 export const loadPaidOrderSnapshot = async (
   eventId: string,
   intent: BookingIntent,
@@ -207,7 +199,7 @@ export const loadPaidOrderSnapshot = async (
       childId: row.child_listing_id,
       parentId: row.parent_listing_id,
     })),
-    groups: groups.map(mapGroup),
+    groups,
     ledger: { hasLegs: has_legs === 1, ownerAttendeeId: owner_attendee_id },
     listings: await mapListings(listings),
     memberships,

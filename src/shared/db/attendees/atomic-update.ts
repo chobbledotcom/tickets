@@ -16,7 +16,7 @@ import type {
   ListingAttendeeRow,
   UpdateAttendeePIIInput,
 } from "#db/attendee-types.ts";
-import { bookingRowDelete } from "#db/attendees/booking-row-delete.ts";
+import { bookingRowDelete, inBookingSlot } from "#db/attendees/booking-rows.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
@@ -27,7 +27,7 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
-import { equal, valued } from "#db/select/expression.ts";
+import { valued } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { type Changes, update } from "#db/write.ts";
@@ -244,12 +244,14 @@ export const updateStatementFor = (
     start_at: startAt,
     ...noQuantityResetColumns(line.quantity),
   }));
+  const slot = inBookingSlot(attendeeId, {
+    listing_id: line.listingId,
+    package_group_id: oldPin.packageGroupId,
+    parent_listing_id: oldPin.parentListingId,
+    start_at: oldPin.startAt,
+  });
   return changes.where((row) => [
-    equal(row.attendee_id, attendeeId),
-    equal(row.listing_id, line.listingId),
-    equal(row.start_at, oldPin.startAt),
-    equal(row.parent_listing_id, oldPin.parentListingId),
-    equal(row.package_group_id, oldPin.packageGroupId),
+    ...slot(row),
     skipCapacityGuard ? true : capacityConditionFor(line, attendeeId),
   ]);
 };

@@ -12,6 +12,7 @@ import type {
 import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
 import { execute, insertedRowId, queryAll } from "#db/client.ts";
 import { createKeyedCache } from "#db/keyed-cache.ts";
+import { rowsById } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
@@ -249,7 +250,7 @@ export const getUserAuthFieldsById = async (
 ): Promise<UserAuthFields | null> =>
   (
     await queryAll(
-      from(tables.users).where({ id: id }).limit(1).pick("id", "admin_level"),
+      rowsById(tables.users, id).limit(1).pick("id", "admin_level"),
     )
   )[0] ?? null;
 

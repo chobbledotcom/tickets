@@ -6,6 +6,7 @@
  * "Modularised" in docs/designing-systems.md.
  */
 
+import { attendeeListingRows } from "#db/attendees/booking-rows.ts";
 import { bookingSlotKey } from "#db/attendees/booking-slot.ts";
 import { queryAll } from "#db/client.ts";
 import { executeChangedRow } from "#db/guarded-writes.ts";
@@ -307,8 +308,7 @@ export const setLegDone = async (
       tables.listing_attendees,
       isStart ? { start_done: mark } : { end_done: mark },
     ).where((row) => [
-      equal(row.attendee_id, attendeeId),
-      equal(row.listing_id, listingId),
+      ...attendeeListingRows(attendeeId, listingId)(row),
       equal(
         valued<string | null>(
           isStart

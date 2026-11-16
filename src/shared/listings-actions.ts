@@ -25,8 +25,7 @@ import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
-import { updateRowStatement } from "#db/record-table.ts";
-import { from } from "#db/select/query.ts";
+import { rowsById, updateRowStatement } from "#db/record-table.ts";
 import { tables } from "#db/select/tables.ts";
 import { firstProblem, requiredMapValue } from "#fp";
 import { t } from "#i18n";
@@ -442,9 +441,7 @@ export const toggleListingActive = async (
       // the row stale, and deciding noChange from it would skip the very
       // write the operator asked for.
       const [row] = resultRows(
-        await tx.execute(
-          from(tables.listings).where({ id: listingId }).pick("active"),
-        ),
+        await tx.execute(rowsById(tables.listings, listingId).pick("active")),
       );
       // The listing vanished under a concurrent delete. There is nothing to
       // toggle.

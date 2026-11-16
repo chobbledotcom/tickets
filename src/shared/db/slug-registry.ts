@@ -22,7 +22,7 @@ import {
   insertRowStatement,
   type NewRecord,
   type RecordChanges,
-  rowById,
+  rowsById,
   updateRowStatement,
 } from "#db/record-table.ts";
 import { equal, named, wholeCondition } from "#db/select/expression.ts";
@@ -207,7 +207,7 @@ export const freshSlugIndexWrites = <
           row
             ? okResult(row)
             : errorResult(
-                (await existsOn(tx, rowById(table, id)))
+                (await existsOn(tx, rowsById(table, id)))
                   ? "slugTaken"
                   : "notFound",
               ),

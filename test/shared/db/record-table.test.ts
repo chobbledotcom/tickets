@@ -12,8 +12,8 @@ import {
   hasRow,
   insertRow,
   insertRowStatement,
-  newRowValuesOf,
-  rowById,
+  newRecordOf,
+  rowsById,
   rowValuesOf,
   updateRow,
   updateRowStatement,
@@ -153,8 +153,8 @@ describeWithEnv("db > record table", { db: true }, () => {
 
     expect(
       await withTransaction(async (tx) => [
-        await existsOn(tx, rowById(tables.logistics_agents, row.id)),
-        await existsOn(tx, rowById(tables.logistics_agents, row.id + 1)),
+        await existsOn(tx, rowsById(tables.logistics_agents, row.id)),
+        await existsOn(tx, rowsById(tables.logistics_agents, row.id + 1)),
       ]),
     ).toEqual([true, false]);
   });
@@ -181,19 +181,19 @@ describe("db > record table > values from an input", () => {
     ).toEqual({ end_date: "2026-01-02", name: "New year" });
   });
 
-  test("newRowValuesOf adds the created time where the table has it", () => {
-    const values = newRowValuesOf(tables.news_posts, { name: "Post" });
+  test("newRecordOf adds the created time where the table has it", () => {
+    const values = newRecordOf(tables.news_posts)({ name: "Post" });
 
     expect(Object.keys(values).sort()).toEqual(["created", "name"]);
     expect(Number.isNaN(Date.parse(String(values.created)))).toBe(false);
   });
 
-  test("newRowValuesOf puts the field defaults under the input values", () => {
+  test("newRecordOf puts the field defaults under the input values", () => {
     expect(
-      newRowValuesOf(tables.holidays, { name: "Given" }, [
+      newRecordOf(tables.holidays, [
         { default: "Default name", key: "name", kind: "price" },
         { default: 3, key: "end_date", kind: "count" },
-      ]),
+      ])({ name: "Given" }),
     ).toEqual({ end_date: 3, name: "Given" });
   });
 });

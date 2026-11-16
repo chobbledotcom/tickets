@@ -74,12 +74,18 @@ const givingRow = <Name extends TableName>(
     ]),
   ) as RowsStatement<DecodedRowOf<Name>>;
 
-/** The condition that keeps the row with this id. A type parameter cannot
- *  name the `id` column of its node, so the condition names it by text. */
+/** One id, or a list of ids. */
+type Ids = number | readonly number[];
+
+/** The condition that keeps the row with this id, or with one of these ids. A
+ *  type parameter cannot name the `id` column of its node, so the condition
+ *  names it by text. */
 const withId =
-  (word: string, id: number): (() => Condition) =>
+  (word: string, ids: Ids): (() => Condition) =>
   () =>
-    equal(named<number>(`${word}.id`), id);
+    typeof ids === "number"
+      ? equal(named<number>(`${word}.id`), ids)
+      : among(named<number>(`${word}.id`), [...ids]);
 
 /** The read of every column of each row that `query` keeps. A type parameter
  *  hides the columns of the table, so the type comes from its name. */
@@ -88,11 +94,11 @@ const wholeRows = <Name extends TableName>(
 ): RowsStatement<DecodedRowOf<Name>> =>
   query.everyColumn() as RowsStatement<DecodedRowOf<Name>>;
 
-/** The read of the row with this id. */
-export const rowById = <Name extends TableWithId>(
+/** The read of the row with this id, or of the rows with these ids. */
+export const rowsById = <Name extends TableWithId>(
   table: TableHandle<Name>,
-  id: number,
-) => from(table).where(withId(table.singular, id));
+  ids: Ids,
+) => from(table).where(withId(table.singular, ids));
 
 /** What one operation on the row with an id gives back, by its kind. */
 type RowAnswer<Name extends TableName> = {
@@ -113,7 +119,7 @@ type ByRowId<Kind extends keyof RowAnswer<TableName>> = <
 const findRowWith =
   (readOne: <Row>(read: Read<Row>) => Promise<Row | null>): ByRowId<"found"> =>
   (table, id) =>
-    readOne(wholeRows(rowById(table, id)));
+    readOne(wholeRows(rowsById(table, id)));
 
 /** The row with this id, or null when there is none. */
 export const findRow = findRowWith(readOneRow);
@@ -132,13 +138,7 @@ type TableWith<Column extends string, Among extends TableName = TableName> = {
 export const namesByIds =
   (table: TableHandle<TableWith<"name", TableWithId>>) =>
   async (ids: readonly number[]): Promise<Map<number, string>> =>
-    fieldById("name")(
-      await readRows(
-        from(table)
-          .where(() => among(named<number>(`${table.singular}.id`), [...ids]))
-          .pick("id", "name"),
-      ),
-    );
+    fieldById("name")(await readRows(rowsById(table, ids).pick("id", "name")));
 
 /** Every whole row of the table, newest first. A newer row has a higher id. */
 export const allRowsNewestFirst =
@@ -161,7 +161,7 @@ export const findRowWhere = <Name extends TableName>(
 
 /** Whether the table has a row with this id. */
 export const hasRow: ByRowId<"exists"> = (table, id) =>
-  readExists(rowById(table, id));
+  readExists(rowsById(table, id));
 
 /** Remove every row of the table made before `cutoffIso`. */
 export const pruneRowsBefore =
@@ -214,7 +214,7 @@ export const updateRowStatement = async <Name extends TableWithId>(
   guard: (row: Node<Name>) => Condition = () => true,
 ): Promise<RowsStatement<DecodedRowOf<Name>>> =>
   Object.values(changes).every((value) => value === undefined)
-    ? wholeRows(rowById(table, id).where(guard))
+    ? wholeRows(rowsById(table, id).where(guard))
     : givingRow(
         table,
         update(
@@ -252,30 +252,31 @@ export const deleteRow: ByRowId<"removed"> = async (table, id) => {
  * camelCase, so each input key that names a column of the table becomes that
  * column. A key that names no column, such as side data for a join write, is
  * left out. */
-/** The values of a row from a record input, over any table. */
-type ValuesFromInput = <Name extends TableName>(
+export const rowValuesOf = <Name extends TableName>(
   table: TableHandle<Name>,
   input: object,
-  fields?: FieldSpecs,
-) => RecordChanges<Name>;
-
-export const rowValuesOf: ValuesFromInput = (table, input) => {
+): RecordChanges<Name> => {
   const named: Readonly<Record<string, unknown>> = { ...input };
   return Object.fromEntries(
     table.columns.flatMap(([column]) => {
       const value = named[toCamelCase(column)];
       return value === undefined ? [] : [[column, value]];
     }),
-  ) as RecordChanges<typeof table.name>;
+  ) as RecordChanges<Name>;
 };
 
-/** The values of a new row from a record input. First comes the time of the
- * write, where the table records it. Then comes the declared default of each
- * field in `fields`. Last come the values that the input names. */
-export const newRowValuesOf: ValuesFromInput = (table, input, fields = []) => ({
-  ...(table.columns.some(([column]) => column === "created")
-    ? { created: nowIso() }
-    : {}),
-  ...newRowDefaults(fields),
-  ...rowValuesOf(table, input),
-});
+/** The values of a new row from a form input. First comes the time of the
+ *  write, where the table records it. Then comes the declared default of each
+ *  field in `fields`. Last come the values that the input names. The record
+ *  rule checked first that the input names every required field, so the
+ *  values make a whole new row. */
+export const newRecordOf =
+  <Name extends TableName>(table: TableHandle<Name>, fields: FieldSpecs = []) =>
+  (input: object): NewRecord<Name> =>
+    ({
+      ...(table.columns.some(([column]) => column === "created")
+        ? { created: nowIso() }
+        : {}),
+      ...newRowDefaults(fields),
+      ...rowValuesOf(table, input),
+    }) as NewRecord<Name>;

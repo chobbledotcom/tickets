@@ -18,6 +18,7 @@ import type { ListingOption } from "#db/listings/catalog.ts";
 import { listWithChildOrders } from "#db/ordered-collection.ts";
 import { pickedColumns } from "#db/picked-columns.ts";
 import { readRows } from "#db/read.ts";
+import { rowsById } from "#db/record-table.ts";
 import { onReplicaAndPrimary } from "#db/replica-or-primary.ts";
 import { equal } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
@@ -213,11 +214,8 @@ export const {
 );
 
 export const getAttributeId = async (id: number): Promise<number | null> =>
-  (
-    await queryOne(
-      from(tables.attributes).where({ id: id }).limit(1).pick("id"),
-    )
-  )?.id ?? null;
+  (await queryOne(rowsById(tables.attributes, id).limit(1).pick("id")))?.id ??
+  null;
 
 export const getAttributeIdsOrdered = async (): Promise<number[]> =>
   queryIdColumn(
@@ -234,7 +232,7 @@ export const attributeOptionIdsIn = async (
     unique.length === 0
       ? []
       : await queryIdColumn(
-          from(tables.attribute_options).where({ id: unique }).pick("id"),
+          rowsById(tables.attribute_options, unique).pick("id"),
         ),
   );
   return filter((id: number) => found.has(id))(submitted);

@@ -12,7 +12,7 @@ import { KIND } from "#accounting/kinds.ts";
 import { transfersByEventGroup } from "#accounting/queries.ts";
 import { repointAttendeeStatements } from "#accounting/repoint.ts";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
-import { bookingRowDelete } from "#db/attendees/booking-row-delete.ts";
+import { bookingRowDelete } from "#db/attendees/booking-rows.ts";
 import {
   attendeesRemoval,
   checkoutStageDeleteStatements,

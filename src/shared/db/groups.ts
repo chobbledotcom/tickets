@@ -20,7 +20,7 @@ import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
 import { readExists, readRows } from "#db/read.ts";
-import { type NewRecord, newRowValuesOf } from "#db/record-table.ts";
+import { type NewRecord, newRecordOf } from "#db/record-table.ts";
 import {
   among,
   type Expr,
@@ -73,11 +73,9 @@ export const groups = tableCache(
   }),
 );
 
-/** The values of a new group from the form input: each field the input
- * leaves out takes its declared default. */
-export const newGroupValues = (input: GroupInput): NewRecord<"groups"> =>
-  // The group rule checked that the input names every required field.
-  newRowValuesOf(tables.groups, input, GROUP_FIELDS) as NewRecord<"groups">;
+/** The values of a new group from the form input. */
+export const newGroupValues: (input: GroupInput) => NewRecord<"groups"> =
+  newRecordOf(tables.groups, GROUP_FIELDS);
 
 /** Every group keyed by id, from the request-cached set — the batched
  * alternative to one read per id when resolving or validating many groups

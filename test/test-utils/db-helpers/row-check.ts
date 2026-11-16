@@ -4,7 +4,7 @@
 import type { ResultSet } from "@libsql/client";
 import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
-import { rowById } from "#db/record-table.ts";
+import { rowsById } from "#db/record-table.ts";
 import type { TableHandle, TableWithId } from "#db/select/tables.ts";
 import { sqlText } from "#test-utils/sql-text.ts";
 
@@ -15,7 +15,7 @@ export const aroundRowCheck = <Name extends TableWithId>(
   id: number,
   around: (check: () => Promise<ResultSet>) => Promise<ResultSet>,
 ) => {
-  const rowCheck = rowById(table, id).probe().sql;
+  const rowCheck = rowsById(table, id).probe().sql;
   const db = getDb();
   const realExecute = db.execute.bind(db);
   return stub(db, "execute", (...args) => {
