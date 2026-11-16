@@ -416,14 +416,29 @@ describe("field reads", () => {
     });
   });
 
-  test("a form price box that holds no price is an impossible state and throws", () => {
-    expect(() =>
+  test("a blank form price box takes the default that its field declares", () => {
+    expect(
       formFieldsInput(
         LISTING_FIELDS,
-        { unit_price: "" },
-        new Set(["unit_price"]),
+        { recurring_price: "", unit_price: "12.50" },
+        new Set(["recurring_price", "unit_price"]),
       ),
-    ).toThrow("The unit_price form box holds no price");
+    ).toEqual({ recurringPrice: 0, unitPrice: 1250 });
+  });
+
+  test("a form price box that holds no price and has no default throws", () => {
+    const noDefault = LISTING_FIELDS.map((field) =>
+      field.key === "unit_price" ? { key: field.key, kind: field.kind } : field,
+    );
+    for (const value of ["", "abc"]) {
+      expect(() =>
+        formFieldsInput(
+          value === "" ? noDefault : LISTING_FIELDS,
+          { unit_price: value },
+          new Set(["unit_price"]),
+        ),
+      ).toThrow("The unit_price form box holds no price");
+    }
   });
 
   test("the shown fields are the visible declared boxes and the named extras", () => {
