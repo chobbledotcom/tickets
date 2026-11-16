@@ -17,13 +17,13 @@ import {
 } from "#db/client.ts";
 import { encoded } from "#db/codecs/decode.ts";
 import { readOneRow, readRows } from "#db/read.ts";
-import { deleteRow, updateRowStatement } from "#db/record-table.ts";
+import { deleteRow } from "#db/record-table.ts";
 import { among } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Matching, Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteFrom, insertInto, type NewValues } from "#db/write.ts";
+import { deleteFrom, insertInto, type NewValues, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
@@ -268,7 +268,8 @@ export const createExternalSourceLink = (
     return { ...linkColumns(input), ...row };
   });
 
-/** Store a changed link. The caller re-reads the row it answers with. */
+/** Store a changed link. The caller re-reads the row it answers with. Like
+ *  the create, the write needs no session, so it reads back no sealed value. */
 export const updateExternalSourceLink = (
   link: ExternalSourceLink,
   write: ExternalLinkWrite,
@@ -279,11 +280,10 @@ export const updateExternalSourceLink = (
     link.id,
     async (tx, input) => {
       await tx.execute(
-        await updateRowStatement(
+        update(
           tables.external_source_links,
-          link.id,
-          linkColumns(input),
-        ),
+          await encoded(tables.external_source_links, linkColumns(input)),
+        ).where({ id: link.id }),
       );
       return true;
     },
