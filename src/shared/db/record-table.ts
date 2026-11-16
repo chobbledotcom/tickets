@@ -12,6 +12,7 @@ import { encoded } from "#db/codecs/decode.ts";
 import { readExists, readOneRow } from "#db/read.ts";
 import { type Condition, equal, named } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import type {
   DecodedRowOf,
   NewRowOf,
@@ -105,15 +106,15 @@ export const insertRowStatement = async <Name extends TableWithId>(
   ).returning(...everyColumnOf(table)) as RowsStatement<DecodedRowOf<Name>>;
 
 /** The update of the row with this id that gives back the row it wrote.
- *  `condition` must hold too, or the update changes no row. */
+ *  `guard` must hold too, or the update changes no row. */
 export const updateRowStatement = async <Name extends TableWithId>(
   table: TableHandle<Name>,
   id: number,
   changes: RecordChanges<Name>,
-  condition: Condition = true,
+  guard: (row: Node<Name>) => Condition = () => true,
 ): Promise<RowsStatement<DecodedRowOf<Name>>> =>
   update(table, await encoded(table, changes))
-    .where(() => [withId(table.name, id)(), condition])
+    .where((row) => [withId(table.name, id)(), guard(row)])
     .returning(...everyColumnOf(table)) as RowsStatement<DecodedRowOf<Name>>;
 
 /** Add one row and give back the row that the table holds. */

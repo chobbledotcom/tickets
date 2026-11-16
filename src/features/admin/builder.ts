@@ -9,8 +9,8 @@ import { logActivity } from "#db/activity-log.ts";
 import { providerOrBunny } from "#db/built-sites/types.ts";
 import {
   builtSites,
-  builtSitesCrudTable,
   insertBuiltSite,
+  updateBuiltSite,
 } from "#db/built-sites.ts";
 import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
@@ -153,7 +153,7 @@ const builderPost = createAuthedFormRoute({
       throw new Error("Built site was published before it was retained");
     }
     if (assignable) {
-      await builtSitesCrudTable.update(retainedSiteId, { assignable: true });
+      await updateBuiltSite(retainedSiteId, () => ({ assignable: true }));
     }
     await logActivity(`Built new site: ${values.site_name}`);
 

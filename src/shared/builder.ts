@@ -8,7 +8,7 @@
 
 import { toBase64 } from "#crypto/utils.ts";
 import type { DbProvider, HostingProvider } from "#db/built-sites/types.ts";
-import { builtSitesCrudTable } from "#db/built-sites.ts";
+import { deleteBuiltSite } from "#db/built-sites.ts";
 import { sql } from "#db/sql.ts";
 import { t, withMessageGroups } from "#i18n";
 import {
@@ -288,7 +288,7 @@ const buildSiteOnProvider = async (
     ok: false;
   }): Promise<BuildSiteResult> => {
     try {
-      await builtSitesCrudTable.deleteById(retainedId);
+      await deleteBuiltSite(retainedId);
     } catch (deleteError) {
       return {
         error: `${failed.error}; the retained record could not be deleted: ${errorMessage(deleteError)}`,

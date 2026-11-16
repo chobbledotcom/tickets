@@ -146,7 +146,7 @@ export const freshSlugIndexWrites = <Name extends SluggedTable>(
             table,
             id,
             { ...changes, slug_index: slugIndex } as RecordChanges<Name>,
-            wholeCondition(unclaimed(slugIndex, id)),
+            () => wholeCondition(unclaimed(slugIndex, id)),
           ),
         ),
       );
