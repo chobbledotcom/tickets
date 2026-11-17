@@ -142,7 +142,7 @@ describeWithEnv("QR booking", { db: true }, () => {
       const response = await awaitTestRequest(qrBookPath(listing.slug, token));
       const body = await response.text();
       expect(
-        hasInputWithValue(body, `custom_price_${listing.id}`, "25.00"),
+        hasInputWithValue(body, `customPrice${listing.id}`, "25.00"),
       ).toBe(true);
     });
 
@@ -161,7 +161,7 @@ describeWithEnv("QR booking", { db: true }, () => {
       const body = await response.text();
 
       expect(
-        hasInputWithValue(body, `custom_price_${listing.id}`, "0.00"),
+        hasInputWithValue(body, `customPrice${listing.id}`, "0.00"),
       ).toBe(true);
     });
 
@@ -259,7 +259,7 @@ describeWithEnv("QR booking", { db: true }, () => {
             await customisableListing(overrides),
             payload,
           ),
-          'name="day_count"',
+          'name="dayCount"',
         );
       });
     }

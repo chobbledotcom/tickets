@@ -168,7 +168,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: csrf,
+          csrfToken: csrf,
           password: "replaypass123",
           passwordConfirm: "replaypass123",
         }),
@@ -237,7 +237,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest("/join/expired-post-123", {
-          csrf_token: "fake",
+          csrfToken: "fake",
           password: "pass12345678",
           passwordConfirm: "pass12345678",
         }),
@@ -252,7 +252,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: "wrong",
+          csrfToken: "wrong",
           password: "newpassword123",
           passwordConfirm: "newpassword123",
         }),
@@ -269,7 +269,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: "token",
+          csrfToken: "token",
           password: "newpassword123",
           passwordConfirm: "newpassword123",
         }),
@@ -277,7 +277,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       expect(response.status).toBe(302);
     });
 
-    test("POST /join/:code rejects form without csrf_token field", async () => {
+    test("POST /join/:code rejects form without csrfToken field", async () => {
       const { inviteCode } = await createTestInvite("csrf-nofield-user");
 
       const body = "password=newpassword123&passwordConfirm=newpassword123";
@@ -309,7 +309,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("POST /join/:code withValidInvite extracts code from params", async () => {
       const response = await handleRequest(
         mockFormRequest("/join/nonexistent-code", {
-          csrf_token: "csrf",
+          csrfToken: "csrf",
           password: "testpass123",
           passwordConfirm: "testpass123",
         }),

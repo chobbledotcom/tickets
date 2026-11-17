@@ -188,7 +188,7 @@ describePublicApi(() => {
     test("rejects duplicate pay-more child entries with conflicting prices", async () => {
       // Two entries for the same pay-more child (qty 1 each, totalling the
       // parent's 2 units) name two different prices. A single stored
-      // `child_price_*` can't honour both, so rather than letting the last
+      // `childPrice*` can't honour both, so rather than letting the last
       // entry's price silently win and book both units at £20, reject.
       const { parent, child } = await parentWithTwoUnitPayMoreChild();
       const { response, body } = await bookTwoChildEntries(

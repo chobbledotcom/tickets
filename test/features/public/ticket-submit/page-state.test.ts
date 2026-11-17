@@ -70,12 +70,12 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       await patchModifier(addOn.id, { trigger: "optional" });
       const ctx = await ticketContext([listing.id]);
       const form = quantityForm({ [listing.id]: 1 });
-      form.set(`addon_${addOn.id}`, "99");
+      form.set(`addon${addOn.id}`, "99");
 
       expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBe(
         bookingError.addOnMaximum("Parking", 20),
       );
-      form.set(`addon_${addOn.id}`, "20");
+      form.set(`addon${addOn.id}`, "20");
       expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBeNull();
     });
 
@@ -96,7 +96,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = { ...(await ticketContext([listing.id])), terms: "/terms" };
       const form = quantityForm({ [listing.id]: 1 });
-      form.set("agree_terms", "1");
+      form.set("agreeTerms", "1");
 
       expect(validateFormState(form, ctx, pageBookingTree(ctx))).toBeNull();
     });
@@ -156,7 +156,7 @@ describeWithEnv("ticket-submit parse", { db: true }, () => {
         ctx.listings[1]!,
       ]);
       const form = quantityForm({});
-      form.set(`quantity_${first.id}`, "abc");
+      form.set(`quantity${first.id}`, "abc");
 
       expect(
         validateFormState(form, halfClosed, pageBookingTree(halfClosed)),

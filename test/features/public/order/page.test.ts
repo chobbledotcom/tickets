@@ -262,7 +262,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });
       const html = await assertPublicHtml(
         `/ticket/${item.slug}?q_${item.id}=2`,
-        `name="quantity_${item.id}"`,
+        `name="quantity${item.id}"`,
       );
       assertStringIncludes(html, "selected>2</option>");
     });
@@ -272,8 +272,8 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const b = await createTestListing({ maxQuantity: 5, name: "Bravo" });
       const html = await assertPublicHtml(
         `/ticket/${a.slug}+${b.slug}?q_${a.id}=2`,
-        `name="quantity_${a.id}"`,
-        `name="quantity_${b.id}"`,
+        `name="quantity${a.id}"`,
+        `name="quantity${b.id}"`,
       );
       // Row A is pre-filled to 2; row B has no q param so stays unselected.
       assertStringIncludes(html, "selected>2</option>");
@@ -283,7 +283,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });
       const html = await assertPublicHtml(
         `/ticket/${item.slug}?q_${item.id}=2x`,
-        `name="quantity_${item.id}"`,
+        `name="quantity${item.id}"`,
       );
       assert(!html.includes("selected>2</option>"));
     });

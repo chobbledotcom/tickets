@@ -24,7 +24,7 @@ const pricesAfterOverride = async (
   token: string | null,
 ): Promise<Map<number, number>> => {
   const form = new FormParams();
-  if (token !== null) form.set("qr_token", token);
+  if (token !== null) form.set("qrToken", token);
   const prices = new Map<number, number>();
   await applyQrTokenOverride(form, ctx, prices);
   return prices;

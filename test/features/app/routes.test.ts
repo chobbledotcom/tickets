@@ -151,7 +151,7 @@ describeWithEnv("main app router", { db: true }, () => {
 
   test("routes unsubscribe POST requests", async () => {
     const request = mockFormRequest("/unsubscribe", {
-      csrf_token: await signCsrfToken(),
+      csrfToken: await signCsrfToken(),
     });
 
     expect((await routeRequest(request, "/unsubscribe", "POST")).status).toBe(

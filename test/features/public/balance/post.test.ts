@@ -39,7 +39,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "invalid" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "invalid" }, ""),
     );
     assertStringIncludes(await response.text(), "not valid");
   });
@@ -51,7 +51,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         `/pay/${token}`,
-        { csrf_token: await testCsrfToken() },
+        { csrfToken: await testCsrfToken() },
         "",
       ),
     );
@@ -115,7 +115,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "wrong-token" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "wrong-token" }, ""),
     );
     expect(response.status).toBe(200);
     assertStringIncludes(await response.text(), "not valid");
@@ -133,7 +133,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "bad-token" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "bad-token" }, ""),
     );
     assertStringIncludes(await response.text(), "not valid");
   });

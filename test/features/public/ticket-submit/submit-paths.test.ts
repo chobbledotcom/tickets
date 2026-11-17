@@ -233,8 +233,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const response = await submitTicketForm(listing.slug, {
         email: "buyer@example.com",
         name: "Jane Doe",
-        [`question_${choice.questionId}`]: String(choice.answerId),
-        [`question_${freeText}`]: "Arriving late",
+        [`question${choice.questionId}`]: String(choice.answerId),
+        [`question${freeText}`]: "Arriving late",
       });
 
       expect(response.status).toBe(302);
@@ -275,7 +275,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(
@@ -291,7 +291,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxQuantity: 5 });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(html, "No payment required for this booking.");
@@ -305,7 +305,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(
@@ -318,7 +318,7 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       const listing = await createTestListing({ maxQuantity: 5 });
 
       const response = await awaitTestRequest(`/calculate/${listing.slug}`, {
-        data: { [`quantity_${listing.id}`]: "1" },
+        data: { [`quantity${listing.id}`]: "1" },
       });
 
       expect(response.status).toBe(403);
@@ -334,8 +334,8 @@ describeWithEnv("ticket submit paths", { db: true, triggers: true }, () => {
       });
 
       const html = await quoteTicketHtml(listing.slug, {
-        [`question_${questionId}`]: String(answerId),
-        [`quantity_${listing.id}`]: "1",
+        [`question${questionId}`]: String(answerId),
+        [`quantity${listing.id}`]: "1",
       });
 
       assertStringIncludes(html, "No payment required for this booking.");

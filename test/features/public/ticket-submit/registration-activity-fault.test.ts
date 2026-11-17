@@ -82,7 +82,7 @@ describeWithEnv(
           submitTicketForm(listing.slug, {
             email,
             name: "Fault Buyer",
-            [`question_${choice.questionId}`]: String(choice.answerId),
+            [`question${choice.questionId}`]: String(choice.answerId),
           }),
         ).rejects.toThrow("registration activity rejected");
       } finally {
