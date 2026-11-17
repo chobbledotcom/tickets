@@ -228,7 +228,7 @@ const handleSubmitInner = async (
     const taxPlan = await buildTaxSavePlan(attendeeId!);
     if (
       taxPlan.preview.changed &&
-      form.getString("tax_preview") !== taxPlan.preview.token
+      form.getString("taxPreview") !== taxPlan.preview.token
     ) {
       return showErrors({ saveError: t("attendee_form.tax_changed") });
     }

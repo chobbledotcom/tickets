@@ -37,7 +37,7 @@ const create = async (
 };
 
 const remove = (id: number, name: string, extra: Record<string, string> = {}) =>
-  adminFormPost(`${PATH}/${id}/delete`, { confirm_identifier: name, ...extra });
+  adminFormPost(`${PATH}/${id}/delete`, { confirmIdentifier: name, ...extra });
 
 const names = async (): Promise<string[]> =>
   (await attendeeStatuses.getAll()).map((one) => one.name);
@@ -103,7 +103,7 @@ describeWithEnv("deleting a status", { db: true }, () => {
 
   test("refuses the one a paid booking gets", async () => {
     const only = (await attendeeStatuses.getAll())[0]!;
-    const spare = await create("Public Instead", { is_public_default: "1" });
+    const spare = await create("Public Instead", { isPublicDefault: "1" });
     expect(spare).toBeGreaterThan(0);
 
     const { response } = await remove(only.id, only.name);
@@ -182,7 +182,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     expectIncludesAll(html, [
       "Busy",
       "1 attendee holds this status.",
-      'name="reassign_status_id"',
+      'name="reassignStatusId"',
       "Landing Status",
     ]);
   });
@@ -192,7 +192,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
 
     const html = await (await adminGet(`${PATH}/${id}/delete`)).text();
 
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
   });
 
   test("a lone status attendees hold shows the prerequisite instead of an empty picker", async () => {
@@ -207,14 +207,14 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     // No target exists to move them to, so the page says what the save will
     // refuse on instead of rendering a picker with nothing to pick.
     assertStringIncludes(html, "You must keep at least one status");
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
   });
 
   test("a default status's delete page names the prerequisite instead of a picker", async () => {
     // A second status, so the default is not also the last one left.
     await create("Elsewhere");
     const defaulted = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_public_default,
+      (one) => one.isPublicDefault,
     )!;
 
     const html = await (
@@ -225,14 +225,14 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       html,
       "Choose another public default before deleting this status",
     );
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     assertStringIncludes(html, "Delete status");
   });
 
   test("a paid default's delete page names the paid prerequisite", async () => {
-    await create("Own Public Default", { is_public_default: "1" });
+    await create("Own Public Default", { isPublicDefault: "1" });
     const paid = (await attendeeStatuses.getAll()).find(
-      (one) => one.is_paid_default && !one.is_public_default,
+      (one) => one.isPaidDefault && !one.isPublicDefault,
     )!;
 
     const html = await (await adminGet(`${PATH}/${paid.id}/delete`)).text();
@@ -241,7 +241,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
       html,
       "Choose another paid default before deleting this status",
     );
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     assertStringIncludes(html, "Delete status");
   });
 
@@ -249,7 +249,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const { attendeeId, busyId, otherId } = await arrangeBusy();
 
     const { response } = await remove(busyId, "Busy", {
-      reassign_status_id: String(otherId),
+      reassignStatusId: String(otherId),
     });
 
     await expectFlashRedirect(PATH, "Status deleted")(response);
@@ -268,7 +268,7 @@ describeWithEnv("retiring a status attendees hold", { db: true }, () => {
     const { busyId } = await arrangeBusy();
 
     const { response } = await remove(busyId, "Busy", {
-      reassign_status_id: "999999",
+      reassignStatusId: "999999",
     });
 
     await expectFlashRedirect(

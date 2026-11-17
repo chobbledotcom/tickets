@@ -24,11 +24,11 @@ const duplicate = (
   nameReplace: string,
 ): Promise<{ response: Response }> =>
   adminFormPost(`/admin/groups/${groupId}/duplicate`, {
-    date_find: "",
-    date_replace: "",
-    name_find: nameFind,
-    name_replace: nameReplace,
-    new_name: newName,
+    dateFind: "",
+    dateReplace: "",
+    nameFind,
+    nameReplace,
+    newName,
   });
 
 /** A group member requiring an external child that itself has children: the
@@ -59,7 +59,7 @@ describeWithEnv("Group actions — duplicate edge remaps", { db: true }, () => {
     await gatedGroupWithExternalNest("Gated", "Gated parent");
 
     const { response } = await duplicate(
-      (await groups.cache.getAll()).find((g) => g.name === "Gated")!.id,
+      (await groups.getAll()).find((g) => g.name === "Gated")!.id,
       "Gated Copy",
       "Gated",
       "Cloned",
@@ -92,9 +92,7 @@ describeWithEnv("Group actions — duplicate edge remaps", { db: true }, () => {
       });
 
     await gatedGroupWithExternalNest("Dual gate", "First gated parent");
-    const group = (await groups.cache.getAll()).find(
-      (g) => g.name === "Dual gate",
-    )!;
+    const group = (await groups.getAll()).find((g) => g.name === "Dual gate")!;
     const secondParent = await createTestListing({
       groupId: group.id,
       name: "Second gated parent",
@@ -139,7 +137,7 @@ describeWithEnv("Group actions — duplicate edge remaps", { db: true }, () => {
 
     await duplicate(group.id, "Attributed Copy", "Source", "Clone");
 
-    const newGroup = (await groups.cache.getAll()).find(
+    const newGroup = (await groups.getAll()).find(
       (g) => g.name === "Attributed Copy",
     )!;
     const clone = (await getListingsByGroupId(newGroup.id))[0]!;

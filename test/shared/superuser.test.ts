@@ -616,18 +616,18 @@ describeWithEnv("createActivatedSuperuser", { db: true }, () => {
     const { user } = await createActivatedAdmin("pass1234abcd")();
     expect(await decryptUsername(user)).toBe("admin");
     expect(await decryptAdminLevel(user)).toBe("owner");
-    expect(user.kek_version).toBe(2);
-    expect(user.invite_code_hash).toBeNull();
-    expect(user.invite_expiry).toBeNull();
-    expect(user.invite_wrapped_data_key).toBeNull();
-    expect(user.wrapped_data_key).toMatch(/^wk:1:[^:]+:[^:]+$/);
+    expect(user.kekVersion).toBe(2);
+    expect(user.inviteCodeHash).toBeNull();
+    expect(user.inviteExpiry).toBeNull();
+    expect(user.inviteWrappedDataKey).toBeNull();
+    expect(user.wrappedDataKey).toMatch(/^wk:1:[^:]+:[^:]+$/);
   });
 
   test("created user's password can be verified with the raw password", async () => {
     const password = "mysecretpw";
     await createActivatedAdmin(password)();
     const fetchedUser = await getUserByUsername("admin");
-    expect(fetchedUser?.kek_version).toBe(2);
+    expect(fetchedUser?.kekVersion).toBe(2);
     expect(await verifyUserPassword(fetchedUser!, password)).toMatch(
       new RegExp(`^pbkdf2:${getPbkdf2Iterations()}:[^:]+:[^:]+$`),
     );

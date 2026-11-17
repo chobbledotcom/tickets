@@ -8,9 +8,12 @@
  */
 
 import { expect } from "@std/expect";
-import { beforeEach, describe, it as test } from "@std/testing/bdd";
+import { describe, it as test } from "@std/testing/bdd";
+import { stub } from "@std/testing/mock";
 import { getDb } from "#db/client.ts";
-import { sql, sqlName } from "#db/sql.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
   defineRecord,
@@ -24,21 +27,16 @@ import {
   wasActivityLogged,
 } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  type IdNameInput,
-  type IdNameRow,
-  makeIdNameTable,
-} from "#test-utils/rest-fixtures.ts";
+import type { IdNameInput, IdNameRow } from "#test-utils/rest-fixtures.ts";
 
-const TABLE = "record_widgets";
-const table = makeIdNameTable(TABLE);
+const table = tables.logistics_agents;
 
 const widgetRecord = (
   overrides: Partial<RecordSpec<RecordShapeOf<IdNameRow, IdNameInput>>> = {},
 ) =>
   defineRecord<RecordShapeOf<IdNameRow, IdNameInput>>()({
     activityName: "Widget",
-    getAll: () => table.read.many({}),
+    getAll: () => storedWidgets(),
     logName: (input) => input.name,
     nameOf: (row) => row.name,
     rule: (input) =>
@@ -50,8 +48,8 @@ const widgetRecord = (
     ...overrides,
   });
 
-const storedWidgets = async (): Promise<IdNameRow[]> =>
-  table.read.many({}, { order: sql`id ASC` });
+const storedWidgets = (): Promise<IdNameRow[]> =>
+  readRows(from(table).sortedBy("id").everyColumn());
 
 const createWidget = async (
   name: string,
@@ -63,12 +61,6 @@ const createWidget = async (
 };
 
 describeWithEnv("the admin record write path", { db: true }, () => {
-  beforeEach(async () => {
-    await getDb().execute(
-      sql`CREATE TABLE IF NOT EXISTS ${sqlName(TABLE)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
-    );
-  });
-
   test("create writes the row and its activity line", async () => {
     const created = await createWidget("Alpha");
 
@@ -147,7 +139,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await record.remove(created.id)).toEqual({ kind: "not-found" });
   });
 
-  test("a write with no join steps takes the plain table path", async () => {
+  test("a write with no join steps stores the row", async () => {
     const record = widgetRecord({ logAfterCommit: true });
 
     const created = await createWidget("Plain", record);
@@ -170,7 +162,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     });
     expect(
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]),
     ).toEqual([[1, "Widget 'Linked' created"]]);
@@ -178,7 +170,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
     expect(await record.remove(1)).toEqual({ kind: "deleted" });
     expect(
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]),
     ).toEqual([
@@ -197,32 +189,28 @@ describeWithEnv("the admin record write path", { db: true }, () => {
   });
 
   test("a table record reads a page from the replica and a write from the primary", async () => {
-    const reads: string[] = [];
-    const spied = {
-      ...table,
-      findByIdPrimary: (
-        id: Parameters<NonNullable<typeof table.findByIdPrimary>>[0],
-      ) => {
-        reads.push(`primary ${id}`);
-        return table.findByIdPrimary!(id);
-      },
-      read: {
-        ...table.read,
-        one: (query: Parameters<typeof table.read.one>[0]) => {
-          reads.push("replica");
-          return table.read.one(query);
-        },
-      },
-    };
-    const record = widgetRecord({ table: spied });
+    const record = widgetRecord();
     await createWidget("Spied", record);
-    reads.length = 0;
+    const reads: string[] = [];
+    const db = getDb();
+    const realExecute = db.execute.bind(db);
+    const realBatch = db.batch.bind(db);
+    using _execute = stub(db, "execute", (...args) => {
+      reads.push("replica");
+      return realExecute(...(args as Parameters<typeof realExecute>));
+    });
+    using _batch = stub(db, "batch", (...args) => {
+      reads.push(args[1] === "write" ? "primary" : "replica");
+      return realBatch(...(args as Parameters<typeof realBatch>));
+    });
 
     await record.load(1);
     await record.loadAfterWrite(1);
+    reads.push("update");
     await record.update(1, { name: "Moved" });
 
-    expect(reads).toEqual(["replica", "primary 1", "primary 1", "primary 1"]);
+    expect(reads.slice(0, 3)).toEqual(["replica", "primary", "update"]);
+    expect(reads.at(-1)).toBe("primary");
   });
 
   test("a join write sees the written id and the ruled input", async () => {
@@ -243,7 +231,7 @@ describeWithEnv("the admin record write path", { db: true }, () => {
   test("a write logged after commit names its row only when linked", async () => {
     const logLines = async () =>
       (await getAllActivityLog()).map((entry) => [
-        entry.listing_id,
+        entry.listingId,
         entry.message,
       ]);
     const linked = widgetRecord({

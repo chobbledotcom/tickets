@@ -254,9 +254,9 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       expect(form.name).toBe("");
       // One indexed line per existing booking row.
-      expect(form.line_listing_0).toBe(String(listing.id));
-      expect(form.qty_0).toBe("2");
-      expect(form.line_key_0).not.toBe("");
+      expect(form.lineListing0).toBe(String(listing.id));
+      expect(form.qty0).toBe("2");
+      expect(form.lineKey0).not.toBe("");
     });
 
     test("existingAttendeeLines returns the complete stored form line", async () => {
@@ -286,7 +286,7 @@ describe("test-utils — db-backed & settings contracts", () => {
 
       const form = await buildAttendeeEditForm(attendee.id);
 
-      expect(form).toMatchObject({ noqty_0: "1", qty_0: "0" });
+      expect(form).toMatchObject({ noqty0: "1", qty0: "0" });
     });
 
     test("buildAttendeeEditForm defaults new override lines to one ticket with no key", async () => {
@@ -296,16 +296,16 @@ describe("test-utils — db-backed & settings contracts", () => {
         (listingId) => ({ lines: [{ eventId: listingId }] }),
       );
 
-      expect(form.line_listing_0).toBe(String(listing.id));
-      expect(form.qty_0).toBe("1");
-      expect(form.line_key_0).toBe("");
+      expect(form.lineListing0).toBe(String(listing.id));
+      expect(form.qty0).toBe("1");
+      expect(form.lineKey0).toBe("");
     });
 
     test("attendeeLineIndex distinguishes package paths and misses cleanly", () => {
       const html = [
-        '<input name="line_listing_0" value="7">',
-        '<input name="line_package_0" value="3">',
-        '<input name="line_listing_1" value="7">',
+        '<input name="lineListing0" value="7">',
+        '<input name="linePackage0" value="3">',
+        '<input name="lineListing1" value="7">',
       ].join("");
       expect(attendeeLineIndex(html, 7, 3)).toBe("0");
       expect(attendeeLineIndex(html, 7, 0)).toBe("1");

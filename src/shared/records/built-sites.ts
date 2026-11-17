@@ -1,11 +1,18 @@
 /**
  * The built-site record: its table, its one write rule, and its write
- * commands. Every site field is encrypted into one blob, so the table adapter
- * writes through its insert/update/delete façade rather than a row statement.
+ * commands. Every site field is encrypted into one blob, so the record writes
+ * through the built-site module rather than a row statement.
  */
 
 import type { BuiltSite, BuiltSiteFormInput } from "#db/built-sites/types.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import {
+  builtSites,
+  createBuiltSite,
+  findBuiltSiteById,
+  findBuiltSiteByIdPrimary,
+  updateBuiltSite,
+} from "#db/built-sites.ts";
+import { records } from "#db/record-table.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import {
   answerWrite,
@@ -35,16 +42,14 @@ const saveBuiltSite = (
   verb: "created" | "updated",
 ): Promise<WriteVerdict<BuiltSite>> =>
   commitBuiltSite(verb, () =>
-    id === null
-      ? builtSitesCrudTable.insert(input)
-      : builtSitesCrudTable.update(id, input),
+    id === null ? createBuiltSite(input) : updateBuiltSite(id, () => input),
   );
 
 const builtSiteWrites = {
   create: (input: BuiltSiteFormInput) => saveBuiltSite(null, input, "created"),
   remove: deleteCommand(
-    (siteId) => builtSitesCrudTable.read.one({ id: siteId }),
-    (site) => builtSitesCrudTable.deleteById(site.id),
+    findBuiltSiteById,
+    (site) => records.built_sites.delete(site.id),
     (site) => logBuiltSite(site.name, "deleted"),
   ),
   update: (id: number, input: BuiltSiteFormInput) =>
@@ -56,8 +61,9 @@ export const builtSiteRecord = defineNamedRowRecord<
 >()({
   activityName: "Built site",
   getAll: builtSites.getAll,
+  load: findBuiltSiteById,
+  loadAfterWrite: findBuiltSiteByIdPrimary,
   nameLabel: "built_sites.name_label",
   surface: "builtSites",
-  table: builtSitesCrudTable,
   write: builtSiteWrites,
 });

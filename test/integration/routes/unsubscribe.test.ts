@@ -30,7 +30,7 @@ const postUnsubscribe = async (
 ): Promise<Response> => {
   const token = csrf ?? (await signCsrfToken());
   return handleRequest(
-    mockFormRequest("/unsubscribe", { csrf_token: token, ...data }),
+    mockFormRequest("/unsubscribe", { csrfToken: token, ...data }),
   );
 };
 

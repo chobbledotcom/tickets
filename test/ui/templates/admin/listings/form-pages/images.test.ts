@@ -23,7 +23,7 @@ import { withStorageDisabled } from "#test-utils/mocks.ts";
 /** A listing carrying the renewal-tier builder fields, shared by the
  *  months_per_unit / initial_site_months visibility tests. */
 const builderListing = () =>
-  testListingWithCount({ initial_site_months: 6, months_per_unit: 3 });
+  testListingWithCount({ initialSiteMonths: 6, monthsPerUnit: 3 });
 
 /** Neither the duplicate form nor the new-listing form ever renders an image
  *  control — the shared assertion for the two storage-ownership tests. */
@@ -46,7 +46,7 @@ describeWithEnv(
 
     describe("adminListingPage image section", () => {
       test("does not show image upload on detail page", () => {
-        const html = detailHtml(testListingWithCount({ image_url: "" }));
+        const html = detailHtml(testListingWithCount({ imageUrl: "" }));
         expectExcludesAll(html, ['type="file"', 'name="image"']);
       });
     });
@@ -55,7 +55,7 @@ describeWithEnv(
       test("does not show image controls on the edit form", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           const html = editPanelHtml(
-            testListingWithCount({ image_url: "current.jpg" }),
+            testListingWithCount({ imageUrl: "current.jpg" }),
           );
           expectExcludesAll(html, [
             'name="image"',
@@ -69,14 +69,14 @@ describeWithEnv(
       test("does not show image controls on duplicate or create forms", () => {
         runWithStorageConfig(TEST_STORAGE_ZONE, () => {
           expectNoImageInDuplicateAndNew(
-            testListingWithCount({ image_url: "current.jpg" }),
+            testListingWithCount({ imageUrl: "current.jpg" }),
           );
         });
       });
 
       test("keeps image controls absent when storage is disabled", () => {
         withStorageDisabled(() => {
-          const listing = testListingWithCount({ image_url: "current.jpg" });
+          const listing = testListingWithCount({ imageUrl: "current.jpg" });
           assert(!editPanelHtml(listing).includes('name="image"'));
           expectNoImageInDuplicateAndNew(listing);
         });
@@ -88,7 +88,7 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "assign_built_site",
+            'name="assignBuiltSite"',
             "Assign a site on booking",
           ]);
         });
@@ -97,24 +97,24 @@ describeWithEnv(
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(!html.includes("assign_built_site"));
+          assert(!html.includes('name="assignBuiltSite"'));
         });
       });
 
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(
-            testListingWithCount({ assign_built_site: true }),
+            testListingWithCount({ assignBuiltSite: true }),
           );
-          expectIncludesAll(html, ["assign_built_site", "checked"]);
+          expectIncludesAll(html, ['name="assignBuiltSite"', "checked"]);
         });
       });
 
       test("shows on duplicate page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
-          const listing = testListingWithCount({ assign_built_site: true });
+          const listing = testListingWithCount({ assignBuiltSite: true });
           const html = adminDuplicateListingPage(listing, [], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
+          assertStringIncludes(html, 'name="assignBuiltSite"');
         });
       });
     });
@@ -124,9 +124,9 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "months_per_unit",
+            'name="monthsPerUnit"',
             "Months per unit",
-            "initial_site_months",
+            'name="initialSiteMonths"',
             "Initial site months",
           ]);
         });
@@ -136,9 +136,9 @@ describeWithEnv(
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectExcludesAll(html, [
-            "months_per_unit",
+            'name="monthsPerUnit"',
             "Months per unit",
-            "initial_site_months",
+            'name="initialSiteMonths"',
             "Initial site months",
           ]);
         });
@@ -147,14 +147,20 @@ describeWithEnv(
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(builderListing());
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = editPanelHtml(builderListing());
-          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -165,7 +171,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -176,7 +185,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
     });

@@ -262,7 +262,7 @@ describeWithEnv(
           {
             email: "test@example.com",
             name: "Test User",
-            [`quantity_${listing.id}`]: "1",
+            [`quantity${listing.id}`]: "1",
           },
         );
         expect(response.status).toBe(302);
@@ -276,7 +276,7 @@ describeWithEnv(
         const listing = await createTestListing({ maxAttendees: 50 });
         return handleRequest(
           mockFormRequest(`/ticket/${listing.slug}?iframe=true`, {
-            csrf_token: "wrong-token",
+            csrfToken: "wrong-token",
             name: "Test",
           }),
         );
@@ -298,7 +298,7 @@ describeWithEnv(
         const listing = await createTestListing({ maxAttendees: 50 });
         const html = await iframeTicketHtml(listing);
         // Signed tokens start with s1.
-        expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
+        expect(extractInputValue(html, "csrfToken")).toMatch(/^s1\./);
       });
 
       test("POST succeeds with signed token and no cookie", async () => {
@@ -308,7 +308,7 @@ describeWithEnv(
           mockRequest(`/ticket/${listing.slug}`),
         );
         const html = await getResponse.text();
-        const signedToken = extractInputValue(html, "csrf_token") ?? "";
+        const signedToken = extractInputValue(html, "csrfToken") ?? "";
         expect(signedToken.startsWith("s1.")).toBe(true);
 
         // POST without any cookie - signed tokens are the only CSRF mechanism
@@ -316,8 +316,8 @@ describeWithEnv(
           mockFormRequest(`/ticket/${listing.slug}`, {
             email: "test@example.com",
             name: "Test User",
-            [`quantity_${listing.id}`]: "1",
-            csrf_token: signedToken,
+            [`quantity${listing.id}`]: "1",
+            csrfToken: signedToken,
           }),
         );
         expect(response.status).toBe(302);

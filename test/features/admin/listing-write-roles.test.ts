@@ -149,7 +149,7 @@ describeWithEnv("Admin API - Listings role parity", { db: true }, () => {
       response.status,
       await response.json(),
       row?.name,
-      row?.webhook_url,
+      row?.webhookUrl,
     ]).toEqual([
       400,
       { error: "editors cannot set webhook_url" },

@@ -47,7 +47,7 @@ const storedFailure = async (
   if (row === null) {
     throw new Error(`Processed payment is missing: ${sessionId}`);
   }
-  return await parseSessionFailure(row.failure_data);
+  return await parseSessionFailure(row.failureData);
 };
 
 /** The exact encrypted bytes the session row holds right now. */

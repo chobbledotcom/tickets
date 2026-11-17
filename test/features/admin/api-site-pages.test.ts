@@ -3,14 +3,16 @@
 // mapping's field refusals live in api-site-pages-input.test.ts. Technical
 // surface — direct Deno tests (docs/e2e-tests.md); the form-side parity pins live
 // in test/features/admin/parity/site-pages.test.ts.
+
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { records } from "#db/record-table.ts";
 import { addPageItem, getAllPageItems } from "#db/site-page-items.ts";
-import { getSitePageById } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { writeUpdate } from "#routes/admin/api-site-pages.ts";
 import { publicNavModel } from "#routes/public/site-nav.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import {
@@ -39,7 +41,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
     pageId: number,
     expected: Partial<SitePage>,
   ): Promise<void> => {
-    const stored = await getSitePageById(pageId);
+    const stored = await records.site_pages.find(pageId);
     if (stored === null) throw new Error(`Site page ${pageId} is not stored`);
     expect(stored).toMatchObject(expected);
   };
@@ -182,8 +184,8 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       );
       await expectStoredPage(body.page.id, {
         hidden: true,
-        meta_description: "Before you come",
-        meta_title: "Plan",
+        metaDescription: "Before you come",
+        metaTitle: "Plan",
       });
       expect(await wasActivityLogged("Page 'Plan your weekend' created")).toBe(
         true,
@@ -262,7 +264,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
           expect(echoed.page).toMatchObject(edited);
         },
       );
-      await expectStoredPage(page.id, edited);
+      await expectStoredPage(page.id, camelCaseKeys(edited));
     });
 
     test("flips the Hidden flag and the nav model follows", async () => {
@@ -332,9 +334,9 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       await putPageUnder(child.id, parent.id);
       // The no-op wrote no second parent edge for the child.
       const edges = (await getAllPageItems()).filter(
-        (item) => item.item_type === "page" && item.item_id === child.id,
+        (item) => item.itemType === "page" && item.itemId === child.id,
       );
-      expect(edges.map((edge) => edge.page_id)).toEqual([parent.id]);
+      expect(edges.map((edge) => edge.pageId)).toEqual([parent.id]);
     });
 
     test("refuses nesting a page under itself", async () => {
@@ -437,9 +439,9 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
       const { child, parent } = await nestedPages();
 
       await assertApiDeleteOk(`/api/admin/site-pages/${parent.id}`, "Visit");
-      expect(await getSitePageById(parent.id)).toBeNull();
+      expect(await records.site_pages.find(parent.id)).toBeNull();
       // The child survives as a top-level page.
-      const orphan = await getSitePageById(child.id);
+      const orphan = await records.site_pages.find(child.id);
       expect(orphan).not.toBeNull();
       expect(await wasActivityLogged("Page 'Visit' deleted")).toBe(true);
     });
@@ -456,7 +458,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
         "Page name does not match. Please provide the exact page name in confirm_identifier.",
       );
       // The page survives the refused delete.
-      expect(await getSitePageById(page.id)).not.toBeNull();
+      expect(await records.site_pages.find(page.id)).not.toBeNull();
     });
   });
 });

@@ -13,7 +13,7 @@ describe("GroupEditPanel package members table", () => {
   beforeAll(setupAdminPageTest);
 
   test("renders saved overrides and falls back to defaults for members without a row", () => {
-    const group = testGroup({ is_package: true, name: "Bundle" });
+    const group = testGroup({ isPackage: true, name: "Bundle" });
     const withOverride = testListingWithCount({ id: 1, name: "Priced" });
     const withoutRow = testListingWithCount({ id: 2, name: "Default" });
     // Only listing 1 has a saved member row; listing 2 exercises the
@@ -28,14 +28,14 @@ describe("GroupEditPanel package members table", () => {
       }),
     );
     expectIncludesAll(html, [
-      'name="package_price_1"',
+      'name="packagePrice1"',
       'value="15.00"',
-      'name="package_qty_1"',
+      'name="packageQty1"',
       'value="4"',
     ]);
     // Listing 2 (no row): blank price, quantity defaults to 1.
     expect(html).toMatch(
-      /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
+      /<input(?=[^>]*name="packagePrice2")(?=[^>]*value="")[^>]*>/,
     );
   });
 
@@ -44,21 +44,21 @@ describe("GroupEditPanel package members table", () => {
     // stood, so an operator could never see — nor keep — a stored yes.
     const opening = testGroup({
       name: "Festival",
-      scan_checks_in_all_listings: true,
+      scanChecksInAllListings: true,
     });
     const html = String(
       GroupEditPanel({ group: opening, listings: [], members: new Map() }),
     );
     assertStringIncludes(
       html.match(
-        /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
+        /<input type="checkbox" name="scanChecksInAllListings"[^>]*>/,
       )![0] ?? "",
       " checked",
     );
 
     const closed = testGroup({
       name: "Festival",
-      scan_checks_in_all_listings: false,
+      scanChecksInAllListings: false,
     });
     const closedHtml = String(
       GroupEditPanel({ group: closed, listings: [], members: new Map() }),
@@ -66,14 +66,14 @@ describe("GroupEditPanel package members table", () => {
     assert(
       !closedHtml
         .match(
-          /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
+          /<input type="checkbox" name="scanChecksInAllListings"[^>]*>/,
         )![0]
         .includes(" checked"),
     );
   });
 
   test("shows the empty-state prompt when the package has no listings", () => {
-    const group = testGroup({ is_package: true, name: "Empty" });
+    const group = testGroup({ isPackage: true, name: "Empty" });
     const html = String(
       GroupEditPanel({ group, listings: [], members: new Map() }),
     );

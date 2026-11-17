@@ -21,7 +21,7 @@ const item = (
 });
 
 const listing = (id: number, overrides = {}) =>
-  testListingWithCount({ id, listing_type: "standard", ...overrides });
+  testListingWithCount({ id, listingType: "standard", ...overrides });
 
 const listingMap = (...listings: ReturnType<typeof listing>[]) =>
   new Map(listings.map((entry) => [entry.id, entry]));
@@ -121,7 +121,8 @@ describe("bookingsForOrder", () => {
       { date: null },
       checkoutBookingLines([item(7, { quantity: 2 })], listingMap(listing(7))),
     );
-    expect(result).toEqual([
+    // A strict match also proves the row carries no order token and no parent.
+    expect(result).toStrictEqual([
       {
         date: null,
         durationDays: 1,
@@ -130,15 +131,13 @@ describe("bookingsForOrder", () => {
         quantity: 2,
       },
     ]);
-    expect(result[0]!.orderToken).toBeUndefined();
-    expect(result[0]!.parentListingId).toBeUndefined();
   });
 
   test("uses the order day count for a customisable daily listing", () => {
     const source = listing(7, {
-      customisable_days: true,
-      duration_days: 8,
-      listing_type: "daily",
+      customisableDays: true,
+      durationDays: 8,
+      listingType: "daily",
     });
     expect(
       bookingsForOrder(
@@ -164,11 +163,14 @@ describe("bookingsForOrder", () => {
         listingMap(listing(7), listing(8)),
       ),
     );
-    expect(result.map((row) => row.listingId)).toEqual([7, 8]);
-    for (const row of result) {
-      expect(row.orderToken).toBeUndefined();
-      expect(row.parentListingId).toBeUndefined();
-    }
+    const plainRow = (listingId: number) => ({
+      date: null,
+      durationDays: 1,
+      listingId,
+      packageGroupId: 0,
+      quantity: 1,
+    });
+    expect(result).toStrictEqual([plainRow(7), plainRow(8)]);
   });
 
   test("preserves allocation order, exact prices, and each parent package", () => {

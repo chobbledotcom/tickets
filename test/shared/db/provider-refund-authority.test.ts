@@ -91,22 +91,22 @@ describeWithEnv("provider refund authority persistence", { db: true }, () => {
       throw new Error("Authority columns were not logged");
     }
     expect(columns.split(",").map((column) => column.trim())).toEqual([
-      "provider",
-      "provider_reference",
-      "reference_index",
       "callback_replay_index",
       "capability",
       "captured_amount",
+      "created_at",
       "currency",
+      "next_refund_action_at",
+      "observed_at",
+      "provider",
+      "provider_reference",
+      "reference_index",
       "refunded_amount",
+      "refund_local_state",
+      "refund_revision",
       "refund_state",
       "refund_state_name",
-      "refund_local_state",
-      "next_refund_action_at",
-      "refund_revision",
-      "created_at",
       "updated_at",
-      "observed_at",
     ]);
     expectIncludesAll(insert, [
       "ON CONFLICT DO UPDATE",

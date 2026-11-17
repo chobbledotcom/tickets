@@ -37,7 +37,7 @@ const freeTextAnswerParts = (
   const texts: string[] = [];
   const tooltips: string[] = [];
   for (const question of questionData.questions) {
-    if (question.display_type !== "free_text") continue;
+    if (question.displayType !== "free_text") continue;
     const text = textByQuestion?.get(question.id);
     if (!text) continue;
     texts.push(text);

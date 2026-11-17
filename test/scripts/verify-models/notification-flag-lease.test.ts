@@ -17,6 +17,7 @@ import {
   REPRESENTATIVE,
   restoreFacts,
 } from "#scripts/verify-models/notification-flag-lease.ts";
+import { placed } from "#test-utils/sql-text.ts";
 import { records } from "#test-utils/tla-data.ts";
 import { registeredModel } from "./registered-model.ts";
 
@@ -114,9 +115,10 @@ describe("notification flag lease checker data", () => {
 
   test("the production clear statement zeroes an up flag", () => {
     for (const side of ["email", "webhooks"] as const) {
-      const sql = clearPendingFlagStatement(side, [1]).sql;
-      expect(sql).toContain(`${side}_pending = 0`);
-      expect(sql).toContain(`${side}_pending > 0`);
+      expect(placed(clearPendingFlagStatement(side, [1]))).toEqual({
+        args: [0, 1, 0],
+        sql: `UPDATE attendees SET ${side}_pending = ? WHERE attendees.id IN (?) AND attendees.${side}_pending > ?`,
+      });
     }
   });
 

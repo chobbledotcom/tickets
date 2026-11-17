@@ -186,7 +186,7 @@ describeWithEnv("adding to a daily listing", { db: true }, () => {
     });
 
     expect(
-      await stayFor(listing.id, { day_count: "2", name: "Two Of Three" }),
+      await stayFor(listing.id, { dayCount: "2", name: "Two Of Three" }),
     ).toEqual({ end: "2026-09-03", start: "2026-09-01" });
   });
 
@@ -213,7 +213,7 @@ describeWithEnv("adding to a daily listing", { db: true }, () => {
 
     const { response } = await addTo(listing.id, {
       date: "2026-09-01",
-      day_count: "5",
+      dayCount: "5",
       email: "toolong@example.com",
       name: "Five Nights",
       quantity: "1",

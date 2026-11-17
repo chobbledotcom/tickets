@@ -6,7 +6,7 @@
  */
 
 import type { AttributeOption } from "#db/attributes.ts";
-import type { ListingOption } from "#db/listings/table.ts";
+import type { ListingOption } from "#db/listings/catalog.ts";
 import { flatMap } from "#fp";
 
 /** One listing that has at least one of an attribute's options set. */

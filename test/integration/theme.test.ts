@@ -59,7 +59,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
   test("enabling underline links adds data-underline-links to the page", async () => {
     await adminFormPost("/admin/settings/theme", {
       theme: "light",
-      underline_links: "true",
+      underlineLinks: "true",
     });
 
     const response = await adminGet("/admin/settings");
@@ -71,7 +71,7 @@ describeWithEnv("integration: theme settings", { db: true }, () => {
     await enablePublicSite();
     await adminFormPost("/admin/settings/theme", {
       theme: "light",
-      underline_links: "true",
+      underlineLinks: "true",
     });
 
     const response = await handleRequest(mockRequest("/"));

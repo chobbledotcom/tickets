@@ -21,10 +21,10 @@ export default bareSchemaMigration(
     );
     await executeBatchWithoutCacheInvalidation(
       rows.map((row) =>
-        settingUpsert(
+        settingUpsert([
           CONFIG_KEYS.CUSTOM_CSS_BUNNY_FONTS,
           cssUsesBunnyFonts(row.value) ? "true" : "false",
-        ),
+        ]),
       ),
     );
   },

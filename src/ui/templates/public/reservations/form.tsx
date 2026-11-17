@@ -96,7 +96,7 @@ const AddOnsFieldset = ({ addOns }: { addOns: AddOnOption[] }): JSX.Element => (
   <fieldset class="ticket-addons">
     <legend>{t("public.addons.heading")}</legend>
     {addOns.map((addOn) => {
-      const field = `addon_${addOn.id}`;
+      const field = `addon${addOn.id}`;
       return (
         <label class="addon-row">
           <span class="addon-name">
@@ -130,10 +130,10 @@ const PromoCodeField = ({
     <label>
       {t("public.promo.heading")}
       <input
-        name="promo_code"
+        name="promoCode"
         placeholder={t("public.promo.placeholder")}
         type="text"
-        value={savedFormValueOrNull("promo_code") ?? prefilled ?? ""}
+        value={savedFormValueOrNull("promoCode") ?? prefilled ?? ""}
       />
     </label>
   </div>
@@ -218,7 +218,7 @@ export const TicketPageForm = ({
         <ErrorNote>{conflict}</ErrorNote>
       ))}
       {prefill?.token && (
-        <input name="qr_token" type="hidden" value={prefill.token} />
+        <input name="qrToken" type="hidden" value={prefill.token} />
       )}
       <Raw html={renderFields(fields, fieldValues)} />
       {hasDaily && dates && (

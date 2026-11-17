@@ -20,7 +20,7 @@ import type { TicketPrefill } from "./types.ts";
  *  term each of its units buys. */
 type MonthsListing = Pick<
   ListingWithCount,
-  "assign_built_site" | "initial_site_months" | "months_per_unit"
+  "assignBuiltSite" | "initialSiteMonths" | "monthsPerUnit"
 >;
 
 /** The months one priced unit buys, or undefined when a count is plain. The
@@ -132,7 +132,7 @@ export const restoredPackageQuantity = (
 };
 
 /** The per-unit quantity restored for a child select after a validation
- * re-render: the buyer's submitted `child_qty_<parentId>_<childId>`, clamped to
+ * re-render: the buyer's submitted `childQty<parentId>_<childId>`, clamped to
  * `0..max`, else 0. */
 export const restoredChildQty = (
   parentId: number,

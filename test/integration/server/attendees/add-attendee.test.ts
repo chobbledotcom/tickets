@@ -116,7 +116,7 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
         name: "Persist Person",
         phone: "555-7777",
         quantity: "1",
-        special_instructions: "Aisle seat",
+        specialInstructions: "Aisle seat",
       });
       expect(response.status).toBe(302);
 
@@ -173,7 +173,7 @@ describeWithEnv("server (admin attendees) > add attendee", { db: true }, () => {
 
       const response = await submitAddAttendee(listing.id, cookie, csrfToken, {
         date: "2026-09-10",
-        day_count: "2",
+        dayCount: "2",
         email: "jane@example.com",
         name: "Jane Doe",
         quantity: "1",

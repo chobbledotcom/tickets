@@ -16,15 +16,15 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
       const plan = await createTestListing({ assignBuiltSite: true });
       const plain = await createTestListing({ name: "Plain listing" });
       expect([
-        (await getListingWithCount(plan.id))?.assign_built_site,
-        (await getListingWithCount(plain.id))?.assign_built_site,
+        (await getListingWithCount(plan.id))?.assignBuiltSite,
+        (await getListingWithCount(plain.id))?.assignBuiltSite,
       ]).toEqual([true, false]);
     });
 
     test("refuses assign_built_site when CAN_BUILD_SITES is not set", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
       const { response } = await submitListingCreate({
-        assign_built_site: "1",
+        assignBuiltSite: "1",
       });
       expect([response.status, await getAllListings()]).toEqual([400, []]);
     });
@@ -34,7 +34,7 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
       const listing = await createTestListing();
       await updateTestListing(listing.id, { assignBuiltSite: true });
       const updated = await getListingWithCount(listing.id);
-      expect(updated?.assign_built_site).toBe(true);
+      expect(updated?.assignBuiltSite).toBe(true);
     });
   });
 });

@@ -94,8 +94,8 @@ When(
     const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingIdNamed(this, name)}/edit`);
     await savesServedForm(browser, (served) => {
-      expectCanReallySend(served, { min_quantity: String(minimum) });
-      return { min_quantity: String(minimum) };
+      expectCanReallySend(served, { minQuantity: String(minimum) });
+      return { minQuantity: String(minimum) };
     });
     keepsWhatTheOrganiserSaw(this, browser);
   },
@@ -110,7 +110,7 @@ const storedMinimum = async (
     world,
     `/admin/listing/${listingIdNamed(world, name)}/edit`,
   );
-  const box = boxFor(browser.currentHtml, "min_quantity");
+  const box = boxFor(browser.currentHtml, "minQuantity");
   if (!box) {
     throw new Error(`The ${name} edit form offers no minimum box at all`);
   }
@@ -164,7 +164,7 @@ const openTheBookingPage = async (
 const choicesOnThePage = (world: TicketsWorld, name: string): string[] =>
   optionsOffered(
     browserSeenBy(world, VISITOR).currentHtml,
-    `quantity_${listingNamed(world, name).id}`,
+    `quantity${listingNamed(world, name).id}`,
   );
 
 When(
@@ -199,7 +199,7 @@ When(
     await enablePublicSite();
     const listing = listingNamed(this, name);
     const browser = await openAsNewcomer(`/ticket/${listing.slug}`);
-    const field = `quantity_${listing.id}`;
+    const field = `quantity${listing.id}`;
     const offered = optionsOffered(
       browser.formBodyFor("Continue", ["email", "name", field]),
       field,
@@ -262,7 +262,7 @@ Then(
     // choice happens to be unusable.
     assert(
       !browserSeenBy(this, VISITOR).currentHtml.includes(
-        `name="quantity_${listing.id}"`,
+        `name="quantity${listing.id}"`,
       ),
     );
   },

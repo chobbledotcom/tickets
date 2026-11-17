@@ -72,17 +72,17 @@ const extractBuiltSiteInput = (
   // no nullish fallback is needed — a non-tier string just is not carried
   // below.
   const updates = values.updates;
-  const hostingProvider = providerOrBunny(values.hosting_provider, "deno");
-  const dbProvider = providerOrBunny(values.db_provider, "turso");
+  const hostingProvider = providerOrBunny(values.hostingProvider, "deno");
+  const dbProvider = providerOrBunny(values.dbProvider, "turso");
   return {
     assignable: values.assignable === "1",
     dbProvider,
-    dbToken: values.db_token,
-    dbUrl: values.db_url,
-    hostingId: values.hosting_id,
+    dbToken: values.dbToken,
+    dbUrl: values.dbUrl,
+    hostingId: values.hostingId,
     hostingProvider,
     name: values.name,
-    siteUrl: values.site_url,
+    siteUrl: values.siteUrl,
     ...(updates !== null && isUpdateTier(updates) ? { updates } : {}),
   };
 };
@@ -196,7 +196,7 @@ const handleAddSecrets = builtSiteFormPost(
   async (site, _session, form, _request) => {
     const result = await addMissingSiteSecrets(
       site,
-      form.getFlag("confirm_pair_secrets"),
+      form.getFlag("confirmPairSecrets"),
     );
     if (!result.ok) {
       return refuseTab(

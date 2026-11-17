@@ -18,19 +18,19 @@ const renewalTierColumns: readonly TableColumn<ListingWithCount>[] = [
   translatedTableColumn(
     "months",
     "built_sites.tier_table_months",
-    (tier) => tier.months_per_unit,
+    (tier) => tier.monthsPerUnit,
     { class: "quantity" },
   ),
   translatedTableColumn(
     "price",
     "built_sites.tier_table_price",
-    (tier) => formatCurrency(tier.unit_price),
+    (tier) => formatCurrency(tier.unitPrice),
     { class: "amount" },
   ),
   translatedTableColumn(
     "units",
     "built_sites.tier_table_units",
-    (tier) => tier.attendee_count,
+    (tier) => tier.attendeeCount,
     { class: "quantity" },
   ),
 ];

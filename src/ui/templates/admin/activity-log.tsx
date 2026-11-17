@@ -161,12 +161,12 @@ const activityLogTable = defineTable<ActivityLogEntry, ActivityLogRefs>([
   translatedTableColumn<ActivityLogEntry, "attendee", ActivityLogRefs>(
     "attendee",
     "terms.attendee",
-    (entry, refs) => attendeeRefLink(entry.attendee_id, refs.attendees),
+    (entry, refs) => attendeeRefLink(entry.attendeeId, refs.attendees),
   ),
   translatedTableColumn<ActivityLogEntry, "listing", ActivityLogRefs>(
     "listing",
     "terms.listing",
-    (entry, refs) => refLink(entry.listing_id, refs.listings, "/admin/listing"),
+    (entry, refs) => refLink(entry.listingId, refs.listings, "/admin/listing"),
   ),
 ]);
 

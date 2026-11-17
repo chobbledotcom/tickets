@@ -14,7 +14,7 @@ describeWithEnv("Admin API listing body field rules", { db: true }, () => {
       { date: "", max_attendees: 10, name: "Undated" },
       testListingWithCount({
         date: "2026-08-01T00:00:00.000Z",
-        max_attendees: 10,
+        maxAttendees: 10,
         name: "Undated",
       }),
     );
@@ -26,7 +26,7 @@ describeWithEnv("Admin API listing body field rules", { db: true }, () => {
   test("names the owner-only rule when a manager sends attribute options", async () => {
     const result = await bodyToUpdateInput(
       { attribute_option_ids: [7], max_attendees: 10, name: "Managed" },
-      testListingWithCount({ max_attendees: 10, name: "Managed" }),
+      testListingWithCount({ maxAttendees: 10, name: "Managed" }),
       { adminLevel: "manager" },
     );
 
@@ -43,7 +43,7 @@ describeWithEnv("Admin API listing body field rules", { db: true }, () => {
         max_attendees: 10,
         name: "Owner Options",
       },
-      testListingWithCount({ max_attendees: 10, name: "Owner Options" }),
+      testListingWithCount({ maxAttendees: 10, name: "Owner Options" }),
       { adminLevel: "owner" },
     );
 
@@ -58,7 +58,7 @@ describeWithEnv("Admin API listing body field rules", { db: true }, () => {
         max_attendees: 10,
         name: "Bad Option",
       },
-      testListingWithCount({ max_attendees: 10, name: "Bad Option" }),
+      testListingWithCount({ maxAttendees: 10, name: "Bad Option" }),
       { adminLevel: "owner" },
     );
 

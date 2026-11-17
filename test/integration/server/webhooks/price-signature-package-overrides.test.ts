@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { groups, setGroupPackageMembers } from "#db/groups.ts";
-import { modifiersTable } from "#db/modifiers.ts";
+import { setGroupPackageMembers } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectPackageRefund,
@@ -22,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signMeta, webhookMeta } from "#test-utils/factories.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { getProcessedPayment } from "#test-utils/processed-payments.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -46,7 +47,7 @@ describeWithEnv(
           // Recorded as a terminal failure (refund settled), so a later delivery
           // replays it instead of retrying.
           const record = await getProcessedPayment("cs_already_refunded");
-          expect(record?.failure_data).not.toBe("");
+          expect(record?.failureData).not.toBe("");
         },
       );
     });
@@ -192,7 +193,7 @@ describeWithEnv(
       const metadata = packageMetadata(group.id, listing.id, 1500);
       // The package flag is cleared, so the member revalidates at its 5000 base
       // price and the 1500 the buyer signed no longer matches.
-      await groups.table.update(group.id, { isPackage: false });
+      await records.groups.update(group.id, { isPackage: false });
       await expectPackageRefund("cs_pkg_unflagged", listing.id, metadata);
     });
 
@@ -231,11 +232,8 @@ describeWithEnv(
       ]);
       // An opt-in add-on keeps the order PAID even though every package line is
       // free — this is the case the old `hasPaidItems` guard skipped.
-      const addOn = await modifiersTable.insert({
-        calcKind: "fixed",
+      const addOn = await insertModifier({
         calcValue: 500,
-        direction: "charge",
-        name: "Add-on",
       });
       await execute(
         sql`UPDATE modifiers SET trigger = ${"optional"} WHERE id = ${addOn.id}`,

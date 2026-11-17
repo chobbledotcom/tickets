@@ -107,7 +107,7 @@ const secondListingFor = (
   const listing = testListingWithCount({
     id: 2,
     name: options.secondListingName,
-    unit_price: 0,
+    unitPrice: 0,
   });
   return {
     bookingItem: { e: 2, p: 0, q: 1 },
@@ -126,7 +126,7 @@ const preparationResult = (options: PreparationOptions) => {
   const listing = testListingWithCount({
     id: 1,
     name: options.listingName ?? "Test Listing",
-    unit_price: 1000,
+    unitPrice: 1000,
   });
   const bookingItem = {
     e: listing.id,
@@ -405,7 +405,7 @@ describeWithEnv("payment booking lines", { db: true }, () => {
         modifierId: 1,
         name: code,
         quantity: 1,
-        scopedSubtotal: listing.unit_price,
+        scopedSubtotal: listing.unitPrice,
       };
 
       await logActivities(
@@ -443,8 +443,8 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
       expect(
         await alreadyProcessedResult(listing.id, {
-          attendee_id: attendee.id,
-          ticket_tokens: await encrypt(tokens),
+          attendeeId: attendee.id,
+          ticketTokens: await encrypt(tokens),
         } as never),
       ).toEqual({
         attendee: { id: attendee.id },
@@ -465,8 +465,8 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
     expect(
       await alreadyProcessedResult(listing.id, {
-        attendee_id: attendee.id,
-        ticket_tokens: "",
+        attendeeId: attendee.id,
+        ticketTokens: "",
       } as never),
     ).toEqual({
       attendee: { id: attendee.id },

@@ -83,7 +83,7 @@ describe("saved form data", () => {
   test("restores datetime date and time separately", async () => {
     await withRequestContext(async () => {
       setSavedFormData(
-        new FormParams("start_date=2026-03-21&start_time=14%3A30"),
+        new FormParams("startDate=2026-03-21&startTime=14%3A30"),
       );
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
@@ -94,7 +94,7 @@ describe("saved form data", () => {
 
   test("defaults datetime time to 00:00 when only date was saved", async () => {
     await withRequestContext(async () => {
-      setSavedFormData(new FormParams("start_date=2026-03-21"));
+      setSavedFormData(new FormParams("startDate=2026-03-21"));
       const html = renderFields([
         field({ label: "Start", name: "start", type: "datetime" }),
       ]);
@@ -105,7 +105,7 @@ describe("saved form data", () => {
   test("renders no value attributes for a datetime the stash cannot fill", async () => {
     // A stash with no datetime fields, or one holding a time without a date
     // (an incomplete datetime), yields no value rather than a lone time.
-    for (const stash of ["other=value", "start_time=14%3A30"]) {
+    for (const stash of ["other=value", "startTime=14%3A30"]) {
       await withRequestContext(async () => {
         setSavedFormData(new FormParams(stash));
         const html = renderFields([

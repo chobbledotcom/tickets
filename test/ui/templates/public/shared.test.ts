@@ -26,14 +26,14 @@ describeWithEnv(
 
     describe("renderListingImage", () => {
       test("returns empty string when image_url is empty", () => {
-        const html = renderListingImage({ image_thumb_url: "", image_url: "" });
+        const html = renderListingImage({ imageThumbUrl: "", imageUrl: "" });
         expect(html).toBe("");
       });
 
       test("renders img tag with proxy URL when image_url is set", () => {
         const html = renderListingImage({
-          image_thumb_url: "",
-          image_url: "abc123.jpg",
+          imageThumbUrl: "",
+          imageUrl: "abc123.jpg",
         });
         expectIncludesAll(html, [
           "/image/abc123.jpg",
@@ -44,24 +44,24 @@ describeWithEnv(
 
       test("uses empty alt text for decorative image", () => {
         const html = renderListingImage({
-          image_thumb_url: "",
-          image_url: "img.jpg",
+          imageThumbUrl: "",
+          imageUrl: "img.jpg",
         });
         assertStringIncludes(html, 'alt=""');
       });
 
       test("uses escaped alt text when present", () => {
         const html = renderListingImage({
-          image_alt_text: 'Front "hero" image',
-          image_thumb_url: "",
-          image_url: "img.jpg",
+          imageAltText: 'Front "hero" image',
+          imageThumbUrl: "",
+          imageUrl: "img.jpg",
         });
         assertStringIncludes(html, 'alt="Front &quot;hero&quot; image"');
       });
 
       test("uses the thumbnail URL in thumb contexts when one exists", () => {
         const html = renderListingImage(
-          { image_thumb_url: "thumb.webp", image_url: "full.webp" },
+          { imageThumbUrl: "thumb.webp", imageUrl: "full.webp" },
           "listing-thumbnail",
           { thumb: true },
         );
@@ -72,7 +72,7 @@ describeWithEnv(
 
       test("falls back to the full image in thumb contexts when no thumbnail", () => {
         const html = renderListingImage(
-          { image_thumb_url: "", image_url: "full.webp" },
+          { imageThumbUrl: "", imageUrl: "full.webp" },
           "listing-thumbnail",
           { thumb: true },
         );
@@ -81,8 +81,8 @@ describeWithEnv(
 
       test("uses the full image outside thumb contexts even when a thumb exists", () => {
         const html = renderListingImage({
-          image_thumb_url: "thumb.webp",
-          image_url: "full.webp",
+          imageThumbUrl: "thumb.webp",
+          imageUrl: "full.webp",
         });
         assertStringIncludes(html, "/image/full.webp");
         assert(!html.includes("/image/thumb.webp"));
@@ -93,9 +93,9 @@ describeWithEnv(
       const html = ticketPage({
         baseUrl: "https://tickets.example",
         groupImage: {
-          image_alt_text: "Camp kit display",
-          image_thumb_url: "camp-kit-thumb.webp",
-          image_url: "camp-kit.webp",
+          imageAltText: "Camp kit display",
+          imageThumbUrl: "camp-kit-thumb.webp",
+          imageUrl: "camp-kit.webp",
         },
         groupName: "Camp Kit",
         listings: [
@@ -122,7 +122,7 @@ describeWithEnv(
         });
 
       test("shows listing image when image_url is set", () => {
-        const listing = testListingWithCount({ image_url: "listing-img.jpg" });
+        const listing = testListingWithCount({ imageUrl: "listing-img.jpg" });
         const html = renderSingleListing(listing);
         expectIncludesAll(html, [
           "/image/listing-img.jpg",
@@ -131,7 +131,7 @@ describeWithEnv(
       });
 
       test("does not show image when image_url is empty", () => {
-        const listing = testListingWithCount({ image_url: "" });
+        const listing = testListingWithCount({ imageUrl: "" });
         const html = renderSingleListing(listing);
         assert(!html.includes("/image/"));
       });
@@ -140,7 +140,7 @@ describeWithEnv(
         await withRequestContext(() => {
           detectIframeMode(new URL("https://example.com/?iframe=true"));
           const listing = testListingWithCount({
-            image_url: "listing-img.jpg",
+            imageUrl: "listing-img.jpg",
           });
           const html = renderSingleListing(listing);
           assert(!html.includes("listing-img.jpg"));
@@ -153,12 +153,12 @@ describeWithEnv(
         const listings = [
           ticketListing({
             id: 1,
-            image_url: "img-a.jpg",
+            imageUrl: "img-a.jpg",
             name: "Listing A",
           }),
           ticketListing({
             id: 2,
-            image_url: "img-b.jpg",
+            imageUrl: "img-b.jpg",
             name: "Listing B",
           }),
         ];
@@ -168,7 +168,7 @@ describeWithEnv(
 
       test("does not show images when image_url is empty", () => {
         const listings = [
-          ticketListing({ id: 1, image_url: "", name: "Listing A" }),
+          ticketListing({ id: 1, imageUrl: "", name: "Listing A" }),
         ];
         const html = ticketPage({ listings, slugs: ["slug-a"] });
         assert(!html.includes("/image/"));
@@ -221,7 +221,7 @@ describeWithEnv(
         const cards = [
           {
             entry: testTokenEntry({
-              listing: { image_url: "ticket-img.jpg" },
+              listing: { imageUrl: "ticket-img.jpg" },
             }),
             token,
           },
@@ -236,7 +236,7 @@ describeWithEnv(
       test("does not show image when image_url is empty", () => {
         const cards = [
           {
-            entry: testTokenEntry({ listing: { image_url: "" } }),
+            entry: testTokenEntry({ listing: { imageUrl: "" } }),
             token,
           },
         ];

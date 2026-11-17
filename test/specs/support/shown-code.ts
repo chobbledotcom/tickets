@@ -52,7 +52,7 @@ export const organiserShowsCode = async (
   );
   await browser.submitForm(
     {
-      ...(wanted.who === undefined ? {} : { customer_name: wanted.who }),
+      ...(wanted.who === undefined ? {} : { customerName: wanted.who }),
       ...(wanted.places === undefined
         ? {}
         : { quantity: String(wanted.places) }),
@@ -183,7 +183,7 @@ export const customerScans = (link: string): Promise<WhereTheCodeLed> =>
  * listing it belongs to, so it is read off the page rather than guessed — a
  * page that stopped offering one fails the story here. */
 const priceBoxOn = (html: string): string => {
-  const box = html.match(/name="(custom_price[^"]*)"/);
+  const box = html.match(/name="(customPrice[^"]*)"/);
   if (!box?.[1]) throw new Error("The page offers no box for paying more");
   return box[1];
 };
@@ -197,7 +197,7 @@ export const customerPaysMore = (
 ): Promise<WhatIsBeingCharged> =>
   withPayingStubbed(async ({ timesReached, whatWasCharged }) => {
     const browser = await openAsNewcomer(link);
-    assertStringIncludes(browser.currentHtml, 'name="qr_token"');
+    assertStringIncludes(browser.currentHtml, 'name="qrToken"');
     await browser.submitForm(
       {
         [priceBoxOn(browser.currentHtml)]: price.toFixed(2),

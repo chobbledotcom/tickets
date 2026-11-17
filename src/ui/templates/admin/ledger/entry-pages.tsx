@@ -22,8 +22,8 @@ import type { AdminSession } from "#types";
 
 type LedgerEntryFormValues = {
   amount: string;
-  occurred_at: string;
-  entry_type?: string;
+  occurredAt: string;
+  entryType?: string;
 };
 
 type LedgerEntryPageData = {
@@ -73,7 +73,7 @@ const LedgerEntryForm = ({
 }): JSX.Element => (
   <CsrfForm action={action}>
     {children}
-    {hiddenInputs([["return_url", returnUrl]])}
+    {hiddenInputs([["returnUrl", returnUrl]])}
     <Raw html={fieldsHtml} />
     <SubmitButton icon={icon}>{buttonText}</SubmitButton>
     {afterFields}

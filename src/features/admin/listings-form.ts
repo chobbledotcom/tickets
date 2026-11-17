@@ -3,7 +3,7 @@
  *
  * Turns the raw create/edit form into a {@link ListingInput}. It wraps the
  * shared listing fields into per-request create/update REST resources, so the
- * dynamic `day_price_*` inputs can be read alongside the validated values.
+ * dynamic `dayPrice<n>` inputs can be read alongside the validated values.
  */
 
 import { hmacHash } from "#crypto/hashing.ts";
@@ -19,12 +19,13 @@ import {
   moveUndatedBookingsToDayTx,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { range } from "#fp";
 import { t } from "#i18n";
 import { formDataToParams } from "#routes/csrf.ts";
 import { listingSaveOrphanedAddOnTx } from "#shared/add-on-reachability.ts";
+import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
   applyDemoOverrides,
   LISTING_DEMO_FIELDS,
@@ -96,16 +97,16 @@ const parseBookableDays = (
   value: string,
   listingType: ListingType,
   mode: ListingWriteMode,
-): string[] | undefined => {
+): string[] => {
   const days = commaParts(value);
   if (days.length > 0) return days;
   return EMPTY_BOOKABLE_DAYS_POLICY[mode][listingType] === "preserveEmpty"
     ? days
-    : undefined;
+    : [...VALID_DAY_NAMES];
 };
 
 /**
- * Read the per-day-count price inputs (`day_price_1`, `day_price_2`, …) from
+ * Read the per-day-count price inputs (`dayPrice1`, `dayPrice2`, …) from
  * the raw form into a {@link DayPrices} map. Only days 1..maxDays are read,
  * matching the inputs the form renders. Blank rows are skipped so the count
  * is not offered. {@link parseDayPrices} drops any non-numeric entries.
@@ -119,14 +120,14 @@ const parseDayPricesFromForm = (
     // Optional per-day price: blank ⇒ skip (that day is not offered). A non-blank
     // value that fails to parse is caught by validateDayPricesFromForm before
     // the save, so here a null result is only ever a blank.
-    const price = parseOptionalMinorUnits(form.getString(`day_price_${n}`));
+    const price = parseOptionalMinorUnits(form.getString(`dayPrice${n}`));
     if (price !== null) result[n] = price;
   }
   return parseDayPrices(result);
 };
 
 /**
- * Reject the save when a `day_price_*` field carries a non-blank value that
+ * Reject the save when a `dayPrice<n>` field carries a non-blank value that
  * is not a valid amount for the currency. Examples: `10.005` in GBP, `10.5`
  * in JPY, or `abc`. Without this, {@link parseDayPricesFromForm} silently
  * drops an invalid value. On an update that removes an existing day price
@@ -138,7 +139,7 @@ const parseDayPricesFromForm = (
 const validateDayPricesFromForm = (form: FormParams): string | null => {
   const hasInvalid = [...form.entries()].some(
     ([field, raw]) =>
-      field.startsWith("day_price_") &&
+      /^dayPrice\d+$/.test(field) &&
       raw.trim() !== "" &&
       parseOptionalMinorUnits(raw) === null,
   );
@@ -172,7 +173,7 @@ const readListingForm = <Values extends ListingFormValues>(
     LISTING_FIELDS,
     definition.fields,
     showUseDefaultsToggle(view.closed, settings.listingDefaults)
-      ? ["use_defaults"]
+      ? ["useDefaults"]
       : [],
   );
   if (
@@ -187,19 +188,19 @@ const readListingForm = <Values extends ListingFormValues>(
   const values = parsed.value;
   const fields = formFieldsInput(
     LISTING_FIELDS,
-    { ...values, use_defaults: submitted.getString("use_defaults") },
+    { ...values, useDefaults: submitted.getString("useDefaults") },
     shown,
   );
   return okResult({
     input: {
       ...fields,
       bookableDays: parseBookableDays(
-        values.bookable_days,
+        values.bookableDays,
         fields.listingType,
         mode,
       ),
-      dayPrices: parseDayPricesFromForm(submitted, values.duration_days ?? 1),
-      groupIds: submitted.getNumberArray("group_ids"),
+      dayPrices: parseDayPricesFromForm(submitted, values.durationDays ?? 1),
+      groupIds: submitted.getNumberArray("groupIds"),
     },
     values,
   });
@@ -267,7 +268,7 @@ type ListingJoinWriter = (
 const writeCreateListingJoins: (form: FormParams) => ListingJoinWriter =
   (form) => async (tx, id, input) => {
     await writeListingJoins(tx, id, input);
-    const sourceId = form.getOptionalInt("duplicated_from");
+    const sourceId = form.getOptionalInt("duplicatedFrom");
     if (sourceId !== null) {
       await copyPackageMemberOverridesTx(tx, sourceId, id);
       await listingAttributeOptions.copyLinksTx(tx, sourceId, id);
@@ -359,7 +360,7 @@ export const buildUpdateListingResource = (
       id: number,
       submitted: FormParams,
     ): Promise<ListingUpdateResult> => {
-      if (!(await listingsTable.read.exists({ id }))) {
+      if (!(await records.listings.has(id))) {
         return { notFound: true, ok: false };
       }
       const parsed = await parseInput(submitted);

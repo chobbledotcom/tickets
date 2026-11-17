@@ -27,7 +27,7 @@ describeWithEnv(
       // id alone, so the second parent overwrote the first and both blocks showed
       // the same (later parent's) dates.
       // Each parent gets a SECOND child so the shared child renders as a
-      // selectable `child_qty_*` option (carrying data-child-dates) rather than
+      // selectable `childQty*` option (carrying data-child-dates) rather than
       // the informational sole-child path (which emits no compat attributes).
       const parentA = await createDailyTestListing({
         bookableDays: ["Monday"],
@@ -51,7 +51,7 @@ describeWithEnv(
 
       // Isolate each parent's control for the shared child and read its dates.
       const datesAttr = (parentId: number): string => {
-        const start = html.indexOf(`name="child_qty_${parentId}_${shared.id}"`);
+        const start = html.indexOf(`name="childQty${parentId}_${shared.id}"`);
         expect(start).toBeGreaterThanOrEqual(0);
         const select = html.slice(start, html.indexOf(">", start));
         const match = select.match(/data-child-dates="([^"]*)"/);
@@ -131,7 +131,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       const control = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${childA.id}"`),
+        html.indexOf(`name="childQty${parent.id}_${childA.id}"`),
       );
       const attrs = control.slice(0, control.indexOf(">"));
       const dates = attrs.match(/data-child-dates="([^"]*)"/)?.[1] ?? "";
@@ -174,7 +174,7 @@ describeWithEnv(
       // `span:dates`.
       assertStringIncludes(
         html,
-        `name="child_qty_${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="1:${childBDates}"`,
+        `name="childQty${parent.id}_${childB.id}" data-child-qty="${childB.id}" data-child-dates="1:${childBDates}"`,
       );
       expect(childBDates.length).toBeGreaterThan(0);
       // The holiday start must have been removed from the advertised set.
@@ -209,11 +209,11 @@ describeWithEnv(
       // The customisable child advertises the spans it can serve.
       assertStringIncludes(
         html,
-        `name="child_qty_${parent.id}_${childA.id}" data-child-qty="${childA.id}" data-child-spans="1,3"`,
+        `name="childQty${parent.id}_${childA.id}" data-child-qty="${childA.id}" data-child-spans="1,3"`,
       );
       // The standard child imposes no span constraint, so it emits neither attr.
       const standardControl = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${childB.id}"`),
+        html.indexOf(`name="childQty${parent.id}_${childB.id}"`),
       );
       assert(!standardControl.includes("data-child-spans"));
       assert(!standardControl.slice(0, 120).includes("data-child-dates"));
@@ -241,7 +241,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       const control = html.slice(
-        html.indexOf(`name="child_qty_${parent.id}_${child.id}"`),
+        html.indexOf(`name="childQty${parent.id}_${child.id}"`),
       );
       const openingTag = control.slice(0, control.indexOf(">"));
       expect(openingTag).toMatch(

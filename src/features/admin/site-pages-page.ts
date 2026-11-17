@@ -6,7 +6,7 @@
  * owns only the GET surface.
  */
 
-import { getSitePageById } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
 import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { sitePageRecord } from "#shared/records/site-pages.ts";
@@ -36,6 +36,6 @@ export const sitePageEntityPage: EditEntityPage<SitePage> =
     editPanel: sitePageEditPanel,
     extraTabs: [itemsTab],
     itemType: "page",
-    load: (id) => getSitePageById(id),
+    load: (id) => records.site_pages.find(id),
     navActive: adminPattern("sitePages"),
   });

@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -59,7 +59,7 @@ describeWithEnv("the group Actions tab", { db: true }, () => {
         groupId: group.id,
         name: "Gone",
       });
-      await listingsTable.update(inactive.id, { active: false });
+      await updateListing(inactive.id, { active: false });
 
       const html = await expectActionsRender(group, ["deactivate"]);
       // Each entry spells out what the action does, so the link is not the
@@ -77,7 +77,7 @@ describeWithEnv("the group Actions tab", { db: true }, () => {
         groupId: group.id,
         name: "Off Listing",
       });
-      await listingsTable.update(listing.id, { active: false });
+      await updateListing(listing.id, { active: false });
 
       const html = await expectActionsRender(group, ["reactivate"]);
       assertStringIncludes(html, "Reactivate every listing in this group.");

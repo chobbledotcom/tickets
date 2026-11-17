@@ -48,8 +48,8 @@ describeWithEnv(
           2,
         );
         await listingAggregates.update(listing.id, {
-          booked_quantity: 9,
-          tickets_count: 5,
+          bookedQuantity: 9,
+          ticketsCount: 5,
         });
 
         const response = await adminGet(
@@ -61,7 +61,7 @@ describeWithEnv(
           "Recalculate:",
           "Current",
           "From attendee data",
-          'value="booked_quantity"',
+          'value="bookedQuantity"',
           ">9<",
           ">2<",
         );
@@ -89,13 +89,13 @@ describeWithEnv(
           listingId: listing.id,
         });
         await listingAggregates.update(listing.id, {
-          booked_quantity: 9,
-          tickets_count: 5,
+          bookedQuantity: 9,
+          ticketsCount: 5,
         });
 
         const { response } = await adminFormPost(
           `/admin/listings/recalculate/${listing.id}`,
-          { recalculate_fields: "booked_quantity" },
+          { recalculateFields: "bookedQuantity" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/edit`,
@@ -104,10 +104,10 @@ describeWithEnv(
         )(response);
 
         const updated = await getListingWithCount(listing.id);
-        expect(updated?.attendee_count).toBe(2);
+        expect(updated?.attendeeCount).toBe(2);
         // Resetting only booked_quantity leaves the ledger-projected income alone.
         expect(updated?.income).toBe(9000);
-        expect(updated?.tickets_count).toBe(5);
+        expect(updated?.ticketsCount).toBe(5);
       });
 
       test("records an activity-log entry when totals are recalculated", async () => {
@@ -117,7 +117,7 @@ describeWithEnv(
         });
 
         await adminFormPost(`/admin/listings/recalculate/${listing.id}`, {
-          recalculate_fields: "booked_quantity",
+          recalculateFields: "bookedQuantity",
         });
 
         const log = await getAllActivityLog(10);
@@ -137,7 +137,7 @@ describeWithEnv(
 
         const { cookie, response } = await adminFormPost(
           `/admin/listings/recalculate/${listing.id}`,
-          { recalculate_fields: "booked_quantity" },
+          { recalculateFields: "bookedQuantity" },
         );
         await expectFlashRedirect(
           `/admin/listing/${listing.id}/edit`,

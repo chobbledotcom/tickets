@@ -51,13 +51,13 @@ export const buildPagePackage = (
   dayPrices: pricing.dayPrices,
   description: group.description,
   groupId: group.id,
-  hideListings: group.hide_package_listings,
+  hideListings: group.hidePackageListings,
   memberListingIds,
   name: group.name,
   prices: pricing.prices,
   quantities: pricing.quantities,
   slug: group.slug,
-  terms: group.terms_and_conditions,
+  terms: group.termsAndConditions,
 });
 
 /** Each member listing id → the FIRST package on the page that books it.

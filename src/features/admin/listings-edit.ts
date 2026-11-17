@@ -116,18 +116,18 @@ const renderNewListingPage = async (
   opts: Parameters<typeof adminListingNewPage>[2],
   status?: number,
 ): Promise<Response> => {
-  const allGroups = await groups.cache.getAll();
+  const allGroups = await groups.getAll();
   return htmlResponse(adminListingNewPage(allGroups, session, opts), status);
 };
 
 const formToDimensionSource = (form: FormParams) => ({
-  date: form.getString("date_date") || "",
-  listing_type: isListingType(form.getString("listing_type"))
-    ? (form.getString("listing_type") as "standard" | "daily")
+  date: form.getString("dateDate") || "",
+  listingType: isListingType(form.getString("listingType"))
+    ? (form.getString("listingType") as "standard" | "daily")
     : ("standard" as const),
-  purchase_only: form.getFlag("purchase_only"),
-  recurring_price: toMinorUnits(Number(form.getString("recurring_price"))),
-  uses_logistics: form.getFlag("uses_logistics"),
+  purchaseOnly: form.getFlag("purchaseOnly"),
+  recurringPrice: toMinorUnits(Number(form.getString("recurringPrice"))),
+  usesLogistics: form.getFlag("usesLogistics"),
 });
 
 /**
@@ -138,7 +138,7 @@ const formToDimensionSource = (form: FormParams) => ({
  * (which has no template_id) re-renders with the right collapse state.
  */
 const resolveErrorTemplateId = (form: FormParams): string | null => {
-  const carried = form.getString("template_id");
+  const carried = form.getString("templateId");
   if (carried) return carried;
   return inferTemplate(formToDimensionSource(form))?.id ?? null;
 };
@@ -156,7 +156,7 @@ const copyEdgesFromDuplicateSource = async (
   form: FormParams,
   newId: number,
 ): Promise<string | null> => {
-  const sourceId = form.getOptionalInt("duplicated_from");
+  const sourceId = form.getOptionalInt("duplicatedFrom");
   if (sourceId === null) return null;
   // The source's per-package price/quantity is copied onto the copy's membership
   // rows atomically in the create write's afterWrite (see buildCreateListingResource).
@@ -196,7 +196,7 @@ const renderCreateListingError = async (
       error,
       // The group checkboxes the operator submitted, so a rejected create
       // re-renders their selection rather than dropping every group.
-      selectedGroupIds: form.getNumberArray("group_ids"),
+      selectedGroupIds: form.getNumberArray("groupIds"),
       templateId,
       values: form.toRenderValues(),
     },
@@ -209,7 +209,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     const form = parseListingForm(formData);
 
     // Mirror the GET gate: reject a template whose feature is off.
-    const chosenTemplateId = form.getString("template_id") || null;
+    const chosenTemplateId = form.getString("templateId") || null;
     const gate = chosenTemplateOrPicker(chosenTemplateId, session);
     if ("picker" in gate) return gate.picker;
 
@@ -218,7 +218,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
     const submittedDims = dimensionsOf(formToDimensionSource(form));
     if (
       submissionRequiresDate(chosenTemplateId, submittedDims) &&
-      !form.getString("date_date")
+      !form.getString("dateDate")
     ) {
       return renderCreateListingError(
         session,

@@ -22,8 +22,8 @@ export const ExistingPaymentProviderForm = (
       <fieldset class="radios">
         {s.paymentProviderRecoveryChoices.map((provider) => (
           <RadioOption
-            checked={savedFormValue("existing_payment_provider") === provider}
-            name="existing_payment_provider"
+            checked={savedFormValue("existingPaymentProvider") === provider}
+            name="existingPaymentProvider"
             required
             value={provider}
           >

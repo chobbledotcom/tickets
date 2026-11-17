@@ -85,7 +85,7 @@ export const adminListingDeletePage: ListingConfirmPage = listingVerbPage(
   },
   warning: warningText(
     t("listings_table.delete_warning_text", {
-      count: listing.attendee_count,
+      count: listing.attendeeCount,
     }),
   ),
 }));

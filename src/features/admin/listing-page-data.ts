@@ -93,7 +93,7 @@ export const getListingAndGroups = async (
     // form must not pre-fill the stale date a daily listing still stores. The
     // save keeps the stored value.
     getStoredListingWithCount(listingId),
-    groups.cache.getAll(),
+    groups.getAll(),
     listingGroups.getIds(listingId),
   ]);
   const listing = stored === null ? null : resolveListingDate(stored);
@@ -183,7 +183,7 @@ const noteAuthorNames = async (
   notes.length === 0
     ? new Map()
     : getAttendeeNamesByIds(
-        unique(notes.map((note) => note.entity_id)),
+        unique(notes.map((note) => note.entityId)),
         await requireRequestPrivateKey(),
       );
 
@@ -224,7 +224,7 @@ export const loadListingOverviewPanel = async (
     moneyTotals,
     stats: overviewStatsFromDbStats(
       stats,
-      listing.attendee_count,
+      listing.attendeeCount,
       moneyTotals.grossSales,
       isPaidListing(listing),
     ),

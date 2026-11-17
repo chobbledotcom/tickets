@@ -8,29 +8,26 @@
 
 import { queryAll } from "#db/client.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlInsertRowsOrNull,
-  sqlLiteral,
-} from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlLiteral } from "#db/sql.ts";
+import { insertingAll } from "#db/write.ts";
 import { type DayPrices, type GroupListing, parseDayPrices } from "#types";
 
 /** Every group a listing belongs to, with this listing's per-package override
  * and quantity — the membership facet a catalog export captures for one listing.
- * A `null` `package_price` means "no override". `quantity` defaults to 1. The
+ * A `null` `packagePrice` means "no override". `quantity` defaults to 1. The
  * flat override lives in the `group` dimension of `listing_prices` (the
  * `group_listings.package_price` column was retired), read back by subquery. */
 export const getListingGroupMemberships = (
   listingId: number,
 ): Promise<GroupListing[]> =>
   queryAll<GroupListing>(
-    sql`SELECT groupListing.group_id, groupListing.listing_id, groupListing.quantity,
+    sql`SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId, groupListing.quantity,
             (SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
                WHERE listingPrice.listing_id = groupListing.listing_id
                  AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
                  AND listingPrice.price_id = CAST(groupListing.group_id AS TEXT))
-              AS package_price
+              AS packagePrice
        FROM group_listings AS groupListing
       WHERE groupListing.listing_id = ${listingId} ORDER BY groupListing.group_id ASC`,
   );
@@ -54,35 +51,34 @@ export type ImportedMembership = {
 export const membershipStatements = (
   memberships: readonly ImportedMembership[],
 ): SqlStatement[] => {
-  const memberRows = memberships.map((m) => [
-    m.groupId,
-    m.listingId,
-    m.quantity,
-  ]);
+  const memberRows = memberships.map((m) => ({
+    groupId: m.groupId,
+    listingId: m.listingId,
+    quantity: m.quantity,
+  }));
   // A `null` package price means "no override" — write no `group` row for it.
   const flatRows = memberships.flatMap((m) =>
     m.packagePrice === null
       ? []
-      : [[m.listingId, PRICE_TYPE_GROUP, String(m.groupId), m.packagePrice]],
+      : [
+          {
+            listingId: m.listingId,
+            priceId: String(m.groupId),
+            priceType: PRICE_TYPE_GROUP,
+            unitPrice: m.packagePrice,
+          },
+        ],
   );
   const dayRows = memberships.flatMap((m) =>
-    Object.entries(parseDayPrices(m.dayPrices)).map(([days, price]) => [
-      m.listingId,
-      PRICE_TYPE_GROUP_DAY,
-      `${m.groupId}/${days}`,
-      price,
-    ]),
+    Object.entries(parseDayPrices(m.dayPrices)).map(([days, price]) => ({
+      listingId: m.listingId,
+      priceId: `${m.groupId}/${days}`,
+      priceType: PRICE_TYPE_GROUP_DAY,
+      unitPrice: price,
+    })),
   );
   return [
-    sqlInsertRowsOrNull(
-      "group_listings",
-      ["group_id", "listing_id", "quantity"],
-      memberRows,
-    ),
-    sqlInsertRowsOrNull(
-      "listing_prices",
-      ["listing_id", "price_type", "price_id", "unit_price"],
-      [...flatRows, ...dayRows],
-    ),
-  ].filter((stmt): stmt is SqlStatement => stmt !== null);
+    ...insertingAll(tables.group_listings, memberRows),
+    ...insertingAll(tables.listing_prices, [...flatRows, ...dayRows]),
+  ];
 };

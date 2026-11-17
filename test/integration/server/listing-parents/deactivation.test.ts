@@ -1,9 +1,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
-import { executeWithoutCacheInvalidation, update } from "#db/client.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { executeWithoutCacheInvalidation } from "#db/client.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
+import { update } from "#db/write.ts";
 import { toggleListingActive } from "#shared/listings-actions.ts";
 import { expectApiDeactivation } from "#test-utils/admin-listing-status.ts";
 import { assertJson, expectFlash } from "#test-utils/assertions.ts";
@@ -16,7 +17,6 @@ import {
 import { optInAddOnForListings } from "#test-utils/modifiers.ts";
 import { postChildren } from "#test-utils/parents.ts";
 import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
-import type { Listing } from "#types";
 
 const ADDON_ERROR = "opt-in add-on reachable only through";
 
@@ -103,7 +103,7 @@ describeWithEnv(
       const { thatPage } = await rescuingPageSetup();
       const { response } = await adminFormPost(
         `/admin/listing/${thatPage.id}/deactivate`,
-        { confirm_identifier: thatPage.name },
+        { confirmIdentifier: thatPage.name },
       );
       response.body?.cancel();
       expect(response.status).toBe(302);
@@ -166,7 +166,7 @@ describeWithEnv(
       const plain = await createTestListing({ name: "Plain" });
       const { response } = await adminFormPost(
         `/admin/listing/${plain.id}/deactivate`,
-        { confirm_identifier: plain.name },
+        { confirmIdentifier: plain.name },
       );
       response.body?.cancel();
       expect((await getListingWithCount(plain.id))?.active).toBe(false);
@@ -199,7 +199,7 @@ describeWithEnv(
       const { thatPage } = await rescuingPageSetup();
       const { response } = await adminFormPost(
         `/admin/listing/${thatPage.id}/delete`,
-        { confirm_identifier: thatPage.name },
+        { confirmIdentifier: thatPage.name },
       );
       response.body?.cancel();
       expectFlash(response, await childOnlyAddOnFlash(), false);
@@ -222,7 +222,9 @@ describeWithEnv(
       const { pageOne, pageTwo } = await twoRescuerSetup();
       // The cross-isolate write: the row goes dark on the database while this
       // isolate's cache still shows it active.
-      const stmt = update("listings", { active: 0 }, { id: pageTwo.id });
+      const stmt = update(tables.listings, { active: 0 }).where({
+        id: pageTwo.id,
+      });
       await executeWithoutCacheInvalidation(stmt);
       await expectDirectDeleteRefused(pageOne.id);
     });
@@ -247,50 +249,18 @@ describeWithEnv(
       // live page going dark, and refuses.
       const { pageOne, pageTwo } = await twoRescuerSetup();
 
-      // Hold A between its guard and its write, the window the transaction
-      // closes. Only the non-transactional write path calls listingsTable.update,
-      // so the hold applies to the racy flow and is inert on the fixed one.
-      let releaseA: () => void = () => {};
-      const gateA = new Promise<void>((resolve) => {
-        releaseA = resolve;
-      });
-      let aReachedWrite: () => void = () => {};
-      const writeReached = new Promise<void>((resolve) => {
-        aReachedWrite = resolve;
-      });
-      const realUpdate = listingsTable.update.bind(listingsTable);
-      let holdsLeft = 1;
-      using _holdWrite = stub(
-        listingsTable,
-        "update",
-        async (id, input): Promise<Listing | null> => {
-          aReachedWrite();
-          // Hold only the first writer (A); later writers commit normally.
-          if (holdsLeft > 0) {
-            holdsLeft -= 1;
-            await gateA;
-          }
-          return realUpdate(id, input);
-        },
-      );
-
-      const toggleA = toggleListingActive(
+      // B loads its row before A commits, so only the guard inside B's own
+      // transaction can see that A took rescuer one dark.
+      const loadedTwo = (await getListingWithCount(pageTwo.id))!;
+      const resultA = await toggleListingActive(
         pageOne.id,
         (await getListingWithCount(pageOne.id))!,
         false,
       );
-      // The fixed path never reaches the held write: it committed already.
-      await Promise.race([writeReached, toggleA]);
-
-      // Admin B deactivates rescuer two while A's write is in flight.
-      const toggleB = toggleListingActive(
-        pageTwo.id,
-        (await getListingWithCount(pageTwo.id))!,
-        false,
-      );
-      const resultB = await toggleB;
-      releaseA();
-      await toggleA;
+      expect(resultA).toEqual({
+        updated: expect.objectContaining({ active: false }),
+      });
+      const resultB = await toggleListingActive(pageTwo.id, loadedTwo, false);
 
       // B's guard must re-read committed state inside its own transaction and
       // refuse, leaving rescuer two — the add-on's last live page — active.

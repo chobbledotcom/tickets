@@ -42,9 +42,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("POST /admin/settings", () => {
     testRequiresAuth("/admin/settings", {
       body: {
-        current_password: "test",
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: "test",
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       },
       method: "POST",
     });
@@ -54,10 +54,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings",
           {
-            csrf_token: "invalid-csrf-token",
-            current_password: TEST_ADMIN_PASSWORD,
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
+            csrfToken: "invalid-csrf-token",
+            currentPassword: TEST_ADMIN_PASSWORD,
+            newPassword: "newpassword123",
+            newPasswordConfirm: "newpassword123",
           },
           await testCookie(),
         ),
@@ -67,9 +67,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects missing required fields", async () => {
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: "",
-        new_password: "",
-        new_password_confirm: "",
+        currentPassword: "",
+        newPassword: "",
+        newPasswordConfirm: "",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("required"), false);
@@ -79,9 +79,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The browser's own minlength rule blocks this send; only a crafted
       // POST can reach the server-side length check.
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "short",
-        new_password_confirm: "short",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "short",
+        newPasswordConfirm: "short",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -95,9 +95,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // The chosen credential is capped at the input length server-side, the
       // same limit the browser's maxlength rule offers.
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "p".repeat(251),
-        new_password_confirm: "p".repeat(251),
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "p".repeat(251),
+        newPasswordConfirm: "p".repeat(251),
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -115,9 +115,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       // the change form. The credential being CHECKED stays uncapped, so the
       // wrong-password refusal (not a length message) is what surfaces here.
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: "x".repeat(501),
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: "x".repeat(501),
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -129,9 +129,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects incorrect current password", async () => {
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: "wrongpassword",
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: "wrongpassword",
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -143,9 +143,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("rejects mismatched passwords", async () => {
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "differentpassword",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "differentpassword",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("do not match"), false);
@@ -153,9 +153,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("clears the session and records the change in the activity log", async () => {
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
 
       // The change signs every window out: the session cookie is cleared.
@@ -185,9 +185,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       expect(response.status).toBe(302);
       expectFlash(

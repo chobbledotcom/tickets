@@ -102,12 +102,12 @@ const loadAgentNameById = async (): Promise<Map<number, string>> => {
   return fieldById("name")(agents);
 };
 
-/** Resolve the chosen `agent_ids` from a form down to the ids that are real
+/** Resolve the chosen `agentIds` from a form down to the ids that are real
  * logistics agents, dropping anything unknown. */
 const parseAssignedAgentIds = (
   form: FormParams,
   agents: LogisticsAgent[],
-): number[] => selectedIdsFromForm(form, "agent_ids", agents);
+): number[] => selectedIdsFromForm(form, "agentIds", agents);
 
 /** Persist a user's logistics-agent links from a submitted form. Only ids
  * that are real assignable agents survive. */
@@ -139,7 +139,7 @@ const toDisplayUser = async (
   // It holds for keyed roles (owner/manager/agent, who also gain a data key)
   // and for the keyless editor (who never gets one). Status does not hinge on
   // the data key the editor deliberately lacks.
-  const activated = user.password_hash !== "";
+  const activated = user.passwordHash !== "";
   return {
     activated,
     adminLevel,
@@ -295,7 +295,7 @@ const handleUsersPost = createAuthedFormRoute<InviteUserFormValues>({
   },
   onInvalid: ({ error }) => adminRedirect("userNew", {}, error, false),
   onValid: async ({ values, form, session }) => {
-    const { username, admin_level: adminLevel } = values;
+    const { username, adminLevel } = values;
 
     if (await isUsernameTaken(username)) {
       return adminRedirect("userNew", {}, t("error.username_taken"), false);

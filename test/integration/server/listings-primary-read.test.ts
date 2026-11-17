@@ -45,10 +45,10 @@ describeWithEnv("listing save primary read", { db: true }, () => {
     try {
       for (const name of ["First listing", "Second listing"]) {
         const { response } = await adminMultipartPost("/admin/listing", {
-          max_attendees: "50",
-          max_quantity: "1",
+          maxAttendees: "50",
+          maxQuantity: "1",
           name,
-          unit_price: "12.00",
+          unitPrice: "12.00",
         });
         await expectFlashRedirect("/admin", "Listing created")(response);
       }

@@ -122,13 +122,13 @@ describeWithEnv("write access", { db: true }, () => {
     settings.setForTest(featureSetting("attributes"));
 
     expect([...closedFieldsFor(LISTING_WRITE_KEYS, "manager")]).toEqual([
-      ["assign_built_site", "builder"],
-      ["initial_site_months", "builder"],
-      ["months_per_unit", "builder"],
-      ["recurring_interval", "subscriptions"],
-      ["recurring_price", "subscriptions"],
-      ["uses_logistics", "logistics"],
-      ["attribute_option_ids", "nonOwner"],
+      ["assignBuiltSite", "builder"],
+      ["initialSiteMonths", "builder"],
+      ["monthsPerUnit", "builder"],
+      ["recurringInterval", "subscriptions"],
+      ["recurringPrice", "subscriptions"],
+      ["usesLogistics", "logistics"],
+      ["attributeOptionIds", "nonOwner"],
     ]);
   });
 });

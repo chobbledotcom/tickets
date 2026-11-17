@@ -138,7 +138,7 @@ describeWithEnv("cold-start benchmark seeding", { db: true }, () => {
     expect(ids.groupIds.size).toBe(total);
     expect(ids.listingIds.size).toBe(total);
 
-    const groupRows = await groups.cache.getAll();
+    const groupRows = await groups.getAll();
     const listingRows = await getAllListings();
     expect(groupRows).toHaveLength(total);
     expect(listingRows).toHaveLength(total);
@@ -146,14 +146,14 @@ describeWithEnv("cold-start benchmark seeding", { db: true }, () => {
     // The packages continue the numbering after the regular groups.
     const group1 = groupRows.find((row) => row.id === ids.groupIds.get(1));
     expect(group1?.name).toBe(benchmarkGroupName(1, false));
-    expect(group1?.is_package).toBe(false);
+    expect(group1?.isPackage).toBe(false);
     const firstPackage = groupRows.find(
       (row) => row.id === ids.groupIds.get(BENCHMARK_REGULAR_GROUPS + 1),
     );
     expect(firstPackage?.name).toBe(
       benchmarkGroupName(BENCHMARK_REGULAR_GROUPS + 1, true),
     );
-    expect(firstPackage?.is_package).toBe(true);
+    expect(firstPackage?.isPackage).toBe(true);
 
     const listing1 = listingRows.find(
       (row) => row.id === ids.listingIds.get(1),
@@ -182,10 +182,8 @@ describeWithEnv("cold-start benchmark seeding", { db: true }, () => {
       itemType: SitePageItemType,
     ): (number | undefined)[] =>
       items
-        .filter(
-          (item) => item.page_id === pageId && item.item_type === itemType,
-        )
-        .map((item) => item.item_id);
+        .filter((item) => item.pageId === pageId && item.itemType === itemType)
+        .map((item) => item.itemId);
     // Visit carries its child page and the two benchmark listings; Extras
     // carries the one group, off the chain a listing's page highlights.
     expect(idsOnPage(visit?.id, "page")).toEqual([extras?.id]);

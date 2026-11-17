@@ -31,7 +31,7 @@ const REBUILD_PATH = "/admin/migrate/rebuild-payment-references";
 /** The form field one row's provider choice arrives in. The session id is
  * escaped so a reference that carries a `&` or `=` cannot read as another
  * row's field. */
-const providerField = encodedAfter("provider_");
+const providerField = encodedAfter("provider");
 
 /** The provider the owner stated for each row that needs one. Null when a
  * row is left unstated: the run then fails rather than guessing. */

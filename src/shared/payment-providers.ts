@@ -89,7 +89,7 @@ export const PAYMENT_PROVIDERS = {
     // into one `b` entry (see packMetadata in payment-helpers.ts).
     metadata: { maxEntries: 10, maxValueLength: 255, packs: true },
     refundCapability: "keyed",
-    secretField: "square_access_token",
+    secretField: "squareAccessToken",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.square",
       signatureHeader: "x-square-hmacsha256-signature",
@@ -101,7 +101,7 @@ export const PAYMENT_PROVIDERS = {
     label: "Stripe",
     metadata: { maxEntries: 50, maxValueLength: 500, packs: false },
     refundCapability: "keyed",
-    secretField: "stripe_secret_key",
+    secretField: "stripeSecretKey",
     webhook: {
       domainChangeFixKey: "settings.domain_warning.stripe",
       signatureHeader: "stripe-signature",
@@ -137,7 +137,7 @@ export const PAYMENT_PROVIDERS = {
     // locally (db/sumup-checkouts.ts), so nothing is capped or packed.
     metadata: { maxValueLength: Number.POSITIVE_INFINITY, packs: false },
     refundCapability: "keyless",
-    secretField: "sumup_api_key",
+    secretField: "sumupApiKey",
     webhook: null,
   },
 } as const satisfies Record<PaymentProviderType, PaymentProviderMeta>;

@@ -23,11 +23,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   ): Promise<Response> => {
     const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
-      is_package: "1",
-      max_attendees: "0",
+      isPackage: "1",
+      maxAttendees: "0",
       name: group.name,
       slug: group.slug,
-      terms_and_conditions: "",
+      termsAndConditions: "",
       ...memberInputs,
     });
     return response;
@@ -57,14 +57,14 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       unitPrice: 900,
     });
     await savePackage(group, {
-      [`package_price_${member.id}`]: typed.price,
-      [`package_qty_${member.id}`]: typed.quantity,
+      [`packagePrice${member.id}`]: typed.price,
+      [`packageQty${member.id}`]: typed.quantity,
     });
     const rows = await getGroupPackagePrices(group.id);
     const row = rows[0];
     if (!row) throw new Error(`${label} member has no membership row`);
     expect(rows).toHaveLength(1);
-    expect(row.listing_id).toBe(member.id);
+    expect(row.listingId).toBe(member.id);
     return row;
   };
 
@@ -95,13 +95,13 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
       price: "4.50",
       quantity: "3",
     });
-    expect(row.package_price).toBe(450);
+    expect(row.packagePrice).toBe(450);
     expect(row.quantity).toBe(3);
   });
 
   test("keeps an explicit free price", async () => {
     const row = await savedMemberRow("Free", { price: "0", quantity: "1" });
-    expect(row.package_price).toBe(0);
+    expect(row.packagePrice).toBe(0);
     expect(row.quantity).toBe(1);
   });
 
@@ -109,13 +109,13 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     const { group, member } = await dayPricedPackage("Blank");
 
     await savePackage(group, {
-      [`package_day_price_${member.id}_1`]: "",
-      [`package_price_${member.id}`]: "",
-      [`package_qty_${member.id}`]: "",
+      [`packageDayPrice${member.id}Days1`]: "",
+      [`packagePrice${member.id}`]: "",
+      [`packageQty${member.id}`]: "",
     });
 
     const [row] = await getGroupPackagePrices(group.id);
-    expect(row?.package_price).toBeNull();
+    expect(row?.packagePrice).toBeNull();
     expect(row?.quantity).toBe(1);
     expect(await getGroupDayPrices(group.id)).toEqual(new Map());
   });
@@ -124,10 +124,10 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     const { group, member } = await dayPricedPackage("Day");
 
     await savePackage(group, {
-      [`package_day_price_${member.id}_1`]: "5.50",
-      [`package_day_price_${member.id}_2`]: "7.00",
-      [`package_price_${member.id}`]: "",
-      [`package_qty_${member.id}`]: "1",
+      [`packageDayPrice${member.id}Days1`]: "5.50",
+      [`packageDayPrice${member.id}Days2`]: "7.00",
+      [`packagePrice${member.id}`]: "",
+      [`packageQty${member.id}`]: "1",
     });
     expect(await getGroupDayPrices(group.id)).toEqual(
       new Map([
@@ -152,13 +152,13 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
     const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
-      is_package: "1",
-      max_attendees: "0",
+      isPackage: "1",
+      maxAttendees: "0",
       name: group.name,
       slug: group.slug,
-      terms_and_conditions: "",
-      [`package_price_${member.id}`]: "9.00",
-      [`package_qty_${member.id}`]: "2",
+      termsAndConditions: "",
+      [`packagePrice${member.id}`]: "9.00",
+      [`packageQty${member.id}`]: "2",
     });
 
     await expectFlashRedirect(
@@ -177,7 +177,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   /** Save the group as a package with one malformed member input, and expect
    *  the save to come back with the given plain-words refusal and no price
    *  override written. */
-  const refuseMemberInput = async (
+  const expectMemberInputRefused = async (
     group: { id: number; name: string; slug: string },
     memberInputs: TestFormValues,
     message: string,
@@ -190,7 +190,7 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
     )(response);
     // The refused save wrote no override: the membership keeps its defaults.
     const [row] = await getGroupPackagePrices(group.id);
-    expect(row?.package_price).toBeNull();
+    expect(row?.packagePrice).toBeNull();
     expect(row?.quantity).toBe(1);
   };
 
@@ -207,20 +207,20 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a junk price with a plain-words message", async () => {
     const { group, member } = await refusablePackage("Junk price");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
-      { [`package_price_${member.id}`]: "12abc" },
+      { [`packagePrice${member.id}`]: "12abc" },
       t("error.package_member_price"),
     );
   });
 
   test("refuses a junk quantity with a plain-words message", async () => {
     const { group, member } = await refusablePackage("Junk qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_qty_${member.id}`]: "2abc",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageQty${member.id}`]: "2abc",
       },
       t("error.package_member_quantity"),
     );
@@ -228,11 +228,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a zero quantity with the same message", async () => {
     const { group, member } = await refusablePackage("Zero qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_qty_${member.id}`]: "0",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageQty${member.id}`]: "0",
       },
       t("error.package_member_quantity"),
     );
@@ -242,11 +242,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   // number the parse converts to 10.
   test("refuses a scientific-notation quantity", async () => {
     const { group, member } = await refusablePackage("Exponent qty");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_qty_${member.id}`]: "1e1",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageQty${member.id}`]: "1e1",
       },
       t("error.package_member_quantity"),
     );
@@ -259,32 +259,32 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
   test("unpackages a group with a malformed leftover member input", async () => {
     const { group, member } = await refusablePackage("Leftover");
     await savePackage(group, {
-      [`package_price_${member.id}`]: "9.00",
-      [`package_qty_${member.id}`]: "1",
+      [`packagePrice${member.id}`]: "9.00",
+      [`packageQty${member.id}`]: "1",
     });
 
     const { response } = await adminFormPost(`/admin/groups/${group.id}/edit`, {
       description: "",
-      max_attendees: "0",
+      maxAttendees: "0",
       name: group.name,
       slug: group.slug,
-      terms_and_conditions: "",
-      [`package_price_${member.id}`]: "12abc",
+      termsAndConditions: "",
+      [`packagePrice${member.id}`]: "12abc",
     });
 
     assertArrayIncludes([200, 302], [response.status]);
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.package_price).toBeNull();
+    expect(rows[0]?.packagePrice).toBeNull();
   });
 
   test("refuses a junk day price with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Junk day price");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_day_price_${member.id}_1`]: "abc",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageDayPrice${member.id}Days1`]: "abc",
       },
       t("error.package_member_day_price"),
     );
@@ -294,11 +294,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a zero day count with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Zero day count");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_day_price_${member.id}_0`]: "5.00",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageDayPrice${member.id}Days0`]: "5.00",
       },
       t("error.package_member_day_price"),
     );
@@ -308,11 +308,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses an unsafe day count with a plain-words message", async () => {
     const { group, member } = await dayPricedPackage("Huge day count");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_day_price_${member.id}_99999999999999999999`]: "5.00",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageDayPrice${member.id}Days99999999999999999999`]: "5.00",
       },
       t("error.package_member_day_price"),
     );
@@ -322,11 +322,11 @@ describeWithEnv("admin package member overrides", { db: true }, () => {
 
   test("refuses a day count above the supported maximum", async () => {
     const { group, member } = await dayPricedPackage("Day count 91");
-    await refuseMemberInput(
+    await expectMemberInputRefused(
       group,
       {
-        [`package_price_${member.id}`]: "9.00",
-        [`package_day_price_${member.id}_91`]: "5.00",
+        [`packagePrice${member.id}`]: "9.00",
+        [`packageDayPrice${member.id}Days91`]: "5.00",
       },
       t("error.package_member_day_price"),
     );

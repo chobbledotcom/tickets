@@ -2,12 +2,8 @@ import { expect } from "@std/expect";
 import { encrypt } from "#crypto/encryption.ts";
 import { toBase64 } from "#crypto/utils.ts";
 import { execute } from "#db/client.ts";
-import {
-  getImageById,
-  getImagesForItem,
-  imagesTable,
-  setItemsForImage,
-} from "#db/images.ts";
+import { getImagesForItem, setItemsForImage } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -21,7 +17,7 @@ import { makeTestPng } from "#test-utils/test-image.ts";
 import type { Image, ImageUseItemType } from "#types";
 
 export const makeImage = (name: string): Promise<Image> =>
-  imagesTable.insert({
+  records.images.insert({
     altText: `Alt ${name}`,
     filename: nonEmptyString(`${name.toLowerCase()}.webp`),
     filenameThumb: nonEmptyString(`${name.toLowerCase()}-thumb.webp`),
@@ -146,7 +142,7 @@ export const imageUploadRequest = async (
 ): Promise<Request> =>
   mockMultipartRequest(
     path,
-    { alt_text: `Alt ${name}`, csrf_token: csrfToken, name },
+    { altText: `Alt ${name}`, csrfToken, name },
     cookie,
     {
       contentType: "image/png",
@@ -211,7 +207,7 @@ export const expectImageName = async (
   id: number,
   name: string,
 ): Promise<void> => {
-  expect((await getImageById(id))?.name).toBe(name);
+  expect((await records.images.find(id))?.name).toBe(name);
 };
 
 /** One image row as the JSON API answers with it. */

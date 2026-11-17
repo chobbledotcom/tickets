@@ -56,13 +56,13 @@
 #bulk-email .save-update {
   display: none;
 }
-#bulk-email:has(input[name="update_existing"]:checked) .save-as-new {
+#bulk-email:has(input[name="updateExisting"]:checked) .save-as-new {
   display: none;
 }
-#bulk-email:has(input[name="update_existing"]:checked) .save-update {
+#bulk-email:has(input[name="updateExisting"]:checked) .save-update {
   display: inline;
 }
-#bulk-email:not(:has(input[name="update_existing"]:checked))
+#bulk-email:not(:has(input[name="updateExisting"]:checked))
   .template-update-fields {
   display: none;
 }

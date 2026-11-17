@@ -12,6 +12,7 @@ import type {
   ValuesStatement,
 } from "#db/select/expression.ts";
 import type {
+  DecodedRowOf,
   IsOptional,
   ReferenceOf,
   ReferenceTo,
@@ -88,8 +89,25 @@ type Valid<Name extends TableName, Joined> = {
 export type Joins<Name extends TableName, Joined> = Joined &
   Valid<Name, Joined>;
 
-type Fields<Row, Nullable extends boolean> = {
-  readonly [Column in keyof Row]: Expr<Maybe<Row[Column], Nullable>>;
+declare const APP: unique symbol;
+
+/** A column of a node: SQL of its stored value. A read that picks the column
+ *  itself gives the value through its codec, `App`. */
+export type Column<Stored, App> = Expr<Stored> & { readonly [APP]: App };
+
+/** The value a read gives for a picked expression. */
+type ReadValue<Picked> =
+  Picked extends Column<unknown, infer App>
+    ? App
+    : Picked extends Expr<infer Value>
+      ? Value
+      : never;
+
+type Fields<Name extends TableName, Nullable extends boolean> = {
+  readonly [Each in keyof RowOf<Name>]: Column<
+    Maybe<RowOf<Name>[Each], Nullable>,
+    Maybe<DecodedRowOf<Name>[Each], Nullable>
+  >;
 };
 
 type Child<Name extends TableName, Key, Joined, Nullable extends boolean> =
@@ -104,7 +122,7 @@ export type Node<
   Name extends TableName,
   Joined = None,
   Nullable extends boolean = false,
-> = Fields<RowOf<Name>, Nullable> & {
+> = Fields<Name, Nullable> & {
   readonly [Key in keyof Joined]: Child<Name, Key, Joined[Key], Nullable>;
 };
 
@@ -113,16 +131,12 @@ export type Selection = { readonly [name: string]: Expr<unknown> };
 
 /** The row a selection reads. */
 export type Out<Picked extends Selection> = {
-  -readonly [Name in keyof Picked]: Picked[Name] extends Expr<infer Value>
-    ? Value
-    : never;
+  -readonly [Name in keyof Picked]: ReadValue<Picked[Name]>;
 };
 
 /** The row of the named columns of a node. */
 export type Picked<First, Column extends keyof First> = {
-  -readonly [Each in Column]: First[Each] extends Expr<infer Value>
-    ? Value
-    : never;
+  -readonly [Each in Column]: ReadValue<First[Each]>;
 };
 
 /** What the columns of a node must hold. A value or an expression means
@@ -138,7 +152,7 @@ export type Matching<Root> = {
 
 /** The name of a column of a node. A read that hides its first table names
  *  no column. */
-type ColumnOf<First> = [First] extends [never]
+export type ColumnOf<First> = [First] extends [never]
   ? never
   : keyof Matching<First> & string;
 
@@ -182,6 +196,8 @@ export type Query<Root, First = Root> = Readonly<{
   /** The read with its first table under another word. A table that a
    *  statement reads twice needs a word for each place. */
   as: (alias: string) => Query<Root, First>;
+  /** The statement that reads every column of the first table. */
+  everyColumn: () => RowsStatement<Picked<First, ColumnOf<First>>>;
   /** The statement that reads the named columns of the first table. */
   pick: <Column extends ColumnOf<First>>(
     ...columns: readonly Column[]

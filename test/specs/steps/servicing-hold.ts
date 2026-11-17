@@ -94,10 +94,10 @@ When(
       "/admin/servicing/new",
       "Create Service Event",
       {
-        day_count: "2",
+        dayCount: "2",
         name: STUDIO_HOLD,
-        [`quantity_${listingId}`]: "4",
-        start_date: STUDIO_HOLD_DATE,
+        [`quantity${listingId}`]: "4",
+        startDate: STUDIO_HOLD_DATE,
       },
     );
     const match = browser.currentUrl.match(/^\/admin\/servicing\/(\d+)$/);

@@ -25,10 +25,10 @@ describeWithEnv("QR booking submission", { db: true }, () => {
       );
       await withStripe(async (stripe) => {
         const response = await submitTicketForm(listing.slug, {
-          [`quantity_${listing.id}`]: "1",
+          [`quantity${listing.id}`]: "1",
           email: "ada@example.com",
           name: "Ada",
-          qr_token: token,
+          qrToken: token,
         });
         expectStripeCheckoutAtPrice(response, stripe, overridePrice);
       });
@@ -43,10 +43,10 @@ describeWithEnv("QR booking submission", { db: true }, () => {
       });
       await withStripe(async (stripe) => {
         const response = await submitTicketForm(listing.slug, {
-          [`quantity_${listing.id}`]: "1",
+          [`quantity${listing.id}`]: "1",
           email: "ada@example.com",
           name: "Ada",
-          qr_token: "qr1.forged.signature",
+          qrToken: "qr1.forged.signature",
         });
         expectStripeCheckoutAtPrice(response, stripe, 500);
       });
@@ -59,7 +59,7 @@ describeWithEnv("QR booking submission", { db: true }, () => {
         unitPrice: 0,
       });
       const response = await submitTicketForm(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         email: "ada@example.com",
         name: "Ada",
       });

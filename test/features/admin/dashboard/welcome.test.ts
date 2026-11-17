@@ -27,11 +27,7 @@ const BANNER_MARK = 'class="welcome-banner"';
 /** POST the dismiss form from one session's cookie. */
 const postDismiss = (cookie: string, csrfToken: string): Promise<Response> =>
   handleRequest(
-    mockFormRequest(
-      "/admin/welcome/dismiss",
-      { csrf_token: csrfToken },
-      cookie,
-    ),
+    mockFormRequest("/admin/welcome/dismiss", { csrfToken }, cookie),
   );
 
 /** The welcome flag as the site stores it, or null while nothing stored it. */

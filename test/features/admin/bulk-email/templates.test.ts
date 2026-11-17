@@ -1,15 +1,14 @@
 import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import {
-  deleteEmailTemplate,
   getAllRawEmailTemplates,
   getRawEmailTemplate,
   insertEmailTemplate,
   updateEmailTemplate,
 } from "#db/email-templates.ts";
+import { records } from "#db/record-table.ts";
 import { emailTemplateRecord } from "#shared/records/email-templates.ts";
 import {
   seedDraft,
@@ -75,7 +74,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
       });
     });
 
-    test("deleteEmailTemplate removes the row", async () => {
+    test("records.email_templates.delete removes the row", async () => {
       const doomed = await insertEmailTemplate(
         fakeSealed("bye-subject"),
         fakeSealed("bye-body"),
@@ -85,7 +84,7 @@ describeWithEnv("server bulk email > templates", { db: true }, () => {
         fakeSealed("stay-body"),
       );
 
-      await deleteEmailTemplate(doomed);
+      await records.email_templates.delete(doomed);
 
       expect(await getRawEmailTemplate(doomed)).toBeNull();
       expect((await getRawEmailTemplate(kept))?.subject).toBe("stay-subject");

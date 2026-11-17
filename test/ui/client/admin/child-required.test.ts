@@ -30,8 +30,8 @@ const twoChoiceSetup = () =>
 /** After init, only the chosen child (202) has a required price input; its
  *  sibling (303) does not — the initial state the redistribution tests check. */
 const expectOnly202PriceRequired = (roots: FakeElement[]): void => {
-  expect(byName(roots, "child_price_101_202").required).toBe(true);
-  expect(byName(roots, "child_price_101_303").required).toBe(false);
+  expect(byName(roots, "childPrice101_202").required).toBe(true);
+  expect(byName(roots, "childPrice101_303").required).toBe(false);
 };
 
 describe("child required toggling", () => {
@@ -62,7 +62,7 @@ describe("child required toggling", () => {
 
     initChildRequired();
 
-    expect(byName(roots, "child_price_101_202").required).toBe(false);
+    expect(byName(roots, "childPrice101_202").required).toBe(false);
   });
 
   test("re-requires the new price input when the buyer redistributes the quantities", () => {
@@ -72,14 +72,14 @@ describe("child required toggling", () => {
     expectOnly202PriceRequired(roots);
 
     // Move one unit from 202 to 303 (still totalling 2).
-    const first = byName(roots, "child_qty_101_202");
-    const second = byName(roots, "child_qty_101_303");
+    const first = byName(roots, "childQty101_202");
+    const second = byName(roots, "childQty101_303");
     first.value = "1";
     second.value = "1";
     second.dispatch("change");
 
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
-    expect(byName(roots, "child_price_101_303").required).toBe(true);
+    expect(byName(roots, "childPrice101_202").required).toBe(true);
+    expect(byName(roots, "childPrice101_303").required).toBe(true);
   });
 
   test("requires no price input when an in-cart parent has no child chosen", () => {
@@ -92,7 +92,7 @@ describe("child required toggling", () => {
 
     initChildRequired();
 
-    expect(byName(roots, "child_price_101_202").required).toBe(false);
+    expect(byName(roots, "childPrice101_202").required).toBe(false);
   });
 
   test("shows a live 'X of Q chosen' hint for an in-cart parent", () => {
@@ -109,13 +109,13 @@ describe("child required toggling", () => {
     expect(byHint(roots, "101").textContent).toBe("2 / 3");
 
     // Choosing the third add-on completes the total.
-    byName(roots, "child_qty_101_303").value = "2";
-    byName(roots, "child_qty_101_303").dispatch("change");
+    byName(roots, "childQty101_303").value = "2";
+    byName(roots, "childQty101_303").dispatch("change");
     expect(byHint(roots, "101").textContent).toBe("3 / 3");
   });
 
   test("requires a sole auto-selected pay-more child's price when the parent is in the cart", () => {
-    // A sole bookable child renders informational (no `child_qty_*` control), so
+    // A sole bookable child renders informational (no `childQty*` control), so
     // `chosenChildIds` never reports it. Its pay-more price input is still
     // collected and the server fold rejects a blank one, so it must be required
     // whenever the parent is in the cart.
@@ -128,7 +128,7 @@ describe("child required toggling", () => {
 
     initChildRequired();
 
-    expect(byName(roots, "child_price_101_202").required).toBe(true);
+    expect(byName(roots, "childPrice101_202").required).toBe(true);
   });
 
   test("does not require a sole pay-more child's price when the parent is at zero quantity", () => {
@@ -141,7 +141,7 @@ describe("child required toggling", () => {
 
     initChildRequired();
 
-    expect(byName(roots, "child_price_101_202").required).toBe(false);
+    expect(byName(roots, "childPrice101_202").required).toBe(false);
   });
 
   test("blanks the hint when the parent is at zero quantity", () => {

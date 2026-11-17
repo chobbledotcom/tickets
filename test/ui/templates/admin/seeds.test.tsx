@@ -14,8 +14,8 @@ describe("adminSeedsPage", () => {
     const html = adminSeedsPage(OWNER_SESSION);
     expectIncludesAll(html, [
       "Fill the empty site with example listings",
-      'name="listing_count"',
-      'name="attendees_per_listing"',
+      'name="listingCount"',
+      'name="attendeesPerListing"',
       "Create example data",
       'action="/admin/seeds"',
     ]);

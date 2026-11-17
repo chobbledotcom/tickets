@@ -31,8 +31,8 @@ describeWithEnv("Admin API - listing min_quantity", { db: true }, () => {
   describe("bodyToUpdateInput", () => {
     test("keeps the stored value when the body omits it", async () => {
       const existing = testListingWithCount({
-        max_attendees: 10,
-        min_quantity: 3,
+        maxAttendees: 10,
+        minQuantity: 3,
         name: "Kept Minimum",
         slug: "kept-minimum",
       });
@@ -44,9 +44,9 @@ describeWithEnv("Admin API - listing min_quantity", { db: true }, () => {
 
     test("maps a submitted value over the stored one", async () => {
       const existing = testListingWithCount({
-        max_attendees: 10,
-        max_quantity: 5,
-        min_quantity: 3,
+        maxAttendees: 10,
+        maxQuantity: 5,
+        minQuantity: 3,
         name: "New Minimum",
         slug: "new-minimum",
       });

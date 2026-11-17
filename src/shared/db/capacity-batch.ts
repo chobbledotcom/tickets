@@ -87,13 +87,13 @@ export const getOrCreateBucket = <K>(
  * raises that state. */
 export const addDemandToBucket = (
   bucket: CapacityBucket,
-  listing: Pick<ListingCapacityRow, "listing_type">,
+  listing: Pick<ListingCapacityRow, "listingType">,
   item: BatchAvailabilityItem,
   date: string | null | undefined,
 ): void => {
   if (item.quantity <= 0) return;
   bucket.runningTotal += item.quantity;
-  if (!countsPerDate(listing.listing_type)) {
+  if (!countsPerDate(listing.listingType)) {
     bucket.everyDay += item.quantity;
     bucket.throughLastUndated = bucket.runningTotal;
     return;

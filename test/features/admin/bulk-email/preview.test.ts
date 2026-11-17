@@ -86,7 +86,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
     test("rejects a posted listing that no longer exists", async () => {
       const { response } = await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: "9999",
+        listingId: "9999",
         subject: "Subject",
       });
       await expectFlashRedirect(
@@ -99,7 +99,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
     test("rejects a posted non-positive listing id", async () => {
       const { response } = await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: "0",
+        listingId: "0",
         subject: "Subject",
       });
       await expectFlashRedirect(
@@ -121,7 +121,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       const html = await postPreviewHtml({
         body: "Hello **world**",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Big news",
       });
       expectIncludesAll(html, [
@@ -141,7 +141,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       const html = await postPreviewHtml({
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Big news",
       });
       expectIncludesAll(html, [
@@ -158,7 +158,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedSingleAttendeeListing();
       const html = await postPreviewHtml({
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Big news",
       });
       expectIncludesAll(html, [
@@ -176,7 +176,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedSingleAttendeeListing();
       const html = await postPreviewHtml({
         body: `![Poster \\[blue\\]](img#${image.id})`,
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Big news",
       });
       // The mailto draft reaches the owner's email app as text, so it names
@@ -195,7 +195,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedSingleAttendeeListing();
       const html = await postPreviewHtml({
         body: `Write \`![Poster](img#${image.id})\` by hand: ![Poster](img#${image.id})`,
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Big news",
       });
       // The code span is text the owner wrote as code, so the draft keeps it
@@ -218,7 +218,7 @@ describeWithEnv("server bulk email > preview", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       const html = await postPreviewHtml({
         body: "Promo time",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });

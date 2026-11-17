@@ -11,8 +11,9 @@
 import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { assertJson, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -40,14 +41,14 @@ const postChildrenForm = async (
 ): Promise<Response> =>
   (
     await adminFormPost(`/admin/listing/${parentId}/children`, {
-      child_listing_ids: String(childId),
+      childListingIds: String(childId),
     })
   ).response;
 
 /** Hide the members' names inside `groupId`, so a member that gates children
  *  would leak them. */
 const hidePackageNames = async (groupId: number): Promise<void> => {
-  await groups.table.update(groupId, { hidePackageListings: true });
+  await records.groups.update(groupId, { hidePackageListings: true });
 };
 
 /** Write a listing through the JSON API and assert the 400 error it names.
@@ -96,12 +97,12 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields(group.name, group.slug),
-          hide_package_listings: "1",
-          is_package: "1",
+          hidePackageListings: "1",
+          isPackage: "1",
         },
       );
       const refused = await expectPackageRefused(group, response);
-      expect(refused.hide_package_listings).toBe(false);
+      expect(refused.hidePackageListings).toBe(false);
     });
 
     test("edit POST rejects is_package on a group whose member is another listing's child", async () => {
@@ -307,12 +308,12 @@ describeWithEnv(
       });
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/add-listings`,
-        { listing_ids: String(flexible.id) },
+        { listingIds: String(flexible.id) },
       );
       expect(response.status).toBe(302);
       const prices = await getGroupPackagePrices(group.id);
       assertArrayIncludes(
-        prices.map((r) => r.listing_id),
+        prices.map((r) => r.listingId),
         [flexible.id],
       );
     });
@@ -323,11 +324,11 @@ describeWithEnv(
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/add-listings`,
-        { listing_ids: String(fixed.id) },
+        { listingIds: String(fixed.id) },
       );
       expect(response.status).toBe(302);
       const rows = await getGroupPackagePrices(group.id);
-      expect(rows.map((r) => r.listing_id)).toEqual([fixed.id]);
+      expect(rows.map((r) => r.listingId)).toEqual([fixed.id]);
     });
   },
 );

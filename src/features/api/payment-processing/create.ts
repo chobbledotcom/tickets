@@ -81,11 +81,11 @@ export const sessionSuccess = (
  * still a success replay because the attendee already exists. */
 export const alreadyProcessedResult = async (
   listingId: number,
-  existing: ProcessedPayment & { attendee_id: number },
+  existing: ProcessedPayment & { attendeeId: number },
 ): Promise<PaymentResult> => {
-  const decrypted = await decryptSessionTokens(existing.ticket_tokens);
+  const decrypted = await decryptSessionTokens(existing.ticketTokens);
   return sessionSuccess(
-    existing.attendee_id,
+    existing.attendeeId,
     listingId,
     decrypted ? decrypted.split("+") : [],
   );

@@ -46,7 +46,7 @@ export const updateTaxPolicy = async (
       )
         return false;
       await tx.batch([
-        settingUpsert(CONFIG_KEYS.TAX, stored),
+        settingUpsert([CONFIG_KEYS.TAX, stored]),
         settingsVersionIncrement(),
       ]);
       return true;

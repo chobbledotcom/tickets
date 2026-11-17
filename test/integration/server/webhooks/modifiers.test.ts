@@ -1,10 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
 import { createServiceChargeScenario } from "#test/integration/server/webhooks/service-charge-scenario.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -14,7 +10,7 @@ import {
   singleItem,
   singleModifierMeta,
 } from "#test-utils/factories.ts";
-import { expectModifierUsage } from "#test-utils/modifiers.ts";
+import { expectModifierUsage, insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -51,10 +47,9 @@ const createTwoListings = async (
 /** A 10%-charge modifier scoped to `scope`, for the listing-scoped vs
  *  group-scoped parallel test cases. */
 const createScopedModifier = (name: string, scope: "groups" | "listings") =>
-  modifiersTable.insert({
+  insertModifier({
     calcKind: "percent",
     calcValue: 10,
-    direction: "charge",
     name,
     scope,
   });
@@ -162,10 +157,7 @@ describeWithEnv("server webhooks > modifiers", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
-      direction: "charge",
+    const modifier = await insertModifier({
       name: "VIP Lanyard",
       trigger: "optional",
     });

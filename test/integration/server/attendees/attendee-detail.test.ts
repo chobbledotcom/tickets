@@ -146,7 +146,7 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           200,
-          'name="return_url"',
+          'name="returnUrl"',
           "/admin/calendar#attendees",
         );
       });
@@ -170,7 +170,7 @@ describeWithEnv(
           "Edit Page Listing",
         );
         // The editor renders a quantity box per listing.
-        expectIncludesAll(html, ["Save Attendee", "qty_"]);
+        expectIncludesAll(html, ["Save Attendee", 'name="qty']);
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {

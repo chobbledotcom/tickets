@@ -17,14 +17,14 @@ const handleInvoiceGet = async (token: string): Promise<Response> => {
   if (!invoice) return notFoundResponse();
   const [body, state] = await Promise.all([
     openInvoiceBody(invoice.body, token),
-    getAttendeeBalanceState(invoice.attendee_id),
+    getAttendeeBalanceState(invoice.attendeeId),
   ]);
   // An attendee delete removes its invoices, so a row without its attendee can
   // only come from a hand-edited database. The admin page answers not found for
   // that row, so the share link answers the same.
   if (!state) return notFoundResponse();
   const payable = invoice.status === "new" && state.remainingBalance > 0;
-  const payToken = payable ? await signBalanceToken(invoice.attendee_id) : null;
+  const payToken = payable ? await signBalanceToken(invoice.attendeeId) : null;
   if (payToken !== null) await signCsrfToken();
   return applyNoindex(
     await publicPageResponse(() =>

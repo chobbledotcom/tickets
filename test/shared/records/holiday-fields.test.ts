@@ -27,7 +27,7 @@ describe("the holiday fields", () => {
       {
         header: "Start date",
         hint: null,
-        key: "start_date",
+        key: "startDate",
         kind: "date",
         label: "Start date",
         placeholder: null,
@@ -35,7 +35,7 @@ describe("the holiday fields", () => {
       {
         header: "End date",
         hint: "Must be on or after the start date",
-        key: "end_date",
+        key: "endDate",
         kind: "date",
         label: "End date",
         placeholder: null,

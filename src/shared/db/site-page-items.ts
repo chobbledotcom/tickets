@@ -9,6 +9,7 @@
  * transaction** — two concurrent adds of the same page can't both slip through.
  */
 
+import { targetRowsRemoval } from "#db/child-rows.ts";
 import {
   execute,
   executeBatch,
@@ -17,14 +18,14 @@ import {
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { deleteById, deleteFrom } from "#db/delete-row.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
 import { type Condition, whereTail } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { existingSitePageIdsStatement } from "#db/site-pages.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
-import { deleteWhere } from "#db/where-clauses.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestCache } from "#shared/request-cache.ts";
 import {
@@ -37,7 +38,8 @@ import {
 } from "#shared/site-pages/target.ts";
 import type { SitePageItem, SitePageItemType } from "#types";
 
-const SELECT_COLS = sql`page_id, item_type, item_id, sort_order`;
+const SELECT_COLS = sql`page_id AS pageId, item_type AS itemType, item_id AS itemId,
+  sort_order AS sortOrder`;
 
 /** One item on one page — the composite key the edge table is unique on. */
 const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
@@ -48,8 +50,10 @@ const itemOnPage = (pageId: number, target: SitePageItemTarget): Condition[] =>
  * for callers to fold into that record's own delete batch (so the cleanup is
  * atomic with the row delete — no dangling public-nav entry).
  */
-export const clearItemEdgesStatement =
-  sitePageItemTargets.deleteFrom("site_page_items");
+export const clearItemEdgesStatement = targetRowsRemoval(
+  tables.site_page_items,
+  sitePageItemTargets,
+);
 
 export const sitePageItemOrder = defineOrderedCollection({
   key: ["item_type", "item_id"] as const,
@@ -86,18 +90,16 @@ export const getItemsForPage = (pageId: number): Promise<SitePageItem[]> =>
     sql`SELECT ${SELECT_COLS} FROM site_page_items WHERE page_id = ${pageId} ORDER BY sort_order ASC, item_id ASC`,
   );
 
+/** The page and the item that one page-item change names. */
+type PageItem = [pageId: number, itemType: SitePageItemType, itemId: number];
+
 type PageItemChange<T> = (
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
-  transaction?: TxScope,
+  ...args: [...PageItem, transaction?: TxScope]
 ) => Promise<T>;
 
 type PageItemChangeInTransaction<T> = (
   transaction: TxScope,
-  pageId: number,
-  itemType: SitePageItemType,
-  itemId: number,
+  ...item: PageItem
 ) => Promise<T>;
 
 /** Give a page-item change the caller's transaction, or open its own. A simple
@@ -106,11 +108,7 @@ type PageItemChangeInTransaction<T> = (
 const pageItemChange =
   <T>(
     change: PageItemChangeInTransaction<T>,
-    direct?: (
-      pageId: number,
-      itemType: SitePageItemType,
-      itemId: number,
-    ) => Promise<T>,
+    direct?: (...item: PageItem) => Promise<T>,
   ): PageItemChange<T> =>
   (pageId, itemType, itemId, transaction) =>
     transaction === undefined && direct
@@ -165,7 +163,7 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
       ),
     );
     // Single-parent: the page must not already be nested elsewhere.
-    if (pageEdges.some((e) => e.item_id === itemId)) return false;
+    if (pageEdges.some((e) => e.itemId === itemId)) return false;
     // Acyclic: nesting it here must not close a loop (self or ancestor).
     // The walk needs only the child → parent edge map — never a page row.
     const parentByChild = pageParentMapFromEdges(pageEdges);
@@ -178,7 +176,12 @@ const addPageItemInTransaction: PageItemChangeInTransaction<boolean> = async (
     transaction: tx,
   });
   await tx.execute(
-    sql`INSERT INTO site_page_items (page_id, item_type, item_id, sort_order) VALUES (${pageId}, ${itemType}, ${itemId}, ${next})`,
+    insertInto(tables.site_page_items, {
+      itemId,
+      itemType,
+      pageId,
+      sortOrder: next,
+    }),
   );
   return true;
 };
@@ -192,7 +195,7 @@ const itemDeleteStatement = (
   itemType: SitePageItemType,
   itemId: number,
 ): SqlStatement =>
-  deleteWhere("site_page_items")(
+  deleteFrom(tables.site_page_items).where(() =>
     itemOnPage(pageId, sitePageItemTargets.of(itemType)(itemId)),
   );
 
@@ -221,8 +224,8 @@ export const removePageItem: PageItemChange<void> = pageItemChange(
  */
 export const deleteSitePageWithEdges = (pageId: number): Promise<void> =>
   executeBatch([
-    deleteFrom("site_page_items", { page_id: pageId }),
+    deleteFrom(tables.site_page_items).where({ pageId }),
     clearItemEdgesStatement(sitePageItemTargets.of("page")(pageId)),
     clearImageUsesForItemStatement(imageUseTargets.of("page")(pageId)),
-    deleteById("site_pages", pageId),
+    deleteFrom(tables.site_pages).where({ id: pageId }),
   ]);

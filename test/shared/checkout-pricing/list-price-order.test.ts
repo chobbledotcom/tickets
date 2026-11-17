@@ -9,7 +9,7 @@ const line = (id: number, unitPrice: number, quantity: number) => ({
     id,
     name: `Listing ${id}`,
     slug: `l${id}`,
-    unit_price: unitPrice,
+    unitPrice: unitPrice,
   },
   quantity,
 });

@@ -7,7 +7,8 @@
  */
 
 import { bookedPathGroupIds, lineGroupIds } from "#booking/signed-metadata.ts";
-import { getGroupById, getPackageDisplaysByIds } from "#db/groups.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
+import { getGroupById } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { extractIntent } from "#routes/api/payment-processing/metadata.ts";
@@ -45,7 +46,7 @@ const retryHrefFor = async (
     // package converted to a regular group no longer sells the bundle, so its
     // page offers the wrong thing.
     const bundleServes =
-      group?.is_package === true &&
+      group?.isPackage === true &&
       (await groupBookable(group, await getVisibleGroupMembers(group)));
     if (bundleServes) return `/ticket/${group.slug}`;
   }

@@ -90,7 +90,7 @@ const cardDateState = (
   filter: DailyDateFilter | null,
 ): CardDateState => {
   if (
-    info.listing.listing_type !== "daily" ||
+    info.listing.listingType !== "daily" ||
     filter === null ||
     filter.date === null
   ) {
@@ -160,7 +160,7 @@ const renderListingCardCta = (
       true,
     );
   }
-  const bookLabel = listing.purchase_only
+  const bookLabel = listing.purchaseOnly
     ? t("public.buy_now")
     : t("public.book_now");
   const dateQuery =
@@ -277,10 +277,10 @@ export const homepagePage = (
   const renderGroupCards = (gs: Group[]): string =>
     joinStrings(gs.map((g) => renderGroupCard(g, soldOutPackageIds.has(g.id))));
   const packageGroups = groups
-    .filter((g) => g.is_package)
+    .filter((g) => g.isPackage)
     .toSorted(compareGroupsByName);
   const regularGroups = groups
-    .filter((g) => !g.is_package)
+    .filter((g) => !g.isPackage)
     .toSorted(compareGroupsByName);
 
   // The date search splits the page into available/unavailable sections only

@@ -122,7 +122,7 @@ export const ConfirmForm = saveFormComponent<ConfirmFormProps>(
             {label}
             <input
               autocomplete="off"
-              name="confirm_identifier"
+              name="confirmIdentifier"
               placeholder={name}
               required
               type="text"

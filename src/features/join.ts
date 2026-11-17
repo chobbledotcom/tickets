@@ -2,9 +2,8 @@
  * Join routes - public invite acceptance flow
  */
 
+import { acceptInvite, activateKeylessUser } from "#db/user-activation.ts";
 import {
-  acceptInvite,
-  activateKeylessUser,
   decryptAdminLevel,
   decryptUsername,
   getUserByInviteCode,
@@ -42,7 +41,7 @@ export const joinForm = defineForm({
       label: t("join.set_password.confirm_password"),
       maxlength: MAX_INPUT_LENGTH,
       minlength: 8,
-      name: "password_confirm" as const,
+      name: "passwordConfirm" as const,
       required: true,
       type: "password" as const,
     },
@@ -76,7 +75,7 @@ const validateInvite = async (
   // handoff (e.g. created before self-activation existed) can't be completed and
   // the owner re-invites (such invites expire within a week anyway).
   const adminLevel = await decryptAdminLevel(user);
-  if (adminLevel !== "editor" && !user.invite_wrapped_data_key) {
+  if (adminLevel !== "editor" && !user.inviteWrappedDataKey) {
     return invalidInviteResponse();
   }
 
@@ -131,16 +130,16 @@ const setPasswordRoute = (code: string, user: User) =>
     form: joinForm,
     onInvalid: ({ error }) => errorRedirect(`/join/${code}`, error),
     onValid: async ({ values }) => {
-      if (values.password !== values.password_confirm) {
+      if (values.password !== values.passwordConfirm) {
         return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
       // Editors activate keyless (no DATA_KEY to unwrap); every other role
       // unwraps the handoff with this invite code and re-wraps it under the new
       // password's KEK. validateInvite guaranteed a handoff for non-editors.
-      const accepted = user.invite_wrapped_data_key
+      const accepted = user.inviteWrappedDataKey
         ? await acceptInvite(
             user.id,
-            user.invite_wrapped_data_key,
+            user.inviteWrappedDataKey,
             code,
             values.password,
           )

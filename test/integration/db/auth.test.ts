@@ -4,15 +4,16 @@ import { decryptWithKey } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import { importPrivateKey } from "#crypto/hybrid.ts";
 import { deriveKEKFromPassword, unwrapKey } from "#crypto/keys.ts";
-
 import type { KeyEncrypted, PasswordHash } from "#crypto/sealed.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
+import { tables } from "#db/select/tables.ts";
 import { getSession } from "#db/sessions.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername, verifyUserPassword } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -46,10 +47,10 @@ describeWithEnv("db > auth", { db: true }, () => {
 
     const changed = await settings.updateUserPassword(before!.id, {
       newPassword,
-      oldKekVersion: before!.kek_version,
+      oldKekVersion: before!.kekVersion,
       oldPassword: TEST_ADMIN_PASSWORD,
       oldPasswordHash: oldHash!,
-      oldWrappedDataKey: before!.wrapped_data_key!,
+      oldWrappedDataKey: before!.wrappedDataKey!,
     });
     expect(changed).toBe(true);
 
@@ -78,9 +79,9 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("updateUserPassword re-wraps DATA_KEY with new KEK", async () => {
       const { after, before } = await changeAdminPassword("newpassword456");
 
-      expect(after.wrapped_data_key).not.toBe(before.wrapped_data_key);
+      expect(after.wrappedDataKey).not.toBe(before.wrappedDataKey);
       // Re-wrapped under the v2 (password-bound) scheme.
-      expect(after.kek_version).toBe(2);
+      expect(after.kekVersion).toBe(2);
 
       expect(await verifyUserPassword(after, TEST_ADMIN_PASSWORD)).toBeNull();
 
@@ -98,11 +99,11 @@ describeWithEnv("db > auth", { db: true }, () => {
       // unwrap the DATA_KEY and the change is rejected.
       const success = await s.updateUserPassword(user!.id, {
         newPassword: "newpassword",
-        oldKekVersion: user!.kek_version,
+        oldKekVersion: user!.kekVersion,
         oldPassword: "wrong-current-password",
         // Hand-crafted bogus stored hash — test fixture cast.
         oldPasswordHash: "pbkdf2:bogus:hash" as PasswordHash,
-        oldWrappedDataKey: user!.wrapped_data_key!,
+        oldWrappedDataKey: user!.wrappedDataKey!,
       });
       expect(success).toBe(false);
 
@@ -150,7 +151,7 @@ describeWithEnv("db > auth", { db: true }, () => {
       expect(newPasswordHash).toMatch(/^pbkdf2:/);
 
       const kek = await deriveKEKFromPassword(newPassword, newPasswordHash!);
-      const dataKey = await unwrapKey(updatedUser.wrapped_data_key!, kek);
+      const dataKey = await unwrapKey(updatedUser.wrappedDataKey!, kek);
 
       const wrappedPrivateKey = settings.wrappedPrivateKey;
       expect(wrappedPrivateKey).not.toBe("");
@@ -263,10 +264,10 @@ describeWithEnv("db > auth", { db: true }, () => {
       const ip = "192.168.1.6";
       const ipHash = await hmacHash(ip);
       await getDb().execute(
-        insert("login_attempts", {
+        insertInto(tables.login_attempts, {
           attempts: MAX_LOGIN_ATTEMPTS,
           ip: ipHash,
-          locked_until: Date.now() - 1000,
+          lockedUntil: Date.now() - 1000,
         }),
       );
 
@@ -280,10 +281,10 @@ describeWithEnv("db > auth", { db: true }, () => {
     test("login limiter returns false for attempts below max without lockout", async () => {
       const ip = "192.168.1.7";
       await getDb().execute(
-        insert("login_attempts", {
+        insertInto(tables.login_attempts, {
           attempts: MAX_LOGIN_ATTEMPTS - 1,
           ip: await hmacHash(ip),
-          locked_until: null,
+          lockedUntil: null,
         }),
       );
 

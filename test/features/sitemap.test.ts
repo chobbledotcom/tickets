@@ -11,7 +11,7 @@ import { executeWithoutCacheInvalidation } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import {
   invalidateListingsCache,
-  listingsTable,
+  updateListing,
 } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
@@ -219,7 +219,7 @@ describeWithEnv("server public > sitemap.xml", { db: true }, () => {
       // The edit form refuses an unroutable slug, so the listing write goes
       // to the stored row: the malleable-data case the filter exists for.
       const rejected = await createTestListing({ name: "Ampersand Deal" });
-      await listingsTable.update(rejected.id, {
+      await updateListing(rejected.id, {
         ...testListingInput({ name: "Ampersand Deal" }),
         slug: "plans&pricing",
         slugIndex: await hmacHash("plans&pricing"),

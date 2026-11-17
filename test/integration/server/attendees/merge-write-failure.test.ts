@@ -138,7 +138,7 @@ describeWithEnv(
           pair.target.id,
           pair.sourceToken,
           {
-            [`answer_${pair.q.id}`]: "source",
+            [`answer${pair.q.id}`]: "source",
           },
         );
         return response;

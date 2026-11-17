@@ -32,14 +32,14 @@ const importFile = async (file?: {
   return handleRequest(
     mockMultipartRequest(
       "/admin/catalog/import",
-      { csrf_token: csrfToken },
+      { csrfToken },
       cookie,
       file === undefined
         ? undefined
         : {
             contentType: "application/json",
             data: new TextEncoder().encode(file.data),
-            fieldName: "catalog_file",
+            fieldName: "catalogFile",
             name: file.name,
           },
     ),
@@ -138,7 +138,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const response = await adminGet("/admin/catalog/import");
       expectStatus(200)(response);
       const html = await response.text();
-      expectIncludesAll(html, ["Import a catalog file", 'name="catalog_file"']);
+      expectIncludesAll(html, ["Import a catalog file", 'name="catalogFile"']);
     });
   });
 
@@ -188,7 +188,7 @@ describeWithEnv("server (catalog transfer)", { db: true }, () => {
       const created = (await getAllListings()).find(
         (l) => l.name === "Imported One",
       )!;
-      expect(created.unit_price).toBe(900);
+      expect(created.unitPrice).toBe(900);
       expect(await listingGroups.getIds(created.id)).toEqual([group.id]);
       // The import is recorded in the activity log.
       await expectLogged("Imported One");

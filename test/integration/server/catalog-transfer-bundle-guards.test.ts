@@ -5,7 +5,7 @@ import { hmacHash } from "#crypto/hashing.ts";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { createListing, getListingWithCount } from "#db/listings/records.ts";
 import { loadCatalogNameIndex, matchName } from "#db/name-registry.ts";
 import { sql } from "#db/sql.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -41,7 +41,7 @@ const storePlanInGroup = async (
   planName: string,
   groupId: number,
 ): Promise<void> => {
-  const plan = await listingsTable.insert({
+  const plan = await createListing({
     assignBuiltSite: true,
     dayPrices: {},
     maxAttendees: 1,
@@ -243,6 +243,6 @@ describeWithEnv("catalog bundle import guard parity", { db: true }, () => {
     expect(await listingParents.getIds(kidId.id)).toEqual([topId.id]);
     const storedKid = await getListingWithCount(kidId.id);
     if (!storedKid) throw new Error("Alone Kid is missing after import");
-    expect(storedKid.bookable_alone).toBe(true);
+    expect(storedKid.bookableAlone).toBe(true);
   });
 });

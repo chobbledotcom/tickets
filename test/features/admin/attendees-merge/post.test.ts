@@ -57,10 +57,10 @@ const expectMoneyDecisionMerge = async (
   const { response } = await adminFormPost(
     `/admin/attendees/${target.id}/merge`,
     {
-      merge_version: mergeVersion,
-      source_token: source.ticket_token,
-      [`booking_${bookingKey}`]: "skip_source",
-      [`money_${bookingKey}`]: money,
+      mergeVersion,
+      sourceToken: source.ticket_token,
+      [`booking${bookingKey}`]: "skip_source",
+      [`money${bookingKey}`]: money,
     },
   );
   expectFlash(response, expectedFlash, true);
@@ -74,7 +74,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
   describe("POST /admin/attendees/:attendeeId/merge", () => {
     testRequiresAuth("/admin/attendees/1/merge", {
       body: {
-        source_token: "some-token",
+        sourceToken: "some-token",
       },
       method: "POST",
       setup: async () => {
@@ -89,12 +89,12 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
     test("returns 404 for non-existent target attendee", async () => {
       const { response } = await adminFormPost("/admin/attendees/999/merge", {
-        source_token: "some-token",
+        sourceToken: "some-token",
       });
       expect(response.status).toBe(404);
     });
 
-    test("rejects missing source_token", async () => {
+    test("rejects missing sourceToken", async () => {
       const { attendee } = await setupListingAndDirectAttendee({
         listing: { maxAttendees: 10 },
       });
@@ -112,7 +112,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
-        { source_token: "nonexistent-token" },
+        { sourceToken: "nonexistent-token" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Ticket token not found", false);
@@ -124,7 +124,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/attendees/${attendee.id}/merge`,
-        { source_token: token },
+        { sourceToken: token },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Cannot merge an attendee with themselves", false);
@@ -164,9 +164,9 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       // Merge the source into the target, keeping the source's email.
       const mergeVersion = await getMergeVersion(target.id, sourceToken);
       await adminFormPost(`/admin/attendees/${target.id}/merge`, {
-        merge_version: mergeVersion,
-        pii_email: "source",
-        source_token: sourceToken,
+        mergeVersion,
+        piiEmail: "source",
+        sourceToken,
       });
 
       // The target now carries the shared email, so the sibling lists it; the
@@ -258,13 +258,13 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
         {
-          merge_version: mergeVersion,
-          pii_address: "source",
-          pii_email: "source",
-          pii_name: "source",
-          pii_phone: "source",
-          pii_special_instructions: "source",
-          source_token: sourceToken,
+          mergeVersion,
+          piiAddress: "source",
+          piiEmail: "source",
+          piiName: "source",
+          piiPhone: "source",
+          piiSpecialInstructions: "source",
+          sourceToken,
         },
       );
       expect(response.status).toBe(302);
@@ -289,7 +289,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Booking conflict: same listing, same start_at (null) — choose keep_target
       const { response } = await submitMerge(target.id, sourceToken, {
-        [`booking_${listing1.id}:null:0:0`]: "keep_target",
+        [`booking${listing1.id}:null:0:0`]: "keep_target",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Merged"), true);
@@ -362,7 +362,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: source.ticket_token },
+        { mergeVersion, sourceToken: source.ticket_token },
       );
       expect(response.status).toBe(302);
       expectFlash(

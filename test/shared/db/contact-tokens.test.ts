@@ -309,6 +309,25 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ).toBeNull();
   });
 
+  test("syncAttendeeContactTokens adds to an unchanged contact whose last token moved away", async () => {
+    const contact = emailOnly("emptied-token@example.com");
+    const pk = await getTestPrivateKey();
+    await recordLine(contact, "public", "tok-moved");
+    await syncToken(
+      "tok-moved",
+      contact,
+      emailOnly("moved-to@example.com"),
+      pk,
+    );
+    expect(await tokenBlobFor(await contactHash(contact))).toBe("");
+
+    await syncToken("tok-kept", contact, contact, pk);
+
+    expect(await readContact(contact, pk)).toEqual([
+      { source: "admin", token: "tok-kept" },
+    ]);
+  });
+
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });

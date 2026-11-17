@@ -22,7 +22,7 @@ import { testCookie, testCsrfToken } from "#test-utils/session.ts";
 const DOMAIN_ROUTES = [
   {
     check: () => expect(settings.customDomain).toBe(""),
-    field: "custom_domain",
+    field: "customDomain",
     handler: handleCustomDomainPost,
     // One character over the limit, still shaped like a real domain.
     message: "Domain must be 250 characters or fewer",
@@ -64,7 +64,7 @@ describeWithEnv(
         const response = await handler(
           mockFormRequest(
             path,
-            { [field]: value, csrf_token: await testCsrfToken() },
+            { [field]: value, csrfToken: await testCsrfToken() },
             await testCookie(),
           ),
         );

@@ -55,7 +55,7 @@ describeWithEnv(
       const result = await getListingWithAttendeesRaw(listing.id);
       expect(result).not.toBeNull();
       expect(result?.listing.id).toBe(listing.id);
-      expect(result?.listing.attendee_count).toBe(1);
+      expect(result?.listing.attendeeCount).toBe(1);
       expect(result?.attendeesRaw.length).toBe(1);
       // The attendee half really is the booking, not the listing row that
       // shares the same batch.
@@ -190,7 +190,7 @@ describeWithEnv(
       const [row] = result?.attendeeRows ?? [];
       expect(row?.id).toBe(attendee.id);
       expect(row?.listing_id).toBe(listing.id);
-      expect(result?.listing.attendee_count).toBe(1);
+      expect(result?.listing.attendeeCount).toBe(1);
     });
 
     test("getListingWithAttendeeRaw has no attendee half when the id is unknown", async () => {

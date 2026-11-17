@@ -16,7 +16,7 @@ import {
   executeBatchWithoutCacheInvalidation,
   executeWithoutCacheInvalidation,
 } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   bumpSettingsVersion,
   getRawCached,
@@ -28,15 +28,22 @@ import {
   setSnapshotField,
 } from "#db/settings/snapshot.ts";
 import { recordSettingsLoaded } from "#db/settings-audit.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import type { EncryptedUpdateFn } from "#shared/wallets/wallet-settings-types.ts";
 
 export { getRawCached };
 
+/** One settings (key, value) pair. */
+type SettingEntry = readonly [key: string, value: string];
+
+/** A batch of settings (key, value) pairs. Shared by every batch write path. */
+type SettingsBatch = readonly SettingEntry[];
+
 /** The upsert for one settings key and value. The latest write wins. */
-export const settingUpsert = (key: string, value: string): SqlStatement =>
-  sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${key}, ${value})`;
+export const settingUpsert = ([key, value]: SettingEntry): SqlStatement =>
+  insertInto(tables.settings, { key, value }, { or: "REPLACE" });
 
 /** Notify other isolates after this request mirrors a settings change. */
 const afterSettingChange = async (sync: () => void): Promise<void> => {
@@ -77,17 +84,14 @@ export const publishStoredSetting = (
 /** Write a setting to the DB, update the raw cache in-place, and bump the
  *  shared version so other isolates reload on their next request. */
 export const writeRaw = async (key: string, value: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(settingUpsert(key, value));
+  await executeWithoutCacheInvalidation(settingUpsert([key, value]));
   await syncWrittenSetting(key, value);
 };
-
-/** A batch of settings (key, value) pairs. Shared by every batch write path. */
-type SettingsBatch = ReadonlyArray<readonly [key: string, value: string]>;
 
 /** Build a settings batch: the upserts for each (key, value) pair plus the
  *  shared version increment, so every batch write bumps the version. */
 const settingsBatchStatements = (values: SettingsBatch): SqlStatement[] => [
-  ...values.map(([key, value]) => settingUpsert(key, value)),
+  ...values.map(settingUpsert),
   settingsVersionIncrement(),
 ];
 
@@ -115,7 +119,9 @@ export const writeRawBatch = async (values: SettingsBatch): Promise<void> => {
 /** Delete a setting from the DB, drop it from the raw cache, and bump the
  *  shared version so other isolates reload on their next request. */
 export const deleteRaw = async (key: string): Promise<void> => {
-  await executeWithoutCacheInvalidation(deleteFrom("settings", { key }));
+  await executeWithoutCacheInvalidation(
+    deleteFrom(tables.settings).where({ key }),
+  );
   await afterSettingChange(() =>
     syncStoredSetting(key, (values) => values.delete(key)),
   );

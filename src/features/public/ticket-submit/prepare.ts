@@ -98,7 +98,7 @@ export const prepareOrder = async (
 
   const pageSelected = listingsWithQuantity(ctx.listings, pageQuantities);
   const baseHasCustomisable = pageSelected.some(
-    ({ listing }) => listing.customisable_days,
+    ({ listing }) => listing.customisableDays,
   );
   // A HIDDEN package's day-count errors must name that package, not a
   // concealed member — resolved per listing, since a page can carry several
@@ -227,7 +227,7 @@ export const prepareOrder = async (
   };
 
   const addOns = parseAddOnSelections(form, ctx.addOns);
-  const promoCode = form.getString("promo_code");
+  const promoCode = form.getString("promoCode");
   const reservationAmount = await publicReservationAmount();
 
   // Resolve the answer-triggered modifier quantities once (scope-aware); these
@@ -272,5 +272,5 @@ export const singleListingThankYouUrl = (
       .filter((item) => item.listingId === ctx.listings[0]!.listing.id)
       .map((item) => item.packageGroupId ?? 0),
   )
-    ? ctx.listings[0]!.listing.thank_you_url
+    ? ctx.listings[0]!.listing.thankYouUrl
     : null;

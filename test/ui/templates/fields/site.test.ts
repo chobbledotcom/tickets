@@ -15,10 +15,7 @@ const fieldNames = (form: { fields: ReadonlyArray<{ name: string }> }) =>
 
 describe("site editor forms", () => {
   test("the home form offers the title box and the homepage text box", () => {
-    expect(fieldNames(siteHomeForm)).toEqual([
-      "website_title",
-      "homepage_text",
-    ]);
+    expect(fieldNames(siteHomeForm)).toEqual(["websiteTitle", "homepageText"]);
     const title = siteHomeForm.fields[0]!;
     expect(title.maxlength).toBe(MAX_INPUT_LENGTH);
     const html = siteHomeForm.render();
@@ -32,8 +29,8 @@ describe("site editor forms", () => {
   });
 
   test("the contact and order forms each offer their one markdown text box", () => {
-    expect(fieldNames(siteContactForm)).toEqual(["contact_page_text"]);
-    expect(fieldNames(siteOrderForm)).toEqual(["order_intro_text"]);
+    expect(fieldNames(siteContactForm)).toEqual(["contactPageText"]);
+    expect(fieldNames(siteOrderForm)).toEqual(["orderIntroText"]);
     for (const form of [siteContactForm, siteOrderForm]) {
       expect(form.fields[0]!.maxlength).toBe(MAX_TEXTAREA_LENGTH);
       // Markdown boxes carry the live preview control plain text areas lack.

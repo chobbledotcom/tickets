@@ -81,14 +81,14 @@ type ListingNumberFieldOptions = Partial<
 >;
 
 const LISTING_NUMBER_COPY = {
-  duration_days: "duration_days",
-  initial_site_months: "initial_site_months",
-  max_attendees: "max_attendees",
-  max_quantity: "max_quantity",
-  maximum_days_after: "max_days_ahead",
-  min_quantity: "min_quantity",
-  minimum_days_before: "min_days_notice",
-  months_per_unit: "months_per_unit",
+  durationDays: "duration_days",
+  initialSiteMonths: "initial_site_months",
+  maxAttendees: "max_attendees",
+  maximumDaysAfter: "max_days_ahead",
+  maxQuantity: "max_quantity",
+  minimumDaysBefore: "min_days_notice",
+  minQuantity: "min_quantity",
+  monthsPerUnit: "months_per_unit",
 } as const;
 
 type ListingNumberFieldName = keyof typeof LISTING_NUMBER_COPY;
@@ -190,7 +190,7 @@ const choiceField = <
 const payMoreOrDaysTick = <TName extends string, TSection extends string>(
   name: TName,
   copy: "allow_pay_more" | "customisable_days",
-  other: "can_pay_more" | "customisable_days",
+  other: "canPayMore" | "customisableDays",
   section: TSection,
 ) => ({
   ...choiceField(
@@ -218,7 +218,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
     },
     {
       ...choiceField(
-        "listing_type",
+        "listingType",
         "type",
         picklistOptions(ListingTypeSchema, "fields.listing.type"),
         "basics",
@@ -242,19 +242,19 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       section: "basics",
       type: "text",
     },
-    listingNumberField("max_attendees", "tickets", {
+    listingNumberField("maxAttendees", "tickets", {
       min: 1,
       required: true,
     }),
-    listingNumberField("max_quantity", "tickets", {
+    listingNumberField("maxQuantity", "tickets", {
       min: 1,
       required: true,
     }),
-    listingNumberField("min_quantity", "tickets", { min: 1 }),
+    listingNumberField("minQuantity", "tickets", { min: 1 }),
     {
       hint: t("fields.listing.bookable_days_hint"),
       label: t("fields.listing.bookable_days"),
-      name: "bookable_days",
+      name: "bookableDays",
       options: requireChoiceOptions(
         t("fields.listing.bookable_days"),
         VALID_DAY_NAMES.map((d) => ({ label: d, value: d })),
@@ -263,9 +263,9 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       type: "checkbox-group",
       validate: validateBookableDays,
     },
-    listingNumberField("minimum_days_before", "daily", { min: 0 }),
-    listingNumberField("maximum_days_after", "daily", { min: 0 }),
-    listingNumberField("duration_days", "duration", {
+    listingNumberField("minimumDaysBefore", "daily", { min: 0 }),
+    listingNumberField("maximumDaysAfter", "daily", { min: 0 }),
+    listingNumberField("durationDays", "duration", {
       max: MAX_DURATION_DAYS,
       min: 1,
       // The declared min/max enforce the range, and a negative whole number
@@ -274,9 +274,9 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       validate: wholeNumberCheck(() => t("fields.validation.duration_whole")),
     }),
     payMoreOrDaysTick(
+      "customisableDays",
       "customisable_days",
-      "customisable_days",
-      "can_pay_more",
+      "canPayMore",
       "customisable",
     ),
     {
@@ -291,25 +291,25 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       validate: validateListingFields,
     },
     {
-      ...ticketMoneyField("unit_price", "price"),
+      ...ticketMoneyField("unitPrice", "price"),
       required: true,
       requiredMessage: t("fields.validation.unit_price_required"),
     },
     payMoreOrDaysTick(
-      "can_pay_more",
+      "canPayMore",
       "allow_pay_more",
-      "customisable_days",
+      "customisableDays",
       "tickets",
     ),
     {
-      ...ticketMoneyField("recurring_price", "price"),
+      ...ticketMoneyField("recurringPrice", "price"),
       hint: t("fields.listing.recurring_price_hint"),
       label: t("fields.listing.recurring_price"),
-      visible: shows(view, "recurring_price"),
+      visible: shows(view, "recurringPrice"),
     },
     {
       ...choiceField(
-        "recurring_interval",
+        "recurringInterval",
         "recurring_interval",
         blankThenPicklistOptions(
           t("fields.listing.recurring_interval_none"),
@@ -319,20 +319,20 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
         "tickets",
         "select",
       ),
-      visible: shows(view, "recurring_interval"),
+      visible: shows(view, "recurringInterval"),
     },
     {
-      ...ticketMoneyField("max_price", "max_price"),
+      ...ticketMoneyField("maxPrice", "max_price"),
       // 100 currency units, formatted to the currency's decimals so the default
       // is valid for a zero-decimal currency (JPY "100") as well as GBP "100.00".
       defaultValue: (100).toFixed(getDecimalPlaces(settings.currency)),
       hint: t("fields.listing.max_price_hint", { amount: formatCurrency(100) }),
     },
-    datetimeField("closes_at", "registration_closes", "tickets"),
+    datetimeField("closesAt", "registration_closes", "tickets"),
     {
       hint: t("fields.listing.thank_you_url_hint"),
       label: t("fields.listing.thank_you_url"),
-      name: "thank_you_url",
+      name: "thankYouUrl",
       placeholder: "https://example.com/thank-you",
       section: "advanced",
       type: "url",
@@ -341,17 +341,17 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
     {
       hint: t("fields.listing.webhook_url_hint"),
       label: t("fields.listing.webhook_url"),
-      name: "webhook_url",
+      name: "webhookUrl",
       placeholder: "https://example.com/webhook",
       section: "advanced",
       type: "url",
       validate: validateHttpsDomainUrl,
-      visible: shows(view, "webhook_url"),
+      visible: shows(view, "webhookUrl"),
     },
     {
       hint: t("fields.listing.non_transferable_hint"),
       label: t("fields.listing.non_transferable"),
-      name: "non_transferable",
+      name: "nonTransferable",
       options: [
         { label: t("fields.listing.non_transferable_no"), value: "" },
         { label: t("fields.listing.non_transferable_yes"), value: "1" },
@@ -361,7 +361,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
     },
     { ...buildHiddenField("Listing"), section: "options" },
     {
-      ...checkboxField("purchase_only", {
+      ...checkboxField("purchaseOnly", {
         hint: t("fields.listing.purchase_only_hint"),
         label: t("fields.listing.purchase_only"),
         optionLabel: t("fields.listing.purchase_only_label"),
@@ -369,7 +369,7 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
       section: "options",
     },
     {
-      ...checkboxField("bookable_alone", {
+      ...checkboxField("bookableAlone", {
         hint: t("fields.listing.bookable_alone_hint"),
         label: t("fields.listing.bookable_alone"),
         optionLabel: t("fields.listing.bookable_alone_label"),
@@ -379,32 +379,32 @@ const listingFields = (view: ListingFormView = OPEN_VIEW) =>
     {
       hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
       label: "Needs logistics",
-      name: "uses_logistics",
+      name: "usesLogistics",
       options: [
         { label: "Assign agents to this listing's bookings", value: "1" },
       ],
       section: "options",
       type: "checkbox-group",
-      visible: shows(view, "uses_logistics"),
+      visible: shows(view, "usesLogistics"),
     },
-    listingNumberField("months_per_unit", "advanced", {
+    listingNumberField("monthsPerUnit", "advanced", {
       max: 24,
       min: 0,
-      visible: shows(view, "months_per_unit"),
+      visible: shows(view, "monthsPerUnit"),
     }),
-    listingNumberField("initial_site_months", "advanced", {
+    listingNumberField("initialSiteMonths", "advanced", {
       max: 120,
       min: 0,
-      visible: shows(view, "initial_site_months"),
+      visible: shows(view, "initialSiteMonths"),
     }),
     {
-      ...checkboxField("assign_built_site", {
+      ...checkboxField("assignBuiltSite", {
         hint: t("fields.listing.assign_built_site_hint"),
         label: t("fields.listing.assign_built_site"),
         optionLabel: t("fields.listing.assign_built_site_label"),
       }),
       section: "advanced",
-      visible: shows(view, "assign_built_site"),
+      visible: shows(view, "assignBuiltSite"),
     },
     {
       label: t("fields.listing.attachment", {

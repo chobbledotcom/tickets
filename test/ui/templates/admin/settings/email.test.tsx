@@ -21,7 +21,7 @@ describe("EmailNotificationsForm", () => {
 
     expectIncludesAll(html, [
       "Email Provider",
-      '<select name="email_provider">',
+      '<select name="emailProvider">',
       '<option selected value="resend">Resend</option>',
       '<option value="">Host email</option>',
       '<option value="mailgun-eu">Mailgun (EU)</option>',
@@ -48,8 +48,8 @@ describe("EmailNotificationsForm", () => {
     );
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}">`,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_from_address" placeholder="owner@site.example" type="email" value="tickets@site.example">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="emailApiKey" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="emailFromAddress" placeholder="owner@site.example" type="email" value="tickets@site.example">`,
       "API Key",
       "From Address",
     ]);
@@ -59,8 +59,8 @@ describe("EmailNotificationsForm", () => {
     const html = String(EmailNotificationsForm(advancedDefaultState));
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password">`,
-      `name="email_from_address" placeholder="tickets@yourdomain.com" type="email" value=""`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="emailApiKey" placeholder="Enter API key" type="password">`,
+      `name="emailFromAddress" placeholder="tickets@yourdomain.com" type="email" value=""`,
     ]);
   });
 

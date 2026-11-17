@@ -19,7 +19,7 @@ const superuserChoiceOption = (
   <label class="radio-label">
     <input
       checked={choice === checkedValue}
-      name="superuser_choice"
+      name="superuserChoice"
       required
       type="radio"
       value={value}

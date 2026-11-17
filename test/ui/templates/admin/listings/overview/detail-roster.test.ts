@@ -11,7 +11,7 @@ import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 describe("adminListingPage roster and attendees", () => {
   registerListingTemplateHooks();
 
-  const listing = testListingWithCount({ attendee_count: 2 });
+  const listing = testListingWithCount({ attendeeCount: 2 });
 
   test("shows thank you URL in copyable input", () => {
     const html = renderListingDetail({
@@ -141,8 +141,8 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows danger-text class when near capacity", () => {
     const nearFullListing = testListingWithCount({
-      attendee_count: 91,
-      max_attendees: 100,
+      attendeeCount: 91,
+      maxAttendees: 100,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -195,8 +195,8 @@ describe("adminListingPage roster and attendees", () => {
 
   test("renders empty date cell for attendee without date on daily listing", () => {
     const dailyListing = testListingWithCount({
-      attendee_count: 1,
-      listing_type: "daily",
+      attendeeCount: 1,
+      listingType: "daily",
     });
     const attendees = [testAttendee({ date: null })];
     const html = renderListingDetail({
@@ -209,8 +209,8 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows unlimited booking window when maximum_days_after is 0", () => {
     const dailyListing = testListingWithCount({
-      listing_type: "daily",
-      maximum_days_after: 0,
+      listingType: "daily",
+      maximumDaysAfter: 0,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -222,8 +222,8 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows numeric booking window when maximum_days_after is nonzero", () => {
     const dailyListing = testListingWithCount({
-      listing_type: "daily",
-      maximum_days_after: 30,
+      listingType: "daily",
+      maximumDaysAfter: 30,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -236,9 +236,9 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows danger-text for daily listing at capacity with date filter", () => {
     const dailyListing = testListingWithCount({
-      attendee_count: 0,
-      listing_type: "daily",
-      max_attendees: 2,
+      attendeeCount: 0,
+      listingType: "daily",
+      maxAttendees: 2,
     });
     const attendees = [testAttendee(), testAttendee({ id: 2, name: "Jane" })];
     const html = renderListingDetail({
@@ -252,9 +252,9 @@ describe("adminListingPage roster and attendees", () => {
 
   test("shows danger-text on the total count for a near-capacity daily listing without a date filter", () => {
     const dailyListing = testListingWithCount({
-      attendee_count: 91,
-      listing_type: "daily",
-      max_attendees: 100,
+      attendeeCount: 91,
+      listingType: "daily",
+      maxAttendees: 100,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -270,8 +270,8 @@ describe("adminListingPage optional fields", () => {
 
   test("hides thank you URL row when no thank_you_url", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      thank_you_url: "",
+      attendeeCount: 0,
+      thankYouUrl: "",
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -283,8 +283,8 @@ describe("adminListingPage optional fields", () => {
 
   test("shows webhook URL in copyable input when present", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      webhook_url: "https://hooks.example.com/notify",
+      attendeeCount: 0,
+      webhookUrl: "https://hooks.example.com/notify",
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -299,7 +299,7 @@ describe("adminListingPage optional fields", () => {
   });
 
   test("hides embed rows for a child listing", () => {
-    const listing = testListingWithCount({ attendee_count: 0 });
+    const listing = testListingWithCount({ attendeeCount: 0 });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -316,7 +316,7 @@ describe("adminListingPage listing date and location", () => {
 
   test("shows Listing Date row when listing has a date", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2026-06-15T14:00:00.000Z",
     });
     const html = renderListingDetail({
@@ -331,7 +331,7 @@ describe("adminListingPage listing date and location", () => {
   });
 
   test("does not show Listing Date row when date is empty", () => {
-    const listing = testListingWithCount({ attendee_count: 0, date: "" });
+    const listing = testListingWithCount({ attendeeCount: 0, date: "" });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -342,7 +342,7 @@ describe("adminListingPage listing date and location", () => {
 
   test("shows Location row when listing has a location", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       location: "Village Hall",
     });
     const html = renderListingDetail({
@@ -354,7 +354,7 @@ describe("adminListingPage listing date and location", () => {
   });
 
   test("does not show Location row when location is empty", () => {
-    const listing = testListingWithCount({ attendee_count: 0, location: "" });
+    const listing = testListingWithCount({ attendeeCount: 0, location: "" });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -365,7 +365,7 @@ describe("adminListingPage listing date and location", () => {
 
   test("shows both Listing Date and Location when both are set", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       date: "2026-06-15T14:00:00.000Z",
       location: "Town Centre",
     });

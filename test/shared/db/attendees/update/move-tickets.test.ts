@@ -2,8 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { TicketDirection } from "#booking/ticket-moves.ts";
 import { moveTickets } from "#db/attendees/update.ts";
-import { executeUpdate, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -83,10 +85,11 @@ describeWithEnv(
     for (const [name, lineQuantity, ...moves] of lineCases) {
       test(name, async () => {
         const { listing, attendee } = await attendeeOnListing();
-        await executeUpdate(
-          "listing_attendees",
-          { quantity: lineQuantity },
-          { attendee_id: attendee.id, listing_id: listing.id },
+        await execute(
+          update(tables.listing_attendees, { quantity: lineQuantity }).where({
+            attendeeId: attendee.id,
+            listingId: listing.id,
+          }),
         );
         for (const [direction, count, stored] of moves) {
           await expectMoveTo(direction, attendee.id, listing.id)(count, stored);

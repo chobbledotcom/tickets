@@ -3,9 +3,9 @@ import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { fillTogether } from "#db/fill-together.ts";
 import { hasNewsPosts, newsExistenceRead } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { allPageItemsRead, getAllPageItems } from "#db/site-page-items.ts";
 import { sitePages, sitePagesNavRead } from "#db/site-pages.ts";
-
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
@@ -37,7 +37,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
   });
 
   test("serves the rows a later reader expects, with sealed columns opened", async () => {
-    const page = await sitePages.table.insert({
+    const page = await records.site_pages.insert({
       hidden: true,
       name: "About us",
       slug: "about-us",
@@ -54,7 +54,7 @@ describeWithEnv("db > fill-together", { db: true }, () => {
           id: page.id,
           name: "About us",
           slug: "about-us",
-          sort_order: 3,
+          sortOrder: 3,
         },
       ]);
       expect(await hasNewsPosts()).toBe(false);

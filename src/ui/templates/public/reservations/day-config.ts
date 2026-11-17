@@ -65,14 +65,14 @@ export const dayConfig = (
   dateDurationDays: number;
 } => ({
   dateDurationDays:
-    singleListing && !singleListing.customisable_days
-      ? singleListing.duration_days
+    singleListing && !singleListing.customisableDays
+      ? singleListing.durationDays
       : 1,
-  dayCountPriceFor: singleListing?.customisable_days
+  dayCountPriceFor: singleListing?.customisableDays
     ? (days: number) => dayPriceFor(singleListing, days)
     : undefined,
   dayCounts: pageDayCounts(listings, childrenByParentId, hasPackages),
-  hasCustomisable: listings.some((e) => e.listing.customisable_days),
+  hasCustomisable: listings.some((e) => e.listing.customisableDays),
 });
 
 /**

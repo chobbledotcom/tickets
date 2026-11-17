@@ -1,7 +1,7 @@
 /** The listings a group's "add listings" form can offer. */
 
-import { LISTING_ORDER_SQL, LISTING_ROW } from "#db/listings/select.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
+import { LISTING_ORDER_SQL } from "#db/listings/select.ts";
+import { readRows } from "#db/read.ts";
 import { equal, notInQuery } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -21,22 +21,22 @@ export type GroupListingCandidate = SortableListing & {
   active: boolean;
 };
 
-const candidateColumns = rawListingsTable.read.pick([
+const CANDIDATE_COLUMNS = [
   "id",
   "name",
   "active",
   "date",
-  "listing_type",
-  "bookable_days",
-  "customisable_days",
-  "duration_days",
-  "minimum_days_before",
-  "maximum_days_after",
+  "listingType",
+  "bookableDays",
+  "customisableDays",
+  "durationDays",
+  "minimumDaysBefore",
+  "maximumDaysAfter",
   // The form sorts daily listings by their next bookable date, which reads the
   // three availability fields above — all inheritable, so the row carries the
   // inheritance flag and the site settings are applied before it is returned.
-  "use_defaults",
-]);
+  "useDefaults",
+] as const;
 
 /**
  * Listings that are NOT already in the given group. Membership is many-to-many,
@@ -47,20 +47,18 @@ export const getListingsNotInGroup = async (
   groupId: number,
 ): Promise<GroupListingCandidate[]> => {
   const memberIds = from(tables.group_listings)
-    .where((member) => equal(member.group_id, groupId))
-    .values((member) => member.listing_id);
-  const rows = await candidateColumns.many(
-    {},
-    {
-      alias: "listing",
-      order: LISTING_ORDER_SQL.created_desc,
-      where: [notInQuery(LISTING_ROW.id, memberIds)],
-    },
+    .where((member) => equal(member.groupId, groupId))
+    .values((member) => member.listingId);
+  const rows = await readRows(
+    from(tables.listings)
+      .where((listing) => notInQuery(listing.id, memberIds))
+      .orderBy(() => [LISTING_ORDER_SQL.created_desc])
+      .pick(...CANDIDATE_COLUMNS),
   );
   return rows.map((row) => {
     // The flag has done its job once the settings are applied; leaving it on the
     // candidate would invite a second, pointless overlay.
-    const { use_defaults: _resolved, ...candidate } = resolveListingDefaults(
+    const { useDefaults: _resolved, ...candidate } = resolveListingDefaults(
       resolveListingDate(row),
       settings.listingDefaults,
       settings.features.logistics,

@@ -20,7 +20,7 @@ describe("edgeFieldError minimum quantity", () => {
   test("the child-minimum error resolves to real copy naming the child, not a raw key", () => {
     const message = edgeFieldError(
       listing(),
-      listing({ min_quantity: 2, name: "Bundled" }),
+      listing({ minQuantity: 2, name: "Bundled" }),
     );
     assertStringIncludes(message ?? "", "'Bundled'");
     assert(!(message ?? "").includes("children_err"));
@@ -28,20 +28,20 @@ describe("edgeFieldError minimum quantity", () => {
 
   test("refuses a child whose minimum is above one", () => {
     expect(
-      edgeFieldError(listing(), listing({ min_quantity: 2, name: "Bundled" })),
+      edgeFieldError(listing(), listing({ minQuantity: 2, name: "Bundled" })),
     ).toBe(ruleError("child_min_quantity", "Bundled"));
   });
 
   test("a child with the default minimum of one passes", () => {
     expect(
-      edgeFieldError(listing(), listing({ min_quantity: 1, name: "Child" })),
+      edgeFieldError(listing(), listing({ minQuantity: 1, name: "Child" })),
     ).toBeNull();
   });
 
   test("a parent may carry a minimum", () => {
     expect(
       edgeFieldError(
-        listing({ min_quantity: 5, name: "Parent" }),
+        listing({ minQuantity: 5, name: "Parent" }),
         listing({ name: "Child" }),
       ),
     ).toBeNull();
@@ -51,14 +51,14 @@ describe("edgeFieldError minimum quantity", () => {
     // The minimum rule sits last, so the more fundamental span clash is
     // reported first.
     const parent = listing({
-      duration_days: 3,
-      listing_type: "daily",
+      durationDays: 3,
+      listingType: "daily",
       name: "Parent",
     });
     const child = listing({
-      duration_days: 5,
-      listing_type: "daily",
-      min_quantity: 2,
+      durationDays: 5,
+      listingType: "daily",
+      minQuantity: 2,
       name: "Cabin",
     });
     expect(edgeFieldError(parent, child)).toBe(

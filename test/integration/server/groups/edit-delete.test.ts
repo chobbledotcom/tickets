@@ -1,8 +1,11 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, beforeEach, describe, it as test } from "@std/testing/bdd";
-import { stub } from "@std/testing/mock";
+import { execute } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { setDemoModeForTest } from "#shared/demo/mode.ts";
@@ -20,6 +23,7 @@ import {
   updateTestGroup,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { aroundRowCheck } from "#test-utils/db-helpers/row-check.ts";
 import { mockFormRequest } from "#test-utils/mocks.ts";
 import {
   adminFormPost,
@@ -89,10 +93,10 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/edit`,
           {
-            csrf_token: csrfToken,
+            csrfToken,
             name: "Changed",
             slug: "changed",
-            terms_and_conditions: "",
+            termsAndConditions: "",
           },
           cookie,
         ),
@@ -117,7 +121,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       });
       expect(updated.name).toBe("After");
       expect(updated.slug).toBe("after");
-      expect(updated.terms_and_conditions).toBe("Updated terms");
+      expect(updated.termsAndConditions).toBe("Updated terms");
     });
 
     test("updates group description", async () => {
@@ -153,7 +157,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/groups/${g2.id}/edit`, {
         name: "Two",
         slug: g1.slug,
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       await expectFlashRedirect(
         `/admin/groups/${g2.id}/edit`,
@@ -166,7 +170,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost("/admin/groups/999/edit", {
         name: "Missing",
         slug: "missing",
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       expectStatus(404)(response);
     });
@@ -184,7 +188,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         200,
         "Delete Group",
         "Listings in this group will not be deleted",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
 
@@ -206,8 +210,8 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/delete`,
           {
-            confirm_identifier: "Delete Allow",
-            csrf_token: csrfToken,
+            confirmIdentifier: "Delete Allow",
+            csrfToken,
           },
           cookie,
         ),
@@ -225,7 +229,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,
         {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         },
       );
       await expectFlashRedirect(
@@ -248,10 +252,9 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
       await deleteTestGroup(group.id);
 
-      const { groups } = await import("#db/groups.ts");
       const { getListingWithCount } = await import("#db/listings/records.ts");
 
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      expect(await records.groups.find(group.id)).toBeNull();
       const existingListing = await getListingWithCount(listing.id);
       expect(existingListing).not.toBeNull();
       // Group delete prunes membership rows, leaving the listing ungrouped.
@@ -260,7 +263,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
     test("returns 404 when deleting a non-existent group", async () => {
       const { response } = await adminFormPost("/admin/groups/999/delete", {
-        confirm_identifier: "Anything",
+        confirmIdentifier: "Anything",
       });
       expectStatus(404)(response);
     });
@@ -273,22 +276,27 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
 
-      // The confirm page still loads the group; by the time the delete itself
-      // checks the row is there, it has gone.
-      const { groups } = await import("#db/groups.ts");
-      const readStub = stub(groups.table.read, "exists", () =>
-        Promise.resolve(false),
+      // The confirm page still loads the group. The group goes just before
+      // the delete itself checks that the row is there.
+      const readStub = aroundRowCheck(
+        tables.groups,
+        group.id,
+        async (check) => {
+          await execute(sql`DELETE FROM groups WHERE id = ${group.id}`);
+          return check();
+        },
       );
 
       try {
         const response = await handleRequest(
           mockFormRequest(
             `/admin/groups/${group.id}/delete`,
-            { confirm_identifier: group.name, csrf_token: csrfToken },
+            { confirmIdentifier: group.name, csrfToken },
             cookie,
           ),
         );
         expect(response.status).toBe(404);
+        expect(await records.groups.find(group.id)).toBeNull();
         expect(await wasActivityLogged("Group 'Race Group' deleted")).toBe(
           false,
         );

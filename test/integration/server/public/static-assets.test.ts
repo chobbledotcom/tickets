@@ -336,7 +336,7 @@ describeWithEnv(
           "[data-day-count-label]",
           "[data-multi-booking-slug]",
           "[data-fill-default]",
-          "closes_at",
+          "closesAt",
           "[data-scroll-into-view]",
           "[data-checkout-popup]",
           "[data-payment-result]",

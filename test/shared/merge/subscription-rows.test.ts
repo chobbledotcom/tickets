@@ -4,15 +4,17 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import type { AttendeeMergeDiffBookingItem } from "#shared/merge/attendee-merge-types.ts";
 import { copiedBookingColumns } from "#shared/merge/booking-copy.ts";
 import { droppedSubscriptionErrors } from "#shared/merge/subscription-rows.ts";
+import type { SubscriptionStatus } from "#shared/subscriptions/plan.ts";
 import { bookingRow } from "#test-utils/factories.ts";
 
 const LIVE_ERROR =
   "Listing #5: This booking has a subscription that still charges. Cancel the subscription first.";
 
-const row = (status: string): ListingAttendeeRow =>
+const row = (status: SubscriptionStatus | ""): ListingAttendeeRow =>
   bookingRow({
     listing_id: 5,
     subscription_id: status === "" ? "" : "sub_ada",
@@ -20,8 +22,8 @@ const row = (status: string): ListingAttendeeRow =>
   });
 
 const item = (
-  source: string,
-  target: string | null,
+  source: SubscriptionStatus | "",
+  target: SubscriptionStatus | "" | null,
 ): AttendeeMergeDiffBookingItem => ({
   conflictClass: target === null ? "moveable" : "duplicate",
   listingId: 5,
@@ -54,7 +56,7 @@ const COPIED = {
   start_at: "2026-06-01",
   subscription_id: "sub_ada",
   subscription_status: "active",
-};
+} satisfies Partial<ListingAttendeeRow>;
 
 /** Each merge decision, and the errors it gets. */
 const DECISIONS = [
@@ -80,12 +82,14 @@ const DECISIONS = [
 
 describe("subscription rows in an attendee merge", () => {
   test("a copied booking keeps its booking columns and its whole plan", () => {
-    expect(copiedBookingColumns(bookingRow(COPIED))).toEqual(COPIED);
+    expect(copiedBookingColumns(bookingRow(COPIED))).toEqual(
+      camelCaseKeys(COPIED),
+    );
   });
 
   test("a copied booking leaves out a column that only a read computes", () => {
     const tokenRow = { ...bookingRow(COPIED), email_owed: 1 };
-    expect(copiedBookingColumns(tokenRow)).toEqual(COPIED);
+    expect(copiedBookingColumns(tokenRow)).toEqual(camelCaseKeys(COPIED));
   });
 
   for (const decision of DECISIONS) {

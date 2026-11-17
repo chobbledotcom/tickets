@@ -19,19 +19,19 @@ describe("the listing booking-QR page", () => {
     overrides: Partial<ListingWithCount> = {},
   ): ListingWithCount =>
     ({
-      can_pay_more: false,
+      canPayMore: false,
       id: 12,
-      listing_type: "daily",
-      max_price: 2500,
-      max_quantity: 4,
-      min_quantity: 1,
+      listingType: "daily",
+      maxPrice: 2500,
+      maxQuantity: 4,
+      minQuantity: 1,
       name: "QR Listing",
-      unit_price: 1200,
+      unitPrice: 1200,
       ...overrides,
     }) as ListingWithCount;
 
   const values = {
-    customer_name: "Ada",
+    customerName: "Ada",
     date: "2026-06-15",
     quantity: "2",
     value: "19.99",
@@ -104,7 +104,7 @@ describe("the listing booking-QR page", () => {
 
   test("caps a pay-what-you-want listing at its configured range", () => {
     const html = renderPanel({
-      listing: listing({ can_pay_more: true }),
+      listing: listing({ canPayMore: true }),
     });
 
     expectIncludesAll(html, [
@@ -117,7 +117,7 @@ describe("the listing booking-QR page", () => {
   test("collects the customer name and quantity", () => {
     const html = renderPanel();
 
-    expect(html).toMatch(/<input[^>]*name="customer_name"[^>]*type="text"/);
+    expect(html).toMatch(/<input[^>]*name="customerName"[^>]*type="text"/);
     assertStringIncludes(html, 'value="Ada"');
     expect(html).toMatch(/<input[^>]*name="quantity"[^>]*type="number"/);
     expect(html).toMatch(/<input[^>]*max="4"[^>]*min="1"/);
@@ -137,7 +137,7 @@ describe("the listing booking-QR page", () => {
 
   test("a daily-only form shows no date dropdown for other listing types", () => {
     const html = renderPanel({
-      listing: listing({ listing_type: "standard" }),
+      listing: listing({ listingType: "standard" }),
     });
 
     assert(!html.includes('name="date"'));

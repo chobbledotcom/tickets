@@ -45,9 +45,9 @@ describeWithEnv(
 
       const { response } = await adminFormPost("/admin/listing", {
         ...baseListingForm,
-        assign_built_site: "1",
-        group_ids: String(group.id),
-        initial_site_months: "1",
+        assignBuiltSite: "1",
+        groupIds: String(group.id),
+        initialSiteMonths: "1",
         name: "Create Form Plan",
       });
 
@@ -73,7 +73,7 @@ describeWithEnv(
         { groupId: group.id },
       );
       expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
-      expect((await getListingWithCount(listing.id))?.assign_built_site).toBe(
+      expect((await getListingWithCount(listing.id))?.assignBuiltSite).toBe(
         false,
       );
     });

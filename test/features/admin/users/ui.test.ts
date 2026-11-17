@@ -55,8 +55,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       s.invalidateCache();
       invalidateUsersCache();
 
-      const html = await assertPublicHtml("/setup/", "admin_username");
-      const input = html.match(/<input[^>]*name="admin_username"[^>]*>/)?.[0];
+      const html = await assertPublicHtml("/setup/", "adminUsername");
+      const input = html.match(/<input[^>]*name="adminUsername"[^>]*>/)?.[0];
       assert(input, "the setup page renders the admin_username input");
       // The browser must refuse an invalid username before anything is sent.
       expectIncludesAll(input, [
@@ -71,7 +71,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("users template rendering", () => {
     test("shows Invited status for user without password", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "invited-only",
       });
 
@@ -82,7 +82,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("shows Invite Expired status for expired invite", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "expired-display",
       });
 
@@ -136,7 +136,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
   describe("audit logging", () => {
     test("logs activity when user is invited", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "auditinvite",
       });
 
@@ -150,12 +150,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
     test("logs activity when user is deleted", async () => {
       await adminFormPost("/admin/users", {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "auditdelete",
       });
 
       await adminFormPost("/admin/users/2/delete", {
-        confirm_identifier: "auditdelete",
+        confirmIdentifier: "auditdelete",
       });
 
       const logs = await getAllActivityLog();

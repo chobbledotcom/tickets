@@ -22,7 +22,7 @@ describe("ticketViewPage ticket cards", () => {
     ticketViewPage([
       {
         entry: testTokenEntry({
-          listing: { purchase_only: true },
+          listing: { purchaseOnly: true },
         }),
         token,
       },
@@ -58,8 +58,8 @@ describe("ticketViewPage ticket cards", () => {
         entry: testTokenEntry({
           attendee: { date: "2026-06-15" },
           listing: {
-            duration_days: 1,
-            listing_type: "daily",
+            durationDays: 1,
+            listingType: "daily",
           },
         }),
         token,
@@ -148,7 +148,7 @@ describe("ticketViewPage ticket cards", () => {
   test("hides wallet links for purchase_only listings", () => {
     const cards = [
       {
-        entry: testTokenEntry({ listing: { purchase_only: true } }),
+        entry: testTokenEntry({ listing: { purchaseOnly: true } }),
         token,
       },
     ];
@@ -161,8 +161,8 @@ describe("ticketViewPage ticket cards", () => {
       {
         entry: testTokenEntry({
           listing: {
-            non_transferable: true,
-            purchase_only: true,
+            nonTransferable: true,
+            purchaseOnly: true,
           },
         }),
         token,
@@ -183,14 +183,14 @@ describe("ticketViewPage ticket cards", () => {
       {
         entry: testTokenEntry({
           attendee: { id: 1 },
-          listing: { id: 1, purchase_only: true },
+          listing: { id: 1, purchaseOnly: true },
         }),
         token: "AABB0011CCDDEEF1",
       },
       {
         entry: testTokenEntry({
           attendee: { id: 2 },
-          listing: { id: 2, purchase_only: false },
+          listing: { id: 2, purchaseOnly: false },
         }),
         token: "AABB0011CCDDEEF2",
       },
@@ -275,7 +275,7 @@ describe("ticketViewPage ticket cards", () => {
 
   test("warns that a non-transferable ticket needs ID at the door", () => {
     const html = oneCardPage({
-      listing: { non_transferable: true, purchase_only: false },
+      listing: { nonTransferable: true, purchaseOnly: false },
     });
     expectIncludesAll(html, [
       "ticket-card-notice",
@@ -285,7 +285,7 @@ describe("ticketViewPage ticket cards", () => {
 
   test("offers the file the organiser attached, behind its signed link", () => {
     const html = oneCardPage(
-      { listing: { attachment_name: "Guide.pdf" } },
+      { listing: { attachmentName: "Guide.pdf" } },
       { attachmentUrl: "/attachment/42?a=7&exp=1&sig=x" },
     );
     expectIncludesAll(html, [
@@ -296,7 +296,7 @@ describe("ticketViewPage ticket cards", () => {
 
   test("leaves out the download when the thing hands out no file", () => {
     assert(
-      !oneCardPage({ listing: { attachment_name: "" } }).includes(
+      !oneCardPage({ listing: { attachmentName: "" } }).includes(
         "attachment-link",
       ),
     );
@@ -311,7 +311,7 @@ describe("ticketViewPage ticket cards", () => {
           attachmentUrl: "/attachment/9?a=3&exp=1&sig=y",
           entry: testTokenEntry({
             attendee: { package_group_id: 7 },
-            listing: { attachment_name: "Handbook.pdf", name: "Handbook" },
+            listing: { attachmentName: "Handbook.pdf", name: "Handbook" },
           }),
           token,
         },
@@ -334,8 +334,8 @@ describe("ticketViewPage ticket cards", () => {
         entry: testTokenEntry({
           attendee: { date: "2026-06-12" },
           listing: {
-            duration_days: 3,
-            listing_type: "daily",
+            durationDays: 3,
+            listingType: "daily",
           },
         }),
         token,

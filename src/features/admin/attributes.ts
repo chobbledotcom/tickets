@@ -4,7 +4,6 @@ import {
   type AttributeWithOptions,
   attributeOptionIdsIn,
   attributeOptionsOrder,
-  attributeOptionsTable,
   attributesOrder,
   deleteAttributeOption,
   getAttributeId,
@@ -19,6 +18,8 @@ import {
   insertScopedOrderedRow,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
   createVerifiedFormRoute,
@@ -138,7 +139,7 @@ export const deleteAttributeOptionWithLog = async (
 
 /** Insert an option and place it in its attribute's order, atomically. */
 const addOptionRow = insertScopedOrderedRow(
-  attributeOptionsTable,
+  tables.attribute_options,
   attributeOptionsOrder,
 );
 
@@ -163,7 +164,7 @@ export const renameAttributeOptionWithLog = async (
   option: AttributeOption,
   text: string,
 ): Promise<void> => {
-  await attributeOptionsTable.update(option.id, { text });
+  await records.attribute_options.update(option.id, { text });
   await logAttributeOptionActivity(text, "updated in", attribute);
 };
 
@@ -318,7 +319,7 @@ const attributeOrder = createOrderedCollectionHandlers({
 
 const handleListingAttributesPost = createListingChoicePost({
   feature: "attributes",
-  fieldName: "option_ids",
+  fieldName: "optionIds",
   label: "Attributes",
   noun: "option",
   pattern: "/admin/listing/:id/attributes",

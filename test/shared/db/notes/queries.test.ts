@@ -94,7 +94,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     await createSystemNote(attendeeNotes(theirs.id), "Note on another listing");
 
     const rows = await getNoteRowsForListing(listing.id);
-    expect(rows.map((r) => r.entity_id)).toEqual([mine.id]);
+    expect(rows.map((r) => r.entityId)).toEqual([mine.id]);
 
     const notes = await loadNotesForListing(listing.id, getTestPrivateKey);
     expect(notes).toHaveLength(1);
@@ -128,7 +128,7 @@ describeWithEnv("db > notes", { db: true }, () => {
     );
     expect(notes).toHaveLength(1);
     expect(notes[0]).toMatchObject({
-      entity_id: attendeeId,
+      entityId: attendeeId,
       note: "Refunded: price changed",
       type: "system",
     });

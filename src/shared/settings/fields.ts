@@ -44,40 +44,40 @@ export const runSheetTemplateSettingsFields = (): readonly Field[] => [
 /** Custom settings layouts use the same fields as their POST routes. */
 export const CUSTOM_SETTINGS_FIELDS: Record<string, () => readonly Field[]> = {
   "settings-apple-wallet": () => [
-    text("apple_wallet_pass_type_id", "settings.advanced.apple_pass_type_id"),
-    text("apple_wallet_team_id", "settings.advanced.apple_team_id"),
+    text("appleWalletPassTypeId", "settings.advanced.apple_pass_type_id"),
+    text("appleWalletTeamId", "settings.advanced.apple_team_id"),
     secret(
-      "apple_wallet_signing_cert",
+      "appleWalletSigningCert",
       "settings.advanced.apple_signing_cert",
       "textarea",
     ),
     secret(
-      "apple_wallet_signing_key",
+      "appleWalletSigningKey",
       "settings.advanced.apple_signing_key",
       "textarea",
     ),
     secret(
-      "apple_wallet_wwdr_cert",
+      "appleWalletWwdrCert",
       "settings.advanced.apple_wwdr_cert",
       "textarea",
     ),
   ],
   "settings-custom-domain": () => [
-    text("custom_domain", "settings.advanced.domain_label"),
+    text("customDomain", "settings.advanced.domain_label"),
   ],
   "settings-email": () => [
-    secret("email_api_key", "settings.advanced.api_key"),
-    text("email_from_address", "settings.advanced.from_address", "email"),
+    secret("emailApiKey", "settings.advanced.api_key"),
+    text("emailFromAddress", "settings.advanced.from_address", "email"),
   ],
   "settings-google-wallet": () => [
-    text("google_wallet_issuer_id", "settings.advanced.google_issuer_id"),
+    text("googleWalletIssuerId", "settings.advanced.google_issuer_id"),
     text(
-      "google_wallet_service_account_email",
+      "googleWalletServiceAccountEmail",
       "settings.advanced.google_service_email",
       "email",
     ),
     secret(
-      "google_wallet_service_account_key",
+      "googleWalletServiceAccountKey",
       "settings.advanced.google_service_key",
       "textarea",
     ),
@@ -87,11 +87,11 @@ export const CUSTOM_SETTINGS_FIELDS: Record<string, () => readonly Field[]> = {
   ],
   "settings-logistics-run-sheet": runSheetTemplateSettingsFields,
   "settings-sms-gateway": () => [
-    text("sms_gateway_username", "sms.settings.username"),
-    text("sms_gateway_base_url", "sms.settings.base_url", "url"),
-    secret("sms_gateway_password", "sms.settings.password"),
-    secret("sms_gateway_passphrase", "sms.settings.passphrase"),
-    secret("sms_gateway_webhook_secret", "sms.settings.webhook_secret"),
+    text("smsGatewayUsername", "sms.settings.username"),
+    text("smsGatewayBaseUrl", "sms.settings.base_url", "url"),
+    secret("smsGatewayPassword", "sms.settings.password"),
+    secret("smsGatewayPassphrase", "sms.settings.passphrase"),
+    secret("smsGatewayWebhookSecret", "sms.settings.webhook_secret"),
   ],
   "settings-square": squareAccessTokenFields,
   "settings-square-webhook": getSquareWebhookFields,

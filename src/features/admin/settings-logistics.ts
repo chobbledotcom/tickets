@@ -31,10 +31,10 @@ const extractLogisticsAgentInput = (values: {
   name: values.name,
 });
 
-/** The chosen `user_ids` reduced to ids that are real delivery-eligible users,
+/** The chosen `userIds` reduced to ids that are real delivery-eligible users,
  * so a crafted form cannot link an editor (or unknown id) as a driver. */
 const parseAssignedUserIds = async (form: FormParams): Promise<number[]> =>
-  selectedIdsFromForm(form, "user_ids", await loadAgentUserOptions());
+  selectedIdsFromForm(form, "userIds", await loadAgentUserOptions());
 
 const pages = recordPages(logisticsAgentRecord, {
   // Only an edit assigns users, so a crafted create form cannot.

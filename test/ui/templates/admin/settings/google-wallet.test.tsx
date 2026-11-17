@@ -20,8 +20,8 @@ describe("GoogleWalletForm", () => {
     );
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_issuer_id" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="google_wallet_service_account_email" placeholder="wallet@project.iam.gserviceaccount.com" type="email" value="wallet@project.example.com">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="googleWalletIssuerId" placeholder="3388000000012345678" type="text" value="3388000000012345678">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="googleWalletServiceAccountEmail" placeholder="wallet@project.iam.gserviceaccount.com" type="email" value="wallet@project.example.com">`,
       "<label>Issuer ID<input",
       "<label>Service Account Email<input",
     ]);
@@ -32,7 +32,7 @@ describe("GoogleWalletForm", () => {
 
     expectIncludesAll(unconfigured, [
       "<label>Service Account Private Key (PEM)<textarea",
-      `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
+      `<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="googleWalletServiceAccountKey" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea>`,
     ]);
 
     const configured = String(

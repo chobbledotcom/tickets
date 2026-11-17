@@ -53,13 +53,13 @@ export const createTestBuiltSite = (
     doAuthenticatedFormRequest(
       "/admin/built-sites",
       {
-        db_provider: dbProvider,
-        db_token: input.dbToken,
-        db_url: input.dbUrl,
-        hosting_id: input.hostingId,
-        hosting_provider: hostingProvider,
+        dbProvider: dbProvider,
+        dbToken: input.dbToken,
+        dbUrl: input.dbUrl,
+        hostingId: input.hostingId,
+        hostingProvider: hostingProvider,
         name: input.name,
-        site_url: input.siteUrl,
+        siteUrl: input.siteUrl,
         ...(input.assignable ? { assignable: "1" } : {}),
         ...(input.updates ? { updates: input.updates } : {}),
       },
@@ -77,26 +77,24 @@ export const updateTestBuiltSite = async (
   siteId: number,
   updates: Partial<BuiltSiteFormInput>,
 ): Promise<BuiltSite> => {
-  const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.read.one({
-    id: siteId,
-  })) as BuiltSite;
+  const { findBuiltSiteById } = await import("#db/built-sites.ts");
+  const existing = (await findBuiltSiteById(siteId)) as BuiltSite;
 
   const assignable = updates.assignable ?? existing.assignable;
   return withBuilderEnabled(() =>
     doAuthenticatedFormRequest(
       `/admin/built-sites/${siteId}/edit`,
       {
-        db_token: updates.dbToken ?? existing.dbToken,
-        db_url: updates.dbUrl ?? existing.dbUrl,
-        hosting_id: updates.hostingId ?? existing.hostingId,
+        dbToken: updates.dbToken ?? existing.dbToken,
+        dbUrl: updates.dbUrl ?? existing.dbUrl,
+        hostingId: updates.hostingId ?? existing.hostingId,
         name: updates.name ?? existing.name,
-        site_url: updates.siteUrl ?? existing.siteUrl,
+        siteUrl: updates.siteUrl ?? existing.siteUrl,
         updates: updates.updates ?? existing.updates,
         ...(assignable ? { assignable: "1" } : {}),
       },
       async () => {
-        const updated = await builtSitesCrudTable.read.one({ id: siteId });
+        const updated = await findBuiltSiteById(siteId);
         return updated as BuiltSite;
       },
       "update built site",
@@ -105,15 +103,13 @@ export const updateTestBuiltSite = async (
 };
 
 export const deleteTestBuiltSite = async (siteId: number): Promise<void> => {
-  const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-  const existing = (await builtSitesCrudTable.read.one({
-    id: siteId,
-  })) as BuiltSite;
+  const { findBuiltSiteById } = await import("#db/built-sites.ts");
+  const existing = (await findBuiltSiteById(siteId)) as BuiltSite;
 
   return withBuilderEnabled(() =>
     doAuthenticatedFormRequest(
       `/admin/built-sites/${siteId}/delete`,
-      { confirm_identifier: existing.name },
+      { confirmIdentifier: existing.name },
       async () => {},
       "delete built site",
     ),

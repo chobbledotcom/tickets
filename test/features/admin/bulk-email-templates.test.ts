@@ -41,7 +41,7 @@ const postDeleteConfirm = async (
 ): Promise<{ id: number; response: Response }> => {
   const id = await seedTemplate("To delete", "Body");
   const { response } = await adminFormPost(`${TEMPLATES_PATH}/${id}/delete`, {
-    confirm_identifier: typed,
+    confirmIdentifier: typed,
   });
   return { id, response };
 };
@@ -57,7 +57,7 @@ const refusedSaves: {
     name: "rejects an empty subject",
   },
   {
-    fields: { template_id: "9999", update_existing: "1" },
+    fields: { templateId: "9999", updateExisting: "1" },
     message: "That template no longer exists.",
     name: "update returns 404 for missing template",
   },
@@ -76,7 +76,7 @@ const unknownTemplateRequests: {
     send: async () =>
       (
         await adminFormPost(`${TEMPLATES_PATH}/9999/delete`, {
-          confirm_identifier: "anything",
+          confirmIdentifier: "anything",
         })
       ).response,
   },
@@ -120,8 +120,8 @@ describeWithEnv("bulk email templates", { db: true }, () => {
     const response = await postTemplate({
       body: "Updated body",
       subject: "Updated subject",
-      template_id: String(id),
-      update_existing: "1",
+      templateId: String(id),
+      updateExisting: "1",
     });
     assertStringIncludes(expectRedirect(response), `template=${id}`);
     expectFlash(response, "Template updated.");
@@ -135,7 +135,7 @@ describeWithEnv("bulk email templates", { db: true }, () => {
       "Delete template",
       // The subject (encrypted at rest) is decrypted to confirm against.
       "To delete",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       `action="/admin/emails/templates/${id}/delete"`,
     ]);
   });

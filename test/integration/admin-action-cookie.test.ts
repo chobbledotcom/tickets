@@ -21,7 +21,7 @@ describeWithEnv("admin action success cookie", { db: true }, () => {
     });
 
     const response = await handler(
-      mockFormRequest("/admin/test-cookie", { csrf_token: csrfToken }, cookie),
+      mockFormRequest("/admin/test-cookie", { csrfToken }, cookie),
     );
 
     assertStringIncludes(

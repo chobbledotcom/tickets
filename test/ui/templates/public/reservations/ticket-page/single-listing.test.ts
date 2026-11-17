@@ -23,7 +23,7 @@ describe("ticketPage (single listing)", () => {
   beforeAll(setupAdminPageTest);
   registerPublicTemplateHooks();
 
-  const listing = testListingWithCount({ attendee_count: 50 });
+  const listing = testListingWithCount({ attendeeCount: 50 });
   const renderTicket = async (
     ev: ListingWithCount,
     opts?: {
@@ -68,7 +68,7 @@ describe("ticketPage (single listing)", () => {
   test("includes CSRF token in form", async () => {
     const html = await renderTicket(listing);
     expectIncludesAll(html, [
-      'name="csrf_token"',
+      'name="csrfToken"',
       `value="${getCurrentCsrfToken()}"`,
     ]);
   });
@@ -81,7 +81,7 @@ describe("ticketPage (single listing)", () => {
   });
 
   test("shows full message when no spots", async () => {
-    const fullListing = testListingWithCount({ attendee_count: 100 });
+    const fullListing = testListingWithCount({ attendeeCount: 100 });
     const html = await renderTicket(fullListing);
     assertStringIncludes(html, "this listing is full");
     assert(!html.includes(">Reserve Ticket</button>"));
@@ -98,11 +98,11 @@ describe("ticketPage (single listing)", () => {
     const s = stub(fieldsApi, "getSettingCached", () => "square");
     try {
       const free = testListingWithCount({
-        attendee_count: 0,
+        attendeeCount: 0,
         fields: "",
         id: 991,
         slug: "free991",
-        unit_price: 0,
+        unitPrice: 0,
       });
       const render = (packagePrices?: ReadonlyMap<number, number>) =>
         ticketPage({
@@ -122,13 +122,13 @@ describe("ticketPage (single listing)", () => {
 
   test("shows quantity selector when max_quantity > 1 and spots available", async () => {
     const multiQtyListing = testListingWithCount({
-      attendee_count: 0,
-      max_quantity: 5,
+      attendeeCount: 0,
+      maxQuantity: 5,
     });
     const html = await renderTicket(multiQtyListing);
     expectIncludesAll(html, [
       "Number of Tickets",
-      `name="quantity_${multiQtyListing.id}"`,
+      `name="quantity${multiQtyListing.id}"`,
       '<option value="1">1</option>',
       '<option value="5">5</option>',
       "Continue",
@@ -137,8 +137,8 @@ describe("ticketPage (single listing)", () => {
 
   test("limits quantity selector to remaining spots", async () => {
     const limitedListing = testListingWithCount({
-      attendee_count: 97, // Only 3 spots remaining
-      max_quantity: 10,
+      attendeeCount: 97, // Only 3 spots remaining
+      maxQuantity: 10,
     });
     const html = await renderTicket(limitedListing);
     expectIncludesAll(html, [
@@ -150,10 +150,10 @@ describe("ticketPage (single listing)", () => {
 
   test("a built-site plan sells months, not tickets", async () => {
     const planListing = testListingWithCount({
-      assign_built_site: true,
-      attendee_count: 0,
-      initial_site_months: 3,
-      max_quantity: 5,
+      assignBuiltSite: true,
+      attendeeCount: 0,
+      initialSiteMonths: 3,
+      maxQuantity: 5,
     });
     const html = await renderTicket(planListing);
     expectIncludesAll(html, [
@@ -170,14 +170,14 @@ describe("ticketPage (single listing)", () => {
   test("hides quantity selector when max_quantity is 1", async () => {
     const html = await renderTicket(listing); // max_quantity is 1
     assert(!html.includes("Number of Tickets"));
-    expect(hasInputWithValue(html, `quantity_${listing.id}`, "1")).toBe(true);
+    expect(hasInputWithValue(html, `quantity${listing.id}`, "1")).toBe(true);
     assertStringIncludes(html, "Continue");
   });
 
   test("shows Continue button for purchase_only listing", async () => {
     const poListing = testListingWithCount({
-      attendee_count: 50,
-      purchase_only: true,
+      attendeeCount: 50,
+      purchaseOnly: true,
     });
     const html = await renderTicket(poListing);
     assertStringIncludes(html, "Continue");
@@ -185,7 +185,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows phone field for phone-only listings", async () => {
     const phoneListing = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       fields: "phone",
     });
     const html = await renderTicket(phoneListing);
@@ -195,7 +195,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows both email and phone for email,phone setting", async () => {
     const bothListing = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       fields: "email,phone",
     });
     const html = await renderTicket(bothListing);
@@ -210,7 +210,7 @@ describe("ticketPage (single listing)", () => {
 
   test("hides header and description in iframe mode", async () => {
     const listingWithDesc = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc, { iframe: true });
@@ -221,7 +221,7 @@ describe("ticketPage (single listing)", () => {
 
   test("shows header and description when not in iframe mode", async () => {
     const listingWithDesc = testListingWithCount({
-      attendee_count: 50,
+      attendeeCount: 50,
       description: "A great listing",
     });
     const html = await renderTicket(listingWithDesc);
@@ -244,7 +244,7 @@ describe("ticketPage (single listing)", () => {
     expectIncludesAll(html, [
       "No refunds allowed",
       'class="prose"',
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   });
 
@@ -262,7 +262,7 @@ describe("ticketPage (single listing)", () => {
   test("does not render terms when not provided", async () => {
     const html = await renderTicket(listing);
     assert(!html.includes('class="terms"'));
-    assert(!html.includes('name="agree_terms"'));
+    assert(!html.includes('name="agreeTerms"'));
   });
 
   test("renders custom questions when provided", async () => {
@@ -272,26 +272,26 @@ describe("ticketPage (single listing)", () => {
           {
             active: true,
             id: 10,
-            question_id: 1,
-            sort_order: 0,
+            questionId: 1,
+            sortOrder: 0,
             text: "Small",
           },
           {
             active: true,
             id: 11,
-            question_id: 1,
-            sort_order: 1,
+            questionId: 1,
+            sortOrder: 1,
             text: "Large",
           },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 1,
         text: "Size?",
       },
     ];
     const html = await renderTicket(listing, { questions });
-    expectIncludesAll(html, ["Size?", 'name="question_1"']);
+    expectIncludesAll(html, ["Size?", 'name="question1"']);
   });
 
   test("includes OpenGraph tags when baseUrl is provided", async () => {

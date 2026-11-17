@@ -14,7 +14,8 @@ import { executeBatchWithResults, resultRows } from "#db/client.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
-import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { insertingAll, update } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One free-text answer's encrypted payload plus its blind index and plaintext.
@@ -42,9 +43,9 @@ export type StringIdByText = Map<string, number>;
  */
 export const pairStringIds = (
   rows: readonly { text: string; textIndex: string }[],
-  found: readonly { id: number; text_index: string }[],
+  found: readonly { id: number; textIndex: string }[],
 ): StringIdByText => {
-  const idByIndex = new Map(found.map((row) => [row.text_index, row.id]));
+  const idByIndex = new Map(found.map((row) => [row.textIndex, row.id]));
   return new Map(
     rows.map((row) => {
       const id = idByIndex.get(row.textIndex);
@@ -102,9 +103,15 @@ export const internWriteStatements = (
   const created = nowIso();
   const indexes = textIndexes(rows);
   return [
-    sql`INSERT OR IGNORE INTO strings (text_index, encrypted_text, created) VALUES ${sqlRows(
-      rows.map((row) => [row.textIndex, row.encrypted, created]),
-    )}`,
+    ...insertingAll(
+      tables.strings,
+      rows.map((row) => ({
+        created,
+        encryptedText: row.encrypted,
+        textIndex: row.textIndex,
+      })),
+      { or: "IGNORE" },
+    ),
     // Refresh `created` on every referenced row. INSERT OR IGNORE leaves an
     // existing row's timestamp untouched, so without this the age-based prune
     // could delete a row a checkout still references in its signed metadata
@@ -112,7 +119,7 @@ export const internWriteStatements = (
     // only thing that removes strings). Refreshing a row that is reused now —
     // even one currently attached to another attendee — keeps it alive past
     // that other attendee later freeing it, until this checkout finalizes.
-    sql`UPDATE strings SET created = ${created} WHERE text_index IN (${sqlList(indexes)})`,
+    update(tables.strings, { created }).where({ textIndex: indexes }),
   ];
 };
 
@@ -133,11 +140,9 @@ export const internStringRows = async (
   const indexes = textIndexes(rows);
   const selectResult = await runInternStatements([
     ...internWriteStatements(rows),
-    from(tables.strings)
-      .where({ text_index: indexes })
-      .pick("id", "text_index"),
+    from(tables.strings).where({ textIndex: indexes }).pick("id", "textIndex"),
   ]);
-  const found = resultRows<{ id: number; text_index: string }>(selectResult);
+  const found = resultRows<{ id: number; textIndex: string }>(selectResult);
   return pairStringIds(rows, found);
 };
 

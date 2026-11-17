@@ -4,5 +4,5 @@
 import type { KeyAccess } from "#shared/rest/field-specs.ts";
 
 export const ATTENDEE_FEATURE_KEYS = [
-  { feature: "logistics", key: "split_logistics_agents" },
+  { feature: "logistics", key: "splitLogisticsAgents" },
 ] as const satisfies readonly KeyAccess[];

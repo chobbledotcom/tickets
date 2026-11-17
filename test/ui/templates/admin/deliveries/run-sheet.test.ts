@@ -109,7 +109,7 @@ describe("renderRunSheetDays", () => {
       "https://wa.me/447700900000",
       // The toggle is the site's own CSRF-protected form.
       'action="/admin/deliveries/mark"',
-      'name="csrf_token"',
+      'name="csrfToken"',
       'value="start"',
       'name="date" type="hidden" value="2026-06-16"',
       "Mark done",

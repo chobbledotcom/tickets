@@ -21,7 +21,7 @@ describeCustomDomain("POST /admin/settings/custom-domain", (enable) => {
   const post = (customDomain?: string) =>
     adminFormPost(
       "/admin/settings/custom-domain",
-      customDomain === undefined ? undefined : { custom_domain: customDomain },
+      customDomain === undefined ? undefined : { customDomain },
     );
 
   test("rejects when Bunny CDN is not configured", async () => {

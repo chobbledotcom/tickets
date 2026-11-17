@@ -92,10 +92,10 @@ export const scopeAttendees = async (
  * Hidden and inactive members stay: hidden is a buyer-visibility fact, and a
  * hidden member carries genuine guest-list tickets. */
 export const groupScope = async (group: Group): Promise<ScanScope> => ({
-  checkInEveryListing: group.scan_checks_in_all_listings,
+  checkInEveryListing: group.scanChecksInAllListings,
   listingIds: new Set(
     (await getListingsByGroupId(group.id))
-      .filter((listing) => !listing.purchase_only)
+      .filter((listing) => !listing.purchaseOnly)
       .map((listing) => listing.id),
   ),
 });

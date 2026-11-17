@@ -22,7 +22,7 @@ describeWithEnv(
     describe("POST /admin/settings/show-public-api", () => {
       testRequiresAuth("/admin/settings/show-public-api", {
         body: {
-          show_public_api: "true",
+          showPublicApi: "true",
         },
         method: "POST",
       });
@@ -32,8 +32,8 @@ describeWithEnv(
           mockFormRequest(
             "/admin/settings/show-public-api",
             {
-              csrf_token: "invalid-csrf-token",
-              show_public_api: "true",
+              csrfToken: "invalid-csrf-token",
+              showPublicApi: "true",
             },
             await testCookie(),
           ),
@@ -44,7 +44,7 @@ describeWithEnv(
       test("enables public API", async () => {
         const { response } = await adminFormPost(
           "/admin/settings/show-public-api",
-          { show_public_api: "true" },
+          { showPublicApi: "true" },
         );
 
         expect(response.status).toBe(302);
@@ -54,7 +54,7 @@ describeWithEnv(
       test("disables public API", async () => {
         const { response } = await adminFormPost(
           "/admin/settings/show-public-api",
-          { show_public_api: "false" },
+          { showPublicApi: "false" },
         );
 
         expect(response.status).toBe(302);
@@ -67,7 +67,7 @@ describeWithEnv(
         expect(settings.showPublicApi).toBe(false);
 
         await adminFormPost("/admin/settings/show-public-api", {
-          show_public_api: "true",
+          showPublicApi: "true",
         });
 
         expect(settings.showPublicApi).toBe(true);
@@ -79,7 +79,7 @@ describeWithEnv(
           response,
           200,
           "Enable public API?",
-          "show_public_api",
+          "showPublicApi",
         );
       });
     });

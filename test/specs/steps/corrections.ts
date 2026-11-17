@@ -240,7 +240,7 @@ When(
     return correctEarnings(
       this,
       page,
-      "total_revenue",
+      "totalRevenue",
       amount,
       "Option income corrected.",
     );

@@ -246,7 +246,7 @@ describe("adminLoginPage", () => {
       "Login",
       'action="/admin/login"',
       'type="password"',
-      'name="csrf_token"',
+      'name="csrfToken"',
     ]);
   });
 
@@ -304,7 +304,7 @@ describeWithEnv(
     });
 
     test("ticketPage hides booking form in read-only mode", () => {
-      const listing = testListingWithCount({ attendee_count: 0 });
+      const listing = testListingWithCount({ attendeeCount: 0 });
       const html = ticketPage({
         dates: [],
         listings: [buildTicketListing(listing, false, undefined)],

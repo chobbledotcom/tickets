@@ -220,7 +220,7 @@ export const lineFor = (listing: Listing, quantity = 1): CheckoutItem =>
     name: listing.name,
     quantity,
     slug: listing.slug,
-    unitPrice: listing.unit_price,
+    unitPrice: listing.unitPrice,
   });
 
 /** A Stripe balance response, in test or live mode. */

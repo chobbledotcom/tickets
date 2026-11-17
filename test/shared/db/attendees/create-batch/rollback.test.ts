@@ -16,7 +16,6 @@ import {
   hashEmail,
 } from "#db/contact-preferences.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import {
   decryptSessionTokens,
   markSessionFailed,
@@ -31,6 +30,7 @@ import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
@@ -166,10 +166,8 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
+    const modifier = await insertModifier({
       calcValue: 100,
-      direction: "charge",
       name: "Atomic add-on",
       stock: 2,
     });
@@ -284,10 +282,8 @@ describeWithEnv("db > attendee create rollback", { db: true }, () => {
     expect(created.payment_id).toBe(paymentId);
 
     const session = await getProcessedPayment(sessionId);
-    expect(session!.attendee_id).toBe(created.id);
-    expect(await decryptSessionTokens(session!.ticket_tokens)).toBe(
-      ticketToken,
-    );
+    expect(session!.attendeeId).toBe(created.id);
+    expect(await decryptSessionTokens(session!.ticketTokens)).toBe(ticketToken);
     const privateKey = await getTestPrivateKey();
     await expectProcessedPaymentReference(
       created.id,

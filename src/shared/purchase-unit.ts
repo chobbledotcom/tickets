@@ -34,9 +34,9 @@ export const monthsPerUnitOf = (
 
 /** The listing facts that decide what one purchased unit buys. */
 export type PurchaseUnitFacts = {
-  assign_built_site?: boolean | undefined;
-  initial_site_months?: number | undefined;
-  months_per_unit?: number | undefined;
+  assignBuiltSite?: boolean | undefined;
+  initialSiteMonths?: number | undefined;
+  monthsPerUnit?: number | undefined;
 };
 
 /** What kind of purchase this is: a renewal renews an existing site, so the
@@ -63,11 +63,11 @@ export const resolvePurchaseUnit = (
   if (purchase.renewal) {
     // A renewal page only offers tiers that price months per unit; a listing
     // that states no term is not a tier, so its units stay what they are.
-    const tier = monthsUnitOrNull(listing.months_per_unit);
+    const tier = monthsUnitOrNull(listing.monthsPerUnit);
     if (tier !== null) return tier;
   }
-  if (listing.assign_built_site) {
-    const plan = monthsUnitOrNull(listing.initial_site_months);
+  if (listing.assignBuiltSite) {
+    const plan = monthsUnitOrNull(listing.initialSiteMonths);
     // Listing saves refuse this combination, and the checkout-time
     // configuration check refuses it again — seeing it here means broken
     // stored data, so refuse loudly rather than inventing a term.

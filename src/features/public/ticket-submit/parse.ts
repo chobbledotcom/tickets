@@ -71,9 +71,9 @@ const quantityRefusal = (form: FormParams, ctx: TicketCtx): string | null => {
     // rows keep the skip behaviour: their posted quantity is ignored.
     if (
       maxPurchasable > 0 &&
-      quantityBelowMin(selectedQty, listing.min_quantity)
+      quantityBelowMin(selectedQty, listing.minQuantity)
     ) {
-      return bookingError.minimum(listing.name, listing.min_quantity);
+      return bookingError.minimum(listing.name, listing.minQuantity);
     }
     // A count above the live limit refuses instead of silently booking fewer
     // places than the buyer asked for. The select cannot send one, so only a
@@ -140,7 +140,7 @@ const addOnQuantityRefusal = (
 ): string | null => {
   for (const addOn of ctx.addOns) {
     const selected =
-      parseNonNegativeInt(form.get(`addon_${addOn.id}`) ?? "") ?? 0;
+      parseNonNegativeInt(form.get(`addon${addOn.id}`) ?? "") ?? 0;
     if (selected > addOn.maxQuantity) {
       return bookingError.addOnMaximum(addOn.name, addOn.maxQuantity);
     }
@@ -152,7 +152,7 @@ const addOnQuantityRefusal = (
  * message, or null when the form state is acceptable. The package bundle-limit
  * refusal reads the page's booking tree. */
 export const validateFormState: FormStateCheck = (form, ctx, tree) => {
-  if (ctx.terms && form.get("agree_terms") !== "1") {
+  if (ctx.terms && form.get("agreeTerms") !== "1") {
     return "You must agree to the terms and conditions";
   }
   return (
@@ -182,7 +182,7 @@ const listingsByPayMore = (
   canPayMore: boolean,
 ): ListingWithCount[] =>
   ctx.listings
-    .filter(({ listing }) => listing.can_pay_more === canPayMore)
+    .filter(({ listing }) => listing.canPayMore === canPayMore)
     .map(({ listing }) => listing);
 
 /** Parse custom prices for pay-more listings. Returns an error message string
@@ -199,8 +199,8 @@ export const parseCustomPrices = (
     const priceResult = parseCustomPrice(
       form,
       customPriceFieldName(listing.id),
-      listing.unit_price,
-      listing.max_price,
+      listing.unitPrice,
+      listing.maxPrice,
     );
     if (!priceResult.ok) {
       return `${listing.name}: ${priceResult.error}`;
@@ -214,7 +214,7 @@ export const parseCustomPrices = (
  * Apply signed QR-token price overrides to the custom prices map.
  *
  * QR tokens can pre-set a price for a specific listing. For can_pay_more listings
- * the user-submitted custom_price_{id} already populated the map in
+ * the user-submitted customPrice{id} already populated the map in
  * parseCustomPrices and wins. For fixed-price listings the signed value
  * overrides listing.unit_price so admins can generate one-off bookings at any
  * price. Tokens are re-verified here to prevent tampering of the hidden field.
@@ -224,7 +224,7 @@ export const applyQrTokenOverride = async (
   ctx: TicketCtx,
   customPrices: Map<number, number>,
 ): Promise<void> => {
-  const token = form.getString("qr_token");
+  const token = form.getString("qrToken");
   if (!token || ctx.slugs.length !== 1) return;
   const payload = await verifyQrBookToken(ctx.slugs[0]!, token);
   if (!payload || payload.v < 0) return;
@@ -295,8 +295,8 @@ const ctxPackageLimit = (
 
 /**
  * Resolve the page listings' quantities from the form. Listings no package
- * books keep their own `quantity_<id>` inputs. For each package the buyer
- * chooses one `package_quantity_<groupId>` count; each member's booked quantity
+ * books keep their own `quantity<id>` inputs. For each package the buyer
+ * chooses one `packageQuantity<groupId>` count; each member's booked quantity
  * is its fixed per-package quantity × that count (members have no own inputs).
  * A posted count above the page's bundle limit is refused by
  * `validateFormState` before this runs, so the counts here are already inside
@@ -306,7 +306,7 @@ const ctxPackageLimit = (
 export const resolvePageQuantities = (
   ...[form, ctx, tree]: PageSubmitArgs
 ): { nodeQuantities: Map<string, number>; quantities: Map<number, number> } => {
-  // Listings with a standalone node keep their own quantity_<id> input — every
+  // Listings with a standalone node keep their own quantity<id> input — every
   // non-member, plus any member the cart also added by its own slug.
   const standaloneIds = standaloneListingIds(tree);
   const standaloneQuantities = parseQuantities(

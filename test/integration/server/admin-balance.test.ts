@@ -1,10 +1,10 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   expectHtml,
@@ -59,7 +59,7 @@ const reservedAttendee = async () => {
     name: "Gala Ticket",
     thankYouUrl: "https://example.com",
   });
-  const reservation = await attendeeStatuses.table.insert({
+  const reservation = await records.attendee_statuses.insert({
     isReservation: true,
     name: "Reserved",
     reservationAmount: "10%",
@@ -197,7 +197,7 @@ describeWithEnv("server (admin attendee ledger)", { db: true }, () => {
       maxAttendees: 10,
       thankYouUrl: "https://example.com",
     });
-    const confirmed = await attendeeStatuses.table.insert({
+    const confirmed = await records.attendee_statuses.insert({
       isReservation: false,
       name: "Confirmed",
       reservationAmount: "0",

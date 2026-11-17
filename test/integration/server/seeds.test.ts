@@ -41,8 +41,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     test("contains form with listing count and attendees per listing fields", async () => {
       await assertAdminHtml(
         "/admin/seeds",
-        "listing_count",
-        "attendees_per_listing",
+        "listingCount",
+        "attendeesPerListing",
         "Create example data",
       );
     });
@@ -55,8 +55,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("POST /admin/seeds", () => {
     testRequiresAuth("/admin/seeds", {
       body: {
-        attendees_per_listing: "0",
-        listing_count: "1",
+        attendeesPerListing: "0",
+        listingCount: "1",
       },
       method: "POST",
     });
@@ -66,7 +66,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", listing_count: "1" },
+          { attendeesPerListing: "0", listingCount: "1" },
           managerCookie,
         ),
       );
@@ -75,8 +75,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
     test("creates seed listings with attendees including paid and free", async () => {
       const response = await postSeeds({
-        attendees_per_listing: "3",
-        listing_count: "2",
+        attendeesPerListing: "3",
+        listingCount: "2",
       });
 
       await expectFlashRedirect(
@@ -88,10 +88,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       expect(listings.length).toBe(2);
 
       // Verify both paid and free listings are created
-      const paidListing = listings.find((e) => e.unit_price > 0);
-      const freeListing = listings.find((e) => e.unit_price === 0);
-      expect(paidListing).toBeDefined();
-      expect(freeListing).toBeDefined();
+      const isPaid = listings.map((e) => e.unitPrice > 0).sort();
+      expect(isPaid).toEqual([false, true]);
 
       for (const listing of listings) {
         const attendees = await getAttendeesRaw(listing.id);
@@ -105,16 +103,16 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
         // Total quantity does not exceed listing max_attendees (no overselling)
         const totalQuantity = attendees.reduce((sum, a) => sum + a.quantity, 0);
-        expect(totalQuantity).toBeLessThanOrEqual(listing.max_attendees);
+        expect(totalQuantity).toBeLessThanOrEqual(listing.maxAttendees);
         // Listing max_attendees equals exactly the sum of attendee quantities
-        expect(listing.max_attendees).toBe(totalQuantity);
+        expect(listing.maxAttendees).toBe(totalQuantity);
       }
     });
 
     // Owns the direct decrypt contract for seeded attendees; the story
     // `@case:seeds.what-was-made-can-be-read-everywhere` covers the page.
     test("seeded attendees decrypt with real demo details", async () => {
-      await postSeeds({ attendees_per_listing: "1", listing_count: "1" });
+      await postSeeds({ attendeesPerListing: "1", listingCount: "1" });
 
       const [listing] = await getAllListings();
       const raw = await getAttendeesRaw(listing!.id);
@@ -130,9 +128,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_listing: "0",
-            csrf_token: "invalid",
-            listing_count: "1",
+            attendeesPerListing: "0",
+            csrfToken: "invalid",
+            listingCount: "1",
           },
           await testCookie(),
         ),
@@ -142,12 +140,12 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("created listings are active", async () => {
-      await postSeeds({ attendees_per_listing: "0", listing_count: "1" });
+      await postSeeds({ attendeesPerListing: "0", listingCount: "1" });
 
       const listings = await getAllListings();
       expect(listings[0]!.active).toBe(true);
       // With 0 attendees, max_attendees is 0 (sum of quantities)
-      expect(listings[0]!.max_attendees).toBe(0);
+      expect(listings[0]!.maxAttendees).toBe(0);
     });
 
     // The direct createSeeds contracts (day prices, price alternation, the
@@ -166,7 +164,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", csrf_token: csrf1, listing_count: "2" },
+          { attendeesPerListing: "0", csrfToken: csrf1, listingCount: "2" },
           await testCookie(),
         ),
       );
@@ -183,7 +181,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", csrf_token: csrf2, listing_count: "3" },
+          { attendeesPerListing: "0", csrfToken: csrf2, listingCount: "3" },
           await testCookie(),
         ),
       );

@@ -108,25 +108,6 @@
       "evidence": "SiteDataBlobSchema reads the stored versioned object"
     }
   ],
-  "src/shared/db/built-sites/types.ts": [
-    {
-      "path": [{ "name": "BuiltSiteRow" }],
-      "kind": "schema-driven",
-      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
-    },
-    {
-      "path": [{ "name": "BuiltSitePlainInput" }],
-      "kind": "schema-driven",
-      "evidence": "builtSitePlainColumns maps each site field to its plain column by key at run time"
-    }
-  ],
-  "src/shared/db/invoices.ts": [
-    {
-      "path": [{ "name": "InvoiceRow" }],
-      "kind": "schema-driven",
-      "evidence": "getInvoiceByShareToken passes the blind index as the table reader's query key, which becomes the lookup WHERE clause"
-    }
-  ],
   "src/shared/db/modifiers.ts": [
     {
       "path": [{ "name": "ModifierInput" }],
@@ -214,13 +195,6 @@
       "path": [{ "name": "ListingUpdateResult" }],
       "kind": "dynamic-read",
       "evidence": "operationResponse in listings-edit narrows the union and reads row, error, and notFound"
-    }
-  ],
-  "src/shared/db/table.ts": [
-    {
-      "path": [{ "name": "Table" }],
-      "kind": "schema-driven",
-      "evidence": "defineTable's toDbValues reads inputKeyMap and its statement builders read the schema by key"
     }
   ],
   "src/shared/forms/definition.ts": [

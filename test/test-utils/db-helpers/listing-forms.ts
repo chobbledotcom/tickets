@@ -18,13 +18,13 @@ const optionalNumber = (v: number | null | undefined): string =>
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
-/** Serialize a DayPrices map into the form's `day_price_<n>` fields. */
+/** Serialize a DayPrices map into the form's `dayPrice<n>` fields. */
 const dayPriceFormFields = (
   dayPrices: DayPrices | undefined,
 ): TestFormValues => {
   const result: Record<string, string> = {};
   for (const [days, price] of Object.entries(dayPrices ?? {})) {
-    result[`day_price_${days}`] = toMajorUnits(price);
+    result[`dayPrice${days}`] = toMajorUnits(price);
   }
   return result;
 };
@@ -68,7 +68,7 @@ const pageBoxes = (
   const shownDefaults = defaultsSwitchShown(adminLevel);
   return Object.fromEntries(
     Object.entries(values).filter(
-      ([key]) => !closed.has(key) && (shownDefaults || key !== "use_defaults"),
+      ([key]) => !closed.has(key) && (shownDefaults || key !== "useDefaults"),
     ),
   );
 };
@@ -104,38 +104,38 @@ const createListingBoxes = (
   const initialSiteMonths =
     input.initialSiteMonths ?? (input.assignBuiltSite ? 1 : 0);
   return {
-    ...checked("assign_built_site", input.assignBuiltSite),
-    ...checked("bookable_alone", input.bookableAlone),
-    bookable_days: input.bookableDays ?? [],
-    ...checked("can_pay_more", input.canPayMore),
-    closes_at_date: closesAtParts.date,
-    closes_at_time: closesAtParts.time,
-    ...checked("customisable_days", input.customisableDays),
-    date_date: dateParts.date,
-    date_time: dateParts.time,
+    ...checked("assignBuiltSite", input.assignBuiltSite),
+    ...checked("bookableAlone", input.bookableAlone),
+    bookableDays: input.bookableDays ?? [],
+    ...checked("canPayMore", input.canPayMore),
+    closesAtDate: closesAtParts.date,
+    closesAtTime: closesAtParts.time,
+    ...checked("customisableDays", input.customisableDays),
+    dateDate: dateParts.date,
+    dateTime: dateParts.time,
     description: input.description ?? "",
-    duration_days: optionalNumber(input.durationDays),
-    ...checked("uses_logistics", input.usesLogistics),
+    durationDays: optionalNumber(input.durationDays),
+    ...checked("usesLogistics", input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: repeated(input.fields ?? "email"),
     ...checked("hidden", input.hidden),
-    initial_site_months: String(initialSiteMonths),
-    listing_type: input.listingType ?? "",
+    initialSiteMonths: String(initialSiteMonths),
+    listingType: input.listingType ?? "",
     location: input.location ?? "",
-    max_attendees: String(input.maxAttendees),
-    max_price: toMajorUnits(input.maxPrice),
-    max_quantity: String(input.maxQuantity ?? 1),
-    maximum_days_after: optionalNumber(input.maximumDaysAfter),
-    min_quantity: String(input.minQuantity ?? 1),
-    minimum_days_before: optionalNumber(input.minimumDaysBefore),
-    months_per_unit: String(input.monthsPerUnit ?? 0),
+    maxAttendees: String(input.maxAttendees),
+    maximumDaysAfter: optionalNumber(input.maximumDaysAfter),
+    maxPrice: toMajorUnits(input.maxPrice),
+    maxQuantity: String(input.maxQuantity ?? 1),
+    minimumDaysBefore: optionalNumber(input.minimumDaysBefore),
+    minQuantity: String(input.minQuantity ?? 1),
+    monthsPerUnit: String(input.monthsPerUnit ?? 0),
     name: input.name,
-    non_transferable: flagChoice(input.nonTransferable),
-    ...checked("purchase_only", input.purchaseOnly),
-    thank_you_url: input.thankYouUrl ?? "",
-    unit_price: toMajorUnits(input.unitPrice ?? 0),
-    ...checked("use_defaults", input.useDefaults),
-    webhook_url: input.webhookUrl ?? "",
+    nonTransferable: flagChoice(input.nonTransferable),
+    ...checked("purchaseOnly", input.purchaseOnly),
+    thankYouUrl: input.thankYouUrl ?? "",
+    unitPrice: toMajorUnits(input.unitPrice ?? 0),
+    ...checked("useDefaults", input.useDefaults),
+    webhookUrl: input.webhookUrl ?? "",
   };
 };
 
@@ -144,32 +144,29 @@ const buildUpdateBoolFields = (
   existing: ListingWithCount,
 ): TestFormValues => ({
   ...checked(
-    "assign_built_site",
-    pickField(updates.assignBuiltSite, existing.assign_built_site),
+    "assignBuiltSite",
+    pickField(updates.assignBuiltSite, existing.assignBuiltSite),
   ),
   ...checked(
-    "bookable_alone",
-    pickField(updates.bookableAlone, existing.bookable_alone),
+    "bookableAlone",
+    pickField(updates.bookableAlone, existing.bookableAlone),
   ),
-  ...checked(
-    "can_pay_more",
-    pickField(updates.canPayMore, existing.can_pay_more),
-  ),
+  ...checked("canPayMore", pickField(updates.canPayMore, existing.canPayMore)),
   ...checked("hidden", pickField(updates.hidden, existing.hidden)),
-  non_transferable: flagChoice(
-    pickField(updates.nonTransferable, existing.non_transferable),
+  nonTransferable: flagChoice(
+    pickField(updates.nonTransferable, existing.nonTransferable),
   ),
   ...checked(
-    "purchase_only",
-    pickField(updates.purchaseOnly, existing.purchase_only),
+    "purchaseOnly",
+    pickField(updates.purchaseOnly, existing.purchaseOnly),
   ),
   ...checked(
-    "use_defaults",
-    pickField(updates.useDefaults, existing.use_defaults),
+    "useDefaults",
+    pickField(updates.useDefaults, existing.useDefaults),
   ),
   ...checked(
-    "uses_logistics",
-    pickField(updates.usesLogistics, existing.uses_logistics),
+    "usesLogistics",
+    pickField(updates.usesLogistics, existing.usesLogistics),
   ),
 });
 
@@ -179,32 +176,32 @@ const buildUpdateNumericFields = (
 ): TestFormValues => {
   const assignsBuiltSite = pickField(
     updates.assignBuiltSite,
-    existing.assign_built_site,
+    existing.assignBuiltSite,
   );
   const initialSiteMonths = assignsBuiltSite
-    ? pickField(updates.initialSiteMonths, existing.initial_site_months || 1)
-    : pickField(updates.initialSiteMonths, existing.initial_site_months);
+    ? pickField(updates.initialSiteMonths, existing.initialSiteMonths || 1)
+    : pickField(updates.initialSiteMonths, existing.initialSiteMonths);
   return {
-    duration_days: String(
-      pickField(updates.durationDays, existing.duration_days),
+    durationDays: String(
+      pickField(updates.durationDays, existing.durationDays),
     ),
-    initial_site_months: String(initialSiteMonths),
-    max_attendees: String(
-      pickField(updates.maxAttendees, existing.max_attendees),
+    initialSiteMonths: String(initialSiteMonths),
+    maxAttendees: String(
+      pickField(updates.maxAttendees, existing.maxAttendees),
     ),
-    max_price: toMajorUnits(pickField(updates.maxPrice, existing.max_price)),
-    max_quantity: String(pickField(updates.maxQuantity, existing.max_quantity)),
-    maximum_days_after: String(
-      pickField(updates.maximumDaysAfter, existing.maximum_days_after),
+    maximumDaysAfter: String(
+      pickField(updates.maximumDaysAfter, existing.maximumDaysAfter),
     ),
-    min_quantity: String(pickField(updates.minQuantity, existing.min_quantity)),
-    minimum_days_before: String(
-      pickField(updates.minimumDaysBefore, existing.minimum_days_before),
+    maxPrice: toMajorUnits(pickField(updates.maxPrice, existing.maxPrice)),
+    maxQuantity: String(pickField(updates.maxQuantity, existing.maxQuantity)),
+    minimumDaysBefore: String(
+      pickField(updates.minimumDaysBefore, existing.minimumDaysBefore),
     ),
-    months_per_unit: String(
-      pickField(updates.monthsPerUnit, existing.months_per_unit),
+    minQuantity: String(pickField(updates.minQuantity, existing.minQuantity)),
+    monthsPerUnit: String(
+      pickField(updates.monthsPerUnit, existing.monthsPerUnit),
     ),
-    unit_price: formatPrice(updates.unitPrice, existing.unit_price),
+    unitPrice: formatPrice(updates.unitPrice, existing.unitPrice),
   };
 };
 
@@ -212,15 +209,15 @@ const buildUpdateStringFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
 ): TestFormValues => ({
-  bookable_days: pickField(updates.bookableDays, existing.bookable_days),
+  bookableDays: pickField(updates.bookableDays, existing.bookableDays),
   description: pickField(updates.description, existing.description),
   fields: repeated(pickField(updates.fields, existing.fields)),
-  listing_type: pickField(updates.listingType, existing.listing_type),
+  listingType: pickField(updates.listingType, existing.listingType),
   location: pickField(updates.location, existing.location),
   name: pickField(updates.name, existing.name),
   slug: pickField(updates.slug, existing.slug),
-  thank_you_url: formatOptional(updates.thankYouUrl, existing.thank_you_url),
-  webhook_url: formatOptional(updates.webhookUrl, existing.webhook_url),
+  thankYouUrl: formatOptional(updates.thankYouUrl, existing.thankYouUrl),
+  webhookUrl: formatOptional(updates.webhookUrl, existing.webhookUrl),
 });
 
 export const buildUpdateListingForm = (
@@ -228,27 +225,27 @@ export const buildUpdateListingForm = (
   existing: ListingWithCount,
   adminLevel: AdminLevel = "owner",
 ): TestFormValues => {
-  const closesAtParts = splitClosesAt(updates.closesAt, existing.closes_at);
+  const closesAtParts = splitClosesAt(updates.closesAt, existing.closesAt);
   const dateParts = splitClosesAt(updates.date, existing.date);
   return pageBoxes(
     {
       ...buildUpdateBoolFields(updates, existing),
       ...buildUpdateNumericFields(updates, existing),
       ...buildUpdateStringFields(updates, existing),
-      ...dayPriceFormFields(updates.dayPrices ?? existing.day_prices),
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
+      ...dayPriceFormFields(updates.dayPrices ?? existing.dayPrices),
+      closesAtDate: closesAtParts.date,
+      closesAtTime: closesAtParts.time,
       ...checked(
-        "customisable_days",
-        updates.customisableDays ?? existing.customisable_days,
+        "customisableDays",
+        updates.customisableDays ?? existing.customisableDays,
       ),
-      date_date: dateParts.date,
-      date_time: dateParts.time,
+      dateDate: dateParts.date,
+      dateTime: dateParts.time,
       // A switch that must date undated bookings first carries the organiser's
       // chosen day under this field; the save then moves them and flips.
       ...(updates.assignUndatedTo === undefined
         ? {}
-        : { assign_undated_to: updates.assignUndatedTo }),
+        : { assignUndatedTo: updates.assignUndatedTo }),
     },
     adminLevel,
   );

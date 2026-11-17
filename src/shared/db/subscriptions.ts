@@ -11,7 +11,8 @@ import { readRows } from "#db/read.ts";
 import { desc, greaterThan, not, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { t } from "#i18n";
 import {
   CANCELLABLE_STATUSES,
@@ -27,29 +28,29 @@ import {
 /** The words that a blank column cannot hold on a subscribed row: the booking
  * path writes the plan, the id and the status together. */
 const LIVE_WORDS = {
-  subscription_id: v.pipe(v.string(), v.minLength(1)),
-  subscription_status: SubscriptionStatusSchema,
+  subscriptionId: v.pipe(v.string(), v.minLength(1)),
+  subscriptionStatus: SubscriptionStatusSchema,
 };
 const LiveWordsSchema = v.object(LIVE_WORDS);
 const SubscribedWordsSchema = v.object({
   ...LIVE_WORDS,
-  recurring_interval: RecurringIntervalSchema,
+  recurringInterval: RecurringIntervalSchema,
 });
 
 /** The columns that each read of a subscribed row needs. */
 const LIVE_COLUMNS = [
   "id",
-  "attendee_id",
-  "listing_id",
-  "recurring_price",
-  "recurring_tax",
-  "subscription_id",
-  "subscription_status",
+  "attendeeId",
+  "listingId",
+  "recurringPrice",
+  "recurringTax",
+  "subscriptionId",
+  "subscriptionStatus",
 ] as const;
 const SUBSCRIBED_COLUMNS = [
   ...LIVE_COLUMNS,
   "quantity",
-  "recurring_interval",
+  "recurringInterval",
 ] as const;
 
 type Booking = RowOf<"listing_attendees">;
@@ -90,7 +91,7 @@ const bookings = () => from(tables.listing_attendees);
 
 /** The booking rows that started a subscription. */
 const subscribedBookings = () =>
-  bookings().where((booking) => notEqual(booking.subscription_id, ""));
+  bookings().where((booking) => notEqual(booking.subscriptionId, ""));
 
 /** Every subscribed booking row, newest first. */
 export const getSubscribedRows = async (): Promise<SubscribedRow[]> =>
@@ -125,7 +126,7 @@ export const getCheckedRows = async (
   (
     await readRows(
       bookings()
-        .where({ subscription_status: LIVE_STATUSES })
+        .where({ subscriptionStatus: LIVE_STATUSES })
         .where((booking) => greaterThan(booking.id, afterId))
         .sortedBy("id")
         .limit(limit)
@@ -142,8 +143,8 @@ export const getLiveRowBySubscriptionIdOrNull = async (
   const [row] = await readRows(
     bookings()
       .where({
-        subscription_id: subscriptionId,
-        subscription_status: LIVE_STATUSES,
+        subscriptionId: subscriptionId,
+        subscriptionStatus: LIVE_STATUSES,
       })
       .limit(1)
       .pick(...LIVE_COLUMNS),
@@ -159,10 +160,10 @@ export const renewalBookingGuard = (row: LiveRow): SqlStatement =>
          WHERE ${not(
            bookings()
              .where({
-               attendee_id: row.attendee_id,
+               attendeeId: row.attendeeId,
                id: row.id,
-               listing_id: row.listing_id,
-               subscription_id: row.subscription_id,
+               listingId: row.listingId,
+               subscriptionId: row.subscriptionId,
              })
              .exists(),
          )}`;
@@ -176,28 +177,27 @@ const replaceableBy = (
 ): readonly SubscriptionStatus[] =>
   SUBSCRIPTION_NODE_OF[status] === "ended"
     ? LIVE_STATUSES
-    : [row.subscription_status];
+    : [row.subscriptionStatus];
 
 /** Write the status Stripe reported over the status that `row` held. */
 export const statusWrite = (
   row: LiveRow,
   status: SubscriptionStatus,
 ): SqlStatement =>
-  sql`UPDATE listing_attendees
-             SET subscription_status = ${status}
-           WHERE id = ${row.id} AND subscription_status IN (${sqlList(
-             replaceableBy(row, status),
-           )})`;
+  update(tables.listing_attendees, { subscriptionStatus: status }).where({
+    id: row.id,
+    subscriptionStatus: replaceableBy(row, status),
+  });
 
 /** The booking rows whose subscription still charges. Such a row cannot be
  * deleted. */
 const liveBookings = () =>
-  bookings().where({ subscription_status: CANCELLABLE_STATUSES });
+  bookings().where({ subscriptionStatus: CANCELLABLE_STATUSES });
 
 /** The read for a live subscription among the bookings of these attendees. */
 export const liveBookingOfAttendees = (
   attendeeIds: readonly number[],
-): SqlStatement => liveBookings().where({ attendee_id: attendeeIds }).probe();
+): SqlStatement => liveBookings().where({ attendeeId: attendeeIds }).probe();
 
 /** Why one listing cannot be deleted, or null. The read joins the caller's
  * transaction when it runs inside one. */
@@ -209,7 +209,7 @@ export type ListingCheck = (
 /** The refusal while a booking of the listing has a subscription that still
  * charges. */
 export const liveListingRefusal: ListingCheck = async (listingId, tx) => {
-  const read = liveBookings().where({ listing_id: listingId }).probe();
+  const read = liveBookings().where({ listingId }).probe();
   const rows =
     tx === undefined
       ? await queryAllPrimary(read)

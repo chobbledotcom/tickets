@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute, getDb } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { paidBookingTail } from "#routes/api/payment-processing/tail.ts";
@@ -63,7 +63,7 @@ describeWithEnv("paid booking answer saves", { db: true }, () => {
 
   test("saves a text answer missing from the paid-order snapshot", async () => {
     const entry = await bookedEntry();
-    const question = await questionsTable.insert({
+    const question = await records.questions.insert({
       displayType: "free_text",
       text: "Add detail",
     });

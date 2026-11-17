@@ -41,8 +41,8 @@ const closedOf = (
 
 const EDITOR_CLOSED: [string, ClosedReason][] = [
   ["active", "editor"],
-  ["use_defaults", "editor"],
-  ["webhook_url", "editor"],
+  ["useDefaults", "editor"],
+  ["webhookUrl", "editor"],
 ];
 
 const LISTING_CASES: [string, WriteAccess, [string, ClosedReason][]][] = [
@@ -55,22 +55,22 @@ const LISTING_CASES: [string, WriteAccess, [string, ClosedReason][]][] = [
     "site building off closes its three listing fields",
     accessOf(["builder"], []),
     [
-      ["assign_built_site", "builder"],
-      ["initial_site_months", "builder"],
-      ["months_per_unit", "builder"],
+      ["assignBuiltSite", "builder"],
+      ["initialSiteMonths", "builder"],
+      ["monthsPerUnit", "builder"],
     ],
   ],
   [
     "logistics off closes the logistics switch",
     accessOf(["logistics"], []),
-    [["uses_logistics", "logistics"]],
+    [["usesLogistics", "logistics"]],
   ],
   [
     "subscriptions off closes the recurring offer fields",
     accessOf(["subscriptions"], []),
     [
-      ["recurring_interval", "subscriptions"],
-      ["recurring_price", "subscriptions"],
+      ["recurringInterval", "subscriptions"],
+      ["recurringPrice", "subscriptions"],
     ],
   ],
   [
@@ -81,12 +81,12 @@ const LISTING_CASES: [string, WriteAccess, [string, ClosedReason][]][] = [
   [
     "demo mode closes the webhook",
     accessOf([], ["demo"]),
-    [["webhook_url", "demo"]],
+    [["webhookUrl", "demo"]],
   ],
   [
     "the demo lock names the reason first for an editor in the demo",
     accessOf([], ["demo", "editor"]),
-    [...EDITOR_CLOSED.slice(0, 2), ["webhook_url", "demo"]],
+    [...EDITOR_CLOSED.slice(0, 2), ["webhookUrl", "demo"]],
   ],
 ];
 
@@ -113,11 +113,11 @@ describe("the listing link keys", () => {
     expect(LISTING_LINK_KEYS).toEqual([
       {
         feature: "attributes",
-        key: "attribute_option_ids",
+        key: "attributeOptionIds",
         lockedFor: ["nonOwner"],
       },
-      { key: "child_listing_ids" },
-      { key: "group_ids" },
+      { key: "childListingIds" },
+      { key: "groupIds" },
     ]);
   });
 
@@ -131,7 +131,7 @@ describe("the listing link keys", () => {
   test("attributes off closes the attribute options for an owner", () => {
     expect([
       ...closedFields(LISTING_WRITE_KEYS, accessOf(["attributes"], [])),
-    ]).toEqual([["attribute_option_ids", "attributes"]]);
+    ]).toEqual([["attributeOptionIds", "attributes"]]);
   });
 
   test("the feature that is off is the reason before the owner-only rule", () => {
@@ -140,34 +140,34 @@ describe("the listing link keys", () => {
         LISTING_WRITE_KEYS,
         accessOf(["attributes"], ["nonOwner"]),
       ),
-    ]).toEqual([["attribute_option_ids", "attributes"]]);
+    ]).toEqual([["attributeOptionIds", "attributes"]]);
   });
 
   test("a manager cannot set the attribute options on a site with every feature on", () => {
     expect([
       ...closedFields(LISTING_WRITE_KEYS, accessOf([], ["nonOwner"])),
-    ]).toEqual([["attribute_option_ids", "nonOwner"]]);
+    ]).toEqual([["attributeOptionIds", "nonOwner"]]);
   });
 });
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const DEFAULTS_AND_FLOORS = [
   "active: stores true",
-  `bookable_days: stores ${JSON.stringify(VALID_DAY_NAMES)}`,
-  "duration_days: stores 1",
+  `bookableDays: stores ${JSON.stringify(VALID_DAY_NAMES)}`,
+  "durationDays: stores 1",
   'fields: stores "email"',
-  "initial_site_months: stores 0, from 0",
-  'listing_type: stores "standard"',
-  "max_attendees: stores undefined, from 1",
-  "maximum_days_after: stores 90, from 0",
-  "max_price: stores 0",
-  "max_quantity: stores 1, from 1",
-  "minimum_days_before: stores 1, from 0",
-  "min_quantity: stores 1, from 1",
-  "months_per_unit: stores 0, from 0",
-  'recurring_interval: stores ""',
-  "recurring_price: stores 0",
-  "unit_price: stores 0",
+  "initialSiteMonths: stores 0, from 0",
+  'listingType: stores "standard"',
+  "maxAttendees: stores undefined, from 1",
+  "maximumDaysAfter: stores 90, from 0",
+  "maxPrice: stores 0",
+  "maxQuantity: stores 1, from 1",
+  "minimumDaysBefore: stores 1, from 0",
+  "minQuantity: stores 1, from 1",
+  "monthsPerUnit: stores 0, from 0",
+  'recurringInterval: stores ""',
+  "recurringPrice: stores 0",
+  "unitPrice: stores 0",
 ];
 /* jscpd:ignore-end */
 
@@ -189,38 +189,38 @@ test("each listing field that names a stored default or a smallest count names t
 /* jscpd:ignore-start -- a list of strings, not code */
 const LISTING_KEYS = [
   "active",
-  "assign_built_site",
-  "bookable_alone",
-  "bookable_days",
-  "can_pay_more",
-  "closes_at",
-  "customisable_days",
+  "assignBuiltSite",
+  "bookableAlone",
+  "bookableDays",
+  "canPayMore",
+  "closesAt",
+  "customisableDays",
   "date",
-  "day_prices",
+  "dayPrices",
   "description",
-  "duration_days",
+  "durationDays",
   "fields",
   "hidden",
-  "initial_site_months",
-  "listing_type",
+  "initialSiteMonths",
+  "listingType",
   "location",
-  "max_attendees",
-  "maximum_days_after",
-  "max_price",
-  "max_quantity",
-  "minimum_days_before",
-  "min_quantity",
-  "months_per_unit",
+  "maxAttendees",
+  "maximumDaysAfter",
+  "maxPrice",
+  "maxQuantity",
+  "minimumDaysBefore",
+  "minQuantity",
+  "monthsPerUnit",
   "name",
-  "non_transferable",
-  "purchase_only",
-  "recurring_interval",
-  "recurring_price",
-  "thank_you_url",
-  "unit_price",
-  "use_defaults",
-  "uses_logistics",
-  "webhook_url",
+  "nonTransferable",
+  "purchaseOnly",
+  "recurringInterval",
+  "recurringPrice",
+  "thankYouUrl",
+  "unitPrice",
+  "useDefaults",
+  "usesLogistics",
+  "webhookUrl",
 ];
 /* jscpd:ignore-end */
 

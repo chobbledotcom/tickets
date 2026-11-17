@@ -29,8 +29,8 @@ export const { createForm: sitePageForm, editForm: sitePageEditForm } =
     publicLinkPath: (slug) => `/page/${slug}`,
   });
 
-/** Snake-case field values for pre-filling the edit form (slug and the Hidden
- * box included). */
+/** Field values for pre-filling the edit form (slug and the Hidden box
+ * included). */
 export const sitePageToValues = (page: SitePage): Record<string, string> => ({
   ...contentFieldValues(page),
   hidden: page.hidden ? "1" : "",

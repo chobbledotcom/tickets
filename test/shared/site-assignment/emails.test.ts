@@ -89,9 +89,9 @@ describeWithEnv(
           email: "buyer@example.com",
         },
         listing: makeTestEntry({
-          assign_built_site: true,
+          assignBuiltSite: true,
           id,
-          initial_site_months: 3,
+          initialSiteMonths: 3,
           name,
         }).listing,
       });

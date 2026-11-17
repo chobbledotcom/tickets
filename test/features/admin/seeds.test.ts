@@ -20,10 +20,17 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
   // definition, so a changed default or bound fails this test instead of
   // moving the expectation along with it.
   const expectedBoxes = [
-    { from: "1", name: "listing_count", starts: "5", upTo: MAX_SEED_LISTINGS },
+    {
+      from: "1",
+      id: "listing_count",
+      name: "listingCount",
+      starts: "5",
+      upTo: MAX_SEED_LISTINGS,
+    },
     {
       from: "0",
-      name: "attendees_per_listing",
+      id: "attendees_per_listing",
+      name: "attendeesPerListing",
       starts: "10",
       upTo: SEED_MAX_ATTENDEES,
     },
@@ -32,7 +39,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
   for (const box of expectedBoxes) {
     test(`serves the ${box.name} box with its bounds and default`, () => {
       expectIncludesAll(inputNamed(seedsForm.render(), box.name), [
-        `id="${box.name}"`,
+        `id="${box.id}"`,
         `min="${box.from}"`,
         `max="${box.upTo}"`,
         `value="${box.starts}"`,
@@ -50,8 +57,8 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   test("creates the asked-for listings and says exactly what was made", async () => {
     const response = await postSeeds({
-      attendees_per_listing: "0",
-      listing_count: "2",
+      attendeesPerListing: "0",
+      listingCount: "2",
     });
 
     await expectFlashRedirect(
@@ -63,8 +70,8 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   test("refuses a listing count past the declared ceiling", async () => {
     const response = await postSeeds({
-      attendees_per_listing: "0",
-      listing_count: "999",
+      attendeesPerListing: "0",
+      listingCount: "999",
     });
 
     await expectFlashRedirect(
@@ -79,8 +86,8 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   test("refuses counts below the declared minimums", async () => {
     const response = await postSeeds({
-      attendees_per_listing: "-10",
-      listing_count: "-5",
+      attendeesPerListing: "-10",
+      listingCount: "-5",
     });
 
     await expectFlashRedirect(
@@ -95,8 +102,8 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   test("rejects a non-numeric listing count", async () => {
     const response = await postSeeds({
-      attendees_per_listing: "2",
-      listing_count: "abc",
+      attendeesPerListing: "2",
+      listingCount: "abc",
     });
 
     await expectFlashRedirect(
@@ -108,8 +115,8 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
 
   test("rejects non-numeric attendees per listing", async () => {
     const response = await postSeeds({
-      attendees_per_listing: "abc",
-      listing_count: "1",
+      attendeesPerListing: "abc",
+      listingCount: "1",
     });
 
     await expectFlashRedirect(

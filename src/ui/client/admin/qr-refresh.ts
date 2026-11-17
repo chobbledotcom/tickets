@@ -15,7 +15,7 @@ type RefreshResponse = RefreshResponseOk | RefreshResponseErr;
 const buildRefreshUrl = (endpoint: string, form: HTMLFormElement): string => {
   const data = new FormData(form);
   const params = new URLSearchParams();
-  for (const key of ["customer_name", "value", "quantity", "date"]) {
+  for (const key of ["customerName", "value", "quantity", "date"]) {
     const v = data.get(key);
     if (typeof v === "string" && v) params.set(key, v);
   }

@@ -115,9 +115,9 @@ describe("schema column types", () => {
 
   test("names the words of a fixed set as the stored value", () => {
     const state = oneOf("state", ["active", "refunded"])(textOrNull);
-    const stored: ColumnKind<"active" | "refunded" | null> = state;
+    const stored: ColumnKind<"active" | "refunded" | null, "optional"> = state;
     // @ts-expect-error the column can hold a word, so it is not always empty
-    const refused: ColumnKind<null> = state;
+    const refused: ColumnKind<null, "optional"> = state;
     expect(columnFacts(stored)).toEqual({ canBeNull: true });
     expect(refused).toBe(state);
   });

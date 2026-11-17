@@ -11,7 +11,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import { getAssignableBuiltSites, insertBuiltSite } from "#db/built-sites.ts";
-import { execute, getDb, insert, queryOne, requireOne } from "#db/client.ts";
+import { execute, getDb, queryOne, requireOne } from "#db/client.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import {
@@ -19,7 +19,9 @@ import {
   getOrphanPaymentWorkPage,
   purgeOrphanedAttendees,
 } from "#db/orphan-attendees.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlName } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { nowIso, nowMs } from "#shared/now.ts";
 import { insertCheckoutStage } from "#test-utils/checkout-stages.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -49,10 +51,10 @@ const daysAgoIso = (days: number): string =>
 /** Insert an attendee with no listing booking (an orphan), returning its id. */
 const insertOrphan = async (createdIso: string): Promise<number> => {
   const result = await getDb().execute(
-    insert("attendees", {
+    insertInto(tables.attendees, {
       created: createdIso,
-      pii_blob: "",
-      ticket_token_index: `orphan-${crypto.randomUUID()}`,
+      piiBlob: "",
+      ticketTokenIndex: `orphan-${crypto.randomUUID()}`,
     }),
   );
   return Number(result.lastInsertRowid);
@@ -72,11 +74,11 @@ const addPaymentWork = async (
   protectedState: string,
 ): Promise<void> => {
   await getDb().execute(
-    insert("processed_payments", {
-      attendee_id: attendeeId,
-      payment_session_id: `ps-held-${attendeeId}`,
-      processed_at: nowIso(),
-      protected_state: protectedState,
+    insertInto(tables.processed_payments, {
+      attendeeId: attendeeId,
+      paymentSessionId: `ps-held-${attendeeId}`,
+      processedAt: nowIso(),
+      protectedState: protectedState,
     }),
   );
 };
@@ -147,13 +149,13 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     test("removes service_costs rows whose servicing_attendee_id is an orphan", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
-        insert("service_costs", {
+        insertInto(tables.service_costs, {
           created: nowIso(),
-          listing_id: 1,
+          listingId: 1,
           memo: "",
-          occurred_at: nowIso(),
-          servicing_attendee_id: id,
-          transfer_id: 0, // dummy; SQLite does not enforce FKs by default
+          occurredAt: nowIso(),
+          servicingAttendeeId: id,
+          transferId: 0, // dummy; SQLite does not enforce FKs by default
         }),
       );
       await purgeOrphanedAttendees(nowIso());
@@ -166,17 +168,17 @@ describeWithEnv("db > orphan-attendees", { db: true }, () => {
     test("removes the orphan's dependent rows", async () => {
       const id = await insertOrphan(daysAgoIso(365));
       await getDb().execute(
-        insert("attendee_answers", {
-          answer_id: 1,
-          attendee_id: id,
-          question_id: 1,
+        insertInto(tables.attendee_answers, {
+          answerId: 1,
+          attendeeId: id,
+          questionId: 1,
         }),
       );
       await getDb().execute(
-        insert("processed_payments", {
-          attendee_id: id,
-          payment_session_id: `ps-orphan-${id}`,
-          processed_at: nowIso(),
+        insertInto(tables.processed_payments, {
+          attendeeId: id,
+          paymentSessionId: `ps-orphan-${id}`,
+          processedAt: nowIso(),
         }),
       );
       await createSystemNote(attendeeNotes(id), "orphan note");

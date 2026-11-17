@@ -25,8 +25,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/stripe",
           {
-            csrf_token: await testCsrfToken(),
-            stripe_secret_key: "sk_test_new_key_123",
+            csrfToken: await testCsrfToken(),
+            stripeSecretKey: "sk_test_new_key_123",
           },
           await testCookie(),
         ),
@@ -47,9 +47,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/square",
           {
-            csrf_token: await testCsrfToken(),
-            square_access_token: "EAAAl_test_new",
-            square_location_id: "L_test_456",
+            csrfToken: await testCsrfToken(),
+            squareAccessToken: "EAAAl_test_new",
+            squareLocationId: "L_test_456",
           },
           await testCookie(),
         ),

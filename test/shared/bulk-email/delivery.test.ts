@@ -233,7 +233,7 @@ describeWithEnv("bulk-email target parsing", { db: true }, () => {
       targetFromQuery(new URLSearchParams({ listing: String(listing.id) })),
     ).resolves.toEqual({ kind: "listing", listingId: listing.id });
     await expect(
-      targetFromForm(new FormParams({ listing_id: String(listing.id) })),
+      targetFromForm(new FormParams({ listingId: String(listing.id) })),
     ).resolves.toEqual({ kind: "listing", listingId: listing.id });
   });
 
@@ -244,7 +244,7 @@ describeWithEnv("bulk-email target parsing", { db: true }, () => {
       targetFromQuery(new URLSearchParams({ listing: malformedId })),
     ).resolves.toBeNull();
     await expect(
-      targetFromForm(new FormParams({ listing_id: malformedId })),
+      targetFromForm(new FormParams({ listingId: malformedId })),
     ).resolves.toBeNull();
   });
 });

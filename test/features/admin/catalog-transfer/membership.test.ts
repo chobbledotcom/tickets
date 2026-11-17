@@ -48,7 +48,7 @@ describe("catalog transfer memberships", () => {
     // wrongly writes the override into the wrong dimension, and the values
     // alone cannot show that.
     expect(prices).toEqual(
-      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) VALUES (${9}, ${PRICE_TYPE_GROUP}, ${"4"}, ${2500})`,
+      sql`INSERT INTO listing_prices (listing_id, price_id, price_type, unit_price) VALUES (${9}, ${"4"}, ${PRICE_TYPE_GROUP}, ${2500})`,
     );
   });
 
@@ -60,12 +60,12 @@ describe("catalog transfer memberships", () => {
 
     expect(placed(prices!).args).toEqual([
       9,
-      PRICE_TYPE_GROUP_DAY,
       "4/1",
+      PRICE_TYPE_GROUP_DAY,
       1000,
       9,
-      PRICE_TYPE_GROUP_DAY,
       "4/2",
+      PRICE_TYPE_GROUP_DAY,
       1800,
     ]);
   });
@@ -80,8 +80,8 @@ describe("catalog transfer memberships", () => {
 
     expect(placed(prices!).args).toEqual([
       9,
-      PRICE_TYPE_GROUP_DAY,
       "4/2",
+      PRICE_TYPE_GROUP_DAY,
       1800,
     ]);
   });
@@ -96,14 +96,14 @@ describe("catalog transfer memberships", () => {
 
     expect(placed(prices!).args.slice(0, 4)).toEqual([
       9,
-      PRICE_TYPE_GROUP,
       "4",
+      PRICE_TYPE_GROUP,
       2500,
     ]);
     expect(placed(prices!).args.slice(4)).toEqual([
       9,
-      PRICE_TYPE_GROUP_DAY,
       "4/1",
+      PRICE_TYPE_GROUP_DAY,
       1000,
     ]);
   });

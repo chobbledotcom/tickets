@@ -3,6 +3,7 @@ import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { formatCurrency } from "#shared/currency.ts";
 import { formatDateRangeLabel } from "#shared/date-labels.ts";
+import { prefixedBoxName } from "#shared/forms/prefixed-name.ts";
 import {
   bookingConflictLabel,
   hasBookingConflicts,
@@ -83,7 +84,7 @@ const MergePiiDecisionTable = ({
         cell: (field) => (
           <MergeRadioOption
             checked={true}
-            name={`pii_${field.field}`}
+            name={prefixedBoxName("pii", field.field)}
             value="target"
           >
             {renderFieldValue(field.targetValue, field.multiline)}
@@ -99,7 +100,7 @@ const MergePiiDecisionTable = ({
           ) : (
             <MergeRadioOption
               checked={false}
-              name={`pii_${field.field}`}
+              name={prefixedBoxName("pii", field.field)}
               value="source"
             >
               {renderFieldValue(field.sourceValue, field.multiline)}
@@ -143,7 +144,7 @@ const conflictAnswerColumns = (
     cell: (item) => (
       <MergeRadioOption
         checked={false}
-        name={`answer_${item.questionId}`}
+        name={`answer${item.questionId}`}
         value={key}
       >
         {label(item)}
@@ -158,7 +159,7 @@ const conflictAnswerColumns = (
       cell: (item) => (
         <MergeRadioOption
           checked={true}
-          name={`answer_${item.questionId}`}
+          name={`answer${item.questionId}`}
           value="target"
         >
           {item.targetAnswerText!}
@@ -262,7 +263,7 @@ const BookingChoice = ({
 }): JSX.Element | null => {
   if (item.conflictClass === "moveable") return null;
   const key = itemBookingKey(item);
-  const name = `booking_${key}`;
+  const name = `booking${key}`;
   const moneyAtStake = Math.max(item.sourceSaleAmount, item.targetSaleAmount);
   return (
     <>
@@ -285,11 +286,11 @@ const BookingChoice = ({
               source: formatCurrency(item.sourceSaleAmount),
             })}
           </p>
-          <RadioOption checked={false} name={`money_${key}`} value="credit">
+          <RadioOption checked={false} name={`money${key}`} value="credit">
             {" "}
             {t("admin.attendees.merge_keep_credit")}
           </RadioOption>
-          <BreakRadio name={`money_${key}`} value="writeoff">
+          <BreakRadio name={`money${key}`} value="writeoff">
             {t("admin.attendees.merge_write_off")}
           </BreakRadio>
         </div>

@@ -28,11 +28,11 @@ describeAdminSettings(() => {
     const postTheme = async (
       fields: Record<string, string>,
     ): Promise<Response> => {
-      const csrf_token = await testCsrfToken();
+      const csrfToken = await testCsrfToken();
       return handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
-          { csrf_token, ...fields },
+          { csrfToken, ...fields },
           await testCookie(),
         ),
       );
@@ -42,7 +42,7 @@ describeAdminSettings(() => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/theme",
-          { csrf_token: "invalid-csrf-token", theme: "dark" },
+          { csrfToken: "invalid-csrf-token", theme: "dark" },
           await testCookie(),
         ),
       );
@@ -109,7 +109,7 @@ describeAdminSettings(() => {
 
       const response = await postTheme({
         theme: "light",
-        underline_links: "true",
+        underlineLinks: "true",
       });
 
       expect(response.status).toBe(302);
@@ -132,7 +132,7 @@ describeAdminSettings(() => {
       const response = await adminGet("/admin/settings");
       const html = await response.text();
       const checkboxMatch = html.match(
-        /<input[^>]*name="underline_links"[^>]*>/,
+        /<input[^>]*name="underlineLinks"[^>]*>/,
       );
       assertStringIncludes(checkboxMatch?.[0] ?? "", "checked");
     });

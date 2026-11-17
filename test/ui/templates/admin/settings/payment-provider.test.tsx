@@ -34,7 +34,7 @@ describe("settings payment provider forms", () => {
       for (const provider of ["stripe", "square"]) {
         const input = inputTagWithValue(html, provider);
         expectIncludesAll(input, [
-          'name="existing_payment_provider"',
+          'name="existingPaymentProvider"',
           "required",
         ]);
         assert(!input.includes("checked"));
@@ -48,23 +48,23 @@ describe("settings payment provider forms", () => {
       });
       assertStringIncludes(
         inputTagWithValue(html, "sumup"),
-        'name="existing_payment_provider"',
+        'name="existingPaymentProvider"',
       );
     });
 
     test("keeps the submitted provider selected after an error", async () => {
       await withRequestContext(() => {
-        setSavedFormData(new FormParams("existing_payment_provider=square"));
+        setSavedFormData(new FormParams("existingPaymentProvider=square"));
         const html = render(ExistingPaymentProviderForm, {
           paymentProviderRecoveryChoices: ["stripe", "square"],
         });
 
-        expect(
-          hasCheckedInput(html, "existing_payment_provider", "square"),
-        ).toBe(true);
-        expect(
-          hasCheckedInput(html, "existing_payment_provider", "stripe"),
-        ).toBe(false);
+        expect(hasCheckedInput(html, "existingPaymentProvider", "square")).toBe(
+          true,
+        );
+        expect(hasCheckedInput(html, "existingPaymentProvider", "stripe")).toBe(
+          false,
+        );
       });
     });
 

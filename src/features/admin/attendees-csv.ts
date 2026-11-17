@@ -113,7 +113,7 @@ const questionColumns = (data?: AttendeeQuestionData): Column<Attendee>[] => {
   return questions.map((q) => ({
     header: q.text,
     value: (a: Attendee) => {
-      if (q.display_type === "free_text") {
+      if (q.displayType === "free_text") {
         return textMap?.get(a.id)?.get(q.id) ?? "";
       }
       const ids = answerMap.get(a.id) ?? [];

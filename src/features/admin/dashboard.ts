@@ -260,8 +260,8 @@ const loadActivityLogRefs = (
   entries: ActivityLogEntry[],
 ): Promise<ActivityLogRefs> =>
   loadAttendeeAndListingRefs(
-    idsOf(entries, (entry) => entry.attendee_id),
-    idsOf(entries, (entry) => entry.listing_id),
+    idsOf(entries, (entry) => entry.attendeeId),
+    idsOf(entries, (entry) => entry.listingId),
   );
 
 const handleAdminLog: TypedRouteHandler<"GET /admin/log"> = authPageAt(

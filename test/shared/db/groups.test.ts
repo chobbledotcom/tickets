@@ -9,6 +9,7 @@ import {
 } from "#db/attendees/capacity/groups.ts";
 import { getDb } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   anyHiddenPackageGroup,
@@ -17,13 +18,13 @@ import {
   getGroupPackagePrices,
   getGroupPackagePricesByGroupIds,
   getListingsByGroupIds,
-  getPackageDisplaysByIds,
   groups,
   isGroupSlugTaken,
   resetGroupListings,
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -51,26 +52,26 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         slug: "db-group",
       });
 
-      const fetched = await groups.table.read.one({ id: created.id });
+      const fetched = await records.groups.find(created.id);
       expect(fetched).not.toBeNull();
       expect(fetched?.name).toBe("DB Group");
       expect(fetched?.slug).toBe("db-group");
 
-      const updated = await groups.table.update(created.id, {
+      const updated = await records.groups.update(created.id, {
         name: "DB Group Updated",
         termsAndConditions: "Terms",
       });
       expect(updated?.name).toBe("DB Group Updated");
-      expect(updated?.terms_and_conditions).toBe("Terms");
+      expect(updated?.termsAndConditions).toBe("Terms");
 
-      await groups.table.deleteById(created.id);
-      expect(await groups.table.read.one({ id: created.id })).toBeNull();
+      await records.groups.delete(created.id);
+      expect(await records.groups.find(created.id)).toBeNull();
     });
 
     test("getAllGroups returns decrypted groups ordered by id", async () => {
       const g1 = await createTestGroup({ name: "Group A", slug: "group-a" });
       const g2 = await createTestGroup({ name: "Group B", slug: "group-b" });
-      const allGroups = await groups.cache.getAll();
+      const allGroups = await groups.getAll();
       expect(allGroups.length).toBe(2);
       expect(allGroups[0]?.id).toBe(g1.id);
       expect(allGroups[1]?.id).toBe(g2.id);
@@ -143,7 +144,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       const activeMember = byGroup
         .get(populated.id)
         ?.find((l) => l.id === active.id);
-      expect(activeMember?.attendee_count).toBe(3);
+      expect(activeMember?.attendeeCount).toBe(3);
     });
 
     test("getListingsByGroupIds maps a memberless group to an empty list", async () => {
@@ -248,7 +249,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         { maxAttendees: 5, name: "delete-me", slug: "delete-me" },
         "orphan-listing",
       );
-      await groups.table.deleteById(group.id);
+      await records.groups.delete(group.id);
 
       expect(await hasAvailableSpots(listing.id, 1)).toBe(true);
     });
@@ -412,8 +413,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         "manual-remaining",
       );
       await listingAggregates.update(e1.id, {
-        booked_quantity: 4,
-        tickets_count: 0,
+        bookedQuantity: 4,
+        ticketsCount: 0,
       });
 
       const map = await getGroupRemainingByGroupId([group.id]);
@@ -541,12 +542,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Bundle",
         slug: "bundle-disp",
       });
-      const hidden = await createTestGroup({
-        isPackage: true,
-        name: "Hidden Bundle",
-        slug: "hidden-bundle-disp",
-      });
-      await groups.table.update(hidden.id, { hidePackageListings: true });
+      const hidden = await createHiddenPackageGroup("Hidden Bundle");
       const regular = await createTestGroup({
         name: "Regular",
         slug: "regular-disp",
@@ -601,7 +597,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
         name: "Changed Bundle",
       });
 
-      await groups.table.update(pkg.id, { hidePackageListings: true });
+      await records.groups.update(pkg.id, { hidePackageListings: true });
 
       expect((await getPackageDisplaysByIds([pkg.id])).get(pkg.id)).toEqual({
         hideListings: true,
@@ -681,8 +677,8 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
       expect(result.get(a.id)?.length).toBe(2);
       expect(result.get(b.id)?.length).toBe(1);
       // Each row carries its override price for the right group.
-      const a2Row = result.get(a.id)?.find((r) => r.listing_id === a2.id);
-      expect(a2Row?.package_price).toBe(200);
+      const a2Row = result.get(a.id)?.find((r) => r.listingId === a2.id);
+      expect(a2Row?.packagePrice).toBe(200);
       expect(a2Row?.quantity).toBe(3);
     });
   });
@@ -705,7 +701,7 @@ describeWithEnv("db > groups", { db: true, triggers: true }, () => {
 
       const rows = await getGroupPackagePrices(group.id);
       const priceOf = (id: number) =>
-        rows.find((r) => r.listing_id === id)?.package_price;
+        rows.find((r) => r.listingId === id)?.packagePrice;
       // null and 0 are preserved as distinct values, not collapsed together.
       expect(priceOf(none.id)).toBeNull();
       expect(priceOf(free.id)).toBe(0);

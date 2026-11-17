@@ -45,14 +45,14 @@ const validateSetupForm = (form: FormParams): SetupValidation => {
   }
 
   const {
-    admin_username: username,
-    admin_password: password,
-    admin_password_confirm: passwordConfirm,
+    adminUsername: username,
+    adminPassword: password,
+    adminPasswordConfirm: passwordConfirm,
   } = validation.values;
   const country = (form.get("country") || "GB").trim().toUpperCase();
 
   // Check Data Controller Agreement acceptance
-  const acceptAgreement = form.get("accept_agreement");
+  const acceptAgreement = form.get("acceptAgreement");
   if (acceptAgreement !== "yes") {
     logDebug("Setup", "Agreement not accepted");
     return {

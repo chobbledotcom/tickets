@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { findBuiltSiteById } from "#db/built-sites.ts";
 import {
   expectFlash,
   expectFlashRedirect,
@@ -238,7 +239,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         200,
         "Delete Built Site",
         "Delete Me",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
 
@@ -251,7 +252,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("POST /admin/built-sites/:id/delete", () => {
     testRequiresAuth("/admin/built-sites/1/delete", {
       body: {
-        confirm_identifier: "Test Site",
+        confirmIdentifier: "Test Site",
       },
       method: "POST",
       setup: async () => {
@@ -263,9 +264,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const site = await createTestBuiltSite({ name: "To Delete" });
       await deleteTestBuiltSite(site.id);
 
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await builtSitesCrudTable.read.one({ id: site.id });
-      expect(found).toBeNull();
+      expect(await findBuiltSiteById(site.id)).toBeNull();
     });
 
     test("rejects deletion with wrong name", async () => {
@@ -273,7 +272,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/delete`,
         {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         },
       );
       expect(response.status).toBe(302);
@@ -283,19 +282,10 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         false,
       );
 
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      const found = await builtSitesCrudTable.read.one({ id: site.id });
-      expect(found).not.toBeNull();
-    });
-
-    test("a list filter reads back only the sites that exist", async () => {
-      const site = await createTestBuiltSite({ name: "Lookup Site" });
-      const { builtSitesCrudTable } = await import("#db/built-sites.ts");
-      expect(
-        (await builtSitesCrudTable.read.many({ id: [site.id, 999_999] })).map(
-          (row) => row.id,
-        ),
-      ).toEqual([site.id]);
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        id: site.id,
+        name: "Keep Me",
+      });
     });
 
     test("name confirmation is case-insensitive", async () => {
@@ -303,7 +293,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/delete`,
         {
-          confirm_identifier: "case test",
+          confirmIdentifier: "case test",
         },
       );
       await expectFlashRedirect(
@@ -316,7 +306,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         "/admin/built-sites/999/delete",
         {
-          confirm_identifier: "Test",
+          confirmIdentifier: "Test",
         },
       );
       expectStatus(404)(response);

@@ -28,7 +28,7 @@ export {
 } from "#templates/admin/detail-rows.tsx";
 
 export const nearCapacity = (listing: ListingWithCount): boolean =>
-  capacityLevel(listing.attendee_count, listing.max_attendees).nearLimit;
+  capacityLevel(listing.attendeeCount, listing.maxAttendees).nearLimit;
 
 const listingRecalculateRows = recalculateRowsFor<ListingAggregateField>(
   getListingAggregateFields,
@@ -88,8 +88,8 @@ export const ListingAggregateMismatchRow = ({
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
-  booked_quantity: listing.attendee_count,
-  tickets_count: listing.tickets_count,
+  bookedQuantity: listing.attendeeCount,
+  ticketsCount: listing.ticketsCount,
 });
 
 const listingRecalculateRenderer = (

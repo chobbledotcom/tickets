@@ -3,10 +3,12 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hashPassword } from "#crypto/hashing.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername, invalidateUsersCache } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import {
@@ -37,13 +39,13 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const hash = await hashPassword("managerpass");
       const encHash = await encrypt(hash);
       await getDb().execute(
-        insert("users", {
-          admin_level: await encrypt("manager"),
-          password_hash: encHash,
-          username_hash: await encrypt("manager"),
-          username_index: "manager-idx-unique",
-          wrapped_data_key: (await getUserByUsername(TEST_ADMIN_USERNAME))!
-            .wrapped_data_key,
+        insertInto(tables.users, {
+          adminLevel: await encrypt("manager"),
+          passwordHash: encHash,
+          usernameHash: await encrypt("manager"),
+          usernameIndex: "manager-idx-unique",
+          wrappedDataKey: (await getUserByUsername(TEST_ADMIN_USERNAME))!
+            .wrappedDataKey,
         }),
       );
       invalidateUsersCache();
@@ -134,9 +136,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       await expectFlashRedirect(
         "/admin/settings?form=settings-password#settings-password",
@@ -152,9 +154,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       // If the user is deleted during the request, the password change
       // redirects to the login page at /admin. A POST is not navigable after
@@ -168,12 +170,12 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       const { hmacHash } = await import("#crypto/hashing.ts");
       const managerIdx = await hmacHash("formmanager");
       await getDb().execute(
-        insert("users", {
-          admin_level: await encrypt("manager"),
-          password_hash: "",
-          username_hash: await encrypt("formmanager"),
-          username_index: managerIdx,
-          wrapped_data_key: null,
+        insertInto(tables.users, {
+          adminLevel: await encrypt("manager"),
+          passwordHash: "",
+          usernameHash: await encrypt("formmanager"),
+          usernameIndex: managerIdx,
+          wrappedDataKey: null,
         }),
       );
       invalidateUsersCache();
@@ -192,10 +194,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings",
           {
-            csrf_token: signedCsrf,
-            current_password: "test",
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
+            csrfToken: signedCsrf,
+            currentPassword: "test",
+            newPassword: "newpassword123",
+            newPasswordConfirm: "newpassword123",
           },
           `${getSessionCookieName()}=mgr-form-session`,
         ),

@@ -14,6 +14,7 @@ import {
   setGroupPackageMembers,
 } from "#db/groups.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -27,7 +28,7 @@ import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 
 const insertMinimalGroup = async (name: string) => {
   const slug = name.toLowerCase().replaceAll(" ", "-");
-  return await groups.table.insert({
+  return await records.groups.insert({
     name,
     slug,
     slugIndex: await hmacHash(slug),
@@ -37,30 +38,26 @@ const insertMinimalGroup = async (name: string) => {
 describeWithEnv("db > group storage contracts", { db: true }, () => {
   test("omitted group flags default to false", async () => {
     const inserted = await insertMinimalGroup("Default Flags");
-    expect(await groups.table.read.one({ id: inserted.id })).toMatchObject({
+    expect(await records.groups.find(inserted.id)).toMatchObject({
       hidden: false,
-      hide_package_listings: false,
-      is_package: false,
+      hidePackageListings: false,
+      isPackage: false,
     });
   });
 
   test("a group write refreshes an already-read group cache", async () => {
-    expect(await groups.cache.getAll()).toEqual([]);
+    expect(await groups.getAll()).toEqual([]);
 
     const group = await insertMinimalGroup("Cache Refresh");
 
-    expect((await groups.cache.getAll()).map(({ id }) => id)).toEqual([
-      group.id,
-    ]);
+    expect((await groups.getAll()).map(({ id }) => id)).toEqual([group.id]);
   });
 
   test("a second read inside the cache window does not query again", async () => {
     await insertMinimalGroup("Cache Window");
-    await groups.cache.getAll();
+    await groups.getAll();
 
-    const { roundTrips } = await runAndCountRoundTrips(() =>
-      groups.cache.getAll(),
-    );
+    const { roundTrips } = await runAndCountRoundTrips(() => groups.getAll());
 
     expect(roundTrips).toBe(0);
   });
@@ -172,8 +169,8 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
 
     expect(
       (await getGroupPackagePrices(group.id))
-        .map(({ listing_id, quantity }): [number, number] => [
-          listing_id,
+        .map(({ listingId, quantity }): [number, number] => [
+          listingId,
           quantity,
         ])
         .toSorted(([left], [right]) => left - right),
@@ -204,7 +201,7 @@ describeWithEnv("db > group package write contracts", { db: true }, () => {
     });
 
     const rows = await getGroupPackagePrices(group.id);
-    expect(rows.find((r) => r.listing_id === member.id)?.quantity).toBe(2);
+    expect(rows.find((r) => r.listingId === member.id)?.quantity).toBe(2);
   });
 
   test("bulk deactivation updates every member", async () => {

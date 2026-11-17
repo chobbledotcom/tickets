@@ -50,9 +50,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
     overrides: Record<string, string> = {},
   ): Promise<Response> {
     return submitSetupForm({
-      admin_password: "mypassword123",
-      admin_password_confirm: "mypassword123",
-      admin_username: TEST_ADMIN_USERNAME,
+      adminPassword: "mypassword123",
+      adminPasswordConfirm: "mypassword123",
+      adminUsername: TEST_ADMIN_USERNAME,
       country: "GB",
       ...overrides,
     });
@@ -77,9 +77,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
     const postResponse = await handleRequest(
       mockSetupFormRequest(
         {
-          admin_password: "mypassword123",
-          admin_password_confirm: "mypassword123",
-          admin_username: TEST_ADMIN_USERNAME,
+          adminPassword: "mypassword123",
+          adminPasswordConfirm: "mypassword123",
+          adminUsername: TEST_ADMIN_USERNAME,
           country: "GB",
         },
         csrfToken as string,
@@ -365,9 +365,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // POST without getting CSRF token first
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
           }),
         );
@@ -382,11 +382,11 @@ describeWithEnv("server (setup)", { db: true }, () => {
         // Send a wrong token in the form body
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
-            csrf_token: "wrong-token-in-form",
+            csrfToken: "wrong-token-in-form",
           }),
         );
         await expectFlashRedirect(
@@ -398,8 +398,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with empty password shows validation error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password: "",
-          admin_password_confirm: "",
+          adminPassword: "",
+          adminPasswordConfirm: "",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -410,7 +410,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with mismatched passwords shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password_confirm: "different",
+          adminPasswordConfirm: "different",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -421,8 +421,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ with short password shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          admin_password: "short",
-          admin_password_confirm: "short",
+          adminPassword: "short",
+          adminPasswordConfirm: "short",
         });
         await expectFlashRedirect(
           "/setup/",
@@ -444,7 +444,7 @@ describeWithEnv("server (setup)", { db: true }, () => {
 
       test("POST /setup/ without accepting agreement shows error", async () => {
         const response = await submitSetupFormWithDefaults({
-          accept_agreement: "", // Explicitly not accepting
+          acceptAgreement: "", // Explicitly not accepting
         });
         await expectFlashRedirect(
           "/setup/",
@@ -479,9 +479,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
               const response = await handleRequest(
                 mockSetupFormRequest(
                   {
-                    admin_password: "mypassword123",
-                    admin_password_confirm: "mypassword123",
-                    admin_username: TEST_ADMIN_USERNAME,
+                    adminPassword: "mypassword123",
+                    adminPasswordConfirm: "mypassword123",
+                    adminUsername: TEST_ADMIN_USERNAME,
                     country: "GB",
                   },
                   csrfToken as string,
@@ -527,8 +527,8 @@ describeWithEnv("server (setup)", { db: true }, () => {
       test("POST /setup/ redirects to home", async () => {
         const response = await handleRequest(
           mockFormRequest("/setup/", {
-            admin_password: "newpassword123",
-            admin_password_confirm: "newpassword123",
+            adminPassword: "newpassword123",
+            adminPasswordConfirm: "newpassword123",
             country: "FR",
           }),
         );
@@ -557,9 +557,9 @@ describeWithEnv("server (setup)", { db: true }, () => {
       await handleRequest(
         mockSetupFormRequest(
           {
-            admin_password: "mypassword123",
-            admin_password_confirm: "mypassword123",
-            admin_username: TEST_ADMIN_USERNAME,
+            adminPassword: "mypassword123",
+            adminPasswordConfirm: "mypassword123",
+            adminUsername: TEST_ADMIN_USERNAME,
             country: "US",
           },
           csrfToken as string,

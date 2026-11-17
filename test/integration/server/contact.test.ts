@@ -73,8 +73,8 @@ const withContactFetch = async (
 const postContactForm = async (
   fields: Record<string, string>,
 ): Promise<Response> => {
-  const csrf_token = await contactCsrf();
-  return handleRequest(mockFormRequest("/contact", { csrf_token, ...fields }));
+  const csrfToken = await contactCsrf();
+  return handleRequest(mockFormRequest("/contact", { csrfToken, ...fields }));
 };
 
 /** Activate the form, GET /contact, assert it renders, and return the HTML. */
@@ -331,7 +331,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest("/contact", {
             _botpoison: "solved",
-            csrf_token: "invalid",
+            csrfToken: "invalid",
             email: "visitor@example.com",
             message: "Hello!",
           }),

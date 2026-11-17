@@ -261,7 +261,7 @@ describe("documented admin CRUD endpoints", () => {
     // The stored column's own default, which is what a create that says
     // nothing about this field gets.
     expect(created.maximum_days_after).toBe(
-      fieldOfKey(LISTING_FIELDS, "maximum_days_after").default,
+      fieldOfKey(LISTING_FIELDS, "maximumDaysAfter").default,
     );
   });
 

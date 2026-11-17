@@ -127,9 +127,9 @@ export const saveOwnerMoneyForm = async (
           form: findFormByButton(
             findForms(browser.currentHtml),
             SIMPLE_FORM_BUTTON[kind],
-            ["confirm_identifier"],
+            ["confirmIdentifier"],
           ),
-          values: { confirm_identifier: who },
+          values: { confirmIdentifier: who },
         };
   const saved: SavedOwnerForm = {
     attendeeId: safetyBooking(world, who).attendeeId,
@@ -192,11 +192,11 @@ export const managerSubmitsSavedOwnerForm: ActOnSavedOwnerForm = async (
   await browser.clickLink("Edit");
   const managerCsrf = findForms(browser.currentHtml)
     .flatMap(({ body }) => extractFormEntries(body))
-    .find(([name]) => name === "csrf_token")?.[1];
+    .find(([name]) => name === "csrfToken")?.[1];
   if (managerCsrf === undefined) {
     throw new Error("The manager's Actions page offered no valid form token");
   }
-  body.set("csrf_token", managerCsrf);
+  body.set("csrfToken", managerCsrf);
   const response = await handleRequest(
     new Request(`http://localhost${rendered.action}`, {
       body,

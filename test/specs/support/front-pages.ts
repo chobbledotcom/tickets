@@ -34,12 +34,12 @@ export const ownerWritesHomepage = (
   welcome: string,
 ): Promise<void> =>
   writesFrontPage(world, "/admin/site", {
-    homepage_text: welcome,
-    website_title: title,
+    homepageText: welcome,
+    websiteTitle: title,
   });
 
 export const ownerWritesContactPage: ActOnOneThing = (world, text) =>
-  writesFrontPage(world, "/admin/site/contact", { contact_page_text: text });
+  writesFrontPage(world, "/admin/site/contact", { contactPageText: text });
 
 /** The owner turns the order page on and writes its introduction. The page
  * carries two forms behind the same Save wording; each send goes through the
@@ -49,10 +49,10 @@ export const ownerTurnsOrderPageOn: ActOnOneThing = async (world, intro) => {
   const browser = await openAdminPage(world, "/admin/site/order");
   // The tick only counts if the page's own box really sends "true" — the
   // value the route reads — not a value the story made up.
-  requireCheckboxOffered(browser.currentHtml, "order_enabled", "true");
-  await fillInAndSend(browser, { order_enabled: "true" }, "Save");
+  requireCheckboxOffered(browser.currentHtml, "orderEnabled", "true");
+  await fillInAndSend(browser, { orderEnabled: "true" }, "Save");
   assertStringIncludes(browser.pageText, "Order page enabled");
-  await fillInAndSend(browser, { order_intro_text: intro }, "Save");
+  await fillInAndSend(browser, { orderIntroText: intro }, "Save");
   assertStringIncludes(browser.pageText, "Order page updated");
 };
 

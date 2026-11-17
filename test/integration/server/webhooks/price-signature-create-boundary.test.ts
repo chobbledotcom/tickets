@@ -93,8 +93,8 @@ describeWithEnv("paid webhook create boundary", { db: true }, () => {
         expect(decrypted!.id).toBe(committed.attendeeId);
         expect(decrypted!.ticket_token).toBe(committed.ticketToken);
         const processed = await getProcessedPayment(sessionId);
-        expect(processed!.attendee_id).toBe(committed.attendeeId);
-        expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe("");
+        expect(processed!.attendeeId).toBe(committed.attendeeId);
+        expect(await decryptSessionTokens(processed!.ticketTokens)).toBe("");
         const replayedRedirect = await redirectRequest(sessionId);
         expect(replayedRedirect.status).toBe(200);
         expect(await getAttendeesRaw(listing.id)).toEqual(attendees);

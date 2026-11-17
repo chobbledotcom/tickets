@@ -9,11 +9,10 @@ import {
   inStatement,
   literal,
   matchesNothing,
-  named,
   notInQuery,
   sum,
 } from "#db/select/expression.ts";
-import { from, fromNamed, tableNode, via } from "#db/select/query.ts";
+import { from, tableNode, via } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { placed } from "#test-utils/sql-text.ts";
@@ -25,7 +24,7 @@ describe("from", () => {
         from(tables.listings)
           .where((listing) => equal(listing.id, 7))
           .select((listing) => ({
-            cap: listing.max_attendees,
+            cap: listing.maxAttendees,
             id: listing.id,
           })),
       ),
@@ -44,7 +43,7 @@ describe("from", () => {
   test("adds each where call to the conditions", () => {
     const read = from(tables.listings)
       .where((listing) => equal(listing.active, literal(1)))
-      .where((listing) => [greaterThan(listing.max_attendees, 0), true])
+      .where((listing) => [greaterThan(listing.maxAttendees, 0), true])
       .values((listing) => listing.id);
     expect(read.sql).toBe(
       "SELECT listing.id FROM listings AS listing WHERE listing.active = 1 AND listing.max_attendees > ?1",
@@ -55,12 +54,12 @@ describe("from", () => {
     expect(
       placed(
         from(tables.listing_attendees)
-          .groupBy((line) => [line.listing_id])
-          .orderBy((line) => [desc(sum(line.quantity)), line.listing_id])
+          .groupBy((line) => [line.listingId])
+          .orderBy((line) => [desc(sum(line.quantity)), line.listingId])
           .limit(3)
           .select((line) => ({
             booked: sum(line.quantity),
-            listing_id: line.listing_id,
+            listing_id: line.listingId,
           })),
       ),
     ).toEqual({
@@ -97,7 +96,7 @@ describe("joins", () => {
     [
       "give a key that SQL reads as its own word another word",
       from(tables.group_listings, { group: {} }).values(
-        (membership) => membership.group.max_attendees,
+        (membership) => membership.group.maxAttendees,
       ),
       "SELECT groupRow.max_attendees FROM group_listings AS groupListing JOIN groups AS groupRow ON groupRow.id = groupListing.group_id",
     ],
@@ -138,14 +137,14 @@ describe("joins", () => {
     const read = from(tables.listing_attendees)
       .as("line")
       .join("membership", tables.group_listings, (line) =>
-        equal(line.membership.listing_id, line.listing_id),
+        equal(line.membership.listingId, line.listingId),
       )
       .leftJoin(
         "status",
         tables.attendee_statuses,
         (line) => [equal(line.status.id, 1)][0]!,
       )
-      .values((line) => line.membership.group_id);
+      .values((line) => line.membership.groupId);
     expect(placed(read)).toEqual({
       args: [1],
       sql: "SELECT membership.group_id FROM listing_attendees AS line JOIN group_listings AS membership ON membership.listing_id = line.listing_id LEFT JOIN attendee_statuses AS status ON status.id = ?",
@@ -190,7 +189,7 @@ describe("joins", () => {
 describe("a read inside another", () => {
   const bookedBy = (listingId: Parameters<typeof equal<number>>[1]) =>
     from(tables.listing_attendees).where((line) =>
-      equal(line.listing_id, listingId),
+      equal(line.listingId, listingId),
     );
 
   test("asks whether a row exists", () => {
@@ -224,7 +223,7 @@ describe("a read inside another", () => {
           .where((listing) =>
             inQuery(
               listing.id,
-              bookedBy(4).values((line) => line.listing_id),
+              bookedBy(4).values((line) => line.listingId),
             ),
           )
           .values((listing) => listing.id),
@@ -241,9 +240,7 @@ describe("a read inside another", () => {
         .where((listing) =>
           notInQuery(
             listing.id,
-            from(tables.listing_parents).values(
-              (edge) => edge.child_listing_id,
-            ),
+            from(tables.listing_parents).values((edge) => edge.childListingId),
           ),
         )
         .values((listing) => listing.id).sql,
@@ -332,9 +329,9 @@ describe("a column list written by hand", () => {
     expect(
       from(tables.questions)
         .leftJoin("listingQuestion", tables.listing_questions, (question) =>
-          equal(question.listingQuestion.listing_id, 7),
+          equal(question.listingQuestion.listingId, 7),
         )
-        .where((question) => equal(question.sort_order, 8))
+        .where((question) => equal(question.sortOrder, 8))
         .limit(2)
         .columns((question) => question.id).args,
     ).toEqual([7, 8, 2]);
@@ -362,7 +359,7 @@ describe("aggregate", () => {
   test("refuses a grouped read, which has many rows", () => {
     expect(() =>
       from(tables.listing_attendees)
-        .groupBy((line) => [line.listing_id])
+        .groupBy((line) => [line.listingId])
         .aggregate((line) => sum(line.quantity)),
     ).toThrow("A grouped read has many rows, so it has no one value.");
   });
@@ -392,23 +389,5 @@ describe("statements written by hand", () => {
       args: [3],
       sql: "SELECT listing.id FROM listings AS listing WHERE listing.id IN (SELECT thing FROM things WHERE x = ?)",
     });
-  });
-});
-
-describe("a table named by text", () => {
-  test("is read with columns named by text", () => {
-    expect(
-      fromNamed("holidays")
-        .where(() => equal(named("id"), 4))
-        .columns(() => sql`id, name`),
-    ).toEqual(sql`SELECT id, name FROM holidays WHERE id = ${4}`);
-  });
-
-  test("goes by another word where the read gives one", () => {
-    expect(
-      fromNamed("things")
-        .as("thing")
-        .columns(() => sql`thing.id`).sql,
-    ).toBe("SELECT thing.id FROM things AS thing");
   });
 });

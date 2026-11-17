@@ -40,7 +40,7 @@ const postChoices = async (
   handler(
     mockFormRequest(
       `/admin/listing/${id}/widgets`,
-      { csrf_token: await testCsrfToken(), ...data },
+      { csrfToken: await testCsrfToken(), ...data },
       await testCookie(),
     ),
     { id },

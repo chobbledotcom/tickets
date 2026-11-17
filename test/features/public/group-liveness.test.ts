@@ -25,7 +25,7 @@ const recordPublicPage = async (
   names: string[],
 ): Promise<string[]> => {
   await enablePublicSite();
-  groups.cache.invalidate();
+  groups.invalidate();
   invalidateListingsCache();
   const seen: string[] = [];
   const restore = recordQueries(seen);
@@ -195,7 +195,7 @@ describeWithEnv(
 
       const packageRows = seen.filter((sql) =>
         sql.startsWith(
-          "SELECT groupListing.group_id, groupListing.listing_id,",
+          "SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId,",
         ),
       );
       const onePackageIds = seen.filter((sql) =>

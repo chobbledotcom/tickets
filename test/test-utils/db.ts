@@ -79,7 +79,7 @@ const invalidateEntityCaches = (): void => {
   invalidateUsersCache();
   invalidateListingsCache();
   holidays.invalidate();
-  groups.cache.invalidate();
+  groups.invalidate();
   logisticsAgents.invalidate();
   attendeeStatuses.invalidate();
 };

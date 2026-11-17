@@ -147,7 +147,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       // so a looser check would pass without the value ever being carried.
       assertStringIncludes(
         await response.text(),
-        'name="return_url" type="hidden" value="/admin/calendar"',
+        'name="returnUrl" type="hidden" value="/admin/calendar"',
       );
     });
 
@@ -155,7 +155,7 @@ describeWithEnv("the attendee page", { db: true }, () => {
       const id = await bookAttendee();
       const html = await tabHtml(id, "edit");
       // No return URL means no hidden field, rather than an empty one.
-      assert(!html.includes('name="return_url" type="hidden"'));
+      assert(!html.includes('name="returnUrl" type="hidden"'));
     });
   });
 
@@ -292,7 +292,7 @@ describeWithEnv(
         "Unrecorded Plan",
         "unrecorded@example.com",
         "",
-        plan.unit_price,
+        plan.unitPrice,
       );
       assert(
         !(await tabHtml(attendee.id, "")).includes("No site assigned yet"),

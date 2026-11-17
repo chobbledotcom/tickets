@@ -1,11 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { modifiersTable } from "#db/modifiers.ts";
 import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
-import { expectModifierUsage } from "#test-utils/modifiers.ts";
+import { expectModifierUsage, insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 import {
   checkoutSessionEvent,
@@ -18,8 +17,7 @@ const createFixedPromoModifier = (
   direction: "charge" | "discount",
   name: string,
 ) =>
-  modifiersTable.insert({
-    calcKind: "fixed",
+  insertModifier({
     calcValue: 1,
     direction,
     name,
@@ -110,7 +108,7 @@ describeWithEnv("server webhooks > promo codes", { db: true }, () => {
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
+    const modifier = await insertModifier({
       calcKind: "multiply",
       calcValue: 0.8,
       direction: "discount",

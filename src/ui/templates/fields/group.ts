@@ -4,6 +4,7 @@
  */
 
 import { t } from "#i18n";
+import { columnName } from "#shared/column-names.ts";
 import { defineFieldsForm, type FormValues } from "#shared/forms/definition.ts";
 import type { ChoiceField, Field, InputField } from "#shared/forms/field.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -22,11 +23,11 @@ const getGroupMaxAttendeesField = () => {
     hint: t("fields.group.max_attendees_hint"),
     label,
     min: 0,
-    name: "max_attendees",
+    name: "maxAttendees",
     // The catalog kind (nonNegativeInt) is the declaration the group JSON
     // API enforces. The form refuses the same fraction.
     ...wholeNumberFieldShape(label),
-  } satisfies InputField<"max_attendees">;
+  } satisfies InputField<"maxAttendees">;
 };
 
 /** Group description field */
@@ -39,10 +40,12 @@ const getGroupDescriptionField = () =>
 const getGroupCheckboxField =
   <Name extends GroupToggleName>(name: Name) =>
   (): ChoiceField<"checkbox-group", "1", Name> => ({
-    hint: t(`fields.group.${name}_hint`),
-    label: t(`fields.group.${name}`),
+    hint: t(`fields.group.${columnName(name)}_hint`),
+    label: t(`fields.group.${columnName(name)}`),
     name,
-    options: [{ label: t(`fields.group.${name}_label`), value: "1" }],
+    options: [
+      { label: t(`fields.group.${columnName(name)}_label`), value: "1" },
+    ],
     type: "checkbox-group",
   });
 
@@ -52,10 +55,10 @@ const getGroupCheckboxField =
  * group kind. The edit page reveals and hides them via the same CSS trick.
  * See the form-visibility section of the stylesheet. */
 const groupToggleNames = [
-  "is_package",
-  "hide_package_listings",
-  "scan_checks_in_all_listings",
-  "show_hidden_listings",
+  "isPackage",
+  "hidePackageListings",
+  "scanChecksInAllListings",
+  "showHiddenListings",
 ] as const;
 type GroupToggleName = (typeof groupToggleNames)[number];
 
@@ -78,7 +81,7 @@ const groupCreateFields = () => {
       label: t("fields.group.terms"),
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,
-      name: "terms_and_conditions",
+      name: "termsAndConditions",
       type: "textarea",
       validate: (value: string) =>
         value.length > MAX_TEXTAREA_LENGTH

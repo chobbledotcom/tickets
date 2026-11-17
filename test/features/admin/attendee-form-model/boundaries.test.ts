@@ -22,7 +22,7 @@ describe("attendee form model > boundaries", () => {
 
   test("reads the return link and a status id of 1", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", return_url: "/admin/calendar", status_id: "1" }),
+      makeForm({ name: "X", returnUrl: "/admin/calendar", statusId: "1" }),
       new Map(),
     );
     expect(parsed.returnUrl).toBe("/admin/calendar");
@@ -30,8 +30,8 @@ describe("attendee form model > boundaries", () => {
   });
 
   describe("a balance of one penny", () => {
-    const paid = { is_paid_default: true, is_reservation: false };
-    const reservation = { is_paid_default: false, is_reservation: true };
+    const paid = { isPaidDefault: true, isReservation: false };
+    const reservation = { isPaidDefault: false, isReservation: true };
 
     test("still warns on a paid status", () => {
       expect(attendeeBalanceNotice(paid, 1, 1000, 999)?.tone).toBe("warning");

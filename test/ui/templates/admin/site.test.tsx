@@ -22,8 +22,8 @@ describeWithEnv("site editor pages", { db: true }, () => {
     expectIncludesAll(html, [
       'value="My site"',
       "Welcome!",
-      'name="website_title"',
-      'name="homepage_text"',
+      'name="websiteTitle"',
+      'name="homepageText"',
       'action="/admin/site"',
     ]);
   });
@@ -54,16 +54,16 @@ describeWithEnv("site editor pages", { db: true }, () => {
     });
     expectIncludesAll(html, [
       "Email us",
-      'name="contact_page_text"',
+      'name="contactPageText"',
       'action="/admin/site/contact"',
       // The toggle posts to its own route with a checkbox the route reads.
       'action="/admin/site/contact/form"',
     ]);
-    const toggle = inputNamed(html, "contact_form_enabled");
+    const toggle = inputNamed(html, "contactFormEnabled");
     expectIncludesAll(toggle, ['type="checkbox"', 'value="true"']);
     // The box and its label stay one space apart, not glued.
     expect(html).toMatch(
-      /name="contact_form_enabled"[^>]*>\s+Enable contact form/,
+      /name="contactFormEnabled"[^>]*>\s+Enable contact form/,
     );
     assertStringIncludes(html, "submissions are accepted without a spam check");
     assert(!html.includes("to receive contact form messages"));
@@ -100,14 +100,14 @@ describeWithEnv("site editor pages", { db: true }, () => {
     });
     expectIncludesAll(html, [
       "Before you book, note:",
-      'name="order_intro_text"',
+      'name="orderIntroText"',
       'action="/admin/site/order"',
       'action="/admin/site/order/toggle"',
     ]);
-    const toggle = inputNamed(html, "order_enabled");
+    const toggle = inputNamed(html, "orderEnabled");
     expectIncludesAll(toggle, ['type="checkbox"', 'value="true"']);
     // The box and its label stay one space apart, not glued.
-    expect(html).toMatch(/name="order_enabled"[^>]*>\s+Enable order page/);
+    expect(html).toMatch(/name="orderEnabled"[^>]*>\s+Enable order page/);
     assertStringIncludes(html, 'class="prose"');
   });
 

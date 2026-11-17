@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { encryptBytes } from "#crypto/encryption.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { getDb } from "#db/client.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signAttachmentUrl } from "#shared/attachment-url.ts";
@@ -36,7 +36,7 @@ describeWithEnv(
         "Test User",
         "test@example.com",
       );
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName: "guide.pdf",
         attachmentUrl: "file.pdf",
       });
@@ -49,7 +49,7 @@ describeWithEnv(
         "Test User",
         "test@example.com",
       );
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         attachmentName,
         attachmentUrl: "file.pdf",
       });

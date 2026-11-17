@@ -5,7 +5,6 @@ import { it as test } from "@std/testing/bdd";
 import { queryAll, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import { moveUndatedBookingsToDayTx } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import {
@@ -15,9 +14,11 @@ import {
   wouldBeStartDates,
 } from "#routes/admin/listings-switch.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { listingFormView } from "#templates/fields/listing.ts";
-import { inputFor } from "#test/shared/listings-actions/helpers.ts";
+import {
+  inputFor,
+  storedInputFor,
+} from "#test/shared/listings-actions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -44,17 +45,6 @@ const setCapacity = (listingId: number, max: number) =>
     sql`UPDATE listings SET max_attendees = ${max} WHERE id = ${listingId}`,
   );
 
-/** A would-be daily input over the stored row: the row's own fields with the
- * caller's submitted daily fields on top. */
-const wouldBeInput = (
-  stored: ListingWithCount,
-  overrides: Partial<ListingInput> = {},
-): ListingInput => ({
-  ...(listingsTable.rowToInput(stored) as ListingInput),
-  groupIds: [],
-  ...overrides,
-});
-
 /** The booking rows of one listing, with their day windows. */
 const rawRows = async (
   listingId: number,
@@ -73,8 +63,8 @@ const switchForm = (
 ): ReturnType<typeof testFormParams> =>
   testFormParams(
     dailySwitchForm(stored, {
-      assign_undated_to: "",
-      duration_days: "2",
+      assignUndatedTo: "",
+      durationDays: "2",
       ...extra,
     }),
   );
@@ -98,7 +88,7 @@ const planSwitch = (
 const confirmedPickStep = (
   listing: ListingWithCount,
   day: string,
-): Promise<SwitchStep> => planSwitch(listing, { assign_undated_to: day });
+): Promise<SwitchStep> => planSwitch(listing, { assignUndatedTo: day });
 
 /** Confirms a pick of the listing's first bookable day, and checks that the
  * plan moves `count` bookings to that day. */
@@ -137,7 +127,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     });
     const offered = await wouldBeStartDates(
       stored,
-      wouldBeInput(stored, {
+      await storedInputFor(stored.id, {
         bookableDays: ["Monday", "Tuesday"],
         customisableDays: false,
         durationDays: 1,
@@ -159,7 +149,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
         maximumDaysAfter: 30,
         minimumDaysBefore: 2,
       })),
-      customisable_days: true,
+      customisableDays: true,
     };
     const submitted = {
       bookableDays: ["Monday", "Tuesday"],
@@ -173,16 +163,19 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const expected = getBookableStartDates(
       {
         ...stored,
-        bookable_days: submitted.bookableDays,
-        customisable_days: false,
-        duration_days: 2,
-        maximum_days_after: 0,
-        minimum_days_before: 0,
+        bookableDays: submitted.bookableDays,
+        customisableDays: false,
+        durationDays: 2,
+        maximumDaysAfter: 0,
+        minimumDaysBefore: 0,
       },
       await holidays.getAll(),
     );
     expect(
-      await wouldBeStartDates(stored, wouldBeInput(stored, submitted)),
+      await wouldBeStartDates(
+        stored,
+        await storedInputFor(stored.id, submitted),
+      ),
     ).toEqual(expected);
   });
 
@@ -193,7 +186,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     );
     const fits = await probeAssignDates(
       listing,
-      wouldBeInput(listing, { listingType: "daily" }),
+      await storedInputFor(listing.id, { listingType: "daily" }),
       ["2026-11-05", "2026-11-06"],
       1,
       1,
@@ -221,7 +214,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     // row count (2) would wrongly fit.
     const fits = await probeAssignDates(
       listing,
-      wouldBeInput(listing, { listingType: "daily" }),
+      await storedInputFor(listing.id, { listingType: "daily" }),
       [day],
       5,
       1,
@@ -234,9 +227,9 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const taken = await createTestListing({ name: "Taken" });
     // The same blind slug index as the other listing: the probe's row write
     // violates the unique index, and the failure is no capacity verdict.
-    const clash = wouldBeInput(listing, {
+    const clash = await storedInputFor(listing.id, {
       slug: taken.slug,
-      slugIndex: taken.slug_index,
+      slugIndex: taken.slugIndex,
     });
     await expect(
       probeAssignDates(listing, clash, ["2026-11-05"], 1, 1),
@@ -247,7 +240,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const untouched = await createTestListing({ name: "Quiet hall" });
     const booked = await hallWithOneUndatedBooking();
     expect([
-      (await planSwitch(untouched, { listing_type: "standard" })).kind,
+      (await planSwitch(untouched, { listingType: "standard" })).kind,
       (await planSwitch(booked, { name: "" })).kind,
     ]).toEqual(["none", "invalid"]);
   });
@@ -260,7 +253,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     expect(step.error).toContain("Pick a date to move the bookings to.");
     expect(step.page.card.count).toBe(1);
     expect(step.page.card.dates.length).toBeGreaterThan(0);
-    expect(step.page.submittedValues.listing_type).toBe("daily");
+    expect(step.page.submittedValues.listingType).toBe("daily");
   });
 
   test("the card and the plan count the bookings, not the places they hold", async () => {
@@ -273,7 +266,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
 
   test("a pick outside the offered dates is refused with the pick error", async () => {
     const listing = await hallWithOneUndatedBooking();
-    const step = await planSwitch(listing, { assign_undated_to: "2020-01-01" });
+    const step = await planSwitch(listing, { assignUndatedTo: "2020-01-01" });
     expect(step).toMatchObject({ kind: "page", status: 400 });
   });
 
@@ -281,7 +274,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
     const listing = await hallWithOneUndatedBooking();
     // The submission checks no bookable day, so the would-be calendar is
     // empty and there is no date to pick.
-    const step = await planSwitch(listing, { bookable_days: [] });
+    const step = await planSwitch(listing, { bookableDays: [] });
     expect(step).toMatchObject({ kind: "page", status: 200 });
     if (step.kind !== "page") return;
     expect(step.page.card.noDates).toBe(true);
@@ -292,7 +285,7 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
   test("the card says no date fits only when every offered date is full", async () => {
     const listing = await hallWithOneUndatedBooking();
     // One offered day: tomorrow, for a one-day stay.
-    const oneDay = { duration_days: "1", maximum_days_after: "1" };
+    const oneDay = { durationDays: "1", maximumDaysAfter: "1" };
     const open = await planSwitch(listing, oneDay);
     expect(open).toMatchObject({ kind: "page" });
     if (open.kind !== "page") return;
@@ -351,15 +344,15 @@ describeWithEnv("admin: the switch plan and its probe", { db: true }, () => {
           { bookableDays: allDays, listingType: "daily" },
           listing,
         ),
-        group_ids: String(group.id),
+        groupIds: String(group.id),
       },
     );
 
     expect(response.status).toBe(200);
     const html = await response.text();
-    expect(html).toContain('name="assign_undated_to"');
+    expect(html).toContain('name="assignUndatedTo"');
     expect(html).toContain(
-      `checked name="group_ids" type="checkbox" value="${group.id}"`,
+      `checked name="groupIds" type="checkbox" value="${group.id}"`,
     );
   });
 

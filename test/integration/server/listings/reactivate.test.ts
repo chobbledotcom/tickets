@@ -37,7 +37,7 @@ describeWithEnv("server listings > reactivate", { db: true }, () => {
         "/admin/listing/1/reactivate",
         "Reactivate Listing",
         "available for registrations",
-        'name="confirm_identifier"',
+        'name="confirmIdentifier"',
         "type its name",
       );
     });
@@ -52,7 +52,7 @@ describeWithEnv("server listings > reactivate", { db: true }, () => {
       await deactivateTestListing(listing.id);
 
       const { response } = await adminFormPost("/admin/listing/1/reactivate", {
-        confirm_identifier: listing.name,
+        confirmIdentifier: listing.name,
       });
       await expectFlashRedirect(
         "/admin/listing/1",
@@ -76,7 +76,7 @@ describeWithEnv("server listings > reactivate", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/listing/999/reactivate",
         {
-          confirm_identifier: "something",
+          confirmIdentifier: "something",
         },
       );
       expect(response.status).toBe(404);

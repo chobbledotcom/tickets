@@ -48,26 +48,26 @@ describe("effectivePrice", () => {
     expect(
       effectivePrice(
         rule,
-        listing({ unit_price: 1000 }),
+        listing({ unitPrice: 1000 }),
         new Map([[7, 2000]]),
         1,
       ),
     ).toBe(2000);
     // A submitted 0 (a free pay-more booking) is honoured, not replaced by unit_price.
     expect(
-      effectivePrice(rule, listing({ unit_price: 1000 }), new Map([[7, 0]]), 1),
+      effectivePrice(rule, listing({ unitPrice: 1000 }), new Map([[7, 0]]), 1),
     ).toBe(0);
     // No submitted price falls back to the unit price.
     expect(
-      effectivePrice(rule, listing({ unit_price: 1000 }), new Map(), 1),
+      effectivePrice(rule, listing({ unitPrice: 1000 }), new Map(), 1),
     ).toBe(1000);
   });
 
   test("DAY_PRICE returns the day-count price, or 0 for an unoffered count", () => {
     const l = listing({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 3,
     });
     expect(effectivePrice({ kind: "DAY_PRICE" }, l, new Map(), 2)).toBe(1800);
     // A 3-day span is within duration_days but has no configured price → 0.
@@ -76,9 +76,9 @@ describe("effectivePrice", () => {
 
   test("DAY_PRICE consults a package's per-day override before the listing's own price", () => {
     const l = listing({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
     });
     const rule: PriceRule = {
       kind: "DAY_PRICE",
@@ -102,7 +102,7 @@ describe("effectivePrice", () => {
     expect(
       effectivePrice(
         { kind: "BASE" },
-        listing({ unit_price: 500 }),
+        listing({ unitPrice: 500 }),
         new Map(),
         1,
       ),
@@ -111,7 +111,7 @@ describe("effectivePrice", () => {
     expect(
       effectivePrice(
         { kind: "BASE" },
-        listing({ unit_price: 500 }),
+        listing({ unitPrice: 500 }),
         new Map([[7, 1500]]),
         1,
       ),
@@ -199,16 +199,14 @@ describe("packageBundleTotal", () => {
     over: Pick<Parameters<typeof buildBookingTree>[0], "listings" | "packages">,
   ) =>
     buildBookingTree({
-      childrenByParentId: new Map([
-        [5, [resolved({ id: 9, unit_price: 300 })]],
-      ]),
+      childrenByParentId: new Map([[5, [resolved({ id: 9, unitPrice: 300 })]]]),
       slugs: ["pkg"],
       ...over,
     });
 
   test("sums each member's unit + cheapest bookable child, × its fixed quantity", () => {
     const tree = bundleTree({
-      listings: [resolved({ id: 5 }), resolved({ id: 6, unit_price: 500 })],
+      listings: [resolved({ id: 5 }), resolved({ id: 6, unitPrice: 500 })],
       packages: [
         treePackage(3, [5, 6], {
           prices: new Map([[5, 1000]]),
@@ -223,7 +221,7 @@ describe("packageBundleTotal", () => {
 
   test("a child that is not bookable adds nothing to the minimum charge", () => {
     const tree = bundleTree({
-      listings: [resolved({ id: 5, unit_price: 1000 })],
+      listings: [resolved({ id: 5, unitPrice: 1000 })],
       packages: [treePackage(3, [5])],
     });
     // Child 9 is outside the bookable set → filtered out → just the member's 1000.
@@ -252,23 +250,23 @@ describe("packageBundleTotal", () => {
             5,
             [
               resolved({
-                customisable_days: true,
-                day_prices: { 1: 1000, 2: 2000, 3: 3000 },
-                duration_days: 3,
+                customisableDays: true,
+                dayPrices: { 1: 1000, 2: 2000, 3: 3000 },
+                durationDays: 3,
                 id: 9,
-                unit_price: 0,
+                unitPrice: 0,
               }),
             ],
           ],
         ]),
         listings: [
           resolved({
-            customisable_days: customisable,
-            day_prices: { 2: 500 },
-            duration_days: 3,
+            customisableDays: customisable,
+            dayPrices: { 2: 500 },
+            durationDays: 3,
             id: 5,
-            listing_type: listingType,
-            unit_price: 500,
+            listingType: listingType,
+            unitPrice: 500,
           }),
         ],
         packages: [treePackage(3, [5])],
@@ -288,10 +286,10 @@ describe("priceRuleByListingId", () => {
           4,
           [
             resolved({
-              can_pay_more: true,
+              canPayMore: true,
               id: 9,
-              max_price: 5000,
-              unit_price: 100,
+              maxPrice: 5000,
+              unitPrice: 100,
             }),
           ],
         ],
@@ -327,11 +325,11 @@ describe("priceRuleByListingId", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          customisable_days: true,
-          day_prices: { 1: 1000, 2: 1800 },
-          duration_days: 2,
+          customisableDays: true,
+          dayPrices: { 1: 1000, 2: 1800 },
+          durationDays: 2,
           id: 5,
-          listing_type: "daily",
+          listingType: "daily",
         }),
       ],
       packages: [

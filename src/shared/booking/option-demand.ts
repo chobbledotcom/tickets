@@ -144,7 +144,7 @@ const parentFoldsAtSpan = (
   // as the form's submit validates the day count.
   if (
     date !== null &&
-    parent.listing.listing_type === "daily" &&
+    parent.listing.listingType === "daily" &&
     !isBookingRangeValid(parent.listing, date, durationDays, holidays)
   ) {
     return { failure: "parent_date", ok: false };
@@ -244,7 +244,7 @@ const requiredDurations = (
   const required = new Set<number>();
   for (const { durationDays, candidates } of members) {
     if (candidates.length === 0) continue;
-    if (candidates.some((child) => !child.listing.customisable_days)) continue;
+    if (candidates.some((child) => !child.listing.customisableDays)) continue;
     if (seededDuration !== null) required.add(seededDuration);
     required.add(durationDays);
   }
@@ -263,7 +263,7 @@ const spanOutcome = (
   const state = emptyFoldState();
   // The form seeds the fold's customisable duration with the buyer's chosen
   // span when the option carries a customisable parent.
-  if (question.parents.some((parent) => parent.listing.customisable_days)) {
+  if (question.parents.some((parent) => parent.listing.customisableDays)) {
     state.customisableDuration = dayCount;
   }
   const { spans, units } = newFoldAccumulators();
@@ -328,7 +328,7 @@ const gateRefusal = (question: OptionDemandQuestion): OptionRefusal | null => {
  * anything else. */
 const offeredSpans = (question: OptionDemandQuestion): number[] => {
   const hasCustomisable = question.parents.some(
-    (parent) => parent.listing.customisable_days,
+    (parent) => parent.listing.customisableDays,
   );
   if (!hasCustomisable) return [1];
   return pageDayCounts(

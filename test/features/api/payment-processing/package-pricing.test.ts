@@ -21,11 +21,11 @@ const item = (e: number, q = 1) => ({ e, p: 0, q });
 
 /** A fixed-price listing row: priced by unit_price alone. */
 const fixedListing = (id: number, unitPrice: number): PricedListing => ({
-  customisable_days: false,
-  day_prices: {},
-  duration_days: 1,
+  customisableDays: false,
+  dayPrices: {},
+  durationDays: 1,
   id,
-  unit_price: unitPrice,
+  unitPrice: unitPrice,
 });
 
 /** A customisable listing row priced by its own entered day prices. */
@@ -33,11 +33,11 @@ const dayListing = (
   id: number,
   dayPrices: Record<number, number>,
 ): PricedListing => ({
-  customisable_days: true,
-  day_prices: dayPrices,
-  duration_days: 3,
+  customisableDays: true,
+  dayPrices: dayPrices,
+  durationDays: 3,
   id,
-  unit_price: 0,
+  unitPrice: 0,
 });
 
 /** The checkout's non-customisable default: day count 1, no day pricing. */

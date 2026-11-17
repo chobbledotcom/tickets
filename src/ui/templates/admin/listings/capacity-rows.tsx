@@ -53,13 +53,13 @@ const AttendeeCountDisplay = (
       <CapacityMeter
         count={completeQuantitySum}
         danger={
-          capacityLevel(completeQuantitySum, listing.max_attendees).overLimit
+          capacityLevel(completeQuantitySum, listing.maxAttendees).overLimit
         }
-        max={listing.max_attendees}
+        max={listing.maxAttendees}
       />
     );
   }
-  const level = capacityLevel(adjustedCount, listing.max_attendees);
+  const level = capacityLevel(adjustedCount, listing.maxAttendees);
   if (isDaily) {
     return (
       <span class={level.nearLimit ? "danger-text" : ""}>{adjustedCount}</span>
@@ -69,7 +69,7 @@ const AttendeeCountDisplay = (
     <CapacityMeter
       count={adjustedCount}
       danger={level.nearLimit}
-      max={listing.max_attendees}
+      max={listing.maxAttendees}
     />
   );
 };
@@ -103,7 +103,7 @@ export const AttendeesSummaryRow = (
         {" "}
         <small>
           {t("listings_table.capacity_per_date", {
-            capacity: props.listing.max_attendees,
+            capacity: props.listing.maxAttendees,
           })}
         </small>
       </>
@@ -123,7 +123,7 @@ export const GroupAttendeesRow = ({
   <LabelledRow
     label={capacityRowLabel("listings_table.group_attendees", dailySuffix)}
   >
-    <GroupCapacityMeter count={groupAttendeeCount} max={group.max_attendees} />{" "}
+    <GroupCapacityMeter count={groupAttendeeCount} max={group.maxAttendees} />{" "}
     <small>
       {t("listings_table.across_all_listings_in")}{" "}
       <a href={`/admin/groups/${group.id}`}>{group.name}</a>
@@ -153,7 +153,7 @@ export const DailyCapacityDetailTable = ({
   capacity: ListingCapacityRowsProps;
   sharedRows: DetailRow[];
 }): JSX.Element | null => {
-  if (capacity.listing.listing_type !== "daily" || !capacity.dateFilter) {
+  if (capacity.listing.listingType !== "daily" || !capacity.dateFilter) {
     return null;
   }
   return (

@@ -81,7 +81,7 @@ const config: AdminResourcePagesConfig<SyntheticResource> = {
   },
   renderFields: (current) => (
     <input
-      name="widget_name"
+      name="widgetName"
       type="text"
       value={current === undefined ? "new widget" : current.name}
     />
@@ -165,7 +165,7 @@ describe("admin resource page factory", () => {
       'action="/admin/widgets"',
       "Widget name is required.",
       "<h1>Add synthetic widget</h1>",
-      '<input name="widget_name" type="text" value="new widget">',
+      '<input name="widgetName" type="text" value="new widget">',
       "Create synthetic widget",
       "/icons.svg#plus",
     ]);
@@ -185,7 +185,7 @@ describe("admin resource page factory", () => {
       'Type the status name "Widget &amp; One" to confirm deletion:',
       "Type the post name &quot;Widget &amp; One&quot; to confirm deletion.",
       '<p data-delete-extra="true">Code: W-17</p>',
-      'name="confirm_identifier" placeholder="Widget &amp; One" required',
+      'name="confirmIdentifier" placeholder="Widget &amp; One" required',
       '<button class="danger" type="submit">',
       "Delete synthetic widget",
     ]);

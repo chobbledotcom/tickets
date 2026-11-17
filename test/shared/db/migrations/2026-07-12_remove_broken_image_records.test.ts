@@ -40,10 +40,10 @@ describeWithEnv(
       expect(await getImageUsesForImage(brokenId)).toEqual([]);
       expect(await getImageUsesForImage(real.id)).toEqual([
         {
-          image_id: real.id,
-          item_id: listing.id,
-          item_type: "listing",
-          sort_order: 1,
+          imageId: real.id,
+          itemId: listing.id,
+          itemType: "listing",
+          sortOrder: 1,
         },
       ]);
       // The library reads clean afterwards — nothing left to fall back on.
@@ -83,10 +83,10 @@ describeWithEnv(
       ]);
       expect(await getImageUsesForImage(brokenId)).toEqual([
         {
-          image_id: brokenId,
-          item_id: listing.id,
-          item_type: "listing",
-          sort_order: 0,
+          imageId: brokenId,
+          itemId: listing.id,
+          itemType: "listing",
+          sortOrder: 0,
         },
       ]);
     });

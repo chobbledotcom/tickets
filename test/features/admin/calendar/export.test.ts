@@ -2,7 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb, queryOne } from "#db/client.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
@@ -164,7 +164,7 @@ describeWithEnv(
       test("adds logistics run-sheet columns for logistics bookings", async () => {
         await withSetting(featureSetting("logistics"), async () => {
           const vanOne = (
-            await logisticsAgents.table.insert({ name: "Van One" })
+            await records.logistics_agents.insert({ name: "Van One" })
           ).id;
           const listing = await createDailyTestListing({
             usesLogistics: true,

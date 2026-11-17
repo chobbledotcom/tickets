@@ -52,7 +52,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
   });
 
   test("replays a ledgered balance after its reservation row is lost", async () => {
@@ -72,7 +72,7 @@ describeWithEnv("payment processing balance outcomes", { db: true }, () => {
       success: true,
       ticketTokens: [],
     });
-    expect((await getProcessedPayment(id))?.attendee_id).toBe(attendeeId);
+    expect((await getProcessedPayment(id))?.attendeeId).toBe(attendeeId);
     expect((await getAttendeeBalanceState(attendeeId))?.remainingBalance).toBe(
       0,
     );

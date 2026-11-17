@@ -109,7 +109,7 @@ export const ListingOverviewPanel = (
     systemNotes = [],
     isOwner,
   } = opts;
-  const isDaily = listing.listing_type === "daily";
+  const isDaily = listing.listingType === "daily";
   const dailySuffix = attendeeCountLabelSuffix(isDaily, null);
   const capacity = listingCapacityRowsFor(
     listing,

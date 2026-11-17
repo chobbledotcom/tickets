@@ -13,8 +13,8 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** booked_quantity mismatches (9 vs 4), tickets_count matches (5 vs 5). */
 const oneMismatch = {
-  booked_quantity: { current: 9, recalculated: 4 },
-  tickets_count: { current: 5, recalculated: 5 },
+  bookedQuantity: { current: 9, recalculated: 4 },
+  ticketsCount: { current: 5, recalculated: 5 },
 };
 
 describe("adminListingRecalculatePage", () => {
@@ -25,8 +25,8 @@ describe("adminListingRecalculatePage", () => {
     const html = adminListingRecalculatePage(
       listing,
       {
-        booked_quantity: { current: 9, recalculated: 4 },
-        tickets_count: { current: 5, recalculated: 2 },
+        bookedQuantity: { current: 9, recalculated: 4 },
+        ticketsCount: { current: 5, recalculated: 2 },
       },
       OWNER_SESSION,
     );
@@ -36,8 +36,8 @@ describe("adminListingRecalculatePage", () => {
       "From attendee data",
       "Compare the stored listing totals",
       'class="table-scroll"',
-      'name="recalculate_fields"',
-      'value="booked_quantity"',
+      'name="recalculateFields"',
+      'value="bookedQuantity"',
       ">9<",
       ">4<",
       // The recalculate page marks the Home nav entry (/admin/) active.
@@ -80,8 +80,8 @@ describe("ListingAggregateMismatchNotice", () => {
       ListingAggregateMismatchNotice({
         actionHref: "/x",
         aggregateRecalculation: {
-          booked_quantity: { current: 3, recalculated: 3 },
-          tickets_count: { current: 2, recalculated: 2 },
+          bookedQuantity: { current: 3, recalculated: 3 },
+          ticketsCount: { current: 2, recalculated: 2 },
         },
       }),
     );

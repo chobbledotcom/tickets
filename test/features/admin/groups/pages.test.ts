@@ -62,7 +62,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
     const { response } = await adminFormPost(
       `/admin/groups/${group.id}/delete`,
       {
-        confirm_identifier: group.name,
+        confirmIdentifier: group.name,
       },
     );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);
@@ -81,7 +81,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
     );
 
     await deleteGroup(group.id);
-    groups.cache.invalidate();
+    groups.invalidate();
     expect(
       await queryAll(
         sql`SELECT groupRecord.id FROM groups AS groupRecord WHERE groupRecord.id = ${group.id}`,

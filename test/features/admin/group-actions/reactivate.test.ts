@@ -1,7 +1,7 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   expectErrorFlash,
@@ -18,8 +18,8 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
     const group = await createTestGroup({ name });
     const a = await createTestListing({ groupId: group.id, name: "A" });
     const b = await createTestListing({ groupId: group.id, name: "B" });
-    await listingsTable.update(a.id, { active: false });
-    await listingsTable.update(b.id, { active: false });
+    await updateListing(a.id, { active: false });
+    await updateListing(b.id, { active: false });
     return { a, b, group };
   };
 
@@ -30,12 +30,12 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
         groupId: group.id,
         name: "Only",
       });
-      await listingsTable.update(listing.id, { active: false });
+      await updateListing(listing.id, { active: false });
 
       await expectHtml(await adminGet(`/admin/groups/${group.id}/reactivate`), {
         contains: [
           "Reactivate Group",
-          'name="confirm_identifier"',
+          'name="confirmIdentifier"',
           "reactivate 1 listing",
         ],
         notContains: ["reactivate 1 listings"],
@@ -71,7 +71,7 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/reactivate`,
-        { confirm_identifier: "Bring Back" },
+        { confirmIdentifier: "Bring Back" },
       );
 
       expect(response.status).toBe(302);
@@ -96,11 +96,11 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
         groupId: group.id,
         name: "Listing",
       });
-      await listingsTable.update(listing.id, { active: false });
+      await updateListing(listing.id, { active: false });
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/reactivate`,
-        { confirm_identifier: "Different" },
+        { confirmIdentifier: "Different" },
       );
 
       expect(response.status).toBe(302);

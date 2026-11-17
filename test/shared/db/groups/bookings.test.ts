@@ -3,7 +3,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, withTransaction } from "#db/client.ts";
-import { hasPackageBookingsTx } from "#db/groups.ts";
+import { hasPackageBookingsTx } from "#db/groups/package-display.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";

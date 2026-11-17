@@ -15,19 +15,19 @@ export const GROUP_FIELDS = [
   { key: "hidden", kind: "switch" },
   // On (for a package), the member listings are hidden from buyers, tickets,
   // and confirmation emails. Only admins see the breakdown.
-  { key: "hide_package_listings", kind: "switch" },
+  { key: "hidePackageListings", kind: "switch" },
   // On, the group is a bookable package: its members can carry price
   // overrides and fixed quantities for each package.
-  { key: "is_package", kind: "switch" },
-  { default: 0, key: "max_attendees", kind: "count", min: 0 },
+  { key: "isPackage", kind: "switch" },
+  { default: 0, key: "maxAttendees", kind: "count", min: 0 },
   { key: "name", kind: "name", required: true },
   // On, one group scan checks in every member listing the ticket holds.
-  { key: "scan_checks_in_all_listings", kind: "switch" },
+  { key: "scanChecksInAllListings", kind: "switch" },
   // On, the group's booking page also offers hidden member listings. Off, a
   // hidden member is bookable only through its direct link. A package keeps
   // its members either way.
-  { default: true, key: "show_hidden_listings", kind: "switch" },
-  { key: "terms_and_conditions", kind: "privateText" },
+  { default: true, key: "showHiddenListings", kind: "switch" },
+  { key: "termsAndConditions", kind: "privateText" },
 ] as const satisfies FieldSpecs;
 /* jscpd:ignore-end */
 

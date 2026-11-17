@@ -256,7 +256,7 @@ describe("provider-refund architecture", () => {
     expect(
       pathsContaining(
         await sourceFiles(),
-        /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+payment_charges/,
+        /(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+payment_charges|(?:insertInto|update|deleteFrom)\(\s*tables\.payment_charges/,
       ),
     ).toEqual([
       "shared/db/provider-refund-authority-change.ts",

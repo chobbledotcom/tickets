@@ -50,7 +50,7 @@ export const failingRenewalUrlPush = (): Stub =>
 export const deactivateAllTierListings = async (): Promise<void> => {
   const listings = await getAllListings();
   for (const ev of listings) {
-    if (ev.months_per_unit > 0 && ev.purchase_only && ev.hidden && ev.active) {
+    if (ev.monthsPerUnit > 0 && ev.purchaseOnly && ev.hidden && ev.active) {
       await deactivateTestListing(ev.id);
     }
   }
@@ -73,8 +73,8 @@ export const siteEntry = (
   const quantity = overrides.quantity ?? 1;
   return makeTestEntry(
     {
-      assign_built_site: overrides.assignBuiltSite ?? true,
-      initial_site_months: initialSiteMonths,
+      assignBuiltSite: overrides.assignBuiltSite ?? true,
+      initialSiteMonths: initialSiteMonths,
       ...(overrides.listingId !== undefined && { id: overrides.listingId }),
       ...(overrides.listingName !== undefined && {
         name: overrides.listingName,

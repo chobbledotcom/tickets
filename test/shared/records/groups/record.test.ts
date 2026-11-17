@@ -8,7 +8,6 @@ import {
   createExternalSourceLink,
   listExternalSourceLinks,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getImagesForItem, setItemsForImage } from "#db/images.ts";
 import { createOwnerNote, getNoteRows } from "#db/notes/queries.ts";
@@ -19,6 +18,7 @@ import { groupRecord } from "#shared/records/groups.ts";
 import { groupInput } from "#test/features/admin/groups/helpers.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { makeImage } from "#test-utils/admin-images.ts";
+import { createTestExternalSource } from "#test-utils/db-helpers/external-sources.ts";
 import {
   createPackageWithMember,
   createSoldPackageMember,
@@ -117,10 +117,7 @@ describeRecord(groupRecord, "Group", "Group name", () => {
     await addPageItem(page.id, "group", group.id);
     const image = await makeImage("Banner");
     await setItemsForImage(image.id, [{ id: group.id, kind: "group" }]);
-    const source = await externalSourcesTable.insert({
-      name: "Imports",
-      urlPattern: "https://example.com/{external_id}",
-    });
+    const source = await createTestExternalSource("Imports");
     await createExternalSourceLink(source.id, {
       externalId: "GROUP-1",
       linkId: group.id,

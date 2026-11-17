@@ -22,10 +22,10 @@ const src = (
   subscribed = false,
 ) => ({
   date: dated ? "2024-06-01T10:00:00Z" : "",
-  listing_type: (daily ? "daily" : "standard") as "daily" | "standard",
-  purchase_only: purchaseable,
-  recurring_price: subscribed ? 1500 : 0,
-  uses_logistics: logistics,
+  listingType: (daily ? "daily" : "standard") as "daily" | "standard",
+  purchaseOnly: purchaseable,
+  recurringPrice: subscribed ? 1500 : 0,
+  usesLogistics: logistics,
 });
 
 const dims = (
@@ -64,7 +64,7 @@ describe("dimensionsOf", () => {
   });
 
   test("a recurring price of one minor unit counts as subscribed", () => {
-    const source = { ...src(false, false, false, false), recurring_price: 1 };
+    const source = { ...src(false, false, false, false), recurringPrice: 1 };
     expect(dimensionsOf(source).subscribed).toBe(true);
   });
 });

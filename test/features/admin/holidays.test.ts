@@ -7,7 +7,8 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { holidays } from "#db/holidays.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { DEMO_HOLIDAY_NAMES } from "#shared/demo/samples.ts";
 import { holidayRule } from "#shared/records/holidays.ts";
 import { parseDateStringOrThrow } from "#shared/validation/date-string.ts";
@@ -20,9 +21,9 @@ import { adminFormPost, adminGet, apiRequest } from "#test-utils/session.ts";
 describeWithEnv("holidays", { db: true }, () => {
   test("creates a holiday and shows it on the list page", async () => {
     const { response } = await adminFormPost("/admin/holidays", {
-      end_date: "2027-01-02",
+      endDate: "2027-01-02",
       name: "New Year",
-      start_date: "2027-01-01",
+      startDate: "2027-01-01",
     });
 
     await expectFlashRedirect("/admin/holidays/1", "Holiday created")(response);
@@ -37,16 +38,14 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/edit`,
-      { end_date: "2026-12-26", name: "Renamed", start_date: "2026-12-25" },
+      { endDate: "2026-12-26", name: "Renamed", startDate: "2026-12-25" },
     );
 
     await expectFlashRedirect(
       `/admin/holidays/${holiday.id}`,
       "Holiday updated",
     )(response);
-    expect((await holidays.table.read.one({ id: holiday.id }))?.name).toBe(
-      "Renamed",
-    );
+    expect((await records.holidays.find(holiday.id))?.name).toBe("Renamed");
   });
 
   test("keeps the submitted dates when a save is rejected", async () => {
@@ -54,7 +53,7 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/edit`,
-      { end_date: "2026-01-01", name: "Backwards", start_date: "2026-06-01" },
+      { endDate: "2026-01-01", name: "Backwards", startDate: "2026-06-01" },
     );
 
     expect(response.status).toBe(400);
@@ -66,11 +65,11 @@ describeWithEnv("holidays", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `/admin/holidays/${holiday.id}/delete`,
-      { confirm_identifier: "Spare Day" },
+      { confirmIdentifier: "Spare Day" },
     );
 
     await expectFlashRedirect("/admin/holidays", "Holiday deleted")(response);
-    expect(await holidays.table.read.one({ id: holiday.id })).toBe(null);
+    expect(await records.holidays.find(holiday.id)).toBe(null);
   });
 });
 
@@ -79,21 +78,21 @@ describeDemoNameSaves({
   edit: async (name) => {
     const holiday = await createTestHoliday({ name: "Before" });
     await adminFormPost(`/admin/holidays/${holiday.id}/edit`, {
-      end_date: "2026-12-26",
+      endDate: "2026-12-26",
       name,
-      start_date: "2026-12-25",
+      startDate: "2026-12-25",
     });
-    return (await holidays.table.read.one({ id: holiday.id }))?.name;
+    return (await records.holidays.find(holiday.id))?.name;
   },
   fields: (name) => ({
-    end_date: "2027-01-02",
+    endDate: "2027-01-02",
     name,
-    start_date: "2027-01-01",
+    startDate: "2027-01-01",
   }),
   label: "holiday saves in demo mode",
   realName: "Real Day",
   samples: DEMO_HOLIDAY_NAMES,
-  table: holidays.table,
+  table: tables.holidays,
   typedName: "Typed Day",
 });
 

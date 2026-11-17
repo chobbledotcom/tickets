@@ -5,7 +5,6 @@
 
 import type { InValue } from "@libsql/client";
 import { executeBatch } from "#db/client.ts";
-import { deleteById } from "#db/delete-row.ts";
 import {
   clearExternalLinksStatement,
   externalLinkTargets,
@@ -15,11 +14,11 @@ import {
   readPackageFlagsTxOrNull,
   writePackageMembersTx,
 } from "#db/groups/membership/package-writes.ts";
+import { hasPackageBookings } from "#db/groups/package-display.ts";
 import {
   getGroupById,
   getListingsByGroupId,
   groups,
-  hasPackageBookings,
   isGroupSlugTaken,
   packageMembersError,
   resetGroupListings,
@@ -30,11 +29,13 @@ import {
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
+import { tables } from "#db/select/tables.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
 import { sql } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import type { GroupInput } from "#shared/records/group-fields.ts";
+import { GROUP_FIELDS, type GroupInput } from "#shared/records/group-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
@@ -76,7 +77,7 @@ export const soldHiddenPackageError = async (
   id: number,
 ): Promise<string | null> => {
   const group = await getGroupById(id);
-  if (!group?.is_package || !group.hide_package_listings) {
+  if (!group?.isPackage || !group.hidePackageListings) {
     return null;
   }
   const sold = await hasPackageBookings(id);
@@ -120,7 +121,7 @@ export const deleteGroup = async (id: InValue) => {
     clearImageUsesForItemStatement(imageUseTargets.of("group")(groupId)),
     clearExternalLinksStatement(externalLinkTargets.of("group")(groupId)),
     noteDeleteStatement("group", sql`${groupId}`),
-    deleteById("groups", groupId),
+    deleteFrom(tables.groups).where({ id: groupId }),
   ]);
 };
 
@@ -143,7 +144,8 @@ export const groupRecord = defineNamedRowRecord<
     ),
   api: ADMIN_API_RESOURCES.groups,
   deleteRefusal: soldHiddenPackageError,
-  getAll: () => groups.cache.getAll(),
+  fieldDefaults: GROUP_FIELDS,
+  getAll: () => groups.getAll(),
   load: getGroupById,
   nameLabel: "groups.name_label",
   onDelete: (id) => deleteGroup(id),
@@ -151,5 +153,5 @@ export const groupRecord = defineNamedRowRecord<
   rule: groupRule,
   saveLanding: "group",
   surface: "groups",
-  table: groups.table,
+  table: tables.groups,
 });

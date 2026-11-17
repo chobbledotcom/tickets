@@ -69,7 +69,7 @@ describeWithEnv(
       date: string,
     ): Promise<Map<number, number>> => {
       const lengthOf = (listing: ListingWithCount): number =>
-        listing.duration_days;
+        listing.durationDays;
       const snapshot = await loadCapacitySnapshot(
         listings,
         date,
@@ -106,7 +106,7 @@ describeWithEnv(
         const onItsOwn = await getListingRemainingForRange(
           [listing],
           date,
-          listing.duration_days,
+          listing.durationDays,
         );
         expect(fromSnapshot.get(listing.id)).toBe(onItsOwn.get(listing.id));
       }

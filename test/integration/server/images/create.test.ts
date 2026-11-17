@@ -16,24 +16,24 @@ const newListingFormFields = (
   csrfToken: string,
   name: string,
 ): TestFormValues => ({
-  bookable_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  closes_at_date: "",
-  closes_at_time: "",
-  csrf_token: csrfToken,
-  date_date: "",
-  date_time: "",
+  bookableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+  closesAtDate: "",
+  closesAtTime: "",
+  csrfToken,
+  dateDate: "",
+  dateTime: "",
   description: "",
   fields: ["email"],
-  listing_type: "standard",
+  listingType: "standard",
   location: "",
-  max_attendees: "50",
-  max_quantity: "1",
-  maximum_days_after: "",
-  minimum_days_before: "",
+  maxAttendees: "50",
+  maximumDaysAfter: "",
+  maxQuantity: "1",
+  minimumDaysBefore: "",
   name,
-  thank_you_url: "",
-  unit_price: "0",
-  webhook_url: "",
+  thankYouUrl: "",
+  unitPrice: "0",
+  webhookUrl: "",
 });
 
 /** Submit a create-listing form with a file attached under the given field,
@@ -89,8 +89,8 @@ describeWithEnv(
             },
           );
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toBe("");
-          expect(created?.image_thumb_url).toBe("");
+          expect(created?.imageUrl).toBe("");
+          expect(created?.imageThumbUrl).toBe("");
         });
       });
 
@@ -111,7 +111,7 @@ describeWithEnv(
             },
           );
           expect(created).not.toBeUndefined();
-          expect(created?.image_url).toBe("");
+          expect(created?.imageUrl).toBe("");
         });
       });
     });
@@ -134,8 +134,8 @@ describeWithEnv(
             },
           );
           await expectFlashRedirect("/admin", "Listing created")(response);
-          expect(created?.attachment_url).toMatch(/info\.pdf$/);
-          expect(created?.attachment_name).toBe("info.pdf");
+          expect(created?.attachmentUrl).toMatch(/info\.pdf$/);
+          expect(created?.attachmentName).toBe("info.pdf");
         });
       });
     });

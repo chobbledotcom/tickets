@@ -14,18 +14,18 @@ export const ticketListing = (
 /** Two capped package members, "Big" (id 1) and "Small" (id 2). */
 export const bigAndSmallListings = () => [
   ticketListing({
-    attendee_count: 0,
+    attendeeCount: 0,
     id: 1,
-    max_attendees: 100,
-    max_quantity: 10,
+    maxAttendees: 100,
+    maxQuantity: 10,
     name: "Big",
     slug: "big01",
   }),
   ticketListing({
-    attendee_count: 0,
+    attendeeCount: 0,
     id: 2,
-    max_attendees: 100,
-    max_quantity: 10,
+    maxAttendees: 100,
+    maxQuantity: 10,
     name: "Small",
     slug: "sml01",
   }),
@@ -34,9 +34,9 @@ export const bigAndSmallListings = () => [
 /** A second listing "Listing B" (id 2, slug cd34e) with room for 50. */
 export const listingB = () =>
   ticketListing({
-    attendee_count: 50,
+    attendeeCount: 50,
     id: 2,
-    max_attendees: 50,
+    maxAttendees: 50,
     name: "Listing B",
     slug: "cd34e",
   });
@@ -58,7 +58,7 @@ export const singleListingPageHtml = (
   ticketPage({
     listings: [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         name: "Listing A",
         slug: "ab12c",

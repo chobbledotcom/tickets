@@ -17,27 +17,27 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 const questions: QuestionWithAnswers[] = [
   {
     answers: [
-      { active: true, id: 10, question_id: 1, sort_order: 0, text: "Small" },
-      { active: true, id: 11, question_id: 1, sort_order: 1, text: "Large" },
+      { active: true, id: 10, questionId: 1, sortOrder: 0, text: "Small" },
+      { active: true, id: 11, questionId: 1, sortOrder: 1, text: "Large" },
     ],
-    assign_all: false,
-    display_type: "radio",
+    assignAll: false,
+    displayType: "radio",
     id: 1,
     text: "Shirt size?",
   },
   {
     answers: [
-      { active: true, id: 20, question_id: 2, sort_order: 0, text: "Vegan" },
+      { active: true, id: 20, questionId: 2, sortOrder: 0, text: "Vegan" },
     ],
-    assign_all: false,
-    display_type: "radio",
+    assignAll: false,
+    displayType: "radio",
     id: 2,
     text: "Meal?",
   },
   {
     answers: [],
-    assign_all: false,
-    display_type: "free_text",
+    assignAll: false,
+    displayType: "free_text",
     id: 3,
     text: "Allergies?",
   },

@@ -33,7 +33,7 @@ export const ATTENDEE_DEMO_FIELDS: DemoFieldMap = {
   email: DEMO_EMAILS,
   name: DEMO_NAMES,
   phone: DEMO_PHONES,
-  special_instructions: DEMO_SPECIAL_INSTRUCTIONS,
+  specialInstructions: DEMO_SPECIAL_INSTRUCTIONS,
 };
 
 /** Servicing-event fields — name only, and a servicing reason rather than a
@@ -62,8 +62,8 @@ export const HOLIDAY_DEMO_FIELDS: DemoFieldMap = {
 
 /** Site homepage fields */
 export const SITE_HOME_DEMO_FIELDS: DemoFieldMap = {
-  homepage_text: DEMO_PAGE_TEXT,
-  website_title: DEMO_WEBSITE_TITLES,
+  homepageText: DEMO_PAGE_TEXT,
+  websiteTitle: DEMO_WEBSITE_TITLES,
 };
 
 /** Attendee Logistics tab fields. The address is masked like the attendee
@@ -77,17 +77,17 @@ export const LOGISTICS_DEMO_FIELDS: DemoFieldMap = {
 
 /** Site contact page fields */
 export const SITE_CONTACT_DEMO_FIELDS: DemoFieldMap = {
-  contact_page_text: DEMO_PAGE_TEXT,
+  contactPageText: DEMO_PAGE_TEXT,
 };
 
 /** Terms and conditions field */
 export const TERMS_DEMO_FIELDS: DemoFieldMap = {
-  terms_and_conditions: DEMO_TERMS,
+  termsAndConditions: DEMO_TERMS,
 };
 
 /** Site footer field */
 export const FOOTER_DEMO_FIELDS: DemoFieldMap = {
-  site_footer: DEMO_PAGE_TEXT,
+  siteFooter: DEMO_PAGE_TEXT,
 };
 
 /**

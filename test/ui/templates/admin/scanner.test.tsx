@@ -253,7 +253,7 @@ describe("the admin scanner page template", () => {
       "Scanning a ticket in this group will check in ALL of the attendee's booked listings in that group",
     ]);
     // The warning states the rule; it must not offer to change it at the door.
-    assert(!warned.includes('name="scan_checks_in_all_listings"'));
+    assert(!warned.includes('name="scanChecksInAllListings"'));
     assert(!warned.includes('action="/admin/groups/5/scanner"'));
 
     const quiet = adminScannerPage(
@@ -471,11 +471,11 @@ describe("the admin scanner page template", () => {
       // The manual pick-up form.
       'id="manual-checkin"',
       'method="POST"',
-      'name="csrf_token"',
+      'name="csrfToken"',
       'for="manual-checkin-input"',
       'class="combobox"',
       'id="manual-checkin-attendee-id"',
-      'name="attendee_id"',
+      'name="attendeeId"',
       'autocomplete="off"',
       'id="manual-checkin-input"',
       'type="text"',

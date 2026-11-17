@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -59,7 +59,7 @@ describeWithEnv(
       const child = await createTestListing({ name: "Child" });
       const parent = await createTestListing({ name: "Vanishing parent" });
       const parentId = parent.id;
-      await listingsTable.deleteById(parentId);
+      await records.listings.delete(parentId);
 
       await expect(
         guard({
@@ -147,7 +147,7 @@ describeWithEnv(
       const parent = await createTestListing({ name: "Base" });
       const child = await createTestListing({ name: "Vanishing child" });
       const childId = child.id;
-      await listingsTable.deleteById(childId);
+      await records.listings.delete(childId);
       await expect(
         guard({
           childIds: [childId],

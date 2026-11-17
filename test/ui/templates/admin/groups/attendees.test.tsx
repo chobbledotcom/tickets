@@ -59,7 +59,7 @@ describe("GroupAttendeesPanel", () => {
       }),
     );
     expectIncludesAll(html, [
-      'name="return_url"',
+      'name="returnUrl"',
       'value="/admin/groups/5/attendees"',
       '<h2 id="attendees">Attendees</h2>',
     ]);

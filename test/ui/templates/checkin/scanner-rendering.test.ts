@@ -102,7 +102,7 @@ describeWithEnv(
       // The page keeps the row's refunded badge but advertises no action
       // that the POST could never honour.
       assertStringIncludes(body, "Refunded");
-      expectExcludesAll(body, ["Check In All", 'name="check_in"']);
+      expectExcludesAll(body, ["Check In All", 'name="checkIn"']);
     });
 
     test("keeps both bulk actions on a partly checked ticket", async () => {
@@ -142,7 +142,7 @@ describeWithEnv(
       expectIncludesAll(body, [
         "Check Out All",
         'class="bulk-checkout"',
-        'name="check_in"',
+        'name="checkIn"',
         'value="false"',
       ]);
       assert(!body.includes("/attendee/"));

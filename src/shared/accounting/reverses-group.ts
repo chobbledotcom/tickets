@@ -13,8 +13,9 @@
 
 import { refundEventGroup } from "#accounting/mappers.ts";
 import { executeBatch, queryAllPrimary, queryOnePrimary } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlRows } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 
 /** One (refund group → booking group) attribution. */
 type ReversesPair = readonly [refundGroup: string, bookingGroup: string];
@@ -111,13 +112,17 @@ const readCursor = async (): Promise<GroupCursor> => {
 /** Checkpoint the walk so a budget-stopped retry resumes here, never before. */
 const saveCursor = (after: GroupCursor): Promise<unknown> =>
   executeBatch([
-    sql`INSERT OR REPLACE INTO settings (key, value) VALUES (${CURSOR_KEY}, ${after})`,
+    insertInto(
+      tables.settings,
+      { key: CURSOR_KEY, value: after },
+      { or: "REPLACE" },
+    ),
   ]);
 
 /** Drop the checkpoint so the next run walks from the start. Only the orphan
  *  refusal runs it. A clean finish writes {@link CURSOR_COMPLETE} instead. */
 const clearCursor = (): Promise<unknown> =>
-  executeBatch([deleteFrom("settings", { key: CURSOR_KEY })]);
+  executeBatch([deleteFrom(tables.settings).where({ key: CURSOR_KEY })]);
 
 /**
  * Attribute every stored refund leg to the booking order it reversed.

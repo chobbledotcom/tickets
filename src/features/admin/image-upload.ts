@@ -22,7 +22,7 @@ import type { Image } from "#types";
 export const imageMetadataFromForm = (
   form: FormParams,
 ): Result<ImageMetadata> =>
-  imageMetadata(form.getString("name"), form.getString("alt_text"));
+  imageMetadata(form.getString("name"), form.getString("altText"));
 
 const imageFileFromForm = (formData: FormData): Result<File> => {
   const entry = formData.get("image");

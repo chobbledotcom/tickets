@@ -40,7 +40,7 @@ export const ResetDatabaseForm = saveFormComponent<{
       <input
         autocomplete="off"
         id="confirm_phrase"
-        name="confirm_phrase"
+        name="confirmPhrase"
         required
         type="text"
       />

@@ -55,7 +55,7 @@ export type CatalogNameIndex = {
 /** The decrypted catalog pair — every listing and every group — that name
  *  resolution and the public URL lists share. */
 export const loadCatalogPair = (): Promise<[ListingWithCount[], Group[]]> =>
-  Promise.all([getAllListings(), groups.cache.getAll()]);
+  Promise.all([getAllListings(), groups.getAll()]);
 
 /** Load the listing and group name indexes from the (cached) decrypted catalog. */
 export const loadCatalogNameIndex = async (): Promise<CatalogNameIndex> => {

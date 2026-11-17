@@ -39,7 +39,7 @@ const switchDate = (roots: FakeElement[], val: string): void => {
   byName(roots, "date").dispatch("change");
 };
 
-/** Assert the canonical `child_qty_101_202` field is enabled and holds
+/** Assert the canonical `childQty101_202` field is enabled and holds
  *  `value` (default "1"). Several date/span-compat cases end with this exact
  *  pair of assertions after `initChildCompat()` — a tiny helper keeps them
  *  from drifting. */
@@ -47,8 +47,8 @@ const expectChildQty101202Enabled = (
   roots: FakeElement[],
   value = "1",
 ): void => {
-  expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
-  expect(byName(roots, "child_qty_101_202").value).toBe(value);
+  expect(byName(roots, "childQty101_202").disabled).toBe(false);
+  expect(byName(roots, "childQty101_202").value).toBe(value);
 };
 
 /** date=2026-06-08, day_count=2, an in-cart parent 101 and one child 202
@@ -70,8 +70,8 @@ const expectParentRestoredOnCompatibleDate = (
   value: string,
 ): void => {
   switchDate(roots, "2026-06-01");
-  expect(byName(roots, "quantity_101").disabled).toBe(false);
-  expect(byName(roots, "quantity_101").value).toBe(value);
+  expect(byName(roots, "quantity101").disabled).toBe(false);
+  expect(byName(roots, "quantity101").value).toBe(value);
 };
 
 describe("child date/span compatibility", () => {
@@ -88,11 +88,11 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
-    expect(byName(roots, "child_qty_101_202").value).toBe("1");
+    expect(byName(roots, "childQty101_202").disabled).toBe(false);
+    expect(byName(roots, "childQty101_202").value).toBe("1");
     // The incompatible child is disabled and its chosen quantity zeroed.
-    expect(byName(roots, "child_qty_101_303").disabled).toBe(true);
-    expect(byName(roots, "child_qty_101_303").value).toBe("0");
+    expect(byName(roots, "childQty101_303").disabled).toBe(true);
+    expect(byName(roots, "childQty101_303").value).toBe("0");
   });
 
   test("disables a child the selected day-count can't serve", () => {
@@ -106,21 +106,21 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
-    expect(byName(roots, "child_qty_101_303").disabled).toBe(true);
-    expect(byName(roots, "child_qty_101_303").value).toBe("0");
+    expect(byName(roots, "childQty101_202").disabled).toBe(false);
+    expect(byName(roots, "childQty101_303").disabled).toBe(true);
+    expect(byName(roots, "childQty101_303").value).toBe("0");
   });
 
   test("re-enables a child when the buyer switches to a date both children support", () => {
     const roots = twoChildDateSetup();
 
     initChildCompat();
-    expect(byName(roots, "child_qty_101_303").disabled).toBe(true);
+    expect(byName(roots, "childQty101_303").disabled).toBe(true);
 
     // Switch to a date both children serve; the previously-disabled child returns.
     switchDate(roots, "2026-06-01");
 
-    expect(byName(roots, "child_qty_101_303").disabled).toBe(false);
+    expect(byName(roots, "childQty101_303").disabled).toBe(false);
   });
 
   test("never re-enables a server-disabled (sold-out) child", () => {
@@ -133,13 +133,13 @@ describe("child date/span compatibility", () => {
     ]);
 
     initChildCompat();
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
 
     // A compatible selection must not flip the sold-out child back on.
     byName(roots, "date").value = "2026-06-08";
     byName(roots, "date").dispatch("change");
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
   });
 
   test("zeroing an incompatible child notifies dependents so its price stops being required", () => {
@@ -155,7 +155,7 @@ describe("child date/span compatibility", () => {
       childQty("101", "202", "1", false, { dates: ["2026-06-01"] }),
       childPrice("101", "202"),
     ]);
-    const price = byName(roots, "child_price_101_202");
+    const price = byName(roots, "childPrice101_202");
 
     initChildRequired();
     // The chosen child's price input starts out required (inline feedback).
@@ -165,8 +165,8 @@ describe("child date/span compatibility", () => {
 
     // The selected date can't be served by the child, so it is disabled+zeroed
     // and child-required re-runs: the dropped child's price is no longer required.
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
-    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").value).toBe("0");
     expect(price.required).toBe(false);
   });
 
@@ -180,13 +180,13 @@ describe("child date/span compatibility", () => {
       childQty("101", "202", "0", false, { dates: ["2026-06-01"] }),
     ]);
     let fired = false;
-    byName(roots, "child_qty_101_202").addEventListener("change", () => {
+    byName(roots, "childQty101_202").addEventListener("change", () => {
       fired = true;
     });
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
     expect(fired).toBe(false);
   });
 
@@ -218,14 +218,14 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
     // day_count=2 + 2026-06-08: the 2-day span can't start that day → disabled.
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
-    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").value).toBe("0");
 
     // Switch to a 1-day span: 2026-06-08 is a valid 1-day start → re-enabled.
-    byName(roots, "child_qty_101_202").value = "1";
-    byName(roots, "day_count").value = "1";
-    byName(roots, "day_count").dispatch("change");
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+    byName(roots, "childQty101_202").value = "1";
+    byName(roots, "dayCount").value = "1";
+    byName(roots, "dayCount").dispatch("change");
+    expect(byName(roots, "childQty101_202").disabled).toBe(false);
   });
 
   test("flags and disables the parent when a sole child can't serve the selection", () => {
@@ -237,8 +237,8 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "quantity_101").disabled).toBe(true);
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expect(byName(roots, "quantity101").disabled).toBe(true);
+    expect(byName(roots, "quantity101").value).toBe("0");
     const sole = roots.find((r) => r.dataset.soleParent === "101")!;
     expect(sole.getAttribute("data-sole-incompatible")).toBe("");
   });
@@ -247,12 +247,12 @@ describe("child date/span compatibility", () => {
     const roots = soleSetup();
 
     initChildCompat();
-    expect(byName(roots, "quantity_101").disabled).toBe(true);
+    expect(byName(roots, "quantity101").disabled).toBe(true);
 
     // Switch to a date the sole child serves: parent re-enabled, flag cleared.
     switchDate(roots, "2026-06-01");
 
-    expect(byName(roots, "quantity_101").disabled).toBe(false);
+    expect(byName(roots, "quantity101").disabled).toBe(false);
     const sole = roots.find((r) => r.dataset.soleParent === "101")!;
     expect(sole.getAttribute("data-sole-incompatible")).toBe(null);
   });
@@ -266,8 +266,8 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
     // Incompatible date: the hidden parent quantity is disabled and zeroed.
-    expect(byName(roots, "quantity_101").disabled).toBe(true);
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expect(byName(roots, "quantity101").disabled).toBe(true);
+    expect(byName(roots, "quantity101").value).toBe("0");
 
     // Switch to a date the sole child serves: parent re-enabled AND restored to 1.
     expectParentRestoredOnCompatibleDate(roots, "1");
@@ -283,14 +283,14 @@ describe("child date/span compatibility", () => {
     initChildCompat();
 
     let changeCount = 0;
-    byName(roots, "quantity_101").addEventListener("change", () => {
+    byName(roots, "quantity101").addEventListener("change", () => {
       changeCount++;
     });
 
     // Switch to the compatible date — should restore value AND fire change.
     switchDate(roots, "2026-06-01");
 
-    expect(byName(roots, "quantity_101").value).toBe("1");
+    expect(byName(roots, "quantity101").value).toBe("1");
     expect(changeCount).toBe(1);
   });
 
@@ -301,7 +301,7 @@ describe("child date/span compatibility", () => {
     const roots = soleSetup();
 
     initChildCompat();
-    expect(byName(roots, "quantity_101").value).toBe("0");
+    expect(byName(roots, "quantity101").value).toBe("0");
 
     expectParentRestoredOnCompatibleDate(roots, "0");
   });
@@ -322,7 +322,7 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+    expect(byName(roots, "childQty101_202").disabled).toBe(false);
   });
 
   test("disables a child whose selected span serves no date (empty per-span set)", () => {
@@ -334,8 +334,8 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(true);
-    expect(byName(roots, "child_qty_101_202").value).toBe("0");
+    expect(byName(roots, "childQty101_202").disabled).toBe(true);
+    expect(byName(roots, "childQty101_202").value).toBe("0");
   });
 
   test("leaves a child enabled when the selected day-count has no date entry", () => {
@@ -370,7 +370,7 @@ describe("child date/span compatibility", () => {
 
     initChildCompat();
 
-    expect(byName(roots, "child_qty_101_202").disabled).toBe(false);
+    expect(byName(roots, "childQty101_202").disabled).toBe(false);
   });
 
   test("flags an incompatible sole child even when the parent has no quantity control", () => {

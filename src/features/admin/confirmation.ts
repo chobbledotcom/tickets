@@ -50,7 +50,7 @@ export const verifyOrRedirect = (
   label = "Name",
   action?: string,
 ): Response | null => {
-  if (!verifyIdentifier(expected, form.getString("confirm_identifier"))) {
+  if (!verifyIdentifier(expected, form.getString("confirmIdentifier"))) {
     const suffix = action ? ` ${action}` : "";
     return errorRedirect(
       redirectUrl,

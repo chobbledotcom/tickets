@@ -22,14 +22,14 @@ export const tryDeleteFile = async (
 /** Listing shape that owns an attachment file */
 type ListingWithAttachmentStorage = {
   id: number;
-  attachment_url: string;
+  attachmentUrl: string;
 };
 
 /** Image shape that owns storage files */
 type ImageWithStorage = {
   id: number;
   filename: NonEmptyString;
-  filename_thumb: NonEmptyString;
+  filenameThumb: NonEmptyString;
 };
 
 /** Delete the attachment file for a single listing */
@@ -37,8 +37,8 @@ export const deleteListingAttachmentFile = async (
   listing: ListingWithAttachmentStorage,
   reason: string,
 ): Promise<void> => {
-  if (listing.attachment_url) {
-    await tryDeleteFile(listing.attachment_url, listing.id, reason);
+  if (listing.attachmentUrl) {
+    await tryDeleteFile(listing.attachmentUrl, listing.id, reason);
   }
 };
 
@@ -48,7 +48,7 @@ export const deleteImageStorageFiles = async (
   reason: string,
 ): Promise<void> => {
   await tryDeleteFile(image.filename, image.id, reason);
-  await tryDeleteFile(image.filename_thumb, image.id, reason);
+  await tryDeleteFile(image.filenameThumb, image.id, reason);
 };
 
 /** True for a "the file is already gone" deletion error from either backend, so
@@ -67,7 +67,7 @@ export const deleteImageStorageFilesStrict = async (
 ): Promise<void> => {
   const results = await Promise.allSettled([
     deleteFile(image.filename),
-    deleteFile(image.filename_thumb),
+    deleteFile(image.filenameThumb),
   ]);
   const failure = results
     .filter((r): r is PromiseRejectedResult => r.status === "rejected")

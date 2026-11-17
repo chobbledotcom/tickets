@@ -12,7 +12,9 @@ import { listingGroups } from "#db/groups/table.ts";
 import { setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { bodyToUpdateInput } from "#routes/admin/api-listing-body.ts";
@@ -97,7 +99,7 @@ const staleEdgeCases: readonly StaleEdgeCase[] = [
     broken: "child",
     message: "listings_table.children_err_child_daily",
     name: "rejects a stale incoming edge after the child becomes daily",
-    read: (row) => row.listing_type,
+    read: (row) => row.listingType,
     statement: ({ child }) =>
       sql`UPDATE listings SET listing_type = 'daily' WHERE id = ${child}`,
     unchanged: "standard",
@@ -106,7 +108,7 @@ const staleEdgeCases: readonly StaleEdgeCase[] = [
     broken: "parent",
     message: "listings_table.children_err_parent_renewal",
     name: "rejects a stale outgoing edge after the parent becomes a renewal",
-    read: (row) => row.months_per_unit,
+    read: (row) => row.monthsPerUnit,
     statement: ({ parent }) =>
       sql`UPDATE listings SET months_per_unit = 1 WHERE id = ${parent}`,
     unchanged: 0,
@@ -231,7 +233,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await expect(
       withTransaction(async (tx) => {
         await tx.execute(
-          await listingsTable.updateStatement!(listing.id, result.value),
+          await records.listings.updateStatement(
+            listing.id,
+            rowValuesOf(tables.listings, result.value),
+          ),
         );
         await persistListingJoins(
           tx,
@@ -244,7 +249,7 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     );
 
     expect(await listingGroups.getIds(listing.id)).toEqual([group.id]);
-    expect((await getListingWithCount(listing.id))?.can_pay_more).toBe(false);
+    expect((await getListingWithCount(listing.id))?.canPayMore).toBe(false);
   });
 
   test("refuses child edges when the preserved membership gained a hidden package", async () => {
@@ -273,7 +278,10 @@ describeWithEnv("api-listing-joins", { db: true }, () => {
     await expect(
       withTransaction(async (tx) => {
         await tx.execute(
-          await listingsTable.updateStatement!(listing.id, result.value),
+          await records.listings.updateStatement(
+            listing.id,
+            rowValuesOf(tables.listings, result.value),
+          ),
         );
         await persistListingJoins(tx, listing.id, {
           ...prepareListingJoins(result.value),

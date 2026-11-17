@@ -37,9 +37,9 @@ const confirmRemoval = async (
     mockFormRequest(
       `/admin/groups/${groupId}/remove-listings`,
       {
-        confirm_identifier: groupName,
-        csrf_token: session.csrfToken,
-        listing_ids: listingIds.join(","),
+        confirmIdentifier: groupName,
+        csrfToken: session.csrfToken,
+        listingIds: listingIds.join(","),
       },
       session.cookie,
     ),
@@ -55,7 +55,7 @@ describeWithEnv("admin group listing removal", { db: true }, () => {
 
     const html = await (
       await adminGet(
-        `/admin/groups/${group.id}/remove-listings?listing_ids=${listing.id}`,
+        `/admin/groups/${group.id}/remove-listings?listingIds=${listing.id}`,
       )
     ).text();
 

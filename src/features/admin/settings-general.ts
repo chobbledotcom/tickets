@@ -79,7 +79,7 @@ const removedOrUpdated =
  * Handle POST /admin/settings/payment-provider - owner only
  */
 export const handlePaymentProviderPost = settingsHandler({
-  extract: (form) => form.getString("payment_provider"),
+  extract: (form) => form.getString("paymentProvider"),
   formId: "settings-payment-provider",
   log: (v) =>
     v === "none"
@@ -105,7 +105,7 @@ export const handlePaymentProviderPost = settingsHandler({
 export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
   async (form, errorPage) => {
     const formId = "settings-payment-provider-recovery";
-    const provider = form.getString("existing_payment_provider");
+    const provider = form.getString("existingPaymentProvider");
     if (settings.paymentProvider) {
       return errorPage(
         t("error.payment_provider_recovery_unavailable"),
@@ -118,7 +118,7 @@ export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
     ) {
       return errorPage(t("error.invalid_existing_payment_provider"), formId);
     }
-    const expectedVersion = form.getOptionalInt("settings_version");
+    const expectedVersion = form.getOptionalInt("settingsVersion");
     const task = await settings.withCurrentTask(
       "payment-provider",
       async () => {
@@ -196,7 +196,7 @@ export const handleBusinessEmailPost = settingsClearable({
 export const handleThemePost = settingsHandler({
   extract: (form) => ({
     theme: form.getString("theme"),
-    underlineLinks: form.get("underline_links") === "true",
+    underlineLinks: form.get("underlineLinks") === "true",
   }),
   formId: "settings-theme",
   log: (v) => `Theme set to ${v.theme}`,
@@ -223,8 +223,8 @@ export const handleExternalOrderPost = settingsToggle({
 /** Handle POST /admin/settings/calendar-feeds - owner only */
 export const handleCalendarFeedsPost = settingsHandler({
   extract: (form) => ({
-    enabled: form.getString("calendar_feeds_enabled") === "true",
-    groupBy: form.getString("calendar_feeds_group_by"),
+    enabled: form.getString("calendarFeedsEnabled") === "true",
+    groupBy: form.getString("calendarFeedsGroupBy"),
   }),
   formId: "settings-calendar-feeds",
   log: (v) =>
@@ -243,7 +243,7 @@ export const handleCalendarFeedsPost = settingsHandler({
 export const handleBookingFeePost = settingsHandler({
   ...formLocation(SETTINGS_FORMS.bookingFee),
   // The schema's parse is Number. A blank becomes NaN, so the handler refuses.
-  extract: (form) => Number(form.getString("booking_fee") || Number.NaN),
+  extract: (form) => Number(form.getString("bookingFee") || Number.NaN),
   log: (v) => `Booking fee set to ${v}%`,
   save: (v) => settings.update.bookingFee(String(v)),
   // The declared 0..10 bounds refuse an out-of-range number before the

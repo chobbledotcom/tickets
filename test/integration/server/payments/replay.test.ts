@@ -159,8 +159,8 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
           // The session is recorded as a terminal failure.
           const record = await getProcessedPayment("cs_replay_price");
-          expect(record?.attendee_id).toBeNull();
-          expect(record?.failure_data).not.toBe("");
+          expect(record?.attendeeId).toBeNull();
+          expect(record?.failureData).not.toBe("");
 
           // Retry replays the same terminal outcome: same message, no second
           // placeholder, no second refund, never the transient lock message.

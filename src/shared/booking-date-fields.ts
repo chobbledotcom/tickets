@@ -19,7 +19,7 @@ import { clampDurationDays, type ListingWithCount } from "#types";
  *  fields it actually consumes. */
 export type BookingDateSource = Pick<
   ListingWithCount,
-  "listing_type" | "duration_days" | "customisable_days"
+  "listingType" | "durationDays" | "customisableDays"
 >;
 
 /**
@@ -39,7 +39,7 @@ export const bookingDateFields = (
   date: string | null,
   dayCount = 1,
 ): { date: string | null; durationDays: number } => ({
-  date: capacityDateFor(listing.listing_type, date),
+  date: capacityDateFor(listing.listingType, date),
   // A legacy signed session can carry any day count, so the row clamps it
   // even though the buyer's own path has already priced it.
   durationDays: clampDurationDays(parentResolvedDuration(listing, dayCount)),

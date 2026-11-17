@@ -14,14 +14,14 @@ export const HOLIDAY_FIELDS = [
   },
   {
     header: "holidays.col.start_date",
-    key: "start_date",
+    key: "startDate",
     kind: "date",
     label: "fields.holiday.start_date",
   },
   {
     header: "holidays.col.end_date",
     hint: "fields.holiday.end_date_hint",
-    key: "end_date",
+    key: "endDate",
     kind: "date",
     label: "fields.holiday.end_date",
   },

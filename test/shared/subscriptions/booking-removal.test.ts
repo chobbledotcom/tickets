@@ -77,15 +77,15 @@ describeWithEnv("removing a subscribed booking", { db: true }, () => {
       sql`UPDATE listing_attendees SET quantity = 0 WHERE id = ${bookingId}`,
     );
     expect(await getSubscribedRowOrNull(bookingId)).toEqual({
-      attendee_id: ada.attendeeId,
+      attendeeId: ada.attendeeId,
       id: bookingId,
-      listing_id: ada.listingId,
+      listingId: ada.listingId,
       quantity: 0,
-      recurring_interval: "month",
-      recurring_price: 600,
-      recurring_tax: 100,
-      subscription_id: "sub_ada",
-      subscription_status: "trialing",
+      recurringInterval: "month",
+      recurringPrice: 600,
+      recurringTax: 100,
+      subscriptionId: "sub_ada",
+      subscriptionStatus: "trialing",
     });
     expect(await getSubscribedRowOrNull(await idOf(plain.attendeeId))).toBe(
       null,

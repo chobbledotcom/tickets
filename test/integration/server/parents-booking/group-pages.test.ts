@@ -30,10 +30,10 @@ describeWithEnv(
       // shown informationally); the child must NOT get its own standalone
       // quantity control (`quantity_<childId>`).
       expectIncludesAll(body, [
-        `name="quantity_${parent.id}"`,
+        `name="quantity${parent.id}"`,
         `data-sole-child="${child.id}"`,
       ]);
-      assert(!body.includes(`name="quantity_${child.id}"`));
+      assert(!body.includes(`name="quantity${child.id}"`));
     });
 
     test("a group page cannot book the child alone", async () => {
@@ -43,10 +43,10 @@ describeWithEnv(
       const res = await handleRequest(
         new Request(`http://localhost/ticket/${group!.slug}`, {
           body: new URLSearchParams({
-            csrf_token: await signCsrfToken(),
+            csrfToken: await signCsrfToken(),
             email: "a@b.com",
             name: "Ada",
-            [`quantity_${child.id}`]: "1",
+            [`quantity${child.id}`]: "1",
           }),
           headers: {
             "content-type": "application/x-www-form-urlencoded",
@@ -68,8 +68,8 @@ describeWithEnv(
       const b = await createTestListing({ groupId: group.id, name: "B" });
       const body = await (await ticketGet(group.slug)).text();
       expectIncludesAll(body, [
-        `name="quantity_${a.id}"`,
-        `name="quantity_${b.id}"`,
+        `name="quantity${a.id}"`,
+        `name="quantity${b.id}"`,
       ]);
     });
 

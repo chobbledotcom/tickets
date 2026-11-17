@@ -1,18 +1,15 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import {
-  execute,
-  insert,
-  queryAll,
-  queryOne,
-  withTransaction,
-} from "#db/client.ts";
+import { encrypt } from "#crypto/encryption.ts";
+import { execute, queryAll, queryOne, withTransaction } from "#db/client.ts";
 import {
   defineOrderedCollection,
   flatCollectionSwap,
   scopedCollectionSwap,
 } from "#db/ordered-collection.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
@@ -38,10 +35,10 @@ const pageItems = defineOrderedCollection({
 });
 
 const insertStatus = async (sortOrder: number): Promise<number> => {
-  const statement = insert("attendee_statuses", {
-    name: "status",
-    reservation_amount: "0",
-    sort_order: sortOrder,
+  const statement = insertInto(tables.attendee_statuses, {
+    name: await encrypt("status"),
+    reservationAmount: "0",
+    sortOrder: sortOrder,
   });
   return Number((await execute(statement)).lastInsertRowid);
 };

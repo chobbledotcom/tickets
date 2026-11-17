@@ -7,7 +7,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { modifiersTable } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { formatCurrency } from "#shared/currency.ts";
@@ -28,7 +28,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     });
 
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
 
@@ -51,7 +51,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     const html = await (
       await postRunningTotal(listing.slug, listing.slug, {
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
       })
     ).text();
 
@@ -75,7 +75,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     // No name/email/phone sent — a quote must not require them.
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "3",
+      [`quantity${listing.id}`]: "3",
     });
     expect(response.status).toBe(200);
     assertStringIncludes(await response.text(), "Free Entry");
@@ -85,7 +85,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const listing = await createTestListing({ maxQuantity: 5, name: "Seat" });
 
     const response = await postRunningTotal(listing.slug, listing.slug, {
-      [`quantity_${listing.id}`]: "0",
+      [`quantity${listing.id}`]: "0",
     });
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -100,8 +100,8 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
 
     const response = await handleRequest(
       mockFormRequest(`/calculate/${listing.slug}`, {
-        csrf_token: "not-a-real-token",
-        [`quantity_${listing.id}`]: "1",
+        csrfToken: "not-a-real-token",
+        [`quantity${listing.id}`]: "1",
       }),
     );
     expect(response.status).toBe(403);
@@ -114,15 +114,15 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     const { answerId, modifierId, questionId } = await setupAnswerTier(listing);
 
     const selection = {
-      [`question_${questionId}`]: String(answerId),
-      [`quantity_${listing.id}`]: "1",
+      [`question${questionId}`]: String(answerId),
+      [`quantity${listing.id}`]: "1",
     };
     assertStringIncludes(
       await quoteTicketHtml(listing.slug, selection),
       "no longer available",
     );
 
-    await modifiersTable.update(modifierId, { minVisits: 1 });
+    await records.modifiers.update(modifierId, { minVisits: 1 });
     assert(
       !(await quoteTicketHtml(listing.slug, selection)).includes(
         "no longer available",
@@ -146,7 +146,7 @@ describeWithEnv("server (/calculate running total)", { db: true }, () => {
     try {
       const html = await (
         await postRunningTotal(listing.slug, listing.slug, {
-          [`quantity_${listing.id}`]: "1",
+          [`quantity${listing.id}`]: "1",
         })
       ).text();
       assertStringIncludes(html, "no longer available");

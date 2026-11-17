@@ -43,7 +43,7 @@ export const postCheckin = (
   handleRequest(
     mockFormRequest(
       `/checkin/${token}`,
-      { check_in: checkIn, csrf_token: session.csrfToken },
+      { checkIn, csrfToken: session.csrfToken },
       session.cookie,
     ),
   );
@@ -57,7 +57,7 @@ export const checkOneLegAsStaff = async (
   await handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee/${attendeeId}/checkin`,
-      { check_in: "true", csrf_token: await testCsrfToken(), quantity: "1" },
+      { checkIn: "true", csrfToken: await testCsrfToken(), quantity: "1" },
       await testCookie(),
     ),
   );

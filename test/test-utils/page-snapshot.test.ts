@@ -16,10 +16,10 @@ const fixture = (name: string, html: string): URL => {
 };
 
 const page = (token: string, button: string): string =>
-  `<form method="post"><input name="csrf_token" type="hidden" value="${token}"><button>${button}</button></form>`;
+  `<form method="post"><input name="csrfToken" type="hidden" value="${token}"><button>${button}</button></form>`;
 
 const adjacentPage = (token: string): string =>
-  `<form method="post"><input name="csrf_token" value="${token}"><button>Save</button></form>`;
+  `<form method="post"><input name="csrfToken" value="${token}"><button>Save</button></form>`;
 
 describe("assertPageMatchesSnapshot", () => {
   it("compares equal when only the freshly minted token value differs", () => {
@@ -45,14 +45,14 @@ describe("assertPageMatchesSnapshot", () => {
     );
   });
 
-  it("does not mask a field whose name merely contains csrf_token", () => {
+  it("does not mask a field whose name merely contains csrfToken", () => {
     assertThrows(() =>
       assertPageMatchesSnapshot(
         fixture(
           "lookalike.html",
-          '<form method="post"><input data-name="csrf_token" type="hidden" value="keep-a"><button>Save</button></form>',
+          '<form method="post"><input data-name="csrfToken" type="hidden" value="keep-a"><button>Save</button></form>',
         ),
-        '<form method="post"><input data-name="csrf_token" type="hidden" value="keep-b"><button>Save</button></form>',
+        '<form method="post"><input data-name="csrfToken" type="hidden" value="keep-b"><button>Save</button></form>',
       ),
     );
   });

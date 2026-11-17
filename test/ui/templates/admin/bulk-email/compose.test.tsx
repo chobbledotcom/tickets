@@ -82,12 +82,12 @@ describe("bulkEmailComposePage", () => {
     const plural = bulkEmailComposePage(
       OWNER_SESSION,
       composeState({
-        control: { fields: [["listing_id", "7"]], mode: "fixed" },
+        control: { fields: [["listingId", "7"]], mode: "fixed" },
         targetLabel: "Attendees of Gig",
       }),
     );
     expectIncludesAll(plural, [
-      '<input name="listing_id" type="hidden" value="7">',
+      '<input name="listingId" type="hidden" value="7">',
       "<strong>Recipients:</strong> Attendees of Gig",
       "Attendees of Gig",
     ]);
@@ -95,7 +95,7 @@ describe("bulkEmailComposePage", () => {
     const single = bulkEmailComposePage(
       OWNER_SESSION,
       composeState({
-        control: { fields: [["listing_id", "7"]], mode: "fixed" },
+        control: { fields: [["listingId", "7"]], mode: "fixed" },
         single: true,
         targetLabel: "Attendees of Gig",
       }),
@@ -224,14 +224,14 @@ describe("bulkEmailComposePage", () => {
     expectIncludesAll(html, [
       'href="/admin/emails?audience=active&amp;template=12">June reminder</a>',
       '<a class="danger small" href="/admin/emails/templates/9/delete">',
-      'name="template_id"',
+      'name="templateId"',
       '<option selected value="9">March offers &amp; news</option>',
-      'name="update_existing"',
-      '<fieldset class="checkboxes"><label><input name="update_existing"',
+      'name="updateExisting"',
+      '<fieldset class="checkboxes"><label><input name="updateExisting"',
       '<div class="template-update-fields">',
-      'name="update_existing" type="checkbox" value="1"',
+      'name="updateExisting" type="checkbox" value="1"',
     ]);
-    assert(!html.includes('checked name="update_existing"'));
+    assert(!html.includes('checked name="updateExisting"'));
   });
 
   test("shows the template controls with exactly one saved template", () => {
@@ -244,9 +244,9 @@ describe("bulkEmailComposePage", () => {
     );
     expectIncludesAll(html, [
       "<summary>Load a template</summary>",
-      '<fieldset class="checkboxes"><label><input name="update_existing"',
+      '<fieldset class="checkboxes"><label><input name="updateExisting"',
       '<div class="template-update-fields">',
-      'name="template_id"',
+      'name="templateId"',
     ]);
   });
 
@@ -261,7 +261,7 @@ describe("bulkEmailComposePage", () => {
   test("omits the template controls when no templates exist", () => {
     const html = bulkEmailComposePage(OWNER_SESSION, composeState());
     assert(!html.includes("Load a template"));
-    assert(!html.includes('name="template_id"'));
-    assert(!html.includes('name="update_existing"'));
+    assert(!html.includes('name="templateId"'));
+    assert(!html.includes('name="updateExisting"'));
   });
 });

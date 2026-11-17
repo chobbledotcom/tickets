@@ -9,15 +9,20 @@ import type {
   Transaction,
   TransactionMode,
 } from "@libsql/client";
-import type { TxScope } from "#db/client.ts";
 import type { SqlStatement } from "#db/sql.ts";
+
+/** Run statements that the `sql` tag built. */
+type StatementRunners = {
+  batch: (statements: SqlStatement[]) => Promise<ResultSet[]>;
+  execute: (statement: SqlStatement) => Promise<ResultSet>;
+};
 
 /** A libsql transaction that runs only statements the `sql` tag built. */
 export type StatementTransaction = Omit<
   Transaction,
   "batch" | "execute" | "executeMultiple"
 > &
-  TxScope;
+  StatementRunners;
 
 /** The libsql client, narrowed to run only statements the `sql` tag built. */
 export type StatementClient = Omit<
@@ -29,4 +34,4 @@ export type StatementClient = Omit<
     mode?: TransactionMode,
   ) => Promise<ResultSet[]>;
   transaction: (mode?: TransactionMode) => Promise<StatementTransaction>;
-} & Pick<TxScope, "execute">;
+} & Pick<StatementRunners, "execute">;

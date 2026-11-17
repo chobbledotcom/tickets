@@ -22,9 +22,9 @@ const ruleError = (messageKey: string, name: string): string =>
 /** The customisable child every duration-compatibility case pairs with. */
 const cabin = (over: Partial<EdgeListing> = {}): EdgeListing =>
   listing({
-    customisable_days: true,
-    day_prices: { 2: 200 },
-    duration_days: 5,
+    customisableDays: true,
+    dayPrices: { 2: 200 },
+    durationDays: 5,
     name: "Cabin",
     ...over,
   });
@@ -74,28 +74,28 @@ describe("durationsCompatible", () => {
   describe("both customisable", () => {
     test("compatible when their day-count ranges overlap", () => {
       const parent = listing({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
       });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 3: 300, 4: 400 },
-        duration_days: 4,
+        customisableDays: true,
+        dayPrices: { 3: 300, 4: 400 },
+        durationDays: 4,
       });
       expect(durationsCompatible(parent, child)).toBe(true);
     });
 
     test("incompatible when their day-count ranges don't overlap", () => {
       const parent = listing({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
       });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 5: 500 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 5: 500 },
+        durationDays: 5,
       });
       expect(durationsCompatible(parent, child)).toBe(false);
     });
@@ -103,21 +103,21 @@ describe("durationsCompatible", () => {
 
   describe("customisable child, fixed (non-daily) parent", () => {
     test("compatible when the child prices the parent's fixed 1-day span", () => {
-      const parent = listing({ listing_type: "standard" });
+      const parent = listing({ listingType: "standard" });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 1: 100 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 1: 100 },
+        durationDays: 5,
       });
       expect(durationsCompatible(parent, child)).toBe(true);
     });
 
     test("incompatible when the child has no price for that span", () => {
-      const parent = listing({ listing_type: "standard" });
+      const parent = listing({ listingType: "standard" });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 2: 200 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 2: 200 },
+        durationDays: 5,
       });
       expect(durationsCompatible(parent, child)).toBe(false);
     });
@@ -126,26 +126,26 @@ describe("durationsCompatible", () => {
   describe("customisable child, fixed daily parent", () => {
     test("compatible when the child prices the parent's own duration", () => {
       const parent = listing({
-        duration_days: 4,
-        listing_type: "daily",
+        durationDays: 4,
+        listingType: "daily",
       });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 4: 400 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 4: 400 },
+        durationDays: 5,
       });
       expect(durationsCompatible(parent, child)).toBe(true);
     });
 
     test("incompatible when the child has no price for the parent's duration", () => {
       const parent = listing({
-        duration_days: 4,
-        listing_type: "daily",
+        durationDays: 4,
+        listingType: "daily",
       });
       const child = listing({
-        customisable_days: true,
-        day_prices: { 3: 300 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 3: 300 },
+        durationDays: 5,
       });
       expect(durationsCompatible(parent, child)).toBe(false);
     });
@@ -153,14 +153,14 @@ describe("durationsCompatible", () => {
 
   test("a plain standard (non-daily, non-customisable) child fits under any parent", () => {
     const child = listing({
-      customisable_days: false,
-      listing_type: "standard",
+      customisableDays: false,
+      listingType: "standard",
     });
-    const dailyParent = listing({ duration_days: 10, listing_type: "daily" });
+    const dailyParent = listing({ durationDays: 10, listingType: "daily" });
     const customisableParent = listing({
-      customisable_days: true,
-      day_prices: { 1: 100 },
-      duration_days: 1,
+      customisableDays: true,
+      dayPrices: { 1: 100 },
+      durationDays: 1,
     });
     expect(durationsCompatible(dailyParent, child)).toBe(true);
     expect(durationsCompatible(customisableParent, child)).toBe(true);
@@ -169,43 +169,43 @@ describe("durationsCompatible", () => {
   describe("fixed daily child, customisable parent", () => {
     test("compatible when the parent's range includes the child's duration", () => {
       const parent = listing({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
       });
-      const child = listing({ duration_days: 3, listing_type: "daily" });
+      const child = listing({ durationDays: 3, listingType: "daily" });
       expect(durationsCompatible(parent, child)).toBe(true);
     });
 
     test("incompatible when the parent's range excludes the child's duration", () => {
       const parent = listing({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
       });
-      const child = listing({ duration_days: 5, listing_type: "daily" });
+      const child = listing({ durationDays: 5, listingType: "daily" });
       expect(durationsCompatible(parent, child)).toBe(false);
     });
   });
 
   describe("fixed daily child, fixed parent", () => {
     test("compatible when the durations match exactly", () => {
-      const parent = listing({ duration_days: 3, listing_type: "daily" });
-      const child = listing({ duration_days: 3, listing_type: "daily" });
+      const parent = listing({ durationDays: 3, listingType: "daily" });
+      const child = listing({ durationDays: 3, listingType: "daily" });
       expect(durationsCompatible(parent, child)).toBe(true);
     });
 
     test("incompatible when the durations differ", () => {
-      const parent = listing({ duration_days: 3, listing_type: "daily" });
-      const child = listing({ duration_days: 4, listing_type: "daily" });
+      const parent = listing({ durationDays: 3, listingType: "daily" });
+      const child = listing({ durationDays: 4, listingType: "daily" });
       expect(durationsCompatible(parent, child)).toBe(false);
     });
 
     test("a non-daily parent's fixed duration is always 1, regardless of its own duration_days", () => {
-      const parent = listing({ duration_days: 10, listing_type: "standard" });
-      const child = listing({ duration_days: 1, listing_type: "daily" });
+      const parent = listing({ durationDays: 10, listingType: "standard" });
+      const child = listing({ durationDays: 1, listingType: "daily" });
       expect(durationsCompatible(parent, child)).toBe(true);
-      expect(durationsCompatible(parent, { ...child, duration_days: 2 })).toBe(
+      expect(durationsCompatible(parent, { ...child, durationDays: 2 })).toBe(
         false,
       );
     });
@@ -227,26 +227,26 @@ describe("edgeFieldError", () => {
   const blamedNameCases: [string, EdgeListing, EdgeListing, string][] = [
     [
       "parent renewal",
-      listing({ months_per_unit: 1, name: "Membership" }),
+      listing({ monthsPerUnit: 1, name: "Membership" }),
       listing(),
       "Membership",
     ],
     [
       "child renewal",
       listing(),
-      listing({ months_per_unit: 1, name: "Gold Tier" }),
+      listing({ monthsPerUnit: 1, name: "Gold Tier" }),
       "Gold Tier",
     ],
     [
       "daily child under a non-daily parent",
       listing(),
-      listing({ listing_type: "daily", name: "Cabin" }),
+      listing({ listingType: "daily", name: "Cabin" }),
       "Cabin",
     ],
     [
       "duration mismatch",
-      listing({ duration_days: 3, listing_type: "daily" }),
-      listing({ duration_days: 5, listing_type: "daily", name: "Bell Tent" }),
+      listing({ durationDays: 3, listingType: "daily" }),
+      listing({ durationDays: 5, listingType: "daily", name: "Bell Tent" }),
       "Bell Tent",
     ],
   ];
@@ -260,7 +260,7 @@ describe("edgeFieldError", () => {
   }
 
   test("the parent-renewal error when the parent is a renewal tier", () => {
-    const parent = listing({ months_per_unit: 1, name: "Membership" });
+    const parent = listing({ monthsPerUnit: 1, name: "Membership" });
     const child = listing({ name: "Child" });
     expect(edgeFieldError(parent, child)).toBe(
       ruleError("parent_renewal", "Membership"),
@@ -269,15 +269,15 @@ describe("edgeFieldError", () => {
 
   test("the child-renewal error when the child is a renewal tier", () => {
     const parent = listing({ name: "Parent" });
-    const child = listing({ months_per_unit: 1, name: "Membership" });
+    const child = listing({ monthsPerUnit: 1, name: "Membership" });
     expect(edgeFieldError(parent, child)).toBe(
       ruleError("child_renewal", "Membership"),
     );
   });
 
   test("the daily error when a daily child sits under a non-daily parent", () => {
-    const parent = listing({ listing_type: "standard", name: "Parent" });
-    const child = listing({ listing_type: "daily", name: "Cabin" });
+    const parent = listing({ listingType: "standard", name: "Parent" });
+    const child = listing({ listingType: "daily", name: "Cabin" });
     expect(edgeFieldError(parent, child)).toBe(
       ruleError("child_daily", "Cabin"),
     );
@@ -285,13 +285,13 @@ describe("edgeFieldError", () => {
 
   test("a daily child under a daily parent passes the daily check", () => {
     const parent = listing({
-      duration_days: 3,
-      listing_type: "daily",
+      durationDays: 3,
+      listingType: "daily",
       name: "Parent",
     });
     const child = listing({
-      duration_days: 3,
-      listing_type: "daily",
+      durationDays: 3,
+      listingType: "daily",
       name: "Cabin",
     });
     expect(edgeFieldError(parent, child)).toBeNull();
@@ -309,23 +309,23 @@ describe("edgeFieldError", () => {
   ][] = [
     [
       "a daily child's duration differs from the parent's fixed span",
-      listing({ duration_days: 3, listing_type: "daily", name: "Parent" }),
-      listing({ duration_days: 5, listing_type: "daily", name: "Cabin" }),
+      listing({ durationDays: 3, listingType: "daily", name: "Parent" }),
+      listing({ durationDays: 5, listingType: "daily", name: "Cabin" }),
       "3 days",
       "5 days",
     ],
     [
       "names the customisable parent's offered lengths",
       listing({
-        customisable_days: true,
-        day_prices: { 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 2: 200, 3: 300 },
+        durationDays: 3,
         name: "Festival",
       }),
       listing({
-        customisable_days: true,
-        day_prices: { 5: 500 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 5: 500 },
+        durationDays: 5,
         name: "Cabin",
       }),
       "2 or 3 days",
@@ -333,7 +333,7 @@ describe("edgeFieldError", () => {
     ],
     [
       "names the customisable child's priced lengths",
-      listing({ duration_days: 3, listing_type: "daily", name: "Week" }),
+      listing({ durationDays: 3, listingType: "daily", name: "Week" }),
       cabin(),
       "3 days",
       "2 days",
@@ -341,9 +341,9 @@ describe("edgeFieldError", () => {
     [
       "names an unpriced customisable parent's empty offer",
       listing({
-        customisable_days: true,
-        day_prices: {},
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: {},
+        durationDays: 3,
         name: "Empty",
       }),
       cabin(),
@@ -352,7 +352,7 @@ describe("edgeFieldError", () => {
     ],
     [
       "a fixed standard parent offers its single 1-day span",
-      listing({ listing_type: "standard", name: "Quick Stop" }),
+      listing({ listingType: "standard", name: "Quick Stop" }),
       cabin(),
       "1 day",
       "2 days",
@@ -360,15 +360,15 @@ describe("edgeFieldError", () => {
     [
       "sorts and counts the parent's offered lengths, including one day",
       listing({
-        customisable_days: true,
-        day_prices: { 1: 100, 2: 200, 3: 300 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 1: 100, 2: 200, 3: 300 },
+        durationDays: 3,
         name: "Mixed",
       }),
       listing({
-        customisable_days: true,
-        day_prices: { 5: 500 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 5: 500 },
+        durationDays: 5,
         name: "Cabin",
       }),
       "1, 2 or 3 days",
@@ -389,10 +389,10 @@ describe("edgeFieldError", () => {
   }
 
   test("the parent-renewal check wins over every other violation", () => {
-    const parent = listing({ months_per_unit: 1, name: "Parent" });
+    const parent = listing({ monthsPerUnit: 1, name: "Parent" });
     const child = listing({
-      listing_type: "daily",
-      months_per_unit: 1,
+      listingType: "daily",
+      monthsPerUnit: 1,
       name: "Child",
     });
     expect(edgeFieldError(parent, child)).toBe(
@@ -401,10 +401,10 @@ describe("edgeFieldError", () => {
   });
 
   test("the child-renewal check wins over the daily and duration checks", () => {
-    const parent = listing({ listing_type: "standard", name: "Parent" });
+    const parent = listing({ listingType: "standard", name: "Parent" });
     const child = listing({
-      listing_type: "daily",
-      months_per_unit: 1,
+      listingType: "daily",
+      monthsPerUnit: 1,
       name: "Child",
     });
     expect(edgeFieldError(parent, child)).toBe(
@@ -415,10 +415,10 @@ describe("edgeFieldError", () => {
   test("the daily check wins over the duration check", () => {
     // Also incompatible on duration (5 vs the non-daily parent's fixed 1),
     // but the daily mismatch is checked first.
-    const parent = listing({ listing_type: "standard", name: "Parent" });
+    const parent = listing({ listingType: "standard", name: "Parent" });
     const child = listing({
-      duration_days: 5,
-      listing_type: "daily",
+      durationDays: 5,
+      listingType: "daily",
       name: "Cabin",
     });
     expect(edgeFieldError(parent, child)).toBe(
@@ -430,9 +430,9 @@ describe("edgeFieldError", () => {
    *  counts that miss it, a fixed daily parent whose span misses it, and an
    *  empty customisable parent — all refuse with the same priced side. */
   const underpricingParent: EdgeListing = listing({
-    customisable_days: true,
-    day_prices: { 2: 2000 },
-    duration_days: 2,
+    customisableDays: true,
+    dayPrices: { 2: 2000 },
+    durationDays: 2,
     name: "Cabin",
   });
 
@@ -447,21 +447,21 @@ describe("edgeFieldError", () => {
     [
       "names the parent's offered lengths sorted, joined by 'or'",
       listing({
-        customisable_days: true,
-        day_prices: { 1: 1000, 3: 3000, 7: 7000 },
-        duration_days: 7,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000, 7: 7000 },
+        durationDays: 7,
         name: "Parent",
       }),
       "1, 3 or 7 days",
     ],
     [
       "a fixed daily parent offers its one resolved span",
-      listing({ duration_days: 6, listing_type: "daily", name: "Parent" }),
+      listing({ durationDays: 6, listingType: "daily", name: "Parent" }),
       "6 days",
     ],
     [
       "a customisable parent pricing no counts offers nothing",
-      listing({ customisable_days: true, day_prices: {}, name: "Parent" }),
+      listing({ customisableDays: true, dayPrices: {}, name: "Parent" }),
       "",
     ],
   ] as const) {

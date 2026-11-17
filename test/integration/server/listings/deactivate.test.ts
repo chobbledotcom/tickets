@@ -41,7 +41,7 @@ describeWithEnv("server listings > deactivate", { db: true }, () => {
         "/admin/listing/1/deactivate",
         "Deactivate Listing",
         "Return a 404",
-        'name="confirm_identifier"',
+        'name="confirmIdentifier"',
         "type its name",
         listing.name,
       );
@@ -66,7 +66,7 @@ describeWithEnv("server listings > deactivate", { db: true }, () => {
       });
 
       const { response } = await adminFormPost("/admin/listing/1/deactivate", {
-        confirm_identifier: listing.name,
+        confirmIdentifier: listing.name,
       });
       await expectFlashRedirect(
         "/admin/listing/1",
@@ -89,7 +89,7 @@ describeWithEnv("server listings > deactivate", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/listing/999/deactivate",
         {
-          confirm_identifier: "something",
+          confirmIdentifier: "something",
         },
       );
       expect(response.status).toBe(404);

@@ -14,7 +14,11 @@ import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { blindIndexFor } from "#crypto/hashing.ts";
 import type { BlindIndex, EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { execute, queryOne } from "#db/client.ts";
+import { inQuery, lessThan } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto } from "#db/write.ts";
 import {
   type AddressMatch,
   AddressMatchSchema,
@@ -32,12 +36,17 @@ export const computeAddressSearchIndex = blindIndexFor("");
 /** The oldest `created` a cache row may have and still be served. */
 const freshCutoffIso = (): string => isoBefore(ADDRESS_CACHE_MS);
 
-export const addressCachePruneStatement =
-  (): SqlStatement => sql`DELETE FROM address_cache
-         WHERE rowid IN (
-           SELECT rowid FROM address_cache WHERE created < ${freshCutoffIso()}
-           ORDER BY rowid LIMIT ${MAINTENANCE_PRUNE_BATCH}
-         )`;
+export const addressCachePruneStatement = (): SqlStatement =>
+  deleteFrom(tables.address_cache).where((row) =>
+    inQuery(
+      row.id,
+      from(tables.address_cache)
+        .where((cached) => lessThan(cached.created, freshCutoffIso()))
+        .sortedBy("id")
+        .limit(MAINTENANCE_PRUNE_BATCH)
+        .values((cached) => cached.id),
+    ),
+  );
 
 const cachedAddressesJson = defineStoredJson(
   v.union([v.array(v.string()), v.array(AddressMatchSchema)]),
@@ -71,8 +80,16 @@ export const storeCachedAddresses = async (
   addresses: AddressMatch[],
 ): Promise<void> => {
   await execute(
-    sql`INSERT INTO address_cache (search_index, results, created) VALUES (${searchIndex}, ${await encrypt(
-      cachedAddressesJson.write(addresses, "address_cache.results"),
-    )}, ${new Date(nowMs()).toISOString()}) ON CONFLICT(search_index) DO UPDATE SET results = excluded.results, created = excluded.created`,
+    insertInto(
+      tables.address_cache,
+      {
+        created: new Date(nowMs()).toISOString(),
+        results: await encrypt(
+          cachedAddressesJson.write(addresses, "address_cache.results"),
+        ),
+        searchIndex,
+      },
+      { onConflict: { on: ["searchIndex"], take: ["results", "created"] } },
+    ),
   );
 };

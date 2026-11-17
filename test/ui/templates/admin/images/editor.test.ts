@@ -38,8 +38,8 @@ describeWithEnv("editor listing images", { db: true, storage: "cdn" }, () => {
       formRequest(
         `/admin/listing/${listing.id}/images`,
         [
-          ["csrf_token", await signCsrfToken()],
-          ["image_ids", String(image.id)],
+          ["csrfToken", await signCsrfToken()],
+          ["imageIds", String(image.id)],
         ],
         cookie,
       ),

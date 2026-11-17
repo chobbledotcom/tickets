@@ -1,7 +1,7 @@
 /** The buyer-facing lines of one order: a package stays whole and concealed. */
 
 import type { OrderLine } from "#db/attendees/balance.ts";
-import { getPackageDisplaysByIds } from "#db/groups.ts";
+import { getPackageDisplaysByIds } from "#db/groups/package-display.ts";
 import { flatMap, map, sumOf } from "#fp";
 import type { LineItem } from "#shared/line-item.ts";
 import {

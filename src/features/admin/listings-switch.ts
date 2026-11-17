@@ -19,7 +19,8 @@ import {
   undatedBookingsForListing,
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
@@ -75,12 +76,11 @@ export const wouldBeStartDates = async (
   getBookableStartDates(
     {
       ...stored,
-      bookable_days: input.bookableDays ?? stored.bookable_days,
-      customisable_days: input.customisableDays ?? stored.customisable_days,
-      duration_days: input.durationDays ?? stored.duration_days,
-      maximum_days_after: input.maximumDaysAfter ?? stored.maximum_days_after,
-      minimum_days_before:
-        input.minimumDaysBefore ?? stored.minimum_days_before,
+      bookableDays: input.bookableDays ?? stored.bookableDays,
+      customisableDays: input.customisableDays ?? stored.customisableDays,
+      durationDays: input.durationDays ?? stored.durationDays,
+      maximumDaysAfter: input.maximumDaysAfter ?? stored.maximumDaysAfter,
+      minimumDaysBefore: input.minimumDaysBefore ?? stored.minimumDaysBefore,
     },
     await holidays.getAll(),
   );
@@ -127,10 +127,11 @@ export const probeAssignDates = async (
 ): Promise<boolean[]> => {
   try {
     return await withTransaction(async (tx) => {
-      // `updateStatement` is optional only on the façade type. The REST layer
-      // calls it the same way (see the record's write path).
       await tx.execute(
-        await listingsTable.updateStatement!(stored.id, wouldBe),
+        await records.listings.updateStatement(
+          stored.id,
+          rowValuesOf(tables.listings, wouldBe),
+        ),
       );
       const results = await tx.batch([
         dateVerdictsStatement(stored.id, quantity, dates, durationDays),
@@ -152,8 +153,8 @@ export const planListingTypeSwitch = async (
   form: FormParams,
   view: ListingFormView,
 ): Promise<SwitchStep> => {
-  if (form.getString("listing_type") !== "daily") return { kind: "none" };
-  if (stored.listing_type === "daily") return { kind: "none" };
+  if (form.getString("listingType") !== "daily") return { kind: "none" };
+  if (stored.listingType === "daily") return { kind: "none" };
   const rows = await undatedBookingsForListing(stored.id);
   if (rows.length === 0) return { kind: "none" };
 
@@ -247,7 +248,7 @@ export const renderListingSwitchAssignPage = async (
         entity,
         ctx,
         error,
-        form.getNumberArray("group_ids"),
+        form.getNumberArray("groupIds"),
         page,
       ),
     status,

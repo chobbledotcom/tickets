@@ -23,22 +23,22 @@ import { ticketContext, twoListingContext } from "#test-utils/ticket-ctx.ts";
 
 const question = (
   id: number,
-  display_type: QuestionWithAnswers["display_type"],
+  displayType: QuestionWithAnswers["displayType"],
 ): QuestionWithAnswers => ({
   answers:
-    display_type === "free_text"
+    displayType === "free_text"
       ? []
       : [
           {
             active: true,
             id: id * 10,
-            question_id: id,
-            sort_order: 0,
+            questionId: id,
+            sortOrder: 0,
             text: "Answer",
           },
         ],
-  assign_all: false,
-  display_type,
+  assignAll: false,
+  displayType,
   id,
   text: `Question ${id}`,
 });
@@ -141,10 +141,10 @@ describe("ticket form answer grouping", () => {
   test("skips an inactive-only choice question so answer ids stay aligned", () => {
     const inactiveOnly: QuestionWithAnswers = {
       answers: [
-        { active: false, id: 10, question_id: 1, sort_order: 0, text: "Gone" },
+        { active: false, id: 10, questionId: 1, sortOrder: 0, text: "Gone" },
       ],
-      assign_all: false,
-      display_type: "radio",
+      assignAll: false,
+      displayType: "radio",
       id: 1,
       text: "Q1",
     };
@@ -225,7 +225,7 @@ describe("parseAddOnSelections", () => {
   test("reads each selected add-on's quantity as posted", () => {
     // A count above an add-on's ceiling is refused by validateFormState, so
     // the parser keeps the posted value instead of clamping it.
-    const result = parseAddOnSelections(form({ addon_5: "1", addon_6: "2" }), [
+    const result = parseAddOnSelections(form({ addon5: "1", addon6: "2" }), [
       addOn(5, 10),
       addOn(6, 3),
     ]);
@@ -238,9 +238,9 @@ describe("parseAddOnSelections", () => {
   });
 
   test("drops zero, missing, and not-offered add-ons", () => {
-    // 5 is selected zero, 6 is offered but absent from the form, and addon_7 has
+    // 5 is selected zero, 6 is offered but absent from the form, and addon7 has
     // a value but isn't an offered add-on — none of them produce a selection.
-    const result = parseAddOnSelections(form({ addon_5: "0", addon_7: "4" }), [
+    const result = parseAddOnSelections(form({ addon5: "0", addon7: "4" }), [
       addOn(5, 10),
       addOn(6, 10),
     ]);
@@ -270,9 +270,9 @@ describe("parseQuantities", () => {
     // book.
     const form = new FormParams(
       new URLSearchParams({
-        quantity_1: "3",
-        quantity_2: "4",
-        quantity_3: "2",
+        quantity1: "3",
+        quantity2: "4",
+        quantity3: "2",
       }),
     );
     const result = parseQuantities(form, [
@@ -285,12 +285,12 @@ describe("parseQuantities", () => {
 
   test("leaves out a listing whose box is absent or carries no number", () => {
     // An absent or cleared box must read as zero tickets, never one.
-    const form = new FormParams(new URLSearchParams({ quantity_2: "abc" }));
+    const form = new FormParams(new URLSearchParams({ quantity2: "abc" }));
     expect(parseQuantities(form, [tl(1, {}), tl(2, {})])).toEqual(new Map());
   });
 
   test("keeps a listing the buyer chose exactly one ticket for", () => {
-    const form = new FormParams(new URLSearchParams({ quantity_1: "1" }));
+    const form = new FormParams(new URLSearchParams({ quantity1: "1" }));
     expect(parseQuantities(form, [tl(1, {})])).toEqual(new Map([[1, 1]]));
   });
 });

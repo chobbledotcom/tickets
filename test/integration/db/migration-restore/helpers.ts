@@ -17,7 +17,7 @@
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import type { Trigger } from "#db/migrations/schema/types.ts";
@@ -143,13 +143,10 @@ export const dropOwnedObjects = async (
   return droppedTriggers;
 };
 
+// The name stays plain text so that sentinelListingExists can find the row.
 export const seedSentinelListing = (): Promise<unknown> =>
   getDb().execute(
-    insert("listings", {
-      created: "2024-01-01T00:00:00Z",
-      max_attendees: 10,
-      name: "sentinel-listing",
-    }),
+    sql`INSERT INTO listings (created, max_attendees, name) VALUES ('2024-01-01T00:00:00Z', 10, 'sentinel-listing')`,
   );
 
 export const scalar = async (statement: SqlStatement): Promise<unknown> => {

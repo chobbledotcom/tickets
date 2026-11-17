@@ -105,8 +105,8 @@ const cartGroup = (name: string) =>
 const setupBookedOutListing = async () => {
   const listing = await createTestListing({ maxAttendees: 1 });
   await listingAggregates.update(listing.id, {
-    booked_quantity: 1,
-    tickets_count: 0,
+    bookedQuantity: 1,
+    ticketsCount: 0,
   });
   return listing;
 };

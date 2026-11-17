@@ -66,7 +66,7 @@ const asText = (id: AccountId): Expr<string> =>
 export const onSide =
   (role: Role, type: Operand<string>, id: Operand<string>): LegTest =>
   (leg) =>
-    and(equal(leg[`${role}_type`], type), equal(leg[`${role}_id`], id));
+    and(equal(leg[`${role}Type`], type), equal(leg[`${role}Id`], id));
 
 /** The row has the account on its `role` side. The type is a constant of the
  *  code, written into the SQL text. */
@@ -81,7 +81,7 @@ const ofKind =
 const inEventGroup =
   (eventGroup: Operand<string>): LegTest =>
   (leg) =>
-    equal(leg.event_group, eventGroup);
+    equal(leg.eventGroup, eventGroup);
 
 /** The row passes every test. */
 const every =
@@ -190,12 +190,12 @@ export const bookingSaleTotalSubquery: OfBooking<Expr<Counted>> = (
     onAccount("source", REVENUE, listingId),
   );
   const correctedGroups = from(tables.booking_tax_assessments)
-    .where((assessment) => equal(assessment.booking_group, eventGroup))
-    .values((assessment) => assessment.event_group);
+    .where((assessment) => equal(assessment.bookingGroup, eventGroup))
+    .values((assessment) => assessment.eventGroup);
   const correction: LegTest = (leg) =>
     and(
       ofKind(KIND.taxSale)(leg),
-      inQuery(leg.event_group, correctedGroups),
+      inQuery(leg.eventGroup, correctedGroups),
       some(credit, debit)(leg),
     );
   return ledgerLegs()
@@ -220,7 +220,7 @@ export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
     and(
       onAccount("source", type, id)(leg),
       or(
-        equal(leg.dest_type, literal(WRITEOFF_TYPE)),
+        equal(leg.destType, literal(WRITEOFF_TYPE)),
         amongConstants(leg.kind, [KIND.taxSale, KIND.taxModifier]),
       ),
     );
@@ -232,13 +232,12 @@ export const creditsLessWriteoffDebits: OfAccount<Expr<Counted>> = (
  *  side. A discount debits it, which is the source side. `accountId` reads
  *  whichever side holds the modifier, and `signedAmount` reads the effect on
  *  the price: positive for a surcharge and negative for a discount. */
-const surchargeSide: LegTest = (leg) => equal(leg.dest_type, literal(MODIFIER));
-const discountSide: LegTest = (leg) =>
-  equal(leg.source_type, literal(MODIFIER));
+const surchargeSide: LegTest = (leg) => equal(leg.destType, literal(MODIFIER));
+const discountSide: LegTest = (leg) => equal(leg.sourceType, literal(MODIFIER));
 
 export const modifierLeg = {
   accountId: (leg: Leg): Expr<string> =>
-    when<string>([[surchargeSide(leg), leg.dest_id]], leg.source_id),
+    when<string>([[surchargeSide(leg), leg.destId]], leg.sourceId),
   filter: ofKind(KIND.modifier),
   signedAmount: signedSum(surchargeSide, discountSide),
 } as const;

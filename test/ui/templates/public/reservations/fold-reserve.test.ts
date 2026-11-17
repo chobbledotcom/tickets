@@ -18,11 +18,11 @@ const listing = (
 ): TicketListing =>
   buildTicketListing(
     testListingWithCount({
-      attendee_count: 0,
+      attendeeCount: 0,
       id,
-      max_attendees: ownRemaining,
-      max_quantity: ownRemaining,
-      min_quantity: minQuantity,
+      maxAttendees: ownRemaining,
+      maxQuantity: ownRemaining,
+      minQuantity: minQuantity,
       name,
       slug: `s${id}`,
     }),
@@ -67,9 +67,9 @@ describe("foldReserveByChildId", () => {
       testListingWithCount({
         active: false,
         id: 3,
-        max_attendees: 9,
-        max_quantity: 9,
-        min_quantity: 1,
+        maxAttendees: 9,
+        maxQuantity: 9,
+        minQuantity: 1,
         name: "Retired add-on",
       }) as ListingWithCount,
       false,

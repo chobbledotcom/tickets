@@ -51,9 +51,9 @@ export const ownerChangesPassword = async (
       world,
       browser,
       {
-        current_password: chosen.currentPassword ?? TEST_ADMIN_PASSWORD,
-        new_password: chosen.newPassword,
-        new_password_confirm: chosen.confirmPassword ?? chosen.newPassword,
+        currentPassword: chosen.currentPassword ?? TEST_ADMIN_PASSWORD,
+        newPassword: chosen.newPassword,
+        newPasswordConfirm: chosen.confirmPassword ?? chosen.newPassword,
       },
       t("settings.change_password"),
     );

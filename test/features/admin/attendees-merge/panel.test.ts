@@ -252,10 +252,10 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         moveableRow,
         '<td><span class="muted">Will be moved</span></td><td></td></tr>',
       );
-      assert(!moveableRow.includes('name="booking_'));
+      assert(!moveableRow.includes('name="booking'));
       assertStringIncludes(
         tableRowContaining(html, `Listing #${listing1.id}`),
-        `name="booking_${listing1.id}:null:0:0"`,
+        `name="booking${listing1.id}:null:0:0"`,
       );
     });
 
@@ -277,7 +277,7 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         "None",
         "Pasta",
         "Curry",
-        `name="answer_${q.id}"`,
+        `name="answer${q.id}"`,
         '<th scope="row">Meal</th>',
       );
     });

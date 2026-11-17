@@ -43,7 +43,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         'autocomplete="new-password"',
         "required",
       ]);
-      const confirm = inputNamed(html, "password_confirm");
+      const confirm = inputNamed(html, "passwordConfirm");
       expectIncludesAll(confirm, [
         'minlength="8"',
         'autocomplete="new-password"',
@@ -127,7 +127,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const joinPostResponse = await submitJoinForm(inviteCode, {
         password: "newpassword123",
-        password_confirm: "newpassword123",
+        passwordConfirm: "newpassword123",
       });
 
       // Cookie-only: /join/complete is a public confirmation page (shown to the
@@ -140,8 +140,8 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // Joining unwraps the DATA_KEY handoff and re-wraps it under the new
       // password (v2), so the user is active immediately — no admin step.
       const user = await getUserByUsername("joiner2");
-      expect(user!.wrapped_data_key).not.toBeNull();
-      expect(user!.kek_version).toBe(2);
+      expect(user!.wrappedDataKey).not.toBeNull();
+      expect(user!.kekVersion).toBe(2);
     });
 
     test("POST /join/:code tells a stale replay the invite is invalid", async () => {
@@ -168,9 +168,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: csrf,
+          csrfToken: csrf,
           password: "replaypass123",
-          password_confirm: "replaypass123",
+          passwordConfirm: "replaypass123",
         }),
       );
 
@@ -180,7 +180,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         false,
       )(response);
       // The replay set no password — the account never bound to it.
-      expect((await getUserByUsername("stale-replay"))!.wrapped_data_key).toBe(
+      expect((await getUserByUsername("stale-replay"))!.wrappedDataKey).toBe(
         null,
       );
     });
@@ -190,7 +190,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const joinPostResponse = await submitJoinForm(inviteCode, {
         password: "newpassword123",
-        password_confirm: "differentpassword",
+        passwordConfirm: "differentpassword",
       });
 
       await expectFlashRedirect(
@@ -205,7 +205,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const joinPostResponse = await submitJoinForm(inviteCode, {
         password: "short",
-        password_confirm: "short",
+        passwordConfirm: "short",
       });
 
       await expectFlashRedirect(
@@ -237,9 +237,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest("/join/expired-post-123", {
-          csrf_token: "fake",
+          csrfToken: "fake",
           password: "pass12345678",
-          password_confirm: "pass12345678",
+          passwordConfirm: "pass12345678",
         }),
       );
       expect(response.status).toBe(410);
@@ -252,9 +252,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: "wrong",
+          csrfToken: "wrong",
           password: "newpassword123",
-          password_confirm: "newpassword123",
+          passwordConfirm: "newpassword123",
         }),
       );
       await expectFlashRedirect(
@@ -269,18 +269,18 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: "token",
+          csrfToken: "token",
           password: "newpassword123",
-          password_confirm: "newpassword123",
+          passwordConfirm: "newpassword123",
         }),
       );
       expect(response.status).toBe(302);
     });
 
-    test("POST /join/:code rejects form without csrf_token field", async () => {
+    test("POST /join/:code rejects form without csrfToken field", async () => {
       const { inviteCode } = await createTestInvite("csrf-nofield-user");
 
-      const body = "password=newpassword123&password_confirm=newpassword123";
+      const body = "password=newpassword123&passwordConfirm=newpassword123";
       const response = await handleRequest(
         new Request(`http://localhost/join/${inviteCode}`, {
           body,
@@ -299,7 +299,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
 
       const response = await submitJoinForm(inviteCode, {
         password: "",
-        password_confirm: "",
+        passwordConfirm: "",
       });
       expect(response.status).toBe(302);
     });
@@ -309,9 +309,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     test("POST /join/:code withValidInvite extracts code from params", async () => {
       const response = await handleRequest(
         mockFormRequest("/join/nonexistent-code", {
-          csrf_token: "csrf",
+          csrfToken: "csrf",
           password: "testpass123",
-          password_confirm: "testpass123",
+          passwordConfirm: "testpass123",
         }),
       );
       expect(response.status).toBe(404);

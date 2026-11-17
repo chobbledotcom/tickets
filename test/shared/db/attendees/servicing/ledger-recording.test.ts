@@ -142,7 +142,7 @@ describeWithEnv(
       await adminFormPost(`/admin/servicing/${id}`, {
         amount: "90.00",
         memo: "Boiler part",
-        target_listing_id: String(listing.id),
+        targetListingId: String(listing.id),
       });
       const legs = await transfersOfKind(KIND.serviceCost);
       expect(legs.length).toBe(1);

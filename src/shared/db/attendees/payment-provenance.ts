@@ -2,7 +2,11 @@
 
 import type { ResultSet } from "@libsql/client";
 
-import { type SqlStatement, sql } from "#db/sql.ts";
+import { type Expr, equal, literal, notEqual } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 
 interface AttendeePaymentProvenance {
   /** Refuse a batch result that did not record exactly one attendee. */
@@ -11,20 +15,28 @@ interface AttendeePaymentProvenance {
   statement(sessionId: string): SqlStatement;
 }
 
+/** The attendee that a session paid, where the session holds a full payment
+ *  reference. */
+const paidAttendeeOf = (sessionId: string): Expr<number | null> =>
+  from(tables.processed_payments)
+    .as("payment")
+    .where((payment) => [
+      equal(payment.paymentSessionId, sessionId),
+      notEqual(payment.attendeeId, null),
+      notEqual(payment.paymentReference, literal("")),
+      notEqual(payment.paymentReferenceIndex, literal("")),
+    ])
+    .scalar((payment) => payment.attendeeId);
+
 /** Qualify one session as the provenance pointer for the attendee it paid.
  * Both the booking-time write and the legacy rebuild run this same rule. */
 export const provenancePointerStatement = (sessionId: string): SqlStatement =>
-  sql`UPDATE attendees
-      SET pii_payment_session_id = ${sessionId}
-    WHERE pii_payment_session_id IS NULL
-      AND id = (
-        SELECT payment.attendee_id
-          FROM processed_payments AS payment
-         WHERE payment.payment_session_id = ${sessionId}
-           AND payment.attendee_id IS NOT NULL
-           AND payment.payment_reference != ''
-           AND payment.payment_reference_index != ''
-      )`;
+  update(tables.attendees, { piiPaymentSessionId: sessionId }).where(
+    (attendee) => [
+      equal(attendee.piiPaymentSessionId, null),
+      equal(paidAttendeeOf(sessionId), attendee.id),
+    ],
+  );
 
 const requireRecorded = (result: ResultSet, sessionId: string): void => {
   if (result.rowsAffected !== 1) {

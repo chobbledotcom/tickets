@@ -5,21 +5,21 @@ import {
   parsePositiveInt as parsePositiveIntId,
 } from "#shared/validation/number.ts";
 
-/** Per-line hidden field carrying the line's listing id: `line_listing_<i>`.
+/** Per-line hidden field carrying the line's listing id: `lineListing<i>`.
  * The presence of this field defines a line. `<i>` is the line's position in
  * the rendered editor, shared by every other per-line field. */
-export const LINE_LISTING_PREFIX = "line_listing_";
-/** Per-line quantity field: `qty_<i>`. */
-export const QTY_PREFIX = "qty_";
-/** Per-line "no quantity" checkbox: `noqty_<i>`. */
-export const NO_QUANTITY_PREFIX = "noqty_";
+export const LINE_LISTING_PREFIX = "lineListing";
+/** Per-line quantity field: `qty<i>`. */
+export const QTY_PREFIX = "qty";
+/** Per-line "no quantity" checkbox: `noqty<i>`. */
+export const NO_QUANTITY_PREFIX = "noqty";
 /** Per-line hidden field carrying an existing booking row's stable key. */
-export const LINE_KEY_PREFIX = "line_key_";
+export const LINE_KEY_PREFIX = "lineKey";
 /** Per-line hidden field carrying the package path selected for a blank line. */
-export const LINE_PACKAGE_PREFIX = "line_package_";
-/** Per-line agreed-price field: `price_<i>`. Blank means the package path's or
+export const LINE_PACKAGE_PREFIX = "linePackage";
+/** Per-line agreed-price field: `price<i>`. Blank means the package path's or
  *  the listing's own price applies. The edit form renders no price inputs. */
-export const PRICE_PREFIX = "price_";
+export const PRICE_PREFIX = "price";
 
 /** The packages each listing can book through, with each path's per-unit price
  * override. A null price means the listing's own price applies. */

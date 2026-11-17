@@ -34,10 +34,10 @@ export const initDuplicatePreview = (): void => {
 
   const renderPreview = () => {
     const replacements: DuplicateReplacements = {
-      dateFind: fieldVal("date_find"),
-      dateReplace: fieldVal("date_replace"),
-      nameFind: fieldVal("name_find"),
-      nameReplace: fieldVal("name_replace"),
+      dateFind: fieldVal("dateFind"),
+      dateReplace: fieldVal("dateReplace"),
+      nameFind: fieldVal("nameFind"),
+      nameReplace: fieldVal("nameReplace"),
     };
     const rows = buildDuplicatePreview(listings, replacements);
     tbody.innerHTML = rows

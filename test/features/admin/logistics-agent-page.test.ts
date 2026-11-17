@@ -61,12 +61,12 @@ describeWithEnv("the logistics agent page", { db: true }, () => {
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
       name: "",
-      user_ids: [String(userId)],
+      userIds: [String(userId)],
     });
     const html = await response.text();
 
     expect(response.status).toBe(400);
-    expectIncludesAll(html, [`checked name="user_ids"`, `value="${userId}"`]);
+    expectIncludesAll(html, [`checked name="userIds"`, `value="${userId}"`]);
   });
 
   test("answers 404 for an agent that is not there", async () => {

@@ -27,7 +27,7 @@ export const settle = (id = "settle-session") => ({
 /** POST a pay form for a token as the customer. */
 export const postPay = async (token: string): Promise<Response> =>
   handleRequest(
-    mockFormRequest(`/pay/${token}`, { csrf_token: await testCsrfToken() }, ""),
+    mockFormRequest(`/pay/${token}`, { csrfToken: await testCsrfToken() }, ""),
   );
 
 /** Insert a bare attendee row (no bookings) with a status and balance. */

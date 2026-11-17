@@ -113,11 +113,11 @@ describe("dates", () => {
      *  the fixture two duration-override tests share. */
     const dailyOverrideListing = () =>
       testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 5,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        durationDays: 5,
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
     /** The daily-override listing plus a single one-day holiday at day+2 —
@@ -127,9 +127,9 @@ describe("dates", () => {
       return {
         holidays: [
           testHoliday({
-            end_date: holidayDay,
+            endDate: holidayDay,
             name: "H",
-            start_date: holidayDay,
+            startDate: holidayDay,
           }),
         ],
         listing: dailyOverrideListing(),
@@ -138,10 +138,10 @@ describe("dates", () => {
 
     test("returns dates filtered by bookable days", () => {
       const listing = testListing({
-        bookable_days: ["Monday"],
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
+        bookableDays: ["Monday"],
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const dates = getAvailableDates(listing, []);
@@ -155,14 +155,14 @@ describe("dates", () => {
 
     const dailyListingWithAllDays = () =>
       testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 7,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 7,
+        minimumDaysBefore: 0,
       });
 
     const makeHoliday = (name: string, start: string, end: string) => [
-      { end_date: end, id: 1, name, start_date: start },
+      { endDate: end, id: 1, name, startDate: start },
     ];
 
     test("excludes holidays", () => {
@@ -188,10 +188,10 @@ describe("dates", () => {
 
     test("respects minimum_days_before", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 3,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 3,
       });
 
       const dates = getAvailableDates(listing, []);
@@ -201,10 +201,10 @@ describe("dates", () => {
 
     test("uses 730 days when maximum_days_after is 0 (unlimited)", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 0,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 0,
+        minimumDaysBefore: 0,
       });
 
       const dates = getAvailableDates(listing, []);
@@ -215,10 +215,10 @@ describe("dates", () => {
 
     test("respects maximum_days_after when non-zero", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 7,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 7,
+        minimumDaysBefore: 0,
       });
 
       const dates = getAvailableDates(listing, []);
@@ -229,10 +229,10 @@ describe("dates", () => {
     test("returns empty array when no bookable days match", () => {
       // Pick a day name that is not in the 7-day range from today.
       const listing = testListing({
-        bookable_days: [],
-        listing_type: "daily",
-        maximum_days_after: 7,
-        minimum_days_before: 0,
+        bookableDays: [],
+        listingType: "daily",
+        maximumDaysAfter: 7,
+        minimumDaysBefore: 0,
       });
 
       const dates = getAvailableDates(listing, []);
@@ -243,18 +243,18 @@ describe("dates", () => {
       const holidayStart = addDays(testDate(today()), 3);
       const holidays = [
         {
-          end_date: holidayStart,
+          endDate: holidayStart,
           id: 1,
           name: "Conflict",
-          start_date: holidayStart,
+          startDate: holidayStart,
         },
       ];
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 3,
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        durationDays: 3,
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
       const dates = getAvailableDates(listing, holidays);
       // day+1 start → covers day 1,2,3 → contains holidayStart → excluded
@@ -298,10 +298,10 @@ describe("dates", () => {
   describe("isBookingRangeValid", () => {
     const dailyAllDays = () =>
       testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 0,
       });
 
     test("accepts a holiday-free range within the booking window", () => {
@@ -311,7 +311,7 @@ describe("dates", () => {
     test("rejects a range that overlaps a holiday", () => {
       const holidayDay = addDays(testDate(today()), 2);
       const holidays = [
-        { end_date: holidayDay, id: 1, name: "H", start_date: holidayDay },
+        { endDate: holidayDay, id: 1, name: "H", startDate: holidayDay },
       ];
       expect(isBookingRangeValid(dailyAllDays(), today(), 3, holidays)).toBe(
         false,
@@ -320,20 +320,20 @@ describe("dates", () => {
 
     test("rejects a range that runs past the booking window", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 2,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 2,
+        minimumDaysBefore: 0,
       });
       expect(isBookingRangeValid(listing, today(), 5, [])).toBe(false);
     });
 
     test("rejects a start date before the earliest bookable date", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 2,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 2,
       });
       expect(isBookingRangeValid(listing, today(), 1, [])).toBe(false);
     });
@@ -342,10 +342,10 @@ describe("dates", () => {
       // Only Mondays are bookable, so a 2-day span from a Monday includes
       // Tuesday and must be rejected.
       const listing = testListing({
-        bookable_days: ["Monday"],
-        listing_type: "daily",
-        maximum_days_after: 21,
-        minimum_days_before: 0,
+        bookableDays: ["Monday"],
+        listingType: "daily",
+        maximumDaysAfter: 21,
+        minimumDaysBefore: 0,
       });
       const monday = getAvailableDates(listing, [])[0]!;
       expect(isBookingRangeValid(listing, monday, 2, [])).toBe(false);
@@ -461,10 +461,10 @@ describe("dates", () => {
   describe("getNextBookableDate", () => {
     test("returns the first available date", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const result = getNextBookableDate(listing, []);
@@ -473,10 +473,10 @@ describe("dates", () => {
 
     test("returns null when no bookable days configured", () => {
       const listing = testListing({
-        bookable_days: [],
-        listing_type: "daily",
-        maximum_days_after: 7,
-        minimum_days_before: 0,
+        bookableDays: [],
+        listingType: "daily",
+        maximumDaysAfter: 7,
+        minimumDaysBefore: 0,
       });
 
       expect(getNextBookableDate(listing, [])).toBeNull();
@@ -484,11 +484,11 @@ describe("dates", () => {
 
     test("skips start dates whose multi-day range extends past the window", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        duration_days: 3,
-        listing_type: "daily",
-        maximum_days_after: 4,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        durationDays: 3,
+        listingType: "daily",
+        maximumDaysAfter: 4,
+        minimumDaysBefore: 0,
       });
       const result = getNextBookableDate(listing, []);
       expect(result).toBe(today());
@@ -502,14 +502,14 @@ describe("dates", () => {
     test("skips holidays", () => {
       const todayStr = today();
       const holidays = [
-        { end_date: todayStr, id: 1, name: "Holiday", start_date: todayStr },
+        { endDate: todayStr, id: 1, name: "Holiday", startDate: todayStr },
       ];
 
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 7,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 7,
+        minimumDaysBefore: 0,
       });
 
       const result = getNextBookableDate(listing, holidays);
@@ -518,10 +518,10 @@ describe("dates", () => {
 
     test("respects minimum_days_before", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 3,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 3,
       });
 
       const result = getNextBookableDate(listing, []);
@@ -532,14 +532,14 @@ describe("dates", () => {
       const start = addDays(testDate(today()), 1);
       const end = addDays(testDate(today()), 3);
       const holidays = [
-        { end_date: end, id: 1, name: "Long Holiday", start_date: start },
+        { endDate: end, id: 1, name: "Long Holiday", startDate: start },
       ];
 
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 3,
-        minimum_days_before: 1,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 3,
+        minimumDaysBefore: 1,
       });
 
       expect(getNextBookableDate(listing, holidays)).toBeNull();
@@ -547,10 +547,10 @@ describe("dates", () => {
 
     test("uses 730 days when maximum_days_after is 0", () => {
       const listing = testListing({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 0,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 0,
+        minimumDaysBefore: 0,
       });
 
       const result = getNextBookableDate(listing, []);
@@ -559,10 +559,10 @@ describe("dates", () => {
 
     test("returns first matching day when only specific days are bookable", () => {
       const listing = testListing({
-        bookable_days: ["Monday"],
-        listing_type: "daily",
-        maximum_days_after: 14,
-        minimum_days_before: 0,
+        bookableDays: ["Monday"],
+        listingType: "daily",
+        maximumDaysAfter: 14,
+        minimumDaysBefore: 0,
       });
 
       const result = getNextBookableDate(listing, []);

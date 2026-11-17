@@ -36,11 +36,11 @@ const endDateLabel = (iso: string, n: number): string => {
 
 export const initAttendeeDates = (): void => {
   const start = document.querySelector<HTMLInputElement>(
-    'input[name="start_date"]',
+    'input[name="startDate"]',
   );
   if (!start) return;
   const dayCount = document.querySelector<HTMLSelectElement>(
-    'select[name="day_count"]',
+    'select[name="dayCount"]',
   );
   const dayCountLabel = document.querySelector<HTMLElement>(
     "[data-day-count-label]",

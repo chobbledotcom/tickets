@@ -26,7 +26,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
   testRequiresAuth("/admin/settings/google-wallet", {
     body: {
-      google_wallet_issuer_id: "123",
+      googleWalletIssuerId: "123",
     },
     method: "POST",
   });
@@ -34,10 +34,9 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
   /** A valid Google Wallet form; each validation case blanks or breaks one
    *  field so only that field's message can be the reason for the refusal. */
   const validWalletForm = () => ({
-    google_wallet_issuer_id: "1234567890",
-    google_wallet_service_account_email: "test@test.iam.gserviceaccount.com",
-    google_wallet_service_account_key:
-      generateGoogleTestCreds().serviceAccountKey,
+    googleWalletIssuerId: "1234567890",
+    googleWalletServiceAccountEmail: "test@test.iam.gserviceaccount.com",
+    googleWalletServiceAccountKey: generateGoogleTestCreds().serviceAccountKey,
   });
 
   const REFUSED_WALLET_FORMS: {
@@ -47,25 +46,25 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     message: string;
   }[] = [
     {
-      field: "google_wallet_issuer_id",
+      field: "googleWalletIssuerId",
       message: "Issuer ID is required",
       name: "requires Issuer ID",
       value: "",
     },
     {
-      field: "google_wallet_service_account_email",
+      field: "googleWalletServiceAccountEmail",
       message: "Service account email is required",
       name: "requires Service Account Email",
       value: "",
     },
     {
-      field: "google_wallet_service_account_key",
+      field: "googleWalletServiceAccountKey",
       message: "Service account private key is required",
       name: "requires private key on initial setup",
       value: "",
     },
     {
-      field: "google_wallet_service_account_key",
+      field: "googleWalletServiceAccountKey",
       message: "Service account private key is not a valid PEM private key",
       name: "rejects invalid PEM private key",
       value: "not a valid key",
@@ -79,7 +78,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/google-wallet",
-          { ...validWalletForm(), [field]: value, csrf_token: csrfToken },
+          { ...validWalletForm(), [field]: value, csrfToken },
           cookie,
         ),
       );
@@ -98,7 +97,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/settings/google-wallet",
-        { ...validWalletForm(), csrf_token: csrfToken },
+        { ...validWalletForm(), csrfToken },
         cookie,
       ),
     );
@@ -110,10 +109,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
 
     expect(settings.googleWallet.hasConfig).toBe(true);
     expect(settings.googleWallet.issuerId).toBe(
-      validWalletForm().google_wallet_issuer_id,
+      validWalletForm().googleWalletIssuerId,
     );
     expect(settings.googleWallet.serviceAccountEmail).toBe(
-      validWalletForm().google_wallet_service_account_email,
+      validWalletForm().googleWalletServiceAccountEmail,
     );
   });
 
@@ -126,10 +125,10 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
       mockFormRequest(
         "/admin/settings/google-wallet",
         {
-          csrf_token: csrfToken,
-          google_wallet_issuer_id: "",
-          google_wallet_service_account_email: "",
-          google_wallet_service_account_key: "",
+          csrfToken,
+          googleWalletIssuerId: "",
+          googleWalletServiceAccountEmail: "",
+          googleWalletServiceAccountKey: "",
         },
         cookie,
       ),
@@ -154,7 +153,7 @@ describeWithEnv("POST /admin/settings/google-wallet", { db: true }, () => {
     const body = await response.text();
     expectIncludesAll(body, [
       "Google Wallet",
-      "google_wallet_issuer_id",
+      "googleWalletIssuerId",
       "1234567890",
       "test@test-project.iam.gserviceaccount.com",
       // Secret is masked

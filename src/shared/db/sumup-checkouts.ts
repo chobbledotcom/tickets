@@ -19,8 +19,11 @@ import {
   wrapKeyWithToken,
 } from "#crypto/keys.ts";
 import type { KeyEncrypted, WrappedKey } from "#crypto/sealed.ts";
-import { execute, executeUpdate, insert, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import type { Matching, Node } from "#db/select/shape.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { type Changes, insertInto, update } from "#db/write.ts";
 import { recoveryMoveTo } from "#payment/sumup-recovery-machine-spec.ts";
 import { SUMUP_FIRST_CHECK_MS } from "#shared/limits.ts";
 import { isoAfter, nowIso } from "#shared/now.ts";
@@ -62,19 +65,28 @@ export const storeSumupCheckout = async (
     ),
   ]);
   await execute(
-    insert("sumup_checkouts", {
-      created_at: nowIso(),
+    insertInto(tables.sumup_checkouts, {
+      createdAt: nowIso(),
       metadata: ciphertext,
       // No checkout id yet, so there is nothing to ask SumUp about and nothing
       // to schedule. Both land together when creation succeeds.
-      next_check_at: null,
-      recovery_state: "staged",
-      reference_index: referenceIndex,
-      sumup_id: "",
-      wrapped_key: wrappedKey,
+      nextCheckAt: null,
+      recoveryState: "staged",
+      referenceIndex,
+      sumupId: "",
+      wrappedKey,
     }),
   );
 };
+
+/** Change the checkout rows that `where` keeps, and give the count of rows that
+ *  changed. */
+export const changeSumupCheckouts = async (
+  changes: Changes<"sumup_checkouts">,
+  where: Matching<Node<"sumup_checkouts">>,
+): Promise<number> =>
+  (await execute(update(tables.sumup_checkouts, changes).where(where)))
+    .rowsAffected;
 
 /** Record the SumUp-side checkout id once creation succeeds, and put the row
  * in the queue that will ask SumUp what became of it. The id and the state
@@ -84,24 +96,20 @@ export const setSumupCheckoutId = async (
   reference: string,
   sumupId: string,
 ): Promise<void> => {
-  const result = await executeUpdate(
-    "sumup_checkouts",
+  const changed = await changeSumupCheckouts(
     {
-      next_check_at: isoAfter(SUMUP_FIRST_CHECK_MS),
-      recovery_state: recoveryMoveTo("staged", "checkout_created"),
-      sumup_id: sumupId,
+      nextCheckAt: isoAfter(SUMUP_FIRST_CHECK_MS),
+      recoveryState: recoveryMoveTo("staged", "checkout_created"),
+      sumupId,
     },
-    {
-      recovery_state: "staged",
-      reference_index: await hmacHash(reference),
-    },
+    { recoveryState: "staged", referenceIndex: await hmacHash(reference) },
   );
   // The hosted URL must never reach a customer while this checkout's
   // callbacks are still refused as unknown. Creation fails here — before the
   // URL is exposed — when the id did not land on exactly one row.
-  if (result.rowsAffected !== 1) {
+  if (changed !== 1) {
     throw new Error(
-      `Staging the SumUp checkout id updated ${result.rowsAffected} rows, expected exactly 1`,
+      `Staging the SumUp checkout id updated ${changed} rows, expected exactly 1`,
     );
   }
 };

@@ -72,7 +72,7 @@ describeWithEnv(
 
       // The order comes through just like a normal free reservation.
       const attendee = await bookFreeOrder(listing, {
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
       });
       // Nothing collected up front; the full £20.00 (2 × £10.00) is owed, with
       // no booking fee added (no payment was processed). price_paid projects the
@@ -101,7 +101,7 @@ describeWithEnv(
       const addOn = await createOptionalAddOn();
 
       const { attendee } = await bookLatestAttendee(listing, {
-        [`addon_${addOn.id}`]: "1",
+        [`addon${addOn.id}`]: "1",
       });
 
       // £10.00 ticket + £5.00 add-on = £15.00 owed, nothing collected up front.

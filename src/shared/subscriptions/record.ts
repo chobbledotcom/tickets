@@ -36,15 +36,15 @@ const renewalLegs = (
   invoice: StripePaidInvoice,
 ): Promise<TransferInput[]> =>
   mapRenewal({
-    attendeeId: row.attendee_id,
+    attendeeId: row.attendeeId,
     invoiceId: invoice.id,
-    listingId: row.listing_id,
+    listingId: row.listingId,
     occurredAt: new Date(
       invoice.status_transitions.paid_at * 1000,
     ).toISOString(),
     paid: invoice.amount_paid,
     tax: renewalTax(
-      { price: row.recurring_price, tax: row.recurring_tax },
+      { price: row.recurringPrice, tax: row.recurringTax },
       invoice.amount_paid,
     ),
   });
@@ -54,11 +54,11 @@ export const readForSubscriptionOrNull = async <Resource>(
   row: LiveRow,
   read: ProviderReader<Resource>,
 ): Promise<Resource | null> => {
-  const answer = await read(row.subscription_id);
+  const answer = await read(row.subscriptionId);
   if (answer.status === "found") return answer.resource;
   logError({
     code: ErrorCode.STRIPE_SUBSCRIPTION,
-    detail: `Subscription ${row.subscription_id} could not be read (${answer.status})`,
+    detail: `Subscription ${row.subscriptionId} could not be read (${answer.status})`,
   });
   return null;
 };
@@ -83,10 +83,10 @@ export const recordObserved = async (
     invoices.filter(isRenewal).map((invoice) => renewalLegs(row, invoice)),
   );
   const companion = groups.length > 0 ? [renewalBookingGuard(row)] : [];
-  if (observed !== row.subscription_status)
+  if (observed !== row.subscriptionStatus)
     companion.push(statusWrite(row, observed));
   await postTransferGroups(groups, companion);
-  logDebug("Stripe", `Subscription ${row.subscription_id} is ${observed}`);
+  logDebug("Stripe", `Subscription ${row.subscriptionId} is ${observed}`);
   return true;
 };
 
@@ -102,6 +102,6 @@ export const recordStripeReport = async (row: LiveRow): Promise<boolean> => {
   );
   if (subscription === null) return false;
   const observed = subscription.status;
-  observedStatusNode(row.subscription_status, observed);
+  observedStatusNode(row.subscriptionStatus, observed);
   return recordObserved(row, observed);
 };

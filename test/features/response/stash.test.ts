@@ -37,7 +37,7 @@ describe("redirect form re-fill stash", () => {
         cookie: "session=abc; Path=/",
         form: new URLSearchParams({
           name: "Submitted",
-          return_url: "/admin/listing/8?tab=attendees#old",
+          returnUrl: "/admin/listing/8?tab=attendees#old",
         }),
         formId: "contact",
       });
@@ -50,13 +50,13 @@ describe("redirect form re-fill stash", () => {
         "session=abc; Path=/",
       ]);
       expect(stashedForm(response)).toBe(
-        "name=Submitted&return_url=%2Fadmin%2Flisting%2F8%3Ftab%3Dattendees%23old",
+        "name=Submitted&returnUrl=%2Fadmin%2Flisting%2F8%3Ftab%3Dattendees%23old",
       );
     }));
 
   test("stashes captured values without the CSRF token after an error", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams("name=Alice&csrf_token=secret"));
+      setSavedFormData(new FormParams("name=Alice&csrfToken=secret"));
       const response = redirect(
         "/admin/groups/new",
         "Group Name is required",
@@ -83,7 +83,7 @@ describe("redirect form re-fill stash", () => {
 
   test("does not stash a submission that is only a CSRF token", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams("csrf_token=secret"));
+      setSavedFormData(new FormParams("csrfToken=secret"));
       const response = redirect(
         "/admin/groups/new",
         "Group Name is required",
@@ -99,12 +99,12 @@ describe("redirect form re-fill stash", () => {
     await withRequestContext(() => {
       setSavedFormData(
         new FormParams(
-          "name=Bob&name=Alice&monkey=yes&keyword=book&password=hunter2&stripe_secret_key=sk_live_x&api_key=abc&webhook_token=zzz&API_SECRET=private",
+          "name=Bob&name=Alice&monkey=yes&keyword=book&monkeyName=Bo&password=hunter2&stripeSecretKey=sk_live_x&squareAccessToken=sq&apiKey=abc&webhookToken=zzz&API_SECRET=private",
         ),
       );
       const response = redirect("/admin/settings", "Invalid key", false);
       expect(stashedForm(response)).toBe(
-        "name=Bob&name=Alice&monkey=yes&keyword=book",
+        "name=Bob&name=Alice&monkey=yes&keyword=book&monkeyName=Bo",
       );
     });
   });
@@ -122,7 +122,7 @@ describe("redirect form re-fill stash", () => {
   test("prefers an explicitly supplied form over the capture", async () => {
     await withRequestContext(() => {
       setSavedFormData(new FormParams("name=captured"));
-      const form = new URLSearchParams("name=explicit&csrf_token=secret");
+      const form = new URLSearchParams("name=explicit&csrfToken=secret");
       expect(stashedForm(redirect("/admin/x", "bad", false, { form }))).toBe(
         "name=explicit",
       );
@@ -137,14 +137,14 @@ describe("redirect form re-fill stash", () => {
 
   test("uses the submitted return URL instead of the default", () => {
     const form = new URLSearchParams({
-      return_url: "/admin/groups?tab=list#group",
+      returnUrl: "/admin/groups?tab=list#group",
     });
     const response = redirect("/admin", "Saved", true, { form });
     expectRedirectWithFlash("/admin/groups?tab=list#group", "Saved")(response);
   });
 
   test("uses the default when the submitted return URL is empty", () => {
-    const form = new URLSearchParams({ return_url: "" });
+    const form = new URLSearchParams({ returnUrl: "" });
     expectRedirectWithFlash(
       "/admin",
       "Saved",

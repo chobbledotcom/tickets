@@ -76,13 +76,13 @@ const paidBooking = and(
   ledgerLegs()
     .where(
       saleLeg(
-        BOOKING_ROW.attendee_id,
-        BOOKING_ROW.listing_id,
-        BOOKING_ROW.ledger_event_group,
+        BOOKING_ROW.attendeeId,
+        BOOKING_ROW.listingId,
+        BOOKING_ROW.ledgerEventGroup,
       ),
     )
     .exists(),
-  paymentLegExists(BOOKING_ROW.attendee_id, BOOKING_ROW.ledger_event_group),
+  paymentLegExists(BOOKING_ROW.attendeeId, BOOKING_ROW.ledgerEventGroup),
 );
 
 /** Payment facts for real ticket holders on one listing. */

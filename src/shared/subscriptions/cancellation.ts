@@ -48,7 +48,7 @@ export type OwnerCancel = "cancelled" | "behind" | "not_cancelled" | "ended";
 export const cancelOwnerSubscription = async (
   row: LiveRow,
 ): Promise<OwnerCancel> => {
-  if (!isCancellable(row.subscription_status)) return "ended";
+  if (!isCancellable(row.subscriptionStatus)) return "ended";
   const subscription = await readForSubscriptionOrNull(row, cancelOrRead);
   if (subscription === null) return "not_cancelled";
   const observed = subscription.status;

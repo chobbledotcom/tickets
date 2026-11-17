@@ -11,7 +11,7 @@ import { formatDateLabel } from "#shared/date-labels.ts";
 
 /** The date box the save reads the move's day from. The card renders it and
  * the plan's POST reads it — one name, owned here at the markup. */
-export const ASSIGN_UNDATED_FIELD = "assign_undated_to";
+export const ASSIGN_UNDATED_FIELD = "assignUndatedTo";
 
 export const AssignUndatedDayCard = ({
   card,

@@ -24,7 +24,7 @@ describe("buildBookingTree — price rule", () => {
   test("a standard listing uses BASE by default", () => {
     const tree = buildBookingTree({
       listings: [
-        resolved({ can_pay_more: false, customisable_days: false, id: 1 }),
+        resolved({ canPayMore: false, customisableDays: false, id: 1 }),
       ],
       slugs: ["ab12c"],
     });
@@ -35,10 +35,10 @@ describe("buildBookingTree — price rule", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          can_pay_more: true,
+          canPayMore: true,
           id: 1,
-          max_price: 5000,
-          unit_price: 1000,
+          maxPrice: 5000,
+          unitPrice: 1000,
         }),
       ],
       slugs: ["ab12c"],
@@ -52,7 +52,7 @@ describe("buildBookingTree — price rule", () => {
 
   test("a customisable listing uses DAY_PRICE with no overrides outside a package", () => {
     const tree = buildBookingTree({
-      listings: [resolved({ customisable_days: true, id: 1 })],
+      listings: [resolved({ customisableDays: true, id: 1 })],
       slugs: ["ab12c"],
     });
     expect(tree.nodes[0]!.priceRule).toEqual({
@@ -65,10 +65,10 @@ describe("buildBookingTree — price rule", () => {
     const tree = buildBookingTree({
       listings: [
         resolved({
-          can_pay_more: true,
+          canPayMore: true,
           id: 1,
-          max_price: 5000,
-          unit_price: 1000,
+          maxPrice: 5000,
+          unitPrice: 1000,
         }),
       ],
       packages: [treePackage(3, [1], { prices: new Map([[1, 2500]]) })],
@@ -83,7 +83,7 @@ describe("buildBookingTree — price rule", () => {
   test("a package member's per-day overrides ride the DAY_PRICE rule", () => {
     const dayOverrides = new Map([[3, 900]]);
     const tree = buildBookingTree({
-      listings: [resolved({ customisable_days: true, id: 1 })],
+      listings: [resolved({ customisableDays: true, id: 1 })],
       packages: [
         treePackage(3, [1], { dayPrices: new Map([[1, dayOverrides]]) }),
       ],
@@ -98,19 +98,19 @@ describe("buildBookingTree — price rule", () => {
 
 describe("buildBookingTree — child date span", () => {
   test("a daily child inherits the parent's span", () => {
-    const tree = treeWithChild({ listing_type: "daily" });
+    const tree = treeWithChild({ listingType: "daily" });
     expect(tree.nodes[0]!.children[0]!.dateSpan).toEqual({ kind: "INHERIT" });
   });
 
   test("a customisable-days child inherits the parent's span", () => {
-    const tree = treeWithChild({ customisable_days: true });
+    const tree = treeWithChild({ customisableDays: true });
     expect(tree.nodes[0]!.children[0]!.dateSpan).toEqual({ kind: "INHERIT" });
   });
 
   test("a standard (non-daily, non-customisable) child has no date span", () => {
     const tree = treeWithChild({
-      customisable_days: false,
-      listing_type: "standard",
+      customisableDays: false,
+      listingType: "standard",
     });
     expect(tree.nodes[0]!.children[0]!.dateSpan).toEqual({ kind: "NONE" });
   });

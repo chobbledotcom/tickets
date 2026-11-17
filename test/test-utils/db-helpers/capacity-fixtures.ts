@@ -21,8 +21,8 @@ export const setStoredBookedQuantity = async (
   bookedQuantity: number,
 ): Promise<void> => {
   await listingAggregates.update(listingId, {
-    booked_quantity: bookedQuantity,
-    tickets_count: 0,
+    bookedQuantity: bookedQuantity,
+    ticketsCount: 0,
   });
 };
 

@@ -7,10 +7,12 @@ import {
 } from "#db/built-sites/claims.ts";
 import {
   builtSites,
-  builtSitesCrudTable,
+  createBuiltSite,
+  findBuiltSiteById,
   getAssignableBuiltSites,
   getBuiltSiteByRenewalTokenIndex,
   insertBuiltSite,
+  updateBuiltSite,
   updateBuiltSiteRenewalState,
 } from "#db/built-sites.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -97,11 +99,11 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
     const parsed = parseSiteDataBlob(
       JSON.stringify({ n: "Old Site", u: "old.b-cdn.net", v: 1 }),
     );
-    expect(parsed.rt).toBeUndefined();
+    expect(Object.keys(parsed)).not.toContain("rt");
   });
 
   test("CRUD edits preserve renewal state", async () => {
-    const site = await builtSitesCrudTable.insert({
+    const site = await createBuiltSite({
       assignable: false,
       dbToken: "",
       dbUrl: "",
@@ -115,9 +117,9 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
       renewalTokenIndex: "idx-123",
     });
     expect(
-      await builtSitesCrudTable.update(site.id, {
+      await updateBuiltSite(site.id, () => ({
         name: "Token Preserve Updated",
-      }),
+      })),
     ).toMatchObject({
       name: "Token Preserve Updated",
       readOnlyFrom: "2026-08-01T00:00:00Z",
@@ -145,9 +147,7 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
   test("an empty renewal index remains an empty string", async () => {
     const row = await insertBuiltSite("Empty Index", "empty-index.b-cdn.net");
     await updateBuiltSiteRenewalState(row.id, { renewalTokenIndex: "" });
-    expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalTokenIndex,
-    ).toBe("");
+    expect((await findBuiltSiteById(row.id))?.renewalTokenIndex).toBe("");
   });
 
   test("an empty renewal token clears the stored token", async () => {
@@ -158,8 +158,6 @@ describeWithEnv("built-site renewal storage", { db: true }, () => {
 
     await updateBuiltSiteRenewalState(row.id, { renewalToken: "" });
 
-    expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
-    ).toBeNull();
+    expect((await findBuiltSiteById(row.id))?.renewalToken).toBeNull();
   });
 });

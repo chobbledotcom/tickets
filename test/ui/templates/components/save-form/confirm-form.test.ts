@@ -45,9 +45,9 @@ describe("ConfirmForm", () => {
       }),
     );
     expectIncludesAll(html, [
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       // The typed-name box must not offer or remember completions.
-      '<input autocomplete="off" name="confirm_identifier"',
+      '<input autocomplete="off" name="confirmIdentifier"',
       'type="text"',
     ]);
   });
@@ -56,7 +56,7 @@ describe("ConfirmForm", () => {
     const html = String(
       ConfirmForm({ action: "/x", buttonText: "OK", confirmName: false }),
     );
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
   });
 
   test("wraps children in a prose div", () => {
@@ -80,7 +80,7 @@ describe("ConfirmForm", () => {
         returnUrl: "/back",
       }),
     );
-    expectIncludesAll(html, ['name="return_url"', 'value="/back"']);
+    expectIncludesAll(html, ['name="returnUrl"', 'value="/back"']);
   });
 
   test("renders the form with the given id", () => {

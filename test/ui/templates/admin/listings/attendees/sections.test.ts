@@ -135,7 +135,7 @@ describe("AddAttendeeSection", () => {
     const html = String(
       AddAttendeeSection({
         childNames: ["Kayak Hire", "Wetsuit Hire"],
-        listing: testListingWithCount({ id: 7, listing_type: "daily" }),
+        listing: testListingWithCount({ id: 7, listingType: "daily" }),
       }),
     );
     expectIncludesAll(html, [
@@ -150,7 +150,7 @@ describe("AddAttendeeSection", () => {
     const html = String(
       AddAttendeeSection({
         childNames: ["Kayak Hire"],
-        listing: testListingWithCount({ listing_type: "daily" }),
+        listing: testListingWithCount({ listingType: "daily" }),
       }),
     );
     assertStringIncludes(
@@ -162,7 +162,7 @@ describe("AddAttendeeSection", () => {
   test("shows no child warning without child listings", () => {
     const html = String(
       AddAttendeeSection({
-        listing: testListingWithCount({ id: 7, listing_type: "daily" }),
+        listing: testListingWithCount({ id: 7, listingType: "daily" }),
       }),
     );
     assert(!html.includes("child listing"));
@@ -171,10 +171,10 @@ describe("AddAttendeeSection", () => {
 
   test("offers the day count only on a customisable daily listing", () => {
     const customisable = testListingWithCount({
-      customisable_days: true,
-      day_prices: { 1: 100, 2: 180 },
-      duration_days: 2,
-      listing_type: "daily",
+      customisableDays: true,
+      dayPrices: { 1: 100, 2: 180 },
+      durationDays: 2,
+      listingType: "daily",
     });
     assertStringIncludes(
       String(AddAttendeeSection({ listing: customisable })),
@@ -185,7 +185,7 @@ describe("AddAttendeeSection", () => {
     assert(
       !String(
         AddAttendeeSection({
-          listing: testListingWithCount({ listing_type: "daily" }),
+          listing: testListingWithCount({ listingType: "daily" }),
         }),
       ).includes("Number of days"),
     );
@@ -193,9 +193,9 @@ describe("AddAttendeeSection", () => {
       !String(
         AddAttendeeSection({
           listing: testListingWithCount({
-            customisable_days: true,
-            day_prices: { 1: 100, 2: 180 },
-            duration_days: 2,
+            customisableDays: true,
+            dayPrices: { 1: 100, 2: 180 },
+            durationDays: 2,
           }),
         }),
       ).includes("Number of days"),

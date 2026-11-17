@@ -140,7 +140,7 @@ describeWithEnv(
         // Alphabetical attribute order puts `checked` first when ticked.
         assertStringIncludes(
           html,
-          `checked class="no-quantity-toggle" name="noqty_${attendeeLineIndex(
+          `checked class="no-quantity-toggle" name="noqty${attendeeLineIndex(
             html,
             listing.id,
           )}"`,
@@ -210,7 +210,7 @@ describeWithEnv(
           `<div autofocus class="error" role="alert" tabindex="-1">Refund this line's payment before marking it no quantity.</div>`,
           // The paid line's "no quantity" box is disabled with an explaining tooltip
           // so it can't be ticked in the first place.
-          `class="no-quantity-toggle" disabled name="noqty_${attendeeLineIndex(
+          `class="no-quantity-toggle" disabled name="noqty${attendeeLineIndex(
             html,
             listing.id,
           )}" title="Refund this line's payment before marking it no quantity."`,

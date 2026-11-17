@@ -19,7 +19,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
   test("creating a servicing event enables the feature", async () => {
     const listing = await createTestListing({ maxAttendees: 10, name: "Room" });
     const { response } = await adminFormPost("/admin/servicing/new", {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
       name: "Boiler service",
     });
     response.body?.cancel();
@@ -39,7 +39,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const { response } = await adminFormPost("/admin/servicing/new", {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         name: "Boiler service",
       });
       expectRedirectWithFlash(
@@ -57,7 +57,7 @@ describeWithEnv("servicing feature enablement", { db: true }, () => {
     await enableFeature("servicing");
     await withFeatureWriteFailure(async () => {
       const { response } = await adminFormPost(`/admin/servicing/${id}`, {
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
         name: "After",
       });
       expectRedirectWithFlash(

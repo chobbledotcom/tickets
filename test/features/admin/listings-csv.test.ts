@@ -18,16 +18,16 @@ describe("generateListingsCsv", () => {
   test("renders a listing's values in column order", () => {
     const csv = generateListingsCsv([
       testListingWithCount({
-        attendee_count: 4,
+        attendeeCount: 4,
         created: "2026-01-02T00:00:00Z",
         date: "2026-06-15T18:00:00Z",
         description: "A fun night",
         income: 5000,
         location: "Village Hall",
-        max_attendees: 50,
+        maxAttendees: 50,
         name: "Gala Night",
-        tickets_count: 3,
-        unit_price: 2000,
+        ticketsCount: 3,
+        unitPrice: 2000,
       }),
     ]);
     expect(csv.split("\n")[1]).toBe(
@@ -38,7 +38,7 @@ describe("generateListingsCsv", () => {
 
   test("shows Free for a zero-price listing and Inactive status", () => {
     const csv = generateListingsCsv([
-      testListingWithCount({ active: false, name: "Freebie", unit_price: 0 }),
+      testListingWithCount({ active: false, name: "Freebie", unitPrice: 0 }),
     ]);
     expectIncludesAll(csv, ["Freebie,Inactive,", ",Free,"]);
   });
@@ -46,11 +46,11 @@ describe("generateListingsCsv", () => {
   test("shows the day-price range for a paid customisable-days listing", () => {
     const csv = generateListingsCsv([
       testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 3: 3000 },
-        duration_days: 3,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 3: 3000 },
+        durationDays: 3,
         name: "Camp",
-        unit_price: 0,
+        unitPrice: 0,
       }),
     ]);
     assertStringIncludes(csv, "10.00–30.00");
@@ -60,10 +60,10 @@ describe("generateListingsCsv", () => {
   test("shows a single day price when only one duration is offered", () => {
     const csv = generateListingsCsv([
       testListingWithCount({
-        customisable_days: true,
-        day_prices: { 2: 1500 },
-        duration_days: 2,
-        unit_price: 0,
+        customisableDays: true,
+        dayPrices: { 2: 1500 },
+        durationDays: 2,
+        unitPrice: 0,
       }),
     ]);
     assertStringIncludes(csv, ",15.00,");
@@ -75,10 +75,10 @@ describe("generateListingsCsv", () => {
     // pay up to max_price, so the CSV must not report them as Free.
     const csv = generateListingsCsv([
       testListingWithCount({
-        can_pay_more: true,
-        max_price: 5000,
+        canPayMore: true,
+        maxPrice: 5000,
         name: "Donate",
-        unit_price: 0,
+        unitPrice: 0,
       }),
     ]);
     assertStringIncludes(csv, "0.00–50.00");
@@ -88,9 +88,9 @@ describe("generateListingsCsv", () => {
   test("shows the pay-what-you-want range from a non-zero base price", () => {
     const csv = generateListingsCsv([
       testListingWithCount({
-        can_pay_more: true,
-        max_price: 5000,
-        unit_price: 2000,
+        canPayMore: true,
+        maxPrice: 5000,
+        unitPrice: 2000,
       }),
     ]);
     assertStringIncludes(csv, "20.00–50.00");
@@ -100,10 +100,10 @@ describe("generateListingsCsv", () => {
     // Checkout charges from day_prices; the legacy unit_price must be ignored.
     const csv = generateListingsCsv([
       testListingWithCount({
-        customisable_days: true,
-        day_prices: { 1: 1000, 2: 1800 },
-        duration_days: 2,
-        unit_price: 5000,
+        customisableDays: true,
+        dayPrices: { 1: 1000, 2: 1800 },
+        durationDays: 2,
+        unitPrice: 5000,
       }),
     ]);
     assertStringIncludes(csv, "10.00–18.00");
@@ -112,7 +112,7 @@ describe("generateListingsCsv", () => {
 
   test("labels a daily listing's type", () => {
     const csv = generateListingsCsv([
-      testListingWithCount({ listing_type: "daily", name: "Day Pass" }),
+      testListingWithCount({ listingType: "daily", name: "Day Pass" }),
     ]);
     assertStringIncludes(csv.split("\n")[1] ?? "", "Day Pass,Active,Daily,");
   });

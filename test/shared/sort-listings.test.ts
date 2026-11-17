@@ -48,13 +48,13 @@ describeWithEnv("sortListings", { db: true }, () => {
     const noDate = testListing({
       date: "",
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Undated",
     });
     const dated = testListing({
       date: "2026-06-15T14:00:00.000Z",
       id: 2,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Dated",
     });
 
@@ -67,10 +67,10 @@ describeWithEnv("sortListings", { db: true }, () => {
     const dated = testListing({
       date: "2026-06-15T14:00:00.000Z",
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Dated",
     });
-    const daily = testListing({ id: 2, listing_type: "daily", name: "Daily" });
+    const daily = testListing({ id: 2, listingType: "daily", name: "Daily" });
 
     const sorted = sortListings([daily, dated], []);
     expect(sorted[0]!.name).toBe("Dated");
@@ -81,10 +81,10 @@ describeWithEnv("sortListings", { db: true }, () => {
     const noDate = testListing({
       date: "",
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Undated",
     });
-    const daily = testListing({ id: 2, listing_type: "daily", name: "Daily" });
+    const daily = testListing({ id: 2, listingType: "daily", name: "Daily" });
 
     const sorted = sortListings([daily, noDate], []);
     expect(sorted[0]!.name).toBe("Undated");
@@ -95,19 +95,19 @@ describeWithEnv("sortListings", { db: true }, () => {
     const c = testListing({
       date: "",
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Charlie",
     });
     const a = testListing({
       date: "",
       id: 2,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Alpha",
     });
     const b = testListing({
       date: "",
       id: 3,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Bravo",
     });
 
@@ -121,13 +121,13 @@ describeWithEnv("sortListings", { db: true }, () => {
     const later = testListing({
       date: "2026-09-01T10:00:00.000Z",
       id: 1,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Alpha Late",
     });
     const earlier = testListing({
       date: "2026-06-15T14:00:00.000Z",
       id: 2,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Zulu Early",
     });
 
@@ -139,23 +139,23 @@ describeWithEnv("sortListings", { db: true }, () => {
   test("sorts dated standard listings by name when dates are equal", () => {
     expectAlphaBeforeBravo({
       date: "2026-06-15T14:00:00.000Z",
-      listing_type: "standard",
+      listingType: "standard",
     });
   });
 
   test("sorts daily listings by next bookable date ascending", () => {
     const laterDaily = testListing({
       id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 5,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 5,
       name: "Later Daily",
     });
     const soonerDaily = testListing({
       id: 2,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 1,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 1,
       name: "Sooner Daily",
     });
 
@@ -167,16 +167,16 @@ describeWithEnv("sortListings", { db: true }, () => {
   test("sorts daily listings by name when next bookable dates are equal", () => {
     const b = testListing({
       id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 1,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 1,
       name: "Bravo Daily",
     });
     const a = testListing({
       id: 2,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 1,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 1,
       name: "Alpha Daily",
     });
     const sorted = sortListings([b, a], []);
@@ -190,17 +190,17 @@ describeWithEnv("sortListings", { db: true }, () => {
     // for a single-sided empty date would fail.
     const hasBookable = testListing({
       id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 0,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 0,
       name: "Zulu Has Dates",
     });
     const noBookable = testListing({
-      bookable_days: [],
+      bookableDays: [],
       id: 2,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 0,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 0,
       name: "Alpha No Dates",
     });
 
@@ -210,7 +210,7 @@ describeWithEnv("sortListings", { db: true }, () => {
   });
 
   test("sorts daily listings with no bookable dates by name", () => {
-    expectAlphaBeforeBravo({ bookable_days: [], listing_type: "daily" });
+    expectAlphaBeforeBravo({ bookableDays: [], listingType: "daily" });
   });
 
   test("places every daily listing with bookable dates before every one without, regardless of input order", () => {
@@ -225,28 +225,28 @@ describeWithEnv("sortListings", { db: true }, () => {
     // escape hatch too.
     const earlierHasDate = testListing({
       id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 1,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 1,
       name: "Delta Has",
     });
     const laterHasDate = testListing({
       id: 2,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 5,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 5,
       name: "Bravo Has",
     });
     const noDateC = testListing({
-      bookable_days: [],
+      bookableDays: [],
       id: 3,
-      listing_type: "daily",
+      listingType: "daily",
       name: "Charlie None",
     });
     const noDateA = testListing({
-      bookable_days: [],
+      bookableDays: [],
       id: 4,
-      listing_type: "daily",
+      listingType: "daily",
       name: "Alpha None",
     });
 
@@ -271,25 +271,25 @@ describeWithEnv("sortListings", { db: true }, () => {
     // Block the next few days so listing A's first bookable date is pushed later
     const holidays: Holiday[] = [
       {
-        end_date: addDays(testDate(todayStr), 5),
+        endDate: addDays(testDate(todayStr), 5),
         id: 1,
         name: "Holiday",
-        start_date: addDays(testDate(todayStr), 1),
+        startDate: addDays(testDate(todayStr), 1),
       },
     ];
 
     const blockedListing = testListing({
       id: 1,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 1,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 1,
       name: "Blocked",
     });
     const freeListing = testListing({
       id: 2,
-      listing_type: "daily",
-      maximum_days_after: 30,
-      minimum_days_before: 0,
+      listingType: "daily",
+      maximumDaysAfter: 30,
+      minimumDaysBefore: 0,
       name: "Free",
     });
 
@@ -301,20 +301,20 @@ describeWithEnv("sortListings", { db: true }, () => {
   test("sorts a mixed list of all three listing types correctly", () => {
     const daily = testListing({
       id: 1,
-      listing_type: "daily",
-      minimum_days_before: 0,
+      listingType: "daily",
+      minimumDaysBefore: 0,
       name: "Daily Listing",
     });
     const datedStandard = testListing({
       date: "2026-06-15T14:00:00.000Z",
       id: 2,
-      listing_type: "standard",
+      listingType: "standard",
       name: "Dated Standard",
     });
     const nodateStandard = testListing({
       date: "",
       id: 3,
-      listing_type: "standard",
+      listingType: "standard",
       name: "No-Date Standard",
     });
 
@@ -328,12 +328,12 @@ describeWithEnv("sortListings", { db: true }, () => {
 
   test("preserves ListingWithCount fields", () => {
     const listing = testListingWithCount({
-      attendee_count: 42,
+      attendeeCount: 42,
       id: 1,
       name: "Test",
     });
     const sorted = sortListings([listing], []);
-    expect((sorted[0] as ListingWithCount).attendee_count).toBe(42);
+    expect((sorted[0] as ListingWithCount).attendeeCount).toBe(42);
   });
 });
 
