@@ -1,7 +1,6 @@
 /** Isolated production-schema records for the subscription proof producers. */
 
 import { join } from "node:path";
-import { createClient } from "@libsql/client";
 import { encrypt, setEncryptionKeyForTest } from "#crypto/encryption.ts";
 import { executeBatch, setDb } from "#db/client.ts";
 import { rebuildWipedSchema } from "#db/migrations.ts";
@@ -23,6 +22,7 @@ import type {
   SubscriptionPlan,
   SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
+import { createTestDbClient } from "#test-utils/db-client.ts";
 
 export const MODEL_TIME = "2026-03-01T00:00:00.000Z";
 
@@ -46,15 +46,11 @@ export const withSubscriptionDb = async <Result>(
   const url = `file:${path}`;
   const previousUrl = Deno.env.get("DB_URL");
   Deno.env.set("DB_URL", url);
-  const client = createClient({ url });
+  const client = await createTestDbClient(path);
   setEncryptionKeyForTest(MODEL_KEY);
   setDb(client);
   resetAllCaches();
   try {
-    // These synthetic records do not need crash durability.
-    await client.executeMultiple(
-      "PRAGMA journal_mode=MEMORY; PRAGMA synchronous=OFF;",
-    );
     if (image === null) {
       await rebuildWipedSchema();
       setSchemaImage(await Deno.readFile(path));
