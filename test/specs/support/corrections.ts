@@ -84,6 +84,6 @@ export const addBalanceEntry = async (
     world,
     `/admin/ledger/attendee/${attendeeId}/add`,
     "Add money change",
-    { amount, entry_type: entryType, occurred_at: "2026-06-22T12:00" },
+    { amount, entryType, occurredAt: "2026-06-22T12:00" },
   );
 };

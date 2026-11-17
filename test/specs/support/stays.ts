@@ -112,6 +112,6 @@ export const changeStayLength = async (
   days: number,
 ): Promise<string> => {
   const browser = await adminBrowser(world);
-  await organiserSavesFields(world, name, { duration_days: String(days) });
+  await organiserSavesFields(world, name, { durationDays: String(days) });
   return browser.pageText;
 };

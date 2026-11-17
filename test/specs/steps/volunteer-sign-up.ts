@@ -67,8 +67,8 @@ When(
       {
         email: VOLUNTEER_EMAIL,
         name: VOLUNTEER_NAME,
-        [`quantity_${listingIdNamed(this, SETUP_SHIFT)}`]: "1",
-        [`question_${requiredWorldValue(this.questionId, "access question id")}`]:
+        [`quantity${listingIdNamed(this, SETUP_SHIFT)}`]: "1",
+        [`question${requiredWorldValue(this.questionId, "access question id")}`]:
           ACCESS_ANSWER,
       },
       "Continue",

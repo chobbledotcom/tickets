@@ -187,7 +187,7 @@ export const refundByTyping = async (
     async (mockRefund) => {
       await fillInAndSend(
         browser,
-        { confirm_identifier: where.typed },
+        { confirmIdentifier: where.typed },
         where.buttonText,
       );
       countsProviderRefundCalls(world, mockRefund.calls);

@@ -123,13 +123,13 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
   }
   const quantities = Object.fromEntries(
     lines.map(({ listing, places }) => [
-      `quantity_${listing.id}`,
+      `quantity${listing.id}`,
       String(places ?? 1),
     ]),
   );
   const chosenPrices = Object.fromEntries(
     lines.flatMap(({ listing, pays }) =>
-      pays === undefined ? [] : [[`custom_price_${listing.id}`, pays]],
+      pays === undefined ? [] : [[`customPrice${listing.id}`, pays]],
     ),
   );
   const fields = {
@@ -141,7 +141,7 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
     ...(choices.day === undefined ? {} : { date: choices.day }),
     ...(choices.dayCount === undefined
       ? {}
-      : { day_count: String(choices.dayCount) }),
+      : { dayCount: String(choices.dayCount) }),
     ...(choices.answer === undefined
       ? {}
       : { [choices.answer.field]: choices.answer.choice }),
@@ -150,7 +150,7 @@ export const visitorFillsInOrder: FillsInOrder<FilledOrder> = async (
     // papered over with a hard-coded value.
     ...(choices.agreesToTerms
       ? {
-          agree_terms: checkboxValueOffered(browser.currentHtml, "agree_terms"),
+          agreeTerms: checkboxValueOffered(browser.currentHtml, "agreeTerms"),
         }
       : {}),
   };

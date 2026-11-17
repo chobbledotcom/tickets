@@ -193,10 +193,10 @@ export const square: PaymentProvider = {
   cleanup: noProviderCleanup,
   configure: configureProvider("square", async (session, secrets) => {
     // The sandbox checkbox is the only mode this harness can drive.
-    await session.check("square_sandbox");
+    await session.check("squareSandbox");
     await saveCredentials(session, "square", {
-      square_access_token: secrets.token,
-      square_location_id: secrets.locationId,
+      squareAccessToken: secrets.token,
+      squareLocationId: secrets.locationId,
     });
   }),
   name: "square",

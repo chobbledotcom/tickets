@@ -235,7 +235,7 @@ Then(
     for (const name of [first, second]) {
       assertStringIncludes(
         html,
-        `name="quantity_${listingNamed(this, name).id}"`,
+        `name="quantity${listingNamed(this, name).id}"`,
       );
     }
   },

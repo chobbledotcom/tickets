@@ -110,11 +110,11 @@ When(
     dateReplace: string,
   ): Promise<void> {
     await organiserDuplicatesGroup(this, source, {
-      date_find: dateFind,
-      date_replace: dateReplace,
-      name_find: find,
-      name_replace: replace,
-      new_name: newName,
+      dateFind: dateFind,
+      dateReplace: dateReplace,
+      nameFind: find,
+      nameReplace: replace,
+      newName: newName,
     });
   },
 );
@@ -131,11 +131,11 @@ When(
     replace: string,
   ): Promise<void> {
     await organiserDuplicatesGroup(this, source, {
-      date_find: "",
-      date_replace: "",
-      name_find: find,
-      name_replace: replace,
-      new_name: newName,
+      dateFind: "",
+      dateReplace: "",
+      nameFind: find,
+      nameReplace: replace,
+      newName: newName,
     });
   },
 );
@@ -151,11 +151,11 @@ When(
     newName: string,
   ): Promise<void> {
     await organiserDuplicatesGroup(this, source, {
-      date_find: "",
-      date_replace: "",
-      name_find: "",
-      name_replace: "",
-      new_name: newName,
+      dateFind: "",
+      dateReplace: "",
+      nameFind: "",
+      nameReplace: "",
+      newName: newName,
     });
   },
 );

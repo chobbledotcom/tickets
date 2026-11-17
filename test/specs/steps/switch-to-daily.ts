@@ -48,8 +48,8 @@ const saveSwitchWithRoom = async (
   const browser = await adminBrowser(world);
   await browser.visit(`/admin/listing/${listingIdNamed(world, name)}/edit`);
   await savesServedForm(browser, (served) => {
-    const fills: Record<string, string> = { listing_type: "daily" };
-    if (placesADay !== null) fills.max_attendees = String(placesADay);
+    const fills: Record<string, string> = { listingType: "daily" };
+    if (placesADay !== null) fills.maxAttendees = String(placesADay);
     expectCanReallySend(served, fills);
     return fills;
   });
@@ -64,7 +64,7 @@ When(
     const browser = scenarioBrowser(this);
     const offered = optionsOffered(
       browser.currentHtml,
-      "assign_undated_to",
+      "assignUndatedTo",
     ).filter((value) => value !== "");
     expect(offered.length).toBeGreaterThan(0);
     await giveBookingsADay(this, offered[0]!);
@@ -78,13 +78,13 @@ const giveBookingsADay = async (
   const browser = scenarioBrowser(world);
   // The save must carry a day the page itself offered: a date that is not
   // among the select's options is one the organiser could never pick.
-  const offered = optionsOffered(browser.currentHtml, "assign_undated_to");
+  const offered = optionsOffered(browser.currentHtml, "assignUndatedTo");
   expect(offered).toContain(day);
   expectCanReallySend(
-    browser.formBodyFor("Save Changes", ["assign_undated_to"]),
-    { assign_undated_to: day },
+    browser.formBodyFor("Save Changes", ["assignUndatedTo"]),
+    { assignUndatedTo: day },
   );
-  await savesServedForm(browser, () => ({ assign_undated_to: day }));
+  await savesServedForm(browser, () => ({ assignUndatedTo: day }));
   keepsWhatTheOrganiserSaw(world, browser);
   world.things.remember("day", "the day the bookings were given", day);
 };
@@ -183,7 +183,7 @@ When(
     places: number,
   ): Promise<void> {
     await organiserSavesListing(this, name, (served) => {
-      const fills = { listing_type: "standard", max_attendees: String(places) };
+      const fills = { listingType: "standard", maxAttendees: String(places) };
       expectCanReallySend(served, fills);
       return fills;
     });

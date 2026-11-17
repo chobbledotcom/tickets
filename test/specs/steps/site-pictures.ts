@@ -147,7 +147,7 @@ When(
  * field, so a broken form fails the story rather than a direct write. */
 const ownerWritesTerms = (world: TicketsWorld, words: string): Promise<void> =>
   organiserPressesOnPage(world, "/admin/settings", "Save Terms", {
-    terms_and_conditions: words,
+    termsAndConditions: words,
   });
 
 When(
@@ -186,7 +186,7 @@ When(
   "the owner saves a site footer with the picture in it",
   function (this: TicketsWorld): Promise<void> {
     return organiserPressesOnPage(this, "/admin/settings", "Save site footer", {
-      site_footer: textWithSitePicture(this),
+      siteFooter: textWithSitePicture(this),
     });
   },
 );

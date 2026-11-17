@@ -141,7 +141,7 @@ When(
     // Resubmitting what the page already showed, which is what an organiser
     // pressing Save on the repaired form actually sends.
     const page = recordPage(this);
-    assertStringIncludes(page.currentHtml, 'name="admin_notes"');
+    assertStringIncludes(page.currentHtml, 'name="adminNotes"');
     rememberBrowser(
       this,
       CUSTOMER,

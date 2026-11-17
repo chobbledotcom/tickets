@@ -51,12 +51,12 @@ When(
       form: (c) => ({
         date: day,
         name: "Complex Buyer",
-        [`package_quantity_${c.group("Mega Kit").id}`]: "1",
-        [`quantity_${c.listing("Campervan").id}`]: "1",
-        [`quantity_${c.listing("Generator").id}`]: "1",
-        [`quantity_${c.listing("Marquee").id}`]: "1",
-        [`quantity_${c.listing("Tent").id}`]: "1",
-        [`quantity_${c.listing("T-Shirt").id}`]: "3",
+        [`packageQuantity${c.group("Mega Kit").id}`]: "1",
+        [`quantity${c.listing("Campervan").id}`]: "1",
+        [`quantity${c.listing("Generator").id}`]: "1",
+        [`quantity${c.listing("Marquee").id}`]: "1",
+        [`quantity${c.listing("Tent").id}`]: "1",
+        [`quantity${c.listing("T-Shirt").id}`]: "3",
       }),
       // One booking per way it was ordered: the Tent through the bundle (2 a
       // unit) and on its own, the Generator under the Marquee and on its own,
@@ -137,7 +137,7 @@ Then(
       "via Mega Kit",
       "add-on under Marquee",
       // The day the customer picked rides with the order.
-      'name="start_date"',
+      'name="startDate"',
       `value="${this.orderDay}"`,
     ]);
   },
@@ -188,8 +188,8 @@ When(
   async function (this: TicketsWorld): Promise<void> {
     await orderJourney(this, {
       form: (c) => ({
-        [`package_quantity_${c.group("Camp Kit").id}`]: "1",
-        [`package_quantity_${c.group("Glamp Kit").id}`]: "1",
+        [`packageQuantity${c.group("Camp Kit").id}`]: "1",
+        [`packageQuantity${c.group("Glamp Kit").id}`]: "1",
       }),
       rows: (c) => [
         [c.listing("Tent").id, c.group("Camp Kit").id, 0, 1, ""],

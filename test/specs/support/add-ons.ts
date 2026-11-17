@@ -5,7 +5,7 @@
  */
 
 /** The box on the edit form. Its value is read off the page, not assumed. */
-const FIELD = "bookable_alone";
+const FIELD = "bookableAlone";
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
@@ -194,7 +194,7 @@ export const tryTakeOffSale: ActOnOneThing = async (world, name) => {
   await organiserSendsAndIsTold(
     world,
     browser,
-    { confirm_identifier: name },
+    { confirmIdentifier: name },
     t("listings_table.deactivate_listing"),
   );
 };

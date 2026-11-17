@@ -48,10 +48,10 @@ const createListingThroughChooser = async (
     {
       description: "A wonderful summer evening of music",
       fields: ["email"],
-      max_attendees: "100",
-      max_quantity: "5",
+      maxAttendees: "100",
+      maxQuantity: "5",
       name: LISTING,
-      unit_price: "0",
+      unitPrice: "0",
     },
     "Create Listing",
   );
@@ -78,8 +78,8 @@ const askSizeQuestion = async (
     expect(browser.containsText(size)).toBe(true);
   }
   await browser.visit(`/admin/listing/${id}/questions`);
-  assertStringIncludes(browser.currentHtml, 'name="question_ids"');
-  await browser.submitForm({ question_ids: ALL_CHECKBOXES }, "Save");
+  assertStringIncludes(browser.currentHtml, 'name="questionIds"');
+  await browser.submitForm({ questionIds: ALL_CHECKBOXES }, "Save");
   expect(browser.containsText("Questions updated")).toBe(true);
 };
 
@@ -89,9 +89,9 @@ const groupTheListing = async (browser: TestBrowser): Promise<string> => {
   expect(browser.containsText("Add Group")).toBe(true);
   await browser.submitForm({ name: GROUP }, "Create Group");
   expect(browser.containsText(GROUP)).toBe(true);
-  assertStringIncludes(browser.currentHtml, 'name="listing_ids"');
+  assertStringIncludes(browser.currentHtml, 'name="listingIds"');
   await browser.submitForm(
-    { listing_ids: ALL_CHECKBOXES },
+    { listingIds: ALL_CHECKBOXES },
     "Add selected listings",
   );
   expect(browser.containsText(LISTING)).toBe(true);
@@ -121,10 +121,10 @@ When(
     await browser.visit(requiredWorldValue(this.bookingPath, "booking path"));
     // A group page asks for a quantity per listing and renders the question's
     // answers as radios, so both field names are read from the served form.
-    const quantityField = browser.currentHtml.match(/name="quantity_(\d+)"/);
+    const quantityField = browser.currentHtml.match(/name="quantity(\d+)"/);
     const size = browser.currentHtml.match(
       new RegExp(
-        `name="(question_\\d+)"[^>]*value="(\\d+)"[^>]*>\\s*${CHOSEN_SIZE}`,
+        `name="(question\\d+)"[^>]*value="(\\d+)"[^>]*>\\s*${CHOSEN_SIZE}`,
       ),
     );
     expect(quantityField).not.toBeNull();
@@ -133,7 +133,7 @@ When(
       {
         email: CUSTOMER_EMAIL,
         name: CUSTOMER,
-        [`quantity_${quantityField![1]!}`]: "1",
+        [`quantity${quantityField![1]!}`]: "1",
         [size![1]!]: size![2]!,
       },
       "Continue",

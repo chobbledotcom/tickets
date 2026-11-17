@@ -37,11 +37,11 @@ export const runSetup = async (
 ): Promise<void> => {
   step("Running first-run setup");
   await session.goto("/setup/");
-  await session.fill("admin_username", owner.username);
-  await session.fill("admin_password", owner.password);
-  await session.fill("admin_password_confirm", owner.password);
+  await session.fill("adminUsername", owner.username);
+  await session.fill("adminPassword", owner.password);
+  await session.fill("adminPasswordConfirm", owner.password);
   await session.select("country", country);
-  await session.check("accept_agreement");
+  await session.check("acceptAgreement");
   await session.clickButton(await catalogWords("setup", "setup.submit"));
   log(`  setup complete (admin=${owner.username}, country=${country})`);
 };
@@ -123,7 +123,7 @@ export const submitBooking = async (
   await fillIfPresent(session, "email", booker.email);
   await fillIfPresent(session, "name", booker.name);
 
-  // Quantity field name varies (single `quantity` vs per-listing `quantity_<id>`).
+  // Quantity field name varies (single `quantity` vs per-listing `quantity<id>`).
   const qty = page
     .locator('input[name^="quantity"], select[name^="quantity"]')
     .first();

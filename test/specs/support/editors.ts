@@ -135,10 +135,10 @@ export const ownersListingsPage = (world: TicketsWorld): Promise<string> =>
  * site offers, fills the form in and saves it. */
 export const editorAddsListing: ActOnOneThing = async (world, name) => {
   const typed = {
-    max_attendees: "10",
-    max_quantity: "1",
+    maxAttendees: "10",
+    maxQuantity: "1",
     name,
-    unit_price: "0",
+    unitPrice: "0",
   };
   const browser = await openAsEditor(world, "/admin/listing/new");
   await browser.clickLink(t("listings_table.listing_type_picker_custom"));
@@ -193,7 +193,7 @@ export const editorCraftsForwardingTo: ChangeOneThing<string> = async (
     world,
     `/admin/listing/${listingIdNamed(world, name)}/edit`,
   );
-  await savesServedForm(browser, () => ({ webhook_url: address }));
+  await savesServedForm(browser, () => ({ webhookUrl: address }));
 };
 
 /** The owner makes the same change the ordinary way, through the box their own
@@ -203,7 +203,7 @@ export const ownerSetsForwardingTo: ChangeOneThing<string> = async (
   name,
   address,
 ) => {
-  await organiserSavesFields(world, name, { webhook_url: address });
+  await organiserSavesFields(world, name, { webhookUrl: address });
 };
 
 /** The listing's edit form as the editor is served it. */

@@ -76,7 +76,7 @@ export const ownerMarksListing = async (
     world,
     listingName,
     "attributes",
-    "option_ids",
+    "optionIds",
     await wordingId(world, wording),
     "Attributes updated",
   );

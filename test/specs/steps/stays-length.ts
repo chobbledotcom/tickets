@@ -291,8 +291,8 @@ When(
     const browser = await adminBrowser(this);
     await browser.visit(`/admin/listing/${listingIdNamed(this, name)}/edit`);
     await savesServedForm(browser, (served) => {
-      expectCanReallySend(served, { listing_type: "daily" });
-      return { listing_type: "daily" };
+      expectCanReallySend(served, { listingType: "daily" });
+      return { listingType: "daily" };
     });
     keepsWhatTheOrganiserSaw(this, browser);
   },
@@ -333,7 +333,7 @@ Then(
       this,
       `/admin/listing/${listingIdNamed(this, name)}/edit`,
     );
-    const box = boxFor(browser.currentHtml, "duration_days");
+    const box = boxFor(browser.currentHtml, "durationDays");
     if (!box) {
       throw new Error(`The ${name} edit form offers no length box at all`);
     }

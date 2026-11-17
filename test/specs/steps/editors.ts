@@ -236,7 +236,7 @@ Then(
     // No box for it, and no sight of it either — showing the address as plain
     // text would tell them just as much as a box would.
     const served = editorBrowser(this).currentHtml;
-    assert(!served.includes('name="webhook_url"'));
+    assert(!served.includes('name="webhookUrl"'));
     assert(!served.includes(OWNERS_ADDRESS));
   },
 );

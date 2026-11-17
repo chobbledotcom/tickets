@@ -62,7 +62,7 @@ const openInvoicePreview = async (world: TicketsWorld): Promise<TestBrowser> =>
     world,
     NEW_INVOICE,
     await invoiceCopy("invoices.action.preview"),
-    { attendee_id: String(theBooking(world)) },
+    { attendeeId: String(theBooking(world)) },
   );
 
 /** The preview page for the story's booking, or null when the site refused the
