@@ -55,8 +55,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
       expectIncludesAll(html, [
         `maxlength="${CONTENT_FIELD_LIMITS.name}" name="name"`,
-        `maxlength="${CONTENT_FIELD_LIMITS.meta_title}" name="meta_title"`,
-        `maxlength="${CONTENT_FIELD_LIMITS.meta_description}" name="meta_description"`,
+        `maxlength="${CONTENT_FIELD_LIMITS.metaTitle}" name="metaTitle"`,
+        `maxlength="${CONTENT_FIELD_LIMITS.metaDescription}" name="metaDescription"`,
       ]);
     });
 
@@ -88,8 +88,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("creates a post with every field and redirects to its editor", async () => {
       const { response } = await create("Launch", {
         content: "Body **text**",
-        meta_description: "Meta description",
-        meta_title: "Meta title",
+        metaDescription: "Meta description",
+        metaTitle: "Meta title",
         snippet: "Short summary",
       });
       const post = await findPost("Launch");

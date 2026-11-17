@@ -31,9 +31,9 @@ export const createTestHoliday = (
   return doAuthenticatedFormRequest(
     "/admin/holidays",
     {
-      end_date: input.endDate,
+      endDate: input.endDate,
       name: input.name,
-      start_date: input.startDate,
+      startDate: input.startDate,
     },
     async () => {
       const { holidays } = await import("#db/holidays.ts");
@@ -61,9 +61,9 @@ export const updateTestHoliday = async (
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
     {
-      end_date: updates.endDate ?? existing.endDate,
+      endDate: updates.endDate ?? existing.endDate,
       name: updates.name ?? existing.name,
-      start_date: updates.startDate ?? existing.startDate,
+      startDate: updates.startDate ?? existing.startDate,
     },
     () => storedHoliday(holidayId),
     "update holiday",
@@ -75,7 +75,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/delete`,
-    { confirm_identifier: existing.name },
+    { confirmIdentifier: existing.name },
     async () => {},
     "delete holiday",
   );

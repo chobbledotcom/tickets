@@ -59,7 +59,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       const { inviteCode } = await createTestInvite("handoff-join");
       await submitJoinForm(inviteCode, {
         password: "joinerpass123",
-        password_confirm: "joinerpass123",
+        passwordConfirm: "joinerpass123",
       });
 
       const activated = (await getUserByUsername("handoff-join"))!;
@@ -75,7 +75,7 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
       const { inviteCode } = await createTestInvite("handoff-login");
       await submitJoinForm(inviteCode, {
         password: "joinerpass123",
-        password_confirm: "joinerpass123",
+        passwordConfirm: "joinerpass123",
       });
 
       const response = await handleRequest(

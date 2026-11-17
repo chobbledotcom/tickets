@@ -2,14 +2,14 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   camelCaseKeys,
+  fieldName,
   snakeCaseKeys,
-  toCamelCase,
 } from "#shared/column-names.ts";
 
 describe("column names", () => {
-  test("toCamelCase converts snake_case to camelCase", () => {
+  test("fieldName converts snake_case to camelCase", () => {
     expect(
-      ["max_attendees", "thank_you_url", "name", "payment_id"].map(toCamelCase),
+      ["max_attendees", "thank_you_url", "name", "payment_id"].map(fieldName),
     ).toEqual(["maxAttendees", "thankYouUrl", "name", "paymentId"]);
   });
 

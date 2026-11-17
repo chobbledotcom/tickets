@@ -18,13 +18,13 @@ const optionalNumber = (v: number | null | undefined): string =>
 const repeated = (value: string): string[] =>
   value ? value.split(",").map((part) => part.trim()) : [];
 
-/** Serialize a DayPrices map into the form's `day_price_<n>` fields. */
+/** Serialize a DayPrices map into the form's `dayPrice<n>` fields. */
 const dayPriceFormFields = (
   dayPrices: DayPrices | undefined,
 ): TestFormValues => {
   const result: Record<string, string> = {};
   for (const [days, price] of Object.entries(dayPrices ?? {})) {
-    result[`day_price_${days}`] = toMajorUnits(price);
+    result[`dayPrice${days}`] = toMajorUnits(price);
   }
   return result;
 };
@@ -68,7 +68,7 @@ const pageBoxes = (
   const shownDefaults = defaultsSwitchShown(adminLevel);
   return Object.fromEntries(
     Object.entries(values).filter(
-      ([key]) => !closed.has(key) && (shownDefaults || key !== "use_defaults"),
+      ([key]) => !closed.has(key) && (shownDefaults || key !== "useDefaults"),
     ),
   );
 };
@@ -104,38 +104,38 @@ const createListingBoxes = (
   const initialSiteMonths =
     input.initialSiteMonths ?? (input.assignBuiltSite ? 1 : 0);
   return {
-    ...checked("assign_built_site", input.assignBuiltSite),
-    ...checked("bookable_alone", input.bookableAlone),
-    bookable_days: input.bookableDays ?? [],
-    ...checked("can_pay_more", input.canPayMore),
-    closes_at_date: closesAtParts.date,
-    closes_at_time: closesAtParts.time,
-    ...checked("customisable_days", input.customisableDays),
-    date_date: dateParts.date,
-    date_time: dateParts.time,
+    ...checked("assignBuiltSite", input.assignBuiltSite),
+    ...checked("bookableAlone", input.bookableAlone),
+    bookableDays: input.bookableDays ?? [],
+    ...checked("canPayMore", input.canPayMore),
+    closesAtDate: closesAtParts.date,
+    closesAtTime: closesAtParts.time,
+    ...checked("customisableDays", input.customisableDays),
+    dateDate: dateParts.date,
+    dateTime: dateParts.time,
     description: input.description ?? "",
-    duration_days: optionalNumber(input.durationDays),
-    ...checked("uses_logistics", input.usesLogistics),
+    durationDays: optionalNumber(input.durationDays),
+    ...checked("usesLogistics", input.usesLogistics),
     ...dayPriceFormFields(input.dayPrices),
     fields: repeated(input.fields ?? "email"),
     ...checked("hidden", input.hidden),
-    initial_site_months: String(initialSiteMonths),
-    listing_type: input.listingType ?? "",
+    initialSiteMonths: String(initialSiteMonths),
+    listingType: input.listingType ?? "",
     location: input.location ?? "",
-    max_attendees: String(input.maxAttendees),
-    max_price: toMajorUnits(input.maxPrice),
-    max_quantity: String(input.maxQuantity ?? 1),
-    maximum_days_after: optionalNumber(input.maximumDaysAfter),
-    min_quantity: String(input.minQuantity ?? 1),
-    minimum_days_before: optionalNumber(input.minimumDaysBefore),
-    months_per_unit: String(input.monthsPerUnit ?? 0),
+    maxAttendees: String(input.maxAttendees),
+    maxPrice: toMajorUnits(input.maxPrice),
+    maxQuantity: String(input.maxQuantity ?? 1),
+    maximumDaysAfter: optionalNumber(input.maximumDaysAfter),
+    minQuantity: String(input.minQuantity ?? 1),
+    minimumDaysBefore: optionalNumber(input.minimumDaysBefore),
+    monthsPerUnit: String(input.monthsPerUnit ?? 0),
     name: input.name,
-    non_transferable: flagChoice(input.nonTransferable),
-    ...checked("purchase_only", input.purchaseOnly),
-    thank_you_url: input.thankYouUrl ?? "",
-    unit_price: toMajorUnits(input.unitPrice ?? 0),
-    ...checked("use_defaults", input.useDefaults),
-    webhook_url: input.webhookUrl ?? "",
+    nonTransferable: flagChoice(input.nonTransferable),
+    ...checked("purchaseOnly", input.purchaseOnly),
+    thankYouUrl: input.thankYouUrl ?? "",
+    unitPrice: toMajorUnits(input.unitPrice ?? 0),
+    ...checked("useDefaults", input.useDefaults),
+    webhookUrl: input.webhookUrl ?? "",
   };
 };
 
@@ -144,31 +144,31 @@ const buildUpdateBoolFields = (
   existing: ListingWithCount,
 ): TestFormValues => ({
   ...checked(
-    "assign_built_site",
+    "assignBuiltSite",
     pickField(updates.assignBuiltSite, existing.assignBuiltSite),
   ),
   ...checked(
-    "bookable_alone",
+    "bookableAlone",
     pickField(updates.bookableAlone, existing.bookableAlone),
   ),
   ...checked(
-    "can_pay_more",
+    "canPayMore",
     pickField(updates.canPayMore, existing.canPayMore),
   ),
   ...checked("hidden", pickField(updates.hidden, existing.hidden)),
-  non_transferable: flagChoice(
+  nonTransferable: flagChoice(
     pickField(updates.nonTransferable, existing.nonTransferable),
   ),
   ...checked(
-    "purchase_only",
+    "purchaseOnly",
     pickField(updates.purchaseOnly, existing.purchaseOnly),
   ),
   ...checked(
-    "use_defaults",
+    "useDefaults",
     pickField(updates.useDefaults, existing.useDefaults),
   ),
   ...checked(
-    "uses_logistics",
+    "usesLogistics",
     pickField(updates.usesLogistics, existing.usesLogistics),
   ),
 });
@@ -185,26 +185,26 @@ const buildUpdateNumericFields = (
     ? pickField(updates.initialSiteMonths, existing.initialSiteMonths || 1)
     : pickField(updates.initialSiteMonths, existing.initialSiteMonths);
   return {
-    duration_days: String(
+    durationDays: String(
       pickField(updates.durationDays, existing.durationDays),
     ),
-    initial_site_months: String(initialSiteMonths),
-    max_attendees: String(
+    initialSiteMonths: String(initialSiteMonths),
+    maxAttendees: String(
       pickField(updates.maxAttendees, existing.maxAttendees),
     ),
-    max_price: toMajorUnits(pickField(updates.maxPrice, existing.maxPrice)),
-    max_quantity: String(pickField(updates.maxQuantity, existing.maxQuantity)),
-    maximum_days_after: String(
+    maxPrice: toMajorUnits(pickField(updates.maxPrice, existing.maxPrice)),
+    maxQuantity: String(pickField(updates.maxQuantity, existing.maxQuantity)),
+    maximumDaysAfter: String(
       pickField(updates.maximumDaysAfter, existing.maximumDaysAfter),
     ),
-    min_quantity: String(pickField(updates.minQuantity, existing.minQuantity)),
-    minimum_days_before: String(
+    minQuantity: String(pickField(updates.minQuantity, existing.minQuantity)),
+    minimumDaysBefore: String(
       pickField(updates.minimumDaysBefore, existing.minimumDaysBefore),
     ),
-    months_per_unit: String(
+    monthsPerUnit: String(
       pickField(updates.monthsPerUnit, existing.monthsPerUnit),
     ),
-    unit_price: formatPrice(updates.unitPrice, existing.unitPrice),
+    unitPrice: formatPrice(updates.unitPrice, existing.unitPrice),
   };
 };
 
@@ -212,15 +212,15 @@ const buildUpdateStringFields = (
   updates: Partial<ListingInput>,
   existing: ListingWithCount,
 ): TestFormValues => ({
-  bookable_days: pickField(updates.bookableDays, existing.bookableDays),
+  bookableDays: pickField(updates.bookableDays, existing.bookableDays),
   description: pickField(updates.description, existing.description),
   fields: repeated(pickField(updates.fields, existing.fields)),
-  listing_type: pickField(updates.listingType, existing.listingType),
+  listingType: pickField(updates.listingType, existing.listingType),
   location: pickField(updates.location, existing.location),
   name: pickField(updates.name, existing.name),
   slug: pickField(updates.slug, existing.slug),
-  thank_you_url: formatOptional(updates.thankYouUrl, existing.thankYouUrl),
-  webhook_url: formatOptional(updates.webhookUrl, existing.webhookUrl),
+  thankYouUrl: formatOptional(updates.thankYouUrl, existing.thankYouUrl),
+  webhookUrl: formatOptional(updates.webhookUrl, existing.webhookUrl),
 });
 
 export const buildUpdateListingForm = (
@@ -236,19 +236,19 @@ export const buildUpdateListingForm = (
       ...buildUpdateNumericFields(updates, existing),
       ...buildUpdateStringFields(updates, existing),
       ...dayPriceFormFields(updates.dayPrices ?? existing.dayPrices),
-      closes_at_date: closesAtParts.date,
-      closes_at_time: closesAtParts.time,
+      closesAtDate: closesAtParts.date,
+      closesAtTime: closesAtParts.time,
       ...checked(
-        "customisable_days",
+        "customisableDays",
         updates.customisableDays ?? existing.customisableDays,
       ),
-      date_date: dateParts.date,
-      date_time: dateParts.time,
+      dateDate: dateParts.date,
+      dateTime: dateParts.time,
       // A switch that must date undated bookings first carries the organiser's
       // chosen day under this field; the save then moves them and flips.
       ...(updates.assignUndatedTo === undefined
         ? {}
-        : { assign_undated_to: updates.assignUndatedTo }),
+        : { assignUndatedTo: updates.assignUndatedTo }),
     },
     adminLevel,
   );

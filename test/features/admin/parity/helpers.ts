@@ -28,7 +28,7 @@ export const pagePostAs = async (
   handleRequest(
     mockFormRequest(
       path,
-      { ...data, csrf_token: await testCsrfToken() },
+      { ...data, csrfToken: await testCsrfToken() },
       cookie,
     ),
   );

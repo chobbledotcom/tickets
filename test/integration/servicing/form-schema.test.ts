@@ -31,7 +31,6 @@ import { QTY_PREFIX } from "#routes/admin/attendee-form-lines.ts";
 import {
   DAY_COUNT_FIELD,
   parseAttendeeForm,
-  START_DATE_FIELD,
 } from "#routes/admin/attendee-form-model.ts";
 import { validateAttendeeBlock } from "#routes/admin/attendee-form-validation.ts";
 import {
@@ -41,6 +40,7 @@ import {
 } from "#routes/admin/servicing/form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
+import { START_DATE_BOX } from "#shared/order-select.ts";
 
 const EXCLUDED_FIELD_NAMES = [
   "email",
@@ -64,7 +64,7 @@ describe("servicing §0 — servicing field schema omits contact/payment fields"
     // drive the same per-listing quantity input. We assert presence of the
     // shared date + day-count controls (the per-listing qty_* fields are
     // emitted dynamically per listing, not as static Field entries).
-    expect(names.has(START_DATE_FIELD)).toBe(true);
+    expect(names.has(START_DATE_BOX)).toBe(true);
     expect(names.has(DAY_COUNT_FIELD)).toBe(true);
     expect(names.has(QTY_PREFIX.slice(0, -1))).toBe(false); // prefix isn't a field
   });
@@ -112,7 +112,7 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
       day_count: "1",
       name: "Boiler Service",
       quantity_1: "2",
-      [START_DATE_FIELD]: "2026-06-24",
+      [START_DATE_BOX]: "2026-06-24",
     });
     const parsed = parseServicingForm(form, listingsById);
     const input = normalizeServicingForSave(parsed);
@@ -144,7 +144,7 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
       quantity_1: "1",
       remaining_balance: "9000",
       special_instructions: "be quiet",
-      [START_DATE_FIELD]: "2026-06-24",
+      [START_DATE_BOX]: "2026-06-24",
       status_id: "3",
     });
     const parsed = parseServicingForm(form, listingsById);
@@ -168,7 +168,7 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
       new FormParams({
         name: "",
         quantity_1: "1",
-        [START_DATE_FIELD]: "2026-06-24",
+        [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),
     );
@@ -183,7 +183,7 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
       new FormParams({
         name: "Boiler Service",
         quantity_1: "1",
-        [START_DATE_FIELD]: "2026-06-24",
+        [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),
     );

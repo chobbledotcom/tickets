@@ -168,7 +168,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode } = await createTestInvite("joinhelper");
       const response = await submitJoinForm(inviteCode, {
         password: "newpassword123",
-        password_confirm: "newpassword123",
+        passwordConfirm: "newpassword123",
       });
       expectRedirectWithFlash(
         "/join/complete",
@@ -180,7 +180,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode } = await createTestInvite("joinhelper2");
       const response = await submitJoinForm(inviteCode, {
         password: "password123",
-        password_confirm: "different",
+        passwordConfirm: "different",
       });
       expect(response.status).toBe(302);
     });

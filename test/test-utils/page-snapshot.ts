@@ -12,7 +12,7 @@ export const assertPageMatchesSnapshot = (
     // and the value (the renderer emits name, type, value), and the lookbehind
     // keeps longer names such as data-name out of the mask.
     html.replace(
-      /(?<![-\w])(name="csrf_token"[^>]*? value=")[^"]*(")/g,
+      /(?<![-\w])(name="csrfToken"[^>]*? value=")[^"]*(")/g,
       "$1$2",
     );
   assertEquals(normalize(actual), normalize(Deno.readTextFileSync(snapshot)));

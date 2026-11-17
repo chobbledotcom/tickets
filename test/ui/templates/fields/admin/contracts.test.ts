@@ -30,15 +30,21 @@ describe("fields contracts", () => {
   });
 
   describe("extractContact", () => {
-    test("passes present contact values straight through", () => {
+    test("passes present contact values through to the stored contact", () => {
       const values: TicketFormValues = {
         address: "1 High Street",
         email: "person@example.com",
         name: "Alex",
         phone: "01234 567890",
-        special_instructions: "Leave at door",
+        specialInstructions: "Leave at door",
       };
-      expect(extractContact(values)).toEqual(values);
+      expect(extractContact(values)).toEqual({
+        address: "1 High Street",
+        email: "person@example.com",
+        name: "Alex",
+        phone: "01234 567890",
+        special_instructions: "Leave at door",
+      });
     });
 
     test("defaults every optional field to an empty string", () => {

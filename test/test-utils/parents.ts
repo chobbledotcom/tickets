@@ -52,7 +52,7 @@ const postToBookingPath = async (
   const csrf = await bookingPageToken(slugs);
   return awaitTestRequest(`/${section}/${slugs}`, {
     cookie: `csrf_token=${csrf}`,
-    data: { csrf_token: csrf, ...fields },
+    data: { csrfToken: csrf, ...fields },
   });
 };
 
@@ -85,14 +85,14 @@ export const bookParent = (
 export const parentField = (
   parent: Pick<Listing, "id">,
   qty: string,
-): Record<string, string> => ({ [`quantity_${parent.id}`]: qty });
+): Record<string, string> => ({ [`quantity${parent.id}`]: qty });
 
 /** Build a child-quantity form field (`child_qty_<parentId>_<childId>`). */
 export const childField = (
   parent: Pick<Listing, "id">,
   child: Pick<Listing, "id">,
   qty: string,
-): Record<string, string> => ({ [`child_qty_${parent.id}_${child.id}`]: qty });
+): Record<string, string> => ({ [`childQty${parent.id}_${child.id}`]: qty });
 
 /** GET a JSON API path and return the raw Response. */
 export const apiGet = async (path: string): Promise<Response> =>
@@ -311,8 +311,8 @@ export const postChildren = async (
   return awaitTestRequest(`/admin/listing/${listingId}/children`, {
     cookie,
     data: {
-      child_listing_ids: childIds.map(String),
-      csrf_token: csrfToken,
+      childListingIds: childIds.map(String),
+      csrfToken,
     },
   });
 };

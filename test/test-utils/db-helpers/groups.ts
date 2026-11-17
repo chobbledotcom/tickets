@@ -46,15 +46,15 @@ export const createTestGroup = async (
     "/admin/groups",
     {
       description: input.description,
-      max_attendees: String(input.maxAttendees),
+      maxAttendees: String(input.maxAttendees),
       name: input.name,
-      terms_and_conditions: input.termsAndConditions,
+      termsAndConditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
-      ...(input.isPackage ? { is_package: "1" } : {}),
+      ...(input.isPackage ? { isPackage: "1" } : {}),
       ...(input.scanChecksInAllListings
-        ? { scan_checks_in_all_listings: "1" }
+        ? { scanChecksInAllListings: "1" }
         : {}),
-      ...(input.showHiddenListings ? { show_hidden_listings: "1" } : {}),
+      ...(input.showHiddenListings ? { showHiddenListings: "1" } : {}),
     },
     async () => {
       const { groups } = await import("#db/groups.ts");
@@ -140,15 +140,15 @@ export const updateTestGroup = async (
     `/admin/groups/${groupId}/edit`,
     {
       description: updates.description ?? existing.description,
-      max_attendees: String(updates.maxAttendees ?? existing.maxAttendees),
+      maxAttendees: String(updates.maxAttendees ?? existing.maxAttendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions:
+      termsAndConditions:
         updates.termsAndConditions ?? existing.termsAndConditions,
       ...(hidden ? { hidden: "1" } : {}),
-      ...(isPackage ? { is_package: "1" } : {}),
-      ...(scanChecksInAllListings ? { scan_checks_in_all_listings: "1" } : {}),
-      ...(showHiddenListings ? { show_hidden_listings: "1" } : {}),
+      ...(isPackage ? { isPackage: "1" } : {}),
+      ...(scanChecksInAllListings ? { scanChecksInAllListings: "1" } : {}),
+      ...(showHiddenListings ? { showHiddenListings: "1" } : {}),
     },
     async () => {
       const updated = await getGroupById(groupId);
@@ -164,7 +164,7 @@ export const deleteTestGroup = async (groupId: number): Promise<void> => {
 
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/delete`,
-    { confirm_identifier: existing.name },
+    { confirmIdentifier: existing.name },
     async () => {},
     "delete group",
   );

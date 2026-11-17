@@ -51,8 +51,8 @@ describe("ledger entry forms", () => {
     ];
     const html = defineLedgerEntryAddForm(options).render({
       amount: "5.00",
-      entry_type: MANUAL_ATTENDEE_CHARGE,
-      occurred_at: "2026-06-22T09:30",
+      entryType: MANUAL_ATTENDEE_CHARGE,
+      occurredAt: "2026-06-22T09:30",
     });
     // The type choice itself is a required control.
     assertStringIncludes(inputNamed(html, "entry_type"), "required");

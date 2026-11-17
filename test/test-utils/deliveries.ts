@@ -132,7 +132,7 @@ export const markRequest = async (
   handleRequest(
     mockFormRequest(
       "/admin/deliveries/mark",
-      { csrf_token: await signCsrfToken(), ...data },
+      { csrfToken: await signCsrfToken(), ...data },
       cookie,
     ),
   );

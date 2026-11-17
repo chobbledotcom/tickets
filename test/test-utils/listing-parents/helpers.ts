@@ -180,7 +180,7 @@ export const postListingEdit = async (
   return handleRequest(
     mockMultipartRequest(
       `/admin/listing/${listingId}/edit`,
-      { ...formWithGroups, csrf_token: session.csrfToken },
+      { ...formWithGroups, csrfToken: session.csrfToken },
       session.cookie,
     ),
   );

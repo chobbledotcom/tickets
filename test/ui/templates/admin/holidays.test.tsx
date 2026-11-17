@@ -105,9 +105,9 @@ describe("holiday templates", () => {
           error: "Date error",
           holiday,
           values: {
-            end_date: "2027-01-02",
+            endDate: "2027-01-02",
             name: "Winter break",
-            start_date: "2027-01-01",
+            startDate: "2027-01-01",
           },
         }),
       );

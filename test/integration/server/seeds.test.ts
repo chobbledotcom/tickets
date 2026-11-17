@@ -41,8 +41,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     test("contains form with listing count and attendees per listing fields", async () => {
       await assertAdminHtml(
         "/admin/seeds",
-        "listing_count",
-        "attendees_per_listing",
+        "listingCount",
+        "attendeesPerListing",
         "Create example data",
       );
     });
@@ -55,8 +55,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
   describe("POST /admin/seeds", () => {
     testRequiresAuth("/admin/seeds", {
       body: {
-        attendees_per_listing: "0",
-        listing_count: "1",
+        attendeesPerListing: "0",
+        listingCount: "1",
       },
       method: "POST",
     });
@@ -66,7 +66,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", listing_count: "1" },
+          { attendeesPerListing: "0", listingCount: "1" },
           managerCookie,
         ),
       );
@@ -75,8 +75,8 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
 
     test("creates seed listings with attendees including paid and free", async () => {
       const response = await postSeeds({
-        attendees_per_listing: "3",
-        listing_count: "2",
+        attendeesPerListing: "3",
+        listingCount: "2",
       });
 
       await expectFlashRedirect(
@@ -112,7 +112,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     // Owns the direct decrypt contract for seeded attendees; the story
     // `@case:seeds.what-was-made-can-be-read-everywhere` covers the page.
     test("seeded attendees decrypt with real demo details", async () => {
-      await postSeeds({ attendees_per_listing: "1", listing_count: "1" });
+      await postSeeds({ attendeesPerListing: "1", listingCount: "1" });
 
       const [listing] = await getAllListings();
       const raw = await getAttendeesRaw(listing!.id);
@@ -128,9 +128,9 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
         mockFormRequest(
           "/admin/seeds",
           {
-            attendees_per_listing: "0",
-            csrf_token: "invalid",
-            listing_count: "1",
+            attendeesPerListing: "0",
+            csrfToken: "invalid",
+            listingCount: "1",
           },
           await testCookie(),
         ),
@@ -140,7 +140,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
     });
 
     test("created listings are active", async () => {
-      await postSeeds({ attendees_per_listing: "0", listing_count: "1" });
+      await postSeeds({ attendeesPerListing: "0", listingCount: "1" });
 
       const listings = await getAllListings();
       expect(listings[0]!.active).toBe(true);
@@ -164,7 +164,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", csrf_token: csrf1, listing_count: "2" },
+          { attendeesPerListing: "0", csrfToken: csrf1, listingCount: "2" },
           await testCookie(),
         ),
       );
@@ -181,7 +181,7 @@ describeWithEnv("server (admin seeds)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           "/admin/seeds",
-          { attendees_per_listing: "0", csrf_token: csrf2, listing_count: "3" },
+          { attendeesPerListing: "0", csrfToken: csrf2, listingCount: "3" },
           await testCookie(),
         ),
       );

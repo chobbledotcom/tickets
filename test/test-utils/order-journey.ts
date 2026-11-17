@@ -9,7 +9,7 @@
  *   await runOrderJourney({
  *     catalog: { packages: [...], listings: [...], parents: [...] },
  *     select: { packages: ["Kit"], listings: ["Tent"], date },
- *     form: (c) => ({ [`package_quantity_${c.group("Kit").id}`]: "1", ... }),
+ *     form: (c) => ({ [`packageQuantity${c.group("Kit").id}`]: "1", ... }),
  *     rows: (c) => [[c.listing("Tent").id, c.group("Kit").id, 0, 2, ""]],
  *     through: async (ctx) => { ...innards... },
  *   });

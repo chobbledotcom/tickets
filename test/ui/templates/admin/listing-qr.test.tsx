@@ -31,7 +31,7 @@ describe("the listing booking-QR page", () => {
     }) as ListingWithCount;
 
   const values = {
-    customer_name: "Ada",
+    customerName: "Ada",
     date: "2026-06-15",
     quantity: "2",
     value: "19.99",
@@ -117,7 +117,7 @@ describe("the listing booking-QR page", () => {
   test("collects the customer name and quantity", () => {
     const html = renderPanel();
 
-    expect(html).toMatch(/<input[^>]*name="customer_name"[^>]*type="text"/);
+    expect(html).toMatch(/<input[^>]*name="customerName"[^>]*type="text"/);
     assertStringIncludes(html, 'value="Ada"');
     expect(html).toMatch(/<input[^>]*name="quantity"[^>]*type="number"/);
     expect(html).toMatch(/<input[^>]*max="4"[^>]*min="1"/);

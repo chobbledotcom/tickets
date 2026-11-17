@@ -34,10 +34,10 @@ export const setupAndLogin = async (browser: TestBrowser): Promise<void> => {
   await browser.visit("/setup/");
   await browser.submitForm(
     {
-      accept_agreement: "yes",
-      admin_password: "password",
-      admin_password_confirm: "password",
-      admin_username: "admin",
+      acceptAgreement: "yes",
+      adminPassword: "password",
+      adminPasswordConfirm: "password",
+      adminUsername: "admin",
       country: "GB",
     },
     "Complete setup",
@@ -99,7 +99,7 @@ export const createListing = async (
 ): Promise<string> => {
   await browser.visit("/admin/listing/new?template=custom");
   await browser.submitForm(
-    { max_attendees: "50", max_quantity: "5", unit_price: "0", ...fields },
+    { maxAttendees: "50", maxQuantity: "5", unitPrice: "0", ...fields },
     "Create Listing",
   );
   return gotoListing(browser, fields.name);
@@ -170,4 +170,4 @@ export const linePlacesOnPage = (
   browser: TestBrowser,
   listingId: string | number,
 ): string =>
-  fieldValueOnPage(browser, `qty_${lineIndexOnPage(browser, listingId)}`);
+  fieldValueOnPage(browser, `qty${lineIndexOnPage(browser, listingId)}`);

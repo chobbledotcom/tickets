@@ -140,7 +140,7 @@ export const duplicateTestListing = async (
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
   const listing = await postCreateForm(
-    { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
+    { ...buildCreateListingForm(input), duplicatedFrom: String(sourceId) },
     "duplicate listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
@@ -173,7 +173,7 @@ export const updateTestListing = async (
       : previousGroups;
   const form = buildUpdateListingForm(updates, existing);
   const formWithGroups =
-    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
+    groupIds.length > 0 ? { ...form, groupIds: String(groupIds[0]) } : form;
   const result = await doAuthenticatedMultipartFormRequest(
     `/admin/listing/${listingId}/edit`,
     formWithGroups,
@@ -193,7 +193,7 @@ const changeListingStatus =
     }
     return doAuthenticatedFormRequest(
       `/admin/listing/${listingId}/${action}`,
-      { confirm_identifier: listing.name },
+      { confirmIdentifier: listing.name },
       async () => {},
       `${action} listing`,
     );
@@ -217,7 +217,7 @@ export const deleteTestListing = async (
 ): Promise<void> =>
   doAuthenticatedFormRequest(
     `/admin/listing/${listing.id}/delete`,
-    { confirm_identifier: listing.name },
+    { confirmIdentifier: listing.name },
     async () => {},
     "delete listing",
   );
@@ -255,17 +255,17 @@ export const dailySwitchForm = (
   listing: Pick<ListingWithCount, "maxAttendees" | "name" | "slug">,
   extra: TestFormValues = {},
 ): TestFormValues => ({
-  bookable_days: allDays,
-  duration_days: "1",
-  listing_type: "daily",
-  max_attendees: String(listing.maxAttendees),
-  max_quantity: "1",
-  maximum_days_after: "90",
-  minimum_days_before: "1",
+  bookableDays: allDays,
+  durationDays: "1",
+  listingType: "daily",
+  maxAttendees: String(listing.maxAttendees),
+  maxQuantity: "1",
+  maximumDaysAfter: "90",
+  minimumDaysBefore: "1",
   name: listing.name,
   slug: listing.slug,
-  thank_you_url: "https://example.com",
-  unit_price: "0",
+  thankYouUrl: "https://example.com",
+  unitPrice: "0",
   ...extra,
 });
 

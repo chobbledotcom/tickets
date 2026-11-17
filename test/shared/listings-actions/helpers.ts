@@ -2,7 +2,7 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { tables } from "#db/select/tables.ts";
-import { toCamelCase } from "#shared/column-names.ts";
+import { fieldName } from "#shared/column-names.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import type { ListingWithCount } from "#types";
@@ -21,7 +21,7 @@ const inputOfStored = (listing: ListingWithCount): ListingInput => {
   const stored: Readonly<Record<string, unknown>> = { ...listing };
   const columns: Partial<ListingInput> = Object.fromEntries(
     tables.listings.columns
-      .map(([column]) => toCamelCase(column))
+      .map(([column]) => fieldName(column))
       .filter((key) => key !== "id" && key !== "created")
       .map((key) => [key, stored[key]]),
   );

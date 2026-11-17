@@ -13,13 +13,13 @@ describe("group fields", () => {
     expect(form.fields.map((f) => f.name)).toEqual([
       "name",
       "description",
-      "max_attendees",
-      "terms_and_conditions",
+      "maxAttendees",
+      "termsAndConditions",
       "hidden",
-      "is_package",
-      "hide_package_listings",
-      "scan_checks_in_all_listings",
-      "show_hidden_listings",
+      "isPackage",
+      "hidePackageListings",
+      "scanChecksInAllListings",
+      "showHiddenListings",
     ]);
   });
 
@@ -29,13 +29,13 @@ describe("group fields", () => {
       "name",
       "slug",
       "description",
-      "max_attendees",
-      "terms_and_conditions",
+      "maxAttendees",
+      "termsAndConditions",
       "hidden",
-      "is_package",
-      "hide_package_listings",
-      "scan_checks_in_all_listings",
-      "show_hidden_listings",
+      "isPackage",
+      "hidePackageListings",
+      "scanChecksInAllListings",
+      "showHiddenListings",
     ]);
   });
 
@@ -47,19 +47,19 @@ describe("group fields", () => {
       type: "text",
     });
     expect(form.fields[2]).toMatchObject({
-      name: "max_attendees",
+      name: "maxAttendees",
       type: "number",
     });
   });
 
   test("the package checkboxes each offer exactly one tick worth 1", () => {
     const form = getGroupCreateForm();
-    const isPackage = form.fields.find((f) => f.name === "is_package");
+    const isPackage = form.fields.find((f) => f.name === "isPackage");
     const hideListings = form.fields.find(
-      (f) => f.name === "hide_package_listings",
+      (f) => f.name === "hidePackageListings",
     );
     const showHidden = form.fields.find(
-      (f) => f.name === "show_hidden_listings",
+      (f) => f.name === "showHiddenListings",
     );
     expect(isPackage).toMatchObject({
       options: [{ label: "Sell this group as a package", value: "1" }],
@@ -76,7 +76,7 @@ describe("group fields", () => {
 
   test("terms are a markdown textarea that rejects only over-long text", () => {
     const form = getGroupCreateForm();
-    const terms = form.fields.find((f) => f.name === "terms_and_conditions");
+    const terms = form.fields.find((f) => f.name === "termsAndConditions");
     expect(terms).toMatchObject({
       markdown: true,
       maxlength: MAX_TEXTAREA_LENGTH,

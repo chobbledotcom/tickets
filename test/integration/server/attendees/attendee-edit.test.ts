@@ -171,7 +171,7 @@ describeWithEnv(
             email: "jane@example.com",
             name: "Jane Doe",
             phone: "555-9999",
-            special_instructions: "Wheelchair access",
+            specialInstructions: "Wheelchair access",
           },
           "Jane Doe",
         );
@@ -371,7 +371,7 @@ describeWithEnv(
             email: "jane@example.com",
             name: "Jane Smith",
             phone: "555-9999",
-            special_instructions: "Special access needed",
+            specialInstructions: "Special access needed",
           },
           name: "updates attendee with all non-empty fields",
           newName: "Jane Smith",

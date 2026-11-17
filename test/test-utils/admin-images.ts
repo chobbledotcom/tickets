@@ -142,7 +142,7 @@ export const imageUploadRequest = async (
 ): Promise<Request> =>
   mockMultipartRequest(
     path,
-    { alt_text: `Alt ${name}`, csrf_token: csrfToken, name },
+    { altText: `Alt ${name}`, csrfToken, name },
     cookie,
     {
       contentType: "image/png",

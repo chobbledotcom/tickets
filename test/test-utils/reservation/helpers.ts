@@ -136,7 +136,7 @@ export const submitBuyerOrder = (
   fields: Record<string, string> = {},
 ) =>
   submitTicketForm(listing.slug, {
-    [`quantity_${listing.id}`]: "1",
+    [`quantity${listing.id}`]: "1",
     email: "buyer@example.com",
     name: "Buyer",
     ...fields,

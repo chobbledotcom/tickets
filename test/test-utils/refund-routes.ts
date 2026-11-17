@@ -84,7 +84,7 @@ export const postRefundAll = async (listing: {
   handleRequest(
     mockFormRequest(
       refundAllUrl(listing.id),
-      { confirm_identifier: listing.name, csrf_token: await testCsrfToken() },
+      { confirmIdentifier: listing.name, csrfToken: await testCsrfToken() },
       await testCookie(),
     ),
   );
@@ -97,7 +97,7 @@ export const submitRefund = (
   handleRequest(
     mockFormRequest(
       refundUrl(attendee.id),
-      { confirm_identifier: "John Doe", csrf_token: csrfToken, ...overrides },
+      { confirmIdentifier: "John Doe", csrfToken, ...overrides },
       cookie,
     ),
   );
@@ -110,7 +110,7 @@ export const submitRefundAll = (
   handleRequest(
     mockFormRequest(
       refundAllUrl(listing.id),
-      { confirm_identifier: listing.name, csrf_token: csrfToken, ...overrides },
+      { confirmIdentifier: listing.name, csrfToken, ...overrides },
       cookie,
     ),
   );

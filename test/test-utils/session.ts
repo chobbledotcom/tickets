@@ -349,10 +349,10 @@ export const postFormAs = async (
   cookie: string,
   data: TestFormValues = {},
 ): Promise<Response> => {
-  const csrf_token = await signCsrfToken();
+  const csrfToken = await signCsrfToken();
   return awaitTestRequest(path, {
     cookie,
-    data: { ...data, csrf_token },
+    data: { ...data, csrfToken },
   });
 };
 
@@ -377,8 +377,8 @@ export const adminFormPost = async (
   const response = await awaitTestRequest(path, {
     cookie,
     data: {
-      csrf_token: csrfToken,
-      ...(version !== undefined ? { settings_version: version } : {}),
+      csrfToken,
+      ...(version !== undefined ? { settingsVersion: version } : {}),
       ...data,
     },
   });
@@ -399,7 +399,7 @@ export const adminMultipartPost = async (
   const response = await handleRequest(
     mockMultipartRequest(
       path,
-      { csrf_token: csrfToken, ...data },
+      { csrfToken, ...data },
       cookie,
       file,
     ),

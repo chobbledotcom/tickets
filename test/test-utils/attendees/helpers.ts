@@ -111,7 +111,7 @@ export const submitDeleteIncomplete = async (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee/${attendeeId}/delete-incomplete`,
-      { csrf_token: csrfToken },
+      { csrfToken },
       cookie,
     ),
   );
@@ -210,7 +210,7 @@ export const submitQuestionAnswer = async (
 ): Promise<number[]> => {
   const response = await submitAttendeeEdit(attendeeId, {
     email: "john@example.com",
-    extra: { [`question_${questionId}`]: String(answerId) },
+    extra: { [`question${questionId}`]: String(answerId) },
     name: "John Doe",
   });
   expect(response.status).toBe(302);
@@ -269,7 +269,7 @@ export const submitAddAttendee = async (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attendee`,
-      { csrf_token: csrfToken, ...fields },
+      { csrfToken, ...fields },
       cookie,
     ),
   );
@@ -309,7 +309,7 @@ export const adminCheckinPost = (
   extra: Record<string, string> = {},
 ) =>
   adminFormPost(`/admin/listing/${listingId}/attendee/${attendeeId}/checkin`, {
-    check_in: "true",
+    checkIn: "true",
     quantity: "1",
     ...extra,
   });

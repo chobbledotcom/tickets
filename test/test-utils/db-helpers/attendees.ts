@@ -121,7 +121,7 @@ export const createTestAttendee = async (
         name,
         phone,
         ...extraFields,
-        [`quantity_${listingId}`]: String(quantity),
+        [`quantity${listingId}`]: String(quantity),
       },
       csrfToken,
     ),
@@ -267,7 +267,7 @@ export const existingAttendeeLines = async (
   return (await loadExistingLines(attendeeId)).map(attendeeLineInput);
 };
 
-/** The indexed editor-line fields (`line_listing_<i>` + `qty_<i>` + …) for a
+/** The indexed editor-line fields (`lineListing<i>` + `qty<i>` + …) for a
  * set of lines — the admin attendee form's wire shape. Spread into a POST
  * body: `{ name: "X", ...attendeeLineFields([{ eventId: 5, quantity: 1 }]) }`. */
 export const attendeeLineFields = (
@@ -275,12 +275,12 @@ export const attendeeLineFields = (
 ): Record<string, string> => {
   const fields: Record<string, string> = {};
   for (const [index, line] of lines.entries()) {
-    fields[`line_listing_${index}`] = String(line.eventId);
-    fields[`qty_${index}`] = String(line.quantity ?? 1);
-    fields[`line_key_${index}`] = line.key ?? "";
-    if (line.noQuantity) fields[`noqty_${index}`] = "1";
+    fields[`lineListing${index}`] = String(line.eventId);
+    fields[`qty${index}`] = String(line.quantity ?? 1);
+    fields[`lineKey${index}`] = line.key ?? "";
+    if (line.noQuantity) fields[`noqty${index}`] = "1";
     if ((line.packageGroupId ?? 0) > 0 && !line.key) {
-      fields[`line_package_${index}`] = String(line.packageGroupId);
+      fields[`linePackage${index}`] = String(line.packageGroupId);
     }
   }
   return fields;
@@ -293,12 +293,12 @@ export const buildAttendeeEditForm = async (
     email?: string;
     phone?: string;
     address?: string;
-    special_instructions?: string;
+    specialInstructions?: string;
     returnUrl?: string;
     startDate?: string;
     dayCount?: number;
     lines?: AttendeeLineInput[];
-    /** Extra fields to merge in (e.g. `question_<id>`). */
+    /** Extra fields to merge in (e.g. `question<id>`). */
     extra?: Record<string, string>;
   } = {},
 ): Promise<Record<string, string>> => {
@@ -311,14 +311,14 @@ export const buildAttendeeEditForm = async (
   const lines = overrides.lines ?? existing.map(attendeeLineInput);
   const form: Record<string, string> = {
     address: overrides.address ?? "",
-    day_count: String(overrides.dayCount ?? shared.dayCount),
+    dayCount: String(overrides.dayCount ?? shared.dayCount),
     email: overrides.email ?? "",
     name: overrides.name ?? "",
     phone: overrides.phone ?? "",
-    special_instructions: overrides.special_instructions ?? "",
-    start_date: overrides.startDate ?? shared.startDate,
+    specialInstructions: overrides.specialInstructions ?? "",
+    startDate: overrides.startDate ?? shared.startDate,
   };
-  if (overrides.returnUrl) form.return_url = overrides.returnUrl;
+  if (overrides.returnUrl) form.returnUrl = overrides.returnUrl;
   Object.assign(form, attendeeLineFields(lines));
   if (overrides.extra) Object.assign(form, overrides.extra);
   return form;

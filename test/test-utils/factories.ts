@@ -302,11 +302,11 @@ export const testListingInput = (
 };
 
 export const baseListingForm: Record<string, string> = {
-  max_attendees: "100",
-  max_quantity: "1",
+  maxAttendees: "100",
+  maxQuantity: "1",
   name: "My Listing",
-  thank_you_url: "https://example.com",
-  unit_price: "0",
+  thankYouUrl: "https://example.com",
+  unitPrice: "0",
 };
 
 export const webhookMeta = (
