@@ -146,8 +146,7 @@ export const dropOwnedObjects = async (
 // The name stays plain text so that sentinelListingExists can find the row.
 export const seedSentinelListing = (): Promise<unknown> =>
   getDb().execute(
-    sql`INSERT INTO listings (created, max_attendees, name)
-        VALUES ('2024-01-01T00:00:00Z', 10, 'sentinel-listing')`,
+    sql`INSERT INTO listings (created, max_attendees, name) VALUES ('2024-01-01T00:00:00Z', 10, 'sentinel-listing')`,
   );
 
 export const scalar = async (statement: SqlStatement): Promise<unknown> => {
