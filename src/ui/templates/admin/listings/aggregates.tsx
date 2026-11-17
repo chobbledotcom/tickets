@@ -88,8 +88,8 @@ export const ListingAggregateMismatchRow = ({
 export const listingAggregateToFieldValues = (
   listing: ListingWithCount,
 ): FieldValues => ({
-  booked_quantity: listing.attendeeCount,
-  tickets_count: listing.ticketsCount,
+  bookedQuantity: listing.attendeeCount,
+  ticketsCount: listing.ticketsCount,
 });
 
 const listingRecalculateRenderer = (
