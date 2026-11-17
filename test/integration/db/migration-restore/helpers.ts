@@ -1,19 +1,17 @@
 /**
- * Shared fixture for the migration restore/chain suites.
+ * Shared fixture for the migration restore and chain suites.
  *
  * "Restore from each migration" — for every additive migration, start from a
  * fully-migrated database, drop exactly the objects that migration owns, prove
  * its verify() now fails, then re-run its up() and prove verify() passes again
- * and that pre-existing data survived. The chain suites do the larger version:
- * migrate a populated database from every historical boundary to the current
- * schema through the real `initDb()`.
+ * and that pre-existing data survived. This suite is sharded across the
+ * `restore-*.test.ts` files via the `defineRestoreCasesSuite` factory below
+ * (shard by index modulo shard count), so `deno test --parallel` spreads the
+ * heavy DDL work across workers.
  *
- * Both suites are sharded across several test files via the `defineRestore…` /
- * `defineChain…` factories below (shard by index modulo shard count), so
- * `deno test --parallel` can spread this genuinely heavy DDL work across
- * workers instead of serialising ~2 minutes of it on one. Modulo sharding
- * keeps the shards balanced as migrations are added — each shard gets an even
- * mix of long (old boundary) and short (recent boundary) chains.
+ * The chain test seeds one populated fixture and winds the schema back to the
+ * first historical boundary. It then applies every migration forward and
+ * checks the fixture at each boundary. See `chain.test.ts`.
  */
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -26,7 +24,6 @@ import {
   verifyCurrentAppSchema,
 } from "#db/migrations/schema-sync.ts";
 import {
-  initDb,
   invalidateInitDbCache,
   LATEST_UPDATE,
   type Migration,
@@ -34,11 +31,10 @@ import {
   type SchemaRequirement,
 } from "#db/migrations.ts";
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
-import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
-const MIGRATIONS = await loadMigrations();
+export const MIGRATIONS = await loadMigrations();
 export const migrationById = (id: string): Migration =>
   MIGRATIONS.find((m) => m.id === id)!;
 
@@ -51,7 +47,7 @@ const POST_CHAIN_MIGRATION_VERIFIER_IDS = [
   "2026-07-05_package_slot_identity",
 ] as const;
 
-const verifyMigratedSchema = async (): Promise<void> => {
+export const verifyMigratedSchema = async (): Promise<void> => {
   await verifyCurrentAppSchema();
   for (const id of POST_CHAIN_MIGRATION_VERIFIER_IDS) {
     await migrationById(id).verify();
@@ -154,7 +150,7 @@ export const scalar = async (statement: SqlStatement): Promise<unknown> => {
   return result.rows[0]?.value;
 };
 
-const seedPopulatedMigrationFixture = () =>
+export const seedPopulatedMigrationFixture = () =>
   getDb().batch(
     [
       sql`INSERT INTO groups (id, slug, slug_index, name, description, max_attendees)
@@ -206,83 +202,89 @@ const seedPopulatedMigrationFixture = () =>
 const migrationIndex = (id: string): number =>
   MIGRATIONS.findIndex((migration) => migration.id === id);
 
-const assertPopulatedFixtureSurvived = async (
-  baseMigrationId: string,
+/** Assert that a query finds the one fixture row it looks for. */
+const expectFixtureRow = async (statement: SqlStatement): Promise<void> => {
+  expect(await scalar(statement)).toBe(1);
+};
+
+/**
+ * Check the fixture rows at `boundaryId` against a fixture seeded at
+ * `seedBoundaryId`.
+ *
+ * Two kinds of claim wait on a migration:
+ * - a value that a migration computes from other rows is checked from the
+ *   boundary where that migration ran;
+ * - a value that only a migration's column holds is checked from the boundary
+ *   where the column already existed when the fixture was written. A walk from
+ *   an early boundary drops that column, so the value cannot come back.
+ */
+export const assertPopulatedFixtureSurvived = async (
+  seedBoundaryId: string,
+  boundaryId = seedBoundaryId,
 ): Promise<void> => {
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing' AND booked_quantity = 2 AND tickets_count = 1`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906 AND times_selected = 1`,
-    ),
-  ).toBe(1);
-  expect(
-    await scalar(
-      sql`SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908`,
-    ),
-  ).toBe(1);
+  /** This boundary is at or after the migration. */
+  const ran = (id: string): boolean =>
+    migrationIndex(boundaryId) >= migrationIndex(id);
+  /** The fixture was written at or after the migration. */
+  const kept = (id: string): boolean =>
+    migrationIndex(seedBoundaryId) >= migrationIndex(id);
 
-  if (
-    migrationIndex(baseMigrationId) >=
-    migrationIndex("2026-06-14_attendee_statuses")
-  ) {
-    expect(
-      await scalar(
-        sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903`,
-      ),
-    ).toBe(1);
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND name = 'migration-listing'`,
+  );
+  if (ran("2026-06-16_listing_aggregates")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM listings WHERE id = 902 AND booked_quantity = 2 AND tickets_count = 1`,
+    );
   }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM listing_attendees WHERE id = 904 AND listing_id = 902 AND attendee_id = 903 AND quantity = 2`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM attendees WHERE id = 903 AND ticket_token_index = 'ticket-index'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND listing_id = 902 AND message = 'fixture activity'`,
+  );
+  if (kept("2026-06-14_attendee_statuses")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM activity_log WHERE id = 905 AND attendee_id = 903`,
+    );
+  }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM groups WHERE id = 901 AND slug_index = 'group-index'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM built_sites WHERE id = 913 AND assigned_listing_id = 902 AND assigned_attendee_id = 903`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM questions WHERE id = 906 AND text = 'Meal choice?'`,
+  );
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND question_id = 906`,
+  );
+  if (ran("2026-06-19_answer_aggregates")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM answers WHERE id = 908 AND times_selected = 1`,
+    );
+  }
+  await expectFixtureRow(
+    sql`SELECT COUNT(*) AS value FROM attendee_answers WHERE id = 910 AND attendee_id = 903 AND answer_id = 908`,
+  );
 
-  if (
-    migrationIndex(baseMigrationId) >= migrationIndex("2026-06-16_modifiers")
-  ) {
+  if (kept("2026-06-16_modifiers")) {
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903`,
+    );
+  }
+  if (kept("2026-06-17_modifier_aggregates")) {
     // total_revenue is no longer a stored column — a modifier's revenue
     // projects from the transfers ledger as balanceOf(modifier:M). The
     // fixture posts no modifier ledger legs, so only the count aggregates
     // (trigger-maintained) survive here.
-    expect(
-      await scalar(
-        sql`SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1`,
-      ),
-    ).toBe(1);
-    expect(
-      await scalar(
-        sql`SELECT COUNT(*) AS value FROM modifier_usages WHERE id = 911 AND modifier_id = 907 AND attendee_id = 903`,
-      ),
-    ).toBe(1);
+    await expectFixtureRow(
+      sql`SELECT COUNT(*) AS value FROM modifiers WHERE id = 907 AND total_uses = 2 AND usage_count = 1`,
+    );
   }
 };
 
@@ -371,7 +373,7 @@ export const additiveMigrations = MIGRATIONS.filter(
     m.requires && !m.requires.absentTables && ownsSchemaObjects(m.requires),
 );
 
-/** The historical upgrade start points the chain suites migrate from. */
+/** The historical upgrade start points the chain test walks through. */
 export const migrationBoundaries = MIGRATIONS.slice(
   MIGRATIONS.findIndex((m) => m.id === "2026-06-14_rename_events_to_listings"),
   -1,
@@ -454,47 +456,6 @@ export const defineRestoreCasesSuite = (
   );
 };
 
-/**
- * Register one shard of the populated-database chain suite: for each boundary
- * in the shard, seed a populated fixture, wind the schema back to that
- * boundary, run the real `initDb()` upgrade, and prove every migration
- * verifies and the fixture survived.
- */
-export const defineChainSuite = (shard: number, shardCount: number): void => {
-  describeWithEnv(
-    `db > migration chain (shard ${shard + 1}/${shardCount})`,
-    { db: true, triggers: true },
-    () => {
-      for (const baseMigration of shardSlice(
-        migrationBoundaries,
-        shard,
-        shardCount,
-      )) {
-        test(`migrates a populated database from ${baseMigration.id} to the current schema`, async () => {
-          await seedPopulatedMigrationFixture();
-          // The fixture is built from the current (post-drop) schema, but the
-          // 2026-06-22_backfill_transfers migration in the chain reads
-          // listing_attendees.refunded and price_paid — present in production until
-          // the later drop_listing_attendee_refunded / drop_listing_attendee_price_paid
-          // migrations recreate the table without them. Restore the columns so the
-          // chain reproduces production; the drop migrations then remove them again,
-          // leaving the verified schema correct.
-          await seedPreDropLedgerColumns();
-
-          const pending = MIGRATIONS.slice(
-            MIGRATIONS.indexOf(baseMigration) + 1,
-          );
-          await restoreSchemaBeforeMigrations(pending);
-
-          await markAppliedThrough(baseMigration.id);
-          await markSchemaMarkersStale();
-
-          await initDb();
-
-          await verifyMigratedSchema();
-          await assertPopulatedFixtureSurvived(baseMigration.id);
-        });
-      }
-    },
-  );
-};
+/** Every migration that ran after `boundaryId` ran. */
+export const migrationsAfter = (boundaryId: string): Migration[] =>
+  MIGRATIONS.slice(migrationIndex(boundaryId) + 1);
