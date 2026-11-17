@@ -182,10 +182,10 @@ const ItemPicker = ({
       submitIcon="plus"
       submitLabel={t("site.pages.add_item")}
     >
-      <input name="item_type" type="hidden" value={type} />
+      <input name="itemType" type="hidden" value={type} />
       <label>
         {label}{" "}
-        <select name="item_id">
+        <select name="itemId">
           {options.map((o) => (
             <option value={o.value}>{o.label}</option>
           ))}

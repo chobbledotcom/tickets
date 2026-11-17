@@ -1,7 +1,11 @@
 import { buildBookingTree } from "#booking/build-tree.ts";
 import type { FoldBase, FoldChildrenResult } from "#booking/fold-tree.ts";
 import { buildOrderLines, nodeQuantitiesFor } from "#booking/order-lines.ts";
-import type { BookingTree } from "#booking/tree.ts";
+import {
+  type BookingTree,
+  childPriceFieldName,
+  childQuantityFieldName,
+} from "#booking/tree.ts";
 import { apiError } from "#routes/api/cors.ts";
 import {
   bookingSuccessResponse,
@@ -53,8 +57,8 @@ export const parseApiChildSelections = (
   schema: typeof ChildrenSchema | typeof PackageChildrenSchema = ChildrenSchema,
 ): ApiChildSelection[] | null => parseOrNull(schema, body.children);
 
-/** Translate one parent's resolved child selections into the `child_qty_*` /
- * `child_price_*` fields the shared fold reads on `form`. Each submitted slug
+/** Translate one parent's resolved child selections into the `childQty*` /
+ * `childPrice*` fields the shared fold reads on `form`. Each submitted slug
  * resolves against the parent's actual children (repeated slugs sum). A slug
  * that is not a child of this parent earns a 400 naming it. Repeated entries
  * for one child that disagree on the pay-more `customPrice` also earn a 400.
@@ -76,7 +80,7 @@ export const applyChildSelectionsToForm = (
     ]),
   );
   const qtyByChild = new Map<number, number>();
-  // The fold stores ONE `child_price_*` per child for its whole quantity. Two
+  // The fold stores ONE `childPrice*` per child for its whole quantity. Two
   // entries for one child cannot both be honoured when their `customPrice`
   // values differ (or one sets a price and another leaves it default). A
   // plain `form.set` lets the last entry's price win and books every unit at
@@ -105,13 +109,13 @@ export const applyChildSelectionsToForm = (
     );
     if (selection.customPrice !== undefined) {
       form.set(
-        `child_price_${parentId}_${childId}`,
+        childPriceFieldName(parentId, childId),
         String(selection.customPrice),
       );
     }
   }
   for (const [childId, qty] of qtyByChild) {
-    form.set(`child_qty_${parentId}_${childId}`, String(qty));
+    form.set(childQuantityFieldName(parentId, childId), String(qty));
   }
   return null;
 };

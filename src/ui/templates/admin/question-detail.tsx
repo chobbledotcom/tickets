@@ -81,10 +81,10 @@ const QuestionListingAssignment = ({
           <CheckboxLabel
             checked={question.assignAll || undefined}
             label={t("questions.assign_all_listings")}
-            name="assign_all"
+            name="assignAll"
           />
         }
-        name="listing_ids"
+        name="listingIds"
       />
     </SaveForm>
   );
@@ -108,12 +108,12 @@ export const QuestionEditPanel = ({
         {question.displayType === "free_text" ? (
           // Free-text questions cannot become choice questions (a conversion
           // orphans any stored text answers), so lock the type.
-          <input name="display_type" type="hidden" value="free_text" />
+          <input name="displayType" type="hidden" value="free_text" />
         ) : (
           <label>
             Display as
             <SelectField
-              name="display_type"
+              name="displayType"
               options={[
                 { label: "Radio buttons", value: "radio" },
                 { label: "Select box", value: "select" },

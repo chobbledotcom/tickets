@@ -20,7 +20,7 @@ import type { ListingFields } from "#types";
 export type AddAttendeeFormValues = TicketFormValues & {
   quantity: number;
   date: string;
-  day_count: string;
+  dayCount: string;
 };
 
 /** Quantity field for admin add-attendee form */

@@ -50,9 +50,9 @@ export const renderDayCountSelector = (
   if (counts.length === 0) {
     return `<div class="error">${t("public.ticket.no_booking_lengths")}</div>`;
   }
-  const selected = savedFormValue("day_count");
+  const selected = savedFormValue("dayCount");
   return `<label for="day_count">${t("public.ticket.number_of_days")}</label>
-       <select name="day_count" id="day_count" required>
+       <select name="dayCount" id="day_count" required>
           <option value="">${t("public.ticket.select_placeholder")}</option>
           ${counts
             .map((n) => {
@@ -80,7 +80,7 @@ export const renderPayMoreInput = (
     ListingWithCount,
     "assignBuiltSite" | "initialSiteMonths" | "maxPrice" | "unitPrice"
   > & { monthsPerUnit?: number | undefined },
-  fieldName = "custom_price",
+  fieldName = "customPrice",
   prefillMinor?: number,
   required = true,
   renewal?: boolean | undefined,
@@ -132,10 +132,10 @@ export const renderPayMoreInput = (
 /** Render terms and conditions block with agreement checkbox. The checkbox stays
  * ticked when a validation error re-renders so agreement isn't lost. */
 export const renderTermsAndCheckbox = (terms: string): string => {
-  const checked = savedFormValue("agree_terms") === "1" ? " checked" : "";
+  const checked = savedFormValue("agreeTerms") === "1" ? " checked" : "";
   return (
     `<div class="prose">${renderMarkdown(terms)}</div>` +
-    `<label class="terms-agree"><input type="checkbox" name="agree_terms" value="1"${checked} required> ${t(
+    `<label class="terms-agree"><input type="checkbox" name="agreeTerms" value="1"${checked} required> ${t(
       "public.ticket.agree_terms",
     )}</label>`
   );

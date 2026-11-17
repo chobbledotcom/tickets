@@ -57,7 +57,7 @@ const ChildCandidateLabel = ({
       checked={checked || undefined}
       disabled={disabled}
       label={` ${candidate.listing.name}`}
-      name="child_listing_ids"
+      name="childListingIds"
       value={String(candidate.listing.id)}
     >
       {candidate.ineligibleReason !== null && (

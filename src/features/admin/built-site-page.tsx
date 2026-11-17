@@ -92,7 +92,7 @@ const supportMessageTab = loadedPanelTab(
     // the read-failed case, where only the draft renders, so the page's
     // image table must carry the draft's img#N references too.
     await addPageImageUrls([
-      savedFormValueOrNull("support_message"),
+      savedFormValueOrNull("supportMessage"),
       message.ok ? message.value : null,
     ]);
     return { message };

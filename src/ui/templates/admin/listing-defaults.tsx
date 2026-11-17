@@ -114,7 +114,7 @@ const DaysControl = ({
     <label>
       <input
         checked={value !== undefined}
-        name="default_bookable_days_enabled"
+        name="defaultBookableDaysEnabled"
         type="checkbox"
         value="1"
       />

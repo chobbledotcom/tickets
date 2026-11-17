@@ -24,7 +24,7 @@ export const renderQuestion = (
   required: boolean,
   listingIds?: string,
 ): JSX.Element => {
-  const answered = savedFormValue(`question_${q.id}`);
+  const answered = savedFormValue(`question${q.id}`);
   return questionControl(q, {
     isChosen: (answerId) => answered === String(answerId),
     listingIds,

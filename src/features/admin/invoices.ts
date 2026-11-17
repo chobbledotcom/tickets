@@ -142,7 +142,7 @@ const loadInvoiceDraft = async (
   const newInvoicePath = adminPath("invoiceNew", {});
   const checked = getInvoiceForm().validate(form);
   if (!checked.valid) return errorRedirect(newInvoicePath, checked.error);
-  const { attendee_id: attendeeId, number } = checked.values;
+  const { attendeeId, number } = checked.values;
   const raw = await getAttendeeRaw(attendeeId);
   if (!raw || raw.kind !== ATTENDEE_KIND) {
     return errorRedirect(newInvoicePath, t("invoices.error.attendee_missing"));

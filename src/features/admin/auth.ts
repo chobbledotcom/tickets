@@ -18,7 +18,6 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
   adminLoginPageHref,
   adminReturnPath,
-  RETURN_URL_PARAM,
 } from "#routes/admin/login-return.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
@@ -95,7 +94,7 @@ const handleAdminLogin = async (
 
   // Where a successful login sends the user: the page the login form named,
   // or the role's landing page. The validator refuses every off-site shape.
-  const returnPath = adminReturnPath(form.getString(RETURN_URL_PARAM));
+  const returnPath = adminReturnPath(form.getString("returnUrl"));
 
   // Validate login CSRF token (signed token pattern)
   const csrfForm = form.getString("csrfToken");

@@ -30,36 +30,36 @@ type ListingRenderValues = FormRenderValuesFor<
 
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
   "hireable-item": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+    bookableDays: ALL_BOOKABLE_DAYS,
+    durationDays: "1",
     fields: "email,phone,address",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "1",
-    uses_logistics: "1",
+    listingType: "daily",
+    maximumDaysAfter: "90",
+    minimumDaysBefore: "1",
+    purchaseOnly: "1",
+    usesLogistics: "1",
   },
   "one-off-event": {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "",
+    usesLogistics: "",
   },
   "online-digital": {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "1",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "1",
+    usesLogistics: "",
   },
   "weekly-event": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+    bookableDays: ALL_BOOKABLE_DAYS,
+    durationDays: "1",
     fields: "email",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "",
-    uses_logistics: "",
+    listingType: "daily",
+    maximumDaysAfter: "90",
+    minimumDaysBefore: "1",
+    purchaseOnly: "",
+    usesLogistics: "",
   },
 };
 
@@ -207,7 +207,7 @@ export const ListingFormSections = ({
               <input
                 checked={useDefaultsChecked}
                 id="use-defaults"
-                name="use_defaults"
+                name="useDefaults"
                 type="checkbox"
                 value="1"
               />

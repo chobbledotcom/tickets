@@ -88,7 +88,7 @@ export const renderListingEditError: EditErrorRenderer = editErrorRenderer(
       entity,
       ctx,
       rejected.error,
-      rejected.form.getNumberArray("group_ids"),
+      rejected.form.getNumberArray("groupIds"),
     ),
 );
 

@@ -71,7 +71,7 @@ export const questionControl = (
   q: QuestionWithAnswers,
   view: QuestionControlView,
 ): JSX.Element => {
-  const name = `question_${q.id}`;
+  const name = `question${q.id}`;
   const wrapArgs = { listingIds: view.listingIds, q };
   const single =
     q.displayType === "radio" ? undefined : singleControls[q.displayType];

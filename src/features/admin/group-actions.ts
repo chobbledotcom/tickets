@@ -212,15 +212,15 @@ const handleDuplicateGroupPost = groupFormPost(
   "/admin/groups/:id/duplicate",
   async (group, form) => {
     const formUrl = adminPath("groupDuplicate", { id: group.id });
-    const newName = form.getString("new_name").trim();
+    const newName = form.getString("newName").trim();
     if (!newName) {
       return errorRedirect(formUrl, t("group_actions.new_name_required"));
     }
 
-    const nameFind = form.getString("name_find");
-    const nameReplace = form.getString("name_replace");
-    const dateFind = form.getString("date_find");
-    const dateReplace = form.getString("date_replace");
+    const nameFind = form.getString("nameFind");
+    const nameReplace = form.getString("nameReplace");
+    const dateFind = form.getString("dateFind");
+    const dateReplace = form.getString("dateReplace");
     const dayOffset = computeDayOffset(dateFind, dateReplace);
 
     const listings = await getListingsByGroupId(group.id);

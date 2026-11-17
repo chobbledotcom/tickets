@@ -65,7 +65,7 @@ const imageFields = (): Field[] => [
   },
   {
     label: t("images.field.alt_text"),
-    name: "alt_text",
+    name: "altText",
     type: "text",
   },
 ];
@@ -80,7 +80,7 @@ const imageUploadField = (): Field => ({
 });
 
 const imageValue = (image?: Image): Record<string, string | number | null> => ({
-  alt_text: image?.altText ?? "",
+  altText: image?.altText ?? "",
   name: image?.name ?? "",
 });
 
@@ -236,7 +236,7 @@ export const adminImageEditPage = ({
         ) : (
           <LinkedItemsCheckboxes
             groups={imageLinkedItemGroups(options, selected)}
-            name="image_items"
+            name="imageItems"
           />
         )}
         {SaveChangesButton()}
@@ -277,7 +277,7 @@ const itemImageCheckboxes = (
       <label>
         <input
           checked={selectedIds.has(image.id)}
-          name="image_ids"
+          name="imageIds"
           type="checkbox"
           value={String(image.id)}
         />

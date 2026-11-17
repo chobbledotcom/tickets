@@ -216,7 +216,7 @@ export const adminAnswerEditPage = (
         {t("questions.edit_answer.modifier_label")}
         <SelectField
           id="modifier_id"
-          name="modifier_id"
+          name="modifierId"
           options={[
             { label: t("questions.edit_answer.modifier_none"), value: "" },
             ...modifiers.map((m) => ({ label: m.name, value: String(m.id) })),
@@ -397,7 +397,7 @@ export const ListingQuestionsPanel = (
             checkedIds={assignedIds}
             id={q.id}
             label={` ${questionTextFlat(q.text)}`}
-            name="question_ids"
+            name="questionIds"
           >
             <small>
               {" "}

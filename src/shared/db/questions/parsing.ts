@@ -34,7 +34,7 @@ export const readQuestionAnswer = (
   | { status: "missing" }
   | { status: "invalid" }
   | { status: "ok"; answerId: number } => {
-  const raw = form.get(`question_${question.id}`);
+  const raw = form.get(`question${question.id}`);
   if (!raw) return { status: "missing" };
   // Parse a strict positive-integer id: `Number.parseInt("12xyz", 10)` would
   // return `12` and silently match answer id 12, so a malformed submission
@@ -80,7 +80,7 @@ const parseFreeTextAnswer: AnswerParser = (
   parsed,
   optional,
 ) => {
-  const text = (form.get(`question_${question.id}`) ?? "").trim();
+  const text = (form.get(`question${question.id}`) ?? "").trim();
   // Cap free-text length so an unauthenticated booking cannot submit an
   // arbitrarily large value (expensive to encrypt, large blob to retain). The
   // public input mirrors this with a maxlength. Optional means a blank answer

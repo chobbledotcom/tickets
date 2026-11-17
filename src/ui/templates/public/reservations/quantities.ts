@@ -132,7 +132,7 @@ export const restoredPackageQuantity = (
 };
 
 /** The per-unit quantity restored for a child select after a validation
- * re-render: the buyer's submitted `child_qty_<parentId>_<childId>`, clamped to
+ * re-render: the buyer's submitted `childQty<parentId>_<childId>`, clamped to
  * `0..max`, else 0. */
 export const restoredChildQty = (
   parentId: number,

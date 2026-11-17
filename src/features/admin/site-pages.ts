@@ -176,8 +176,8 @@ const isEligibleTarget = async (
 };
 
 const handleAddItem = pageFormHandler(async (page, _session, form) => {
-  const type = form.getString("item_type");
-  const itemId = form.getOptionalInt("item_id");
+  const type = form.getString("itemType");
+  const itemId = form.getOptionalInt("itemId");
   if (!isSitePageItemType(type) || itemId === null) {
     return errorRedirect(
       itemsPath(page.id),

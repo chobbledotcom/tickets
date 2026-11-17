@@ -70,7 +70,7 @@ const MemberDayPriceInputs = ({
           {t("fields.group.package_day_price", { count: days })}
           <input
             inputmode="decimal"
-            name={`package_day_price_${listing.id}_${days}`}
+            name={`packageDayPrice${listing.id}Days${days}`}
             // Every count from availableDayCounts has a configured day price.
             placeholder={toMajorUnits(dayPriceFor(listing, days)!)}
             type="text"
@@ -100,7 +100,7 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
         <>
           <input
             inputmode="decimal"
-            name={`package_price_${listing.id}`}
+            name={`packagePrice${listing.id}`}
             placeholder={toMajorUnits(listing.unitPrice)}
             type="text"
             value={override === null ? "" : toMajorUnits(override)}
@@ -122,7 +122,7 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
       <input
         inputmode="numeric"
         min="1"
-        name={`package_qty_${listing.id}`}
+        name={`packageQty${listing.id}`}
         type="number"
         value={String(members.get(listing.id)?.quantity ?? 1)}
       />

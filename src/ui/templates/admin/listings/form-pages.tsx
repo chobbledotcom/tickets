@@ -168,11 +168,11 @@ export const adminListingNewPage = (
       <h1>{t("listings_table.add_listing")}</h1>
       <Flash error={error} />
       {templateId && (
-        <input name="template_id" type="hidden" value={templateId} />
+        <input name="templateId" type="hidden" value={templateId} />
       )}
       {!!submitted?.duplicated_from && (
         <input
-          name="duplicated_from"
+          name="duplicatedFrom"
           type="hidden"
           value={String(submitted.duplicated_from)}
         />
@@ -215,7 +215,7 @@ export const adminDuplicateListingPage = (
       name: listing.name,
     }),
     <>
-      <input name="duplicated_from" type="hidden" value={String(listing.id)} />
+      <input name="duplicatedFrom" type="hidden" value={String(listing.id)} />
       <CreateListingFormBody>
         {form.formSections({
           advancedOpen: advancedSectionHasValues(listing, builderEnabled),

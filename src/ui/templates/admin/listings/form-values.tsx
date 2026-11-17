@@ -33,7 +33,7 @@ export const renderDayPricesFieldset = (listing?: ListingWithCount): string => {
       const value = stored !== undefined ? toMajorUnits(stored) : "";
       return (
         `<label>${t("listings_table.day_price_row_label", { n })}` +
-        `<input type="text" inputmode="decimal" name="day_price_${n}" ` +
+        `<input type="text" inputmode="decimal" name="dayPrice${n}" ` +
         `value="${escapeHtml(value)}" pattern="${moneyPattern()}" ` +
         `placeholder="${t("listings_table.day_price_placeholder")}" title="${t(
           "listings_table.day_price_input_title",

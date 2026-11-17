@@ -129,7 +129,7 @@ const ListingPickCheckboxes = ({
       },
     ]}
     heading={({ type }) => t(headingKey, { type })}
-    name="listing_ids"
+    name="listingIds"
   />
 );
 

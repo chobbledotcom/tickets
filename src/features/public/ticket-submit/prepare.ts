@@ -227,7 +227,7 @@ export const prepareOrder = async (
   };
 
   const addOns = parseAddOnSelections(form, ctx.addOns);
-  const promoCode = form.getString("promo_code");
+  const promoCode = form.getString("promoCode");
   const reservationAmount = await publicReservationAmount();
 
   // Resolve the answer-triggered modifier quantities once (scope-aware); these

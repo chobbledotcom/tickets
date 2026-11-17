@@ -217,7 +217,7 @@ export const recordNoteFeature = <Record extends { id: number }>(
     withForm(request, async (session, form) =>
       withLoadedRecord(id, session, async (record) => {
         const note = form.getString("note").trim();
-        const returnUrl = form.getString("return_url");
+        const returnUrl = form.getString("returnUrl");
         // Re-render in place on a blank note (preserving the return target)
         // rather than redirect — nothing to preserve, no PRG round-trip needed.
         if (!note) {
@@ -272,7 +272,7 @@ export const recordNoteFeature = <Record extends { id: number }>(
     noteHandlers.post(async (note, _session, form) => {
       await deleteNotes(targetOf(note.entityId), [note.id]);
       return redirect(
-        recordReturn(note.entityId, form.getString("return_url")),
+        recordReturn(note.entityId, form.getString("returnUrl")),
         t("notes.deleted"),
         true,
       );

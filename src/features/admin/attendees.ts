@@ -123,7 +123,7 @@ const buildCreateAttendeeInput = (
     "customisableDays" | "durationDays" | "fields" | "id" | "listingType"
   >,
 ) => {
-  const { name, email, phone, address, special_instructions, quantity, date } =
+  const { name, email, phone, address, specialInstructions, quantity, date } =
     values;
   const isDaily = listing.listingType === "daily";
   // Customisable daily bookings span the admin's chosen day count. Only a
@@ -132,7 +132,7 @@ const buildCreateAttendeeInput = (
   // form offers a day count for a daily listing only.
   const durationDays =
     isDaily && listing.customisableDays
-      ? requireValue(parsePositiveInt(values.day_count), "Day count missing")
+      ? requireValue(parsePositiveInt(values.dayCount), "Day count missing")
       : listing.durationDays;
   return {
     address: address || "",
@@ -155,7 +155,7 @@ const buildCreateAttendeeInput = (
     name,
     phone: phone || "",
     source: "admin" as const,
-    special_instructions: special_instructions || "",
+    special_instructions: specialInstructions || "",
   };
 };
 
@@ -271,7 +271,7 @@ const bookingEntries = async (attendeeId: number): Promise<EmailEntry[]> => {
  * form without the field chose the email. A value the form does not offer
  * is a forged or stale form, and refuses the press. */
 const resendSides = (form: FormParams): ChosenSides | null => {
-  const value = form.get("resend_sides") ?? "email";
+  const value = form.get("resendSides") ?? "email";
   switch (value) {
     case "email":
       return { email: true, webhooks: false };

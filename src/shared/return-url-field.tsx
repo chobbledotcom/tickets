@@ -16,7 +16,5 @@ export const ReturnUrlField = ({
 }: {
   returnUrl?: string | undefined;
 }): JSX.Element => (
-  <>
-    {returnUrl && <input name="return_url" type="hidden" value={returnUrl} />}
-  </>
+  <>{returnUrl && <input name="returnUrl" type="hidden" value={returnUrl} />}</>
 );

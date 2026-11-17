@@ -58,7 +58,7 @@ export const handleAttendeeDelete = attendeeActions.delete.verified(
         : `Attendee '${attendee.name}' deleted`,
       t("success.attendee_deleted"),
       { form },
-      form.getFlag("release_bookings"),
+      form.getFlag("releaseBookings"),
     );
   },
 );

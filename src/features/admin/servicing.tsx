@@ -152,7 +152,7 @@ const handleCostPost = async (
 ): Promise<Response | null> => {
   if (!form.has("amount")) return null;
   const amount = parsePositiveMinorUnits(form.getString("amount"));
-  const listingId = parsePositiveIntId(form.getString("target_listing_id"));
+  const listingId = parsePositiveIntId(form.getString("targetListingId"));
   if (amount === null || listingId === null) {
     return adminRedirect(
       "servicingEdit",
@@ -177,7 +177,7 @@ const handleCostPost = async (
       listingId,
       memo: form.getString("memo"),
       occurredAt,
-      reference: form.getString("cost_idempotency_key") || undefined,
+      reference: form.getString("costIdempotencyKey") || undefined,
       servicingId: id,
     });
   } catch (err) {

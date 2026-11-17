@@ -171,7 +171,7 @@ const APPLE_SIGNING_CERT: WalletSecretField = {
   labelKey: "settings.advanced.apple_signing_cert",
   looksValid: isValidAppleCertificate,
   missingKey: "error.apple_signing_cert_required",
-  name: "apple_wallet_signing_cert",
+  name: "appleWalletSigningCert",
   save: (value) => settings.update.appleWallet.signingCert(value),
   savedValue: () => settings.appleWallet.signingCert,
 };
@@ -181,7 +181,7 @@ const APPLE_SIGNING_KEY: WalletSecretField = {
   labelKey: "settings.advanced.apple_signing_key",
   looksValid: isValidRsaPrivateKey,
   missingKey: "error.apple_signing_key_required",
-  name: "apple_wallet_signing_key",
+  name: "appleWalletSigningKey",
   save: (value) => settings.update.appleWallet.signingKey(value),
   savedValue: () => settings.appleWallet.signingKey,
 };
@@ -191,7 +191,7 @@ const APPLE_WWDR_CERT: WalletSecretField = {
   labelKey: "settings.advanced.apple_wwdr_cert",
   looksValid: isValidCertificate,
   missingKey: "error.apple_wwdr_cert_required",
-  name: "apple_wallet_wwdr_cert",
+  name: "appleWalletWwdrCert",
   save: (value) => settings.update.appleWallet.wwdrCert(value),
   savedValue: () => settings.appleWallet.wwdrCert,
 };
@@ -215,13 +215,13 @@ export const handleAppleWalletPost = walletSettingsHandler({
     {
       labelKey: "settings.advanced.apple_pass_type_id",
       missingKey: "error.apple_pass_type_id_required",
-      name: "apple_wallet_pass_type_id",
+      name: "appleWalletPassTypeId",
       save: (value) => settings.update.appleWallet.passTypeId(value),
     },
     {
       labelKey: "settings.advanced.apple_team_id",
       missingKey: "error.apple_team_id_required",
-      name: "apple_wallet_team_id",
+      name: "appleWalletTeamId",
       save: (value) => settings.update.appleWallet.teamId(value),
     },
   ],
@@ -241,7 +241,7 @@ export const handleGoogleWalletPost = walletSettingsHandler({
       labelKey: "settings.advanced.google_service_key",
       looksValid: isValidRsaPrivateKey,
       missingKey: "error.google_service_key_required",
-      name: "google_wallet_service_account_key",
+      name: "googleWalletServiceAccountKey",
       save: (value) => settings.update.googleWallet.serviceAccountKey(value),
       savedValue: () => settings.googleWallet.serviceAccountKey,
     },
@@ -250,13 +250,13 @@ export const handleGoogleWalletPost = walletSettingsHandler({
     {
       labelKey: "settings.advanced.google_issuer_id",
       missingKey: "error.google_issuer_id_required",
-      name: "google_wallet_issuer_id",
+      name: "googleWalletIssuerId",
       save: (value) => settings.update.googleWallet.issuerId(value),
     },
     {
       labelKey: "settings.advanced.google_service_email",
       missingKey: "error.google_service_email_required",
-      name: "google_wallet_service_account_email",
+      name: "googleWalletServiceAccountEmail",
       save: (value) => settings.update.googleWallet.serviceAccountEmail(value),
     },
   ],

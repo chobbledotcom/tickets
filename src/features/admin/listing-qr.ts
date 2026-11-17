@@ -47,7 +47,7 @@ import type { AdminSession, ListingWithCount } from "#types";
 import { loadListingOr } from "./load-listing.ts";
 
 export const EMPTY_QR_VALUES: AdminListingQrValues = {
-  customer_name: "",
+  customerName: "",
   date: "",
   quantity: "1",
   value: "",
@@ -133,7 +133,7 @@ const renderPage = (
   );
 
 const extractRawValues = (form: FormParams): AdminListingQrValues => ({
-  customer_name: form.getString("customer_name").trim(),
+  customerName: form.getString("customerName").trim(),
   date: form.getString("date").trim(),
   quantity: form.getString("quantity").trim() || "1",
   value: form.getString("value").trim(),
@@ -208,7 +208,7 @@ const createQrFormValidator = (
     // The signed name pre-fills a booking or rides direct-checkout metadata.
     // It answers to the same contact-name rule the booking form runs. An
     // unchecked name only fails later, at the buyer's form or at Square.
-    const nameError = validateName(values.customer_name);
+    const nameError = validateName(values.customerName);
     if (nameError) return { error: nameError, valid: false };
 
     const error =
@@ -239,7 +239,7 @@ const parsedFromValues = (
   }
   return {
     date: values.date || undefined,
-    name: values.customer_name || undefined,
+    name: values.customerName || undefined,
     quantity,
     value: valueMinor,
   };

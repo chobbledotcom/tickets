@@ -82,7 +82,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
   withSettingsFields("settings-custom-domain", async (form, errorPage) => {
     const cdnError = requireBunnyCdn(errorPage, "settings-custom-domain");
     if (cdnError) return cdnError;
-    const raw = form.getString("custom_domain").toLowerCase();
+    const raw = form.getString("customDomain").toLowerCase();
 
     if (raw !== "" && !DOMAIN_PATTERN.test(raw)) {
       return errorPage(

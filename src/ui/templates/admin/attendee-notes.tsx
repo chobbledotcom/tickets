@@ -247,7 +247,7 @@ export const adminNoteNewPage = ({
           <h1>{t("notes.add_heading", { name: recordName })}</h1>
         </div>
         <CsrfForm action={noteAction}>
-          {hiddenInputs([["return_url", returnUrl]])}
+          {hiddenInputs([["returnUrl", returnUrl]])}
           <Raw
             html={renderField({
               hint: t("notes.note_hint"),

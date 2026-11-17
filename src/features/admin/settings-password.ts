@@ -29,22 +29,22 @@ const validateChangePasswordForm = (
     return validation;
   }
 
-  const { current_password, new_password, new_password_confirm } =
+  const { currentPassword, newPassword, newPasswordConfirm } =
     validation.values;
 
-  if (new_password.length < 8) {
+  if (newPassword.length < 8) {
     return {
       error: t("error.new_password_min"),
       valid: false,
     };
   }
-  if (new_password !== new_password_confirm) {
+  if (newPassword !== newPasswordConfirm) {
     return { error: t("error.new_passwords_mismatch"), valid: false };
   }
 
   return {
-    currentPassword: current_password,
-    newPassword: new_password,
+    currentPassword,
+    newPassword,
     valid: true,
   };
 };

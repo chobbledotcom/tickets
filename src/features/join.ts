@@ -41,7 +41,7 @@ export const joinForm = defineForm({
       label: t("join.set_password.confirm_password"),
       maxlength: MAX_INPUT_LENGTH,
       minlength: 8,
-      name: "password_confirm" as const,
+      name: "passwordConfirm" as const,
       required: true,
       type: "password" as const,
     },
@@ -130,7 +130,7 @@ const setPasswordRoute = (code: string, user: User) =>
     form: joinForm,
     onInvalid: ({ error }) => errorRedirect(`/join/${code}`, error),
     onValid: async ({ values }) => {
-      if (values.password !== values.password_confirm) {
+      if (values.password !== values.passwordConfirm) {
         return errorRedirect(`/join/${code}`, t("error.passwords_mismatch"));
       }
       // Editors activate keyless (no DATA_KEY to unwrap); every other role

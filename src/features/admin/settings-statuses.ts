@@ -46,16 +46,16 @@ const statusForm: FormSchema<AttendeeStatusWriteInput> = {
   validate: (form) => {
     const name = form.getString("name");
     if (!name) return { error: "Please enter a name", valid: false };
-    const isReservation = form.has("is_reservation");
+    const isReservation = form.has("isReservation");
     return {
       valid: true,
       values: {
-        isPaidDefault: form.has("is_paid_default"),
-        isPublicDefault: form.has("is_public_default"),
+        isPaidDefault: form.has("isPaidDefault"),
+        isPublicDefault: form.has("isPublicDefault"),
         isReservation,
         name,
         reservationAmount: isReservation
-          ? form.getString("reservation_amount")
+          ? form.getString("reservationAmount")
           : "0",
       },
     };
@@ -63,7 +63,7 @@ const statusForm: FormSchema<AttendeeStatusWriteInput> = {
 };
 
 const pages = recordPages(statusRecord, {
-  deleteInput: (form) => form.getOptionalInt("reassign_status_id") ?? undefined,
+  deleteInput: (form) => form.getOptionalInt("reassignStatusId") ?? undefined,
   form: statusForm,
   renderDelete: statusPages.deletePage,
   renderEditError: attendeeStatusPage.renderEditError,

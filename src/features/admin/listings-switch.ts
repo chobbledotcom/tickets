@@ -153,7 +153,7 @@ export const planListingTypeSwitch = async (
   form: FormParams,
   view: ListingFormView,
 ): Promise<SwitchStep> => {
-  if (form.getString("listing_type") !== "daily") return { kind: "none" };
+  if (form.getString("listingType") !== "daily") return { kind: "none" };
   if (stored.listingType === "daily") return { kind: "none" };
   const rows = await undatedBookingsForListing(stored.id);
   if (rows.length === 0) return { kind: "none" };
@@ -248,7 +248,7 @@ export const renderListingSwitchAssignPage = async (
         entity,
         ctx,
         error,
-        form.getNumberArray("group_ids"),
+        form.getNumberArray("groupIds"),
         page,
       ),
     status,

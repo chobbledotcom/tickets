@@ -80,11 +80,11 @@ export const handleAddListingsToGroup = groupFormPost(
   "/admin/groups/:id/add-listings",
   async (group, form) => {
     const groupPath = groupPathOf(group.id);
-    const listingIds = listingIdsFrom(form.getAll("listing_ids"));
+    const listingIds = listingIdsFrom(form.getAll("listingIds"));
     if (listingIds.length === 0) {
       return redirect(groupPath, t("success.listings_added_to_group"), true);
     }
-    const listings = await selectedMembers(form.getAll("listing_ids"));
+    const listings = await selectedMembers(form.getAll("listingIds"));
     const packageError = await packageListingError(group, listings);
     if (packageError) return redirect(groupPath, packageError, false);
     // The write re-checks the selection's own rows, so a listing deleted since
@@ -109,7 +109,7 @@ export const handleRemoveListingsGet = (
 ): Promise<Response> =>
   contentRecordPage(request, id, getGroupById, async (group, session) => {
     const listings = await selectedMembers(
-      new URL(request.url).searchParams.getAll("listing_ids"),
+      new URL(request.url).searchParams.getAll("listingIds"),
     );
     if (listings.length === 0) return redirectResponse(groupPathOf(group.id));
     return htmlResponse(
@@ -131,7 +131,7 @@ export const handleRemoveListingsPost = createVerifiedFormRoute<
     ({ id }) => groupPathOf(id),
   ),
   onConfirm: async ({ context: group, form }) => {
-    const listingIds = listingIdsFrom(form.getAll("listing_ids"));
+    const listingIds = listingIdsFrom(form.getAll("listingIds"));
     const writeError = await removeListingsFromGroup(listingIds, group.id);
     if (writeError) {
       const target = refusedWriteTarget(groupPathOf(group.id), writeError);

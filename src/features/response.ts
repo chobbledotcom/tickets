@@ -199,7 +199,7 @@ const maybeStashForm = (explicit?: URLSearchParams): string | null => {
  * browser scrolls to the form that was just submitted.
  */
 export const redirect: UrlRedirect = (url, message, succeeded, opts) => {
-  const target = opts?.form?.get("return_url") || url;
+  const target = opts?.form?.get("returnUrl") || url;
   if (!URL.canParse(target, "http://localhost")) {
     throw new TypeError("Invalid redirect URL");
   }

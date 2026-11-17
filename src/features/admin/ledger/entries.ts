@@ -60,17 +60,17 @@ const returnUrlFromRequest = (request: Request, fallback: string): string =>
   );
 
 const returnUrlFromForm = (form: FormParams, fallback: string): string =>
-  pathFromUrlValue(form.getString("return_url"), fallback);
+  pathFromUrlValue(form.getString("returnUrl"), fallback);
 
 const transferFormValues = (transfer: Transfer) => ({
   amount: toMajorUnits(transfer.amount),
-  occurred_at: utcToLocalInput(transfer.occurredAt, settings.timezone),
+  occurredAt: utcToLocalInput(transfer.occurredAt, settings.timezone),
 });
 
 const blankEntryValues = (options: LedgerEntryAddOption[]) => ({
   amount: "",
-  entry_type: options[0]!.type,
-  occurred_at: utcToLocalInput(nowIso(), settings.timezone),
+  entryType: options[0]!.type,
+  occurredAt: utcToLocalInput(nowIso(), settings.timezone),
 });
 
 const addOptions = (account: AccountRef): LedgerEntryAddOption[] =>
@@ -200,9 +200,9 @@ export const handleLedgerEntryAddPost: TypedRouteHandler<
       await postManualLedgerEntry({
         account: loaded.account,
         amount: parsed.values.amount,
-        occurredAt: parsed.values.occurred_at,
+        occurredAt: parsed.values.occurredAt,
         postedBy: String(session.userId),
-        type: parsed.values.entry_type,
+        type: parsed.values.entryType,
       });
       await logActivity("Manual ledger entry added");
       return redirect(returnUrl, t("admin.ledger.flash.added"), true);
@@ -235,7 +235,7 @@ const updatePostedTransfer: PostedTransferHandler = async (posted, form) => {
   await updateManualLedgerEntry(
     posted.transfer,
     parsed.values.amount,
-    parsed.values.occurred_at,
+    parsed.values.occurredAt,
   );
   await logActivity(`Ledger entry #${posted.transfer.id} updated`);
   return redirect(posted.returnUrl, t("admin.ledger.flash.updated"), true);
@@ -245,7 +245,7 @@ const deletePostedTransfer: PostedTransferHandler = async (posted, form) => {
   if (
     !verifyIdentifier(
       formatCurrency(posted.transfer.amount),
-      form.getString("confirm_identifier"),
+      form.getString("confirmIdentifier"),
     )
   ) {
     return errorRedirect(

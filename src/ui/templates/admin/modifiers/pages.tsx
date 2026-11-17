@@ -53,6 +53,7 @@ const ModifierRevenueAdjustSection = ({
     currentValue={modifier.totalRevenue}
     inputId="total_revenue"
     inputLabel={t("modifiers.adjust_revenue_new_label")}
+    inputName="totalRevenue"
     submitLabel={t("modifiers.adjust_revenue_submit")}
     title={t("modifiers.adjust_revenue")}
     warning={t("modifiers.adjust_revenue_warning")}

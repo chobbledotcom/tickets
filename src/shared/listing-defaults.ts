@@ -14,6 +14,7 @@
 import * as v from "valibot";
 import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { prefixedBoxName } from "#shared/forms/prefixed-name.ts";
 import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -111,8 +112,7 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
  *  becomes `defaultBookableDays`. */
 export const listingDefaultInputName = ({
   field,
-}: ListingDefaultField): string =>
-  `default${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+}: ListingDefaultField): string => prefixedBoxName("default", field);
 
 /** The i18n key for one field's label or hint text. */
 const listingDefaultTextKey =

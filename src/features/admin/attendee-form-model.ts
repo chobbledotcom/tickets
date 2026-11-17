@@ -26,7 +26,7 @@ import { countsPerDate } from "#shared/capacity-rules.ts";
 import type { CreateReceipts } from "#shared/checkout-complete.ts";
 import { listPriceOrder, type PricedOrder } from "#shared/checkout-pricing.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import { START_DATE_FIELD } from "#shared/order-select.ts";
+import { START_DATE_BOX } from "#shared/order-select.ts";
 import {
   isPositiveSafeInteger,
   parseNonNegativeInt,
@@ -43,9 +43,8 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Shared day count (range length) for every daily listing. */
-export const DAY_COUNT_FIELD = "day_count";
-export const STATUS_FIELD = "status_id";
-export { START_DATE_FIELD };
+export const DAY_COUNT_FIELD = "dayCount";
+export const STATUS_FIELD = "statusId";
 
 /** DOM id of the add/edit form, also the post-save scroll anchor. */
 export const ATTENDEE_FORM_ID = "attendee-form";
@@ -157,15 +156,15 @@ const clampDayCount = (raw: number | null): number =>
  *  re-render keeps it blank and the operator's typing never shifts slots. */
 const paymentSlots = (form: FormParams): (string | null)[] =>
   range(0, PAYMENT_SLOTS).map((slot) => {
-    const raw = form.getString(`payment_amount_${slot}`);
+    const raw = form.getString(`paymentAmount${slot}`);
     return raw === "" ? null : raw;
   });
 
 /** The submitted adjustment slots, blank-aligned the same way. */
 const adjustmentSlots = (form: FormParams): (SubmittedAdjustment | null)[] =>
   range(0, ADJUSTMENT_SLOTS).map((slot) => {
-    const amount = form.getString(`adjustment_amount_${slot}`);
-    const description = form.getString(`adjustment_description_${slot}`);
+    const amount = form.getString(`adjustmentAmount${slot}`);
+    const description = form.getString(`adjustmentDescription${slot}`);
     return amount === "" && description === "" ? null : { amount, description };
   });
 
@@ -203,9 +202,9 @@ export const parseAttendeeForm = (
     name: form.getString("name"),
     payments: paymentSlots(form),
     phone: form.getString("phone"),
-    returnUrl: form.getString("return_url"),
-    special_instructions: form.getString("special_instructions"),
-    startDate: form.getString(START_DATE_FIELD),
+    returnUrl: form.getString("returnUrl"),
+    special_instructions: form.getString("specialInstructions"),
+    startDate: form.getString(START_DATE_BOX),
     statusId: statusIdRaw !== null && statusIdRaw > 0 ? statusIdRaw : null,
   };
 };

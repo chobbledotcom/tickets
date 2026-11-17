@@ -183,7 +183,7 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> =
 
 const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
   form
-    .getAll("image_items")
+    .getAll("imageItems")
     .map((raw) => {
       const [itemType = "", itemId = ""] = raw.split(":");
       const id = parsePositiveInt(itemId);
@@ -270,7 +270,7 @@ const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
   });
 
 const confirmDelete = (form: FormParams, image: Image): string | null =>
-  form.getString("confirm_identifier") === image.name
+  form.getString("confirmIdentifier") === image.name
     ? null
     : t("images.delete.mismatch");
 

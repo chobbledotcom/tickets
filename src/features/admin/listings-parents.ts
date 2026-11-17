@@ -395,7 +395,7 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
   listingChildrenHandler(async (listing, _session, form, _request, { id }) => {
     const result = await validateChildEdges(
       listing,
-      form.getNumberArray("child_listing_ids"),
+      form.getNumberArray("childListingIds"),
     );
     if (!result.ok) {
       return redirect(`/admin/listing/${id}/edit`, result.error, false);

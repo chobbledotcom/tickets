@@ -121,7 +121,7 @@ const childOptionParts = ({
   };
 };
 
-/** Render one child as a per-unit quantity row: a `child_qty_<parentId>_<childId>`
+/** Render one child as a per-unit quantity row: a `childQty<parentId>_<childId>`
  *  select over `0..childLimit`, plus — for a bookable pay-more child — its
  *  non-required price input. A sold-out/closed/inactive child renders a disabled
  *  select fixed at 0, never selectable. The select is non-required in
@@ -148,7 +148,7 @@ const renderChildOption = (
 };
 
 /** Render a sole bookable child as informational, and keep the auto-select. It
- *  submits no `child_qty_<parentId>_<childId>` field at all: the server fold
+ *  submits no `childQty<parentId>_<childId>` field at all: the server fold
  *  auto-fills a sole child to the parent's quantity, so a fixed quantity
  *  over-submits and is rejected as "too many". Nothing posts a quantity, so it
  *  is safe without JS.
@@ -165,7 +165,7 @@ const renderSoleChildOption = (input: ChildOptionInput): string => {
 };
 
 /**
- * Render the per-parent child block: a `child_qty_<parentId>_<childId>` select per
+ * Render the per-parent child block: a `childQty<parentId>_<childId>` select per
  * child, guidance to match the parent quantity plus a live "X of Q chosen" hint,
  * each bookable pay-more child's price input, and the children's questions (deduped,
  * non-required). A SOLE bookable child renders as informational (auto-select

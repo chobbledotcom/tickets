@@ -157,9 +157,8 @@ label > input[type="number"] {
   flex: 0 0 auto;
 }
 
-label > select[name="quantity"],
-label > select[name^="quantity_"],
-label > select[name^="child_qty_"] {
+label > select[name^="quantity"],
+label > select[name^="childQty"] {
   width: 8ch;
   flex: 0 0 auto;
 }
@@ -167,7 +166,7 @@ label > select[name^="child_qty_"] {
 /* Attendee form length select: widen to 20rem. The default `label > select`
    rule is `flex: 1`, which would stretch it to fill the row and ignore the
    width, so opt out of growing/shrinking here for the width to take effect. */
-#attendee-form label > select[name="day_count"] {
+#attendee-form label > select[name="dayCount"] {
   width: 20rem;
   max-width: 100%;
   flex: 0 0 auto;

@@ -83,9 +83,9 @@ const parseUrlField = (
 /** Parse the bookable-days default: only set when its enable box is ticked, with
  * at least one valid day (in canonical order). */
 const parseDaysField = (form: FormParams): FieldParse => {
-  if (!form.getFlag("default_bookable_days_enabled")) return {};
+  if (!form.getFlag("defaultBookableDaysEnabled")) return {};
   const selection = form.getRepeatedPicklist(
-    "default_bookable_days",
+    "defaultBookableDays",
     VALID_DAY_NAMES,
   );
   if (!selection.ok) {

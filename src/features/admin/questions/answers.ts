@@ -263,7 +263,7 @@ const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       params,
       values: { text },
     }) => {
-      const rawModifierId = form.getString("modifier_id");
+      const rawModifierId = form.getString("modifierId");
       const modifierId = rawModifierId ? parsePositiveInt(rawModifierId) : null;
       // A blank field clears the link. A value that is not an id, or an id
       // that cannot trigger this answer, is refused, never cleared.

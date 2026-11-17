@@ -193,7 +193,7 @@ export const SecretsPanel = ({
               </p>
               <label>
                 <input
-                  name="confirm_pair_secrets"
+                  name="confirmPairSecrets"
                   required
                   type="checkbox"
                   value="1"

@@ -6,7 +6,7 @@
  * The no-JS baseline renders every child control non-required (the server enforces
  * the per-parent total and each chosen child's price). With JS we tighten it for
  * inline feedback. For an in-cart parent, only the price inputs of children given
- * a positive `child_qty_*` carry `required`. A per-parent hint shows how many
+ * a positive `childQty*` carry `required`. A per-parent hint shows how many
  * add-ons are chosen out of the parent's quantity. A zero-quantity parent relaxes
  * all of its child controls so it can never block a buyer booking another listing. */
 import {
@@ -31,8 +31,8 @@ const updateHint = (parentId: string, chosen: number): void => {
 };
 
 /** The child ids whose price input must be required for an in-cart parent: every
- * child given a positive `child_qty_*`, PLUS a SOLE auto-selected pay-more child.
- * A sole child has no `child_qty_*` control (it is auto-filled to the
+ * child given a positive `childQty*`, PLUS a SOLE auto-selected pay-more child.
+ * A sole child has no `childQty*` control (it is auto-filled to the
  * parent quantity), so `chosenChildIds` never reports it. Yet its price IS
  * collected and the fold rejects a blank one. Re-require it whenever the
  * parent is in the cart. */
@@ -49,11 +49,11 @@ const updateParent = (parentId: string): void => {
   const inCart = parentInCart(parentId);
   const required = requiredChildIds(parentId);
   for (const price of document.querySelectorAll<HTMLInputElement>(
-    `[name^="child_price_${parentId}_"]`,
+    `[name^="childPrice${parentId}_"]`,
   )) {
     const childId = price
       .getAttribute("name")!
-      .slice(`child_price_${parentId}_`.length);
+      .slice(`childPrice${parentId}_`.length);
     price.required = inCart && required.has(childId);
   }
   updateHint(parentId, inCart ? childQtyTotal(parentId) : 0);

@@ -300,10 +300,8 @@ const resolvePackageOrder = async (
   if (!dateResult.ok) return apiError(dateResult.error);
   const date = dateResult.date;
 
+  // The JSON `dayCount` is also the name of the day-count box.
   const form = toFormParams(body);
-  if (body.dayCount !== undefined) {
-    form.set("day_count", String(body.dayCount));
-  }
   const dayResult = await resolveDayCount(
     listingsWithQuantity(ctx.listings, quantities),
     form,

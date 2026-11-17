@@ -51,7 +51,7 @@ const bulkForm = (
     <SubmitWithHidden
       buttonClass={buttonClass}
       label={label}
-      name="check_in"
+      name="checkIn"
       value={nextValue}
     />
   </CsrfForm>
@@ -101,7 +101,7 @@ const staffBulkForm = (
           ? t("admin.checkin.check_out_all")
           : t("admin.checkin.check_in_all")
       }
-      name="check_in"
+      name="checkIn"
       value={offerCheckout ? "false" : "true"}
     />
   </CsrfForm>

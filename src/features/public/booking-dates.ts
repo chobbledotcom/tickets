@@ -46,7 +46,7 @@ export const resolveDayCount = async (
   );
   if (customisable.length === 0) return { dayCount: 1 };
 
-  const raw = parsePositiveInt(form.getString("day_count"));
+  const raw = parsePositiveInt(form.getString("dayCount"));
   if (raw === null) {
     return { error: "Please choose how many days to book" };
   }

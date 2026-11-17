@@ -104,25 +104,25 @@ const renderStatusFields = (
     </label>
     <fieldset class="checkboxes">
       {checkbox(
-        "is_reservation",
+        "isReservation",
         t("statuses.form_reservation_checkbox"),
-        values?.has("is_reservation") ?? status?.isReservation ?? false,
+        values?.has("isReservation") ?? status?.isReservation ?? false,
         {
-          other: "is_paid_default",
+          other: "isPaidDefault",
           why: t("statuses.error_paid_default_reservation"),
         },
       )}
       {checkbox(
-        "is_public_default",
+        "isPublicDefault",
         t("statuses.form_public_default_checkbox"),
-        values?.has("is_public_default") ?? status?.isPublicDefault ?? false,
+        values?.has("isPublicDefault") ?? status?.isPublicDefault ?? false,
       )}
       {checkbox(
-        "is_paid_default",
+        "isPaidDefault",
         t("statuses.form_paid_default_checkbox"),
-        values?.has("is_paid_default") ?? status?.isPaidDefault ?? false,
+        values?.has("isPaidDefault") ?? status?.isPaidDefault ?? false,
         {
-          other: "is_reservation",
+          other: "isReservation",
           why: t("statuses.error_paid_default_reservation"),
         },
       )}
@@ -130,10 +130,10 @@ const renderStatusFields = (
     <label>
       {t("statuses.form_reservation_amount_label")}
       <input
-        name="reservation_amount"
+        name="reservationAmount"
         type="text"
         value={
-          values?.get("reservation_amount") ?? status?.reservationAmount ?? "0"
+          values?.get("reservationAmount") ?? status?.reservationAmount ?? "0"
         }
       />
       <small>
@@ -167,7 +167,7 @@ export type StatusRetire =
  *  attendees hold this status — the count, a warning, and a required picker
  *  of the statuses they can move to, or the prerequisite the save would
  *  refuse on, above a confirmation the save still refuses if submitted. The
- *  picker posts `reassign_status_id`, which the delete command reads inside
+ *  picker posts `reassignStatusId`, which the delete command reads inside
  *  its transaction. */
 export const retireStatusDeletePage = (
   status: AttendeeStatus,
@@ -195,7 +195,7 @@ export const retireStatusDeletePage = (
             <label>
               {t("statuses.delete_reassign_label")}
               <SelectField
-                name="reassign_status_id"
+                name="reassignStatusId"
                 options={[
                   { label: t("statuses.delete_reassign_prompt"), value: "" },
                   ...idOptions(choice.others, (other) => other.name),

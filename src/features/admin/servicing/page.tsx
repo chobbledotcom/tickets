@@ -118,7 +118,7 @@ const servicingListingsTable = defineTable<
     (listing, quantities) => (
       <input
         min="0"
-        name={`quantity_${listing.id}`}
+        name={`quantity${listing.id}`}
         type="number"
         value={String(
           requiredMapValue(
@@ -140,7 +140,7 @@ const costFields = (listings: ListingWithCount[]): Field[] => [
   },
   {
     label: t("servicing.field.listing"),
-    name: "target_listing_id",
+    name: "targetListingId",
     options: requireChoiceOptions(
       t("servicing.field.listing"),
       map((listing: ListingWithCount) => ({
@@ -282,9 +282,9 @@ export const renderServicingPage = ({
       <CsrfForm action={action} id={SERVICING_FORM_ID}>
         <Raw
           html={renderFields(buildServicingFieldSchema(), {
-            day_count: firstBookingDuration(event),
+            dayCount: firstBookingDuration(event),
             name: event?.name ?? "",
-            start_date: firstBookingDate(event, prefill),
+            startDate: firstBookingDate(event, prefill),
           })}
         />
         {renderTable(servicingListingsTable, listings, {
@@ -319,7 +319,7 @@ export const renderServicingPage = ({
               >
                 <p>{t("servicing.money_out_intro")}</p>
                 <input
-                  name="cost_idempotency_key"
+                  name="costIdempotencyKey"
                   type="hidden"
                   value={crypto.randomUUID()}
                 />

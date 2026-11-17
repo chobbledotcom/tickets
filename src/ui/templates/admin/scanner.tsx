@@ -371,7 +371,7 @@ export const adminScannerPage = (
           <div class="combobox">
             <input
               id="manual-checkin-attendee-id"
-              name="attendee_id"
+              name="attendeeId"
               type="hidden"
             />
             <input

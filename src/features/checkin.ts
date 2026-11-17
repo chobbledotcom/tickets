@@ -221,7 +221,7 @@ const commitDoorMoves = async (
 const handleCheckinPost: TokenMethodHandler = (request, tokens) =>
   withAuth(request, DOOR_FORM, (_session, form) =>
     withLookup(tokens, async (entries) => {
-      const checkedIn = form.get("check_in") === "true";
+      const checkedIn = form.get("checkIn") === "true";
       // The write needs no contact details, so the rows stay sealed.
       // Refunded rows are never touched, and purchase-only ("No Check-In")
       // listings' rows are excluded too — a package QR shared with a checkable

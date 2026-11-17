@@ -25,7 +25,7 @@ const EXPIRY_LABEL = `${Math.round(QR_TOKEN_MAX_AGE_S / 60)} minutes`;
 
 /** Values the admin previously submitted, re-rendered on error/success */
 export type AdminListingQrValues = {
-  customer_name: string;
+  customerName: string;
   value: string;
   quantity: string;
   date: string;
@@ -195,9 +195,9 @@ export const ListingQrPanel = ({
           {t("listing_qr.customer_name")}
           <input
             maxlength={MAX_INPUT_LENGTH}
-            name="customer_name"
+            name="customerName"
             type="text"
-            value={values.customer_name}
+            value={values.customerName}
           />
           <small>{t("listing_qr.customer_name_help")}</small>
         </label>

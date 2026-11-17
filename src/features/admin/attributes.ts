@@ -319,7 +319,7 @@ const attributeOrder = createOrderedCollectionHandlers({
 
 const handleListingAttributesPost = createListingChoicePost({
   feature: "attributes",
-  fieldName: "option_ids",
+  fieldName: "optionIds",
   label: "Attributes",
   noun: "option",
   pattern: "/admin/listing/:id/attributes",

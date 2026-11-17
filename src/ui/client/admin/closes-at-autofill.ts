@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
-/** Auto-populate closes_at from listing date when closes_at is empty. */
+/** Auto-populate the closing time from the listing date when it is empty. */
 export const initClosesAtAutofill = (): void => {
   const dateInput =
     document.querySelector<HTMLInputElement>('input[name="date"]');
   const closesAtInput = document.querySelector<HTMLInputElement>(
-    'input[name="closes_at"]',
+    'input[name="closesAt"]',
   );
   if (!dateInput || !closesAtInput) return;
 

@@ -15,7 +15,7 @@ export const adminGroupRemoveListingsPage = (
     buttonText: t("groups.remove.submit"),
     children: <TheChosenMembers listings={listings} />,
     error,
-    hiddenFields: { listing_ids: listings.map(({ id }) => id).join(",") },
+    hiddenFields: { listingIds: listings.map(({ id }) => id).join(",") },
     label: t("groups.name_label"),
     name: group.name,
     prompt: { args: { name: group.name }, key: "groups.remove.confirm_prompt" },

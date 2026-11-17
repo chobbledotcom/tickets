@@ -44,7 +44,7 @@ const ProviderOption = ({
     <RadioOption
       checked={selected}
       disabled={currencyBlock !== null}
-      name="payment_provider"
+      name="paymentProvider"
       value={id}
     >
       {PAYMENT_PROVIDERS[id].label}
@@ -66,7 +66,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
     <fieldset class="radios">
       <RadioOption
         checked={!s.paymentProvider}
-        name="payment_provider"
+        name="paymentProvider"
         value="none"
       >
         {t("settings.payment_none")}
@@ -86,7 +86,7 @@ export const PaymentProviderForm = (s: SettingsPageState): JSX.Element => (
  *  to it here rather than by swapping the credentials. */
 const SquareSandboxToggle = (mode: PaymentProviderMode): JSX.Element => (
   <label>
-    <input checked={mode === "sandbox"} name="square_sandbox" type="checkbox" />
+    <input checked={mode === "sandbox"} name="squareSandbox" type="checkbox" />
     {t("settings.square.sandbox_mode")}
   </label>
 );

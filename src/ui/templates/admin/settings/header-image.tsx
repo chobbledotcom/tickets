@@ -51,7 +51,7 @@ export const HeaderImageForm = (s: SettingsPageState): JSX.Element | null =>
           {s.headerImageUrl
             ? t("settings.replace_image")
             : t("settings.upload_image")}
-          <input accept={IMAGE_UPLOAD_ACCEPT} name="header_image" type="file" />
+          <input accept={IMAGE_UPLOAD_ACCEPT} name="headerImage" type="file" />
         </label>
       </SettingsSection>
     </PageBlock>

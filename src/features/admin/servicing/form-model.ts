@@ -12,11 +12,11 @@ import {
   isBookedLine,
   type ParsedAttendeeForm,
   parseAttendeeForm,
-  START_DATE_FIELD,
   toCreateInput,
 } from "#routes/admin/attendee-form-model.ts";
 import { FormParams } from "#shared/form-data.ts";
 import type { Field } from "#shared/forms/field.ts";
+import { START_DATE_BOX } from "#shared/order-select.ts";
 import { isIsoDate } from "#shared/validation/date-string.ts";
 import { wholeNumberFieldShape } from "#templates/fields/validators.ts";
 import type { ListingWithCount } from "#types";
@@ -33,7 +33,7 @@ export type ServicingListingForForm = Pick<
 > &
   Partial<ListingWithCount>;
 
-const QUANTITY_ALIAS_PREFIX = "quantity_";
+const QUANTITY_ALIAS = /^quantity(\d+)$/;
 
 export const buildServicingFieldSchema = (): Field[] => [
   {
@@ -45,7 +45,7 @@ export const buildServicingFieldSchema = (): Field[] => [
   },
   {
     label: t("servicing.field.start_date"),
-    name: START_DATE_FIELD,
+    name: START_DATE_BOX,
     type: "date",
   },
   {
@@ -57,7 +57,7 @@ export const buildServicingFieldSchema = (): Field[] => [
 ];
 
 /**
- * The browser quantity guard reads `quantity_<id>`, while the shared attendee
+ * The browser quantity guard reads `quantity<id>`, while the shared attendee
  * parser reads indexed booking lines. Convert the first shape into the second
  * so servicing and attendee forms keep one booking parser.
  */
@@ -65,8 +65,8 @@ const withQuantityAliases = (form: FormParams): FormParams => {
   const normalized = new FormParams(form.toString());
   let index = 0;
   for (const [field, value] of form.entries()) {
-    if (!field.startsWith(QUANTITY_ALIAS_PREFIX)) continue;
-    const id = field.slice(QUANTITY_ALIAS_PREFIX.length);
+    const id = QUANTITY_ALIAS.exec(field)?.[1];
+    if (id === undefined) continue;
     normalized.append(`${LINE_LISTING_PREFIX}${index}`, id);
     normalized.append(`${QTY_PREFIX}${index}`, value);
     index++;

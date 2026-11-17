@@ -18,6 +18,8 @@ import { parsePositiveInt as parsePositiveIntId } from "#shared/validation/numbe
 export const SELECT_PREFIX = "select_";
 export const PACKAGE_SELECT_PREFIX = "select_package_";
 export const START_DATE_FIELD = "start_date";
+/** The start date box of a POST form. The GET query keeps `START_DATE_FIELD`. */
+export const START_DATE_BOX = "startDate";
 export const ORDER_FIELD = "order";
 
 /** Extract ids from `prefix<id>=1` params, de-duplicated and ascending.
