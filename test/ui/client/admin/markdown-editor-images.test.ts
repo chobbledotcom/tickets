@@ -11,7 +11,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import type { FetchReply } from "#test-utils/fetch-stub.ts";
+import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 import {
@@ -220,6 +220,29 @@ describe("the image picker dialog", () => {
       expect(fetchStubHolder.stub?.calls.length).toBe(1);
       await flushSelection();
     });
+  });
+
+  test("keeps an inserted picture inside the editor box", async () => {
+    // The compiled stylesheet is what the browser downloads. Its width rule
+    // must reach the editor's image node through the real cascade.
+    const stylesheet = await Deno.readTextFile(STATIC_ASSET_OUTFILES.css);
+    restoreHeldStub();
+    fetchStubHolder.stub = stubFetch(twoImageList());
+    const { window, handle } = enhanced("![Alpha](img#2)", { stylesheet });
+    const image = requireElement<HTMLImageElement>(
+      window.document,
+      ".ProseMirror img",
+    );
+    await flush();
+
+    const happyWindow = window as Window & {
+      getComputedStyle: (element: unknown) => CSSStyleDeclaration;
+    };
+    const computed = happyWindow.getComputedStyle(image);
+    expect(computed.maxWidth).toBe("100%");
+    // A block picture skips the inline line box that can leave a sliver.
+    expect(computed.display).toBe("block");
+    handle.view.destroy();
   });
 
   test("wraps a long unbroken image name inside its option", async () => {

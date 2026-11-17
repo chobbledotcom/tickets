@@ -207,9 +207,10 @@ describeWithBrowser(
         const dialog = await openDialog(page);
         await dialog.locator('input[name="name"]').fill("Harbour Haze");
         // The server validates the upload as a real image, so the file must
-        // be a decodable PNG, not arbitrary bytes.
+        // be a decodable PNG, not arbitrary bytes. It is deliberately wide:
+        // the picture must fit the editor box, not spill out of it.
         await dialog.locator('input[name="image"]').setInputFiles({
-          buffer: Buffer.from(await makeTestPng(2, 2)),
+          buffer: Buffer.from(await makeTestPng(1600, 200)),
           mimeType: "image/png",
           name: "harbour-haze.png",
         });
@@ -224,6 +225,26 @@ describeWithBrowser(
         assertStringIncludes(saved, "![Harbour Haze](img#");
         assertStringIncludes(saved, "Fresh from the camera.");
         expect(await page.locator(DIALOG).isVisible()).toBe(false);
+
+        // The wide picture renders inside the editor's content box.
+        const picture = page.locator(".ProseMirror img").first();
+        await picture.waitFor();
+        const pictureBox = await picture.boundingBox();
+        const editorBox = await page.locator(".ProseMirror").boundingBox();
+        if (pictureBox === null || editorBox === null) {
+          throw new Error("the picture or the editor is not on the page");
+        }
+        expect(pictureBox.width).toBeGreaterThan(100);
+        expect(pictureBox.width).toBeLessThanOrEqual(editorBox.width);
+
+        // Re-opening offers a clean form: the upload button works again and
+        // the fields start empty.
+        const reopened = await openDialog(page);
+        const uploadButton = reopened.getByRole("button", { name: "Upload" });
+        expect(await uploadButton.isEnabled()).toBe(true);
+        expect(await reopened.locator('input[name="name"]').inputValue()).toBe(
+          "",
+        );
       });
     });
 

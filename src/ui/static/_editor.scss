@@ -53,6 +53,15 @@
 .md-editor .ProseMirror pre {
   white-space: pre-wrap;
 }
+/* Any picture in the rich editor's ProseMirror box stays inside it, the
+   way the public page keeps its pictures inside the prose. A block picture
+   skips the inline line box, whose baseline and break-spaces handling can
+   leave a sliver past the padding edge. */
+.ProseMirror img {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
 
 /* Small text-button styled like a link. */
 .md-preview-link {

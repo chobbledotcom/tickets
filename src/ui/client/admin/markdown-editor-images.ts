@@ -231,6 +231,10 @@ const uploadForm = (
       submit.disabled = false;
     });
   });
+  // A reset starts the form clean, so the next upload can submit again.
+  form.addEventListener("reset", () => {
+    submit.disabled = false;
+  });
   return form;
 };
 
@@ -357,6 +361,8 @@ export const createImageToolbarItem = (
       // The upload resets the library cache, so the node view's own lookup
       // fetches the new image's URL when it renders.
       insertImageRef(view, { id, name, thumb: "", url: "" });
+      // The next open offers a clean form, ready for another upload.
+      upload.reset();
       dialog.close();
     },
     () => {

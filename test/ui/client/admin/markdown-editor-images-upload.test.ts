@@ -112,6 +112,16 @@ describe("the image picker dialog", () => {
         expect((body as FormData).get("csrf_token")).toBe("token-1");
 
         await finishUpload(handle, textarea, dialog, flushSelection);
+
+        // The next open offers a clean form, ready for another upload.
+        const form = dialog.querySelector<HTMLFormElement>(".md-image-upload")!;
+        expect(
+          form.querySelector<HTMLInputElement>('input[name="name"]')!.value,
+        ).toBe("");
+        expect(
+          form.querySelector<HTMLButtonElement>('button[type="submit"]')!
+            .disabled,
+        ).toBe(false);
       },
     );
   });

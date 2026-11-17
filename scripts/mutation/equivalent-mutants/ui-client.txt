@@ -78,25 +78,26 @@ src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etit
 # left-hand value below lands on an element whose property is empty (or false
 # for a boolean IDL attribute) before the assignment, so `=` and `+=` finish
 # identical after DOM coercion.
-src/ui/client/admin/markdown-editor-images.ts::closeButton.button%2einnerHTML~0yi1mfh  = → += audited:14oas61 # button.innerHTML: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.dialog%2eclassName~0os6j6n  = → += audited:14oas61 # dialog.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.grid%2edataset%2estate~1uu0alr  = → += audited:14oas61 # grid.dataset.state: fresh element, unset before (reads "")
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.heading%2etextContent~1uq0nyr  = → += audited:14oas61 # heading.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.image%2ealt~0p3u8u4  = → += audited:14oas61 # image.alt: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.image%2esrc~1mihos8  = → += audited:14oas61 # image.src: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.item%2etitle~0ui2juv  = → += audited:14oas61 # item.title: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.name%2etextContent~0ny8f11  = → += audited:14oas61 # name.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.settle.grid%2edataset%2estate~0kb1ajt  = → += audited:14oas61 # grid.dataset.state: fresh element, unset before (reads "")
-src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.settle.grid%2edataset%2estate~0n6o0le  = → += audited:14oas61 # grid.dataset.state: fresh element, unset before (reads "")
-src/ui/client/admin/markdown-editor-images.ts::mutedLine.line%2etextContent~123bvdh  = → += audited:14oas61 # line.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::uploadField.input%2ename~0c3eqyi  = → += audited:14oas61 # input.name: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::uploadField.input%2erequired~1xzxshj  = → += audited:14oas61 # input.required: fresh boolean IDL attribute, false before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.fileField%2equerySelector%3cHTMLInputElement%3e%28%27input%5bname%3d%22image%22%5d%27%29%21%2eaccept~12ku4gb  = → += audited:14oas61 # accept: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.form%2eclassName~1csp6dy  = → += audited:14oas61 # form.className: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.heading%2etextContent~12r5i7l  = → += audited:14oas61 # heading.textContent: fresh element, "" before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2edisabled~0mqaigy  = → += audited:14oas61 # submit.disabled: fresh boolean IDL attribute, false before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2edisabled~1100pzp  = → += audited:14oas61 # submit.disabled: fresh boolean IDL attribute, false before
-src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2etextContent~0pgppg1  = → += audited:14oas61 # submit.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::closeButton.button%2einnerHTML~0yi1mfh  = → += audited:1px79w9 # button.innerHTML: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.dialog%2eclassName~0os6j6n  = → += audited:1px79w9 # dialog.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.grid%2edataset%2estate~1uu0alr  = → += audited:1px79w9 # grid.dataset.state: fresh element, unset before (reads "")
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.heading%2etextContent~1uq0nyr  = → += audited:1px79w9 # heading.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.image%2ealt~0p3u8u4  = → += audited:1px79w9 # image.alt: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.image%2esrc~1mihos8  = → += audited:1px79w9 # image.src: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.item%2etitle~0ui2juv  = → += audited:1px79w9 # item.title: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.renderOptions.name%2etextContent~0ny8f11  = → += audited:1px79w9 # name.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.settle.grid%2edataset%2estate~0kb1ajt  = → += audited:1px79w9 # grid.dataset.state: fresh element, unset before (reads "")
+src/ui/client/admin/markdown-editor-images.ts::createImageToolbarItem.settle.grid%2edataset%2estate~0n6o0le  = → += audited:1px79w9 # grid.dataset.state: fresh element, unset before (reads "")
+src/ui/client/admin/markdown-editor-images.ts::mutedLine.line%2etextContent~123bvdh  = → += audited:1px79w9 # line.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::uploadField.input%2ename~0c3eqyi  = → += audited:1px79w9 # input.name: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::uploadField.input%2erequired~1xzxshj  = → += audited:1px79w9 # input.required: fresh boolean IDL attribute, false before
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.fileField%2equerySelector%3cHTMLInputElement%3e%28%27input%5bname%3d%22image%22%5d%27%29%21%2eaccept~12ku4gb  = → += audited:1px79w9 # accept: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.form%2eclassName~1csp6dy  = → += audited:1px79w9 # form.className: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.heading%2etextContent~12r5i7l  = → += audited:1px79w9 # heading.textContent: fresh element, "" before
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2edisabled~0mqaigy  = → += audited:1px79w9 # submit.disabled: fresh boolean IDL attribute, false before
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2edisabled~1100pzp@1  = → += audited:1px79w9 # submit.disabled = false: false + false is 0, a falsy boolean-IDL value
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2edisabled~1100pzp@2  = → += audited:1px79w9 # submit.disabled = false: false + false is 0, a falsy boolean-IDL value
+src/ui/client/admin/markdown-editor-images.ts::uploadForm.submit%2etextContent~0pgppg1  = → += audited:1px79w9 # submit.textContent: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can
