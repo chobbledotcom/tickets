@@ -31,12 +31,18 @@ refund of a recurring payment from the site, and no email about a failed payment
 A buyer on a Stripe site can subscribe through the ticket page, and the owner
 sees the subscription and its recurring income on the site.
 
+A subscription delivery to `POST /payment/webhook` records what Stripe reports
+at once, so a renewal reaches the ledger on the day that Stripe takes it. The
+scheduled check remains the second writer, for a site whose endpoint does not
+carry the events yet.
+
 The production callers are:
 
 - the listing form, which saves the recurring price and frequency
 - `createCheckoutSession` in `src/shared/stripe.ts`
 - the payment completion path behind `POST /payment/webhook` and
   `GET /payment/success`
+- the subscription deliveries of the same webhook endpoint
 - `POST /scheduled`, through one new maintenance task
 - two new admin routes under `/admin/subscriptions`
 
@@ -126,6 +132,7 @@ reach them.
 | Subscription id, status, amount, and frequency | Observed | A Stripe read of the subscription with the secret key of the site |
 | Listing id of the subscription | Observed | The site writes it to the subscription metadata, and the Stripe read returns it |
 | Paid invoice: id, amount, currency, paid time, reason | Observed | A Stripe list of the paid invoices of one subscription |
+| Subscription that a delivery is about | Observed | The signed Stripe delivery names it, and the site stores only what its own read of that subscription reports |
 | Cancel form | Untrusted | The owner session and the CSRF token authorise it |
 
 The plan on the booking row comes from the Stripe subscription, never from the
@@ -200,15 +207,19 @@ in the shape of `machine-spec.ts`. The tables below are projections of it.
 | --- | --- | --- |
 | None | A paid checkout completes with a subscription | The row gets the plan, the id, and the observed status |
 | Live | Scheduled check | The row gets the observed status. The ledger gets each paid renewal invoice that it does not hold. |
+| Live | Subscription delivery | The row gets the observed status. The ledger gets each paid renewal invoice that it does not hold. |
 | Live | Owner cancels | Stripe cancels. The row gets `canceled`. |
 | Ended | Scheduled check | The task records the remaining paid invoices once, then leaves the row |
+| Ended | Subscription delivery | Acknowledged. Nothing changes. |
 | Ended | Owner cancels | Refused |
 | Live | Delete the booking, the attendee, or the listing | Refused: "Cancel the subscription first." |
 | Live | A merge or an edit that removes the booking | Refused with the same message |
 
-Each command has one implementation. The scheduled task is the only writer of
-recurring money. The site adds no new Stripe webhook event, so no site needs a
-new webhook endpoint.
+Each command has one implementation. The scheduled check and a subscription
+delivery both record through `recordStripeReport`, so one code path writes the
+recurring money and the status. The webhook endpoint that the settings page
+creates asks Stripe for the subscription events, so no operator adds one by
+hand.
 
 ### Ledger entry for one recurring payment
 
@@ -259,7 +270,8 @@ group. The invoice id is the stable identity.
 | The booking cannot proceed | Stripe does not confirm cancellation | The quantity-zero row keeps the plan. The refund waits. | Webhook redelivery and the success redirect |
 | Stripe took the first payment | The booking write fails | The current payment recovery path | The current path |
 | Nothing | The scheduled read fails for one row | That row keeps its status. The batch continues. | The next run |
-| Stripe took a renewal | The ledger write fails | Nothing recorded. The error reaches the log. | The next run posts the same invoice id |
+| Nothing | The delivery read fails | The delivery answers 503. Nothing is recorded. | Stripe redelivers, and the scheduled check also covers the row |
+| Stripe took a renewal | The ledger write fails | Nothing recorded. The error reaches the log. | The next run posts the same invoice id, and the next delivery does the same |
 | Ledger write | The status write fails | The status is stale | The next run |
 | Nothing | The Stripe cancel call fails | No local change. The owner sees an error. | The owner |
 | Stripe cancelled | The status write fails | The status is stale | The scheduled check |
@@ -279,12 +291,14 @@ A failed subscription checkout has three replay rules:
 | Completion | Payment session id | The current two-phase claim returns the same booking | The current claim |
 | Failed completion | Payment session id | The held claim resumes cancellation before refund. A successful booking never cancels. | The current claim and stored failure marker |
 | Renewal entry | Stripe invoice id, as event group and leg references | The ledger store finds the same legs and inserts nothing | The maintenance task claim, then the ledger references |
+| Subscription delivery | Stripe event id, through the facts that the read reports | The read reports the same status and the same paid invoices, so nothing new lands | The ledger references, and the guarded status write |
 | Status write | Subscription id | The same status again | A live status needs the status that was read. An ended status replaces any live status. |
 | Cancel | Subscription id | Stripe refuses a second cancel. The site then reads the subscription and stores what it finds. | The same guarded write |
 
-A refused Stripe read leaves that row for a later pass. The batch continues.
-A database write failure or a ledger conflict stops the run. The maintenance
-runner retries from its saved checkpoint.
+A refused Stripe read leaves that row for a later pass. The batch continues,
+and the delivery answers 503 so that Stripe sends it again. A database write
+failure or a ledger conflict stops the run. The maintenance runner retries from
+its saved checkpoint.
 
 ### Concurrency table
 
@@ -292,6 +306,8 @@ runner retries from its saved checkpoint.
 | --- | --- | --- | --- |
 | Webhook | Success redirect | One booking, one plan | The current two-phase claim |
 | Scheduled check | Scheduled check | One ledger group for each invoice | The task claim and the ledger references |
+| Subscription delivery | Subscription delivery | One ledger group for each invoice | The ledger references, and the write transaction that reads them |
+| Subscription delivery | Scheduled check | One ledger group for each invoice, and one status | The ledger references, and the guarded status write |
 | Attendee merge | Renewal entry | The old booking cannot post after the merge. A later pass uses the copied booking. | The ledger batch checks the booking identity before it posts money. |
 | Owner cancel | Scheduled check | `canceled` stays | A live status writes only where the row still holds the status that was read. An ended status is final, so the cancel replaces a live status that the check wrote first. |
 | Owner cancel | Owner cancel | One Stripe cancel takes effect | The guarded write, and the read after a refused cancel |
@@ -325,7 +341,8 @@ observed amount. Two cases stay with the owner:
 | Question | Answer |
 | --- | --- |
 | The Stripe call succeeds and the local write fails? | The failure table covers the first payment, each renewal, and the cancel. Each has a retry owner. |
-| A callback arrives twice? | The current claim handles the completion. No new webhook event exists. |
+| A callback arrives twice? | The current claim handles the completion. A subscription delivery reads Stripe again, so a repeat lands on the same invoices and the same status. |
+| A delivery arrives out of order? | Each delivery stores what Stripe reports now, not what the delivery carried. A late delivery over a newer status writes nothing. |
 | The amount or currency is wrong? | The first payment keeps the current price proof. A renewal posts the observed amount. A foreign currency posts nothing and logs an error. |
 | The task stops for a long time? | The task reads the newest 100 paid invoices of each subscription. That is almost two years of weekly charges. |
 | The owner turns the feature off? | The site refuses while a live subscription or a recurring price exists, through `inUseSql`. |
@@ -341,6 +358,17 @@ observed amount. Two cases stay with the owner:
   task stops for longer than 100 periods, it does not record older invoices.
 - One run checks five subscriptions. A full batch asks for another run one
   minute later.
+- An endpoint that this site made before this layer listens only for the
+  completed checkout. The connection test reports it as unhealthy. The owner
+  saves the Stripe key again, and the site then creates an endpoint with the
+  subscription events.
+- A delivery about a subscription with no live row is acknowledged, and the
+  site records nothing. That covers another site on a shared Stripe account,
+  and a row that already ended. The read that ended the row recorded its last
+  paid invoices at that time.
+- A delivery finds its booking row with a scan of `listing_attendees`. That
+  table holds one row for each booking of the site, and the read asks for the
+  plan columns only.
 - Stripe stops automatic collection when the owner cancels. If a person
   collects an open invoice by hand after cancellation, the owner must record
   it with a manual ledger entry.
@@ -367,10 +395,13 @@ contract and the code together.
 5. `trial_end` must be 48 hours or more ahead. All three frequencies pass.
 6. stripe-mock at the pinned version can serve these calls, or the tests need
    fixtures.
+7. Saving the key creates an endpoint that listens for each subscription
+   delivery. A renewal of that subscription in test mode then reaches
+   `POST /payment/webhook`, and the ledger holds its legs once.
 
 ## Pull requests
 
-One stack of five. Each layer is useful alone.
+One stack of six. Each layer is green and useful alone.
 
 | Layer | Behaviour | Story |
 | --- | --- | --- |
@@ -378,9 +409,8 @@ One stack of five. Each layer is useful alone.
 | 2 | The Subscriptions menu and page | "Seeing who subscribed" |
 | 3 | The scheduled check: status and recurring payments in the ledger, with VAT | "Recurring payments reach the books" |
 | 4 | The owner cancels. Edits, deletes, and merges must keep live subscription plans. | "Cancelling a subscription" |
-| 5 | Production-backed TLA checks for the four lower layers | The [model check contract](subscription-models-plan.md) defines the proposed scope. |
-
-Layer 5 needs human approval of its separate contract before implementation.
+| 5 | Stripe subscription deliveries record the status and the renewals at once, and the endpoint asks for those events | None: a provider boundary, proven by direct tests |
+| 6 | Production-backed TLA checks for the four lower layers | None: a verification layer. The [model check contract](subscription-models-plan.md) defines the scope. |
 
 Layer 1 replaces no old path. No layer adds a compatibility surface.
 
@@ -391,6 +421,7 @@ The Stripe call budget is:
 - failed completion: one cancel call, then one read if Stripe refuses the
   cancel. A subscription that Stripe already reports as ended needs neither.
 - scheduled check: two reads for each row, one after the other
+- subscription delivery: two reads, the subscription and its paid invoices
 - cancel: one call, one read after a refusal, and one invoice list
 
 Each subscription and invoice read asks Stripe once, with no retry.
@@ -406,3 +437,7 @@ the only coverage. The tests for each layer are:
   invoice, the stale status guard, and one fault test for each failure row.
 - Layer 4: the cancel for each start state, the role refusal, the race with the
   check, and the delete refusal.
+- Layer 5: each delivery outcome through the real webhook route, the endpoint
+  events, and the connection test for an endpoint that lacks one.
+- Layer 6: every model proof and every negative control through
+  `deno task verify:models`.

@@ -4,7 +4,10 @@ import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { providerDetail, transportError } from "#payment/transport-error.ts";
 import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
+import type { StripeClient } from "#shared/stripe/client.ts";
+import type { StripeConnectionTestResult } from "#shared/stripe/endpoints.ts";
 import { sanitizeStripeError } from "#shared/stripe/runtime.ts";
+import type { StripeWebhookEndpoint } from "#shared/stripe/schemas.ts";
 import {
   type StripeWebhookEvent,
   verifyWebhookSignature,
@@ -14,6 +17,7 @@ import { withMocks } from "#test-utils/mocks.ts";
 import { activateStripe } from "#test-utils/settings.ts";
 import {
   noWebhooks,
+  OWN_WEBHOOK_EVENTS,
   okBalance,
   signedWebhook,
   stripeClient,
@@ -22,6 +26,27 @@ import {
 import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 describeStripe("stripe", () => {
+  /** One endpoint as Stripe's list shows it, carrying every event of this site
+   * unless `over` says otherwise. */
+  const webhookEndpoint = (
+    id: string,
+    over: Partial<StripeWebhookEndpoint> = {},
+  ): StripeWebhookEndpoint => ({
+    enabled_events: [...OWN_WEBHOOK_EVENTS],
+    id,
+    status: "enabled",
+    url: getPaymentWebhookUrl(),
+    ...over,
+  });
+
+  /** A `webhookEndpoints.list` answer that holds `endpoints`. */
+  const listedEndpoints =
+    (
+      endpoints: readonly StripeWebhookEndpoint[],
+    ): StripeClient["webhookEndpoints"]["list"] =>
+    () =>
+      Promise.resolve({ data: [...endpoints], has_more: false });
+
   /** Stub `balance.retrieve` to fail with `error`, then run `body`. */
   const withFailingBalance = (
     client: Awaited<ReturnType<typeof stripeClient>>,
@@ -41,6 +66,19 @@ describeStripe("stripe", () => {
     expect(result.ok).toBe(false);
     expect(result.apiKey.valid).toBe(false);
     expect(result.apiKey.error).toBe(error);
+  };
+
+  /** Run the connection test over a webhook estate that `list` answers with,
+   * and hand its answer to `check`. */
+  const checkConnection = async (
+    list: StripeClient["webhookEndpoints"]["list"],
+    check: (result: StripeConnectionTestResult) => void,
+    live = false,
+  ): Promise<void> => {
+    const client = await stripeClient(live ? "sk_live_mock" : "sk_test_mock");
+    await withBalanceAndList(client, okBalance(live), list, async () => {
+      check(await stripeApi.testStripeConnection());
+    });
   };
 
   describe("testStripeConnection", () => {
@@ -66,56 +104,30 @@ describeStripe("stripe", () => {
     });
 
     test("returns test mode when API key is valid and no webhooks exist", async () => {
-      const client = await stripeClient();
-      await withBalanceAndList(
-        client,
-        okBalance(false),
-        noWebhooks,
-        async () => {
-          const result = await stripeApi.testStripeConnection();
-          expect(result.ok).toBe(false);
-          expect(result.apiKey.valid).toBe(true);
-          expect(result.apiKey.mode).toBe("test");
-          expect(result.webhooks).toHaveLength(0);
-        },
-      );
+      await checkConnection(noWebhooks, (result) => {
+        expect(result.ok).toBe(false);
+        expect(result.apiKey.valid).toBe(true);
+        expect(result.apiKey.mode).toBe("test");
+        expect(result.webhooks).toHaveLength(0);
+      });
     });
 
     test("returns live mode for live key", async () => {
-      const client = await stripeClient("sk_live_mock");
-      await withBalanceAndList(
-        client,
-        okBalance(true),
+      await checkConnection(
         noWebhooks,
-        async () => {
-          const result = await stripeApi.testStripeConnection();
+        (result) => {
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("live");
         },
+        true,
       );
     });
 
     test("reports success with one webhook", async () => {
-      const client = await stripeClient();
       await activateStripe("whsec_only", "we_only");
-      await withBalanceAndList(
-        client,
-        okBalance(false),
-        () =>
-          Promise.resolve({
-            data: [
-              {
-                enabled_events: ["checkout.session.completed"],
-                id: "we_only",
-                object: "webhook_endpoint",
-                status: "enabled",
-                url: getPaymentWebhookUrl(),
-              },
-            ],
-            has_more: false,
-          }),
-        async () => {
-          const result = await stripeApi.testStripeConnection();
+      await checkConnection(
+        listedEndpoints([webhookEndpoint("we_only")]),
+        (result) => {
           expect(result.ok).toBe(true);
           expect(result.webhooks).toHaveLength(1);
         },
@@ -123,13 +135,9 @@ describeStripe("stripe", () => {
     });
 
     test("returns webhook error when list fails", async () => {
-      const client = await stripeClient();
-      await withBalanceAndList(
-        client,
-        okBalance(false),
+      await checkConnection(
         () => Promise.reject(new Error("Failed to list webhook endpoints")),
-        async () => {
-          const result = await stripeApi.testStripeConnection();
+        (result) => {
           expect(result.ok).toBe(false);
           expect(result.apiKey.valid).toBe(true);
           assertStringIncludes(
@@ -140,35 +148,34 @@ describeStripe("stripe", () => {
       );
     });
 
-    test("returns full success when API key valid and webhooks exist", async () => {
-      const client = await stripeClient();
-      await activateStripe("whsec_test", "we_test_valid");
-
-      await withBalanceAndList(
-        client,
-        okBalance(false),
-        () =>
-          Promise.resolve({
-            data: [
-              {
-                enabled_events: ["checkout.session.completed"],
-                id: "we_test_valid",
-                object: "webhook_endpoint",
-                status: "enabled",
-                url: getPaymentWebhookUrl(),
-              },
-              {
-                enabled_events: ["payment_intent.succeeded"],
-                id: "we_test_other",
-                object: "webhook_endpoint",
-                status: "enabled",
-                url: "https://other.com/webhook",
-              },
-            ],
-            has_more: false,
+    test("reports an endpoint without a subscription delivery as not healthy", async () => {
+      await activateStripe("whsec_old", "we_old");
+      await checkConnection(
+        listedEndpoints([
+          webhookEndpoint("we_old", {
+            enabled_events: OWN_WEBHOOK_EVENTS.filter(
+              (event) => event !== "invoice.paid",
+            ),
           }),
-        async () => {
-          const result = await stripeApi.testStripeConnection();
+        ]),
+        (result) => {
+          expect(result.ok).toBe(false);
+          expect(result.apiKey.valid).toBe(true);
+        },
+      );
+    });
+
+    test("returns full success when API key valid and webhooks exist", async () => {
+      await activateStripe("whsec_test", "we_test_valid");
+      await checkConnection(
+        listedEndpoints([
+          webhookEndpoint("we_test_valid"),
+          webhookEndpoint("we_test_other", {
+            enabled_events: ["payment_intent.succeeded"],
+            url: "https://other.com/webhook",
+          }),
+        ]),
+        (result) => {
           expect(result.ok).toBe(true);
           expect(result.apiKey.valid).toBe(true);
           expect(result.apiKey.mode).toBe("test");
