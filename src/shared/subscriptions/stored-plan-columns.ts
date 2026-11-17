@@ -10,7 +10,7 @@ import type {
 } from "./plan.ts";
 
 /** The stored columns a booking row keeps for one plan. */
-export type StoredPlanColumns = {
+type StoredPlanColumns = {
   recurringInterval: RecurringInterval;
   recurringPrice: number;
   recurringTax: number;
