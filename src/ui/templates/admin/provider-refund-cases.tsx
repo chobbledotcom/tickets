@@ -16,6 +16,7 @@ import { Flash } from "#shared/forms/flash.tsx";
 import { PAYMENT_PROVIDERS } from "#shared/payment-providers.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { ProseIntro } from "#templates/components/prose-intro.tsx";
 import { RadioOption } from "#templates/components/radio-option.tsx";
 import type { AdminSession } from "#types";
 
@@ -89,10 +90,10 @@ export const ProviderRefundCaseQueue = ({
 }): JSX.Element | null =>
   page.cases.length === 0 ? null : (
     <section id="refund-recovery">
-      <div class="prose">
-        <h2>{t("privacy.refunds.heading")}</h2>
-        <p>{t("privacy.refunds.intro")}</p>
-      </div>
+      <ProseIntro
+        heading={t("privacy.refunds.heading")}
+        intro={t("privacy.refunds.intro")}
+      />
       <ul>
         {page.cases.map((refundCase) => (
           <li>

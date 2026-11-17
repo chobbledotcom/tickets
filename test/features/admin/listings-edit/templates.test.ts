@@ -11,14 +11,28 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildCreateListingForm } from "#test-utils/db-helpers/listing-forms.ts";
 import { testListingInput } from "#test-utils/factories.ts";
 import { adminGet, adminMultipartPost } from "#test-utils/session.ts";
-import { featureSetting } from "#test-utils/settings.ts";
+import {
+  featureSetting,
+  setupStripe,
+  withSetting,
+} from "#test-utils/settings.ts";
 
 const PICKER_HEADING = "Choose a listing type";
 const FORM_HEADING = "<h1>Add Listing</h1>";
+
+const pageAt = async (path: string): Promise<string> =>
+  await (await adminGet(path)).text();
+
+/** The page is the type picker, not a form. */
+const expectPicker = (html: string): void => {
+  assertStringIncludes(html, PICKER_HEADING);
+  assert(!html.includes(FORM_HEADING));
+};
 
 /** The template the page will carry back into a re-submitted create. */
 const carriedTemplate = (html: string): string | null =>
@@ -40,52 +54,99 @@ const rejectedCreate = async (
 
 describeWithEnv("opening the new listing form", { db: true }, () => {
   test("offers the type picker when no template is named", async () => {
-    const html = await (await adminGet("/admin/listing/new")).text();
-
-    assertStringIncludes(html, PICKER_HEADING);
-    assert(!html.includes(FORM_HEADING));
+    expectPicker(await pageAt("/admin/listing/new"));
   });
 
   test("opens the form for a named template and remembers it", async () => {
-    const html = await (
-      await adminGet("/admin/listing/new?template=one-off-event")
-    ).text();
+    const html = await pageAt("/admin/listing/new?template=one-off-event");
 
     assertStringIncludes(html, FORM_HEADING);
     assert(!html.includes(PICKER_HEADING));
     expect(carriedTemplate(html)).toBe("one-off-event");
+
+    // The physical product card remembers its template too, and its seed
+    // checks the email + delivery-address boxes.
+    const physical = await pageAt(
+      "/admin/listing/new?template=physical-product",
+    );
+    expect(carriedTemplate(physical)).toBe("physical-product");
+    assertStringIncludes(physical, 'value="address" checked');
   });
 
   test("treats an unknown template as the custom form", async () => {
-    const html = await (
-      await adminGet("/admin/listing/new?template=custom")
-    ).text();
+    const html = await pageAt("/admin/listing/new?template=custom");
 
     assertStringIncludes(html, FORM_HEADING);
     expect(carriedTemplate(html)).toBe("custom");
   });
 
   test("sends a logistics template back to the picker while the feature is off", async () => {
-    const html = await (
-      await adminGet("/admin/listing/new?template=hireable-item")
-    ).text();
-
-    assertStringIncludes(html, PICKER_HEADING);
-    assert(!html.includes(FORM_HEADING));
+    expectPicker(await pageAt("/admin/listing/new?template=hireable-item"));
   });
 
   test("opens the same logistics template once the feature is on", async () => {
     settings.setForTest(featureSetting("logistics"));
     try {
-      const html = await (
-        await adminGet("/admin/listing/new?template=hireable-item")
-      ).text();
+      const html = await pageAt("/admin/listing/new?template=hireable-item");
 
       assertStringIncludes(html, FORM_HEADING);
       expect(carriedTemplate(html)).toBe("hireable-item");
     } finally {
       settings.clearTestOverride("enabled_features");
     }
+  });
+
+  test("picker shows hireable as a live card once the feature is on", async () => {
+    settings.setForTest(featureSetting("logistics"));
+    try {
+      const html = await pageAt("/admin/listing/new");
+
+      assertStringIncludes(html, PICKER_HEADING);
+      assertStringIncludes(
+        html,
+        'href="/admin/listing/new?template=hireable-item"',
+      );
+      // A live card, not the disabled placeholder.
+      assert(!html.includes(t("listings_table.template_requires_logistics")));
+    } finally {
+      settings.clearTestOverride("enabled_features");
+    }
+  });
+});
+
+describeWithEnv("the subscription card", { db: true }, () => {
+  const FORM_PATH = "/admin/listing/new?template=subscription";
+
+  /** The picker's subscription card: a live link, or disabled with the
+   *  sentence that says what to turn on. Never both. */
+  const subscriptionCard = async (): Promise<"live" | "disabled"> => {
+    const picker = await pageAt("/admin/listing/new");
+    const live = picker.includes(`href="${FORM_PATH}"`);
+    expect(
+      picker.includes(t("listings_table.template_requires_subscriptions")),
+    ).toBe(!live);
+    return live ? "live" : "disabled";
+  };
+
+  test("is disabled, and its form refused, while the feature is off", async () => {
+    await setupStripe();
+    expect(await subscriptionCard()).toBe("disabled");
+    expectPicker(await pageAt(FORM_PATH));
+  });
+
+  test("stays disabled with the feature on until Stripe takes payments", () =>
+    withSetting(featureSetting("subscriptions"), async () => {
+      expect(await subscriptionCard()).toBe("disabled");
+    }));
+
+  test("opens a monthly plan once the feature is on and Stripe is set up", async () => {
+    await setupStripe();
+    await withSetting(featureSetting("subscriptions"), async () => {
+      expect(await subscriptionCard()).toBe("live");
+      const form = await pageAt(FORM_PATH);
+      expect(carriedTemplate(form)).toBe("subscription");
+      assertStringIncludes(form, 'value="month" selected');
+    });
   });
 });
 
