@@ -32,7 +32,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         response,
         200,
         "To be deleted",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
   });
@@ -40,7 +40,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/delete", () => {
     testRequiresAuth("/admin/questions/1/delete", {
       body: {
-        confirm_identifier: "Auth delete",
+        confirmIdentifier: "Auth delete",
       },
       method: "POST",
       setup: async () => {
@@ -52,7 +52,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Confirm Delete");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,
-        { confirm_identifier: "Confirm Delete" },
+        { confirmIdentifier: "Confirm Delete" },
       );
       await expectFlashRedirect(
         "/admin/questions",
@@ -72,7 +72,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Line 1\nLine 2");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,
-        { confirm_identifier: "Line 1 / Line 2" },
+        { confirmIdentifier: "Line 1 / Line 2" },
       );
       await expectFlashRedirect(
         "/admin/questions",
@@ -86,7 +86,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Right Text");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,
-        { confirm_identifier: "Wrong Text" },
+        { confirmIdentifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
       // The mismatch prompt names the identifier's label ("Question text"), so
@@ -104,7 +104,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for non-existent question", async () => {
       const { response } = await adminFormPost("/admin/questions/999/delete", {
-        confirm_identifier: "Anything",
+        confirmIdentifier: "Anything",
       });
       expectStatus(404)(response);
     });
@@ -113,7 +113,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const id = await createQuestion("Case Test");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,
-        { confirm_identifier: "case test" },
+        { confirmIdentifier: "case test" },
       );
       await expectFlashRedirect(
         "/admin/questions",
@@ -121,7 +121,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       )(response);
     });
 
-    test("rejects deletion when confirm_identifier is missing", async () => {
+    test("rejects deletion when confirmIdentifier is missing", async () => {
       const id = await createQuestion("No Confirm");
       const { response } = await adminFormPost(
         `/admin/questions/${id}/delete`,

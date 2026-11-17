@@ -125,9 +125,9 @@ describe("payment provider registry", () => {
           ]),
         ),
       ).toEqual({
-        square: "square_access_token",
-        stripe: "stripe_secret_key",
-        sumup: "sumup_api_key",
+        square: "squareAccessToken",
+        stripe: "stripeSecretKey",
+        sumup: "sumupApiKey",
       });
     });
 

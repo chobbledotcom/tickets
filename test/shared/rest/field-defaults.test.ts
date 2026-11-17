@@ -13,10 +13,10 @@ describe("newRowDefaults", () => {
     expect(
       newRowDefaults([
         { default: "email", key: "fields", kind: "contactFields" },
-        { default: 4, key: "max_quantity", kind: "count" },
-        { default: 2, key: "duration_days", kind: "durationDays" },
-        { default: "standard", key: "listing_type", kind: "listingType" },
-        { default: 500, key: "unit_price", kind: "price" },
+        { default: 4, key: "maxQuantity", kind: "count" },
+        { default: 2, key: "durationDays", kind: "durationDays" },
+        { default: "standard", key: "listingType", kind: "listingType" },
+        { default: 500, key: "unitPrice", kind: "price" },
         { default: "month", key: "interval", kind: "recurringInterval" },
       ]),
     ).toEqual({
@@ -32,7 +32,7 @@ describe("newRowDefaults", () => {
   test("gives an empty text to a datetime and to a private text", () => {
     expect(
       newRowDefaults([
-        { key: "closes_at", kind: "datetime" },
+        { key: "closesAt", kind: "datetime" },
         { key: "notes", kind: "privateText" },
       ]),
     ).toEqual({ closesAt: "", notes: "" });
@@ -54,10 +54,7 @@ describe("newRowDefaults", () => {
       key: "days",
       kind: "weekdays",
     };
-    const values = newRowDefaults([
-      field,
-      { key: "no_days", kind: "weekdays" },
-    ]);
+    const values = newRowDefaults([field, { key: "noDays", kind: "weekdays" }]);
 
     expect(values).toEqual({ days: ["monday", "friday"] });
     expect(values.days).not.toBe(field.default);
@@ -66,10 +63,10 @@ describe("newRowDefaults", () => {
   test("leaves out each kind that a new row must give", () => {
     expect(
       newRowDefaults([
-        { default: "x", key: "start_date", kind: "date" },
-        { key: "day_prices", kind: "dayPrices" },
+        { default: "x", key: "startDate", kind: "date" },
+        { key: "dayPrices", kind: "dayPrices" },
         { key: "name", kind: "name" },
-        { key: "opens_at", kind: "optionalDatetime" },
+        { key: "opensAt", kind: "optionalDatetime" },
         { default: "x", key: "description", kind: "text" },
       ]),
     ).toEqual({});

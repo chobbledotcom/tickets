@@ -65,7 +65,7 @@ describe("bulk-email audiences and targets", () => {
       );
     }
     expect(targetComposeControl({ kind: "listing", listingId: 7 })).toEqual({
-      fields: [["listing_id", "7"]],
+      fields: [["listingId", "7"]],
       mode: "fixed",
     });
     expect(targetComposeControl({ kind: "attendee", token: "tok" })).toEqual({

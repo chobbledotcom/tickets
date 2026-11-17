@@ -40,7 +40,7 @@ describe("parseQuestionAnswers free-text handling", () => {
   };
 
   test("collects a trimmed free-text answer", () => {
-    const form = new URLSearchParams({ question_1: "  Front row  " });
+    const form = new URLSearchParams({ question1: "  Front row  " });
 
     const result = parseQuestionAnswers({ optional: false })(form, [
       freeText(1),
@@ -54,7 +54,7 @@ describe("parseQuestionAnswers free-text handling", () => {
   });
 
   test("rejects a blank required free-text answer", () => {
-    const form = new URLSearchParams({ question_1: "   " });
+    const form = new URLSearchParams({ question1: "   " });
 
     const result = parseQuestionAnswers({ optional: false })(form, [
       freeText(1, "Notes?"),
@@ -69,7 +69,7 @@ describe("parseQuestionAnswers free-text handling", () => {
 
   test("rejects an over-length required free-text answer", () => {
     const form = new URLSearchParams({
-      question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+      question1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
     });
 
     const result = parseQuestionAnswers({ optional: false })(form, [
@@ -82,7 +82,7 @@ describe("parseQuestionAnswers free-text handling", () => {
   test("rejects a supplied over-length optional free-text answer", () => {
     const result = parseQuestionAnswers({ optional: true })(
       new URLSearchParams({
-        question_1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        question1: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
       }),
       [freeText(1, "Notes?")],
     );
@@ -92,8 +92,8 @@ describe("parseQuestionAnswers free-text handling", () => {
 
   test("parses choice and free-text questions side by side", () => {
     const form = new URLSearchParams({
-      question_1: "10",
-      question_2: "Window seat",
+      question1: "10",
+      question2: "Window seat",
     });
 
     const result = parseQuestionAnswers({ optional: false })(form, [
@@ -144,7 +144,7 @@ describe("parseQuestionAnswers deactivated answers", () => {
   });
 
   test("rejects a deactivated answer on the public path", () => {
-    const form = new URLSearchParams({ question_1: "11" });
+    const form = new URLSearchParams({ question1: "11" });
     const result = parseQuestionAnswers({ optional: false })(form, [
       withInactive(1),
     ]);
@@ -155,7 +155,7 @@ describe("parseQuestionAnswers deactivated answers", () => {
   });
 
   test("keeps a deactivated answer the attendee already chose on admin edit", () => {
-    const form = new URLSearchParams({ question_1: "11" });
+    const form = new URLSearchParams({ question1: "11" });
     const result = parseQuestionAnswers({ optional: true })(form, [
       withInactive(1),
     ]);
@@ -176,7 +176,7 @@ describe("parseQuestionAnswers malformed input", () => {
   // submission could match answer id 10 by accident. The parser now uses
   // `parsePositiveIntId`, which rejects any non-digit string before coercing.
   test("rejects a numeric-prefixed value instead of matching the prefix", () => {
-    const form = new URLSearchParams({ question_1: "10xyz" });
+    const form = new URLSearchParams({ question1: "10xyz" });
     const result = parseQuestionAnswers({ optional: false })(form, [radio(1)]);
     expect(result).toEqual({
       error: "Invalid answer for: Question 1",
@@ -185,7 +185,7 @@ describe("parseQuestionAnswers malformed input", () => {
   });
 
   test("rejects a non-numeric value", () => {
-    const form = new URLSearchParams({ question_1: "abc" });
+    const form = new URLSearchParams({ question1: "abc" });
     const result = parseQuestionAnswers({ optional: false })(form, [radio(1)]);
     expect(result).toEqual({
       error: "Invalid answer for: Question 1",

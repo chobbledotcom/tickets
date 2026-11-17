@@ -347,46 +347,46 @@ describe("validateForm", () => {
 
   describe("datetime type", () => {
     const datetimeField: Field[] = [
-      field({ label: "Closes At", name: "closes_at", type: "datetime" }),
+      field({ label: "Closes At", name: "closesAt", type: "datetime" }),
     ];
 
     test("combines date and time parts into a datetime string", () => {
       const result = validateForm(
         new FormParams({
-          closes_at_date: "2099-06-15",
-          closes_at_time: "14:30",
+          closesAtDate: "2099-06-15",
+          closesAtTime: "14:30",
         }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.values.closes_at).toBe("2099-06-15T14:30");
+        expect(result.values.closesAt).toBe("2099-06-15T14:30");
       }
     });
 
     test("returns an empty string when both date and time are empty", () => {
       const result = validateForm(
-        new FormParams({ closes_at_date: "", closes_at_time: "" }),
+        new FormParams({ closesAtDate: "", closesAtTime: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
-      if (result.valid) expect(result.values.closes_at).toBe("");
+      if (result.valid) expect(result.values.closesAt).toBe("");
     });
 
     test("defaults time to 00:00 when only date is provided", () => {
       const result = validateForm(
-        new FormParams({ closes_at_date: "2099-06-15", closes_at_time: "" }),
+        new FormParams({ closesAtDate: "2099-06-15", closesAtTime: "" }),
         datetimeField,
       );
       expect(result.valid).toBe(true);
       if (result.valid) {
-        expect(result.values.closes_at).toBe("2099-06-15T00:00");
+        expect(result.values.closesAt).toBe("2099-06-15T00:00");
       }
     });
 
     test("rejects time without date", () => {
       const result = validateForm(
-        new FormParams({ closes_at_date: "", closes_at_time: "14:30" }),
+        new FormParams({ closesAtDate: "", closesAtTime: "14:30" }),
         datetimeField,
       );
       expect(result.valid).toBe(false);
@@ -401,13 +401,13 @@ describe("validateForm", () => {
       const fields: Field[] = [
         field({
           label: "Closes At",
-          name: "closes_at",
+          name: "closesAt",
           required: true,
           type: "datetime",
         }),
       ];
       const result = validateForm(
-        new FormParams({ closes_at_date: "", closes_at_time: "" }),
+        new FormParams({ closesAtDate: "", closesAtTime: "" }),
         fields,
       );
       expect(result.valid).toBe(false);

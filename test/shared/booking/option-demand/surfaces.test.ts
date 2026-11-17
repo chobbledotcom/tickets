@@ -219,7 +219,7 @@ const submitAtSpan = async (
   }));
   const resolved = await resolveDayCount(
     chosen,
-    new FormParams([["day_count", String(dayCount)]]),
+    new FormParams([["dayCount", String(dayCount)]]),
     built.date,
   );
   if ("error" in resolved) return false;
@@ -293,7 +293,7 @@ describeWithEnv(
             }));
             const resolved = await resolveDayCount(
               chosen,
-              new FormParams([["day_count", "1"]]),
+              new FormParams([["dayCount", "1"]]),
               built.date,
             );
             expect("error" in resolved, testCase.name).toBe(true);

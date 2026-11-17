@@ -140,16 +140,16 @@ describeWithEnv(
       const body = await renderAdminPage(`/admin/servicing/${holdId}`);
       expectIncludesAll(body, ["Boiler Room", "(inactive)"]);
       expect(body).toMatch(
-        new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
+        new RegExp(`name="quantity${listing.id}"[^>]*value="2"`),
       );
 
       // Saving the form (preserving the held quantity) must keep the hold — it
       // is not silently dropped because the listing is inactive.
       const { response } = await adminFormPost(`/admin/servicing/${holdId}`, {
-        [`quantity_${listing.id}`]: "2",
-        day_count: "1",
+        [`quantity${listing.id}`]: "2",
+        dayCount: "1",
         name: "Boiler Service",
-        start_date: "2099-07-01",
+        startDate: "2099-07-01",
       });
       expect(response.status).toBe(302);
       const after = await getServicingEvent(holdId);

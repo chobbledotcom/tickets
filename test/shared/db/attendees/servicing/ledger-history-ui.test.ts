@@ -34,7 +34,7 @@ describeWithEnv("servicing §22 - cost history and pages", { db: true }, () => {
     const { response } = await adminFormPost(`/admin/servicing/${id}`, {
       amount: "90.00",
       memo: "Boiler part",
-      target_listing_id: String(listing.id),
+      targetListingId: String(listing.id),
     });
     assertStringIncludes(
       response.headers.get("location") ?? "",

@@ -120,7 +120,7 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("a zero-quantity parent ignores its child fields entirely", () => {
-    const fold = foldOneChild({ maxQuantity: 9 }, { child_qty_1_9: "5" }, 0);
+    const fold = foldOneChild({ maxQuantity: 9 }, { childQty1_9: "5" }, 0);
     expect(fold.ok).toBe(true);
     if (!fold.ok) return;
     expect(fold.allocations).toEqual([]);
@@ -128,7 +128,7 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("a parent absent from the submitted quantities does not fold children", () => {
-    const fold = foldOneChild({ maxQuantity: 9 }, { child_qty_1_9: "1" }, 1, {
+    const fold = foldOneChild({ maxQuantity: 9 }, { childQty1_9: "1" }, 1, {
       quantities: new Map(),
     });
     expectFoldOk(fold);
@@ -137,7 +137,7 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("folds a posted child quantity into one allocation and an ordinary line", () => {
-    const fold = foldOneChild({ maxQuantity: 9 }, { child_qty_1_9: "2" }, 2);
+    const fold = foldOneChild({ maxQuantity: 9 }, { childQty1_9: "2" }, 2);
     expect(fold.ok).toBe(true);
     if (!fold.ok) return;
     expect(fold.allocations).toEqual([{ childId: 9, parentId: 1, qty: 2 }]);
@@ -157,7 +157,7 @@ describe("foldBookingTree — walking the tree", () => {
         slugs: ["pkg3s", "p1"],
         standaloneListingIds: new Set([1]),
       },
-      formFrom({ child_qty_1_9: "3" }),
+      formFrom({ childQty1_9: "3" }),
       baseOrder(new Map([[1, 3]])),
     );
     expectFoldOk(fold);
@@ -186,7 +186,7 @@ describe("foldBookingTree — walking the tree", () => {
     };
     const fold = foldOf(
       input,
-      formFrom({ child_qty_1_9: "1", child_qty_2_9: "1" }),
+      formFrom({ childQty1_9: "1", childQty2_9: "1" }),
       baseOrder(
         new Map([
           [1, 1],
@@ -222,7 +222,7 @@ describe("foldBookingTree — walking the tree", () => {
     expectFoldError(
       foldOneChild(
         { maxQuantity: 9 },
-        { child_qty_1_8: "1", child_qty_1_9: "1" },
+        { childQty1_8: "1", childQty1_9: "1" },
         1,
       ),
       t("public.ticket.child_required", { name: "Test Listing" }),
@@ -232,7 +232,7 @@ describe("foldBookingTree — walking the tree", () => {
   test("ignores a child key that names no child id", () => {
     const fold = foldOneChild(
       { maxQuantity: 9 },
-      { child_qty_1_9: "1", child_qty_1_abc: "1" },
+      { childQty1_9: "1", childQty1_abc: "1" },
       1,
     );
     expectFoldOk(fold);
@@ -242,7 +242,7 @@ describe("foldBookingTree — walking the tree", () => {
   test("propagates a folded customisable child's shared duration", () => {
     const fold = foldOneChild(
       { customisableDays: true, dayPrices: { 1: 500 }, maxQuantity: 9 },
-      { child_qty_1_9: "1" },
+      { childQty1_9: "1" },
       1,
       { dayCount: 1, hasCustomisable: false },
     );
@@ -253,7 +253,7 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("keeps the page's own customisable flag when no child is customisable", () => {
-    const fold = foldOneChild({ maxQuantity: 9 }, { child_qty_1_9: "1" }, 1, {
+    const fold = foldOneChild({ maxQuantity: 9 }, { childQty1_9: "1" }, 1, {
       dayCount: 2,
       hasCustomisable: true,
     });
@@ -266,7 +266,7 @@ describe("foldBookingTree — walking the tree", () => {
   test("records a chosen pay-more child price", () => {
     const fold = foldOneChild(
       PAY_MORE_CHILD,
-      { child_price_1_9: "20", child_qty_1_9: "1" },
+      { childPrice1_9: "20", childQty1_9: "1" },
       1,
     );
     expect(fold.ok).toBe(true);
@@ -277,7 +277,7 @@ describe("foldBookingTree — walking the tree", () => {
   test("names the package in an invalid pay-more child price", () => {
     const fold = foldOneChild(
       PAY_MORE_CHILD,
-      { child_price_1_9: "5", child_qty_1_9: "1" },
+      { childPrice1_9: "5", childQty1_9: "1" },
       1,
       { nameFor: () => "Mystery Box" },
     );
@@ -288,7 +288,7 @@ describe("foldBookingTree — walking the tree", () => {
   });
 
   test("rejects a child folded above its own max-purchasable", () => {
-    const fold = foldOneChild({}, { child_qty_1_9: "2" }, 2, {
+    const fold = foldOneChild({}, { childQty1_9: "2" }, 2, {
       nameFor: () => "Mystery Box",
     });
     expect(fold).toEqual({
@@ -300,7 +300,7 @@ describe("foldBookingTree — walking the tree", () => {
   test("an empty stand-in name still hides the child's real name", () => {
     // "" is a stand-in the page can hand over; it must not fall back to the
     // real listing name.
-    const fold = foldOneChild({}, { child_qty_1_9: "2" }, 2, {
+    const fold = foldOneChild({}, { childQty1_9: "2" }, 2, {
       nameFor: () => "",
     });
     expect(fold).toEqual({
@@ -346,7 +346,7 @@ describe("resolveChildSelections — error counts", () => {
       parent,
       [tl(1, { maxQuantity: 9 }), tl(2, { maxQuantity: 9 })],
       3,
-      formFrom({ child_qty_100_1: "1" }),
+      formFrom({ childQty100_1: "1" }),
     );
     expect(result).toEqual({
       error: t("public.ticket.child_too_few", { count: 2, name: "P" }),
@@ -358,7 +358,7 @@ describe("resolveChildSelections — error counts", () => {
       parent,
       [tl(1, { maxQuantity: 9 })],
       1,
-      formFrom({ child_qty_100_1: "3" }),
+      formFrom({ childQty100_1: "3" }),
     );
     expect(result).toEqual({
       error: t("public.ticket.child_too_many", { count: 2, name: "P" }),
@@ -370,7 +370,7 @@ describe("resolveChildSelections — error counts", () => {
       parent,
       [tl(1), tl(2)],
       2,
-      formFrom({ child_qty_100_1: "2", child_qty_100_2: "2.9" }),
+      formFrom({ childQty100_1: "2", childQty100_2: "2.9" }),
     );
     if (!Array.isArray(result)) throw new Error("Expected child selections");
     expect(result.map(({ child, qty }) => [child.listing.id, qty])).toEqual([

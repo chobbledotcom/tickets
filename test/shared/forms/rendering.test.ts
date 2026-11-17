@@ -217,15 +217,15 @@ describe("renderField", () => {
       {
         "renders a date without adding a time value": [
           "2099-06-15",
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closesTime" placeholder="Time" aria-label="Time"></label>',
         ],
         "renders empty date and time inputs": [
           "",
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date"><input type="time" name="closes_time" placeholder="Time" aria-label="Time"></label>',
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date"><input type="time" name="closesTime" placeholder="Time" aria-label="Time"></label>',
         ],
         "renders separate date and time values": [
           "2099-06-15T14:30",
-          '<label>Closes<input type="date" name="closes_date" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closes_time" placeholder="Time" aria-label="Time" value="14:30"></label>',
+          '<label>Closes<input type="date" name="closesDate" placeholder="Date" aria-label="Date" value="2099-06-15"><input type="time" name="closesTime" placeholder="Time" aria-label="Time" value="14:30"></label>',
         ],
       },
       (value, expected) => {

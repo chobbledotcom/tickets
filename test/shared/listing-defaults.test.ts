@@ -202,10 +202,8 @@ describe("shared > listing-defaults > i18n + input-name builders", () => {
     (f) => f.field === "usesLogistics",
   ) as (typeof LISTING_DEFAULT_FIELDS)[number];
 
-  test("builds the form input name from the column", () => {
-    expect(listingDefaultInputName(usesLogistics)).toBe(
-      "default_uses_logistics",
-    );
+  test("builds the form input name from the field", () => {
+    expect(listingDefaultInputName(usesLogistics)).toBe("defaultUsesLogistics");
   });
 
   test("builds the label key from the column", () => {
@@ -349,7 +347,7 @@ describe("shared > listing-defaults > resolveListingDate", () => {
 describe("showUseDefaultsToggle", () => {
   test("the toggle shows once a default exists, unless the writer cannot set it", () => {
     const defaults: ListingDefaults = { hidden: true };
-    const locked = new Map([["use_defaults", "editor"]] as const);
+    const locked = new Map([["useDefaults", "editor"]] as const);
     expect([
       showUseDefaultsToggle(new Map(), defaults),
       showUseDefaultsToggle(new Map(), {}),

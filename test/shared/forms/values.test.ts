@@ -85,23 +85,23 @@ describe("entityToFieldValues", () => {
     });
   });
 
-  test("a form box with a multi-word name reads the camelCase field of the row", () => {
+  test("a form box with a multi-word name reads the row field of the same name", () => {
     const listing = testListing({
       maxAttendees: 40,
       thankYouUrl: "https://example.com/done",
     });
     const boxes = [
-      field({ label: "Max attendees", name: "max_attendees" }),
-      field({ label: "Thank you URL", name: "thank_you_url" }),
+      field({ label: "Max attendees", name: "maxAttendees" }),
+      field({ label: "Thank you URL", name: "thankYouUrl" }),
     ];
     expect(entityToFieldValues(listing, boxes, {})).toEqual({
-      max_attendees: "40",
-      thank_you_url: "https://example.com/done",
+      maxAttendees: "40",
+      thankYouUrl: "https://example.com/done",
     });
     expect(
       entityToFieldValues(listing, boxes, {
         maxAttendees: (row) => row.maxAttendees * 2,
-      }).max_attendees,
+      }).maxAttendees,
     ).toBe(80);
   });
 });

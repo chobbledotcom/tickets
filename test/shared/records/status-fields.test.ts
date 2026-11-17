@@ -7,11 +7,11 @@ describe("the attendee status fields", () => {
   test("hold the three switches, the name, and the reservation amount", () => {
     expect(STATUS_FIELDS).toEqual(
       fieldSpecList({
-        is_paid_default: "switch",
-        is_public_default: "switch",
-        is_reservation: "switch",
+        isPaidDefault: "switch",
+        isPublicDefault: "switch",
+        isReservation: "switch",
         name: "name",
-        reservation_amount: "text",
+        reservationAmount: "text",
       }),
     );
   });

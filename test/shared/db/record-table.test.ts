@@ -181,7 +181,7 @@ describe("db > record table > values from an input", () => {
     expect(
       newRecordOf(tables.holidays, [
         { default: "Default name", key: "name", kind: "price" },
-        { default: 3, key: "end_date", kind: "count" },
+        { default: 3, key: "endDate", kind: "count" },
       ])({ name: "Given" }),
     ).toEqual({ endDate: 3, name: "Given" });
   });

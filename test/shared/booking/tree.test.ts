@@ -62,20 +62,20 @@ describe("booking tree — node identity (nodeKey scheme)", () => {
 
 describe("booking tree — form field-name SSOT", () => {
   test("matches the exact names render emits and submit parses", () => {
-    expect(quantityFieldName(4)).toBe("quantity_4");
-    expect(customPriceFieldName(4)).toBe("custom_price_4");
-    expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
-    expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
+    expect(quantityFieldName(4)).toBe("quantity4");
+    expect(customPriceFieldName(4)).toBe("customPrice4");
+    expect(childQuantityFieldName(2, 9)).toBe("childQty2_9");
+    expect(childPriceFieldName(2, 9)).toBe("childPrice2_9");
     // Per group, so a page selling several bundles posts one count each.
-    expect(packageQuantityFieldName(3)).toBe("package_quantity_3");
+    expect(packageQuantityFieldName(3)).toBe("packageQuantity3");
     expect(packageQuantityFieldName(8)).not.toBe(packageQuantityFieldName(3));
   });
 
   test("child field names embed both the parent and child id", () => {
     // The parent id precedes the child id, so a child under two parents differs.
-    expect(childQuantityFieldName(2, 9)).toBe("child_qty_2_9");
+    expect(childQuantityFieldName(2, 9)).toBe("childQty2_9");
     expect(childQuantityFieldName(3, 9)).not.toBe(childQuantityFieldName(2, 9));
-    expect(childPriceFieldName(2, 9)).toBe("child_price_2_9");
+    expect(childPriceFieldName(2, 9)).toBe("childPrice2_9");
     expect(childPriceFieldName(3, 9)).not.toBe(childPriceFieldName(2, 9));
   });
 });
@@ -84,22 +84,22 @@ describe("booking tree — form field-name SSOT", () => {
 const qtyField = (node: BookingNode) => nodeQuantityFieldName(node);
 
 describe("booking tree — nodeKey → field-name projection", () => {
-  test("standalone / regular-group / parent nodes post quantity_<id>", () => {
+  test("standalone / regular-group / parent nodes post quantity<id>", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 4, slug: "ab12c" })],
       slugs: ["ab12c"],
     });
-    expect(qtyField(tree.nodes[0]!)).toBe("quantity_4");
+    expect(qtyField(tree.nodes[0]!)).toBe("quantity4");
   });
 
-  test("a required child posts child_qty_<parentId>_<childId>", () => {
+  test("a required child posts childQty<parentId>_<childId>", () => {
     const tree = buildBookingTree({
       childrenByParentId: new Map([[4, [resolved({ id: 9, slug: "chld1" })]]]),
       listings: [resolved({ id: 4, slug: "ab12c" })],
       slugs: ["ab12c"],
     });
     const child = tree.nodes[0]!.children[0]!;
-    expect(qtyField(child)).toBe("child_qty_4_9");
+    expect(qtyField(child)).toBe("childQty4_9");
   });
 
   test("a package member has no per-member quantity field (uses its package's count)", () => {
@@ -111,13 +111,13 @@ describe("booking tree — nodeKey → field-name projection", () => {
     expect(qtyField(tree.nodes[0]!)).toBeNull();
   });
 
-  test("a regular (non-package) group member DOES post quantity_<id>", () => {
+  test("a regular (non-package) group member DOES post quantity<id>", () => {
     const tree = buildBookingTree({
       listings: [resolved({ id: 7, slug: "ab12c" })],
       root: { groupId: 3, kind: "group" },
       slugs: ["ab12c"],
     });
-    expect(qtyField(tree.nodes[0]!)).toBe("quantity_7");
+    expect(qtyField(tree.nodes[0]!)).toBe("quantity7");
   });
 
   test("pay-more price field mirrors the node's edge", () => {
@@ -125,7 +125,7 @@ describe("booking tree — nodeKey → field-name projection", () => {
       listings: [resolved({ canPayMore: true, id: 4, maxPrice: 5000 })],
       slugs: ["ab12c"],
     });
-    expect(nodePriceFieldName(standalone.nodes[0]!)).toBe("custom_price_4");
+    expect(nodePriceFieldName(standalone.nodes[0]!)).toBe("customPrice4");
 
     const withChild = buildBookingTree({
       childrenByParentId: new Map([
@@ -135,7 +135,7 @@ describe("booking tree — nodeKey → field-name projection", () => {
       slugs: ["ab12c"],
     });
     expect(nodePriceFieldName(withChild.nodes[0]!.children[0]!)).toBe(
-      "child_price_4_9",
+      "childPrice4_9",
     );
   });
 
