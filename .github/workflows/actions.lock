@@ -37,6 +37,11 @@ workflows:
         - 'actions/checkout@v4.4.0'
         - 'cachix/cachix-action@v16'
         - 'cachix/install-nix-action@v31.11.1'
+    '.github/workflows/model-checks.yml':
+        - 'actions/cache@v4.3.0'
+        - 'actions/checkout@v4.4.0'
+        - 'cachix/cachix-action@v16'
+        - 'cachix/install-nix-action@v31.11.1'
     '.github/workflows/mutation.yml':
         - 'actions/cache@v4.3.0'
         - 'actions/checkout@v4.4.0'

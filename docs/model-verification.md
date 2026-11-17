@@ -206,6 +206,9 @@ The checker gives one verdict for one input, so a check with a record does not r
 The runner removes a record that no run used for 30 days.
 The runner still plans both proof obligations and every declared negative control.
 
+The `Model checks` workflow runs the same task without a pass cache each night.
+It finds a change to the checker environment or the machine.
+
 If a check fails, the runner stops new work and awaits the active processes.
 It propagates the failure and retains the input and checker artifacts.
 A successful run removes its temporary directories.
