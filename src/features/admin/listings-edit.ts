@@ -18,7 +18,6 @@ import {
   getStoredListingWithCount,
   requireListingWithCount,
 } from "#db/listings/records.ts";
-import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import {
   type AuthSession,
@@ -31,7 +30,9 @@ import { createIdEntityHandler } from "#routes/entity.ts";
 import { htmlResponse } from "#routes/response.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
+import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   dimensionsOf,
   inferTemplate,
@@ -92,18 +93,17 @@ export const handleNewListingGet: TypedRouteHandler<
     });
   });
 
-/** Look up the operator's chosen listing template. A template that needs
- * logistics while the feature is off is unavailable, so the picker page is
- * given back instead. The create GET gate and the create POST backstop (a
- * form opened while logistics was enabled, or a crafted POST) share this
- * guard. */
+/** Look up the operator's chosen listing template. A template whose feature
+ * is off is unavailable, so the picker page is given back instead. The create
+ * GET gate and the create POST backstop (a form opened while the feature was
+ * on, or a crafted POST) share this guard. */
 const chosenTemplateOrPicker = (
   templateId: string | null,
   session: AdminSession,
 ): { template: ListingTemplate | null } | { picker: Response } => {
   const template =
     LISTING_TEMPLATES.find((candidate) => candidate.id === templateId) ?? null;
-  return template?.requiresLogistics && !settings.features.logistics
+  return template && unmetRequirementOrNull(template) !== null
     ? { picker: htmlResponse(adminListingPickerPage(session)) }
     : { template };
 };
@@ -126,6 +126,7 @@ const formToDimensionSource = (form: FormParams) => ({
     ? (form.getString("listing_type") as "standard" | "daily")
     : ("standard" as const),
   purchase_only: form.getFlag("purchase_only"),
+  recurring_price: toMinorUnits(Number(form.getString("recurring_price"))),
   uses_logistics: form.getFlag("uses_logistics"),
 });
 
@@ -207,7 +208,7 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
   contentMultipartRoute(async (session, formData) => {
     const form = parseListingForm(formData);
 
-    // Mirror the GET gate: reject logistics templates when the feature is off.
+    // Mirror the GET gate: reject a template whose feature is off.
     const chosenTemplateId = form.getString("template_id") || null;
     const gate = chosenTemplateOrPicker(chosenTemplateId, session);
     if ("picker" in gate) return gate.picker;

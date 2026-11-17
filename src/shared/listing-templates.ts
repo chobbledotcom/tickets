@@ -1,11 +1,12 @@
 /**
- * A listing's "type" is inferred from four stored dimensions, with no DB column
+ * A listing's "type" is inferred from five stored dimensions, with no DB column
  * of its own:
  *
  *   daily        listing_type === "daily"
  *   dated        date field non-empty
  *   purchaseable purchase_only (the "No check-in" flag)
  *   logistics    uses_logistics
+ *   subscribed   recurring_price > 0
  *
  * A listing that matches no named template is "Custom": full form, no fields
  * hidden.
@@ -14,26 +15,34 @@
 import type { Listing } from "#types";
 
 export type TemplateId =
+  | "day-pass"
+  | "donation"
   | "hireable-item"
   | "online-digital"
   | "one-off-event"
   | "physical-product"
+  | "subscription"
   | "weekly-event";
+
+/** A site feature that a template needs before the picker offers it. */
+export type TemplateRequirement = "logistics" | "subscriptions";
 
 export type Dimensions = {
   daily: boolean;
   dated: boolean;
   logistics: boolean;
   purchaseable: boolean;
+  subscribed: boolean;
 };
 
+/** Undefined means "don't care". */
 export type TemplateSignature = {
-  /** Undefined means "don't care" — logistics templates ignore daily. */
   daily?: boolean;
-  /** Undefined means "don't care" — only checked when daily is pinned false. */
+  /** Only checked when daily is pinned false. */
   dated?: boolean;
-  logistics: boolean;
-  purchaseable: boolean;
+  logistics?: boolean;
+  purchaseable?: boolean;
+  subscribed: boolean;
 };
 
 export type ListingTemplate = {
@@ -43,7 +52,7 @@ export type ListingTemplate = {
   /** i18n key for the picker card title. */
   label: string;
   requiresDate: boolean;
-  requiresLogistics: boolean;
+  requires: TemplateRequirement | null;
   signature: TemplateSignature;
 };
 
@@ -53,7 +62,7 @@ export type ListingTemplate = {
  *  test/shared/listing-templates.test.ts. */
 const listingTemplate = (
   id: TemplateId,
-  flags: { requiresDate: boolean; requiresLogistics: boolean },
+  flags: { requiresDate: boolean; requires: TemplateRequirement | null },
   signature: TemplateSignature,
 ): ListingTemplate => {
   const label = `listings_table.template_${id.replaceAll("-", "_")}`;
@@ -61,64 +70,81 @@ const listingTemplate = (
     description: `${label}_description`,
     id,
     label,
+    requires: flags.requires,
     requiresDate: flags.requiresDate,
-    requiresLogistics: flags.requiresLogistics,
     signature,
   };
 };
 
-/** The flags three of the five entries share: no date, no logistics. */
-const NOT_DATED = { requiresDate: false, requiresLogistics: false };
+/** No date, and no site feature needed. */
+const NOT_DATED = { requires: null, requiresDate: false };
 
-/** The signature both product templates share: buy it, nothing to check in,
- *  nothing dated. */
+/** Booked on a day the buyer picks, and checked in. */
+const DAILY = {
+  daily: true,
+  logistics: false,
+  purchaseable: false,
+  subscribed: false,
+};
+
+/** Bought, with nothing to check in and nothing dated. */
 const PURCHASABLE = {
   daily: false,
   dated: false,
   logistics: false,
   purchaseable: true,
+  subscribed: false,
 };
 
-/** The picker's listing templates. physical-product shares online-digital's
- *  dimensions (PURCHASABLE). The model has no physical/digital dimension:
- *  both are purchase-only with no date. Inference therefore keeps preferring
- *  online-digital (first match) and the 16-combo inference table is
- *  unchanged. Only the picker card, its copy, and the create form's seed
- *  differ.
+/** The picker's listing templates. Some pairs share one signature, because
+ *  the model has no dimension that tells them apart: weekly-event and
+ *  day-pass, and online-digital, physical-product and donation. Only the
+ *  picker card, its copy, and the create form's seed differ.
  *
  *  Entry ORDER pins inference precedence. matchesSignature returns the first
- *  match, so a template whose signature is a superset must come later. */
+ *  match, so the template that a shared signature infers comes first. The
+ *  picker sets its own card order. */
 export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
   listingTemplate(
     "one-off-event",
-    { requiresDate: true, requiresLogistics: false },
-    { daily: false, dated: true, logistics: false, purchaseable: false },
+    { requires: null, requiresDate: true },
+    {
+      daily: false,
+      dated: true,
+      logistics: false,
+      purchaseable: false,
+      subscribed: false,
+    },
   ),
-  listingTemplate("weekly-event", NOT_DATED, {
-    daily: true,
-    logistics: false,
-    purchaseable: false,
-  }),
+  listingTemplate("weekly-event", NOT_DATED, DAILY),
+  listingTemplate("day-pass", NOT_DATED, DAILY),
   listingTemplate("online-digital", NOT_DATED, PURCHASABLE),
   listingTemplate(
     "hireable-item",
-    { requiresDate: false, requiresLogistics: true },
+    { requires: "logistics", requiresDate: false },
     // daily and dated are both omitted: a hireable item may be daily or
     // standard and any dated state, so listing_type stays visible on the
     // form.
-    { logistics: true, purchaseable: true },
+    { logistics: true, purchaseable: true, subscribed: false },
   ),
-  // physical-product comes last for inference, not prominence. Its
-  // signature is identical to online-digital's, and matchesSignature
-  // returns the first match. Online-digital must win the shared combo so
-  // the 16-combo inference table stays as pinned. The picker shows
-  // physical-product first via its own card order.
   listingTemplate("physical-product", NOT_DATED, PURCHASABLE),
+  listingTemplate("donation", NOT_DATED, PURCHASABLE),
+  listingTemplate(
+    "subscription",
+    { requires: "subscriptions", requiresDate: false },
+    // A subscription can also be posted, or need no check-in, so only the
+    // undated standard shape is pinned.
+    { daily: false, dated: false, subscribed: true },
+  ),
 ];
 
 export type DimensionSource = Pick<
   Listing,
-  "date" | "listing_type" | "purchase_only" | "uses_logistics"
+  | "date"
+  | "listing_type"
+  | "purchase_only"
+  | "recurring_price"
+  | "uses_logistics"
 >;
 
 export const dimensionsOf = (source: DimensionSource): Dimensions => ({
@@ -126,25 +152,23 @@ export const dimensionsOf = (source: DimensionSource): Dimensions => ({
   dated: source.date !== "",
   logistics: source.uses_logistics,
   purchaseable: source.purchase_only,
+  subscribed: source.recurring_price > 0,
 });
+
+/** True when the signature pins this dimension to the other value. */
+const pinnedOther = (pinned: boolean | undefined, actual: boolean): boolean =>
+  pinned !== undefined && pinned !== actual;
 
 const matchesSignature = (
   signature: TemplateSignature,
   dims: Dimensions,
-): boolean => {
-  if (signature.daily !== undefined && signature.daily !== dims.daily)
-    return false;
+): boolean =>
+  !pinnedOther(signature.daily, dims.daily) &&
   // dated is only meaningful when daily is explicitly pinned to false.
-  if (
-    signature.daily === false &&
-    signature.dated !== undefined &&
-    signature.dated !== dims.dated
-  )
-    return false;
-  if (signature.purchaseable !== dims.purchaseable) return false;
-  if (signature.logistics !== dims.logistics) return false;
-  return true;
-};
+  !(signature.daily === false && pinnedOther(signature.dated, dims.dated)) &&
+  !pinnedOther(signature.purchaseable, dims.purchaseable) &&
+  !pinnedOther(signature.logistics, dims.logistics) &&
+  signature.subscribed === dims.subscribed;
 
 export const inferTemplate = (
   source: DimensionSource,
