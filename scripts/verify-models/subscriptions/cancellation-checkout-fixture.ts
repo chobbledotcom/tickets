@@ -290,11 +290,13 @@ export const checkoutReadback = async (
   const legs = await queryAll<{ amount: number; kind: string }>(
     sql`SELECT amount, kind FROM transfers`,
   );
-  const callback = await queryOne<ProcessedPayment>(
-    sql`SELECT * FROM processed_payments WHERE payment_session_id = ${CHECKOUT_SESSION}`,
+  const callback = await queryOne<{
+    failureData: ProcessedPayment["failureData"];
+  }>(
+    sql`SELECT failure_data AS failureData FROM processed_payments WHERE payment_session_id = ${CHECKOUT_SESSION}`,
   );
   const failure =
-    callback === null ? null : await parseSessionFailure(callback.failure_data);
+    callback === null ? null : await parseSessionFailure(callback.failureData);
   const refund = cancellationLedgerSummary(legs, "refund_cash");
   return {
     after: plan?.subscription_status ?? "absent",

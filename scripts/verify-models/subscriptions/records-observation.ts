@@ -23,14 +23,14 @@ export type RecordStageOutcome = {
 };
 type StoredBooking = {
   id: number;
-  attendee_id: number;
-  listing_id: number;
+  attendeeId: number;
+  listingId: number;
   quantity: number;
-  subscription_id: string;
-  recurring_price: number;
-  recurring_tax: number;
-  recurring_interval: string;
-  subscription_status: string;
+  subscriptionId: string;
+  recurringPrice: number;
+  recurringTax: number;
+  recurringInterval: string;
+  subscriptionStatus: string;
 };
 type RecordBefore = {
   protectedAttendee: number;
@@ -145,7 +145,7 @@ const protectedRow = (
   attendee: number,
 ) => {
   const row = rows.find(
-    (item) => item.listing_id === 11 && item.attendee_id === attendee,
+    (item) => item.listingId === 11 && item.attendeeId === attendee,
   );
   if (row === undefined) return;
   const { dropped, expectedAccepted } = admission(input);
@@ -170,10 +170,10 @@ const observedPlan = (row: StoredBooking | undefined) => {
   return {
     ...recordPlanObservation(row),
     afterQuantity: row.quantity,
-    afterStatus: row.subscription_status,
-    attendee: row.attendee_id,
+    afterStatus: row.subscriptionStatus,
+    attendee: row.attendeeId,
     booking: row.id,
-    listing: row.listing_id,
+    listing: row.listingId,
     present: true,
   };
 };
@@ -197,7 +197,12 @@ export const readRecordOutcome = async (
   stage: RecordStageOutcome,
 ): Promise<RecordFacts["operations"][number]> => {
   const rows = await queryAll<StoredBooking>(
-    sql`SELECT * FROM listing_attendees ORDER BY id`,
+    sql`SELECT id, attendee_id AS attendeeId, listing_id AS listingId,
+               quantity, subscription_id AS subscriptionId,
+               recurring_price AS recurringPrice, recurring_tax AS recurringTax,
+               recurring_interval AS recurringInterval,
+               subscription_status AS subscriptionStatus
+          FROM listing_attendees ORDER BY id`,
   );
   const expected = expectedShape(input, before.protectedAttendee);
   const observed = protectedRow(rows, input, expected.expectedAttendee);

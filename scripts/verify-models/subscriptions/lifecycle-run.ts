@@ -202,7 +202,7 @@ const observeCase: CaseStep<Move> = async (worlds, sample, row) => {
     reply: sample.reply,
     scenario: lifecycleScenario(sample),
     stored: sample.stored,
-    storedAfter: stored.subscription_status,
+    storedAfter: stored.subscriptionStatus,
   };
 };
 

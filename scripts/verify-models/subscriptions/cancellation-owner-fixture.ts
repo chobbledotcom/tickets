@@ -240,7 +240,7 @@ export const invokeOwnerCancellation = async (
   const wrongCommand =
     fault === "wrong-cancellation-identity" &&
     sample.scenario === "owner-final";
-  const command = wrongCommand ? { ...row, subscription_id: "sub_wrong" } : row;
+  const command = wrongCommand ? { ...row, subscriptionId: "sub_wrong" } : row;
   const result = await outcomeOf<OwnerAttemptResult>(
     async () => ({
       answer: await cancelOwnerSubscription(command),

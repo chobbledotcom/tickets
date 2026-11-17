@@ -124,12 +124,12 @@ const invoiceEvidence = async (
     invoices.map(async (invoice) => ({
       amount: invoice.amount_paid,
       attempt,
-      attendee: `attendee:${row.attendee_id}`,
+      attendee: `attendee:${row.attendeeId}`,
       cashReference: await legReference(["renewal", invoice.id, "payment"]),
       expectedAt: invoice.status_transitions.paid_at,
       expectedGroup: await eventGroup(["renewal", invoice.id]),
       invoice: invoice.id,
-      listing: `revenue:${row.listing_id}`,
+      listing: `revenue:${row.listingId}`,
       price: scenario.price,
       reason: invoice.billing_reason ?? "",
       saleReference: await legReference(["renewal", invoice.id, "sale"]),
@@ -165,13 +165,13 @@ const changeIdentity = async (
   row: LiveRow,
 ): Promise<void> => {
   const changes = {
-    attendee: numberChange("attendee_id", row.attendee_id, 1),
+    attendee: numberChange("attendee_id", row.attendeeId, 1),
     id: numberChange("id", row.id, 5000),
-    listing: numberChange("listing_id", row.listing_id, 1),
+    listing: numberChange("listing_id", row.listingId, 1),
     status: { column: "subscription_status", value: "canceled" },
     subscription: {
       column: "subscription_id",
-      value: `${row.subscription_id}_replacement`,
+      value: `${row.subscriptionId}_replacement`,
     },
   } as const;
   const { column, value } = changes[change];
@@ -238,7 +238,7 @@ export const observePass = async (
     selectTransfers(
       queryBatch,
       byColumnIn(
-        "event_group",
+        "eventGroup",
         inputs.map((invoice) => invoice.expectedGroup),
       ),
     );
@@ -277,11 +277,11 @@ export const observePass = async (
     outcome,
     readStatus: pass.read,
     scenario: scenario.name,
-    snapshotAttendee: row.attendee_id,
+    snapshotAttendee: row.attendeeId,
     snapshotId: row.id,
-    snapshotListing: row.listing_id,
-    snapshotStatus: row.subscription_status,
-    snapshotSubscription: row.subscription_id,
+    snapshotListing: row.listingId,
+    snapshotStatus: row.subscriptionStatus,
+    snapshotSubscription: row.subscriptionId,
     storedAttendee: before?.attendee_id ?? 0,
     storedId: before?.id ?? 0,
     storedListing: before?.listing_id ?? 0,

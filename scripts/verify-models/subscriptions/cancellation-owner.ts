@@ -72,11 +72,11 @@ const ownerReadback = async (
   const payment = cancellationLedgerSummary(legs, "payment");
   return {
     ...cancellationProbeFacts(probe),
-    after: after.subscription_status,
+    after: after.subscriptionStatus,
     answer,
     attempt: 1,
-    attendeeId: after.attendee_id,
-    before: before.subscription_status,
+    attendeeId: after.attendeeId,
+    before: before.subscriptionStatus,
     bookingId: after.id,
     cash: payment.cash,
     firstCash: first.cash,
@@ -86,20 +86,20 @@ const ownerReadback = async (
     identityCurrent: sample.change === undefined || sample.change === "status",
     invoicesRead,
     legs: legs.length,
-    listingId: after.listing_id,
+    listingId: after.listingId,
     observed,
     planKept:
-      after.recurring_price === before.recurring_price &&
-      after.recurring_tax === before.recurring_tax &&
-      after.subscription_id === before.subscription_id &&
-      after.recurring_interval === before.recurring_interval,
+      after.recurringPrice === before.recurringPrice &&
+      after.recurringTax === before.recurringTax &&
+      after.subscriptionId === before.subscriptionId &&
+      after.recurringInterval === before.recurringInterval,
     quantity: after.quantity,
     scenario: sample.scenario,
     secondCash: second.cash,
     secondGroup: second.group,
     secondInvoice: second.invoice,
     secondLegs: second.legs,
-    subscriptionId: row.subscription_id,
+    subscriptionId: row.subscriptionId,
     threw,
   };
 };
@@ -164,7 +164,7 @@ const guardedWrite = async ({
     "Guard row missing",
   );
   const statement = statusWrite(
-    { ...row, subscription_status: snapshot },
+    { ...row, subscriptionStatus: snapshot },
     target,
   );
   const result = await execute(statement);
@@ -183,7 +183,7 @@ const guardedWrite = async ({
   );
   return {
     affected: result.rowsAffected,
-    after: stored.subscription_status,
+    after: stored.subscriptionStatus,
     attempt: 1,
     before,
     scenario: `guard-${id}`,

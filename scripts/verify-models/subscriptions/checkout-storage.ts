@@ -4,9 +4,10 @@ import { assert } from "@std/assert";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { buildCapacityCheckedInsert } from "#db/attendees/capacity/checks.ts";
 import { executeBatch, queryAll } from "#db/client.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { withSubscriptionPlan } from "#shared/subscriptions/booking-plan.ts";
 import type { SubscriptionStart } from "#shared/subscriptions/plan.ts";
@@ -203,10 +204,10 @@ export const observePlans = async (
   for (const stage of ["stored", "edited"] as const) {
     if (stage === "edited") {
       await executeBatch([
-        await rawListingsTable.updateStatement(example.start.listingId, {
+        update(tables.listings, {
           recurringInterval: "week",
           recurringPrice: 9999,
-        }),
+        }).where({ id: example.start.listingId }),
       ]);
       await settings.update.tax({
         mode: "add_to_total",

@@ -26,15 +26,15 @@ const projection = (
 ): RecordFacts["observed"][number] => ({
   ...recordPlanObservation(row),
   attempt: 1,
-  attendee: row.attendee_id,
+  attendee: row.attendeeId,
   booking: row.id,
-  listing: row.listing_id,
+  listing: row.listingId,
   pass: 1,
   quantity: row.quantity,
   scenario: "subscriber-universe",
   singleMatches,
   slot,
-  status: row.subscription_status,
+  status: row.subscriptionStatus,
 });
 
 const REFUSED = Symbol("refused by boundary validation");
@@ -73,15 +73,15 @@ export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
         sql`UPDATE listing_attendees SET start_at = ${`2026-03-${String(id).padStart(2, "0")}T00:00:00Z`} WHERE id = ${id}`,
       ]);
       universe.push({
-        attendee_id: attendeeId,
+        attendeeId,
         id,
-        listing_id: listingId,
+        listingId,
         quantity,
-        recurring_interval: interval,
-        recurring_price: plan.amount,
-        recurring_tax: plan.tax,
-        subscription_id: plan.id,
-        subscription_status: status,
+        recurringInterval: interval,
+        recurringPrice: plan.amount,
+        recurringTax: plan.tax,
+        subscriptionId: plan.id,
+        subscriptionStatus: status,
       });
     }
   }

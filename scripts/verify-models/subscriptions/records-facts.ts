@@ -82,18 +82,18 @@ export type RecordFacts = FactsOf<typeof RECORD_TABLES>;
 
 /** Copy stored plan columns without validating or repairing the observation. */
 export const recordPlanObservation = (row: {
-  recurring_interval: string;
-  recurring_price: number;
-  recurring_tax: number;
-  subscription_id: string;
+  recurringInterval: string;
+  recurringPrice: number;
+  recurringTax: number;
+  subscriptionId: string;
 }): Pick<
   RecordFacts["observed"][number],
   "interval" | "price" | "subscription" | "tax"
 > => ({
-  interval: row.recurring_interval,
-  price: row.recurring_price,
-  subscription: row.subscription_id,
-  tax: row.recurring_tax,
+  interval: row.recurringInterval,
+  price: row.recurringPrice,
+  subscription: row.subscriptionId,
+  tax: row.recurringTax,
 });
 
 /** Independent business classification, exhaustive over the provider's union. */

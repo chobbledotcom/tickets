@@ -49,14 +49,14 @@ const observedPlanFacts = (start: SubscriptionStart) => ({
 
 /** The stored booking and plan columns that both joins compare. */
 const storedRowFacts = (row: SubscribedRow) => {
-  const { attendee_id, id, listing_id, quantity, subscription_status } = row;
+  const { attendeeId, id, listingId, quantity, subscriptionStatus } = row;
   return {
     ...recordPlanObservation(row),
-    attendee: attendee_id,
+    attendee: attendeeId,
     booking: id,
-    listing: listing_id,
+    listing: listingId,
     quantity,
-    status: subscription_status,
+    status: subscriptionStatus,
   };
 };
 
@@ -105,7 +105,7 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
     cancelReturned = false,
   ): Promise<SubscribedRow> => {
     const rows = (await getSubscribedRows()).filter(
-      (row) => row.subscription_id === observed.start.id,
+      (row) => row.subscriptionId === observed.start.id,
     );
     const row = requireValue(rows[0], "The joined subscription row is absent");
     const joined: RenewalFacts["journeys"][number] = {
@@ -169,11 +169,11 @@ export const observeJourney = async (facts: RenewalFacts): Promise<void> => {
   const scenario: RenewalCase = {
     name: "joined",
     passes: [firstPass, lastPass],
-    price: first.recurring_price,
-    tax: first.recurring_tax,
+    price: first.recurringPrice,
+    tax: first.recurringTax,
   };
   facts.scenarios.push({
-    initialStatus: first.subscription_status,
+    initialStatus: first.subscriptionStatus,
     scenario: scenario.name,
     steps: 2,
   });
@@ -230,9 +230,13 @@ export const failedJourneyFacts = async (): Promise<
     "none",
     async (attempt) => {
       const rows = await queryAllPrimary<SubscribedRow>(
-        sql`SELECT booking.id, booking.attendee_id, booking.listing_id, booking.quantity,
-              booking.recurring_price, booking.recurring_tax, booking.recurring_interval,
-              booking.subscription_id, booking.subscription_status
+        sql`SELECT booking.id, booking.attendee_id AS attendeeId,
+              booking.listing_id AS listingId, booking.quantity,
+              booking.recurring_price AS recurringPrice,
+              booking.recurring_tax AS recurringTax,
+              booking.recurring_interval AS recurringInterval,
+              booking.subscription_id AS subscriptionId,
+              booking.subscription_status AS subscriptionStatus
          FROM listing_attendees AS booking WHERE booking.subscription_id = ${observed.start.id}`,
       );
       const row = requireValue(
