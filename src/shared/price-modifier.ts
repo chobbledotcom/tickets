@@ -84,6 +84,13 @@ const validatePercent = (
   return value <= rule.max ? null : rule.tooLargeError;
 };
 
+/** The stored fields that set the value one modifier applies. */
+export type ModifierCalc = {
+  calcKind: CalcKind;
+  calcValue: number;
+  direction: ModifierDirection;
+};
+
 /**
  * The signed value the engine applies, from a modifier's stored magnitude and
  * direction. A multiplier ignores direction, because its factor already carries
@@ -91,11 +98,7 @@ const validatePercent = (
  * here. Both the live resolver and the API snapshot read a modifier this way,
  * so the rule cannot drift between them.
  */
-export const signedModifierValue = (modifier: {
-  calcKind: CalcKind;
-  calcValue: number;
-  direction: ModifierDirection;
-}): number => {
+export const signedModifierValue = (modifier: ModifierCalc): number => {
   if (modifier.calcKind === "multiply") return modifier.calcValue;
   const magnitude =
     modifier.calcKind === "fixed"
