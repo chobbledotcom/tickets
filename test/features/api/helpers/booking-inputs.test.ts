@@ -217,4 +217,16 @@ describe("API helper composition", () => {
       ["enabled", "false"],
     ]);
   });
+
+  test("names each box by its camelCase field, from a snake or camel key", () => {
+    const params = toFormParams({
+      dayCount: 3,
+      special_instructions: "Ground floor",
+    });
+
+    expect([...params.entries()]).toEqual([
+      ["dayCount", "3"],
+      ["specialInstructions", "Ground floor"],
+    ]);
+  });
 });

@@ -5,6 +5,7 @@ import { apiError, apiResponse } from "#routes/api/cors.ts";
 import type { JsonBodyReader } from "#routes/api/json-body.ts";
 import { readJsonBody } from "#routes/read-json-body.ts";
 import { orResponse, withHeaders } from "#routes/response.ts";
+import { fieldName } from "#shared/column-names.ts";
 import { FormParams } from "#shared/form-data.ts";
 import { BOOKING_LOCKOUT_MS } from "#shared/limits.ts";
 import { getRequestClientIp } from "#shared/request-context.ts";
@@ -154,10 +155,14 @@ export const withSlugLoaded =
 export const withActiveListing =
   withSlugLoaded<ListingWithCount>(findActiveListing);
 
-/** Convert JSON body fields to FormParams for validation compatibility */
+/** Convert JSON body fields to FormParams for validation compatibility. The
+ *  public API keeps its wire keys, such as `special_instructions`, so each
+ *  key becomes the form box name. */
 export const toFormParams = (body: Record<string, unknown>): FormParams =>
   Object.entries(body).reduce((params, [key, value]) => {
-    if (value !== null && value !== undefined) params.set(key, String(value));
+    if (value !== null && value !== undefined) {
+      params.set(fieldName(key), String(value));
+    }
     return params;
   }, new FormParams());
 
