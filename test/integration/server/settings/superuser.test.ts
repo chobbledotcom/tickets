@@ -40,11 +40,11 @@ import {
 
 const SUPERUSER_ROUTE = "/admin/settings/superuser";
 
-/** POST a superuser_choice to the route (omit the argument for a missing field). */
-const postChoice = (superuser_choice?: string) =>
+/** POST a superuserChoice to the route (omit the argument for a missing field). */
+const postChoice = (superuserChoice?: string) =>
   adminFormPost(
     SUPERUSER_ROUTE,
-    superuser_choice === undefined ? {} : { superuser_choice },
+    superuserChoice === undefined ? {} : { superuserChoice },
   );
 
 /** Run `body` with the credentials email succeeding (fetch → 200). */
@@ -112,7 +112,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const managerCookie = await createTestManagerSession();
     const response = await awaitTestRequest(SUPERUSER_ROUTE, {
       cookie: managerCookie,
-      data: { superuser_choice: "self-managed" },
+      data: { superuserChoice: "self-managed" },
       method: "POST",
     });
     expect(response.status).toBe(403);
@@ -120,7 +120,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
 
   test("POST /admin/settings/superuser redirects for unauthenticated request", async () => {
     const response = await handleRequest(
-      mockFormRequest(SUPERUSER_ROUTE, { csrf_token: "fake" }),
+      mockFormRequest(SUPERUSER_ROUTE, { csrfToken: "fake" }),
     );
     // A POST is not navigable after login, so it carries no return target.
     expect(response.headers.get("location")).toBe("/admin");
@@ -131,7 +131,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         SUPERUSER_ROUTE,
-        { superuser_choice: "self-managed" },
+        { superuserChoice: "self-managed" },
         cookie,
       ),
     );
@@ -430,7 +430,7 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         SUPERUSER_ROUTE,
-        { csrf_token: csrf, superuser_choice: "enable-superuser" },
+        { csrfToken: csrf, superuserChoice: "enable-superuser" },
         cookie,
       ),
     );
@@ -445,11 +445,11 @@ describeWithEnv("server (admin settings superuser)", { db: true }, () => {
     const INVALID_CHOICES: { name: string; choice: string | undefined }[] = [
       {
         choice: "",
-        name: "POST with empty superuser_choice returns validation error",
+        name: "POST with empty superuserChoice returns validation error",
       },
       {
         choice: undefined,
-        name: "POST with missing superuser_choice field returns validation error",
+        name: "POST with missing superuserChoice field returns validation error",
       },
       {
         choice: "enable",

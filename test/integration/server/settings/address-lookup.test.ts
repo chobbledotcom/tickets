@@ -16,14 +16,14 @@ const post = (data: Record<string, string>) =>
 
 const saveEasypostcodes = () =>
   post({
-    address_lookup_api_key: "epc-key-1",
-    address_lookup_provider: "easypostcodes",
+    addressLookupApiKey: "epc-key-1",
+    addressLookupProvider: "easypostcodes",
   });
 
 describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
   describe("POST /admin/settings/address-lookup", () => {
     testRequiresAuth("/admin/settings/address-lookup", {
-      body: { address_lookup_provider: "none" },
+      body: { addressLookupProvider: "none" },
       method: "POST",
     });
 
@@ -41,8 +41,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
 
     test("rejects a provider outside the picklist", async () => {
       const { response } = await post({
-        address_lookup_api_key: "k",
-        address_lookup_provider: "surprise-provider",
+        addressLookupApiKey: "k",
+        addressLookupProvider: "surprise-provider",
       });
 
       expect(response.status).toBe(302);
@@ -56,8 +56,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
 
     test("rejects enabling a provider with no API key", async () => {
       const { response } = await post({
-        address_lookup_api_key: "",
-        address_lookup_provider: "easypostcodes",
+        addressLookupApiKey: "",
+        addressLookupProvider: "easypostcodes",
       });
 
       expect(response.status).toBe(302);
@@ -74,8 +74,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
       await saveEasypostcodes();
 
       const { response } = await post({
-        address_lookup_api_key: MASK_SENTINEL,
-        address_lookup_provider: "easypostcodes",
+        addressLookupApiKey: MASK_SENTINEL,
+        addressLookupProvider: "easypostcodes",
       });
 
       expect(response.status).toBe(302);
@@ -84,8 +84,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
 
     test("a masked key with nothing stored cannot enable a provider", async () => {
       const { response } = await post({
-        address_lookup_api_key: MASK_SENTINEL,
-        address_lookup_provider: "easypostcodes",
+        addressLookupApiKey: MASK_SENTINEL,
+        addressLookupProvider: "easypostcodes",
       });
 
       expectFlash(
@@ -100,8 +100,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
       await saveEasypostcodes();
 
       await post({
-        address_lookup_api_key: "",
-        address_lookup_provider: "none",
+        addressLookupApiKey: "",
+        addressLookupProvider: "none",
       });
 
       expect(settings.addressLookup.provider).toBe("none");
@@ -112,8 +112,8 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
       await saveEasypostcodes();
 
       await post({
-        address_lookup_api_key: MASK_SENTINEL,
-        address_lookup_provider: "none",
+        addressLookupApiKey: MASK_SENTINEL,
+        addressLookupProvider: "none",
       });
 
       expect(settings.addressLookup.provider).toBe("none");
@@ -127,9 +127,9 @@ describeWithEnv("server (admin settings: address lookup)", { db: true }, () => {
       const html = await response.text();
       expectIncludesAll(html, [
         "settings-address-lookup",
-        'name="address_lookup_provider"',
+        'name="addressLookupProvider"',
         ">EasyPostcodes</option>",
-        'name="address_lookup_api_key"',
+        'name="addressLookupApiKey"',
       ]);
       assert(!html.includes(MASK_SENTINEL));
     });
