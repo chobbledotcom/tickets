@@ -5,12 +5,15 @@
  * shows the site's image library as clickable thumbnails. It uploads new
  * images and inserts the short-form reference (`![Alt](img#id)`) at the
  * caret. The server translates img#id to the real image URL at render time,
- * so the editor stores the stable short form.
+ * so the editor stores the stable short form. The rich editor's image node
+ * resolves the same short form through the library. The description box
+ * then shows the picture while the markdown keeps the short form.
  */
 
 import { schema } from "prosemirror-markdown";
+import type { Node } from "prosemirror-model";
 import { Plugin } from "prosemirror-state";
-import type { EditorView } from "prosemirror-view";
+import type { EditorView, NodeView } from "prosemirror-view";
 import { ICONS_PATH } from "#shared/asset-paths.ts";
 import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
@@ -20,12 +23,14 @@ import {
   csrfTokenFor,
 } from "#src/ui/client/dom.ts";
 
-/** The image facts the dialog shows: the library entry's id and name, and
- * the thumbnail URL the grid displays. */
+/** The image facts the dialog shows: the library entry's id and name, its
+ * thumbnail URL for the grid, and its full URL for the editor. Every entry
+ * carries all four. */
 export interface ImageOption {
   id: number;
   name: string;
   thumb: string;
+  url: string;
 }
 
 /** Keeps a malformed library entry out of the dialog: the entry needs an id
@@ -38,7 +43,9 @@ const isImageOption = (entry: unknown): entry is ImageOption => {
     "name" in entry &&
     typeof entry.name === "string" &&
     "thumb" in entry &&
-    typeof entry.thumb === "string"
+    typeof entry.thumb === "string" &&
+    "url" in entry &&
+    typeof entry.url === "string"
   );
 };
 
@@ -64,6 +71,61 @@ const insertImageRef = (view: EditorView, option: ImageOption): void => {
       .scrollIntoView(),
   );
   view.focus();
+};
+
+/** The address the rich editor shows for a stored image source. A
+ * short-form `img#N` resolves through the library to the image's URL, and
+ * any other address renders as written. Null when the library lacks the
+ * image or fails. The node then shows its alt text and requests nothing. */
+const previewSource = async (
+  loadOptions: () => Promise<ImageOption[]>,
+  src: string,
+): Promise<string | null> => {
+  const shortForm = /^img#(\d+)$/.exec(src);
+  if (shortForm === null) return src;
+  const id = Number(shortForm[1]);
+  try {
+    const options = await loadOptions();
+    return options.find((option) => option.id === id)?.url ?? null;
+  } catch {
+    return null;
+  }
+};
+
+/** The rich editor's image node: renders the picture a stored reference
+ * names. The document keeps the short form, so the markdown serializes back
+ * unchanged. */
+const createImageNodeView = (
+  loadOptions: () => Promise<ImageOption[]>,
+  node: Node,
+): NodeView => {
+  const image = document.createElement("img");
+  // The markdown image spec is draggable. The default rendering sets the
+  // attribute, so a node view must too.
+  image.draggable = true;
+  // Guards against an older library answer landing after a newer node state.
+  let generation = 0;
+  const sync = async (next: Node): Promise<void> => {
+    generation += 1;
+    const current = generation;
+    image.alt = typeof next.attrs.alt === "string" ? next.attrs.alt : "";
+    const title = next.attrs.title;
+    if (typeof title === "string" && title !== "") image.title = title;
+    else image.removeAttribute("title");
+    const src = await previewSource(loadOptions, String(next.attrs.src));
+    if (current !== generation) return;
+    if (src === null) image.removeAttribute("src");
+    else image.setAttribute("src", src);
+  };
+  void sync(node);
+  return {
+    dom: image,
+    // A node view keyed by type only ever receives nodes of that type.
+    update: (next) => {
+      void sync(next);
+      return true;
+    },
+  };
 };
 
 /** A muted one-line note (the empty, loading, and unavailable states). */
@@ -292,7 +354,9 @@ export const createImageToolbarItem = (
     (id, name) => {
       // The library changed under the cached list: the next open refetches.
       options = null;
-      insertImageRef(view, { id, name, thumb: "" });
+      // The upload resets the library cache, so the node view's own lookup
+      // fetches the new image's URL when it renders.
+      insertImageRef(view, { id, name, thumb: "", url: "" });
       dialog.close();
     },
     () => {
@@ -322,11 +386,19 @@ export const createImageToolbarItem = (
     void settle();
   });
 
-  // The plugin exists to bind the editor view: the dialog rides the mount,
-  // so it needs no teardown of its own. ProseMirror stores whatever the
-  // view callback returns and probes it for update/destroy, so it must be
-  // an object.
+  // The plugin binds the editor view: the dialog rides the mount, so it
+  // needs no teardown of its own. ProseMirror stores whatever the view
+  // callback returns and probes it for update/destroy, so that value must
+  // be an object. The plugin's image node view renders the picture a
+  // stored short-form reference names. It resolves through the same
+  // library cache the dialog uses. The document keeps the short form, so
+  // the markdown serializes unchanged.
   const plugin = new Plugin({
+    props: {
+      nodeViews: {
+        image: (node) => createImageNodeView(loadOptions, node),
+      },
+    },
     view: (editorView) => {
       view = editorView;
       return {};

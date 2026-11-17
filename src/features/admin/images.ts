@@ -315,16 +315,19 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
   });
 
 /** The image list the editor's image dialog offers: every image's id, name,
- * and thumbnail URL, in the library's name order. The dialog shows the
- * thumbnails and stores the short-form img#id reference. */
+ * thumbnail URL, and full URL, in the library's name order. The dialog shows
+ * the thumbnails, the editor renders the full image for an inserted
+ * short-form img#id reference, and the stored markdown keeps the short
+ * form. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
     const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name, filename_thumb }) => ({
+      ({ id, name, filename, filename_thumb }) => ({
         id,
         name,
         thumb: getImageProxyUrl(filename_thumb),
+        url: getImageProxyUrl(filename),
       }),
     );
     return jsonResponse({ images: options });

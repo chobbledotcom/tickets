@@ -87,7 +87,11 @@ describe("the image picker dialog", () => {
         await flush();
 
         // The second press hit the disabled guard: exactly one upload ran.
-        expect(fetchStubHolder.stub?.calls.length).toBe(2);
+        // (The preview's own library refetch may follow; it is not a POST.)
+        const uploads = (fetchStubHolder.stub?.calls ?? []).filter(
+          (call) => call.args[1]?.method === "POST",
+        );
+        expect(uploads.length).toBe(1);
         await finishUpload(handle, textarea, dialog, flushSelection);
       },
     );

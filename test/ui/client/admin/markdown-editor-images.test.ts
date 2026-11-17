@@ -19,11 +19,13 @@ import {
   expectDialogCloses,
   expectGridMessage,
   fetchStubHolder,
+  flush,
   imageDialog,
   imageGrid,
   json,
   openDialog,
   optionByName,
+  renderEditorImage,
   restoreHeldStub,
   tenImageList,
   toolbarImageButton,
@@ -109,15 +111,85 @@ describe("the image picker dialog", () => {
         select(handle.view, 7);
 
         optionByName(window, "Alpha").click();
+        await flush();
 
         // The CommonMark schema holds images as block nodes: the insert
-        // lands on its own line after the caret's paragraph.
+        // lands on its own line after the caret's paragraph. The stored
+        // markdown keeps the short form while the rich view shows the
+        // library picture.
         expect(textarea.value).toBe("hello\n\n![Alpha](img#2)");
+        const image = requireElement<HTMLImageElement>(
+          window.document,
+          ".ProseMirror img",
+        );
+        expect(image.getAttribute("src")).toBe("/image/alpha.webp");
+        expect(image.alt).toBe("Alpha");
         expect(imageDialog(window).open).toBe(false);
         handle.view.destroy();
         await flushSelection();
       },
     );
+  });
+
+  test("renders each stored image address through the library", async () => {
+    const cases = [
+      // A short-form reference shows the library picture...
+      { alt: "Alpha", markdown: "![Alpha](img#2)", src: "/image/alpha.webp" },
+      // ...with or without alt text...
+      { alt: "", markdown: "![](img#2)", src: "/image/alpha.webp" },
+      // ...and an id the library lacks shows the alt text alone. No src at
+      // all: an empty src would make the browser request the page.
+      { alt: "Gone", markdown: "![Gone](img#404)", src: null },
+      // An ordinary address renders as written.
+      { markdown: "![Direct](/image/direct.webp)", src: "/image/direct.webp" },
+    ];
+    for (const { markdown, src, alt } of cases) {
+      const { image, handle } = await renderEditorImage(markdown);
+
+      expect(image.getAttribute("src")).toBe(src);
+      if (alt !== undefined) expect(image.alt).toBe(alt);
+      handle.view.destroy();
+    }
+  });
+
+  test("shows the alt text when the library cannot load", async () => {
+    const { image, handle } = await renderEditorImage(
+      "![Alpha](img#2)",
+      new Error("storage down"),
+    );
+
+    expect(image.hasAttribute("src")).toBe(false);
+    handle.view.destroy();
+  });
+
+  test("updates the picture when the reference's alt text changes", async () => {
+    const { image, handle } = await renderEditorImage(
+      '![Old](img#2 "Kept caption")',
+    );
+
+    expect(image.getAttribute("src")).toBe("/image/alpha.webp");
+    expect(image.title).toBe("Kept caption");
+
+    // Rename the alt text the way a document change would.
+    let imagePos = -1;
+    handle.view.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") {
+        imagePos = pos;
+        return false;
+      }
+      return true;
+    });
+    handle.view.dispatch(
+      handle.view.state.tr.setNodeAttribute(imagePos, "alt", "New"),
+    );
+    handle.view.dispatch(
+      handle.view.state.tr.setNodeAttribute(imagePos, "title", ""),
+    );
+    await flush();
+
+    expect(image.alt).toBe("New");
+    expect(image.hasAttribute("title")).toBe(false);
+    handle.view.destroy();
   });
 
   test("shows a plain message when the image list cannot load", async () => {
@@ -158,7 +230,14 @@ describe("the image picker dialog", () => {
     const { window } = await openDialog(
       [
         json({
-          images: [{ id: 2, name: unbrokenName, thumb: "/image/a-thumb.webp" }],
+          images: [
+            {
+              id: 2,
+              name: unbrokenName,
+              thumb: "/image/a-thumb.webp",
+              url: "/image/a.webp",
+            },
+          ],
         }),
         json({ images: [] }),
       ],
@@ -212,12 +291,15 @@ describe("the image picker dialog", () => {
 
   test("refuses a malformed image entry", async () => {
     // Each reply trips a different half of the entry shape check: not an
-    // object, no numeric id, no name, no thumb.
+    // object, no numeric id, no name, no thumb, no url.
     const replies: [FetchReply, ...FetchReply[]] = [
       json({ images: ["nope"] }),
       json({ images: [{ id: "2", name: "Alpha", thumb: "/t.webp" }] }),
       json({ images: [{ id: 2, thumb: "/t.webp" }] }),
       json({ images: [{ id: 2, name: "Alpha" }] }),
+      json({
+        images: [{ id: 2, name: "Alpha", thumb: "/t.webp" }],
+      }),
     ];
     await withDialogClock(
       replies,
@@ -229,7 +311,7 @@ describe("the image picker dialog", () => {
         // (the dialog opened once already); each later round shuts the
         // dialog and reopens it so the next reply is fetched.
         await untilReady(grid);
-        for (let round = 0; round < 4; round += 1) {
+        for (let round = 0; round < replies.length; round += 1) {
           if (round > 0) toolbarImageButton(window).click();
           await untilReady(grid);
           expect(grid.dataset.state).toBe("error");

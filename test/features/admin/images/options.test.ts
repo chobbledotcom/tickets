@@ -9,7 +9,7 @@ describeWithEnv(
   "GET /admin/images/options",
   { db: true, storage: "cdn" },
   () => {
-    test("serves every image's id, name, and thumbnail in name order", async () => {
+    test("serves every image's id, name, thumbnail, and full URL in name order", async () => {
       const zebra = await makeImage("Zebra");
       const alpha = await makeImage("alpha");
 
@@ -25,11 +25,13 @@ describeWithEnv(
             id: alpha.id,
             name: "alpha",
             thumb: "/image/alpha-thumb.webp",
+            url: "/image/alpha.webp",
           },
           {
             id: zebra.id,
             name: "Zebra",
             thumb: "/image/zebra-thumb.webp",
+            url: "/image/zebra.webp",
           },
         ],
       });

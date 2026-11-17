@@ -33,8 +33,8 @@ export const json = (body: unknown): Response =>
   });
 
 /** The two-image library the list and insert cases share, already in the
- * name order the options endpoint returns, with the thumbnail URLs it now
- * carries. */
+ * name order the options endpoint returns, with the thumbnail and full URLs
+ * it now carries. */
 export const twoImageList = (): Response =>
   json({
     images: [
@@ -42,11 +42,13 @@ export const twoImageList = (): Response =>
         id: 2,
         name: "Alpha",
         thumb: "/image/alpha-thumb.webp",
+        url: "/image/alpha.webp",
       },
       {
         id: 9,
         name: "Zebra",
         thumb: "/image/zebra-thumb.webp",
+        url: "/image/zebra.webp",
       },
     ],
   });
@@ -58,6 +60,7 @@ export const tenImageList = (): Response =>
       id: index + 1,
       name: `Image ${index + 1}`,
       thumb: `/image/image-${index + 1}-thumb.webp`,
+      url: `/image/image-${index + 1}.webp`,
     })),
   });
 
@@ -285,3 +288,24 @@ export const expectDialogCloses = (
 /** The dialog over the standard two-image library with an empty refetch
  * queued, on a fake clock: the mount the caret-insert tests share. */
 export const withInsertFlow = withFlow([json({ images: [] })], {});
+
+/** Mounts the editor over `markdown` against a stubbed library and returns
+ * the rendered image element once its lookup settles. Later calls in one
+ * test replace the earlier stub, so a case table can share this. */
+export const renderEditorImage = async (
+  markdown: string,
+  reply: FetchReply = twoImageList(),
+): Promise<{
+  image: HTMLImageElement;
+  handle: Awaited<ReturnType<typeof enhanced>>["handle"];
+}> => {
+  restoreHeldStub();
+  fetchStubHolder.stub = stubFetch(reply);
+  const { window, handle } = enhanced(markdown);
+  const image = requireElement<HTMLImageElement>(
+    window.document,
+    ".ProseMirror img",
+  );
+  await flush();
+  return { handle, image };
+};

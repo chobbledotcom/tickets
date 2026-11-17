@@ -74,14 +74,18 @@ describeWithEnv(
         expect(shown).toEqual(libraryOrder.map((image) => image.id));
 
         // The editor's image dialog offers the same order, with each
-        // image's thumbnail URL for the dialog's grid.
+        // image's thumbnail URL for the dialog's grid and its full URL for
+        // the rich editor's rendering.
         const options = await (await adminGet("/admin/images/options")).json();
         expect(options).toEqual({
-          images: libraryOrder.map(({ id, name, filename_thumb }) => ({
-            id,
-            name,
-            thumb: `/image/${filename_thumb}`,
-          })),
+          images: libraryOrder.map(
+            ({ id, name, filename, filename_thumb }) => ({
+              id,
+              name,
+              thumb: `/image/${filename_thumb}`,
+              url: `/image/${filename}`,
+            }),
+          ),
         });
       });
 
@@ -273,7 +277,7 @@ describeWithEnv(
     });
 
     describe("GET /admin/images/options (editor image dialog list)", () => {
-      test("lists every image as id, name, and thumb in name order", async () => {
+      test("lists every image as id, name, thumb, and url in name order", async () => {
         await makeImage("Zebra");
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
@@ -288,11 +292,13 @@ describeWithEnv(
               id: await idOf("Alpha"),
               name: "Alpha",
               thumb: "/image/alpha-thumb.webp",
+              url: "/image/alpha.webp",
             },
             {
               id: await idOf("Zebra"),
               name: "Zebra",
               thumb: "/image/zebra-thumb.webp",
+              url: "/image/zebra.webp",
             },
           ],
         });

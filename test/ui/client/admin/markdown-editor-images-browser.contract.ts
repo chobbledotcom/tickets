@@ -24,20 +24,26 @@ import {
   describeWithBrowser,
   withSignedInPage,
 } from "#test-utils/browser-contract.ts";
+import {
+  CONTENT_BOX,
+  DIALOG,
+  EDITOR_BUTTON,
+  EMPTY_MESSAGE,
+  expectDialogClosesWhen,
+  expectFocusBackInEditor,
+  gridAndLastOptionBoxes,
+  NOTE,
+  OPTION,
+  THUMBNAIL,
+  typeIntoEditorBody,
+  UNAVAILABLE_MESSAGE,
+  waitForDialogClosed,
+} from "#test-utils/markdown-image-contract.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
 
 // The page editor renders catalog copy, so the contract needs the full
 // message catalog whether or not the shared preload ran first.
 await ensureMessageGroups(MESSAGE_GROUPS);
-
-const EDITOR_BUTTON = ".md-toolbar-image";
-const DIALOG = ".md-image-dialog";
-const OPTION = ".md-image-option";
-const NOTE = ".md-image-note";
-const THUMBNAIL = ".md-image-option img";
-const CONTENT_BOX = 'textarea[name="content"]';
-const EMPTY_MESSAGE = "No images uploaded yet.";
-const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 
 describeWithBrowser(
   "the image picker dialog at the served page editor",
@@ -68,31 +74,10 @@ describeWithBrowser(
       return dialog;
     };
 
-    /** Waits for the image dialog to be closed, whatever closed it. */
-    const waitForDialogClosed = async (page: Page): Promise<void> => {
-      await page.waitForFunction(
-        () =>
-          (document.querySelector(".md-image-dialog") as HTMLDialogElement)
-            ?.open === false,
-      );
-    };
-
     /** Chooses one image by the exact name its thumbnail shows. */
     const chooseImage = async (page: Page, name: string): Promise<void> => {
       await page.locator(EDITOR_BUTTON).click();
       await page.locator(OPTION).getByText(name, { exact: true }).click();
-    };
-
-    /** Focuses the editor body and types `text`. Start a new line with an
-     * explicit Enter where the insertion point must sit below the typed
-     * words. */
-    const typeIntoEditorBody = async (
-      page: Page,
-      text: string,
-    ): Promise<void> => {
-      const body = page.locator(".ProseMirror");
-      await body.click();
-      await page.keyboard.type(text);
     };
 
     /** Opens the page editor and types `text` into it: the first step of
@@ -103,37 +88,6 @@ describeWithBrowser(
     ): Promise<void> => {
       await openPageEditor(page);
       await typeIntoEditorBody(page, text);
-    };
-
-    /** Asserts the editor body holds focus again, the way the native
-     * dialog close hands it back. */
-    const expectFocusBackInEditor = async (page: Page): Promise<void> => {
-      expect(
-        await page.evaluate(
-          () =>
-            document.activeElement === document.querySelector(".ProseMirror"),
-        ),
-      ).toBe(true);
-    };
-
-    /** The grid's and the last option's page boxes, failing loudly when
-     * either is missing from the page. */
-    const gridAndLastOptionBoxes = async (page: Page, grid: Locator) => {
-      const gridBox = await grid.boundingBox();
-      const optionBox = await page.locator(OPTION).last().boundingBox();
-      if (gridBox === null || optionBox === null) {
-        throw new Error("the grid or its last option is not on the page");
-      }
-      return { gridBox, optionBox };
-    };
-
-    /** Dismisses the open dialog with `dismiss` and waits for it to shut. */
-    const expectDialogClosesWhen = async (
-      page: Page,
-      dismiss: (page: Page) => Promise<void>,
-    ): Promise<void> => {
-      await dismiss(page);
-      await waitForDialogClosed(page);
     };
 
     test("shows the library's thumbnails, in name order", async () => {
@@ -232,6 +186,13 @@ describeWithBrowser(
         expect(await contentValue(page)).toBe(
           `Where to find us\n\n![Harbour](img#${harbour.id})`,
         );
+        // The rich view shows the picture itself: the short-form reference
+        // resolves through the library to the image's real URL.
+        const image = page.locator(
+          '.ProseMirror img[src="/image/harbour.webp"]',
+        );
+        await image.waitFor();
+        expect(await image.getAttribute("alt")).toBe("Harbour");
         // The insert closes the dialog and hands focus back to the editor.
         expect(await page.locator(DIALOG).isVisible()).toBe(false);
         await expectFocusBackInEditor(page);
