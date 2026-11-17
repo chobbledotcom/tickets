@@ -1,15 +1,18 @@
-import { settings } from "#db/settings.ts";
+import type { settings } from "#db/settings.ts";
+import { sort } from "#fp";
 import { t } from "#i18n";
 import type { Child } from "#jsx/jsx-runtime.ts";
 import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
+import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
   type TemplateId,
+  type TemplateRequirement,
 } from "#shared/listing-templates.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import {
@@ -101,11 +104,38 @@ type PickerCard = {
 /** Each card's icon, keyed by the template it stands for. The custom card
  *  has no template, so it carries its own. */
 const PICKER_ICONS: Record<TemplateId, PickerIconName> = {
+  "day-pass": "calendar-days",
+  donation: "heart",
   "hireable-item": "key-round",
   "one-off-event": "party-popper",
   "online-digital": "ticket",
   "physical-product": "package",
+  subscription: "repeat",
   "weekly-event": "calendar-check",
+};
+
+/** The storefront-first order an ecommerce operator reads: what they sell,
+ *  then how it is booked. LISTING_TEMPLATES order pins inference precedence
+ *  instead. The custom card comes last. */
+const PICKER_ORDER: readonly TemplateId[] = [
+  "physical-product",
+  "online-digital",
+  "one-off-event",
+  "weekly-event",
+  "day-pass",
+  "hireable-item",
+  "subscription",
+  "donation",
+];
+
+const byPickerPlace = sort<ListingTemplate>(
+  (a, b) => PICKER_ORDER.indexOf(a.id) - PICKER_ORDER.indexOf(b.id),
+);
+
+/** What a disabled card says in place of its description. */
+const REQUIREMENT_HINTS: Record<TemplateRequirement, string> = {
+  logistics: "listings_table.template_requires_logistics",
+  subscriptions: "listings_table.template_requires_subscriptions",
 };
 
 const pickerCard = (
@@ -123,10 +153,7 @@ const pickerCard = (
 });
 
 const listingTypeCard = (card: PickerCard): Child => {
-  const classes = [
-    "listing-type-card",
-    card.disabled ? "listing-type-card--disabled" : "",
-  ]
+  const classes = ["icon-card", card.disabled ? "icon-card--disabled" : ""]
     .filter(Boolean)
     .join(" ");
   return (
@@ -135,10 +162,10 @@ const listingTypeCard = (card: PickerCard): Child => {
       class={classes}
       href={card.disabled ? undefined : card.href}
     >
-      <span class="listing-type-card-icon">
+      <span class="icon-card-icon">
         <Icon name={card.icon} />
       </span>
-      <span class="listing-type-card-body">
+      <span class="icon-card-body">
         <strong>{card.label}</strong>
         <span>{card.description}</span>
       </span>
@@ -146,44 +173,22 @@ const listingTypeCard = (card: PickerCard): Child => {
   );
 };
 
-const templateCard = (tmpl: ListingTemplate): PickerCard =>
-  pickerCard(
+/** A card for a template whose feature is off stays in the picker, disabled,
+ *  so the operator learns it exists and what to turn on. */
+const templateCard = (tmpl: ListingTemplate): PickerCard => {
+  const unmet = unmetRequirementOrNull(tmpl);
+  return pickerCard(
     `/admin/listing/new?template=${tmpl.id}`,
     tmpl.label,
-    tmpl.description,
+    unmet === null ? tmpl.description : REQUIREMENT_HINTS[unmet],
     PICKER_ICONS[tmpl.id],
+    unmet !== null,
   );
+};
 
 export const adminListingPickerPage = (session: AdminSession): string => {
-  // The hireable card needs the logistics agents feature. Without it the
-  // picker shows it as a disabled card so the operator learns it exists.
-  const hireableCardHidden = LISTING_TEMPLATES.some(
-    (tmpl) => tmpl.requiresLogistics && !settings.features.logistics,
-  );
-  const hireableTemplates = settings.features.logistics
-    ? LISTING_TEMPLATES.filter((tmpl) => tmpl.requiresLogistics)
-    : [];
   const cards: PickerCard[] = [
-    // The card order is the storefront-first order an ecommerce operator
-    // reads: what they sell, then how it is booked. It is deliberately
-    // independent of LISTING_TEMPLATES order, which pins inference
-    // precedence (online-digital must stay first for the shared
-    // purchase-only signature).
-    ...["physical-product", "online-digital", "one-off-event", "weekly-event"]
-      .flatMap((id) => LISTING_TEMPLATES.filter((tmpl) => tmpl.id === id))
-      .map(templateCard),
-    ...(hireableCardHidden
-      ? [
-          pickerCard(
-            "",
-            "listings_table.template_hireable_item",
-            "listings_table.template_requires_logistics",
-            PICKER_ICONS["hireable-item"],
-            true,
-          ),
-        ]
-      : []),
-    ...hireableTemplates.map(templateCard),
+    ...byPickerPlace([...LISTING_TEMPLATES]).map(templateCard),
     pickerCard(
       "/admin/listing/new?template=custom",
       "listings_table.listing_type_picker_custom",
@@ -209,7 +214,7 @@ export const adminListingPickerPage = (session: AdminSession): string => {
           </>
         }
       />
-      <div class="listing-type-picker">
+      <div class="icon-card-grid">
         {cards.map((card) => listingTypeCard(card))}
       </div>
     </>,

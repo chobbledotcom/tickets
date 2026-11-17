@@ -18,9 +18,12 @@ import { type AdminLevel, isStaffRole } from "#types";
  */
 export type PickerIconName =
   | "calendar-check"
+  | "calendar-days"
+  | "heart"
   | "key-round"
   | "package"
   | "party-popper"
+  | "repeat"
   | "sliders-horizontal"
   | "ticket";
 

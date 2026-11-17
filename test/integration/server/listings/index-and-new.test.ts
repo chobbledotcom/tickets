@@ -60,9 +60,9 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Alternatively you can import multiple listings using our",
       );
       assertStringIncludes(html, "What sort of listing do you want to make?");
-      expect(html.lastIndexOf('class="listing-type-card"')).toBe(
+      expect(html.lastIndexOf('class="icon-card"')).toBe(
         html.indexOf(
-          'class="listing-type-card" href="/admin/listing/new?template=custom"',
+          'class="icon-card" href="/admin/listing/new?template=custom"',
         ),
       );
       // The storefront-first card order: what the operator sells, then how
@@ -72,7 +72,11 @@ describeWithEnv("server listings > index and new", { db: true }, () => {
         "Physical product",
         "Digital product",
         "Event",
-        "Bookable session",
+        "Weekly class",
+        "Day pass",
+        "Hireable item",
+        "Subscription",
+        "Donation",
       ]) {
         const at = html.indexOf(`>${label}</strong>`);
         expect(at).toBeGreaterThan(lastCardAt);
