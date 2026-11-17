@@ -5,7 +5,7 @@ import { byColumnIn, selectTransfers } from "#accounting/rows.ts";
 import { execute, queryBatch, queryOnePrimary } from "#db/client.ts";
 import { notNullGuardFailure } from "#db/query.ts";
 import { sql, sqlLiteral, sqlName } from "#db/sql.ts";
-import { type CheckedRow, getSubscribedRowOrNull } from "#db/subscriptions.ts";
+import { getSubscribedRowOrNull, type LiveRow } from "#db/subscriptions.ts";
 
 import type { ProviderRead } from "#payment/provider-read.ts";
 import {
@@ -117,7 +117,7 @@ const snapshotOf = (
 const invoiceEvidence = async (
   scenario: RenewalCase,
   attempt: string,
-  row: CheckedRow,
+  row: LiveRow,
   invoices: readonly StripePaidInvoice[],
 ): Promise<RenewalFacts["invoices"]> =>
   Promise.all(
@@ -162,7 +162,7 @@ const numberChange = (
 
 const changeIdentity = async (
   change: IdentityChange,
-  row: CheckedRow,
+  row: LiveRow,
 ): Promise<void> => {
   const changes = {
     attendee: numberChange("attendee_id", row.attendee_id, 1),
@@ -207,7 +207,7 @@ const setWriteFault = (): Promise<unknown> =>
 export const observePass = async (
   facts: RenewalFacts,
   scenario: RenewalCase,
-  row: CheckedRow,
+  row: LiveRow,
   pass: RenewalPass,
   index: number,
   write: () => Promise<void> = async () => {

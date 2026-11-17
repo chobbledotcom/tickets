@@ -2,8 +2,8 @@
 import { execute } from "#db/client.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import {
-  type CheckedRow,
   getSubscribedRowOrNull,
+  type LiveRow,
   type SubscribedRow,
 } from "#db/subscriptions.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
@@ -233,7 +233,7 @@ export type OwnerAttemptResult = {
 
 /** The wrong-identity control changes the input before the actual provider call. */
 export const invokeOwnerCancellation = async (
-  row: CheckedRow,
+  row: LiveRow,
   sample: OwnerCase,
   fault: CancellationFault,
 ): Promise<OwnerAttemptResult> => {

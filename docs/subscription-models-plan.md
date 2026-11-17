@@ -6,11 +6,11 @@ This plan follows [the pull request workflow](pr-workflow.md) and the
 
 ## Current-system value
 
-The fifth pull request checks the safety of the four subscription layers before release.
+The model check pull request checks the safety of the four subscription layers before release.
 It adds executable evidence for checkout, renewals, cancellation, and retained records.
 It changes no product behaviour, provider configuration, or production schema.
 
-The branch is `subscriptions-models`. Its base is `subscriptions-cancel`.
+The branch is `subscription-tla-models`. Its base is `main`.
 The four lower pull requests keep their existing order and scope.
 
 ## Trusted facts
@@ -206,7 +206,7 @@ Model registration context excludes environment files, databases, generated fact
 
 ## Acceptance and verification
 
-The fifth PR is complete only when all five models have production-backed facts, effective controls, direct producer tests, and explicit limits.
+The model check PR is complete only when all five models have production-backed facts, effective controls, direct producer tests, and explicit limits.
 Run `deno task verify:models` for initial safety, unrestricted induction, and every declared control.
 Inspect the proof results and the control violation and trace results.
 
