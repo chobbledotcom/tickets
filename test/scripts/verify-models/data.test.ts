@@ -5,6 +5,7 @@ import {
   tlaRecords,
   tlaStringSet,
 } from "#scripts/verify-models/data.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   memberPages,
   members,
@@ -62,6 +63,8 @@ describe("TLA integer facts", () => {
     expect(records(data, "Empty")).toEqual([]);
     expect(recordPages(data, "Amounts").flat()).toEqual([first, second]);
     expect(recordPages(data, "Empty")).toEqual([]);
+    expect(data).toContain("\nEmpty == {}\n");
+    expect(data).toContain("\nAmounts == AmountsPart0\n");
     expect(data).toContain("EmptyIndices == 1..0");
     expect(data).toContain("AmountsCount == 2");
   });
@@ -85,6 +88,16 @@ describe("TLA integer facts", () => {
     expect(pages.map((page) => page.length)).toEqual([
       ...Array.from({ length: 18 }, () => 32),
       24,
+    ]);
+    expect(data).toContain(
+      `\nAmounts == ${Array.from({ length: 19 }, (_, index) => `AmountsPart${index}`).join(" \\cup ")}\n`,
+    );
+    expectIncludesAll(data, [
+      `\\* @type: Seq(Seq($amountsFact));\nAmountsPages == <<${Array.from(
+        { length: 19 },
+        (_, index) => `AmountsPage${index}`,
+      ).join(", ")}>>\n`,
+      "\\* @type: Seq($amountsFact);\nAmountsPage18 == <<AmountsRecord576, ",
     ]);
     expect(data).toContain("AmountsIndices == 1..600");
     expect(data).toContain("AmountsCount == 600");

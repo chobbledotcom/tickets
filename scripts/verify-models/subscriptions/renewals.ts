@@ -96,6 +96,10 @@ export const renewalFacts = async (
 const firstLegs = { attempt: "normal:0", when: "after" };
 const editedJourney = { phase: "edited" };
 const siteCurrencyRead = { kind: "currency", owner: "site_currency" };
+/** A step starts from a named scenario, so each control keeps them all. */
+const STEP_STATE = { scenarios: [] };
+/** The invoices of the same attempt, and their ledger legs at both times. */
+const ATTEMPT_LEGS = { invoices: ["attempt"], snapshots: ["attempt"] };
 const FAULTS: Faults = {
   fields: [
     ["wrong-renewal-cash", "snapshots", "cashAmount", "", firstLegs],
@@ -153,13 +157,6 @@ const FAULTS: Faults = {
       { attempt: "2" },
     ],
     [
-      "wrong-renewal-subscription-read",
-      "reads",
-      "target",
-      "sub_wrong_read",
-      { kind: "renewal", owner: "normal:0" },
-    ],
-    [
       "wrong-invoice-list-subscription",
       "reads",
       "target",
@@ -187,6 +184,24 @@ const FAULTS: Faults = {
       { caseId: "site_currency" },
     ],
     ["missing-provider-read", "initial", "reads", siteCurrencyRead],
+  ],
+  reads: {
+    arithmetic: STEP_STATE,
+    currencies: STEP_STATE,
+    failedJoins: STEP_STATE,
+    journeys: STEP_STATE,
+    operations: { ...STEP_STATE, ...ATTEMPT_LEGS },
+    reads: STEP_STATE,
+    snapshots: { ...STEP_STATE, ...ATTEMPT_LEGS, operations: ["attempt"] },
+  },
+  whole: [
+    [
+      "wrong-renewal-subscription-read",
+      "reads",
+      "target",
+      "sub_wrong_read",
+      { kind: "renewal", owner: "normal:0" },
+    ],
   ],
 };
 /* jscpd:ignore-end */

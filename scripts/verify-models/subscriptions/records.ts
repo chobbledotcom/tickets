@@ -78,13 +78,6 @@ const FAULTS: Faults = {
       "",
       refusedDelete,
     ],
-    [
-      "misattributed-projected-booking",
-      "observed",
-      "attendee",
-      "",
-      { booking: "1" },
-    ],
   ],
   missing: [
     [
@@ -98,6 +91,16 @@ const FAULTS: Faults = {
       "initial",
       "operations",
       { status: "paused" },
+    ],
+  ],
+  reads: {},
+  whole: [
+    [
+      "misattributed-projected-booking",
+      "observed",
+      "attendee",
+      "",
+      { booking: "1" },
     ],
   ],
 };

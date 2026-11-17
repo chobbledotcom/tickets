@@ -1,4 +1,5 @@
 // test-groups: run-alone
+import { equal } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { MODEL_TIME } from "#scripts/verify-models/subscriptions/environment.ts";
@@ -155,6 +156,13 @@ for (const example of examples) {
         ? []
         : [expect.objectContaining(example.expected)];
     expect(observed).toEqual(expected);
+    if (control.scope !== undefined) {
+      const kept = records(await control.scope(), example.table);
+      const changed = records(data, example.table).filter(
+        (fact, index) => !equal(fact, kept[index]),
+      );
+      expect(changed).toEqual(observed);
+    }
     if (example.expected === null) {
       expect(
         records(data, "OperationFacts").filter(

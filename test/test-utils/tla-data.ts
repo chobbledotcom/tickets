@@ -52,28 +52,42 @@ const decodeRecords = (bodies: string): DecodedRecord[] =>
     )}]`,
   );
 
-export const records = (data: string, name: string): DecodedRecord[] =>
-  decodeRecords(recordBodies(data, setBody(data, name)));
-
-const pageBody = (data: string, name: string): string => {
+/** A record set is the union of one small set for each page of rows. */
+const partNames = (data: string, name: string): string[] => {
   const match = requireValue(
-    data.match(new RegExp(`^${name}Pages == <<([\\s\\S]*?)>>(?=\\n|$)`, "m")),
+    data.match(new RegExp(`^${name} == (.*)$`, "m")),
+    `Missing checker set ${name}`,
+  );
+  const whole = requireValue(match[1], `Missing checker set body ${name}`);
+  return whole === "{}" ? [] : whole.split(" \\cup ");
+};
+
+export const records = (data: string, name: string): DecodedRecord[] =>
+  partNames(data, name).flatMap((part) =>
+    decodeRecords(recordBodies(data, setBody(data, part))),
+  );
+
+/** The row text of each page. A named operator holds one page, and the page
+ *  list names those operators in order. */
+const pageBodies = (data: string, name: string): string[] => {
+  const list = requireValue(
+    data.match(new RegExp(`^${name}Pages == <<(.*)>>$`, "m")),
     `Missing checker pages ${name}`,
   );
-  return requireValue(match[1], `Missing checker page body ${name}`);
+  const names = requireValue(list[1], `Missing checker page list ${name}`);
+  if (names === "") return [];
+  return names.split(", ").map((page) => {
+    const match = requireValue(
+      data.match(new RegExp(`^${page} == <<(.*)>>$`, "m")),
+      `Missing checker page ${page}`,
+    );
+    return requireValue(match[1], `Missing checker page body ${page}`);
+  });
 };
 
 /** Decode each physical page separately so tests can check the index bijection. */
 export const recordPages = (data: string, name: string): DecodedRecord[][] =>
-  [...pageBody(data, name).matchAll(/<<([^<>]*)>>/g)].map((page) =>
-    decodeRecords(
-      recordBodies(data, requireValue(page[1], "Missing page rows")),
-    ),
-  );
+  pageBodies(data, name).map((page) => decodeRecords(recordBodies(data, page)));
 
 export const memberPages = (data: string, name: string): string[][] =>
-  JSON.parse(
-    `[${pageBody(data, name).replaceAll(/"(?:\\.|[^"\\])*"|<<|>>/g, (token) =>
-      token === "<<" ? "[" : token === ">>" ? "]" : token,
-    )}]`,
-  );
+  pageBodies(data, name).map((page) => JSON.parse(`[${page}]`));

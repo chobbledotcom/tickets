@@ -91,13 +91,6 @@ const FAULTS: Faults = {
       "",
       { provider: "square", shape: "single" },
     ],
-    [
-      "wrong-booking-attribution",
-      "plans",
-      "subscription",
-      "sub_stolen",
-      { identity: "checkout-1-stored-101" },
-    ],
     ["rewritten-plan-amount", "plans", "amount", "", editedPlan],
     ["wrong-plan-id", "plans", "subscription", "sub_wrong", editedPlan],
     ["wrong-frozen-vat", "plans", "tax", "", editedPlan],
@@ -162,6 +155,18 @@ const FAULTS: Faults = {
       { identity: "checkout-1-stored-100" },
     ],
   ],
+  // Every checkout law reads one fact, so a reduced control keeps no other table.
+  reads: {},
+  // This control keeps the complete facts, so one fault is found among them.
+  whole: [
+    [
+      "wrong-booking-attribution",
+      "plans",
+      "subscription",
+      "sub_stolen",
+      { identity: "checkout-1-stored-101" },
+    ],
+  ],
 };
 /* jscpd:ignore-end */
 
@@ -171,4 +176,9 @@ export const { controls, modelData } = producerFor(
   ({ admissions, plans, requests }) => ({ admissions, plans, requests }),
   FAULTS,
   () => [],
+  (facts) => [
+    facts.admissionUniverse,
+    facts.requestUniverse,
+    facts.planUniverse,
+  ],
 );

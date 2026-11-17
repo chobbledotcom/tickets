@@ -2,8 +2,10 @@
 import { once } from "#fp";
 import { tlaModule, tlaSet } from "#scripts/verify-models/data.ts";
 import {
+  missingFault,
   producerFor,
   recordSetsFor,
+  wholeFaults,
 } from "#scripts/verify-models/subscriptions/controls.ts";
 import {
   LIFECYCLE_TABLES,
@@ -69,23 +71,20 @@ export const { controls, modelData } = producerFor(
   lifecycleFacts,
   moduleFor,
   (facts) => facts,
-  {
-    fields: FIELD_FAULTS.map(([name, field, wrongText, scenario]) => [
+  wholeFaults(
+    FIELD_FAULTS.map(([name, field, wrongText, scenario]) => [
       name,
       "moves",
       field,
       wrongText,
       { scenario },
     ]),
-    missing: [
-      [
-        "missing lifecycle move",
-        "initial",
-        "moves",
-        { scenario: "cancel/answers/active/active/0/0" },
-      ],
+    [
+      missingFault("missing lifecycle move", "moves", {
+        scenario: "cancel/answers/active/active/0/0",
+      }),
     ],
-  },
+  ),
   (changedData) => [
     {
       data: changedData((facts) => {
