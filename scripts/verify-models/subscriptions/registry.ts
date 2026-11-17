@@ -14,32 +14,58 @@ type Producer = {
   modelData: ModelDataSource;
   controls: readonly ModelControl[];
 };
-type ControlLabel = readonly [name: string, phase: CheckPhase];
+/** A reduced control is a step control that keeps only the facts its law
+ * reads. It declares a scope, and the checker must accept that scope. */
+type ControlKind = CheckPhase | "reduced";
+type ControlLabel = readonly [name: string, kind: ControlKind];
 type ModelDeclaration = Extract<VerificationModule, { kind: "model" }>;
+
+const phaseOf = (kind: ControlKind): CheckPhase =>
+  kind === "reduced" ? "step" : kind;
 
 const subscriptionModel = (
   module: string,
   load: () => Promise<Producer>,
-  labels: Readonly<Record<string, CheckPhase>>,
+  labels: Readonly<Record<string, ControlKind>>,
   context: readonly string[],
 ): ModelDeclaration => {
   const source = dataFrom(load);
   const entries = Object.entries(labels);
-  const controlFor = ([name, phase]: ControlLabel): ModelControl => ({
-    data: source((producer) => {
-      const control = requireValue(
-        producer.controls.find((control) => control.name === name),
-        `The ${module} model has no ${name} control.`,
-      );
-      assert(
-        control.phase === phase && producer.controls.length === entries.length,
-        `The ${module} control metadata differs at ${name}.`,
-      );
-      return control.data;
-    }),
-    name,
-    phase,
-  });
+  /** The producer's control of one name, when it agrees with the label. */
+  const controlOf = (
+    producer: Producer,
+    [name, kind]: ControlLabel,
+  ): ModelControl => {
+    const control = requireValue(
+      producer.controls.find((control) => control.name === name),
+      `The ${module} model has no ${name} control.`,
+    );
+    assert(
+      control.phase === phaseOf(kind) &&
+        (control.scope !== undefined) === (kind === "reduced") &&
+        producer.controls.length === entries.length,
+      `The ${module} control metadata differs at ${name}.`,
+    );
+    return control;
+  };
+  const controlFor = (label: ControlLabel): ModelControl => {
+    const [name, kind] = label;
+    const control = {
+      data: source((producer) => controlOf(producer, label).data),
+      name,
+      phase: phaseOf(kind),
+    };
+    if (kind !== "reduced") return control;
+    return {
+      ...control,
+      scope: source((producer) =>
+        requireValue(
+          controlOf(producer, label).scope,
+          `The ${name} control has no scope.`,
+        ),
+      ),
+    };
+  };
   const [first, ...rest] = entries;
   return {
     context: [
@@ -62,29 +88,29 @@ const subscriptionModel = (
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const CHECKOUT_CONTROLS = {
-  "extra-recurring-line": "step",
+  "extra-recurring-line": "reduced",
   "missing-booking-outcome": "initial",
-  "missing-one-time-line": "step",
+  "missing-one-time-line": "reduced",
   "missing-refused-outcome": "initial",
-  "rewritten-plan-amount": "step",
-  "unsupported-order-admitted": "step",
+  "rewritten-plan-amount": "reduced",
+  "unsupported-order-admitted": "reduced",
   "wrong-booking-attribution": "step",
-  "wrong-first-invoice-reference": "step",
-  "wrong-frozen-vat": "step",
-  "wrong-initial-amount": "step",
-  "wrong-initial-quantity": "step",
-  "wrong-invoice-read": "step",
-  "wrong-ordinary-initial-line": "step",
-  "wrong-plan-id": "step",
-  "wrong-plan-interval": "step",
-  "wrong-plan-status": "step",
-  "wrong-recurring-amount": "step",
-  "wrong-recurring-interval": "step",
-  "wrong-recurring-quantity": "step",
-  "wrong-recurring-time": "step",
-  "wrong-request-listing": "step",
-  "wrong-subscribed-initial-line": "step",
-  "wrong-subscription-read": "step",
+  "wrong-first-invoice-reference": "reduced",
+  "wrong-frozen-vat": "reduced",
+  "wrong-initial-amount": "reduced",
+  "wrong-initial-quantity": "reduced",
+  "wrong-invoice-read": "reduced",
+  "wrong-ordinary-initial-line": "reduced",
+  "wrong-plan-id": "reduced",
+  "wrong-plan-interval": "reduced",
+  "wrong-plan-status": "reduced",
+  "wrong-recurring-amount": "reduced",
+  "wrong-recurring-interval": "reduced",
+  "wrong-recurring-quantity": "reduced",
+  "wrong-recurring-time": "reduced",
+  "wrong-request-listing": "reduced",
+  "wrong-subscribed-initial-line": "reduced",
+  "wrong-subscription-read": "reduced",
 } as const;
 /* jscpd:ignore-end */
 
@@ -109,25 +135,25 @@ const CHECKOUT_CONTEXT = [
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const RENEWAL_CONTROLS = {
-  "broken-failed-checkout-identity-join": "step",
+  "broken-failed-checkout-identity-join": "reduced",
   "corrupt-stored-renewal-vat": "step",
   "duplicate-provider-read": "initial",
-  "duplicate-renewal-cash-leg": "step",
-  "foreign-renewal-currency-accepted": "step",
+  "duplicate-renewal-cash-leg": "reduced",
+  "foreign-renewal-currency-accepted": "reduced",
   "missing-provider-read": "initial",
   "missing-renewal-arithmetic": "initial",
   "missing-renewal-attempt": "initial",
   "missing-renewal-currency": "initial",
-  "partial-renewal-status-commit": "step",
-  "replaced-booking-accepted": "step",
-  "rewritten-joined-plan": "step",
-  "wrong-exact-renewal-tax": "step",
-  "wrong-invoice-list-subscription": "step",
-  "wrong-joined-trial-time": "step",
-  "wrong-renewal-attendee": "step",
-  "wrong-renewal-cash": "step",
-  "wrong-renewal-listing": "step",
-  "wrong-renewal-paid-time": "step",
+  "partial-renewal-status-commit": "reduced",
+  "replaced-booking-accepted": "reduced",
+  "rewritten-joined-plan": "reduced",
+  "wrong-exact-renewal-tax": "reduced",
+  "wrong-invoice-list-subscription": "reduced",
+  "wrong-joined-trial-time": "reduced",
+  "wrong-renewal-attendee": "reduced",
+  "wrong-renewal-cash": "reduced",
+  "wrong-renewal-listing": "reduced",
+  "wrong-renewal-paid-time": "reduced",
   "wrong-renewal-subscription-read": "step",
 } as const;
 /* jscpd:ignore-end */
@@ -201,19 +227,19 @@ const CANCELLATION_CONTEXT = [
 /* jscpd:ignore-start -- a list of strings, not code */
 const RECORD_CONTROLS = {
   "duplicate-projected-booking": "step",
-  "lost-live-plan-delete": "step",
-  "lost-live-plan-merge": "step",
-  "lost-live-plan-remove": "step",
+  "lost-live-plan-delete": "reduced",
+  "lost-live-plan-merge": "reduced",
+  "lost-live-plan-remove": "reduced",
   "misattributed-projected-booking": "step",
   "missing-required-record-domain": "initial",
   "omitted-quantity-zero-booking": "step",
-  "partial-refusal": "step",
-  "partial-refusal-money": "step",
-  "wrong-preserved-plan-amount": "step",
-  "wrong-preserved-plan-identity": "step",
-  "wrong-preserved-plan-interval": "step",
-  "wrong-preserved-plan-status": "step",
-  "wrong-preserved-plan-tax": "step",
+  "partial-refusal": "reduced",
+  "partial-refusal-money": "reduced",
+  "wrong-preserved-plan-amount": "reduced",
+  "wrong-preserved-plan-identity": "reduced",
+  "wrong-preserved-plan-interval": "reduced",
+  "wrong-preserved-plan-status": "reduced",
+  "wrong-preserved-plan-tax": "reduced",
 } as const;
 /* jscpd:ignore-end */
 
@@ -265,15 +291,14 @@ const LIFECYCLE_CONTEXT = [
 const producerOf = (module: string) => (): Promise<Producer> =>
   import(`./${module.replace("Subscription", "").toLowerCase()}.ts`);
 
-const LABELS = {
-  SubscriptionCancellation: CANCELLATION_CONTROLS,
-  SubscriptionCheckout: CHECKOUT_CONTROLS,
-  SubscriptionLifecycle: LIFECYCLE_CONTROLS,
-  SubscriptionRecords: RECORD_CONTROLS,
-  SubscriptionRenewals: RENEWAL_CONTROLS,
-} as const satisfies Readonly<
-  Record<string, Readonly<Record<string, CheckPhase>>>
->;
+const LABELS: Readonly<Record<string, Readonly<Record<string, ControlKind>>>> =
+  {
+    SubscriptionCancellation: CANCELLATION_CONTROLS,
+    SubscriptionCheckout: CHECKOUT_CONTROLS,
+    SubscriptionLifecycle: LIFECYCLE_CONTROLS,
+    SubscriptionRecords: RECORD_CONTROLS,
+    SubscriptionRenewals: RENEWAL_CONTROLS,
+  };
 const CONTEXTS: Readonly<Record<keyof typeof LABELS, readonly string[]>> = {
   SubscriptionCancellation: CANCELLATION_CONTEXT,
   SubscriptionCheckout: CHECKOUT_CONTEXT,

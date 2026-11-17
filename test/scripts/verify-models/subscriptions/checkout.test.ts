@@ -4,6 +4,7 @@ import { pick } from "@std/collections";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { once } from "#fp";
+import { requireValue } from "#shared/required-value.ts";
 import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { members, records } from "#test-utils/tla-data.ts";
 import { checkoutControlCases } from "./checkout-control-cases.ts";
@@ -80,8 +81,16 @@ const shapes = [
 ];
 const providers = ["stripe", "square", "sumup", "none"];
 
-/** Check emitted business evidence, independently of the controls' names. */
-const hasBusinessFault = (data: string): boolean => {
+const TABLES = ["AdmissionFacts", "RequestFacts", "PlanFacts"] as const;
+const UNIVERSES = ["AdmissionUniverse", "RequestUniverse", "PlanUniverse"];
+
+/** The members of one checker set: the rows of a table, or the names of a
+ * universe. */
+const setOf = (data: string, name: string): unknown[] =>
+  UNIVERSES.includes(name) ? members(data, name) : records(data, name);
+
+/** A fact table that does not hold each expected identity one time. */
+const hasCoverageFault = (data: string): boolean => {
   for (const [table, identity, universe] of [
     ["AdmissionFacts", "scenario", "AdmissionUniverse"],
     ["RequestFacts", "scenario", "RequestUniverse"],
@@ -97,6 +106,11 @@ const hasBusinessFault = (data: string): boolean => {
     )
       return true;
   }
+  return false;
+};
+
+/** A fact that breaks the law of its own row. */
+const hasLawFault = (data: string): boolean => {
   if (
     records(data, "AdmissionFacts").some((fact) => {
       const supported =
@@ -126,6 +140,10 @@ const hasBusinessFault = (data: string): boolean => {
     )
   );
 };
+
+/** Check emitted business evidence, independently of the controls' names. */
+const hasBusinessFault = (data: string): boolean =>
+  hasCoverageFault(data) || hasLawFault(data);
 
 describe("subscription checkout production facts", () => {
   test("every provider retains each accepted and refused order shape", async () => {
@@ -294,50 +312,64 @@ describe("subscription checkout production facts", () => {
   test("each registered control emits a business law or coverage failure", async () => {
     expect(hasBusinessFault(await clean())).toBe(false);
     for (const control of model.controls) {
-      expect(hasBusinessFault(await control.data())).toBe(true);
+      const data = await control.data();
+      if (control.scope === undefined) {
+        expect(hasBusinessFault(data)).toBe(true);
+        continue;
+      }
+      expect(hasLawFault(await control.scope())).toBe(false);
+      expect(hasLawFault(data)).toBe(true);
     }
   });
 
   for (const expected of checkoutControlCases) {
+    const matches = (fact: Row) =>
+      Object.entries(expected.target).every(
+        ([key, value]) => fact[key] === value,
+      );
+    /** The target's table after the control, from the rows before it. */
+    const changedRows = (before: Row[], others: (fact: Row) => Row[]) =>
+      before.flatMap((fact) => {
+        if (!matches(fact)) return others(fact);
+        return expected.after === null ? [] : [{ ...fact, ...expected.after }];
+      });
+    const registered = () =>
+      requireValue(
+        model.controls.find(({ name }) => name === expected.name),
+        "Registered checkout control is missing",
+      );
+    const otherNames = [...TABLES, ...UNIVERSES].filter(
+      (name) => name !== expected.table,
+    );
+
+    test(`registered control ${expected.name} names one clean target`, async () => {
+      expect((await cleanRecords(expected.table)).filter(matches)).toEqual([
+        expect.objectContaining({ ...expected.target, ...expected.before }),
+      ]);
+    });
+
     test(`registered control ${expected.name} exposes its precise business fault`, async () => {
+      const control = registered();
       const cleanText = await clean();
-      const control = model.controls.find(({ name }) => name === expected.name);
-      if (control === undefined)
-        throw new Error("Registered checkout control is missing");
       const corrupted = await control.data();
-      for (const table of [
-        "AdmissionFacts",
-        "RequestFacts",
-        "PlanFacts",
-      ] as const) {
-        const before: Row[] = records(cleanText, table);
-        if (table !== expected.table) {
-          expect(records(corrupted, table)).toEqual(before);
-          continue;
-        }
-        const matches = (fact: Row) =>
-          Object.entries(expected.target).every(
-            ([key, value]) => fact[key] === value,
-          );
-        expect(before.filter(matches)).toEqual([
-          expect.objectContaining({ ...expected.target, ...expected.before }),
-        ]);
-        const wanted = before.flatMap((fact) => {
-          if (!matches(fact)) return [fact];
-          return expected.after === null
-            ? []
-            : [{ ...fact, ...expected.after }];
-        });
-        expect(records(corrupted, table)).toEqual(wanted);
-      }
-      for (const universe of [
-        "AdmissionUniverse",
-        "RequestUniverse",
-        "PlanUniverse",
-      ]) {
-        expect(members(corrupted, universe)).toEqual(
-          members(cleanText, universe),
+      const before: Row[] = records(cleanText, expected.table);
+      if (control.scope === undefined) {
+        expect(records(corrupted, expected.table)).toEqual(
+          changedRows(before, (fact) => [fact]),
         );
+        for (const name of otherNames) {
+          expect(setOf(corrupted, name)).toEqual(setOf(cleanText, name));
+        }
+        return;
+      }
+      const kept = await control.scope();
+      expect(records(kept, expected.table)).toEqual(before.filter(matches));
+      expect(records(corrupted, expected.table)).toEqual(
+        changedRows(before, () => []),
+      );
+      for (const name of otherNames) {
+        expect(kept).toContain(`${name}Count == 0`);
+        expect(corrupted).toContain(`${name}Count == 0`);
       }
     });
   }

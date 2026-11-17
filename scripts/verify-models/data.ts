@@ -1,5 +1,5 @@
 import type * as v from "valibot";
-import { unique } from "#fp";
+import { chunk, unique } from "#fp";
 
 type TlaAtom = string | boolean | number;
 
@@ -73,28 +73,68 @@ const record = (value: TlaRecord, name: string): string =>
     .map(([field, value]) => `${field} |-> ${atom(value, `${name}.${field}`)}`)
     .join(", ")}]`;
 
-// Each indexed lookup selects a page, then at most 32 rows within that page.
-// This avoids a single recursive equality builder over the entire fact table
-// while retaining the original semantic set.
+// The type checker takes more than linear time over one long literal, so a
+// named operator carries each page of at most 32 rows. An indexed lookup
+// selects a page, then a row within that page. The semantic set is the union
+// of one small set for each page.
 const RECORD_PAGE_SIZE = 32;
 
-const indexedDefinitions = (
+/** Names one operator for each page of values. `wrap` writes a page as a set
+ *  or as a sequence of the given type. */
+const pageOperators = (
   name: string,
   type: string,
   values: readonly string[],
-): string[] => {
-  const pages: string[] = [];
-  for (let index = 0; index < values.length; index += RECORD_PAGE_SIZE) {
-    pages.push(
-      `<<${values.slice(index, index + RECORD_PAGE_SIZE).join(", ")}>>`,
-    );
-  }
+  wrap: (members: string) => string,
+): { definitions: string[]; names: string[] } => {
+  const pages = chunk(RECORD_PAGE_SIZE)([...values]);
+  const names = pages.map((_, index) => `${name}${index}`);
+  return {
+    definitions: pages.map(
+      (page, index) =>
+        `\\* @type: ${type};\n${names[index]} == ${wrap(page.join(", "))}`,
+    ),
+    names,
+  };
+};
+
+/** The definitions that one named list of values of one type renders. */
+type ListDefinitions = (
+  name: string,
+  type: string,
+  values: readonly string[],
+) => string[];
+
+const indexedDefinitions: ListDefinitions = (name, type, values) => {
+  const pages = pageOperators(
+    `${name}Page`,
+    `Seq(${type})`,
+    values,
+    (members) => `<<${members}>>`,
+  );
   return [
-    `\\* @type: Seq(Seq(${type}));\n${name}Pages == <<${pages.join(",\n")}>>`,
+    ...pages.definitions,
+    `\\* @type: Seq(Seq(${type}));\n${name}Pages == <<${pages.names.join(", ")}>>`,
     `${name}Count == ${values.length}`,
     `${name}Indices == 1..${values.length}`,
     `\\* ${name}At requires index \\in ${name}Indices; no value is defined outside that domain.`,
     `\\* @type: (Int) => ${type};\n${name}At(index) == ${name}Pages[((index - 1) \\div ${RECORD_PAGE_SIZE}) + 1][((index - 1) % ${RECORD_PAGE_SIZE}) + 1]`,
+  ];
+};
+
+/** One small set for each page of rows, and the set of all rows as their
+ *  union. A table with no row is the empty set. */
+const pagedSet: ListDefinitions = (name, type, values) => {
+  const parts = pageOperators(
+    `${name}Part`,
+    `Set(${type})`,
+    values,
+    (members) => `{${members}}`,
+  );
+  const whole = parts.names.length === 0 ? "{}" : parts.names.join(" \\cup ");
+  return [
+    ...parts.definitions,
+    `\\* @type: Set(${type});\n${name} == ${whole}`,
   ];
 };
 
@@ -129,7 +169,7 @@ export const tlaRecords = <const Schema extends TlaRecordSchema>(
   return [
     `\\* @typeAlias: ${alias} = { ${fields} };`,
     ...definitions,
-    `\\* @type: Set($${alias});\n${name} == {\n${names.join(",\n")}\n}`,
+    ...pagedSet(name, `$${alias}`, names),
     ...indexedDefinitions(name, `$${alias}`, names),
   ].join("\n");
 };

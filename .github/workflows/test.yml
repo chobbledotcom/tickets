@@ -153,6 +153,15 @@ jobs:
       - name: Check TLA model standards
         run: deno task check:tla
 
+      # A pass names its inputs, so a restored pass is safe.
+      - name: Restore the model passes
+        uses: actions/cache@v4.3.0
+        with:
+          path: .verify-models-passes
+          key: verify-models-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            verify-models-${{ runner.os }}-
+
       # Only the models profile carries Apalache and Java.
       - name: Check machine safety models
         shell: devenv --profile models shell bash -- -e {0}

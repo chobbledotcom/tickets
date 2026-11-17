@@ -12,8 +12,10 @@ import {
   ownerFacts,
 } from "#scripts/verify-models/subscriptions/cancellation-owner.ts";
 import {
+  missingFault,
   producerFor,
   recordSetsFor,
+  wholeFaults,
 } from "#scripts/verify-models/subscriptions/controls.ts";
 import { SubscriptionStatusSchema } from "#shared/subscriptions/plan.ts";
 
@@ -114,16 +116,13 @@ export const { controls, modelData } = producerFor(
   cancellationFacts,
   moduleFor,
   (facts) => facts,
-  {
-    fields: [],
-    missing: [
-      [
-        "missing owner cancellation evidence",
-        "initial",
-        "owners",
-        { scenario: "owner-final" },
-      ],
+  wholeFaults(
+    [],
+    [
+      missingFault("missing owner cancellation evidence", "owners", {
+        scenario: "owner-final",
+      }),
     ],
-  },
+  ),
   () => boundaryControls.map(boundaryControl),
 );

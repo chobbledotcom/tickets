@@ -20,6 +20,8 @@ src/ui/static/style.css
 .test-junit.xml
 
 .bin/
+# Model checks that passed, named by their inputs (deno task verify:models)
+.verify-models-passes/
 .direnv/
 .devenv/
 .container-work/

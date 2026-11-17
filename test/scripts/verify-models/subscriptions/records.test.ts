@@ -14,6 +14,7 @@ import {
   runRecordScenario,
 } from "#scripts/verify-models/subscriptions/records-operations.ts";
 import { projectionFacts } from "#scripts/verify-models/subscriptions/records-projection.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
 import { records } from "#test-utils/tla-data.ts";
 
@@ -339,11 +340,11 @@ describe("subscription record production facts", () => {
         const after = operations.find((fact) => fact.scenario === scenario);
         if (!before || !after) throw new Error("Missing preserved-plan event");
         expect(control.phase).toBe("step");
-        expect(operations).toEqual(
-          baseline.operations.map((fact) =>
-            fact.scenario === scenario ? { ...fact, [field]: value } : fact,
-          ),
-        );
+        const kept = await requireValue(control.scope, "No kept facts")();
+        expect(records(kept, "OperationFacts")).toEqual([before]);
+        expect(records(kept, "ObservedProjection")).toEqual([]);
+        expect(operations).toEqual([{ ...before, [field]: value }]);
+        expect(projected).toEqual([]);
         expect(after.accepted).toBe(field !== "present");
         expect(after.accepted).toBe(before.accepted);
         expect(after.expectedPresent).toBe(true);
