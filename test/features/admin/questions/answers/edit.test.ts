@@ -343,7 +343,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/recalculate`,
-        { recalculate_fields: "timesSelected" },
+        { recalculateFields: "timesSelected" },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}/answers/${aId}/edit`,

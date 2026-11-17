@@ -36,7 +36,7 @@ describe("adminListingRecalculatePage", () => {
       "From attendee data",
       "Compare the stored listing totals",
       'class="table-scroll"',
-      'name="recalculate_fields"',
+      'name="recalculateFields"',
       'value="bookedQuantity"',
       ">9<",
       ">4<",

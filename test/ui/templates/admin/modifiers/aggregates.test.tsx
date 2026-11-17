@@ -54,7 +54,7 @@ describe("adminModifierRecalculatePage", () => {
       "Recalculate: Loyalty",
       "Current",
       "From attendee data",
-      'name="recalculate_fields"',
+      'name="recalculateFields"',
       'value="totalUses"',
       ">9<",
       ">4<",

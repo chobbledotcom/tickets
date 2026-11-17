@@ -268,7 +268,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/modifiers/recalculate/${id}`,
-        { recalculate_fields: "totalUses" },
+        { recalculateFields: "totalUses" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -294,7 +294,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
       const { cookie, response } = await adminFormPost(
         `/admin/modifiers/recalculate/${id}`,
-        { recalculate_fields: "totalUses" },
+        { recalculateFields: "totalUses" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,

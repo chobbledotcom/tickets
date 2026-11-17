@@ -176,7 +176,7 @@ describe("adminAnswerRecalculatePage", () => {
       // Current (stored) and recalculated (from attendee answers) columns.
       "<td>7</td>",
       "<td>5</td>",
-      'name="recalculate_fields"',
+      'name="recalculateFields"',
     ]);
   });
 
