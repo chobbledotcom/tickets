@@ -179,11 +179,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   ) => {
     const { cookie, csrfToken } = await getTestSession();
     const response = await handleRequest(
-      mockFormRequest(
-        "/admin/attendees/new",
-        { csrfToken, ...fields },
-        cookie,
-      ),
+      mockFormRequest("/admin/attendees/new", { csrfToken, ...fields }, cookie),
     );
     expect(response.status).toBe(302);
     const attendees = await getAttendeesRaw(listingId);

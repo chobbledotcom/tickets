@@ -132,10 +132,7 @@ describeWithEnv(
       // The child keeps its own quantity row beside the parent's fold —
       // exactly as the plain (package-less) multi-slug page treats it.
       const slugs = `${group.slug}+${parent.slug}+${child.slug}`;
-      assertStringIncludes(
-        await pageHtml(slugs),
-        `name="quantity${child.id}"`,
-      );
+      assertStringIncludes(await pageHtml(slugs), `name="quantity${child.id}"`);
 
       const submit = await submitPackageBooking(slugs, {
         email: "solo-child@test.com",

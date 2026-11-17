@@ -47,11 +47,7 @@ const expectClosesDuringSubmission = async (
   await updateTestListing(listingIdToClose, { closesAt: pastCloseTime() });
 
   const response = await handleRequest(
-    mockFormRequest(
-      path,
-      { ...formData, csrfToken },
-      `csrfToken=${csrfToken}`,
-    ),
+    mockFormRequest(path, { ...formData, csrfToken }, `csrfToken=${csrfToken}`),
   );
   expect(response.status).toBe(302);
   expectFlash(

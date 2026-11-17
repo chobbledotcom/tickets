@@ -52,9 +52,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
       const handler = createActionHandler(config);
-      return handler(
-        mockFormRequest(path, { csrfToken, ...fields }, cookie),
-      );
+      return handler(mockFormRequest(path, { csrfToken, ...fields }, cookie));
     };
 
     test("createActionHandler supports custom error mapping", async () => {
@@ -128,11 +126,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockMultipartRequest(
-          "/admin/test-multipart",
-          { csrfToken },
-          cookie,
-        ),
+        mockMultipartRequest("/admin/test-multipart", { csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);

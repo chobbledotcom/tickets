@@ -29,9 +29,7 @@ describeWithEnv(
         const csrfToken = extractCsrfToken(await getResponse.text());
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-        return handleRequest(
-          mockFormRequest(path, { ...data, csrfToken }),
-        );
+        return handleRequest(mockFormRequest(path, { ...data, csrfToken }));
       };
 
       test("returns 404 when no valid listings", async () => {
