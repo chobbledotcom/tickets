@@ -37,15 +37,25 @@ const purchaseSeed = (fields: string): ListingRenderValues => ({
   uses_logistics: "",
 });
 
+/** A checked-in seed booked on a day the buyer picks from the given days. */
+const dailySeed = (bookableDays: string): ListingRenderValues => ({
+  bookable_days: bookableDays,
+  duration_days: "1",
+  fields: "email",
+  listing_type: "daily",
+  maximum_days_after: "90",
+  minimum_days_before: "1",
+  purchase_only: "",
+  uses_logistics: "",
+});
+
 /* jscpd:ignore-start -- a list of strings, not code */
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
+  "day-pass": dailySeed(ALL_BOOKABLE_DAYS),
+  donation: { ...purchaseSeed("email"), can_pay_more: "1" },
   "hireable-item": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+    ...dailySeed(ALL_BOOKABLE_DAYS),
     fields: "email,phone,address",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
     purchase_only: "1",
     uses_logistics: "1",
   },
@@ -57,16 +67,15 @@ export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
   },
   "online-digital": purchaseSeed("email"),
   "physical-product": purchaseSeed("email,address"),
-  "weekly-event": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+  subscription: {
     fields: "email",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
+    listing_type: "standard",
     purchase_only: "",
+    recurring_interval: "month",
     uses_logistics: "",
   },
+  // One day ticked, so the operator picks the day the class runs.
+  "weekly-event": dailySeed(VALID_DAY_NAMES[0]),
 };
 /* jscpd:ignore-end */
 

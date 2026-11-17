@@ -121,7 +121,7 @@ src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → += aud
 # ToBoolean rather than comparing strictly to `true`/`false` — so an early
 # `return false` becoming `return undefined` is unobservable through
 # inferTemplate (the only caller) for any input, even though the exhaustive
-# 16-combo dimension table already covers every reachable production case.
+# 32-combo dimension table already covers every reachable production case.
 src/shared/listing-templates.ts::inferTemplate~1l4j8xo  ?? → || audited:09e7b6c # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
 
 # bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
