@@ -69,6 +69,13 @@ describe("TLA integer facts", () => {
     expect(data).toContain("AmountsCount == 2");
   });
 
+  test("decodes an empty indexed page as no rows", () => {
+    const data = ["EmptyPage0 == <<>>", "EmptyPages == <<EmptyPage0>>"].join(
+      "\n",
+    );
+    expect(recordPages(data, "Empty")).toEqual([[]]);
+  });
+
   test("indexes every one of 600 distinct facts without changing set semantics", () => {
     const expected = Array.from({ length: 600 }, (_, index) => ({
       amount: index % 3,
