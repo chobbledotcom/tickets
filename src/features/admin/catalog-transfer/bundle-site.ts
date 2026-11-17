@@ -34,7 +34,7 @@ import {
   siteIdsOf,
   siteParentIdsOf,
 } from "./bundle-refs.ts";
-import { membershipSpec } from "./import-listing.ts";
+import { type MembershipOverrides, membershipSpec } from "./import-listing.ts";
 import type {
   CatalogBundle,
   GroupBody,
@@ -307,6 +307,42 @@ const resolvable = <Entry>(
     return resolved === undefined ? [] : [{ entry, resolved }];
   });
 
+/** One membership that either side of the document declared. */
+type DeclaredPair = {
+  entry: MembershipOverrides;
+  group: string;
+  groupRef: BundleRef;
+  isPackage: boolean;
+  /** The item that declared the link. A refusal names it. */
+  item: string;
+  listing: string;
+  listingRef: BundleRef;
+};
+
+/** Merge one declared membership into the pair indexes, or record the
+ * refusal for its overrides on the item that declared it. */
+const mergeDeclaredPair = (
+  pairs: MembershipPairs,
+  fail: FailureCollector,
+  declared: DeclaredPair,
+): void => {
+  const spec = membershipSpec(declared.entry, declared.isPackage);
+  if (!spec.ok) {
+    fail.failItem(declared.item, spec.error);
+    return;
+  }
+  mergePair(
+    pairs,
+    declared.listing,
+    declared.group,
+    declared.listingRef,
+    declared.groupRef,
+    spec.value,
+    declared.item,
+    fail,
+  );
+};
+
 /** Collect the membership pairs from both sides, so a listing and a group
  * that declare the same link must agree or the import refuses. The key is the
  * two names — unique across the document and the site together. */
@@ -326,21 +362,15 @@ export const collectPairs = (
       refs,
       (membership: ListingMembership) => membership.group,
     )) {
-      mergePair(
-        pairs,
-        body.listing.name,
-        entry.group,
-        { bundleKey: nameKey(body.listing.name) },
-        resolved,
-        membershipSpec(
-          entry.packagePrice,
-          entry.quantity,
-          entry.dayPrices,
-          groupViewOf(resolved, context).isPackage,
-        ),
-        body.listing.name,
-        fail,
-      );
+      mergeDeclaredPair(pairs, fail, {
+        entry,
+        group: entry.group,
+        groupRef: resolved,
+        isPackage: groupViewOf(resolved, context).isPackage,
+        item: body.listing.name,
+        listing: body.listing.name,
+        listingRef: { bundleKey: nameKey(body.listing.name) },
+      });
     }
   }
   for (const body of context.bundle.groups) {
@@ -350,21 +380,15 @@ export const collectPairs = (
       refs,
       (membership: GroupMember) => membership.listing,
     )) {
-      mergePair(
-        pairs,
-        member.listing,
-        body.group.name,
-        resolved,
-        { bundleKey: nameKey(body.group.name) },
-        membershipSpec(
-          member.packagePrice,
-          member.quantity,
-          member.dayPrices,
-          body.group.isPackage ?? false,
-        ),
-        body.group.name,
-        fail,
-      );
+      mergeDeclaredPair(pairs, fail, {
+        entry: member,
+        group: body.group.name,
+        groupRef: { bundleKey: nameKey(body.group.name) },
+        isPackage: body.group.isPackage ?? false,
+        item: body.group.name,
+        listing: member.listing,
+        listingRef: resolved,
+      });
     }
   }
   return pairs;

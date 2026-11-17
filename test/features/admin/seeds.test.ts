@@ -113,7 +113,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
     )(response);
   });
 
-  test("rejects non-numeric attendees per listing", async () => {
+  test("rejects a non-numeric attendees per listing", async () => {
     const response = await postSeeds({
       attendeesPerListing: "abc",
       listingCount: "1",
@@ -124,5 +124,19 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
       "Attendees per listing must be a whole number",
       false,
     )(response);
+  });
+
+  test("refuses a blank count box instead of taking its drawn default", async () => {
+    const response = await postSeeds({
+      attendeesPerListing: "0",
+      listingCount: "",
+    });
+
+    await expectFlashRedirect(
+      "/admin/seeds",
+      "Number of listings is required",
+      false,
+    )(response);
+    expect((await getAllListings()).length).toBe(0);
   });
 });

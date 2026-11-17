@@ -186,6 +186,14 @@ const readListingForm = <Values extends ListingFormValues>(
   const dayError = validateDayPricesFromForm(submitted);
   if (dayError !== null) return errorResult(dayError);
   const values = parsed.value;
+  // A group box holds a group id. The read must not drop a value that is not
+  // a group id. A dropped value stores a smaller group set than the form sent.
+  const groupIds = submitted.getPositiveIdArray("groupIds");
+  if (!groupIds.ok) {
+    return errorResult(
+      t("fields.validation.pick_from_list", { label: t("terms.groups") }),
+    );
+  }
   const fields = formFieldsInput(
     LISTING_FIELDS,
     { ...values, useDefaults: submitted.getString("useDefaults") },
@@ -200,7 +208,7 @@ const readListingForm = <Values extends ListingFormValues>(
         mode,
       ),
       dayPrices: parseDayPricesFromForm(submitted, values.durationDays ?? 1),
-      groupIds: submitted.getNumberArray("groupIds"),
+      groupIds: groupIds.value,
     },
     values,
   });

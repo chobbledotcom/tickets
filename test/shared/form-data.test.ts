@@ -94,6 +94,35 @@ describe("FormParams.getNumberArray", () => {
   });
 });
 
+describe("FormParams.getPositiveIdArray", () => {
+  test("parses every repeated id and skips a blank entry", () => {
+    const form = new FormParams();
+    form.append("ids", "1");
+    form.append("ids", "");
+    form.append("ids", " 2 ");
+    expect(form.getPositiveIdArray("ids")).toEqual({ ok: true, value: [1, 2] });
+  });
+
+  test("refuses the first value that is not a positive decimal id", () => {
+    for (const refused of ["0", "-4", "abc", "1.5", "2x"]) {
+      const form = new FormParams();
+      form.append("ids", "1");
+      form.append("ids", refused);
+      expect(form.getPositiveIdArray("ids")).toEqual({
+        error: refused,
+        ok: false,
+      });
+    }
+  });
+
+  test("returns no ids when the key is absent", () => {
+    expect(new FormParams().getPositiveIdArray("ids")).toEqual({
+      ok: true,
+      value: [],
+    });
+  });
+});
+
 describe("FormParams.getRepeatedPicklist", () => {
   const allowed = ["Monday", "Tuesday", "Wednesday"] as const;
   const read = (query: string) =>

@@ -72,9 +72,44 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("drops self-edges and unknown ids", async () => {
+  test("refuses a required child that names the listing itself", async () => {
     const { parent, child } = await parentAndChild();
-    await postChildren(parent.id, [parent.id, child.id, parent.id + 9999]);
+    const response = await postChildren(parent.id, [parent.id, child.id]);
+    expectFlash(
+      response,
+      t("listings_table.children_err_self", { name: parent.name }),
+      false,
+    );
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("refuses a required child id that names no listing", async () => {
+    const { parent, child } = await parentAndChild();
+    const response = await postChildren(parent.id, [
+      child.id,
+      parent.id + 9999,
+    ]);
+    expectFlash(response, t("listings_table.children_err_missing"), false);
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("refuses a child box that holds no listing id", async () => {
+    const { parent, child } = await parentAndChild();
+    const response = await postChildren(parent.id, [child.id, 0]);
+    expectFlash(
+      response,
+      t("fields.validation.pick_from_list", {
+        label: t("listings_table.children_legend"),
+      }),
+      false,
+    );
+    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+  });
+
+  test("saves one edge for a child id the form repeats", async () => {
+    const { parent, child } = await parentAndChild();
+    const response = await postChildren(parent.id, [child.id, child.id]);
+    expectFlash(response, "Required children updated");
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 

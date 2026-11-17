@@ -231,15 +231,23 @@ export const validateChildEdges = async (
   options?: ChildEdgeOptions,
 ): Promise<ChildEdgeValidation> => {
   const byId = await getListingsById();
-  // Drop self-edges and unknown ids, then collapse duplicates (preserving
-  // order). A repeated child id (API body `[7,7]` or repeated form values)
-  // makes `setChildIds` insert two `(parent, child)` rows and violates the
-  // unique index. Dedupe once here so validation and persist agree.
-  const childIds = unique(
-    submittedChildIds.filter(
-      (childId) => childId !== parent.id && byId.has(childId),
-    ),
-  );
+  // Refuse an id that names no stored listing, and an id that names the
+  // parent itself. An entry cannot become an edge, and a dropped entry stores
+  // a smaller child set than the form sent.
+  if (submittedChildIds.some((childId) => !byId.has(childId))) {
+    return { error: t("listings_table.children_err_missing"), ok: false };
+  }
+  if (submittedChildIds.includes(parent.id)) {
+    return {
+      error: t("listings_table.children_err_self", { name: parent.name }),
+      ok: false,
+    };
+  }
+  // A repeated child id (API body `[7,7]` or repeated form values) names the
+  // same edge twice, so collapse the repeats. `setChildIds` inserts two
+  // `(parent, child)` rows and violates the unique index. Validation and
+  // persist then agree on the one edge the caller asked for.
+  const childIds = unique([...submittedChildIds]);
   const [parentIds, resolveChildOnlyAddOn, childrenByParent] =
     await Promise.all([
       listingParents.getIds(parent.id),
@@ -393,10 +401,17 @@ const listingChildrenHandler = createIdEntityHandler<ListingWithCount>(
 
 export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/:id/children"> =
   listingChildrenHandler(async (listing, _session, form, _request, { id }) => {
-    const result = await validateChildEdges(
-      listing,
-      form.getNumberArray("childListingIds"),
-    );
+    const submitted = form.getPositiveIdArray("childListingIds");
+    if (!submitted.ok) {
+      return redirect(
+        `/admin/listing/${id}/edit`,
+        t("fields.validation.pick_from_list", {
+          label: t("listings_table.children_legend"),
+        }),
+        false,
+      );
+    }
+    const result = await validateChildEdges(listing, submitted.value);
     if (!result.ok) {
       return redirect(`/admin/listing/${id}/edit`, result.error, false);
     }

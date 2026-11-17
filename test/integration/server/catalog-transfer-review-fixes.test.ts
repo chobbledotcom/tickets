@@ -12,7 +12,10 @@ import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
-import { exportListing } from "#routes/admin/catalog-transfer/export.ts";
+import {
+  CatalogExportError,
+  exportListing,
+} from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import {
   importedListing,
@@ -292,24 +295,22 @@ describeWithEnv(
       expect(await importLogisticsListing("Logi On")).toBe(true);
     });
 
-    test("clears package overrides for a non-package group membership", async () => {
-      const group = await createTestGroup({ name: "Regular Group" });
+    test("refuses package overrides for a non-package group membership", async () => {
+      await createTestGroup({ name: "Regular Group" });
       const result = await importCatalog({
         groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
         kind: "listing",
         listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
         version: 1,
       });
-      if (!result.ok) throw new Error(result.error);
-      const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listingId === requireEntityImport(result).id,
-      )!;
-      // The override is dropped because the group isn't a package.
-      expect(row.packagePrice).toBeNull();
-      expect(row.quantity).toBe(1);
+      if (result.ok) throw new Error("the import was accepted");
+      // The overrides are refused, not cleared: only a package holds them.
+      assertStringIncludes(result.error, "Only a package group can hold");
+      assertStringIncludes(result.error, "packagePrice");
+      assertStringIncludes(result.error, "quantity");
     });
 
-    test("clears member overrides when importing a non-package group", async () => {
+    test("refuses member overrides when importing a non-package group", async () => {
       await createTestListing({ name: "Plain Member", unitPrice: 800 });
       const result = await importCatalog({
         group: { name: "Plain Group" },
@@ -317,10 +318,48 @@ describeWithEnv(
         members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
         version: 1,
       });
+      if (result.ok) throw new Error("the import was accepted");
+      assertStringIncludes(result.error, "Only a package group can hold");
+      assertStringIncludes(result.error, "packagePrice");
+    });
+
+    test("refuses to export a stored day price above the listing duration", async () => {
+      // A stored row can hold a price the form never reads, because the admin
+      // API does not bound day prices by the duration. The export refuses it
+      // with a message that names the field, rather than shipping a blob the
+      // import now refuses.
+      const { hmacHash } = await import("#crypto/hashing.ts");
+      const listing = await createListing({
+        dayPrices: { 1: 1000, 5: 5000 },
+        durationDays: 2,
+        maxAttendees: 1,
+        maxPrice: 0,
+        name: "Stale Day Price",
+        slug: "stale-day-price",
+        slugIndex: await hmacHash("stale-day-price"),
+      });
+      const result = await exportListing(listing.id, "owner");
+      expect(result instanceof CatalogExportError).toBe(true);
+      if (result instanceof CatalogExportError) {
+        assertStringIncludes(
+          result.message,
+          "dayPrices holds a price for a day the listing does not last",
+        );
+      }
+    });
+
+    test("imports a plain membership in a group that is not a package", async () => {
+      const group = await createTestGroup({ name: "Plain Group" });
+      const result = await importCatalog({
+        groups: [{ group: "Plain Group" }],
+        kind: "listing",
+        listing: { maxAttendees: 1, name: "Plain Joiner", unitPrice: 900 },
+        version: 1,
+      });
       if (!result.ok) throw new Error(result.error);
-      const row = (
-        await getGroupPackagePrices(requireEntityImport(result).id)
-      )[0]!;
+      const row = (await getGroupPackagePrices(group.id)).find(
+        (r) => r.listingId === requireEntityImport(result).id,
+      )!;
       expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
     });

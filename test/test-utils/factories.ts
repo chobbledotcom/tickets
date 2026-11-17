@@ -301,9 +301,17 @@ export const testListingInput = (
   };
 };
 
+/** The smallest form the create and edit pages accept: every box the page
+ *  draws carries a value, and the count and price boxes carry the declared
+ *  column defaults. */
 export const baseListingForm: Record<string, string> = {
+  durationDays: "1",
   maxAttendees: "100",
+  maximumDaysAfter: "90",
+  maxPrice: "100.00",
   maxQuantity: "1",
+  minimumDaysBefore: "1",
+  minQuantity: "1",
   name: "My Listing",
   thankYouUrl: "https://example.com",
   unitPrice: "0",
