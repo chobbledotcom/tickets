@@ -12,7 +12,6 @@ import {
   given,
   greaterThan,
   lessThan,
-  like,
   literal,
   matchesGlob,
   matchesNothing,
@@ -337,18 +336,12 @@ describe("matching", () => {
   });
 });
 
-describe("coalesce and like", () => {
+describe("coalesce", () => {
   test("gives the fallback where the value is null", () => {
     const value = coalesce(named<string | null>("nickname"), "none");
     expect([value.sql, value.args]).toEqual([
       "COALESCE(nickname, ?1)",
       ["none"],
     ]);
-  });
-
-  test("matches text against a bound LIKE pattern", () => {
-    const test = like(named<string>("code"), "a%");
-    expect([test.sql, test.args]).toEqual(["code LIKE ?1", ["a%"]]);
-    expect(and(test, test).sql).toBe("code LIKE ?1 AND code LIKE ?1");
   });
 });

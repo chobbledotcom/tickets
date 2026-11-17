@@ -351,13 +351,6 @@ export const from = <Name extends TableName, const Joined extends Spec = None>(
   spec: Joins<Name, Joined> = NO_JOINS,
 ): Query<Node<Name, Joined>> => query(table, spec, bareRead(table));
 
-/** Rows of the table of this name, for code over any table. The read has no
- *  typed node, so its conditions name their columns by text. */
-export const fromNamed = (name: string): Query<unknown> => {
-  const table = { columns: [], name, singular: name };
-  return query(table, {}, bareRead(table));
-};
-
 /** A join of the rows of `table` whose reference `edge` points at the parent. */
 export const via = <
   Name extends TableName,

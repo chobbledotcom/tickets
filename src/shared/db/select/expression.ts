@@ -304,10 +304,3 @@ export const coalesce = <Value extends InValue>(
   value: Expr<Value | null>,
   fallback: Operand<NoInfer<Value>>,
 ): Expr<Value> => valued(sql`COALESCE(${value}, ${fallback})`);
-
-/** The text matches the LIKE pattern. `%` stands for any run of letters and
- *  `_` for one letter. */
-export const like = (
-  value: Expr<string | null>,
-  pattern: Operand<string>,
-): Expr<boolean> => wholeCondition(sql`${value} LIKE ${pattern}`);

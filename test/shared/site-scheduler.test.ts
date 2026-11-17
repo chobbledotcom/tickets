@@ -29,15 +29,15 @@ const readsBuiltSites = (statement: SqlStatement): boolean =>
 const captureReplicaSiteRead = async (siteId: number): Promise<ResultSet> => {
   const real = getDb();
   const captured: ResultSet[] = [];
+  const keepResult = async (statement: SqlStatement): Promise<ResultSet> => {
+    const result = await real.execute(statement);
+    captured.push(result);
+    return result;
+  };
   const restore = wrapDbClient({
     batch: () => {},
     execute: (statement) =>
-      readsBuiltSites(statement)
-        ? real.execute(statement).then((result) => {
-            captured.push(result);
-            return result;
-          })
-        : null,
+      readsBuiltSites(statement) ? keepResult(statement) : null,
   });
   await findBuiltSiteById(siteId).finally(restore);
   const [result] = captured;

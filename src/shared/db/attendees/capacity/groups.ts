@@ -178,9 +178,9 @@ export const getGroupRemainingByListingId: RemainingLookup<
 export const getGroupStaticCapByGroupId = (
   groupIds: number[],
 ): Promise<RemainingMap> =>
-  cappedGroupQuery(groupIds, (ids) =>
-    readRows(cappedGroupsAmong(ids).pick("id", "maxAttendees")).then(
-      fieldById("maxAttendees"),
+  cappedGroupQuery(groupIds, async (ids) =>
+    fieldById("maxAttendees")(
+      await readRows(cappedGroupsAmong(ids).pick("id", "maxAttendees")),
     ),
   );
 

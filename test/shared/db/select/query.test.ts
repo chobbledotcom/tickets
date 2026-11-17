@@ -9,11 +9,10 @@ import {
   inStatement,
   literal,
   matchesNothing,
-  named,
   notInQuery,
   sum,
 } from "#db/select/expression.ts";
-import { from, fromNamed, tableNode, via } from "#db/select/query.ts";
+import { from, tableNode, via } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { placed } from "#test-utils/sql-text.ts";
@@ -390,23 +389,5 @@ describe("statements written by hand", () => {
       args: [3],
       sql: "SELECT listing.id FROM listings AS listing WHERE listing.id IN (SELECT thing FROM things WHERE x = ?)",
     });
-  });
-});
-
-describe("a table named by text", () => {
-  test("is read with columns named by text", () => {
-    expect(
-      fromNamed("holidays")
-        .where(() => equal(named("id"), 4))
-        .columns(() => sql`id, name`),
-    ).toEqual(sql`SELECT id, name FROM holidays WHERE id = ${4}`);
-  });
-
-  test("goes by another word where the read gives one", () => {
-    expect(
-      fromNamed("things")
-        .as("thing")
-        .columns(() => sql`thing.id`).sql,
-    ).toBe("SELECT thing.id FROM things AS thing");
   });
 });
