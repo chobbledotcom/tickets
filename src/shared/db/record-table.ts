@@ -34,7 +34,7 @@ import {
   type TableWithId,
   tables,
 } from "#db/select/tables.ts";
-import type { Read, RowsStatement } from "#db/sql.ts";
+import { type Read, type RowsStatement, typedSql } from "#db/sql.ts";
 import {
   type Changes,
   type ColumnName,
@@ -89,11 +89,12 @@ const withId =
       : among(named<number>(`${word}.id`), [...ids]);
 
 /** The read of every column of each row that `query` keeps. A type parameter
- *  hides the columns of the table, so the type comes from its name. */
+ *  hides the camelCase fields of the table, so the row type comes from its
+ *  name. */
 const wholeRows = <Name extends TableName>(
   query: Query<Node<Name>>,
 ): RowsStatement<DecodedRowOf<Name>> =>
-  query.everyColumn() as unknown as RowsStatement<DecodedRowOf<Name>>;
+  typedSql<RowsStatement<DecodedRowOf<Name>>>(query.everyColumn());
 
 /** The read of the row with this id, or of the rows with these ids. */
 const rowsById = <Name extends TableWithId>(
@@ -337,9 +338,33 @@ export const recordsOf = <Name extends TableWithId>(
     updateRowStatement(table, id, changes, guard),
 });
 
-/** The one-row reads and writes of each table with an `id`. */
-export const records = Object.fromEntries(
-  Object.values(tables)
-    .filter((table) => table.columns.some(([column]) => column === "id"))
-    .map((table) => [table.name, recordsOf(table as TableHandle<TableWithId>)]),
-) as unknown as { readonly [Name in TableWithId]: Records<Name> };
+/** The one-row reads and writes of each table with an `id`, by its name. */
+type RecordsByTable = { readonly [Name in TableWithId]: Records<Name> };
+
+/** Whether the table has an `id` column. */
+const hasId = (table: TableHandle): table is TableHandle<TableWithId> =>
+  table.columns.some(([column]) => column === "id");
+
+/** The handles of every table. */
+const everyTable: readonly TableHandle[] = Object.values(tables);
+
+/** Some of the one-row reads and writes, by the name of their table. */
+type SomeRecords<Names extends TableWithId> = {
+  -readonly [Name in Names]?: Records<Name>;
+};
+
+/** Adds the one-row reads and writes of `table` under its name. */
+const addRecordsOf = <Name extends TableWithId>(
+  byTable: SomeRecords<Name>,
+  table: TableHandle<Name>,
+): SomeRecords<Name> => {
+  byTable[table.name] = recordsOf(table);
+  return byTable;
+};
+
+/** The one-row reads and writes of each table with an `id`. The test that
+ *  `hasId` makes at run time is the test that `TableWithId` makes on the
+ *  types, so each name has its entry. */
+export const records = everyTable
+  .filter(hasId)
+  .reduce<SomeRecords<TableWithId>>(addRecordsOf, {}) as RecordsByTable;
