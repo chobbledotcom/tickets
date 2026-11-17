@@ -32,9 +32,14 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   `BUNNY_SCRIPT_ID`)
 - `BUNNY_SCRIPT_ID` - Bunny Edge Script ID (required for custom domain
   management, with `BUNNY_API_KEY`)
-- `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (required for image uploads)
-- `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (required for image
-  uploads)
+- `LOCAL_STORAGE_PATH` - Local folder for uploaded images, attachments, and
+  backups. When set, it enables the local filesystem storage backend. The dev
+  server sets it to `.storage`. When `STORAGE_ZONE_NAME` and `STORAGE_ZONE_KEY`
+  are also set, Bunny CDN takes priority.
+- `STORAGE_ZONE_NAME` - Bunny CDN storage zone name (use with
+  `STORAGE_ZONE_KEY`)
+- `STORAGE_ZONE_KEY` - Bunny CDN storage zone access key (use with
+  `STORAGE_ZONE_NAME`)
 - `BACKUP_PAGE_SIZE` - Rows read per keyset page when dumping a table for backup
   (default 500). Each page is one libsql response, so this bounds the response
   size to stay under libsqld's "Response is too large" payload cap. Used by
