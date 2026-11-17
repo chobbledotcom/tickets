@@ -12,10 +12,12 @@ import {
   getSubscribedRows,
   type SubscribedRow,
 } from "#db/subscriptions.ts";
+import { requireValue } from "#shared/required-value.ts";
 import {
   RecurringIntervalSchema,
   SubscriptionStatusSchema,
 } from "#shared/subscriptions/plan.ts";
+import { subscriptionPlanColumns } from "#shared/subscriptions/stored-plan-columns.ts";
 import { outcomeOf, seedBooking } from "./environment.ts";
 import { type RecordFacts, recordPlanObservation } from "./records-facts.ts";
 
@@ -72,16 +74,16 @@ export const projectionFacts = async (beforeRead?: () => Promise<void>) => {
       await executeBatch([
         sql`UPDATE listing_attendees SET start_at = ${`2026-03-${String(id).padStart(2, "0")}T00:00:00Z`} WHERE id = ${id}`,
       ]);
+      const planColumns = requireValue(
+        subscriptionPlanColumns(plan),
+        "Missing plan columns for a seeded subscription",
+      );
       universe.push({
         attendeeId,
         id,
         listingId,
         quantity,
-        recurringInterval: interval,
-        recurringPrice: plan.amount,
-        recurringTax: plan.tax,
-        subscriptionId: plan.id,
-        subscriptionStatus: status,
+        ...planColumns,
       });
     }
   }
