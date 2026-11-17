@@ -6,7 +6,7 @@
     "e2e-payments"
   ],
   "tasks": {
-    "serve": "deno run $SERVE_WATCH --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
+    "serve": "bash scripts/devenv/with-local-storage.sh deno run $SERVE_WATCH --env-file --allow-net --allow-env --allow-read --allow-write --allow-sys --allow-ffi src/index.ts",
     "start": "deno task build:static && deno task serve",
     "dev": "deno task build:static && SERVE_WATCH=--watch deno task serve",
     "build:static": "deno run --allow-env --allow-read --allow-write --allow-run --allow-net scripts/build-static-assets.ts",
