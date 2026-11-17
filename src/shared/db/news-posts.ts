@@ -43,6 +43,7 @@ import { fieldById, mapParallel } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { nowIso } from "#shared/now.ts";
 import { requestCache } from "#shared/request-cache.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
 import type { NewsPost, NewsPostCard, NewsPostSummary } from "#types";
@@ -180,8 +181,7 @@ export const createNewsPost = async (
       tx,
     );
     // The slug search above runs in the same transaction, so the slug is free.
-    if (!written.ok) throw new Error(`News post slug "${slug}" is taken`);
-    return written.value;
+    return requireSuccess(written, `News post slug "${slug}"`);
   });
 };
 

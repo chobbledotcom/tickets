@@ -22,7 +22,6 @@ import {
   type CamelCased,
   type CamelWord,
   columnName,
-  fieldName,
   type SnakeWord,
 } from "#shared/column-names.ts";
 
@@ -235,23 +234,10 @@ export type TableHandle<Name extends string = TableName> = {
   readonly columns: readonly Column[];
 };
 
-/** Refuse a column whose field name does not lead back to it. The code names
- *  each column by its field, so a pair of names must convert both ways. */
-const refuseLossyName = ([column]: Column): void => {
-  if (columnName(fieldName(column)) !== column) {
-    throw new Error(
-      `The column ${column} has no field name that converts back to it.`,
-    );
-  }
-};
-
 const handleOf = ([name, table]: (typeof TYPED_SCHEMA)[number]): [
   string,
   TableHandle,
-] => {
-  for (const column of table.columns) refuseLossyName(column);
-  return [name, { columns: table.columns, name, singular: SINGULAR[name] }];
-};
+] => [name, { columns: table.columns, name, singular: SINGULAR[name] }];
 
 /** Every declared table, by name. */
 export const tables = Object.fromEntries(TYPED_SCHEMA.map(handleOf)) as {

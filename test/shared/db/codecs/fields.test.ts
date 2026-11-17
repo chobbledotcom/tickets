@@ -79,6 +79,15 @@ describeWithEnv("field codecs > sealed values", { encryptionKey: true }, () => {
     ]).toEqual([null, "2026-06-01T10:00:00.000Z", "2026-06-01T10:00:00.000Z"]);
   });
 
+  test("stores no closing time as sealed empty text", async () => {
+    const written = await listing.closes_at.encode(null);
+
+    expect([
+      await decrypt(written),
+      await listing.closes_at.decode(written, 1),
+    ]).toEqual(["", null]);
+  });
+
   test("seals private text and keeps an empty text empty", async () => {
     const written = await listing.location.encode("Hall");
 

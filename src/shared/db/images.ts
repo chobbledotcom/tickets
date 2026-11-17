@@ -41,6 +41,7 @@ import { txIdSetInTable } from "#db/transaction.ts";
 import { deleteFrom, insertInto } from "#db/write.ts";
 import { groupToMap, unique } from "#fp";
 import { decryptImageFilenameOrEmpty } from "#shared/images/broken.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import {
   type Image,
@@ -374,8 +375,7 @@ const insertImage = async (
       }),
     ),
   );
-  if (image === undefined) throw new Error("The image insert gave back no row");
-  return image;
+  return requireValue(image, "The image insert gave back no row");
 };
 
 /** Insert one image record. The insert is unconditional, so the written row

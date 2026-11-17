@@ -23,7 +23,6 @@ export type StoredTaxAssessment = {
 export const readTaxAssessments = async (
   attendeeIds: readonly number[],
 ): Promise<StoredTaxAssessment[]> => {
-  if (attendeeIds.length === 0) return [];
   const rows = await queryAllPrimary(
     from(tables.booking_tax_assessments)
       .where((assessment) => among(assessment.attendeeId, attendeeIds))

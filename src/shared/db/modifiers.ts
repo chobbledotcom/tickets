@@ -32,7 +32,6 @@ import {
   among,
   type Condition,
   equal,
-  notEqual,
   whereTail,
 } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
@@ -286,10 +285,7 @@ export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
     (
       await readRows(
         from(tables.answers)
-          .where((answer) => [
-            among(answer.id, answerIds),
-            notEqual(answer.modifierId, null),
-          ])
+          .where((answer) => among(answer.id, answerIds))
           .pick("id", "modifierId"),
       )
     ).flatMap(({ id, modifierId }) =>

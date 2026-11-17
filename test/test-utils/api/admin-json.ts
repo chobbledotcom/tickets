@@ -2,6 +2,7 @@
 
 import { assertStringIncludes } from "@std/assert";
 import { handleRequest } from "#routes";
+import { requireValue } from "#shared/required-value.ts";
 import { assertJson } from "#test-utils/assertions.ts";
 import {
   apiRequest,
@@ -29,11 +30,8 @@ export const putJson = sendJson("PUT");
 export const deleteJson = sendJson("DELETE");
 
 /** The record that an answer holds under `key`. */
-const recordIn = (answer: Record<string, JsonBody>, key: string): JsonBody => {
-  const record = answer[key];
-  if (record === undefined) throw new Error(`The answer holds no ${key}.`);
-  return record;
-};
+const recordIn = (answer: Record<string, JsonBody>, key: string): JsonBody =>
+  requireValue(answer[key], `The answer holds no ${key}.`);
 
 /** Assert the status of an admin API answer, then check the record that the
  *  answer holds under `key`. Gives back that record. */

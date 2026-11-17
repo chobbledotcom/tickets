@@ -25,6 +25,8 @@ describe("child selection helpers", () => {
       quantity("101", "2"),
       quantity("102", "0"),
       quantity("103", ""), // blank -> NaN -> treated as 0
+      // Only shares the prefix: it names no listing.
+      { name: "quantityNote", tag: "input", value: "4" },
     ]);
 
     expect([...selectedListingIds()].sort()).toEqual(["101"]);

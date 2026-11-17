@@ -20,6 +20,7 @@ import {
 } from "#db/select/tables.ts";
 import { type Read, sql } from "#db/sql.ts";
 import { insertInto } from "#db/write.ts";
+import { columnName, fieldName } from "#shared/column-names.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("tables", () => {
@@ -29,6 +30,15 @@ describe("tables", () => {
     expect(tables.listing_attendees.columns).toBe(
       TYPED_SCHEMA.find(([name]) => name === "listing_attendees")?.[1].columns,
     );
+  });
+
+  test("gives every column a field name that converts back to it", () => {
+    // The code names each column by its field, so the names must convert both
+    // ways.
+    const lossy = Object.values(tables)
+      .flatMap((table) => table.columns.map(([column]) => column))
+      .filter((column) => columnName(fieldName(column)) !== column);
+    expect(lossy).toEqual([]);
   });
 });
 

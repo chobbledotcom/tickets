@@ -20,6 +20,7 @@ import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { snakeCaseKeys } from "#shared/column-names.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import {
   childTextConfig,
@@ -66,10 +67,14 @@ const wireAttribute = (attribute: AttributeWithOptions) => ({
 });
 
 /** The write response: the written attribute re-read from the primary. */
-const attributeResponse = reReadResponse("attribute", async (id: number) => {
-  const attribute = await getAttributeWithOptionsOnPrimary(id);
-  return attribute === null ? null : wireAttribute(attribute);
-});
+const attributeResponse = reReadResponse("attribute", async (id: number) =>
+  wireAttribute(
+    requireValue(
+      await getAttributeWithOptionsOnPrimary(id),
+      `Attribute ${id} was not found after its option write`,
+    ),
+  ),
+);
 
 const optionHandlers = childTextConfig(
   optionSurface,

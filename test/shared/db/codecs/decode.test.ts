@@ -14,7 +14,7 @@ import {
   resultRows,
   withTransaction,
 } from "#db/client.ts";
-import { encoded } from "#db/codecs/decode.ts";
+import { decodeResult, encoded } from "#db/codecs/decode.ts";
 import { coalesce } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -100,6 +100,14 @@ describeWithEnv(
       await addHoliday();
       const [row] = await queryAll<StoredName>(sql`SELECT name FROM holidays`);
       expect(row!.name.startsWith("enc:")).toBe(true);
+    });
+
+    test("gives back the result of a plain-text statement unchanged", async () => {
+      await addHoliday();
+      const result = await getDb().execute(sql`SELECT name FROM holidays`);
+      expect(await decodeResult("SELECT name FROM holidays", result)).toBe(
+        result,
+      );
     });
 
     test("passes a column with no codec as it is", async () => {
