@@ -396,4 +396,29 @@ describe("the record read defaults", () => {
       expect(await record.remove(2)).toEqual({ kind: "not-found" });
     });
   }
+
+  test("refuses a write whose input check answers", async () => {
+    const record = bareRecord({
+      inputCheck: (input) =>
+        input.name === "Rejected" ? "Name is refused" : null,
+    });
+
+    expect(await record.create({ name: "Rejected" })).toEqual({
+      kind: "refused",
+      message: "Name is refused",
+    });
+    expect(await record.update(1, { name: "Rejected" })).toEqual({
+      kind: "refused",
+      message: "Name is refused",
+    });
+  });
+
+  test("refuses a write when the input check answers an empty message", async () => {
+    const record = bareRecord({ inputCheck: () => "" });
+
+    expect(await record.create({ name: "Rejected" })).toEqual({
+      kind: "refused",
+      message: "",
+    });
+  });
 });

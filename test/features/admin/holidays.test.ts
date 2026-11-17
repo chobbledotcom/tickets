@@ -112,18 +112,6 @@ describeWithEnv("the holiday rule", { db: true }, () => {
     );
   });
 
-  test("rejects a name past the text box limit", async () => {
-    const error = await rule("H".repeat(251), "2026-06-01", "2026-06-02");
-
-    expect(error).toEqual({
-      error: "Name must be 250 characters or fewer",
-      ok: false,
-    });
-    expect((await rule("H".repeat(250), "2026-06-01", "2026-06-02")).ok).toBe(
-      true,
-    );
-  });
-
   test("the API refuses a name that the form cannot save", async () => {
     await assertJson(
       apiRequest("/api/admin/holidays", {

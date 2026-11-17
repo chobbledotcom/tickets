@@ -20,19 +20,14 @@ import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { validatorFor } from "#shared/validation/parse.ts";
+import { requiredTrimmedText } from "#shared/validation/string.ts";
 
-/** One source's own field: the name or the URL pattern, trimmed, not empty,
- *  and no longer than a short input. */
+/** One source text field, trimmed and not empty. The record caps the name's
+ *  length. */
 const sourceField = (
   value: string,
   field: "name" | "url_pattern",
-): Result<string> => {
-  const trimmed = value.trim();
-  if (trimmed === "") return errorResult(`${field} cannot be empty`);
-  return trimmed.length > MAX_INPUT_LENGTH
-    ? errorResult(`${field} must be ${MAX_INPUT_LENGTH} characters or fewer`)
-    : okResult(trimmed);
-};
+): Result<string> => requiredTrimmedText(value, `${field} cannot be empty`);
 
 /** The one source rule: the name, then the URL pattern the source fills. */
 const sourceRule = (
@@ -42,6 +37,11 @@ const sourceRule = (
   if (!name.ok) return name;
   const urlPattern = sourceField(input.urlPattern, "url_pattern");
   if (!urlPattern.ok) return urlPattern;
+  if (urlPattern.value.length > MAX_INPUT_LENGTH) {
+    return errorResult(
+      `url_pattern must be ${MAX_INPUT_LENGTH} characters or fewer`,
+    );
+  }
   const invalidPattern = validatorFor(ExternalUrlPatternSchema)(
     urlPattern.value,
   );
