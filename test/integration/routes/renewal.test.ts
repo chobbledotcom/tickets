@@ -94,8 +94,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       );
       // Both tiers must appear as separately-selectable picker rows.
       expectIncludesAll(html, [
-        `quantity_${monthly.id}`,
-        `quantity_${annual.id}`,
+        `quantity${monthly.id}`,
+        `quantity${annual.id}`,
         "Monthly tier",
         "Annual tier",
         // Counts price months per unit, not tickets.
@@ -103,14 +103,14 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         '<option value="1">12 months</option>',
         // The form posts back to /renew/?t=… so the token survives submission.
         `/renew/?t=${encodeURIComponent(token)}`,
-        "csrf_token",
+        "csrfToken",
       ]);
     });
 
     test("does not show terms and conditions or agreement checkbox", async () => {
       const { response } = await visitRenewalPicker();
       const html = await response.text();
-      assert(!html.includes("agree_terms"));
+      assert(!html.includes("agreeTerms"));
       assert(!html.includes("terms-agree"));
     });
 
@@ -200,7 +200,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         "Renewal Unavailable",
         "no longer valid",
       );
-      assert(!html.includes("quantity_"));
+      assert(!html.includes(`name="quantity`));
     });
 
     test("excludes inactive tier listings from the picker", async () => {
@@ -225,8 +225,8 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockRequest(`/renew/?t=${encodeURIComponent(token)}`),
       );
       const html = await response.text();
-      assertStringIncludes(html, `quantity_${active.id}`);
-      assert(!html.includes(`quantity_${stale.id}`));
+      assertStringIncludes(html, `quantity${active.id}`);
+      assert(!html.includes(`quantity${stale.id}`));
     });
   });
 
@@ -253,10 +253,10 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-            csrf_token: csrf,
+            csrfToken: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            [`quantity_${tier.id}`]: "3",
+            [`quantity${tier.id}`]: "3",
           }),
         );
         expect(response.status).toBe(302);
@@ -305,11 +305,11 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       try {
         await handleRequest(
           mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-            csrf_token: csrf,
+            csrfToken: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            [`quantity_${monthly.id}`]: "2",
-            [`quantity_${annual.id}`]: "1",
+            [`quantity${monthly.id}`]: "2",
+            [`quantity${annual.id}`]: "1",
           }),
         );
         const intent = getCaptured()!;
@@ -349,10 +349,10 @@ describeWithEnv("routes > renewal", { db: true }, () => {
       try {
         const response = await handleRequest(
           mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
-            csrf_token: csrf,
+            csrfToken: csrf,
             email: "renew@example.com",
             name: "Renewer",
-            [`quantity_${tier.id}`]: "2",
+            [`quantity${tier.id}`]: "2",
           }),
         );
         expect(response.status).toBe(302);
@@ -386,7 +386,7 @@ describeWithEnv("routes > renewal", { db: true }, () => {
         mockFormRequest(`/renew/?t=${encodeURIComponent(token)}`, {
           email: "renew@example.com",
           name: "Renewer",
-          [`quantity_${tier.id}`]: "1",
+          [`quantity${tier.id}`]: "1",
         }),
       );
       // Standard ticket-form behavior: missing CSRF → redirect back to the

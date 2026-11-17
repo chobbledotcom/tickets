@@ -184,7 +184,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {
       const post = await createTestNewsPost("Storage off post");
       const { response } = await adminFormPost(`${BASE}/${post.id}/images`, {
-        image_ids: "1",
+        imageIds: "1",
       });
       // The images tab is hidden with storage off, so the disabled-storage
       // message must land on the (visible) edit tab.
@@ -318,7 +318,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("requires the exact post name to confirm", async () => {
       const post = await createTestNewsPost("Keep me");
       const { response } = await adminFormPost(`${BASE}/${post.id}/delete`, {
-        confirm_identifier: "wrong name",
+        confirmIdentifier: "wrong name",
       });
       expectErrorFlash(response, "does not match");
       expect(await records.news_posts.find(post.id)).not.toBeNull();
@@ -327,7 +327,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("deletes on a matching confirmation and logs", async () => {
       const post = await createTestNewsPost("Delete me");
       const { response } = await adminFormPost(`${BASE}/${post.id}/delete`, {
-        confirm_identifier: "Delete me",
+        confirmIdentifier: "Delete me",
       });
       expectRedirectWithFlash(BASE, "News post deleted", true)(response);
       expect(await records.news_posts.find(post.id)).toBeNull();

@@ -53,7 +53,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       const crafted = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
         cookie,
-        { ...editorForm, webhook_url: "https://attacker.example/steal" },
+        { ...editorForm, webhookUrl: "https://attacker.example/steal" },
       );
       const saved = await postMultipartAs(
         `/admin/listing/${listing.id}/edit`,
@@ -193,7 +193,7 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
       });
       const response = await handleRequest(
         mockFormRequest("/admin/login", {
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
           password: "editorlogin123",
           username: "loginEditor",
         }),
@@ -234,9 +234,9 @@ describeWithEnv("server (editor role) security", { db: true }, () => {
 
       const joinPost = await handleRequest(
         mockFormRequest(`/join/${inviteCode}`, {
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
           password: "joinpass12345",
-          password_confirm: "joinpass12345",
+          passwordConfirm: "joinpass12345",
         }),
       );
       expect(joinPost.status).toBe(302);

@@ -129,8 +129,8 @@ describeWithEnv("KEK v2 (password-bound DATA_KEY)", { db: true }, () => {
         mockFormRequest(
           "/admin/users",
           {
-            admin_level: "manager",
-            csrf_token: csrfToken,
+            adminLevel: "manager",
+            csrfToken,
             username: "guarded",
           },
           `${getSessionCookieName()}=no-key-token`,

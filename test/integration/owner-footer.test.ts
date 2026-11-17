@@ -67,7 +67,7 @@ describeWithEnv("admin debug footer injection", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/logout",
-        { csrf_token: await testCsrfToken() },
+        { csrfToken: await testCsrfToken() },
         await testCookie(),
       ),
     );
