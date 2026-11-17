@@ -69,9 +69,9 @@ const duplicateListingResponse = async (
       "/admin/listing",
       {
         ...baseListingForm,
-        csrf_token: csrfToken,
-        duplicated_from: String(sourceId),
-        ...(groupId !== undefined ? { group_ids: String(groupId) } : {}),
+        csrfToken,
+        duplicatedFrom: String(sourceId),
+        ...(groupId !== undefined ? { groupIds: String(groupId) } : {}),
         ...overrides,
         name,
       },
@@ -107,11 +107,11 @@ const duplicateGroup = async (
   nameReplace: string,
 ): Promise<Awaited<ReturnType<typeof getListingsByGroupId>>> => {
   await adminFormPost(`/admin/groups/${groupId}/duplicate`, {
-    date_find: "",
-    date_replace: "",
-    name_find: nameFind,
-    name_replace: nameReplace,
-    new_name: newName,
+    dateFind: "",
+    dateReplace: "",
+    nameFind,
+    nameReplace,
+    newName,
   });
   const newGroup = (await groups.getAll()).find((g) => g.name === newName);
   return getListingsByGroupId(newGroup!.id);
@@ -130,11 +130,11 @@ const duplicateGroupResponse = async (
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/duplicate`,
     {
-      date_find: "",
-      date_replace: "",
-      name_find: nameFind,
-      name_replace: nameReplace,
-      new_name: newName,
+      dateFind: "",
+      dateReplace: "",
+      nameFind,
+      nameReplace,
+      newName,
     },
   );
   response.body?.cancel();
@@ -476,7 +476,7 @@ describeWithEnv(
         source.id,
         "Member copy",
         group.id,
-        { max_quantity: "2" },
+        { maxQuantity: "2" },
       );
 
       // The copy joins at the source's override, not its base price/quantity 1.

@@ -49,10 +49,10 @@ const bookedLine = (
 
 describe("attendee-logistics field names", () => {
   test("single vs split field names", () => {
-    expect(startAgentField()).toBe("logistics_start");
-    expect(startAgentField(7)).toBe("logistics_start_7");
-    expect(endAgentField()).toBe("logistics_end");
-    expect(endAgentField(7)).toBe("logistics_end_7");
+    expect(startAgentField()).toBe("logisticsStart");
+    expect(startAgentField(7)).toBe("logisticsStart7");
+    expect(endAgentField()).toBe("logisticsEnd");
+    expect(endAgentField(7)).toBe("logisticsEnd7");
   });
 });
 
@@ -181,7 +181,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/attendees/new",
-        { csrf_token: csrfToken, ...fields },
+        { csrfToken, ...fields },
         cookie,
       ),
     );
@@ -201,12 +201,12 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const html = await response.text();
     expectIncludesAll(html, [
       ">Logistics<",
-      'name="logistics_start"',
-      'name="logistics_end"',
+      'name="logisticsStart"',
+      'name="logisticsEnd"',
       `name="${SPLIT_AGENTS_FIELD}"`,
       // Per-listing (split mode) selectors and the time inputs are rendered too.
       `name="${startAgentField(listing.id)}"`,
-      'name="logistics_start_time"',
+      'name="logisticsStartTime"',
       "Drop Van",
     ]);
   });
@@ -251,7 +251,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       mockFormRequest(
         "/admin/attendees/new",
         {
-          csrf_token: csrfToken,
+          csrfToken,
           [startAgentField()]: String(drop.id),
           name: "Jane",
           ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
@@ -266,7 +266,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
         `/admin/attendees/${attendeeId}`,
         {
           [endAgentField(listing.id)]: String(coll.id),
-          csrf_token: csrfToken,
+          csrfToken,
           [startAgentField(listing.id)]: String(coll.id),
           name: "Jane",
           ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
@@ -293,7 +293,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       mockFormRequest(
         "/admin/attendees/new",
         {
-          csrf_token: csrfToken,
+          csrfToken,
           [endAgentField()]: String(coll.id),
           [startAgentField()]: String(drop.id),
           name: "Jane",

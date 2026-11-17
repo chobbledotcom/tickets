@@ -100,7 +100,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost("/admin/logistics", {
         name: "Unassigned van",
-        user_ids: String(userId),
+        userIds: String(userId),
       });
       expect(response.status).toBe(302);
       const id = (await logisticsAgents.getAll()).find(
@@ -171,7 +171,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // Submitting an unknown user id clears the links (it is dropped).
       await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Crewed Van",
-        user_ids: "999999",
+        userIds: "999999",
       });
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
@@ -192,7 +192,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
           (
             await adminFormPost(`/admin/logistics/${id}/edit`, {
               name: "Partly saved van",
-              user_ids: String(userId),
+              userIds: String(userId),
             })
           ).response,
       );
@@ -221,7 +221,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // A crafted submission with the editor's id is dropped server-side.
       await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "No Editors Van",
-        user_ids: String(editorUserId),
+        userIds: String(editorUserId),
       });
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
@@ -238,7 +238,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,
         {
-          confirm_identifier: "Doomed Van",
+          confirmIdentifier: "Doomed Van",
         },
       );
       await expectFlashRedirect(
@@ -253,7 +253,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { attendeeId, listingId } = await createBookingWithAgent(id);
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
-        confirm_identifier: "Assigned Van",
+        confirmIdentifier: "Assigned Van",
       });
 
       const got = await getLogisticsAssignments(attendeeId);
@@ -282,7 +282,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "   ",
-        user_ids: String(userId),
+        userIds: String(userId),
       });
       const body = await response.text();
       expect(response.status).toBe(400);

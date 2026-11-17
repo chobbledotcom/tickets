@@ -59,8 +59,8 @@ describeWithEnv(
       const html = await pageHtml(`${group.slug}+${solo.slug}`);
       // The bundle keeps its own count selector; the listing keeps its row.
       expectIncludesAll(html, [
-        `name="package_quantity_${group.id}"`,
-        `name="quantity_${solo.id}"`,
+        `name="packageQuantity${group.id}"`,
+        `name="quantity${solo.id}"`,
         "Camp Kit",
         "Kit Tent",
         "Lantern",
@@ -78,8 +78,8 @@ describeWithEnv(
       // One package section (read-only member row) AND one standalone quantity
       // row for the same listing — the two bookable paths.
       expectIncludesAll(html, [
-        `name="package_quantity_${group.id}"`,
-        `name="quantity_${member.id}"`,
+        `name="packageQuantity${group.id}"`,
+        `name="quantity${member.id}"`,
       ]);
     });
 
@@ -95,8 +95,8 @@ describeWithEnv(
         {
           email: "both@test.com",
           name: "Both Paths",
-          [`package_quantity_${group.id}`]: "1",
-          [`quantity_${member.id}`]: "2",
+          [`packageQuantity${group.id}`]: "1",
+          [`quantity${member.id}`]: "2",
         },
       );
       await expectPackageBookingAccepted(submit);
@@ -134,15 +134,15 @@ describeWithEnv(
       const slugs = `${group.slug}+${parent.slug}+${child.slug}`;
       assertStringIncludes(
         await pageHtml(slugs),
-        `name="quantity_${child.id}"`,
+        `name="quantity${child.id}"`,
       );
 
       const submit = await submitPackageBooking(slugs, {
         email: "solo-child@test.com",
         name: "Solo Child",
-        [`package_quantity_${group.id}`]: "1",
-        [`quantity_${child.id}`]: "1",
-        [`quantity_${parent.id}`]: "1",
+        [`packageQuantity${group.id}`]: "1",
+        [`quantity${child.id}`]: "1",
+        [`quantity${parent.id}`]: "1",
       });
       await expectPackageBookingAccepted(submit);
 
@@ -170,16 +170,16 @@ describeWithEnv(
       const slugs = `${camp.group.slug}+${beach.group.slug}+${solo.slug}`;
       const html = await pageHtml(slugs);
       expectIncludesAll(html, [
-        `name="package_quantity_${camp.group.id}"`,
-        `name="package_quantity_${beach.group.id}"`,
+        `name="packageQuantity${camp.group.id}"`,
+        `name="packageQuantity${beach.group.id}"`,
       ]);
 
       const submit = await submitPackageBooking(slugs, {
         email: "trio@test.com",
         name: "Trio Buyer",
-        [`package_quantity_${camp.group.id}`]: "1",
-        [`package_quantity_${beach.group.id}`]: "2",
-        [`quantity_${solo.id}`]: "1",
+        [`packageQuantity${camp.group.id}`]: "1",
+        [`packageQuantity${beach.group.id}`]: "2",
+        [`quantity${solo.id}`]: "1",
       });
       await expectPackageBookingAccepted(submit);
 
@@ -212,9 +212,9 @@ describeWithEnv(
       // listing name because it is a separate booking path.
       expectIncludesAll(html, [
         "Mystery Box",
-        `name="package_quantity_${group.id}"`,
+        `name="packageQuantity${group.id}"`,
         "Secret Widget",
-        `name="quantity_${member.id}"`,
+        `name="quantity${member.id}"`,
       ]);
 
       const submit = await submitPackageBooking(
@@ -222,8 +222,8 @@ describeWithEnv(
         {
           email: "mixed-paths@test.com",
           name: "Mixed Paths",
-          [`package_quantity_${group.id}`]: "1",
-          [`quantity_${member.id}`]: "2",
+          [`packageQuantity${group.id}`]: "1",
+          [`quantity${member.id}`]: "2",
         },
       );
       await expectPackageBookingAccepted(submit);
@@ -269,8 +269,8 @@ describeWithEnv(
 
       const html = await pageHtml(`${a.slug}+${b.slug}`);
       expectIncludesAll(html, [
-        `name="package_quantity_${a.id}"`,
-        `name="package_quantity_${b.id}"`,
+        `name="packageQuantity${a.id}"`,
+        `name="packageQuantity${b.id}"`,
       ]);
       expect(html).toMatch(/name="email"[^>]*required/);
     });
@@ -339,7 +339,7 @@ describeWithEnv(
       const html = await pageHtml(`${a.slug}+${b.slug}`);
       for (const child of [childA, childB]) {
         const field = new RegExp(
-          `name="child_qty_${parent.id}_${child.id}"`,
+          `name="childQty${parent.id}_${child.id}"`,
           "g",
         );
         expect(html.match(field)).toHaveLength(1);
@@ -356,7 +356,7 @@ describeWithEnv(
 
       const html = await pageHtml(`${regular.slug}+${group.slug}`);
       // The package still sells; the regular group's slug names no cart item.
-      assertStringIncludes(html, `name="package_quantity_${group.id}"`);
+      assertStringIncludes(html, `name="packageQuantity${group.id}"`);
       assert(!html.includes("Crowd Item"));
     });
 
@@ -389,9 +389,9 @@ describeWithEnv(
       // The incomplete bundle must never sell partially: its slug drops while
       // the intact package books on.
       const html = await pageHtml(`${group.slug}+${whole.group.slug}`);
-      assert(!html.includes(`name="package_quantity_${group.id}"`));
+      assert(!html.includes(`name="packageQuantity${group.id}"`));
       assert(!html.includes("Kept Part"));
-      assertStringIncludes(html, `name="package_quantity_${whole.group.id}"`);
+      assertStringIncludes(html, `name="packageQuantity${whole.group.id}"`);
     });
 
     test("404s a cart whose every listing is another listing's child", async () => {
@@ -418,10 +418,10 @@ describeWithEnv(
       const b = await createTestListing({ name: "Bravo" });
       const html = await pageHtml(`${a.slug}+${b.slug}`);
       expectIncludesAll(html, [
-        `name="quantity_${a.id}"`,
-        `name="quantity_${b.id}"`,
+        `name="quantity${a.id}"`,
+        `name="quantity${b.id}"`,
       ]);
-      assert(!html.includes("package_quantity_"));
+      assert(!html.includes(`name="packageQuantity`));
     });
   },
 );

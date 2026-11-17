@@ -192,7 +192,7 @@ const setupStandalone = async (): Promise<{
     date,
     email: "ada@example.com",
     name: "Ada Lovelace",
-    [`quantity_${standalone.id}`]: "1",
+    [`quantity${standalone.id}`]: "1",
   });
   expectReserved(res);
   return { date, standalone };
@@ -208,8 +208,8 @@ describeWithEnv(
 
       // Per-unit selectors are namespaced per parent+child (invariant I1/I2).
       expectIncludesAll(html, [
-        `name="child_qty_${parent.id}_${childA.id}"`,
-        `name="child_qty_${parent.id}_${childB.id}"`,
+        `name="childQty${parent.id}_${childA.id}"`,
+        `name="childQty${parent.id}_${childB.id}"`,
         // The live hint supplies the exact target after the buyer chooses a parent
         // quantity, so the initial note stays true before that choice.
         "Choose add-ons to match your ticket quantity",

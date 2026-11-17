@@ -49,7 +49,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       settings.setForTest(featureSetting());
       const { response } = await submitListingCreate({
         name: "Hireable",
-        template_id: "hireable-item",
+        templateId: "hireable-item",
       });
       await expectHtmlResponse(
         response,
@@ -63,16 +63,16 @@ describeWithEnv("server listings > create", { db: true }, () => {
       [
         "returns date required error for one-off-event template with no date",
         {
-          listing_type: "standard",
-          purchase_only: "",
-          template_id: "one-off-event",
-          uses_logistics: "",
+          listingType: "standard",
+          purchaseOnly: "",
+          templateId: "one-off-event",
+          usesLogistics: "",
         },
         "date is required",
       ],
       [
         "re-renders with carried template_id when create validation fails",
-        { name: "", template_id: "online-digital" },
+        { name: "", templateId: "online-digital" },
         'value="online-digital"',
       ],
     ] as const) {
@@ -107,7 +107,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         () =>
           withExpectedError(() =>
             submitListingCreate({
-              max_attendees: "50",
+              maxAttendees: "50",
               name: "Saved before error",
             }),
           ),
@@ -156,7 +156,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
       const { response } = await submitListingCreate({
         name: "Demo Listing",
-        webhook_url: "https://example.com/webhook",
+        webhookUrl: "https://example.com/webhook",
       });
 
       expect([response.status, await getListingWithCount(1)]).toEqual([
@@ -171,7 +171,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         slug: "listing-group",
       });
       const { response } = await submitListingCreate({
-        group_ids: String(group.id),
+        groupIds: String(group.id),
         name: "Grouped Listing",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
@@ -182,7 +182,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("rejects non-existent group_id on create", async () => {
       const { response } = await submitListingCreate({
-        group_ids: "999",
+        groupIds: "999",
         name: "Bad Group Listing",
       });
       expectStatus(400)(response);
@@ -204,8 +204,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
 
       const { response } = await submitListingCreate({
-        group_ids: String(group.id),
-        listing_type: "daily",
+        groupIds: String(group.id),
+        listingType: "daily",
         name: "Daily Mismatch",
       });
       expectStatus(400)(response);
@@ -214,7 +214,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
     });
 
     for (const [name, token] of [
-      ["rejects invalid CSRF token", { csrf_token: "invalid-csrf-token" }],
+      ["rejects invalid CSRF token", { csrfToken: "invalid-csrf-token" }],
       ["rejects missing CSRF token", {}],
     ] as const) {
       test(name, async () => {
@@ -231,9 +231,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("stays on form with error on validation failure", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "",
+        maxAttendees: "",
         name: "",
-        thank_you_url: "",
+        thankYouUrl: "",
       });
       await expectHtmlResponse(response, 400, "Add Listing");
     });
@@ -241,10 +241,10 @@ describeWithEnv("server listings > create", { db: true }, () => {
     test("preserves submitted group selection when create fails validation", async () => {
       const group = await createTestGroup({ name: "Keep Me Group" });
       const { response } = await adminMultipartPost("/admin/listing", {
-        group_ids: String(group.id),
-        max_attendees: "",
+        groupIds: String(group.id),
+        maxAttendees: "",
         name: "",
-        thank_you_url: "",
+        thankYouUrl: "",
       });
       const html = await response.text();
       expect(response.status).toBe(400);

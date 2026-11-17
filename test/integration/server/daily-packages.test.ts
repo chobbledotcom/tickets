@@ -69,7 +69,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expectIncludesAll(body, [
       'name="date"',
       // The package quantity selector still rides alongside it.
-      `name="package_quantity_${group.id}"`,
+      `name="packageQuantity${group.id}"`,
     ]);
   });
 
@@ -110,7 +110,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date,
       email: "camper@test.com",
       name: "Camper",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
 
@@ -128,7 +128,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     const submit = await submitPackageBooking(group.slug, {
       email: "nodate@test.com",
       name: "No Date",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     // The submit bounces back with the date error; nothing is booked.
     assertArrayIncludes([302, 303], [submit.status]);
@@ -162,7 +162,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date: dateA,
       email: "late@test.com",
       name: "Late",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     assertArrayIncludes([302, 303], [sameDate.status]);
     expect(await bookingRows(tent.id)).toHaveLength(1);
@@ -172,7 +172,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date: addDays(testDate(dateA), 1),
       email: "next@test.com",
       name: "Next",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(nextDay);
     expect(await bookingRows(tent.id)).toHaveLength(2);
@@ -213,7 +213,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     expect(page.status).toBe(200);
     assertStringIncludes(
       await page.text(),
-      `name="package_quantity_${group.id}"`,
+      `name="packageQuantity${group.id}"`,
     );
 
     // …and a booking for a different date succeeds.
@@ -221,7 +221,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       date: addDays(dateA, 3),
       email: "later@test.com",
       name: "Later Camper",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
     expect(await bookingRows(camper.id)).toHaveLength(2);
@@ -258,7 +258,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     ).text();
     // The bundle offers only the day counts EVERY member supports: 1 and 2,
     // never the hut-only 3-day option.
-    expectIncludesAll(body, ['name="day_count"', 'value="1"', 'value="2"']);
+    expectIncludesAll(body, ['name="dayCount"', 'value="1"', 'value="2"']);
     assert(!body.includes('value="3"'));
     // Each option is labelled with the whole bundle's total for that span —
     // the members' ENTERED day prices summed (1000+500, 1800+900), never
@@ -295,8 +295,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
-      day_count: "2",
-      [`package_quantity_${group.id}`]: "1",
+      dayCount: "2",
+      [`packageQuantity${group.id}`]: "1",
     });
     // 2-day bundle = boat 1800 + hut 900 = £27 — each member's ENTERED 2-day
     // price, not base × 2 (which would be £30).
@@ -324,8 +324,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     );
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
-      day_count: "2",
-      [`package_quantity_${group.id}`]: "1",
+      dayCount: "2",
+      [`packageQuantity${group.id}`]: "1",
     });
     // Boat's 2-day price is overridden to 1500 inside this package; the hut
     // keeps its own 900. Total £24, never the un-overridden £27.
@@ -341,8 +341,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
-      day_count: "2",
-      [`package_quantity_${group.id}`]: "1",
+      dayCount: "2",
+      [`packageQuantity${group.id}`]: "1",
     });
     // The boat's 2-day span is explicitly FREE inside this package (0 is a real
     // override, not "no override"); only the hut's own 900 charges.
@@ -370,7 +370,7 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
     expectIncludesAll(body, [
-      'name="day_count"',
+      'name="dayCount"',
       // 2700 for the members plus the boat's unavoidable 200 add-on charge.
       "2 days — £29",
     ]);
@@ -387,10 +387,10 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     // day-count error — which must name the PACKAGE, never a hidden member.
     const submit = await submitPackageBooking(group.slug, {
       date: bookingDate(),
-      day_count: "5",
+      dayCount: "5",
       email: "hush@test.com",
       name: "Hush",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     assertArrayIncludes([302, 303], [submit.status]);
     expect(parseFlashCookie(submit).error).toBe(
@@ -406,8 +406,8 @@ describeWithEnv("daily packages (/ticket/<group-slug>)", { db: true }, () => {
     });
     const fragment = await postCalculate(group.slug, {
       date: bookingDate(),
-      day_count: "2",
-      [`package_quantity_${group.id}`]: "1",
+      dayCount: "2",
+      [`packageQuantity${group.id}`]: "1",
     });
     // The boat's flat 500 override is one price whatever the span, outranking
     // both its 2-day override (1500) and its own day price (1800): 500 + 900.

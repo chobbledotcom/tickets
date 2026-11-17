@@ -335,7 +335,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
     test("keeps auto-purge on when the checkbox is ticked", async () => {
       const { response } = await adminFormPost("/admin/privacy/orphans", {
         action: "save",
-        auto_purge: "1",
+        autoPurge: "1",
         retention: "182",
       });
 
@@ -378,7 +378,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
   describe("POST /admin/privacy/erase", () => {
     testRequiresAuth("/admin/privacy/erase", {
-      body: { contact_type: "email", identifier: "x@example.com" },
+      body: { contactType: "email", identifier: "x@example.com" },
       method: "POST",
     });
 
@@ -391,7 +391,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
       await setContactVisits(hash, 1);
 
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "erase-me@example.com",
       });
 
@@ -404,7 +404,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("reports when no record matched", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "nobody@example.com",
       });
 
@@ -415,7 +415,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("rejects a blank identifier", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "email",
+        contactType: "email",
         identifier: "   ",
       });
 
@@ -428,7 +428,7 @@ describeWithEnv("server (admin privacy)", { db: true }, () => {
 
     test("rejects an unknown contact type", async () => {
       const { response } = await adminFormPost("/admin/privacy/erase", {
-        contact_type: "fax",
+        contactType: "fax",
         identifier: "123456",
       });
 

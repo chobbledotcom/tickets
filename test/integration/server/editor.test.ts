@@ -51,17 +51,17 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
     test("editor can import a listing from a JSON file", async () => {
       const { cookie } = await createTestEditorSession();
-      const csrf_token = await signCsrfToken();
+      const csrfToken = await signCsrfToken();
       const blob = {
         kind: "listing",
         listing: { maxAttendees: 5, name: "Editor Import" },
         version: 1,
       };
       const response = await handleRequest(
-        mockMultipartRequest("/admin/catalog/import", { csrf_token }, cookie, {
+        mockMultipartRequest("/admin/catalog/import", { csrfToken }, cookie, {
           contentType: "application/json",
           data: new TextEncoder().encode(JSON.stringify(blob)),
-          fieldName: "catalog_file",
+          fieldName: "catalogFile",
           name: "listing.json",
         }),
       );
@@ -235,7 +235,7 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const deleteResp = await postFormAs(
         `/admin/groups/${group.id}/delete`,
         cookie,
-        { confirm_name: group.name },
+        { confirmName: group.name },
       );
       expect(deleteResp.status).toBe(403);
 
@@ -249,15 +249,15 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       // General settings saves are owner-only.
       const settingsResp = await postFormAs("/admin/settings", cookie, {
-        currency_code: "USD",
+        currencyCode: "USD",
       });
       expect(settingsResp.status).toBe(403);
 
       // The delivery run-sheet mark action excludes editors.
       const markResp = await postFormAs("/admin/deliveries/mark", cookie, {
-        attendee_id: "1",
+        attendeeId: "1",
         done: "true",
-        listing_id: "1",
+        listingId: "1",
       });
       expect(markResp.status).toBe(403);
     });
@@ -269,9 +269,9 @@ describeWithEnv("server (editor role)", { db: true }, () => {
 
       const createResp = await postFormAs("/admin/groups", cookie, {
         description: "",
-        max_attendees: "0",
+        maxAttendees: "0",
         name: "Editor Group",
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       // The group page opens on the first tab its viewer can see, which for
       // an editor is Edit, so the record's own page is where they land.
@@ -286,10 +286,10 @@ describeWithEnv("server (editor role)", { db: true }, () => {
         cookie,
         {
           description: "",
-          max_attendees: "0",
+          maxAttendees: "0",
           name: "Renamed By Editor",
           slug: group.slug,
-          terms_and_conditions: "",
+          termsAndConditions: "",
         },
       );
       expect(editResp.status).toBe(302);
@@ -434,8 +434,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
     test("editor can save site content; manager cannot", async () => {
       const { cookie: editorCookie } = await createTestEditorSession();
       const editorSave = await postFormAs("/admin/site", editorCookie, {
-        homepage_text: "Edited by the editor",
-        website_title: "Editor Site",
+        homepageText: "Edited by the editor",
+        websiteTitle: "Editor Site",
       });
       expect(editorSave.status).toBe(302);
       assertStringIncludes(
@@ -450,8 +450,8 @@ describeWithEnv("server (editor role)", { db: true }, () => {
       const managerGet = await getAs("/admin/site", managerCookie);
       expect(managerGet.status).toBe(403);
       const managerSave = await postFormAs("/admin/site", managerCookie, {
-        homepage_text: "Manager attempt",
-        website_title: "Manager Site",
+        homepageText: "Manager attempt",
+        websiteTitle: "Manager Site",
       });
       expect(managerSave.status).toBe(403);
     });

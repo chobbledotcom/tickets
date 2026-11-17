@@ -53,7 +53,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const csrfToken = await testCsrfToken();
       const handler = createActionHandler(config);
       return handler(
-        mockFormRequest(path, { csrf_token: csrfToken, ...fields }, cookie),
+        mockFormRequest(path, { csrfToken, ...fields }, cookie),
       );
     };
 
@@ -102,7 +102,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockFormRequest("/admin/test-owner", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/test-owner", { csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);
@@ -130,7 +130,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const response = await handler(
         mockMultipartRequest(
           "/admin/test-multipart",
-          { csrf_token: csrfToken },
+          { csrfToken },
           cookie,
         ),
       );

@@ -41,8 +41,8 @@ describeWithEnv(
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          max_attendees: "50",
-          max_quantity: "1",
+          maxAttendees: "50",
+          maxQuantity: "1",
           name: "",
         },
       );
@@ -59,10 +59,10 @@ describeWithEnv(
 
         // Submit with empty name to trigger validation error
         const { response } = await adminFormPost("/admin/listing/1/edit", {
-          max_attendees: "50",
-          max_quantity: "1",
+          maxAttendees: "50",
+          maxQuantity: "1",
           name: "",
-          thank_you_url: "https://example.com",
+          thankYouUrl: "https://example.com",
         });
         // Should return 400 with error page (listing exists -> listingErrorPage returns htmlResponse)
         await expectHtmlResponse(response, 400, "Listing name is required");
@@ -126,7 +126,7 @@ describeWithEnv(
     describe("POST /admin/listing/:id/edit validation error", () => {
       test("shows error when editing non-existent listing", async () => {
         const { response } = await adminFormPost("/admin/listing/99999/edit", {
-          max_attendees: "50",
+          maxAttendees: "50",
           name: "Updated Name",
         });
         expect(response.status).toBe(404);
@@ -187,8 +187,8 @@ describeWithEnv(
           const { response } = await adminFormPost(
             `/admin/listing/${listing1.id}/edit`,
             {
-              max_attendees: "50",
-              max_quantity: "1",
+              maxAttendees: "50",
+              maxQuantity: "1",
               name: "",
             },
           );
@@ -224,8 +224,8 @@ describeWithEnv(
           const { response } = await adminFormPost(
             `/admin/listing/${listing.id}/edit`,
             {
-              max_attendees: "50",
-              max_quantity: "1",
+              maxAttendees: "50",
+              maxQuantity: "1",
               name: "Updated Name",
               slug: "updated-slug",
             },
