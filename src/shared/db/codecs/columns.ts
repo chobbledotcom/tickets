@@ -41,6 +41,10 @@ import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
+import type {
+  RecurringIntervalChoice,
+  SubscriptionStatus,
+} from "#shared/subscriptions/plan.ts";
 import { TaxAssessmentSchema } from "#shared/tax/types.ts";
 import type { NonEmptyString } from "#shared/validation/string.ts";
 import type { ImageUseItemType, SitePageItemType } from "#types";
@@ -132,6 +136,10 @@ export const CODECS = {
     share_token: typed<OwnerKeyEncrypted>(),
     share_token_index: typed<BlindIndex>(),
     status: typed<InvoiceStatus>(),
+  },
+  listing_attendees: {
+    recurring_interval: typed<RecurringIntervalChoice>(),
+    subscription_status: typed<SubscriptionStatus | "">(),
   },
   listings: {
     ...fieldCodecs("listings", LISTING_FIELDS),

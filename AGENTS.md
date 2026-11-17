@@ -569,9 +569,11 @@ A flagged pair is one merge:
   base's for a snippet that the base holds still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
-- Import and re-export statements are a sanctioned repeat. The
+- Import and re-export statements are a sanctioned repeat. This includes a
+  destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
-  around imports.
+  around imports. The scans of the tests and of their helpers skip no dynamic
+  import: that pattern gives their recorded clones new fingerprints.
 - A declared list of strings is the other sanctioned repeat. The strict scans
   ignore literals, so two long word lists match. Wrap the whole declaration in
   `/* jscpd:ignore-start -- a list of strings, not code */` and

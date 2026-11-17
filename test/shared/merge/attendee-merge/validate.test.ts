@@ -222,7 +222,26 @@ describeWithEnv("attendee merge service", { db: true }, () => {
       expect(result).toEqual({ valid: true });
     });
 
-    // --- Decision 17: a discarded booking that carries money needs a choice --- //
+    test("rejects a decision that throws away a live subscription", () => {
+      const result = validateAttendeeMergeDecision(
+        oneBookingDiff(
+          bookingItem({
+            sourceBooking: row({
+              subscription_id: "sub_ada",
+              subscription_status: "active",
+            }),
+            targetBooking: row({ quantity: 2 }),
+          }),
+        ),
+        decision({ bookings: { "5:null:0:0": "keep_target" } }),
+      );
+      expectInvalid(
+        result,
+        "Listing #5: This booking has a subscription that still charges. Cancel the subscription first.",
+      );
+    });
+
+    // --- Decision 17:a discarded booking that carries money needs a choice --- //
 
     /** A single same-listing duplicate conflict carrying the given ledger sale
      *  amounts on each side. */

@@ -1,6 +1,8 @@
 import * as v from "valibot";
+import { t } from "#i18n";
 
 const NoLinesFailureReasonSchema = v.literal("no_lines");
+const SubscriptionLiveFailureReasonSchema = v.literal("subscription_live");
 
 /** Reasons an atomic attendee creation can reject a booking. */
 export const AttendeeCreationFailureReasonSchema =
@@ -13,6 +15,7 @@ export type AttendeeCreationFailureReason = v.InferOutput<
 export const AttendeeUpdateFailureReasonSchema = v.union([
   AttendeeCreationFailureReasonSchema,
   NoLinesFailureReasonSchema,
+  SubscriptionLiveFailureReasonSchema,
 ]);
 export type AttendeeUpdateFailureReason = v.InferOutput<
   typeof AttendeeUpdateFailureReasonSchema
@@ -48,6 +51,7 @@ const FAILURE_MESSAGE_BUILDERS: Record<
 > = {
   capacity_exceeded: capacityMessage,
   no_lines: fallbackMessage,
+  subscription_live: () => t("error.subscription_live"),
 };
 
 export type AttendeeFailureFormatter = (

@@ -1,11 +1,11 @@
 /**
- * A listing's "type" is inferred from four stored dimensions, with no DB column
- * of its own:
+ * Five stored dimensions determine a listing's type. It has no type column:
  *
  *   daily        listing_type === "daily"
  *   dated        date field non-empty
  *   purchaseable purchase_only (the "No check-in" flag)
  *   logistics    uses_logistics
+ *   subscribed   recurring_price > 0
  *
  * A listing that matches no named template is "Custom": full form, no fields
  * hidden.
@@ -14,25 +14,34 @@
 import type { Listing } from "#types";
 
 export type TemplateId =
+  | "day-pass"
+  | "donation"
   | "hireable-item"
   | "online-digital"
   | "one-off-event"
+  | "physical-product"
+  | "subscription"
   | "weekly-event";
+
+/** A site feature that a template needs before the picker offers it. */
+export type TemplateRequirement = "logistics" | "subscriptions";
 
 export type Dimensions = {
   daily: boolean;
   dated: boolean;
   logistics: boolean;
   purchaseable: boolean;
+  subscribed: boolean;
 };
 
+/** Undefined means "don't care". */
 export type TemplateSignature = {
-  /** Undefined means "don't care" — logistics templates ignore daily. */
   daily?: boolean;
-  /** Undefined means "don't care" — only checked when daily is pinned false. */
+  /** Only checked when daily is pinned false. */
   dated?: boolean;
-  logistics: boolean;
-  purchaseable: boolean;
+  logistics?: boolean;
+  purchaseable?: boolean;
+  subscribed: boolean;
 };
 
 export type ListingTemplate = {
@@ -42,60 +51,95 @@ export type ListingTemplate = {
   /** i18n key for the picker card title. */
   label: string;
   requiresDate: boolean;
-  requiresLogistics: boolean;
+  requires: TemplateRequirement | null;
   signature: TemplateSignature;
 };
 
+/** One picker entry's flags and dimension signature. The i18n keys derive
+ *  from the id (`template_<id>` / `template_<id>_description`), so an entry
+ *  is one line of real choices. The exact keys are pinned in
+ *  test/shared/listing-templates.test.ts. */
+const listingTemplate = (
+  id: TemplateId,
+  flags: { requiresDate: boolean; requires: TemplateRequirement | null },
+  signature: TemplateSignature,
+): ListingTemplate => {
+  const label = `listings_table.template_${id.replaceAll("-", "_")}`;
+  return {
+    description: `${label}_description`,
+    id,
+    label,
+    requires: flags.requires,
+    requiresDate: flags.requiresDate,
+    signature,
+  };
+};
+
+/** No date, and no site feature needed. */
+const NOT_DATED = { requires: null, requiresDate: false };
+
+/** Booked on a day the buyer picks, and checked in. */
+const DAILY = {
+  daily: true,
+  logistics: false,
+  purchaseable: false,
+  subscribed: false,
+};
+
+/** Bought, with nothing to check in and nothing dated. */
+const PURCHASABLE = {
+  daily: false,
+  dated: false,
+  logistics: false,
+  purchaseable: true,
+  subscribed: false,
+};
+
+/** The picker's listing templates. Some pairs share one signature, because
+ *  the model has no dimension that tells them apart: weekly-event and
+ *  day-pass, and online-digital, physical-product and donation. Only the
+ *  picker card, its copy, and the create form's seed differ.
+ *
+ *  Entry ORDER pins inference precedence. matchesSignature returns the first
+ *  match, so the template that a shared signature infers comes first. The
+ *  picker sets its own card order. */
 export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
-  {
-    description: "listings_table.template_one_off_event_description",
-    id: "one-off-event",
-    label: "listings_table.template_one_off_event",
-    requiresDate: true,
-    requiresLogistics: false,
-    signature: {
+  listingTemplate(
+    "one-off-event",
+    { requires: null, requiresDate: true },
+    {
       daily: false,
       dated: true,
       logistics: false,
       purchaseable: false,
+      subscribed: false,
     },
-  },
-  {
-    description: "listings_table.template_weekly_event_description",
-    id: "weekly-event",
-    label: "listings_table.template_weekly_event",
-    requiresDate: false,
-    requiresLogistics: false,
-    signature: { daily: true, logistics: false, purchaseable: false },
-  },
-  {
-    description: "listings_table.template_online_digital_description",
-    id: "online-digital",
-    label: "listings_table.template_online_digital",
-    requiresDate: false,
-    requiresLogistics: false,
-    signature: {
-      daily: false,
-      dated: false,
-      logistics: false,
-      purchaseable: true,
-    },
-  },
-  {
-    description: "listings_table.template_hireable_item_description",
-    id: "hireable-item",
-    label: "listings_table.template_hireable_item",
-    requiresDate: false,
-    requiresLogistics: true,
+  ),
+  listingTemplate("weekly-event", NOT_DATED, DAILY),
+  listingTemplate("day-pass", NOT_DATED, DAILY),
+  listingTemplate("online-digital", NOT_DATED, PURCHASABLE),
+  listingTemplate(
+    "hireable-item",
+    { requires: "logistics", requiresDate: false },
     // daily and dated are both omitted: a hireable item may be daily or
-    // standard and any dated state, so listing_type stays visible on the form.
-    signature: { logistics: true, purchaseable: true },
-  },
+    // standard and any dated state, so listing_type stays visible on the
+    // form.
+    { logistics: true, purchaseable: true, subscribed: false },
+  ),
+  listingTemplate("physical-product", NOT_DATED, PURCHASABLE),
+  listingTemplate("donation", NOT_DATED, PURCHASABLE),
+  listingTemplate(
+    "subscription",
+    { requires: "subscriptions", requiresDate: false },
+    // A subscription can also be posted, or need no check-in, so only the
+    // undated standard shape is pinned.
+    { daily: false, dated: false, subscribed: true },
+  ),
 ];
 
 export type DimensionSource = Pick<
   Listing,
-  "date" | "listingType" | "purchaseOnly" | "usesLogistics"
+  "date" | "listingType" | "purchaseOnly" | "recurringPrice" | "usesLogistics"
 >;
 
 export const dimensionsOf = (source: DimensionSource): Dimensions => ({
@@ -103,25 +147,23 @@ export const dimensionsOf = (source: DimensionSource): Dimensions => ({
   dated: source.date !== "",
   logistics: source.usesLogistics,
   purchaseable: source.purchaseOnly,
+  subscribed: source.recurringPrice > 0,
 });
+
+/** True when the signature pins this dimension to the other value. */
+const pinnedOther = (pinned: boolean | undefined, actual: boolean): boolean =>
+  pinned !== undefined && pinned !== actual;
 
 const matchesSignature = (
   signature: TemplateSignature,
   dims: Dimensions,
-): boolean => {
-  if (signature.daily !== undefined && signature.daily !== dims.daily)
-    return false;
+): boolean =>
+  !pinnedOther(signature.daily, dims.daily) &&
   // dated is only meaningful when daily is explicitly pinned to false.
-  if (
-    signature.daily === false &&
-    signature.dated !== undefined &&
-    signature.dated !== dims.dated
-  )
-    return false;
-  if (signature.purchaseable !== dims.purchaseable) return false;
-  if (signature.logistics !== dims.logistics) return false;
-  return true;
-};
+  !(signature.daily === false && pinnedOther(signature.dated, dims.dated)) &&
+  !pinnedOther(signature.purchaseable, dims.purchaseable) &&
+  !pinnedOther(signature.logistics, dims.logistics) &&
+  signature.subscribed === dims.subscribed;
 
 export const inferTemplate = (
   source: DimensionSource,

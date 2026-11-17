@@ -28,14 +28,34 @@ type ListingRenderValues = FormRenderValuesFor<
   ReturnType<typeof getListingForm>["fields"]
 >;
 
+/** A purchase-only, non-dated product seed: the buyer pays, nothing is
+ *  checked in, and the form collects exactly the given contact fields. */
+const purchaseSeed = (fields: string): ListingRenderValues => ({
+  fields,
+  listingType: "standard",
+  purchaseOnly: "1",
+  usesLogistics: "",
+});
+
+/** A checked-in seed booked on a day the buyer picks from the given days. */
+const dailySeed = (bookableDays: string): ListingRenderValues => ({
+  bookableDays,
+  durationDays: "1",
+  fields: "email",
+  listingType: "daily",
+  maximumDaysAfter: "90",
+  minimumDaysBefore: "1",
+  purchaseOnly: "",
+  usesLogistics: "",
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
+  "day-pass": dailySeed(ALL_BOOKABLE_DAYS),
+  donation: { ...purchaseSeed("email"), canPayMore: "1" },
   "hireable-item": {
-    bookableDays: ALL_BOOKABLE_DAYS,
-    durationDays: "1",
+    ...dailySeed(ALL_BOOKABLE_DAYS),
     fields: "email,phone,address",
-    listingType: "daily",
-    maximumDaysAfter: "90",
-    minimumDaysBefore: "1",
     purchaseOnly: "1",
     usesLogistics: "1",
   },
@@ -45,23 +65,19 @@ export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
     purchaseOnly: "",
     usesLogistics: "",
   },
-  "online-digital": {
+  "online-digital": purchaseSeed("email"),
+  "physical-product": purchaseSeed("email,address"),
+  subscription: {
     fields: "email",
     listingType: "standard",
-    purchaseOnly: "1",
-    usesLogistics: "",
-  },
-  "weekly-event": {
-    bookableDays: ALL_BOOKABLE_DAYS,
-    durationDays: "1",
-    fields: "email",
-    listingType: "daily",
-    maximumDaysAfter: "90",
-    minimumDaysBefore: "1",
     purchaseOnly: "",
+    recurringInterval: "month",
     usesLogistics: "",
   },
+  // One day ticked, so the operator picks the day the class runs.
+  "weekly-event": dailySeed(VALID_DAY_NAMES[0]),
 };
+/* jscpd:ignore-end */
 
 type ListingSectionId = ReturnType<typeof getListingForm>["sections"][number];
 type ListingSectionRenderer = (

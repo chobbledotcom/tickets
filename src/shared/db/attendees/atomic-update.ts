@@ -27,11 +27,16 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
-import { valued } from "#db/select/expression.ts";
+import { among, valued, whereTail } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
 import { type Changes, update } from "#db/write.ts";
 import { requiredMapValue, unique } from "#fp";
+import {
+  CANCELLABLE_STATUSES,
+  isCancellable,
+} from "#payment/subscription-machine-spec.ts";
 import type { AttendeeUpdateFailureReason } from "#shared/attendee-failures.ts";
 
 /**
@@ -263,7 +268,7 @@ export const lineStatementFor = (
   line: DesiredListingLine,
   attendeeId: number,
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): { guarded: boolean; statement: SqlStatement } => {
   if (!line.exists) {
     return {
@@ -287,22 +292,46 @@ export const lineStatementFor = (
   };
 };
 
-/** The write statements for one attendee edit: a delete per removed line, then
- * the update and insert statements in line order, each capacity-checked write
- * followed by CAPACITY_GUARD. The caller runs them as one batch, so a refused
- * write rolls the whole edit back. */
+/** The stored rows the desired line set no longer names. */
+const removedLines = (
+  desired: readonly DesiredListingLine[],
+  existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
+): ListingAttendeeRow[] => {
+  const desiredKeys = new Set(desired.map((line) => line.key));
+  return [...existingByKey.values()].filter(
+    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
+  );
+};
+
+/** A guard that aborts the batch while the booking row still has a running
+ * subscription: its row with no listing breaks NOT NULL. It tests the current
+ * plan, not changes(), so an absent ordinary row stays a no-op. */
+const livePlanGuard = (
+  attendeeId: number,
+  booking: ListingAttendeeRow,
+): SqlStatement => {
+  const row = tableNode(tables.listing_attendees, "listingAttendee");
+  return sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+    SELECT NULL, NULL, 1 FROM listing_attendees AS listingAttendee${whereTail([
+      ...inBookingSlot(attendeeId, booking)(row),
+      among(row.subscriptionStatus, CANCELLABLE_STATUSES),
+    ])}`;
+};
+
+/** Each removed line has a live-plan guard before its delete. Capacity-checked
+ * writes have CAPACITY_GUARD after them. The caller runs all statements as one
+ * batch, so a refused write rolls the whole edit back. */
 export const buildAttendeeEditBatch = (
   attendeeId: number,
   desired: readonly DesiredListingLine[],
   existingByKey: ReadonlyMap<string, ListingAttendeeRow>,
-  allowOverbook = false,
+  allowOverbook: boolean,
 ): SqlStatement[] => {
-  const desiredKeys = new Set(desired.map((line) => line.key));
-  const removed = [...existingByKey.values()].filter(
-    (row) => !desiredKeys.has(lineKeyFromBooking(row)),
-  );
-  const statements: SqlStatement[] = removed.map((booking) =>
-    bookingRowDelete(attendeeId, booking),
+  const statements = removedLines(desired, existingByKey).flatMap(
+    (booking): SqlStatement[] => [
+      livePlanGuard(attendeeId, booking),
+      bookingRowDelete(attendeeId, booking),
+    ],
   );
   for (const line of [
     ...desired.filter((line) => line.exists),
@@ -350,6 +379,19 @@ export const applyAttendeeAtomicEdit = async (
   const existing = await loadExistingLines(attendeeId);
   const existingByKey = new Map(existing.map((e) => [e.key, e.booking]));
 
+  // A removed line loses its row, and a row with a running subscription must
+  // stay until the owner cancels it.
+  const lostPlans = removedLines(desired, existingByKey).filter((booking) =>
+    isCancellable(booking.subscription_status),
+  );
+  if (lostPlans.length > 0) {
+    return {
+      listingIds: lostPlans.map((booking) => booking.listing_id),
+      reason: "subscription_live",
+      success: false,
+    };
+  }
+
   // Preflight: reject (without writing anything) when any changed line can't
   // fit, before any write happens.
   const preflightFailure = await preflightCapacityFailure(
@@ -375,10 +417,9 @@ export const applyAttendeeAtomicEdit = async (
     ...work.after,
   ];
 
-  // The batch runs as one ACID transaction. After the preflight above this
-  // only fails if a concurrent booking consumed the capacity in the meantime —
-  // a CAPACITY_GUARD then aborts and rolls the whole batch back, surfacing as a
-  // thrown error (the caller retries), never a partial write.
+  // A concurrent capacity change or live plan can refuse the batch after
+  // preflight. Its guard throws a database error and rolls back every write.
+  // A retry reads the current bookings and repeats the preflight.
   await executeBatchWithResults(statements);
 
   return { success: true };

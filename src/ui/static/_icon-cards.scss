@@ -1,0 +1,61 @@
+/** A grid of link cards, each a large icon beside a label and a description.
+ *  The grid caps at three cards per line so each box stays large enough to
+ *  scan its label and description at a glance. */
+
+.icon-card-grid {
+  display: grid;
+  gap: var(--space-m);
+  grid-template-columns: 1fr;
+  margin-block: var(--space-m);
+}
+
+@media (min-width: 769px) {
+  .icon-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Wide screens: the admin sidebar leaves room for three cards without
+   squeezing any below ~330px. */
+@media (min-width: 1200px) {
+  .icon-card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.icon-card {
+  display: flex;
+  column-gap: var(--space-m);
+  align-items: flex-start;
+  padding: var(--space-m);
+  border: 1px solid var(--color-link);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* The same purple the menu links use. */
+.icon-card-icon {
+  flex: none;
+}
+
+.icon-card-icon .icon {
+  color: var(--color-link);
+  height: 72px;
+  width: 72px;
+}
+
+/* A column, so the label and the description each take their own line. */
+.icon-card-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.icon-card:hover {
+  background: var(--color-bg-secondary);
+}
+
+.icon-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

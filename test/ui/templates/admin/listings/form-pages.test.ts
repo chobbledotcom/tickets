@@ -1,4 +1,5 @@
 import { assert, assertStringIncludes } from "@std/assert";
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
@@ -9,6 +10,10 @@ import {
 import { OWNER_SESSION } from "#test-utils/admin-page-test.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testGroup, testListingWithCount } from "#test-utils/factories.ts";
+
+/** The new-listing form opened from one picker card. */
+const newPageFor = (templateId: string): string =>
+  adminListingNewPage([], OWNER_SESSION, { templateId });
 
 describe("adminListingNewPage Advanced section", () => {
   registerListingTemplateHooks();
@@ -35,9 +40,9 @@ describe("adminListingNewPage", () => {
     expectIncludesAll(html, [
       "Add Listing",
       'name="name"',
-      'name="max_attendees"',
-      'name="thank_you_url"',
-      'name="unit_price"',
+      'name="maxAttendees"',
+      'name="thankYouUrl"',
+      'name="unitPrice"',
       // The shared form keeps the site's own ticket wording on every install.
       t("fields.listing.price"),
     ]);
@@ -51,7 +56,7 @@ describe("adminListingNewPage", () => {
   test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminListingNewPage(groups, OWNER_SESSION);
-    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "My Group"]);
+    expectIncludesAll(html, ['name="groupIds"', 'value="2"', "My Group"]);
   });
 
   test("renders error when provided", () => {
@@ -61,61 +66,70 @@ describe("adminListingNewPage", () => {
     assertStringIncludes(html, "Something went wrong");
   });
 
-  test("applies listing-form--hide-type class for templates with a fixed listing_type", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "weekly-event",
-    });
-    assertStringIncludes(html, "listing-form--hide-type");
-  });
+  const TEMPLATE_CLASSES = [
+    "listing-form--templated",
+    "listing-form--hide-type",
+    "listing-form--hide-date",
+    "listing-form--no-daily",
+  ];
+  const formClasses = (templateId: string): string[] => {
+    const html = newPageFor(templateId);
+    return TEMPLATE_CLASSES.filter((name) => html.includes(name));
+  };
 
-  test("does not apply listing-form--hide-type for templates with no fixed listing_type", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "hireable-item",
+  test("gives each template's form the classes that hide what it pins", () => {
+    const [templated, hideType, hideDate, noDaily] = TEMPLATE_CLASSES;
+    expect({
+      "hireable-item": formClasses("hireable-item"),
+      "one-off-event": formClasses("one-off-event"),
+      subscription: formClasses("subscription"),
+      "weekly-event": formClasses("weekly-event"),
+    }).toEqual({
+      "hireable-item": [templated],
+      "one-off-event": [templated, hideType, noDaily],
+      subscription: [templated, hideType, hideDate, noDaily],
+      "weekly-event": [templated, hideType],
     });
-    assert(!html.includes("listing-form--hide-type"));
-    assertStringIncludes(html, "listing-form--templated");
   });
 
   test("seeds the hireable-item contact fields with phone for delivery contact", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "hireable-item",
-    });
-    expectIncludesAll(html, [
+    expectIncludesAll(newPageFor("hireable-item"), [
       'name="fields" value="email" checked',
       'name="fields" value="phone" checked',
       'name="fields" value="address" checked',
     ]);
   });
 
-  test("seeds every weekday into the hireable-item bookable_days", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "hireable-item",
-    });
-    for (const day of [
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-      "Sunday",
-    ]) {
-      assertStringIncludes(html, `name="bookable_days" value="${day}" checked`);
-    }
+  const WEEK = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+  const tickedDays = (templateId: string): string[] => {
+    const html = newPageFor(templateId);
+    return WEEK.filter((day) =>
+      html.includes(`name="bookableDays" value="${day}" checked`),
+    );
+  };
+
+  test("seeds every weekday into the hireable-item and day-pass bookable_days", () => {
+    expect(tickedDays("hireable-item")).toEqual(WEEK);
+    expect(tickedDays("day-pass")).toEqual(WEEK);
   });
 
-  test("applies listing-form--no-daily class for non-daily templates", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "one-off-event",
-    });
-    assertStringIncludes(html, "listing-form--no-daily");
+  test("seeds one weekday into the weekly-event bookable_days", () => {
+    expect(tickedDays("weekly-event")).toEqual(["Monday"]);
   });
 
-  test("does not apply listing-form--no-daily for templates without a fixed non-daily type", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "hireable-item",
-    });
-    assert(!html.includes("listing-form--no-daily"));
+  test("seeds the donation with pay more ticked and no check-in", () => {
+    expectIncludesAll(newPageFor("donation"), [
+      'name="canPayMore" value="1" checked',
+      'name="purchaseOnly" value="1" checked',
+    ]);
   });
 
   test("preserves selected groups on error re-render", () => {
@@ -127,22 +141,22 @@ describe("adminListingNewPage", () => {
   });
 
   test("carries custom sentinel through as template_id hidden input", () => {
-    const html = adminListingNewPage([], OWNER_SESSION, {
-      templateId: "custom",
-    });
-    expectIncludesAll(html, ['name="template_id"', 'value="custom"']);
+    expectIncludesAll(newPageFor("custom"), [
+      'name="templateId"',
+      'value="custom"',
+    ]);
   });
 
   test("carries duplicated_from hidden input when present in submitted values", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
       values: { duplicated_from: "42" },
     });
-    expectIncludesAll(html, ['name="duplicated_from"', 'value="42"']);
+    expectIncludesAll(html, ['name="duplicatedFrom"', 'value="42"']);
   });
 
   test("does not render duplicated_from input when not in submitted values", () => {
     const html = adminListingNewPage([], OWNER_SESSION, { values: {} });
-    assert(!html.includes('name="duplicated_from"'));
+    assert(!html.includes('name="duplicatedFrom"'));
   });
 });
 
@@ -154,7 +168,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
       testListingWithCount({ attendeeCount: 0, date: "" }),
     );
     // The date field should render split date and time inputs
-    expectIncludesAll(html, ['name="date_date"', 'name="date_time"']);
+    expectIncludesAll(html, ['name="dateDate"', 'name="dateTime"']);
   });
 
   test("non-empty date shows formatted split values in edit form", () => {
@@ -191,11 +205,11 @@ describe("adminListingEditPage max_price field", () => {
 
   test("renders max_price field with value when set", () => {
     const html = maxPriceEditHtml(50000);
-    expectIncludesAll(html, ['name="max_price"', 'value="500.00"']);
+    expectIncludesAll(html, ['name="maxPrice"', 'value="500.00"']);
   });
 
   test("renders max_price field with 0.00 when zero", () => {
     const html = maxPriceEditHtml(0);
-    expectIncludesAll(html, ['name="max_price"', 'value="0.00"']);
+    expectIncludesAll(html, ['name="maxPrice"', 'value="0.00"']);
   });
 });

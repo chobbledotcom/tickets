@@ -22,6 +22,7 @@ import type { ExternalSourceLink } from "#db/external-sources/types.ts";
 import { externalLinkUrl } from "#db/external-sources/url.ts";
 import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
+import { requireSuccess } from "#shared/result.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestExternalSource } from "#test-utils/db-helpers/external-sources.ts";
@@ -50,13 +51,13 @@ const addListingLink = async (
   name = `Listing ${sourceId} ${externalId}`,
 ): Promise<ExternalSourceLink> => {
   const listing = await createTestListing({ name });
-  const created = await createExternalSourceLink(sourceId, {
-    externalId,
-    linkId: listing.id,
-    linkType: "listing",
-  });
-  if (!created.ok) throw new Error(created.error);
-  return created.value;
+  return requireSuccess(
+    await createExternalSourceLink(sourceId, {
+      externalId,
+      linkId: listing.id,
+      linkType: "listing",
+    }),
+  );
 };
 
 describeWithEnv("db > external sources", { db: true }, () => {

@@ -446,7 +446,7 @@
     "long-sentence": 3
   },
   "src/shared/db/attendees/atomic-update.ts": {
-    "long-sentence": 11,
+    "long-sentence": 9,
     "semicolon": 4,
     "banned-modal": 3,
     "participle": 1,
@@ -1019,12 +1019,12 @@
     "semicolon": 6
   },
   "src/shared/listing-templates.ts": {
-    "contraction": 2,
+    "contraction": 1,
     "banned-modal": 3
   },
   "src/shared/listings-actions.ts": {
     "contraction": 6,
-    "banned-modal": 9,
+    "banned-modal": 8,
     "wordy": 3,
     "long-sentence": 9
   },

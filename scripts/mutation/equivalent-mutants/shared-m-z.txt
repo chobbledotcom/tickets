@@ -439,3 +439,7 @@ src/shared/svg-ticket.ts::extractSvgContent~1wmrkda  ??→|| audited:135uwno # i
 # svg-ticket.ts: the QR section starts empty two lines above and nothing else
 # adds to it, so the first write reads the same with = and +=.
 src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:135uwno # qrSection is "" at this write, so += adds nothing
+
+# field-specs.ts: the two lookups of the access rule.
+src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9nni # find returns a lock name or undefined, and every lock name is a non-empty string
+src/shared/rest/field-specs.ts::closedFieldErrorOrNull~015lckf  Missing closed field→"" audited:02d9nni # the key comes from closed.has on the same map one line above, so the lookup never throws and no caller reads the message

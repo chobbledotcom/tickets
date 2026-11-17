@@ -7,7 +7,11 @@ import type { AttendeeKind } from "#db/attendees/kind.ts";
 import type { PendingNotificationFlag } from "#db/attendees/notification-flags.ts";
 import type { BookingSource } from "#db/contact-tokens.ts";
 import type { AttendeeCreationFailureReason } from "#shared/attendee-failures.ts";
-import type { SubscriptionPlan } from "#shared/subscriptions/plan.ts";
+import type {
+  RecurringIntervalChoice,
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from "#shared/subscriptions/plan.ts";
 import type { Attendee, ContactFields, ContactInfo } from "#types";
 
 /** Per-(child, parent) unit allocation from the booking fold: the quantity of
@@ -180,11 +184,11 @@ export type ListingAttendeeRow = {
   package_group_id: number;
   /** The Stripe subscription plan of the row. Blank and zero when the row
    *  started no subscription. */
-  recurring_interval: string;
+  recurring_interval: RecurringIntervalChoice;
   recurring_price: number;
   recurring_tax: number;
   subscription_id: string;
-  subscription_status: string;
+  subscription_status: SubscriptionStatus | "";
 };
 
 /** A booking row of the token reads: the shared booking fields plus the
