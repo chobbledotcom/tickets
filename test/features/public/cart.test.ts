@@ -99,9 +99,6 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
-    expectIncludesAll(html, [
-      `name="packageQuantity${group.id}"`,
-      "Lone tent",
-    ]);
+    expectIncludesAll(html, [`name="packageQuantity${group.id}"`, "Lone tent"]);
   });
 });
