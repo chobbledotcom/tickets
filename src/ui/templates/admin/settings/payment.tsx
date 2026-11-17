@@ -256,7 +256,7 @@ export const SquareWebhookForm = (s: SettingsPageState): JSX.Element | null => {
         html={renderFields(
           getSquareWebhookFields(),
           s.squareWebhookConfigured
-            ? { square_webhook_signature_key: MASK_SENTINEL }
+            ? { squareWebhookSignatureKey: MASK_SENTINEL }
             : {},
         )}
       />
