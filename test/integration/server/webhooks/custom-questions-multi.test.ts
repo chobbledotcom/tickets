@@ -149,9 +149,9 @@ describeWithEnv(
         {
           email: "qbuyer@example.com",
           name: "Q Buyer",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${q.id}`]: String(a1.id),
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${q.id}`]: String(a1.id),
         },
         "cs_multi_q_stub",
       );
@@ -210,10 +210,10 @@ describeWithEnv(
         {
           email: "textbuyer@example.com",
           name: "Text Buyer",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${q1.id}`]: "Wheelchair access",
-          [`question_${q2.id}`]: "Vegan",
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${q1.id}`]: "Wheelchair access",
+          [`question${q2.id}`]: "Vegan",
         },
         "cs_text_q_stub",
       );

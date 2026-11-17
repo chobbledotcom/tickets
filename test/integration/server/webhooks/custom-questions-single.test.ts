@@ -113,7 +113,7 @@ describeWithEnv(
           await submitTicketForm(listing.slug, {
             email: "rt@example.com",
             name: "Round Tripper",
-            [`question_${question.id}`]: "Step-free entrance",
+            [`question${question.id}`]: "Step-free entrance",
           }),
         );
       } finally {

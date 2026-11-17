@@ -138,7 +138,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       });
 
       const response = await submitTicketForm(listing.slug, {
-        day_count: "2",
+        dayCount: "2",
         email: "john@example.com",
         name: "John Doe",
       });
@@ -184,7 +184,7 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
 
       try {
         const response = await submitTicketForm(listing.slug, {
-          day_count: "2",
+          dayCount: "2",
           email: "john@example.com",
           name: "John Doe",
         });
@@ -231,10 +231,10 @@ describeWithEnv("server (payment flow)", { db: true, triggers: true }, () => {
       try {
         const response = await submitTicketForm(listing.slug, {
           // The second add-on's field is omitted entirely (left unselected).
-          [`addon_${addOn.id}`]: "2",
+          [`addon${addOn.id}`]: "2",
           email: "john@example.com",
           name: "John Doe",
-          promo_code: "save10",
+          promoCode: "save10",
         });
 
         expect(response.status).toBe(302);
