@@ -194,7 +194,7 @@ describe("test-utils — ticket & join flows", () => {
     test("creates an invite and returns the invite code", async () => {
       const { inviteCode, cookie, csrfToken } =
         await createTestInvite("invitee1");
-      expect(inviteCode).toBeTruthy();
+      expect(inviteCode).toMatch(/^[A-Za-z0-9_-]+$/);
       assertStringIncludes(cookie, `${getSessionCookieName()}=`);
       expect(csrfToken).toMatch(/^s1\./);
     });
@@ -255,7 +255,7 @@ describe("test-utils — ticket & join flows", () => {
     test("returns cookie and CSRF token after successful login", async () => {
       const session = await loginAsAdmin();
       assertStringIncludes(session.cookie, `${getSessionCookieName()}=`);
-      expect(session.csrfToken).toBeTruthy();
+      expect(session.csrfToken).toMatch(/^s1\./);
       expect(typeof session.csrfToken).toBe("string");
     });
   });

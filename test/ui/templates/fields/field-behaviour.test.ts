@@ -21,9 +21,9 @@ const runValidate = (field: Field, value: string): string | null => {
   if (!field.validate) throw new Error(`"${field.name}" has no validate`);
   return field.validate(value);
 };
-const accepts = (field: Field, value: string) =>
+const expectAccepts = (field: Field, value: string) =>
   expect(runValidate(field, value)).toBeNull();
-const rejects = (field: Field, value: string) =>
+const expectRejects = (field: Field, value: string) =>
   expect(typeof runValidate(field, value)).toBe("string");
 
 /** Run a field's `parse`. */
@@ -41,14 +41,14 @@ describe("fields behaviour", () => {
       expect(field.min).toBe(0);
     });
     test("accept a non-negative integer", () => {
-      accepts(field, "5");
-      accepts(field, "0");
+      expectAccepts(field, "5");
+      expectAccepts(field, "0");
     });
     test("reject a fraction and a non-number", () => {
       // The declared min of 0 refuses a negative; the field's own check
       // refuses only what the schema cannot see.
-      rejects(field, "1.5");
-      rejects(field, "abc");
+      expectRejects(field, "1.5");
+      expectRejects(field, "abc");
     });
   });
 
@@ -80,16 +80,16 @@ describe("fields behaviour", () => {
     test("calc_value requires a finite number", () => {
       const calc = byName(modifierFields, "calcValue");
       expect(calc.required).toBe(true);
-      accepts(calc, "5");
-      accepts(calc, "1.5");
-      rejects(calc, "abc");
+      expectAccepts(calc, "5");
+      expectAccepts(calc, "1.5");
+      expectRejects(calc, "abc");
     });
     test("min_subtotal parses blank to 0 and validates a currency amount", () => {
       const field = byName(modifierFields, "minSubtotal");
       expect(runParse(field, "")).toBe(0);
       expect(runParse(field, "5")).toBe(5);
-      accepts(field, "5");
-      rejects(field, "not-money");
+      expectAccepts(field, "5");
+      expectRejects(field, "not-money");
     });
     test("min_visits parses blank to 0 and floors at 0", () => {
       const field = byName(modifierFields, "minVisits");
@@ -121,26 +121,26 @@ describe("fields behaviour", () => {
         "monthsPerUnit",
         "initialSiteMonths",
       ]) {
-        rejects(byName(fields, name), "1.5");
+        expectRejects(byName(fields, name), "1.5");
       }
     });
     test("duration_days accepts 1..MAX and rejects a fraction", () => {
       const duration = byName(fields, "durationDays");
       expect(duration.min).toBe(1);
       expect(duration.max).toBe(MAX_DURATION_DAYS);
-      accepts(duration, "1");
-      accepts(duration, String(MAX_DURATION_DAYS));
+      expectAccepts(duration, "1");
+      expectAccepts(duration, String(MAX_DURATION_DAYS));
       // The declared min/max refuse the outside values; the field's own
       // check refuses a fraction.
-      rejects(duration, "1.5");
+      expectRejects(duration, "1.5");
     });
     test("the date field rejects an unparseable datetime", () => {
-      rejects(byName(fields, "date"), "not-a-datetime");
+      expectRejects(byName(fields, "date"), "not-a-datetime");
     });
     test("the contact-fields setting only accepts known field names", () => {
       const contact = byName(fields, "fields");
-      accepts(contact, "email");
-      rejects(contact, "not-a-contact-field");
+      expectAccepts(contact, "email");
+      expectRejects(contact, "not-a-contact-field");
     });
     test("the description field renders markdown", () => {
       expect(byName(fields, "description").markdown).toBe(true);
@@ -169,8 +169,8 @@ describe("fields behaviour", () => {
       expect(byName(fields, "name").required).toBe(true);
       expect(byName(fields, "siteUrl").required).toBe(true);
       const updates = byName(fields, "updates");
-      accepts(updates, "release");
-      rejects(updates, "not-a-tier");
+      expectAccepts(updates, "release");
+      expectRejects(updates, "not-a-tier");
     });
     test("the logistics-agent name is required", () => {
       expect(byName(logisticsAgentForm.fields, "name").required).toBe(true);
@@ -185,7 +185,7 @@ describe("fields behaviour", () => {
     });
     test("group max attendees refuses a fraction like the group API does", () => {
       expect(byName(getGroupCreateForm().fields, "maxAttendees").min).toBe(0);
-      rejects(byName(getGroupCreateForm().fields, "maxAttendees"), "1.5");
+      expectRejects(byName(getGroupCreateForm().fields, "maxAttendees"), "1.5");
     });
     test("ticket name and email fields are required", () => {
       const fields = getTicketFields("email", false);

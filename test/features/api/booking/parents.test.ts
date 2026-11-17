@@ -59,7 +59,7 @@ describePublicApi(() => {
       const parent = await parentWithPaidChild();
       const { response, body } = await bookListing(parent.slug);
       expect(response.status).toBe(200);
-      expect(body.booking?.checkoutUrl).toBeDefined();
+      expect(body.booking?.checkoutUrl).toMatch(/^https:\/\//);
     });
 
     test("returns 400 when the parent checkout session errors", async () => {
@@ -96,7 +96,7 @@ describePublicApi(() => {
       await setupStripe();
       const { parent } = await freeParentWithChild();
       const body = await bookForToken(parent.slug);
-      expect(body.booking?.checkoutUrl).toBeUndefined();
+      expect(body.booking?.checkoutUrl).toStrictEqual(undefined);
       expect(body.booking?.amountOwed).toBe(0);
     });
 
@@ -263,7 +263,7 @@ describePublicApi(() => {
       await setupStripe();
       const parent = await parentWithPaidChild();
       const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.thankYouUrl).toBeUndefined();
+      expect(intent?.thankYouUrl).toStrictEqual(undefined);
     });
   });
 });

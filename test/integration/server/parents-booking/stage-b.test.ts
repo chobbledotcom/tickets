@@ -70,7 +70,9 @@ describeWithEnv(
         expect(childBookings.every((b) => b.quantity === 1)).toBe(true);
         // All 4 rows share one order_token.
         const token = bookings[0]!.order_token;
-        expect(token).toBeTruthy();
+        expect(token).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+        );
         expect(bookings.every((b) => b.order_token === token)).toBe(true);
       },
     );

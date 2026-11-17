@@ -118,7 +118,7 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
     const form = new FormParams({ customPrice: "15.00" });
 
-    expect(resolveCustomPrice(fixed, form)).toBeUndefined();
+    expect(resolveCustomPrice(fixed, form)).toStrictEqual(undefined);
     expect(resolveCustomPrice(flexible, form)).toBe(1500);
   });
 

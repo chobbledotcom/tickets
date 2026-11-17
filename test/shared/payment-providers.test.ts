@@ -194,7 +194,7 @@ describe("payment provider registry", () => {
       for (const id of PAYMENT_PROVIDER_IDS) {
         const webhook = providerWebhook(id);
         if (webhook === null) continue;
-        expect(messages[webhook.domainChangeFixKey]).toBeTruthy();
+        expect(messages[webhook.domainChangeFixKey]).toMatch(/\S/);
       }
     });
   });
