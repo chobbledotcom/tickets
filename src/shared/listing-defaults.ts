@@ -52,7 +52,7 @@ export type ResolvableListing = Partial<Listing> & { useDefaults: boolean };
 export type ListingDefaultField = {
   /** Key in {@link ListingDefaults}. */
   key: keyof ListingDefaults;
-  /** Matching listing field. Its column name is the listing-form field name. */
+  /** Matching listing field, which is also the listing-form field name. */
   field: keyof Listing;
   kind: ListingDefaultKind;
   /**
@@ -107,19 +107,18 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   },
 ] as const;
 
-/** The listing-form field name of a defaultable field. */
-export const listingDefaultFormName = (field: ListingDefaultField): string =>
-  columnName(field.field);
-
-/** The HTML form input name for a field's default value. */
-export const listingDefaultInputName = (field: ListingDefaultField): string =>
-  `default_${listingDefaultFormName(field)}`;
+/** The HTML form input name for a field's default value: `bookableDays`
+ *  becomes `defaultBookableDays`. */
+export const listingDefaultInputName = ({
+  field,
+}: ListingDefaultField): string =>
+  `default${field.charAt(0).toUpperCase()}${field.slice(1)}`;
 
 /** The i18n key for one field's label or hint text. */
 const listingDefaultTextKey =
   (suffix: "label" | "hint") =>
   (field: ListingDefaultField): string =>
-    `listing_defaults.field.${listingDefaultFormName(field)}.${suffix}`;
+    `listing_defaults.field.${columnName(field.field)}.${suffix}`;
 
 export const listingDefaultLabelKey = listingDefaultTextKey("label");
 
@@ -221,4 +220,4 @@ export const serializeListingDefaults = (defaults: ListingDefaults): string =>
 export const showUseDefaultsToggle = (
   closed: ClosedFields,
   defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");
+): boolean => hasAnyListingDefault(defaults) && !closed.has("useDefaults");

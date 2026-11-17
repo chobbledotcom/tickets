@@ -98,7 +98,7 @@ const handleAdminLogin = async (
   const returnPath = adminReturnPath(form.getString(RETURN_URL_PARAM));
 
   // Validate login CSRF token (signed token pattern)
-  const csrfForm = form.getString("csrf_token");
+  const csrfForm = form.getString("csrfToken");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
     return fail(adminLoginPageHref(returnPath), t("error.csrf_invalid"));
   }

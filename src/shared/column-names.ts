@@ -1,13 +1,4 @@
 // effects: pure
-import * as v from "valibot";
-
-// valibot's word-splitting handles digits and acronyms. The schema is built
-// once at module load.
-const camelCaseSchema = v.pipe(v.string(), v.toCamelCase());
-
-/** Convert snake_case to camelCase: `max_attendees` becomes `maxAttendees`. */
-export const toCamelCase = (s: string): string => v.parse(camelCaseSchema, s);
-
 /** A column name as the code names it: `min_visits` becomes `minVisits`. */
 export type CamelWord<Name extends string> =
   Name extends `${infer Head}_${infer Tail}`

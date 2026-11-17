@@ -10,6 +10,7 @@ import type {
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
 import type { UpdateListingBody } from "#routes/admin/api-listing-body.ts";
+import type { SnakeWord } from "#shared/column-names.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
@@ -23,7 +24,7 @@ import type { ExtraField, ValueForm } from "./field-docs.ts";
 
 /** The body keys a write takes beside its field list. */
 type ExtraFields<Body, Fields extends FieldSpecs> = Record<
-  Exclude<keyof Body, Fields[number]["key"]>,
+  Exclude<keyof Body, SnakeWord<Fields[number]["key"]>>,
   ExtraField
 >;
 

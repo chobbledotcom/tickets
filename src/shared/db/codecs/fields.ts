@@ -16,6 +16,7 @@ import {
   typed,
   yesNo,
 } from "#db/codecs/kinds.ts";
+import { columnName, type SnakeWord } from "#shared/column-names.ts";
 import { storedListingFields } from "#shared/listing-fields.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
@@ -62,7 +63,7 @@ export const normalizeUtcDatetime = (value: string, label: string): string => {
 const sealedDatetime = (field: FieldSpec): Codec<EnvKeyEncrypted, string> => ({
   decode: async (stored) =>
     normalizeUtcDatetime(await decrypt(stored), "stored datetime"),
-  encode: (app) => encrypt(normalizeUtcDatetime(app, field.key)),
+  encode: (app) => encrypt(normalizeUtcDatetime(app, columnName(field.key))),
 });
 
 /** The codec each field kind gives. A kind with no column of its own has
@@ -113,14 +114,14 @@ const KIND_CODECS: {
   switch: () => yesNo,
   text: () => typed(),
   weekdays: (field, table) =>
-    json(v.array(v.string()), `${table}.${field.key}`),
+    json(v.array(v.string()), `${table}.${columnName(field.key)}`),
 };
 
-/** The codec of each stored field of a list. */
+/** The codec of each stored field of a list, keyed by its column. */
 export type FieldCodecs<Fields extends FieldSpecs> = {
   [Key in Fields[number]["key"] as KindOf<Fields, Key> extends "dayPrices"
     ? never
-    : Key]: KindCodecs[KindOf<Fields, Key>];
+    : SnakeWord<Key>]: KindCodecs[KindOf<Fields, Key>];
 };
 
 /** The codecs of a field list, stored in `table`. */
@@ -131,6 +132,6 @@ export const fieldCodecs = <const Fields extends FieldSpecs>(
   Object.fromEntries(
     fields.flatMap((field) => {
       const codec = KIND_CODECS[field.kind](field, table);
-      return codec === undefined ? [] : [[field.key, codec]];
+      return codec === undefined ? [] : [[columnName(field.key), codec]];
     }),
   ) as FieldCodecs<Fields>;

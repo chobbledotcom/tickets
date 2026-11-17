@@ -5,7 +5,6 @@
  * where the table has a different default or none.
  */
 
-import { fieldName } from "#shared/column-names.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
 import type {
   FieldKind,
@@ -41,6 +40,6 @@ export const newRowDefaults = (
 ): Readonly<Record<string, unknown>> =>
   definedValuesBy(
     fields,
-    (field) => fieldName(field.key),
+    (field) => field.key,
     (field) => NEW_ROW_VALUES[field.kind](field),
   );

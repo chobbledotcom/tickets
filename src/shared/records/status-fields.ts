@@ -6,10 +6,10 @@ import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 
 /* jscpd:ignore-start -- a list of strings, not code */
 export const STATUS_FIELDS = [
-  { key: "is_paid_default", kind: "switch" },
-  { key: "is_public_default", kind: "switch" },
-  { key: "is_reservation", kind: "switch" },
+  { key: "isPaidDefault", kind: "switch" },
+  { key: "isPublicDefault", kind: "switch" },
+  { key: "isReservation", kind: "switch" },
   { key: "name", kind: "name" },
-  { key: "reservation_amount", kind: "text" },
+  { key: "reservationAmount", kind: "text" },
 ] as const satisfies FieldSpecs;
 /* jscpd:ignore-end */

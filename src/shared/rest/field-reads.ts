@@ -2,7 +2,7 @@
  *  form, and from a stored row into a catalogue transfer. */
 
 import * as v from "valibot";
-import { fieldName, toCamelCase } from "#shared/column-names.ts";
+import { columnName } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
 import {
@@ -12,6 +12,7 @@ import {
   writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import {
+  apiClosedFields,
   byFieldKey,
   type ClosedFields,
   closedFieldErrorOrNull,
@@ -38,10 +39,11 @@ type BodyRead = (
 
 /** Read one name. An update without a name keeps the stored one. */
 const nameRead: BodyRead = (field, body, stored) => {
-  const name = body[field.key];
+  const key = columnName(field.key);
+  const name = body[key];
   return name === undefined || typeof name === "string"
     ? writeEntityName(name, stored as string | null)
-    : errorResult(`${field.key} must be a string`);
+    : errorResult(`${key} must be a string`);
 };
 
 /** The value a create reads for a field it does not supply. A switch and a
@@ -75,7 +77,7 @@ const keptValue = (field: FieldSpec, stored: unknown): unknown =>
 
 /** Read one supplied value through the field's value rule. */
 const checkedRead: BodyRead = (field, body, stored) => {
-  const value = body[field.key];
+  const value = body[columnName(field.key)];
   if (value === undefined) return okResult(keptValue(field, stored));
   if (value === null) {
     return okResult(NULL_VALUES[field.kind] ?? keptValue(field, stored));
@@ -90,8 +92,8 @@ const BODY_READS: Record<FieldKind, BodyRead> = {
   count: checkedRead,
   date: (field, body, stored) =>
     stored === null
-      ? requireDateString(body, field.key)
-      : optionalDateString(body, field.key, stored as string),
+      ? requireDateString(body, columnName(field.key))
+      : optionalDateString(body, columnName(field.key), stored as string),
   datetime: checkedRead,
   dayPrices: checkedRead,
   durationDays: checkedRead,
@@ -154,7 +156,7 @@ const asInput = <Fields extends FieldSpecs>(
   // Each entry is the value its own kind read.
   definedValuesBy(
     values,
-    ([key]) => toCamelCase(key),
+    ([key]) => key,
     ([, value]) => value,
   ) as FieldsInput<Fields>;
 
@@ -170,12 +172,13 @@ const fieldOfBody = (
   ...[body, stored]: BodyWrite
 ): Result<unknown> => {
   if (stored === null) {
-    return field.required && (body[field.key] ?? null) === null
-      ? errorResult(`${field.key} is required`)
+    const key = columnName(field.key);
+    return field.required && (body[key] ?? null) === null
+      ? errorResult(`${key} is required`)
       : BODY_READS[field.kind](field, body, null);
   }
   // A stored row holds a field for each of its declared fields.
-  const kept = (stored as Record<string, unknown>)[fieldName(field.key)];
+  const kept = (stored as Record<string, unknown>)[field.key];
   return BODY_READS[field.kind](field, body, kept);
 };
 
@@ -188,7 +191,10 @@ export const readBody = <Fields extends FieldSpecs>(
   stored: object | null,
   closed: ClosedFields,
 ): Result<FieldsInput<Fields>> => {
-  const refusal = closedFieldErrorOrNull(closed, Object.keys(body));
+  const refusal = closedFieldErrorOrNull(
+    apiClosedFields(closed),
+    Object.keys(body),
+  );
   if (refusal !== null) return errorResult(refusal);
   const read = parseEach((field: Fields[number]) => {
     const value = fieldOfBody(field, body, stored);
@@ -301,24 +307,13 @@ export const transferValues = <const Fields extends FieldSpecs>(
 ): Record<string, unknown> =>
   definedValuesBy(
     fields,
-    (field) => toCamelCase(field.key),
+    (field) => field.key,
     (field) => {
       // A stored row holds a field for each of its declared fields.
-      const value = (row as Record<string, unknown>)[fieldName(field.key)];
+      const value = (row as Record<string, unknown>)[field.key];
       const skip = TRANSFER_SKIPS[field.kind];
       return withheld.has(field.key) || value === undefined || skip?.(value)
         ? undefined
         : value;
     },
-  );
-
-/** The refusal for the first closed field that one transfer supplies, named
- *  by its transfer key. Null means the transfer supplies no closed field. */
-export const transferClosedErrorOrNull = (
-  closed: ClosedFields,
-  data: object,
-): string | null =>
-  closedFieldErrorOrNull(
-    new Map([...closed].map(([key, reason]) => [toCamelCase(key), reason])),
-    Object.keys(data),
   );

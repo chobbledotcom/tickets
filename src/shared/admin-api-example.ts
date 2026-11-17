@@ -286,7 +286,7 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 /** The booking window a listing gets when its create body says nothing. */
 const LISTING_DEFAULT_DAYS_AFTER = fieldOfKey(
   LISTING_FIELDS,
-  "maximum_days_after",
+  "maximumDaysAfter",
 ).default;
 
 /** The documented path of one listing custom route. */

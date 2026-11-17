@@ -118,7 +118,7 @@ export const handlePaymentProviderRecoveryPost: RequestRoute = settingsRoute(
     ) {
       return errorPage(t("error.invalid_existing_payment_provider"), formId);
     }
-    const expectedVersion = form.getOptionalInt("settings_version");
+    const expectedVersion = form.getOptionalInt("settingsVersion");
     const task = await settings.withCurrentTask(
       "payment-provider",
       async () => {

@@ -6,7 +6,7 @@ export const csrfPost = async (
   csrfToken: string,
   extraBody = "",
 ): Promise<any> => {
-  const body = `csrf_token=${encodeURIComponent(csrfToken)}${extraBody}`;
+  const body = `csrfToken=${encodeURIComponent(csrfToken)}${extraBody}`;
   const res = await fetch(url, {
     body,
     credentials: "same-origin",

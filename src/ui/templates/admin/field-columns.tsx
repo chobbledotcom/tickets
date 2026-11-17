@@ -1,7 +1,6 @@
 /** The list column of every declared field, in declaration order. A name
  *  links to its record. Any other field shows its stored text. */
 
-import { fieldName } from "#shared/column-names.ts";
 import type {
   FieldsStored,
   ShownField,
@@ -43,9 +42,5 @@ export const fieldTableColumns = <const Fields extends readonly ShownField[]>(
 ): TableColumn<FieldsStored<Fields>>[] =>
   // Every declared row is a stored row, so each column reads it.
   fields.map((field) =>
-    KIND_COLUMNS[field.kind](
-      field,
-      (row) => String(row[fieldName(field.key)]),
-      editHref,
-    ),
+    KIND_COLUMNS[field.kind](field, (row) => String(row[field.key]), editHref),
   ) as TableColumn<FieldsStored<Fields>>[];

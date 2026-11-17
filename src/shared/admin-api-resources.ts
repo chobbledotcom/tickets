@@ -41,7 +41,6 @@ import {
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
-import type { FieldSpecs } from "#shared/rest/field-specs.ts";
 import { apiFieldsOf } from "#shared/rest/field-values.ts";
 
 /* ===========================================================================
@@ -100,24 +99,22 @@ export const GroupRowSchema = v.looseObject({
 
 export type AdminApiGroup = v.InferOutput<typeof GroupRowSchema>;
 
-/** One field list's API shapes: its write bodies, and its row with the
- *  server-owned id. `rowView` names the view the row reads. The row schema
- *  stays open, because the server owns the rest of the stored row. */
+/** One field list's API shapes from its wire views: its write bodies, and
+ *  its row with the server-owned id. `rowView` names the view the row reads.
+ *  The row schema stays open, because the server owns the rest of the stored
+ *  row. */
 const fieldResource = <
-  const Fields extends FieldSpecs,
+  const Views extends Record<string, BodyField>,
   View extends keyof BodyField,
 >(
-  fields: Fields,
+  views: Views,
   rowView: View,
-) => {
-  const views = apiFieldsOf(fields);
-  return {
-    bodies: apiBodyPair(views),
-    row: idRow(fieldViews(views, rowView)),
-  };
-};
+) => ({
+  bodies: apiBodyPair(views),
+  row: idRow(fieldViews(views, rowView)),
+});
 
-const holidayApi = fieldResource(HOLIDAY_FIELDS, "create");
+const holidayApi = fieldResource(apiFieldsOf(HOLIDAY_FIELDS), "create");
 export const HolidayRowSchema = holidayApi.row;
 export type AdminApiHoliday = v.InferOutput<typeof HolidayRowSchema>;
 
@@ -133,7 +130,7 @@ export type AdminApiListing = v.InferOutput<typeof ListingRowSchema>;
 /** The three flags and the reservation amount of an attendee status answer
  *  the stored-column defaults (off, "0") when a create leaves them out. The
  *  row reads the update view, so it requires no flag. */
-const attendeeStatusApi = fieldResource(STATUS_FIELDS, "update");
+const attendeeStatusApi = fieldResource(apiFieldsOf(STATUS_FIELDS), "update");
 export const AttendeeStatusRowSchema = attendeeStatusApi.row;
 export type AdminApiCreateAttendeeStatusBody = ApiBody<
   typeof attendeeStatusApi.bodies.create

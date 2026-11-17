@@ -19,7 +19,7 @@ import {
 } from "#shared/package-membership.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
 import { closedFieldsFor } from "#shared/records/write-access.ts";
-import { transferClosedErrorOrNull } from "#shared/rest/field-reads.ts";
+import { closedFieldErrorOrNull } from "#shared/rest/field-specs.ts";
 import type { AdminLevel, ListingWithCount } from "#types";
 import type { FailureCollector } from "./bundle-names.ts";
 import {
@@ -64,7 +64,10 @@ export const validateListings = async (
     );
     plans.push({ input, parentKeys: body.parents.map(nameKey) });
     if (fail.hasFailed(item)) continue;
-    fail.failIf(item, transferClosedErrorOrNull(closed, body.listing));
+    fail.failIf(
+      item,
+      closedFieldErrorOrNull(closed, Object.keys(body.listing)),
+    );
     fail.failIf(
       item,
       await validateListingInput(input, undefined, { siblingsByGroup }),

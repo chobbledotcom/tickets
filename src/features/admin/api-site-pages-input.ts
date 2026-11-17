@@ -47,6 +47,13 @@ const FIELD_LABELS = {
   meta_title: () => t("fields.meta_title"),
 } as const;
 
+/** The cap of each writable text field, keyed by the JSON field name. */
+const TEXT_LIMITS: Record<keyof typeof FIELD_LABELS, number> = {
+  content: CONTENT_FIELD_LIMITS.content,
+  meta_description: CONTENT_FIELD_LIMITS.metaDescription,
+  meta_title: CONTENT_FIELD_LIMITS.metaTitle,
+};
+
 /** The stored text values the writable text fields keep when the body is
  *  silent, keyed by the JSON field name. */
 const storedText = (
@@ -64,7 +71,7 @@ const cleanedText = (
   key: keyof typeof FIELD_LABELS,
 ): Result<string> => {
   const text = key === "content" ? markdownSource(value) : value.trim();
-  const max = CONTENT_FIELD_LIMITS[key];
+  const max = TEXT_LIMITS[key];
   return text.length > max ? tooLong(FIELD_LABELS[key](), max) : okResult(text);
 };
 

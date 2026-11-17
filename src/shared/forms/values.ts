@@ -1,4 +1,3 @@
-import { fieldName } from "#shared/column-names.ts";
 import type { Field } from "#shared/forms/field.ts";
 
 export interface FieldValues {
@@ -32,8 +31,7 @@ export const entityToFieldValues = <T>(
 ): FieldValues => {
   const values: FieldValues = Object.fromEntries(
     fields.map((field) => {
-      // The row names each form box by its camelCase field.
-      const key = fieldName(field.name) as keyof T;
+      const key = field.name as keyof T;
       const formatter = formatters[key];
       const value =
         entity && formatter

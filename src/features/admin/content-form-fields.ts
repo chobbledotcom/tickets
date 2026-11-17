@@ -6,11 +6,6 @@
 
 import { pick } from "@std/collections";
 import { t } from "#i18n";
-import {
-  type CamelCased,
-  camelCaseKeys,
-  snakeCaseKeys,
-} from "#shared/column-names.ts";
 import { defineForm, type FormDefinition } from "#shared/forms/definition.ts";
 import type { Field } from "#shared/forms/field.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -26,8 +21,8 @@ export const CONTENT_FIELD_LIMITS = {
   // The SEO caps are display limits, not storage limits. Search engines
   // truncate a title past ~64 characters and a description past ~160. A
   // longer value never shows however much the form accepts.
-  meta_description: 160,
-  meta_title: 64,
+  metaDescription: 160,
+  metaTitle: 64,
   name: MAX_INPUT_LENGTH,
 } as const;
 
@@ -59,15 +54,15 @@ const seoMetaFields = () =>
     {
       hint: t("fields.meta_title_hint"),
       label: t("fields.meta_title"),
-      maxlength: CONTENT_FIELD_LIMITS.meta_title,
-      name: "meta_title",
+      maxlength: CONTENT_FIELD_LIMITS.metaTitle,
+      name: "metaTitle",
       type: "text",
     },
     {
       hint: t("fields.meta_description_hint"),
       label: t("fields.meta_description"),
-      maxlength: CONTENT_FIELD_LIMITS.meta_description,
-      name: "meta_description",
+      maxlength: CONTENT_FIELD_LIMITS.metaDescription,
+      name: "metaDescription",
       type: "text",
     },
   ] as const;
@@ -165,21 +160,15 @@ export const contentFieldValues = (row: {
   name: string;
   slug: string;
 }): Record<string, string> =>
-  snakeCaseKeys(
-    pick(row, ["content", "metaDescription", "metaTitle", "name", "slug"]),
-  );
+  pick(row, ["content", "metaDescription", "metaTitle", "name", "slug"]);
 
 type SeoContentValues = {
   content: string;
-  meta_description: string;
-  meta_title: string;
+  metaDescription: string;
+  metaTitle: string;
   name: string;
 };
 
 /** The validated SEO/content columns shared by create and update. */
-export const seoContentInput = (
-  values: SeoContentValues,
-): CamelCased<SeoContentValues> =>
-  camelCaseKeys(
-    pick(values, ["content", "meta_description", "meta_title", "name"]),
-  );
+export const seoContentInput = (values: SeoContentValues): SeoContentValues =>
+  pick(values, ["content", "metaDescription", "metaTitle", "name"]);

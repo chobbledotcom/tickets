@@ -599,12 +599,12 @@ const parseCsrfBody = async (
     // Capture the submission so a later validation-failure redirect can stash
     // it for re-filling, mirroring requireCsrfForm for public forms.
     setSavedFormData(form);
-    const err = await verifyCsrf(form.getString("csrf_token"), channel, maxAge);
+    const err = await verifyCsrf(form.getString("csrfToken"), channel, maxAge);
     return err ?? form;
   }
   const fd = await request.formData();
   const err = await verifyCsrf(
-    String(fd.get("csrf_token") ?? "").trim(),
+    String(fd.get("csrfToken") ?? "").trim(),
     channel,
     maxAge,
   );

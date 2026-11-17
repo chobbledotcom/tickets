@@ -57,7 +57,7 @@ export const parseFormWithCsrf = async (
   request: Request,
 ): Promise<{ form: FormParams; formCsrf: string }> => {
   const form = await parseFormData(request);
-  return { form, formCsrf: form.getString("csrf_token") };
+  return { form, formCsrf: form.getString("csrfToken") };
 };
 
 /**

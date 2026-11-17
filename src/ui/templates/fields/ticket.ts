@@ -34,7 +34,7 @@ export type TicketFormValues = {
   email: string | null;
   phone: string | null;
   address: string | null;
-  special_instructions: string | null;
+  specialInstructions: string | null;
 };
 
 /** Re-exported for callers that build ticket values then derive contact info. */
@@ -105,7 +105,7 @@ const addressField: Field = {
 const specialInstructionsField: Field = {
   label: "Special Instructions",
   maxlength: CONTACT_TEXTAREA_LIMIT,
-  name: "special_instructions",
+  name: "specialInstructions",
   required: true,
   type: "textarea",
   validate: validateSpecialInstructions,
@@ -178,5 +178,5 @@ export const extractContact = (values: TicketFormValues): ContactInfo => ({
   email: values.email || "",
   name: values.name,
   phone: values.phone || "",
-  special_instructions: values.special_instructions || "",
+  special_instructions: values.specialInstructions || "",
 });

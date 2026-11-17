@@ -44,7 +44,7 @@ const addAttendeeDateField: Field = {
 /** Day-count select for adding an attendee to a customisable daily listing. */
 const addAttendeeDayCountField = (dayCounts: number[]): Field => ({
   label: "Number of days",
-  name: "day_count",
+  name: "dayCount",
   options: requireChoiceOptions(
     "Number of days",
     dayCounts.map((n) => ({

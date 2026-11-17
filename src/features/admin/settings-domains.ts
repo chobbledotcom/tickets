@@ -73,7 +73,7 @@ const runBunnyDomainTask = <T extends { ok: true }>(
     taskName,
     formId,
     errorPage,
-    form.getOptionalInt("settings_version"),
+    form.getOptionalInt("settingsVersion"),
     async () => orErrorPage(await call(), errorPage, formId, onOk),
   );
 
@@ -95,7 +95,7 @@ export const handleCustomDomainPost = advancedSettingsRoute(
       "custom-domain",
       "settings-custom-domain",
       errorPage,
-      form.getOptionalInt("settings_version"),
+      form.getOptionalInt("settingsVersion"),
       async () => {
         if (raw === "") {
           await settings.update.customDomain("");

@@ -12,7 +12,6 @@ import {
   type ListingDefaultKind,
   type ListingDefaults,
   listingDefaultFormClasses,
-  listingDefaultFormName,
   setListingDefaultFields,
 } from "#shared/listing-defaults.ts";
 import type { ListingTemplate } from "#shared/listing-templates.ts";
@@ -95,7 +94,7 @@ const defaultFieldValue = (
 export const defaultsToFieldValues = (defaults: ListingDefaults): FieldValues =>
   Object.fromEntries(
     setListingDefaultFields(defaults).map((field) => [
-      listingDefaultFormName(field),
+      field.field,
       defaultFieldValue(field, defaults[field.key]),
     ]),
   );

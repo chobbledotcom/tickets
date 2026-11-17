@@ -8,6 +8,7 @@
  */
 
 import { requiredMapValue } from "#fp";
+import { columnName, type SnakeWord } from "#shared/column-names.ts";
 import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 import type { DayPrices, ListingFields, ListingType } from "#types";
@@ -47,7 +48,8 @@ export type WriteAccess = {
   readonly locks: Readonly<Record<Lock, boolean>>;
 };
 
-/** One declared field. `key` is its column and its API key. `header`,
+/** One declared field. `key` is its form box name and its write input key.
+ *  Its column and its API key are the snake_case of `key`. `header`,
  *  `label`, `hint`, and `placeholder` name catalog entries: the list column
  *  header and the form box texts. A record with its own form leaves them
  *  out. `default` is the stored value a create gets when it gives none.
@@ -107,12 +109,6 @@ export type StoredValue = {
 /** The value each kind carries into a write: a date is checked first. */
 export type InputValue = Omit<StoredValue, "date"> & { date: DateString };
 
-/** A stored column name as its input key: `start_date` becomes `startDate`. */
-export type InputKey<Key extends string> =
-  Key extends `${infer Head}_${infer Tail}`
-    ? `${Head}${Capitalize<InputKey<Tail>>}`
-    : Key;
-
 /** The kind of the field that declares one key. */
 export type KindOf<Fields extends FieldSpecs, Key> = Extract<
   Fields[number],
@@ -124,7 +120,7 @@ export type KindOf<Fields extends FieldSpecs, Key> = Extract<
 export type ByInputKey<
   Field extends FieldSpec,
   Values extends Record<FieldKind, unknown>,
-> = { [Each in Field as InputKey<Each["key"]>]: Values[Each["kind"]] };
+> = { [Each in Field as Each["key"]]: Values[Each["kind"]] };
 
 /** The stored value of every declared field, keyed by its row field. */
 export type FieldsStored<Fields extends FieldSpecs> = ByInputKey<
@@ -146,7 +142,9 @@ export type OptionalFieldsInput<Fields extends FieldSpecs> = {
 
 /** The JSON body keys the fields accept, each one optional. */
 export type FieldsBody<Fields extends FieldSpecs> = {
-  [Field in Fields[number] as Field["key"]]?: StoredValue[Field["kind"]];
+  [Field in Fields[number] as SnakeWord<
+    Field["key"]
+  >]?: StoredValue[Field["kind"]];
 };
 
 /** Why one write cannot set the field. Null means the write can set it. */
@@ -159,7 +157,8 @@ const closedReasonOrNull =
     return field.lockedFor?.find((lock) => access.locks[lock]) ?? null;
   };
 
-/** The fields that one write cannot set, keyed by column, with the reason. */
+/** The fields that one write cannot set, keyed by field name, with the
+ *  reason. */
 export type ClosedFields = ReadonlyMap<string, ClosedReason>;
 
 /** The fields that one write cannot set. */
@@ -174,14 +173,22 @@ export const closedFields = (
     }),
   );
 
-/** The keys whose feature is off. An API answer leaves these keys out. */
+/** The API keys whose feature is off. An API answer leaves these keys
+ *  out. */
 export const featureClosedKeys = (
   fields: readonly KeyAccess[],
   features: WriteAccess["features"],
 ): string[] =>
   fields.flatMap((field) =>
-    field.feature !== undefined && !features[field.feature] ? [field.key] : [],
+    field.feature !== undefined && !features[field.feature]
+      ? [columnName(field.key)]
+      : [],
   );
+
+/** The closed fields keyed by API key, for a refusal that names the key a
+ *  JSON body sent. */
+export const apiClosedFields = (closed: ClosedFields): ClosedFields =>
+  new Map([...closed].map(([key, reason]) => [columnName(key), reason]));
 
 /** The refusal for a closed field that a JSON body or a transfer supplies. */
 const CLOSED_REFUSALS: Record<ClosedReason, (key: string) => string> = {
@@ -222,7 +229,7 @@ export const fieldOfKey = <
   return field as Extract<Fields[number], { key: Key }>;
 };
 
-/** One value per declared field, keyed by its column. */
+/** One value per declared field, keyed by its field name. */
 export const byFieldKey = <const Fields extends FieldSpecs, Value>(
   fields: Fields,
   build: (field: Fields[number]) => Value,
@@ -231,21 +238,3 @@ export const byFieldKey = <const Fields extends FieldSpecs, Value>(
   Object.fromEntries(
     fields.map((field: Fields[number]) => [field.key, build(field)]),
   ) as Record<Fields[number]["key"], Value>;
-
-/** One value per declared field, typed by the kind of each field. `Values`
- *  names the value each kind gives. */
-export type ByFieldKind<
-  Fields extends FieldSpecs,
-  Values extends Record<FieldKind, unknown>,
-> = { [Key in Fields[number]["key"]]: Values[KindOf<Fields, Key>] };
-
-/** One value per declared field, built from the entry of its own kind. */
-export const byFieldKind = <
-  const Fields extends FieldSpecs,
-  Values extends Record<FieldKind, unknown>,
->(
-  fields: Fields,
-  build: (field: Fields[number]) => Values[FieldKind],
-): ByFieldKind<Fields, Values> =>
-  // Each key holds the value its own kind gives.
-  byFieldKey(fields, build) as ByFieldKind<Fields, Values>;
