@@ -2,6 +2,7 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { t } from "#i18n";
+import { settings } from "#db/settings.ts";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
@@ -147,16 +148,31 @@ describe("adminListingNewPage", () => {
     ]);
   });
 
-  test("carries duplicated_from hidden input when present in submitted values", () => {
+  test("carries the duplicatedFrom hidden input when the rejected create posted it", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
-      values: { duplicated_from: "42" },
+      values: { duplicatedFrom: "42" },
     });
-    expectIncludesAll(html, ['name="duplicatedFrom"', 'value="42"']);
+    expectIncludesAll(html, ['name="duplicatedFrom" type="hidden" value="42"']);
   });
 
-  test("does not render duplicated_from input when not in submitted values", () => {
+  test("does not render the duplicatedFrom input when not in submitted values", () => {
     const html = adminListingNewPage([], OWNER_SESSION, { values: {} });
     assert(!html.includes('name="duplicatedFrom"'));
+  });
+
+  test("keeps the use-defaults tick when the rejected create posted it", () => {
+    settings.setForTest({ listing_defaults: '{"hidden":true}' });
+    try {
+      const ticked = adminListingNewPage([], OWNER_SESSION, {
+        values: { useDefaults: "1" },
+      });
+      const unticked = adminListingNewPage([], OWNER_SESSION, { values: {} });
+      expect(ticked).toMatch(/checked[^>]*id="use-defaults"/);
+      expect(unticked).not.toMatch(/checked[^>]*id="use-defaults"/);
+      assertStringIncludes(unticked, 'id="use-defaults"');
+    } finally {
+      settings.clearTestOverride("listing_defaults");
+    }
   });
 });
 

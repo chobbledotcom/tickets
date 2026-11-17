@@ -249,7 +249,7 @@ export const adminListingNewPage = (
     !!template,
   );
   const useDefaultsChecked = submitted
-    ? submitted.use_defaults === "1"
+    ? submitted.useDefaults === "1"
     : form.showUseDefaults && !template;
   const newValues = submitted
     ? submitted
@@ -267,11 +267,11 @@ export const adminListingNewPage = (
       {templateId && (
         <input name="templateId" type="hidden" value={templateId} />
       )}
-      {!!submitted?.duplicated_from && (
+      {!!submitted?.duplicatedFrom && (
         <input
           name="duplicatedFrom"
           type="hidden"
-          value={String(submitted.duplicated_from)}
+          value={String(submitted.duplicatedFrom)}
         />
       )}
       <CreateListingFormBody>
