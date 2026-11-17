@@ -351,9 +351,7 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
       }
       // The webhook field carries the listing's OWN url (so a normal save
       // preserves it), not the inherited default…
-      expect(submitted.get("webhookUrl")).toEqual([
-        "https://own.example/hook",
-      ]);
+      expect(submitted.get("webhookUrl")).toEqual(["https://own.example/hook"]);
       // …and the hidden checkbox reflects the stored false (unchecked, so not
       // submitted), not the inherited Hidden=Yes default.
       expect(submitted.get("hidden")).toBe(undefined);
