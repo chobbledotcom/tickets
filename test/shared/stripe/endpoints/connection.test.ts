@@ -6,6 +6,7 @@ import { getPaymentWebhookUrl } from "#shared/payment-webhook-url.ts";
 import type { StripeClient } from "#shared/stripe/client.ts";
 import { testStripeConnection } from "#shared/stripe/endpoints.ts";
 import { stripeClientRuntime } from "#shared/stripe/runtime.ts";
+import { OWN_WEBHOOK_EVENTS } from "#test-utils/stripe/fixtures.ts";
 import { describeStripe } from "#test-utils/stripe/harness.ts";
 
 const configureOwnEndpoint = () =>
@@ -29,6 +30,8 @@ const connectionWithClient = async (
 };
 
 describeStripe("Stripe connection health", () => {
+  /** One endpoint as Stripe's list shows it, carrying every delivery this site
+   * acts on unless `overrides` says otherwise. */
   const endpoint = (
     overrides: Partial<{
       enabled_events: string[];
@@ -37,7 +40,7 @@ describeStripe("Stripe connection health", () => {
       url: string;
     }> = {},
   ) => ({
-    enabled_events: ["checkout.session.completed"],
+    enabled_events: [...OWN_WEBHOOK_EVENTS],
     id: "we_own",
     status: "enabled",
     url: getPaymentWebhookUrl(),

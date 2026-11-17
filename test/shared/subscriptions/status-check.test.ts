@@ -4,9 +4,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { eventGroup } from "#accounting/refs.ts";
-import { selectByEventGroup } from "#accounting/rows.ts";
-import { execute, queryAll, queryBatch, queryOne } from "#db/client.ts";
+import { execute, queryAll } from "#db/client.ts";
 import { sql } from "#db/sql.ts";
 import type { MaintenanceTaskContext } from "#shared/maintenance/definition.ts";
 import { stripeApi } from "#shared/stripe.ts";
@@ -20,6 +18,8 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import {
   givePlan,
   MONTHLY,
+  renewalLegs,
+  statusOf,
   subscribe,
   type TestBooking,
 } from "#test-utils/db-helpers/subscriptions.ts";
@@ -52,28 +52,6 @@ const runCheck = async (checkpoint: string | null = null) => {
   await runSubscriptionCheck(context);
   return record;
 };
-
-/** The legs one renewal invoice posted, as kind, from, to and amount. */
-const renewalLegs = async (invoiceId: string) =>
-  (
-    await selectByEventGroup(
-      queryBatch,
-      await eventGroup(["renewal", invoiceId]),
-    )
-  )
-    .map((leg) => ({
-      amount: leg.amount,
-      from: `${leg.source.type}:${leg.source.id}`,
-      kind: leg.kind,
-      occurredAt: leg.occurredAt,
-      to: `${leg.destination.type}:${leg.destination.id}`,
-    }))
-    .sort((a, b) => String(a.kind).localeCompare(String(b.kind)));
-
-const statusOf = async (booking: TestBooking): Promise<string> =>
-  (await queryOne<{ subscription_status: string }>(
-    sql`SELECT subscription_status FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
-  ))!.subscription_status;
 
 const PAID_AT = "2026-03-01T00:00:00.000Z";
 

@@ -1,6 +1,6 @@
 /** Stop subscription charges for an owner or a failed checkout. */
 
-import type { CheckedRow } from "#db/subscriptions.ts";
+import type { LiveRow } from "#db/subscriptions.ts";
 import { isCancellable } from "#payment/subscription-machine-spec.ts";
 import { stripeApi } from "#shared/stripe.ts";
 import {
@@ -46,7 +46,7 @@ export type OwnerCancel = "cancelled" | "behind" | "not_cancelled" | "ended";
 /** Cancel at once and record the last paid renewals. A refused cancel reads
  * the current status so concurrent callers get the same result. */
 export const cancelOwnerSubscription = async (
-  row: CheckedRow,
+  row: LiveRow,
 ): Promise<OwnerCancel> => {
   if (!isCancellable(row.subscriptionStatus)) return "ended";
   const subscription = await readForSubscriptionOrNull(row, cancelOrRead);
