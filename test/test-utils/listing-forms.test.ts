@@ -11,7 +11,7 @@ describeWithEnv("buildCreateListingForm", { db: true }, () => {
       webhookUrl: "https://example.com/hook",
     });
     expect(() => buildCreateListingForm(input, "editor")).toThrow(
-      "The listing page hides webhook_url. Turn its feature on first.",
+      "The listing page hides webhookUrl. Turn its feature on first.",
     );
   });
 });

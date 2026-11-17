@@ -99,7 +99,7 @@ describe("test-utils — ticket & join flows", () => {
         email: "explicit@example.com",
         name: "Explicit Quantity",
         quantity: "5",
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
       });
       await expectSingleAttendeeQuantity(response, listing.id, 2);
     });
@@ -107,7 +107,7 @@ describe("test-utils — ticket & join flows", () => {
     test("maps generic custom price onto the single listing field", async () => {
       const listing = await payableListing();
       const response = await submitTicketForm(listing.slug, {
-        custom_price: "25.00",
+        customPrice: "25.00",
         email: "custom-price@example.com",
         name: "Custom Price",
         quantity: "1",
@@ -118,8 +118,8 @@ describe("test-utils — ticket & join flows", () => {
     test("keeps an explicit custom price over the generic field", async () => {
       const listing = await payableListing();
       const response = await submitTicketForm(listing.slug, {
-        custom_price: "5.00",
-        [`custom_price_${listing.id}`]: "25.00",
+        customPrice: "5.00",
+        [`customPrice${listing.id}`]: "25.00",
         email: "explicit-price@example.com",
         name: "Explicit Price",
         quantity: "1",

@@ -228,8 +228,8 @@ export const createTestAttendeeDirect = async (
  * Build form data for the unified attendee edit form (`POST /admin/attendees/:id`).
  *
  * Emits the shared `start_date` + `day_count` (seeded from the attendee's
- * existing bookings) and one indexed editor line (`line_listing_<i>` +
- * `qty_<i>` + `line_key_<i>`) per existing booking ROW — every path the
+ * existing bookings) and one indexed editor line (`lineListing<i>` +
+ * `qty<i>` + `lineKey<i>`) per existing booking ROW — every path the
  * attendee books through — so a bare call preserves the attendee unchanged.
  * Pass `overrides.lines` to set the full line set (each
  * `{ eventId, quantity, key, packageGroupId }` — quantity 0 or an omitted row

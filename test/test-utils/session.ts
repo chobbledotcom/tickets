@@ -397,12 +397,7 @@ export const adminMultipartPost = async (
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
   const response = await handleRequest(
-    mockMultipartRequest(
-      path,
-      { csrfToken, ...data },
-      cookie,
-      file,
-    ),
+    mockMultipartRequest(path, { csrfToken, ...data }, cookie, file),
   );
   return { cookie, csrfToken, response };
 };

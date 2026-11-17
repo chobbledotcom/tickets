@@ -58,9 +58,7 @@ describe("group fields", () => {
     const hideListings = form.fields.find(
       (f) => f.name === "hidePackageListings",
     );
-    const showHidden = form.fields.find(
-      (f) => f.name === "showHiddenListings",
-    );
+    const showHidden = form.fields.find((f) => f.name === "showHiddenListings");
     expect(isPackage).toMatchObject({
       options: [{ label: "Sell this group as a package", value: "1" }],
       type: "checkbox-group",

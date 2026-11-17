@@ -123,11 +123,11 @@ const createListingBoxes = (
     listingType: input.listingType ?? "",
     location: input.location ?? "",
     maxAttendees: String(input.maxAttendees),
+    maximumDaysAfter: optionalNumber(input.maximumDaysAfter),
     maxPrice: toMajorUnits(input.maxPrice),
     maxQuantity: String(input.maxQuantity ?? 1),
-    maximumDaysAfter: optionalNumber(input.maximumDaysAfter),
-    minQuantity: String(input.minQuantity ?? 1),
     minimumDaysBefore: optionalNumber(input.minimumDaysBefore),
+    minQuantity: String(input.minQuantity ?? 1),
     monthsPerUnit: String(input.monthsPerUnit ?? 0),
     name: input.name,
     nonTransferable: flagChoice(input.nonTransferable),
@@ -151,10 +151,7 @@ const buildUpdateBoolFields = (
     "bookableAlone",
     pickField(updates.bookableAlone, existing.bookableAlone),
   ),
-  ...checked(
-    "canPayMore",
-    pickField(updates.canPayMore, existing.canPayMore),
-  ),
+  ...checked("canPayMore", pickField(updates.canPayMore, existing.canPayMore)),
   ...checked("hidden", pickField(updates.hidden, existing.hidden)),
   nonTransferable: flagChoice(
     pickField(updates.nonTransferable, existing.nonTransferable),
@@ -192,15 +189,15 @@ const buildUpdateNumericFields = (
     maxAttendees: String(
       pickField(updates.maxAttendees, existing.maxAttendees),
     ),
-    maxPrice: toMajorUnits(pickField(updates.maxPrice, existing.maxPrice)),
-    maxQuantity: String(pickField(updates.maxQuantity, existing.maxQuantity)),
     maximumDaysAfter: String(
       pickField(updates.maximumDaysAfter, existing.maximumDaysAfter),
     ),
-    minQuantity: String(pickField(updates.minQuantity, existing.minQuantity)),
+    maxPrice: toMajorUnits(pickField(updates.maxPrice, existing.maxPrice)),
+    maxQuantity: String(pickField(updates.maxQuantity, existing.maxQuantity)),
     minimumDaysBefore: String(
       pickField(updates.minimumDaysBefore, existing.minimumDaysBefore),
     ),
+    minQuantity: String(pickField(updates.minQuantity, existing.minQuantity)),
     monthsPerUnit: String(
       pickField(updates.monthsPerUnit, existing.monthsPerUnit),
     ),

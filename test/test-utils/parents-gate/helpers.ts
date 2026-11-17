@@ -193,6 +193,6 @@ export const expectRendersSoldOut = async (
 ): Promise<string> => {
   const html = await bookingPageHtml(slug);
   assertStringIncludes(html, "Sorry, this listing is full.");
-  assert(!html.includes(`name="quantity_${parentId}"`));
+  assert(!html.includes(`name="quantity${parentId}"`));
   return html;
 };

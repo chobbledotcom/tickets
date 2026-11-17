@@ -137,7 +137,7 @@ export const openAttendeeEditor = async (
 };
 
 /** The attendee editor's line index for a listing on the CURRENT page — the
- * row-per-path editor names its per-line fields (`qty_<i>`, `noqty_<i>`) by
+ * row-per-path editor names its per-line fields (`qty<i>`, `noqty<i>`) by
  * line position, not listing id, so drivers resolve the index from the
  * rendered form before each submit (a save re-orders the lines). */
 export const lineIndexOnPage = (

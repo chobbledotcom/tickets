@@ -287,10 +287,7 @@ describe("listing form listing_type", () => {
   test("accepts standard and daily, rejects anything else", () => {
     // Every declared listing type is accepted; the schema is the source of truth.
     for (const value of ListingTypeSchema.options) {
-      expectValid(
-        getListingForm().fields,
-        listingForm({ listingType: value }),
-      );
+      expectValid(getListingForm().fields, listingForm({ listingType: value }));
     }
     expectInvalid("Listing type must be standard or daily.")(
       getListingForm().fields,

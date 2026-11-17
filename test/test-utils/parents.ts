@@ -87,7 +87,7 @@ export const parentField = (
   qty: string,
 ): Record<string, string> => ({ [`quantity${parent.id}`]: qty });
 
-/** Build a child-quantity form field (`child_qty_<parentId>_<childId>`). */
+/** Build a child-quantity form field (`childQty<parentId>_<childId>`). */
 export const childField = (
   parent: Pick<Listing, "id">,
   child: Pick<Listing, "id">,
