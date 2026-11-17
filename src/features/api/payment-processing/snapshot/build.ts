@@ -88,11 +88,7 @@ const modifierSpecs = (
         name: modifier.name,
         quantity: ref.q,
         trigger: modifier.trigger,
-        value: signedModifierValue({
-          direction: modifier.direction,
-          kind: modifier.calcKind,
-          value: modifier.calcValue,
-        }),
+        value: signedModifierValue(modifier),
       },
     ];
   });

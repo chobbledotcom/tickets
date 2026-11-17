@@ -280,6 +280,20 @@ export const newRecordOf =
       ...rowValuesOf(table, input),
     }) as NewRecord<Name>;
 
+/** An insert of one row. The insert and its statement form share it. */
+type RowInsert<Name extends TableWithId, Result> = (
+  values: NewRecord<Name>,
+  options?: InsertOptions<Name>,
+) => Promise<Result>;
+
+/** An update of the row with this id. The update and its statement form
+ *  share it. */
+type RowUpdate<Name extends TableWithId, Result> = (
+  id: number,
+  changes: RecordChanges<Name>,
+  guard?: (row: Node<Name>) => Condition,
+) => Promise<Result>;
+
 /** The reads and writes of one row of a table with an `id`, by its id. */
 export type Records<Name extends TableWithId> = Readonly<{
   /** The read of the row with this id, or of the rows with these ids. */
@@ -294,28 +308,14 @@ export type Records<Name extends TableWithId> = Readonly<{
   findWhere: (where: Where<Node<Name>>) => Promise<DecodedRowOf<Name> | null>;
   has: (id: number) => Promise<boolean>;
   /** Add one row and give back the row that the table holds. */
-  insert: (
-    values: NewRecord<Name>,
-    options?: InsertOptions<Name>,
-  ) => Promise<DecodedRowOf<Name>>;
+  insert: RowInsert<Name, DecodedRowOf<Name>>;
   /** The insert of one row that gives back the row it wrote. */
-  insertStatement: (
-    values: NewRecord<Name>,
-    options?: InsertOptions<Name>,
-  ) => Promise<RowsStatement<DecodedRowOf<Name>>>;
+  insertStatement: RowInsert<Name, RowsStatement<DecodedRowOf<Name>>>;
   /** Change the row with this id, and give back the row that the table now
    *  holds. Null when there is no such row. `guard` must hold too. */
-  update: (
-    id: number,
-    changes: RecordChanges<Name>,
-    guard?: (row: Node<Name>) => Condition,
-  ) => Promise<DecodedRowOf<Name> | null>;
+  update: RowUpdate<Name, DecodedRowOf<Name> | null>;
   /** The update of the row with this id that gives back the row it wrote. */
-  updateStatement: (
-    id: number,
-    changes: RecordChanges<Name>,
-    guard?: (row: Node<Name>) => Condition,
-  ) => Promise<RowsStatement<DecodedRowOf<Name>>>;
+  updateStatement: RowUpdate<Name, RowsStatement<DecodedRowOf<Name>>>;
 }>;
 
 /** The one-row reads and writes of `table`. Code over any table holds the

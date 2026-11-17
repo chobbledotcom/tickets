@@ -35,15 +35,6 @@ import {
 } from "#shared/price-modifier.ts";
 import type { Modifier } from "#types";
 
-/** The signed value one stored modifier applies, reading it off the columns
- * this table spells in snake_case. */
-const signedValue = (modifier: Modifier): number =>
-  signedModifierValue({
-    direction: modifier.direction,
-    kind: modifier.calcKind,
-    value: modifier.calcValue,
-  });
-
 /** Resolve the listing ids each "groups"-scoped modifier covers. The default
  * resolves the group→listing membership live (the DB join); the would-be variant
  * passes a resolver that expands against in-memory listings, and an optional
@@ -111,7 +102,7 @@ const toSpec = (
   name: modifier.name,
   quantity,
   trigger: modifier.trigger,
-  value: signedValue(modifier),
+  value: signedModifierValue(modifier),
 });
 
 /** Subtotal of the items a modifier is scoped to (the whole cart when its
@@ -433,7 +424,7 @@ const addOnPriceLabel = (modifier: Modifier): string => {
 };
 
 const addOnCanRequirePayment = (modifier: Modifier): boolean =>
-  modifier.calcKind === "fixed" && signedValue(modifier) > 0;
+  modifier.calcKind === "fixed" && signedModifierValue(modifier) > 0;
 
 /** Active opt-in ("optional") add-on modifiers paired with their resolved
  * listing scopes (null = whole order), the shared starting point for the add-on

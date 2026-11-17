@@ -99,20 +99,25 @@ export type DecodedRowOf<Name extends TableName> = CamelCased<
   RowThrough<Name, false>
 >;
 
+/** The stored fields that the database can fill (`Optional` true), or the
+ *  ones it cannot (false). */
+type FillableFields<
+  Name extends TableName,
+  Optional extends boolean,
+> = CamelCased<{
+  [Column in keyof StoredColumns<Name> as (
+    Column extends keyof OptionalColumnOf<Name>
+      ? true
+      : false
+  ) extends Optional
+    ? Column
+    : never]: StoredColumns<Name>[Column];
+}>;
+
 /** A new row of a table: every field that the database cannot fill, and any
  *  of the others. */
-export type NewRowOf<Name extends TableName> = CamelCased<{
-  [Column in keyof StoredColumns<Name> as Column extends keyof OptionalColumnOf<Name>
-    ? never
-    : Column]: StoredColumns<Name>[Column];
-}> &
-  Partial<
-    CamelCased<{
-      [Column in keyof StoredColumns<Name> as Column extends keyof OptionalColumnOf<Name>
-        ? Column
-        : never]: StoredColumns<Name>[Column];
-    }>
-  >;
+export type NewRowOf<Name extends TableName> = FillableFields<Name, false> &
+  Partial<FillableFields<Name, true>>;
 
 /** The referring columns of a table, and the table each one points at. */
 type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES

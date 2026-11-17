@@ -91,15 +91,17 @@ const validatePercent = (
  * here. Both the live resolver and the API snapshot read a modifier this way,
  * so the rule cannot drift between them.
  */
-export const signedModifierValue = (calc: {
+export const signedModifierValue = (modifier: {
+  calcKind: CalcKind;
+  calcValue: number;
   direction: ModifierDirection;
-  kind: CalcKind;
-  value: number;
 }): number => {
-  if (calc.kind === "multiply") return calc.value;
+  if (modifier.calcKind === "multiply") return modifier.calcValue;
   const magnitude =
-    calc.kind === "fixed" ? toMinorUnits(calc.value) : calc.value;
-  return calc.direction === "discount" ? -magnitude : magnitude;
+    modifier.calcKind === "fixed"
+      ? toMinorUnits(modifier.calcValue)
+      : modifier.calcValue;
+  return modifier.direction === "discount" ? -magnitude : magnitude;
 };
 
 /**
