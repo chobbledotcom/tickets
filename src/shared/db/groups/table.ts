@@ -4,7 +4,7 @@
 
 import { linkTableSide } from "#db/link-table.ts";
 import { among, type Condition } from "#db/select/expression.ts";
-import { from, tableNode } from "#db/select/query.ts";
+import { from } from "#db/select/query.ts";
 import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { requiredMapValue } from "#fp";
@@ -28,9 +28,6 @@ export const listingGroups = {
       "Missing listing group membership",
     ),
 };
-
-/** The group row of a read that names the table `groups AS groupRecord`. */
-export const GROUP_ROW = tableNode(tables.groups, "groupRecord");
 
 /** The read of the groups among `ids` where `also` holds. */
 export const groupsAmong = (
