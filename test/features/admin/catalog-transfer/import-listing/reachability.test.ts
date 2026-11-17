@@ -91,7 +91,7 @@ describeWithEnv(
       const imported = requireEntityImport(result);
       expect(imported).toMatchObject({ kind: "listing", name: "Alone Kid" });
       expect(await requireListingWithCount(imported.id)).toMatchObject({
-        bookable_alone: true,
+        bookableAlone: true,
         name: "Alone Kid",
       });
       expect(await listingParents.getIds(imported.id)).toEqual([parent.id]);

@@ -113,8 +113,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       const post = await findPost("No optional fields");
       expect(post).toMatchObject({
         content: "",
-        meta_description: "",
-        meta_title: "",
+        metaDescription: "",
+        metaTitle: "",
         snippet: "",
       });
     });

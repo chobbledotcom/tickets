@@ -110,11 +110,11 @@ describe("dates — pinned values", () => {
 
   test("customisable-days listings offer late starts their fixed duration would exclude", () => {
     const base = {
-      bookable_days: [...VALID_DAY_NAMES],
-      duration_days: 3,
-      listing_type: "daily" as const,
-      maximum_days_after: 4,
-      minimum_days_before: 0,
+      bookableDays: [...VALID_DAY_NAMES],
+      durationDays: 3,
+      listingType: "daily" as const,
+      maximumDaysAfter: 4,
+      minimumDaysBefore: 0,
     };
     const flexible = getBookableStartDates(
       testListing({ ...base, customisableDays: true }),

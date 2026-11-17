@@ -231,7 +231,7 @@ describeWithEnv("server (admin attendees) > delete", { db: true }, () => {
       const deleted = await getAttendeeRaw(attendee.id);
       expect(deleted).toBeNull();
       expect(await getListingWithCount(listing.id)).toMatchObject({
-        attendee_count: 0,
+        attendeeCount: 0,
       });
     });
 

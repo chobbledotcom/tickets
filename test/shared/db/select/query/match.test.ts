@@ -88,7 +88,7 @@ describe("pick", () => {
 
   test("selects the named columns under their own names", () => {
     expect(from(tables.listings).pick("id", "maxAttendees").sql).toBe(
-      "SELECT listing.id AS id, listing.max_attendees AS max_attendees FROM listings AS listing",
+      "SELECT listing.id AS id, listing.max_attendees AS maxAttendees FROM listings AS listing",
     );
   });
 });

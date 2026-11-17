@@ -195,7 +195,7 @@ describeWithEnv(
 
       const packageRows = seen.filter((sql) =>
         sql.startsWith(
-          "SELECT groupListing.group_id, groupListing.listing_id,",
+          "SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId,",
         ),
       );
       const onePackageIds = seen.filter((sql) =>

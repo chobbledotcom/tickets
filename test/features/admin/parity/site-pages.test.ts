@@ -55,8 +55,8 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     expect(row).toMatchObject({
       content: "Pack light.",
       hidden: true,
-      meta_description: "Before you come",
-      meta_title: "Plan",
+      metaDescription: "Before you come",
+      metaTitle: "Plan",
       name: "Plan your weekend",
       slug: "plan-your-weekend",
     });

@@ -209,10 +209,10 @@ describeWithEnv(
         );
         expect(await getImageUsesForImage(image.id)).toEqual([
           {
-            image_id: image.id,
-            item_id: page.id,
-            item_type: "page",
-            sort_order: 0,
+            imageId: image.id,
+            itemId: page.id,
+            itemType: "page",
+            sortOrder: 0,
           },
         ]);
       });

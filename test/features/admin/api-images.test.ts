@@ -127,7 +127,7 @@ describeWithEnv("Admin API - Images", { db: true, storage: "cdn" }, () => {
           2,
         );
         expect(await records.images.find(answered.image.id)).toMatchObject({
-          alt_text: "Alt Summer poster",
+          altText: "Alt Summer poster",
           name: "Summer poster",
         });
         assertArrayIncludes(await loggedMessages(), [

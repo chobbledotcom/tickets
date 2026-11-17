@@ -54,7 +54,7 @@ describeWithEnv("childDateCapacity", { db: true }, () => {
   test("a closed child serves none", () => {
     const child = {
       ...dailyChild(),
-      closes_at: "2020-01-01T00:00:00.000Z",
+      closesAt: "2020-01-01T00:00:00.000Z",
     } as ListingWithCount;
     expect(childDateCapacity(child, ctx(9))).toBe(0);
   });

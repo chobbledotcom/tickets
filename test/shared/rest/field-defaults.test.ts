@@ -20,12 +20,12 @@ describe("newRowDefaults", () => {
         { default: "month", key: "interval", kind: "recurringInterval" },
       ]),
     ).toEqual({
-      duration_days: 2,
+      durationDays: 2,
       fields: "email",
       interval: "month",
-      listing_type: "standard",
-      max_quantity: 4,
-      unit_price: 500,
+      listingType: "standard",
+      maxQuantity: 4,
+      unitPrice: 500,
     });
   });
 
@@ -35,7 +35,7 @@ describe("newRowDefaults", () => {
         { key: "closes_at", kind: "datetime" },
         { key: "notes", kind: "privateText" },
       ]),
-    ).toEqual({ closes_at: "", notes: "" });
+    ).toEqual({ closesAt: "", notes: "" });
   });
 
   test("gives a switch true only when its default is true", () => {
@@ -80,34 +80,34 @@ describe("newRowDefaults over the record field lists", () => {
   test("gives every listing default", () => {
     expect(newRowDefaults(LISTING_FIELDS)).toEqual({
       active: true,
-      assign_built_site: false,
-      bookable_alone: false,
-      bookable_days: VALID_DAY_NAMES,
-      can_pay_more: false,
-      customisable_days: false,
+      assignBuiltSite: false,
+      bookableAlone: false,
+      bookableDays: VALID_DAY_NAMES,
+      canPayMore: false,
+      customisableDays: false,
       date: "",
       description: "",
-      duration_days: 1,
+      durationDays: 1,
       fields: "email",
       hidden: false,
-      initial_site_months: 0,
-      listing_type: "standard",
+      initialSiteMonths: 0,
+      listingType: "standard",
       location: "",
-      max_price: 0,
-      max_quantity: 1,
-      maximum_days_after: 90,
-      min_quantity: 1,
-      minimum_days_before: 1,
-      months_per_unit: 0,
-      non_transferable: false,
-      purchase_only: false,
-      recurring_interval: "",
-      recurring_price: 0,
-      thank_you_url: "",
-      unit_price: 0,
-      use_defaults: false,
-      uses_logistics: false,
-      webhook_url: "",
+      maximumDaysAfter: 90,
+      maxPrice: 0,
+      maxQuantity: 1,
+      minimumDaysBefore: 1,
+      minQuantity: 1,
+      monthsPerUnit: 0,
+      nonTransferable: false,
+      purchaseOnly: false,
+      recurringInterval: "",
+      recurringPrice: 0,
+      thankYouUrl: "",
+      unitPrice: 0,
+      useDefaults: false,
+      usesLogistics: false,
+      webhookUrl: "",
     });
   });
 
@@ -115,12 +115,12 @@ describe("newRowDefaults over the record field lists", () => {
     expect(newRowDefaults(GROUP_FIELDS)).toEqual({
       description: "",
       hidden: false,
-      hide_package_listings: false,
-      is_package: false,
-      max_attendees: 0,
-      scan_checks_in_all_listings: false,
-      show_hidden_listings: true,
-      terms_and_conditions: "",
+      hidePackageListings: false,
+      isPackage: false,
+      maxAttendees: 0,
+      scanChecksInAllListings: false,
+      showHiddenListings: true,
+      termsAndConditions: "",
     });
   });
 });

@@ -142,10 +142,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       expect((await records.images.find(image.id))?.name).toBe("Managed image");
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
-          image_id: image.id,
-          item_id: post.id,
-          item_type: "news",
-          sort_order: 0,
+          imageId: image.id,
+          itemId: post.id,
+          itemType: "news",
+          sortOrder: 0,
         },
       ]);
     });
@@ -245,10 +245,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       assertArrayIncludes([302, 303], [response.status]);
       expect(await getImageUsesForImage(image.id)).toEqual([
         {
-          image_id: image.id,
-          item_id: post.id,
-          item_type: "news",
-          sort_order: 0,
+          imageId: image.id,
+          itemId: post.id,
+          itemType: "news",
+          sortOrder: 0,
         },
       ]);
     });

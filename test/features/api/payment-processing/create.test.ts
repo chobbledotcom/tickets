@@ -443,8 +443,8 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
       expect(
         await alreadyProcessedResult(listing.id, {
-          attendee_id: attendee.id,
-          ticket_tokens: await encrypt(tokens),
+          attendeeId: attendee.id,
+          ticketTokens: await encrypt(tokens),
         } as never),
       ).toEqual({
         attendee: { id: attendee.id },
@@ -465,8 +465,8 @@ describeWithEnv("payment booking lines", { db: true }, () => {
 
     expect(
       await alreadyProcessedResult(listing.id, {
-        attendee_id: attendee.id,
-        ticket_tokens: "",
+        attendeeId: attendee.id,
+        ticketTokens: "",
       } as never),
     ).toEqual({
       attendee: { id: attendee.id },

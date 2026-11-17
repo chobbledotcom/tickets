@@ -21,7 +21,7 @@ describe("sealedContactsOf", () => {
   test("reads the id and the sealed details of the named attendees", () => {
     expect(placed(sealedContactsOf([4, 9]))).toEqual({
       args: [4, 9],
-      sql: "SELECT attendee.id AS id, attendee.pii_blob AS pii_blob FROM attendees AS attendee WHERE attendee.id IN (?, ?)",
+      sql: "SELECT attendee.id AS id, attendee.pii_blob AS piiBlob FROM attendees AS attendee WHERE attendee.id IN (?, ?)",
     });
   });
 

@@ -12,6 +12,7 @@ import { t } from "#i18n";
 import { handleRequest } from "#routes";
 import { writeUpdate } from "#routes/admin/api-site-pages.ts";
 import { publicNavModel } from "#routes/public/site-nav.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { sitePageItemTargets } from "#shared/site-pages/target.ts";
 import { wasActivityLogged } from "#test-utils/activity-log.ts";
 import {
@@ -263,7 +264,7 @@ describeWithEnv("Admin API - Site pages", { db: true }, () => {
           expect(echoed.page).toMatchObject(edited);
         },
       );
-      await expectStoredPage(page.id, edited);
+      await expectStoredPage(page.id, camelCaseKeys(edited));
     });
 
     test("flips the Hidden flag and the nav model follows", async () => {

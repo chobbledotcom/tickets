@@ -38,14 +38,14 @@ describe("listingInputToEdge", () => {
   test("defaults every optional field for a sparse input", () => {
     const sparse = { name: "Bare" } as unknown as ListingInput;
     expect(listingInputToEdge(sparse, 7)).toEqual({
-      assign_built_site: false,
-      customisable_days: false,
-      day_prices: {},
-      duration_days: 1,
+      assignBuiltSite: false,
+      customisableDays: false,
+      dayPrices: {},
+      durationDays: 1,
       id: 7,
-      listing_type: "standard",
-      min_quantity: 1,
-      months_per_unit: 0,
+      listingType: "standard",
+      minQuantity: 1,
+      monthsPerUnit: 0,
       name: "Bare",
     });
   });
@@ -61,14 +61,14 @@ describe("listingInputToEdge", () => {
       name: "Full",
     } as unknown as ListingInput;
     expect(listingInputToEdge(input, 3)).toEqual({
-      assign_built_site: true,
-      customisable_days: true,
-      day_prices: { 1: 100, 2: 200 },
-      duration_days: 2,
+      assignBuiltSite: true,
+      customisableDays: true,
+      dayPrices: { 1: 100, 2: 200 },
+      durationDays: 2,
       id: 3,
-      listing_type: "daily",
-      min_quantity: 1,
-      months_per_unit: 12,
+      listingType: "daily",
+      minQuantity: 1,
+      monthsPerUnit: 12,
       name: "Full",
     });
   });

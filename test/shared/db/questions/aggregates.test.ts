@@ -78,14 +78,14 @@ describeWithEnv("db > answer aggregates", { db: true }, () => {
     test("pairs the stored total with the one counted from attendees", async () => {
       const { small } = await questionWithADriftedTotal();
       expect(await getAnswerAggregateRecalculation(small.id)).toEqual({
-        times_selected: { current: 42, recalculated: 1 },
+        timesSelected: { current: 42, recalculated: 1 },
       });
     });
 
     test("counts zero for an answer nobody picked", async () => {
       const { large } = await questionWithADriftedTotal();
       expect(await getAnswerAggregateRecalculation(large.id)).toEqual({
-        times_selected: { current: 0, recalculated: 0 },
+        timesSelected: { current: 0, recalculated: 0 },
       });
     });
   });

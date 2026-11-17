@@ -287,21 +287,21 @@ describeWithEnv("catalog-transfer", { db: true }, () => {
       const rows = await getGroupPackagePrices(requireEntityImport(result).id);
       expect(rows).toEqual([
         {
-          group_id: requireEntityImport(result).id,
-          listing_id: a.id,
-          package_price: 800,
+          groupId: requireEntityImport(result).id,
+          listingId: a.id,
+          packagePrice: 800,
           quantity: 2,
         },
         {
-          group_id: requireEntityImport(result).id,
-          listing_id: b.id,
-          package_price: null,
+          groupId: requireEntityImport(result).id,
+          listingId: b.id,
+          packagePrice: null,
           quantity: 1,
         },
         {
-          group_id: requireEntityImport(result).id,
-          listing_id: c.id,
-          package_price: 0,
+          groupId: requireEntityImport(result).id,
+          listingId: c.id,
+          packagePrice: 0,
           quantity: 1,
         },
       ]);

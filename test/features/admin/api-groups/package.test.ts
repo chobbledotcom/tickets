@@ -148,9 +148,9 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toEqual([
       {
-        group_id: group.id,
-        listing_id: listing.id,
-        package_price: 2500,
+        groupId: group.id,
+        listingId: listing.id,
+        packagePrice: 2500,
         quantity: 3,
       },
     ]);
@@ -203,9 +203,9 @@ describeWithEnv("Admin API - Groups - package fields", { db: true }, () => {
     const rows = await getGroupPackagePrices(group.id);
     expect(rows).toEqual([
       {
-        group_id: group.id,
-        listing_id: listing.id,
-        package_price: 100,
+        groupId: group.id,
+        listingId: listing.id,
+        packagePrice: 100,
         quantity: 2,
       },
     ]);

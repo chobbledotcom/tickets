@@ -106,8 +106,8 @@ const expectSingleGroupNote = async (
   );
   expect(notes).toHaveLength(1);
   expect(notes[0]).toMatchObject({
-    entity_id: groupId,
-    entity_type: "group",
+    entityId: groupId,
+    entityType: "group",
     note,
     type: "owner",
   });

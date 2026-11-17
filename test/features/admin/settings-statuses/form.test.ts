@@ -28,10 +28,10 @@ describeWithEnv("what a new status may say", { db: true }, () => {
     await create({ name: "Plain" });
 
     expect(await storedByName("Plain")).toMatchObject({
-      is_paid_default: false,
-      is_public_default: false,
-      is_reservation: false,
-      reservation_amount: "0",
+      isPaidDefault: false,
+      isPublicDefault: false,
+      isReservation: false,
+      reservationAmount: "0",
     });
   });
 
@@ -43,8 +43,8 @@ describeWithEnv("what a new status may say", { db: true }, () => {
     });
 
     expect(await storedByName("Both Defaults")).toMatchObject({
-      is_paid_default: true,
-      is_public_default: true,
+      isPaidDefault: true,
+      isPublicDefault: true,
     });
   });
 
@@ -56,8 +56,8 @@ describeWithEnv("what a new status may say", { db: true }, () => {
     });
 
     expect(await storedByName("Deposit")).toMatchObject({
-      is_reservation: true,
-      reservation_amount: "10%",
+      isReservation: true,
+      reservationAmount: "10%",
     });
   });
 
@@ -65,8 +65,8 @@ describeWithEnv("what a new status may say", { db: true }, () => {
     await create({ name: "Not A Reservation", reservation_amount: "25" });
 
     expect(await storedByName("Not A Reservation")).toMatchObject({
-      is_reservation: false,
-      reservation_amount: "0",
+      isReservation: false,
+      reservationAmount: "0",
     });
   });
 });

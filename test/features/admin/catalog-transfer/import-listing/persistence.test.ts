@@ -60,7 +60,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: 0, quantity: 1 },
+      { groupId: group.id, listingId: id, packagePrice: 0, quantity: 1 },
     ]);
     expect((await getGroupDayPrices(group.id)).get(id)).toEqual(
       new Map([[2, 700]]),
@@ -84,7 +84,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: null, quantity: 1 },
+      { groupId: group.id, listingId: id, packagePrice: null, quantity: 1 },
     ]);
     expect([...(await getGroupDayPrices(group.id)).entries()]).toEqual([]);
   });
@@ -124,9 +124,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
     expect(await getGroupPackagePrices(groupId)).toEqual([
       {
-        group_id: groupId,
-        listing_id: member.id,
-        package_price: null,
+        groupId,
+        listingId: member.id,
+        packagePrice: null,
         quantity: 1,
       },
     ]);

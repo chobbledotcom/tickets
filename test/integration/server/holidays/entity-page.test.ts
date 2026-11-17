@@ -112,7 +112,7 @@ describeWithEnv("holiday entity page", { db: true }, () => {
       )(response);
       expect(await records.holidays.find(holiday.id)).toEqual({
         ...holiday,
-        end_date: "2026-12-27",
+        endDate: "2026-12-27",
       });
     });
 

@@ -74,15 +74,15 @@ describeWithEnv(
           },
         );
         expect(await records.images.find(image.id)).toMatchObject({
-          alt_text: "A poster",
+          altText: "A poster",
           name: "After",
         });
         expect(await getImageUsesForImage(image.id)).toEqual([
           {
-            image_id: image.id,
-            item_id: group.id,
-            item_type: "group",
-            sort_order: 0,
+            imageId: image.id,
+            itemId: group.id,
+            itemType: "group",
+            sortOrder: 0,
           },
         ]);
         // The listing lost the image when the links were replaced.

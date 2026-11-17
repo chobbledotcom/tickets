@@ -38,9 +38,9 @@ describe("the listing reader's statement", () => {
     for (const projection of [
       "AS income",
       "AS cost",
-      "AS day_prices",
-      "AS image_url",
-      "listing.booked_quantity AS attendee_count",
+      "AS dayPrices",
+      "AS imageUrl",
+      "listing.booked_quantity AS attendeeCount",
     ]) {
       assertStringIncludes(sql, projection);
     }

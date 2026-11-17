@@ -18,8 +18,13 @@ import {
 } from "#booking/tree.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 import { treePackage as pkg } from "#test-utils/package-cap-fixtures.ts";
+import type { ListingWithCount } from "#types";
 
-const resolved = (overrides = {}, closed = false, groupRemaining?: number) =>
+const resolved = (
+  overrides: Partial<ListingWithCount> = {},
+  closed = false,
+  groupRemaining?: number,
+) =>
   buildTicketListing(testListingWithCount(overrides), closed, groupRemaining);
 
 describe("booking tree — node identity (nodeKey scheme)", () => {
@@ -117,14 +122,14 @@ describe("booking tree — nodeKey → field-name projection", () => {
 
   test("pay-more price field mirrors the node's edge", () => {
     const standalone = buildBookingTree({
-      listings: [resolved({ can_pay_more: true, id: 4, max_price: 5000 })],
+      listings: [resolved({ canPayMore: true, id: 4, maxPrice: 5000 })],
       slugs: ["ab12c"],
     });
     expect(nodePriceFieldName(standalone.nodes[0]!)).toBe("custom_price_4");
 
     const withChild = buildBookingTree({
       childrenByParentId: new Map([
-        [4, [resolved({ can_pay_more: true, id: 9, max_price: 5000 })]],
+        [4, [resolved({ canPayMore: true, id: 9, maxPrice: 5000 })]],
       ]),
       listings: [resolved({ id: 4 })],
       slugs: ["ab12c"],
@@ -256,8 +261,8 @@ describe("buildBookingTree — node facets", () => {
           4,
           [
             resolved({ id: 9 }), // standard → date-less
-            resolved({ id: 10, listing_type: "daily" }), // daily → inherits
-            resolved({ customisable_days: true, id: 11 }), // customisable → inherits
+            resolved({ id: 10, listingType: "daily" }), // daily → inherits
+            resolved({ customisableDays: true, id: 11 }), // customisable → inherits
           ],
         ],
       ]),
@@ -287,7 +292,7 @@ describe("buildBookingTree — price rule precedence", () => {
   test("OVERRIDE beats pay-more and day-price for a package member", () => {
     expect(
       priceOf({
-        listings: [resolved({ can_pay_more: true, id: 7, max_price: 9000 })],
+        listings: [resolved({ canPayMore: true, id: 7, maxPrice: 9000 })],
         packages: [pkg(3, [7], { prices: new Map([[7, 500]]) })],
         slugs: ["x"],
       }),
@@ -299,11 +304,11 @@ describe("buildBookingTree — price rule precedence", () => {
       priceOf({
         listings: [
           resolved({
-            can_pay_more: true,
-            customisable_days: true,
+            canPayMore: true,
+            customisableDays: true,
             id: 7,
-            max_price: 9000,
-            unit_price: 1000,
+            maxPrice: 9000,
+            unitPrice: 1000,
           }),
         ],
         slugs: ["x"],
@@ -314,7 +319,7 @@ describe("buildBookingTree — price rule precedence", () => {
   test("DAY_PRICE only for a customisable listing without pay-more", () => {
     expect(
       priceOf({
-        listings: [resolved({ customisable_days: true, id: 7 })],
+        listings: [resolved({ customisableDays: true, id: 7 })],
         slugs: ["x"],
       }),
     ).toEqual({ kind: "DAY_PRICE" });
@@ -325,7 +330,7 @@ describe("buildBookingTree — price rule precedence", () => {
     // date only drives availability, so it must not be day-priced.
     expect(
       priceOf({
-        listings: [resolved({ id: 7, listing_type: "daily" })],
+        listings: [resolved({ id: 7, listingType: "daily" })],
         slugs: ["x"],
       }),
     ).toEqual({ kind: "BASE" });

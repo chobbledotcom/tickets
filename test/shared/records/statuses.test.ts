@@ -60,7 +60,7 @@ describeRecord(statusRecord, "Attendee status", "Name", () => {
   test("creates a status and logs it with the status name", async () => {
     await expectWrittenAndLogged(
       statusRecord.create(statusInput("Waiting")),
-      { is_reservation: false, name: "Waiting" },
+      { isReservation: false, name: "Waiting" },
       ["Attendee status 'Waiting' created"],
     );
   });

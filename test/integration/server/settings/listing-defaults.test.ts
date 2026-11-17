@@ -398,7 +398,12 @@ describeWithEnv("server (admin listing defaults)", { db: true }, () => {
           `/admin/listing/${listing.id}/edit`,
         ].map(async (path) => (await adminGet(path)).text()),
       );
-      expect(pages.filter((page) => /use[-_]defaults/.test(page))).toEqual([]);
+      // The owner's query log names the column, so match the toggle markup.
+      expect(
+        pages.filter((page) =>
+          /id="use-defaults"|name="use_defaults"/.test(page),
+        ),
+      ).toEqual([]);
       const { response: saved } = await adminMultipartPost(
         `/admin/listing/${listing.id}/edit`,
         buildUpdateListingForm(

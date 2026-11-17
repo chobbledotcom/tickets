@@ -236,8 +236,8 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       });
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([
         expect.objectContaining({
-          attendee_id: context.attendeeId,
-          listing_id: context.listingId,
+          attendeeId: context.attendeeId,
+          listingId: context.listingId,
           message: "Payment review acknowledged by owner",
         }),
       ]);
@@ -253,8 +253,8 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       )(await submitReview(context));
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([
         expect.objectContaining({
-          attendee_id: context.attendeeId,
-          listing_id: null,
+          attendeeId: context.attendeeId,
+          listingId: null,
         }),
       ]);
     });

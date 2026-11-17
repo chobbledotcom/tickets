@@ -347,8 +347,8 @@ describeWithEnv(
 
       const stale = (await getListingWithCount(listing.id))!;
       expect(await getListingAggregateRecalculation(stale)).toEqual({
-        booked_quantity: { current: 8, recalculated: 5 },
-        tickets_count: { current: 4, recalculated: 2 },
+        bookedQuantity: { current: 8, recalculated: 5 },
+        ticketsCount: { current: 4, recalculated: 2 },
       });
 
       await listingAggregates.reset(listing.id, ["bookedQuantity"]);
