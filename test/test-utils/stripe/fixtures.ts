@@ -282,3 +282,16 @@ export const signedWebhook = async (
   const payload = JSON.stringify(event);
   return { payload, signature: await signedHeader(secret, payload) };
 };
+
+/** The delivery names that the webhook endpoint of this site carries. */
+export const OWN_WEBHOOK_EVENTS = [
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.deleted",
+  "customer.subscription.paused",
+  "customer.subscription.resumed",
+  "customer.subscription.updated",
+  "invoice.paid",
+  "invoice.payment_action_required",
+  "invoice.payment_failed",
+] as const;

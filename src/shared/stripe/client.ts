@@ -87,11 +87,17 @@ export interface StripeCheckoutSessionCreateParams {
   success_url: NonNullable<OfficialCheckoutParams["success_url"]>;
 }
 
+/** A delivery name that Stripe will send to a webhook endpoint. */
+type StripeWebhookEventName =
+  NonNullable<Stripe.WebhookEndpointCreateParams.EnabledEvent>;
+
 export interface StripeWebhookEndpointCreateParams {
   api_version: NonNullable<Stripe.WebhookEndpointCreateParams["api_version"]>;
+  /** Every delivery the site acts on, so a name Stripe does not send stops
+   *  the type check where the endpoint is set up. */
   enabled_events: readonly [
-    "checkout.session.completed" &
-      Stripe.WebhookEndpointCreateParams.EnabledEvent,
+    StripeWebhookEventName,
+    ...StripeWebhookEventName[],
   ];
   url: Stripe.WebhookEndpointCreateParams["url"];
 }
