@@ -28,14 +28,16 @@ const FOOTER =
 
 /** Install a lone markdown textarea (optionally followed by a footer strip,
  * as the preview module lays out, a stylesheet the editor's styles are
- * asserted against, or a wrapping form with a CSRF token the upload flow
- * reads) and enhance it. */
+ * asserted against, a wrapping form with a CSRF token the upload flow
+ * reads, or the page's image-storage marker the layout sets) and enhance
+ * it. */
 export const enhanced = (
   value: string,
   options: {
     footer?: boolean;
     stylesheet?: string;
     form?: boolean;
+    imageStorage?: "off";
   } = {},
 ): {
   handle: MarkdownEditorHandle;
@@ -51,6 +53,12 @@ export const enhanced = (
         : textareaHtml) +
       (options.footer ? FOOTER : ""),
   );
+  if (options.imageStorage !== undefined) {
+    window.document.documentElement.setAttribute(
+      "data-image-storage",
+      options.imageStorage,
+    );
+  }
   const textarea = requireElement<HTMLTextAreaElement>(
     window.document,
     "textarea",

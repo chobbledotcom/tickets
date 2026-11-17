@@ -274,6 +274,10 @@ export const createImageToolbarItem = (
     "Image",
     "Insert image",
   );
+  // The layout marks the page when no image storage is configured. The
+  // control hides rather than offering a picker that cannot store anything.
+  button.hidden =
+    document.documentElement.getAttribute("data-image-storage") === "off";
   button.setAttribute("aria-haspopup", "dialog");
 
   const dialog = document.createElement("dialog");

@@ -41,11 +41,30 @@ afterEach(restoreHeldStub);
 describe("the image picker dialog", () => {
   test("renders the image button in the toolbar", () => {
     const { window, handle } = enhanced("hello");
-    const button = requireElement(window.document, ".md-toolbar-image");
+    const button = requireElement<HTMLButtonElement>(
+      window.document,
+      ".md-toolbar-image",
+    );
     expect(button.getAttribute("aria-label")).toBe("Insert image");
     // The button opens a modal dialog, which carries its own focus and
     // Escape semantics, so the button only names what it opens.
-    expect(button?.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(button.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(button.hidden).toBe(false);
+    handle.view.destroy();
+  });
+
+  test("hides the image button when storage is off", () => {
+    const { window, handle } = enhanced("hello", {
+      imageStorage: "off",
+    });
+    const button = requireElement<HTMLButtonElement>(
+      window.document,
+      ".md-toolbar-image",
+    );
+
+    // The page marker comes from the layout; the editor keeps the control
+    // out of the toolbar rather than offering a picker with no storage.
+    expect(button.hidden).toBe(true);
     handle.view.destroy();
   });
 

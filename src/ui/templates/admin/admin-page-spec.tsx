@@ -8,6 +8,7 @@ import type { Child } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash, flashNotice } from "#shared/forms/flash.tsx";
+import { isStorageEnabled } from "#shared/storage.ts";
 import type {
   ReorderColumnOptions,
   TableColumn,
@@ -70,6 +71,7 @@ export const AdminPage = ({
     contentClassName={contentClassName}
     family="admin"
     headExtra={headExtra}
+    imageStorageOff={!isStorageEnabled()}
     {...(theme !== undefined ? { theme } : {})}
     title={title}
   >
