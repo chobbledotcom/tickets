@@ -18,10 +18,7 @@ const ownerFields = () => getListingForm(listingFormView("owner")).fields;
 describe("listing form required fields", () => {
   test("rejects missing listing name", () => {
     const { name: _, ...withoutName } = baseListingForm;
-    expectInvalid("Listing name is required")(
-      ownerFields(),
-      withoutName,
-    );
+    expectInvalid("Listing name is required")(ownerFields(), withoutName);
   });
 });
 
@@ -40,10 +37,7 @@ describe("listing form description", () => {
       ownerFields(),
       listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
     );
-    expectValid(
-      ownerFields(),
-      listingForm({ description: "" }),
-    );
+    expectValid(ownerFields(), listingForm({ description: "" }));
   });
 });
 
@@ -206,10 +200,7 @@ describe("listing form webhook_url", () => {
 
   for (const { expected, url, label } of rejected) {
     test(`rejects ${label} webhook URL`, () => {
-      expectInvalid(expected)(
-        ownerFields(),
-        listingForm({ webhookUrl: url }),
-      );
+      expectInvalid(expected)(ownerFields(), listingForm({ webhookUrl: url }));
     });
   }
 
@@ -244,21 +235,13 @@ describe("listing form contact fields setting", () => {
     // Derived from the schema, so a new ContactField member is covered here the
     // moment it is added — no hand-maintained list to forget to update.
     for (const value of CONTACT_FIELDS) {
-      expectValid(
-        ownerFields(),
-        listingForm({ fields: [value] }),
-      );
+      expectValid(ownerFields(), listingForm({ fields: [value] }));
     }
-    expectValid(
-      ownerFields(),
-      listingForm({ fields: ["email", "phone"] }),
-    );
+    expectValid(ownerFields(), listingForm({ fields: ["email", "phone"] }));
   });
 
   test("warns that attendees won't be emailed their ticket without email collection", () => {
-    const fieldsField = ownerFields().find(
-      (f) => f.name === "fields",
-    )!;
+    const fieldsField = ownerFields().find((f) => f.name === "fields")!;
     expectIncludesAll(fieldsField.hintHtml, [
       "<strong>",
       "emailed their ticket",
@@ -270,10 +253,7 @@ describe("listing form listing_type", () => {
   test("accepts standard and daily, rejects anything else", () => {
     // Every declared listing type is accepted; the schema is the source of truth.
     for (const value of ListingTypeSchema.options) {
-      expectValid(
-        ownerFields(),
-        listingForm({ listingType: value }),
-      );
+      expectValid(ownerFields(), listingForm({ listingType: value }));
     }
     expectInvalid("Listing type must be standard or daily.")(
       ownerFields(),
@@ -289,10 +269,7 @@ describe("listing form listing_type", () => {
 describe("listing form duration_days", () => {
   for (const value of ["1", String(MAX_DURATION_DAYS)]) {
     test(`accepts ${JSON.stringify(value)}`, () => {
-      expectValid(
-        ownerFields(),
-        listingForm({ durationDays: value }),
-      );
+      expectValid(ownerFields(), listingForm({ durationDays: value }));
     });
   }
   const invalid: [value: string, error: string][] = [
@@ -307,10 +284,7 @@ describe("listing form duration_days", () => {
   ];
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {
-      expectInvalid(error)(
-        ownerFields(),
-        listingForm({ durationDays: value }),
-      );
+      expectInvalid(error)(ownerFields(), listingForm({ durationDays: value }));
     });
   }
 });
@@ -340,10 +314,7 @@ describe("listing form bookable_days", () => {
   test("rejects invalid day name", () => {
     expectInvalid(
       "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
-    )(
-      ownerFields(),
-      listingForm({ bookableDays: ["Monday", "Funday"] }),
-    );
+    )(ownerFields(), listingForm({ bookableDays: ["Monday", "Funday"] }));
   });
 
   test("rejects empty-after-trimming value", () => {

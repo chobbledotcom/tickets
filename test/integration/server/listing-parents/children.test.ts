@@ -33,7 +33,7 @@ const attendeeEditHtml = async (result: unknown): Promise<string> => {
  *  stores no edge. */
 const expectChildrenRefused = async (
   parent: { id: number },
-  ids: readonly number[],
+  ids: number[],
   message: string,
 ): Promise<void> => {
   const response = await postChildren(parent.id, ids);

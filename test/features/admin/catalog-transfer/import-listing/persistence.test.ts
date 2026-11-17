@@ -1,3 +1,4 @@
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { countRows, execute } from "#db/client.ts";
@@ -67,9 +68,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     );
   });
 
-  test("clears package-only values when a listing joins a regular group", async () => {
+  test("refuses package-only values when a listing joins a regular group", async () => {
     const group = await createTestGroup({ name: "Ordinary group" });
-    const id = await importedId({
+    const result = await importCatalog({
       groups: [
         {
           dayPrices: { 1: 200 },
@@ -83,10 +84,12 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
       version: 1,
     });
 
-    expect(await getGroupPackagePrices(group.id)).toEqual([
-      { groupId: group.id, listingId: id, packagePrice: null, quantity: 1 },
-    ]);
-    expect([...(await getGroupDayPrices(group.id)).entries()]).toEqual([]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      assertStringIncludes(result.error, "Only a package group can hold");
+      assertStringIncludes(result.error, "packagePrice");
+    }
+    expect(await getGroupPackagePrices(group.id)).toEqual([]);
   });
 
   test("does not import attachment storage fields", async () => {
@@ -113,23 +116,20 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(await listingParents.getIds(id)).toEqual([parent.id]);
   });
 
-  test("an omitted package flag keeps imported group members ordinary", async () => {
+  test("refuses package values for a group whose package flag is omitted", async () => {
     const member = await createTestListing({ name: "Ordinary member" });
-    const groupId = await importedId({
+    const result = await importCatalog({
       group: { name: "Imported ordinary group" },
       kind: "group",
       members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
       version: 1,
     });
 
-    expect(await getGroupPackagePrices(groupId)).toEqual([
-      {
-        groupId,
-        listingId: member.id,
-        packagePrice: null,
-        quantity: 1,
-      },
-    ]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      assertStringIncludes(result.error, "Only a package group can hold");
+      assertStringIncludes(result.error, "packagePrice");
+    }
   });
 
   test("keeps a concurrent listing import from mixing group types", async () => {

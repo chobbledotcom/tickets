@@ -25,10 +25,7 @@ describe("listing form pricing", () => {
       ownerFields(),
       listingForm({ maxPrice: "-50" }),
     );
-    expectValid(
-      ownerFields(),
-      listingForm({ maxPrice: "100.00" }),
-    );
+    expectValid(ownerFields(), listingForm({ maxPrice: "100.00" }));
   });
 
   test("rejects a blank max_price box instead of reading it as a default", () => {

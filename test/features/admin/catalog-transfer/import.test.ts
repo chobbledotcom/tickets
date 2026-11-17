@@ -2,7 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { getGroupPackagePrices, getListingsByGroupId } from "#db/groups.ts";
+import { getListingsByGroupId } from "#db/groups.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
@@ -66,7 +66,7 @@ describeWithEnv("catalog group import", { db: true }, () => {
     });
   });
 
-  test("clears package values when importing an ordinary group", async () => {
+  test("refuses package values when importing an ordinary group", async () => {
     const member = await createTestListing({
       canPayMore: true,
       name: "Ordinary group member",
@@ -78,21 +78,11 @@ describeWithEnv("catalog group import", { db: true }, () => {
       version: 1,
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
-    const [stored] = await getGroupPackagePrices(
-      requireEntityImport(result).id,
-    );
-    if (!stored) throw new Error("The imported group membership is missing");
-    expect({
-      listing_id: stored.listingId,
-      package_price: stored.packagePrice,
-      quantity: stored.quantity,
-    }).toEqual({
-      listing_id: member.id,
-      package_price: null,
-      quantity: 1,
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      assertStringIncludes(result.error, "Only a package group can hold");
+      assertStringIncludes(result.error, "packagePrice");
+    }
   });
 
   test("rejects a package day override the member cannot offer", async () => {
