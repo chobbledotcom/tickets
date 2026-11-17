@@ -32,6 +32,7 @@ import {
   among,
   type Condition,
   equal,
+  notEqual,
   whereTail,
 } from "#db/select/expression.ts";
 import { from, tableNode } from "#db/select/query.ts";
@@ -45,6 +46,7 @@ import type {
   ModifierScope,
   ModifierTrigger,
 } from "#shared/price-modifier.ts";
+import { requireValue } from "#shared/required-value.ts";
 import type { Modifier } from "#types";
 
 /** The stored modifier row. `totalRevenue` is not a column: every loader
@@ -285,10 +287,14 @@ export const modifierIdsByAnswerId: ListsByIds = async (answerIds) =>
     (
       await readRows(
         from(tables.answers)
-          .where((answer) => among(answer.id, answerIds))
+          .where((answer) => [
+            among(answer.id, answerIds),
+            notEqual(answer.modifierId, null),
+          ])
           .pick("id", "modifierId"),
       )
-    ).flatMap(({ id, modifierId }) =>
-      modifierId === null ? [] : [[id, [modifierId]] as const],
-    ),
+    ).map(({ id, modifierId }) => [
+      id,
+      [requireValue(modifierId, `Answer ${id} has no linked modifier`)],
+    ]),
   );
