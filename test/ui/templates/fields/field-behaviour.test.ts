@@ -2,13 +2,13 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { resetI18nForTest } from "#i18n";
 import type { Field } from "#shared/forms/field.ts";
-import { getBuiltSiteForm } from "#templates/fields/admin.ts";
+import {
+  getBuiltSiteForm,
+  getLogisticsAgentForm,
+} from "#templates/fields/admin.ts";
 import { getListingAggregateFields } from "#templates/fields/aggregate.ts";
 import { getGroupCreateForm } from "#templates/fields/group.ts";
-import {
-  getListingForm,
-  logisticsAgentForm,
-} from "#templates/fields/listing.ts";
+import { getListingForm } from "#templates/fields/listing.ts";
 import { getModifierForm } from "#templates/fields/modifier.ts";
 import { getTicketFields } from "#templates/fields/ticket.ts";
 import { getSlugField } from "#templates/fields/validators.ts";
@@ -151,15 +151,13 @@ describe("fields behaviour", () => {
   });
 
   describe("month-count fields keep their bounds", () => {
-    test("months-per-unit is 0..24", () => {
-      const field = byName(getListingForm().fields, "monthsPerUnit");
-      expect(field.min).toBe(0);
-      expect(field.max).toBe(24);
-    });
-    test("initial-site-months is 0..120", () => {
-      const field = byName(getListingForm().fields, "initialSiteMonths");
-      expect(field.min).toBe(0);
-      expect(field.max).toBe(120);
+    test("months-per-unit is 0..24 and initial-site-months is 0..120", () => {
+      const bounds = (name: string) => {
+        const field = byName(getListingForm().fields, name);
+        return [field.min, field.max];
+      };
+      expect(bounds("monthsPerUnit")).toEqual([0, 24]);
+      expect(bounds("initialSiteMonths")).toEqual([0, 120]);
     });
   });
 
@@ -173,7 +171,9 @@ describe("fields behaviour", () => {
       expectRejects(updates, "not-a-tier");
     });
     test("the logistics-agent name is required", () => {
-      expect(byName(logisticsAgentForm.fields, "name").required).toBe(true);
+      expect(byName(getLogisticsAgentForm().fields, "name").required).toBe(
+        true,
+      );
     });
     test("the slug field is required", () => {
       expect(getSlugField().required).toBe(true);

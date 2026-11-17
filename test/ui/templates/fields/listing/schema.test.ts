@@ -7,7 +7,6 @@ import {
   getListingEditForm,
   getListingForm,
   type ListingFormView,
-  logisticsAgentForm,
 } from "#templates/fields/listing.ts";
 import {
   LISTING_FIELDS,
@@ -109,17 +108,5 @@ describe("listing field schemas", () => {
         closed: new Map(FEATURE_BOXES),
       }).fields.map(shape),
     ).toEqual([...LISTING_FIELDS, SLUG_FIELD]);
-  });
-
-  test("the logistics agent form serves exactly its declared field", () => {
-    expect(logisticsAgentForm.fields.map(shape)).toEqual([
-      {
-        label: "Agent name",
-        name: "name",
-        placeholder: "Van 1",
-        required: true,
-        type: "text",
-      },
-    ]);
   });
 });

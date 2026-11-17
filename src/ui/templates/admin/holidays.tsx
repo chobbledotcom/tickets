@@ -24,6 +24,7 @@ import {
   type AdminResourcePages,
   confirmByName,
   defineRecordPages,
+  pageLabels,
 } from "#templates/admin/resource-pages.tsx";
 import { ActionButton, GuideFooter } from "#templates/components/actions.tsx";
 import { renderTable } from "#templates/components/table.tsx";
@@ -77,6 +78,18 @@ export const HolidayEditPanel = ({
     />,
   );
 
+/* jscpd:ignore-start -- a list of strings, not code */
+/** The catalog keys that name the holiday pages. */
+const HOLIDAY_PAGE_LABELS = {
+  addHeading: "holidays.add.heading",
+  addSubmit: "holidays.add.submit",
+  addTitle: "holidays.add.title",
+  deleteButton: "holidays.delete.submit",
+  deleteTitle: "holidays.delete.heading",
+  listTitle: "terms.holidays",
+};
+/* jscpd:ignore-end */
+
 export const getHolidayPages = (): AdminResourcePages<Holiday> =>
   defineRecordPages(holidayRecord, {
     delete: {
@@ -95,14 +108,7 @@ export const getHolidayPages = (): AdminResourcePages<Holiday> =>
         "holidays.delete.confirm_prompt",
       ),
     },
-    labels: {
-      addHeading: t("holidays.add.heading"),
-      addSubmit: t("holidays.add.submit"),
-      addTitle: t("holidays.add.title"),
-      deleteButton: t("holidays.delete.submit"),
-      deleteTitle: t("holidays.delete.heading"),
-      listTitle: t("terms.holidays"),
-    },
+    labels: pageLabels(HOLIDAY_PAGE_LABELS),
     list: {
       actions: (
         <ActionButton href={adminPattern("holidayNew")} icon="plus">
