@@ -43,6 +43,7 @@ import {
   rewriteImageDestinations,
   shortFormImageId,
 } from "#shared/markdown.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
 import { isRecord } from "#types";
@@ -111,14 +112,16 @@ type DraftValidation =
   | { valid: true; draft: BulkEmailDraft }
   | { valid: false; error: string };
 
-/** The trimmed text of one required field, or the refusal that names it as
- * missing or as longer than its cap. */
+/** The cleaned text of one required field, or the refusal that names it as
+ * missing or as longer than its cap. The caller passes the clean that suits
+ * the field, so a Markdown body keeps its indentation. */
 const checkedText = (
   raw: string,
   field: string,
   max: number,
+  clean: (text: string) => string,
 ): { ok: true; text: string } | { ok: false; error: string } => {
-  const text = raw.trim();
+  const text = clean(raw);
   if (!text) return { error: `${field} is required`, ok: false };
   if (text.length > max) {
     return { error: `${field} must be ${max} characters or fewer`, ok: false };
@@ -133,10 +136,20 @@ export const validateDraftInput = (input: {
   marketing: boolean;
   target: BulkEmailTarget;
 }): DraftValidation => {
-  const subject = checkedText(input.subject, "Subject", MAX_INPUT_LENGTH);
+  const subject = checkedText(
+    input.subject,
+    "Subject",
+    MAX_INPUT_LENGTH,
+    (text) => text.trim(),
+  );
   if (!subject.ok) return { error: subject.error, valid: false };
 
-  const body = checkedText(input.body, "Message body", MAX_TEXTAREA_LENGTH);
+  const body = checkedText(
+    input.body,
+    "Message body",
+    MAX_TEXTAREA_LENGTH,
+    markdownSource,
+  );
   if (!body.ok) return { error: body.error, valid: false };
 
   return {

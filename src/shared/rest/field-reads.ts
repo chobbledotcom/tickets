@@ -5,6 +5,7 @@ import * as v from "valibot";
 import { columnName } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
 import { definedValuesBy } from "#shared/defined-values.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import {
   optionalDateString,
   parseEach,
@@ -76,12 +77,23 @@ const NULL_VALUES: Partial<Record<FieldKind, unknown>> = {
 const keptValue = (field: FieldSpec, stored: unknown): unknown =>
   stored ?? CREATE_VALUES[field.kind]?.(field);
 
+/** The value rule of one Markdown field, which declares a text kind. Four
+ *  spaces start a code block, so the indentation of the first line stays. The
+ *  blank lines before the text and the white space after it go. */
+const markdownValueSchema = v.pipe(v.string(), v.transform(markdownSource));
+
 /** Read one supplied value through the field's value rule. */
 const checkedRead: BodyRead = (field, body, stored) => {
   const value = body[columnName(field.key)];
   if (value === undefined) return okResult(keptValue(field, stored));
   if (value === null) {
     return okResult(NULL_VALUES[field.kind] ?? keptValue(field, stored));
+  }
+  if (field.markdown === true) {
+    const markdown = v.safeParse(markdownValueSchema, value);
+    return markdown.success
+      ? okResult(markdown.output)
+      : errorResult(apiRefusal(field));
   }
   return v.is(fieldValueSchema(field), value)
     ? okResult(value)

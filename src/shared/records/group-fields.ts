@@ -11,7 +11,7 @@ import type { DayPrices } from "#types";
 
 /* jscpd:ignore-start -- a list of field records, not code */
 export const GROUP_FIELDS = [
-  { key: "description", kind: "privateText" },
+  { key: "description", kind: "privateText", markdown: true },
   { key: "hidden", kind: "switch" },
   // On (for a package), the member listings are hidden from buyers, tickets,
   // and confirmation emails. Only admins see the breakdown.
@@ -27,7 +27,7 @@ export const GROUP_FIELDS = [
   // hidden member is bookable only through its direct link. A package keeps
   // its members either way.
   { default: true, key: "showHiddenListings", kind: "switch" },
-  { key: "termsAndConditions", kind: "privateText" },
+  { key: "termsAndConditions", kind: "privateText", markdown: true },
 ] as const satisfies FieldSpecs;
 /* jscpd:ignore-end */
 

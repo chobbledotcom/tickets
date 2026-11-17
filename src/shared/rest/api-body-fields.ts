@@ -39,16 +39,17 @@ const dateMessage = (field: string) =>
 const picklistMessage = (field: string, refusedMessage: string) =>
   issueMessage(`${field} is required`, refusedMessage);
 
-/** A required text field. The create view is non-empty and trimmed. The
- *  update view leaves an empty value to the mapper, which answers the update's
- *  own message. */
+/** One required text field's two views. A create stores the text that its
+ *  clean gives, then requires text. An update leaves the value to the mapper.
+ *  The mapper answers the update's own message. */
 export const textField = (
   field: string,
   requiredMessage = `${field} is required`,
+  clean: (text: string) => string = (text) => text.trim(),
 ) => ({
   create: v.pipe(
     v.string(fieldTypeMessage(field, "string", requiredMessage)),
-    v.trim(),
+    v.transform(clean),
     v.nonEmpty(requiredMessage),
   ),
   update: v.string(`${field} must be a string`),

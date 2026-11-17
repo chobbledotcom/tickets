@@ -28,6 +28,7 @@ import {
   SITE_CONTACT_DEMO_FIELDS,
   SITE_HOME_DEMO_FIELDS,
 } from "#shared/demo/overrides.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { isPublicListing } from "#shared/listing-visibility.ts";
 import type { RequestRoute } from "#shared/response-steps.ts";
@@ -104,27 +105,76 @@ const handleSiteHomePost = createAuthedFormRoute({
   },
 });
 
-/** Handle POST /admin/site/contact/form - toggle the public contact form */
-const handleSiteContactFormTogglePost = settingsToggle({
-  auth: SITE_FORM,
-  field: "contactFormEnabled",
-  label: "Contact form",
-  redirectTo: "/admin/site/contact",
-  save: (v) => settings.update.contactFormEnabled(v),
-});
+/** The Site editor pages' own writes. Each page saves one Markdown text box,
+ *  and the contact and order pages each switch their public form on and off.
+ *  Both writes return to the page's editor. */
+const SITE_TEXT_PAGES = {
+  contact: {
+    demo: SITE_CONTACT_DEMO_FIELDS,
+    field: "contactPageText",
+    label: "Contact page text",
+    log: "Contact page updated",
+    page: "/admin/site/contact",
+    save: settings.update.contactPageText,
+  },
+  order: {
+    field: "orderIntroText",
+    label: "Order intro",
+    log: "Order page updated",
+    page: "/admin/site/order",
+    save: settings.update.orderIntroText,
+  },
+} as const;
+
+/** The Site editor pages' public-form switches. */
+const SITE_TOGGLES = {
+  contact: {
+    field: "contactFormEnabled",
+    label: "Contact form",
+    page: "/admin/site/contact",
+    save: settings.update.contactFormEnabled,
+  },
+  order: {
+    field: "orderEnabled",
+    label: "Order page",
+    page: "/admin/site/order",
+    save: settings.update.orderEnabled,
+  },
+} as const;
+
+/** One Site editor page's Markdown text write. */
+const siteTextHandler = (name: keyof typeof SITE_TEXT_PAGES): RequestRoute => {
+  const config = SITE_TEXT_PAGES[name];
+  return settingsHandler({
+    auth: SITE_FORM,
+    extract: (form) => {
+      if ("demo" in config) applyDemoOverrides(form, config.demo);
+      return readSubmittedMarkdown(form, config.field);
+    },
+    log: () => config.log,
+    redirectTo: config.page,
+    save: config.save,
+    validate: maxTextareaValidator(config.label),
+  });
+};
+
+/** One Site editor page's public-form switch write. */
+const siteToggleHandler = (name: keyof typeof SITE_TOGGLES): RequestRoute => {
+  const config = SITE_TOGGLES[name];
+  return settingsToggle({
+    auth: SITE_FORM,
+    field: config.field,
+    label: config.label,
+    redirectTo: config.page,
+    save: config.save,
+  });
+};
 
 /** Handle POST /admin/site/contact - save contact page */
-const handleSiteContactPost = settingsHandler({
-  auth: SITE_FORM,
-  extract: (form) => {
-    applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
-    return form.getString("contactPageText");
-  },
-  log: () => "Contact page updated",
-  redirectTo: "/admin/site/contact",
-  save: (v) => settings.update.contactPageText(v),
-  validate: maxTextareaValidator("Contact page text"),
-});
+const handleSiteContactPost = siteTextHandler("contact");
+
+/** Handle POST /admin/site/contact/form - toggle the public contact form */
+const handleSiteContactFormTogglePost = siteToggleHandler("contact");
 
 /** Handle GET /admin/site/order - order page editor (owner only).
  * Loads the live listing count so the editor can warn when there is nothing to
@@ -141,23 +191,10 @@ const handleSiteOrderGet = sitePage(async (session, _request, flash) => {
 });
 
 /** Handle POST /admin/site/order/toggle - enable/disable the public order page */
-const handleSiteOrderTogglePost = settingsToggle({
-  auth: SITE_FORM,
-  field: "orderEnabled",
-  label: "Order page",
-  redirectTo: "/admin/site/order",
-  save: (v) => settings.update.orderEnabled(v),
-});
+const handleSiteOrderTogglePost = siteToggleHandler("order");
 
 /** Handle POST /admin/site/order - save the order page intro text */
-const handleSiteOrderPost = settingsHandler({
-  auth: SITE_FORM,
-  extract: (form) => form.getString("orderIntroText"),
-  log: () => "Order page updated",
-  redirectTo: "/admin/site/order",
-  save: (v) => settings.update.orderIntroText(v),
-  validate: maxTextareaValidator("Order intro"),
-});
+const handleSiteOrderPost = siteTextHandler("order");
 
 /** Site editor routes */
 export const adminHandlers = defineAdminRoutes({
