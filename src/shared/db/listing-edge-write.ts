@@ -96,7 +96,7 @@ const packageMembershipExists = (
 /** Whether any parent→child edge names one of these listings on that side of
  *  the edge. */
 const edgeExists = (
-  edgeColumn: "child_listing_id" | "parent_listing_id",
+  edgeColumn: "childListingId" | "parentListingId",
   listings: SqlStatement,
 ): SqlStatement =>
   from(tables.listing_parents)
@@ -128,8 +128,8 @@ export const guardEdgeWriteTx = async (
           ${packageMembershipExists(parentSlots, true)} AS parent_is_hidden_package_member,
           ${listingCount(childSlots)} AS child_count,
           ${listingCount(parentSlots)} AS parent_count,
-          ${edgeExists("child_listing_id", parentSlots)} AS parent_has_parent,
-          ${edgeExists("parent_listing_id", childSlots)} AS child_has_children`,
+          ${edgeExists("childListingId", parentSlots)} AS parent_has_parent,
+          ${edgeExists("parentListingId", childSlots)} AS child_has_children`,
     ),
   );
 

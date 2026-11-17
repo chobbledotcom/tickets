@@ -23,14 +23,14 @@ const contact: ContactInfo = {
 
 /** One checkout line for a listing, priced at its own unit price. */
 const checkoutItemFor = (
-  listing: Pick<Listing, "id" | "name" | "slug" | "unit_price">,
+  listing: Pick<Listing, "id" | "name" | "slug" | "unitPrice">,
   overrides: Partial<CheckoutItem> = {},
 ): CheckoutItem => ({
   listingId: listing.id,
   name: listing.name,
   quantity: 1,
   slug: listing.slug,
-  unitPrice: listing.unit_price,
+  unitPrice: listing.unitPrice,
   ...overrides,
 });
 

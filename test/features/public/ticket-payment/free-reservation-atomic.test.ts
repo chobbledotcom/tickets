@@ -3,13 +3,13 @@ import { it as test } from "@std/testing/bdd";
 import { buildTicketListing } from "#booking/model.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import type { CheckoutItem } from "#shared/payments.ts";
 import { withRejectedBookingWrite } from "#test-utils/atomic-booking.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import type { ContactInfo, ListingWithCount } from "#types";
 
 const contact: ContactInfo = {
@@ -41,7 +41,7 @@ const reservationParts = async (
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     })),
     listingRows,
   };
@@ -69,10 +69,8 @@ describeWithEnv("free reservation atomic failures", { db: true }, () => {
     const first = await createTestListing({ maxAttendees: 5 });
     const rejected = await createTestListing({ maxAttendees: 5 });
     const { items, listingRows } = await reservationParts([first, rejected]);
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
+    const modifier = await insertModifier({
       calcValue: 100,
-      direction: "charge",
       name: "Available extra",
       stock: 5,
     });

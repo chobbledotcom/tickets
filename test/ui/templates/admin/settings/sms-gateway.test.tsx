@@ -21,8 +21,8 @@ describe("SmsGatewayForm", () => {
     );
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_username" placeholder="Cloud username from the SMS Gateway app" type="text" value="cloud-admin">`,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_base_url" placeholder="https://api.sms-gate.app" type="url" value="https://api.sms-gate.example">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayUsername" placeholder="Cloud username from the SMS Gateway app" type="text" value="cloud-admin">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayBaseUrl" placeholder="https://api.sms-gate.app" type="url" value="https://api.sms-gate.example">`,
       "Phone app username",
       "Server URL (optional)",
     ]);
@@ -33,7 +33,7 @@ describe("SmsGatewayForm", () => {
 
     expectIncludesAll(html, [
       "End-to-end key (passphrase)",
-      `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_passphrase" placeholder="At least 12 characters" type="password">`,
+      `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayPassphrase" placeholder="At least 12 characters" type="password">`,
     ]);
   });
 
@@ -48,9 +48,9 @@ describe("SmsGatewayForm", () => {
     );
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_passphrase" placeholder="At least 12 characters" type="password" value="${MASK_SENTINEL}">`,
-      `maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_password" placeholder="Cloud password from the SMS Gateway app" type="password" value="${MASK_SENTINEL}"`,
-      `maxlength="${MAX_INPUT_LENGTH}" name="sms_gateway_webhook_secret" placeholder="For delivery reports + replies" type="password" value="${MASK_SENTINEL}"`,
+      `<input autocomplete="off" minlength="${SMS_PASSPHRASE_MIN_LENGTH}" maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayPassphrase" placeholder="At least 12 characters" type="password" value="${MASK_SENTINEL}">`,
+      `maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayPassword" placeholder="Cloud password from the SMS Gateway app" type="password" value="${MASK_SENTINEL}"`,
+      `maxlength="${MAX_INPUT_LENGTH}" name="smsGatewayWebhookSecret" placeholder="For delivery reports + replies" type="password" value="${MASK_SENTINEL}"`,
       "Phone app password",
       "Webhook signing secret (optional)",
     ]);
@@ -62,7 +62,7 @@ describe("SmsGatewayForm", () => {
     assert(!html.includes(MASK_SENTINEL));
     assertStringIncludes(
       html,
-      `name="sms_gateway_password" placeholder="Cloud password from the SMS Gateway app" type="password">`,
+      `name="smsGatewayPassword" placeholder="Cloud password from the SMS Gateway app" type="password">`,
     );
   });
 

@@ -114,8 +114,8 @@ When(
   "the organiser sets {word} percent tax added to listed prices",
   function (this: TicketsWorld, rate: string): Promise<unknown> {
     return submitRenderedAdminForm(this, "/admin/settings", "Save Tax", {
-      tax_mode: "add_to_total",
-      tax_rate: rate,
+      taxMode: "add_to_total",
+      taxRate: rate,
     });
   },
 );
@@ -124,8 +124,8 @@ When(
   "the organiser sets {word} percent tax included in listed prices",
   function (this: TicketsWorld, rate: string): Promise<unknown> {
     return submitRenderedAdminForm(this, "/admin/settings", "Save Tax", {
-      tax_mode: "calculate_from_total",
-      tax_rate: rate,
+      taxMode: "calculate_from_total",
+      taxRate: rate,
     });
   },
 );
@@ -134,10 +134,10 @@ When(
   "the organiser sets a tax rate the site cannot store",
   function (this: TicketsWorld): Promise<unknown> {
     return submitRenderedAdminForm(this, "/admin/settings", "Save Tax", {
-      tax_mode: "add_to_total",
+      taxMode: "add_to_total",
       // The rate box accepts any whole-number digits; the site itself refuses
       // a rate too large to store as a whole number of basis points.
-      tax_rate: "99999999999999999999",
+      taxRate: "99999999999999999999",
     });
   },
 );
@@ -147,13 +147,13 @@ Then(
   function (this: TicketsWorld, rate: string): void {
     const browser = scenarioBrowser(this);
     expect(
-      hasCheckedInput(browser.currentHtml, "tax_mode", "add_to_total"),
+      hasCheckedInput(browser.currentHtml, "taxMode", "add_to_total"),
     ).toBe(true);
     expect(
       inputTagWithValue(
         browser.currentHtml,
         Number(rate).toFixed(2),
-        "tax_rate",
+        "taxRate",
       ),
     ).not.toBe("");
   },
@@ -164,13 +164,13 @@ Then(
   function (this: TicketsWorld, rate: string): void {
     const browser = scenarioBrowser(this);
     expect(
-      hasCheckedInput(browser.currentHtml, "tax_mode", "calculate_from_total"),
+      hasCheckedInput(browser.currentHtml, "taxMode", "calculate_from_total"),
     ).toBe(true);
     expect(
       inputTagWithValue(
         browser.currentHtml,
         Number(rate).toFixed(2),
-        "tax_rate",
+        "taxRate",
       ),
     ).not.toBe("");
   },
@@ -190,7 +190,7 @@ Then(
 Then("the site still collects no tax", function (this: TicketsWorld): void {
   expect(settings.tax).toEqual({ mode: "none" });
   const browser = scenarioBrowser(this);
-  expect(hasCheckedInput(browser.currentHtml, "tax_mode", "none")).toBe(true);
+  expect(hasCheckedInput(browser.currentHtml, "taxMode", "none")).toBe(true);
 });
 
 // -- Buying and refunding under a tax setting ------------------------------ //

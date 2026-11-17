@@ -29,9 +29,7 @@ describeWithEnv(
         const csrfToken = extractCsrfToken(await getResponse.text());
         if (!csrfToken) throw new Error("Failed to get CSRF token");
 
-        return handleRequest(
-          mockFormRequest(path, { ...data, csrf_token: csrfToken }),
-        );
+        return handleRequest(mockFormRequest(path, { ...data, csrfToken }));
       };
 
       test("returns 404 when no valid listings", async () => {
@@ -58,7 +56,7 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "",
-            [`quantity_${listing1.id}`]: "1",
+            [`quantity${listing1.id}`]: "1",
           },
         );
         expect(response.status).toBe(302);
@@ -79,8 +77,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "0",
-            [`quantity_${listing2.id}`]: "0",
+            [`quantity${listing1.id}`]: "0",
+            [`quantity${listing2.id}`]: "0",
           },
         );
         expect(response.status).toBe(302);
@@ -137,8 +135,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "2",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "2",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         // Verify attendees were created
@@ -159,8 +157,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "0",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "0",
           },
         );
         expectReservedRedirectWithTokens(response);
@@ -188,8 +186,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "10", // More than the listing can sell
-            [`quantity_${listing2.id}`]: "0",
+            [`quantity${listing1.id}`]: "10", // More than the listing can sell
+            [`quantity${listing2.id}`]: "0",
           },
         );
         expectFlash(

@@ -161,8 +161,8 @@ const toMember = (
   m: GroupListing,
   dayPrices: ReadonlyMap<number, number> | undefined,
 ): PackageMemberBody => ({
-  listing_id: m.listing_id,
-  price: m.package_price,
+  listing_id: m.listingId,
+  price: m.packagePrice,
   quantity: m.quantity,
   ...(dayPrices && dayPrices.size > 0
     ? {
@@ -220,7 +220,7 @@ export const groupApiRoutes = recordApi<
           row.id,
           {
             package_members: pricing.rows.map((member) =>
-              toMember(member, pricing.dayPrices.get(member.listing_id)),
+              toMember(member, pricing.dayPrices.get(member.listingId)),
             ),
           },
         ];

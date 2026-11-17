@@ -20,10 +20,10 @@ const writesActivityLog = (statement: SqlStatement) =>
 /** Create one listing through the record, as the create page submits it. */
 const createListing = (name: string) => {
   const form = testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
+    maxAttendees: "50",
+    maxQuantity: "5",
     name,
-    unit_price: "0",
+    unitPrice: "0",
   });
   return buildCreateListingResource(form, listingFormView("owner")).create(
     form,

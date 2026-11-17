@@ -48,8 +48,8 @@ export const setBrokenConfirmationTemplate = async (): Promise<void> => {
 /** A stored listing plus a webhook URL, as listing overrides. */
 export const listingFromDb = (
   { id, name, slug }: { id: number; name: string; slug: string },
-  webhook_url: string,
-): Partial<WebhookListing> => ({ id, name, slug, webhook_url });
+  webhookUrl: string,
+): Partial<WebhookListing> => ({ id, name, slug, webhookUrl });
 
 /** Let the fire-and-forget webhook sends settle. */
 export const flushAsync = (): Promise<void> =>

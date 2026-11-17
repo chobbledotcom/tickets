@@ -20,25 +20,25 @@ import { testListingWithCount } from "#test-utils/factories.ts";
 describe("renderDayPricesFieldset", () => {
   test("offers one row per day of the listing's longest stay", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ duration_days: 2 }),
+      testListingWithCount({ durationDays: 2 }),
     );
-    expectIncludesAll(html, ['name="day_price_1"', 'name="day_price_2"']);
-    assert(!html.includes('name="day_price_3"'));
+    expectIncludesAll(html, ['name="dayPrice1"', 'name="dayPrice2"']);
+    assert(!html.includes('name="dayPrice3"'));
   });
 
   test("draws a stored override and leaves an unset day to its placeholder", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ day_prices: { 1: 1500 }, duration_days: 2 }),
+      testListingWithCount({ dayPrices: { 1: 1500 }, durationDays: 2 }),
     );
-    expect(html).toMatch(/name="day_price_1"[^>]*value="15\.00"/);
+    expect(html).toMatch(/name="dayPrice1"[^>]*value="15\.00"/);
     // Day 2 has no stored override, so its own price stands in as the
     // placeholder and its value stays empty.
-    expect(html).toMatch(/name="day_price_2"[^>]*value=""/);
+    expect(html).toMatch(/name="dayPrice2"[^>]*value=""/);
   });
 
   test("wraps its rows in one fieldset and labels them tight together", () => {
     const html = renderDayPricesFieldset(
-      testListingWithCount({ duration_days: 2 }),
+      testListingWithCount({ durationDays: 2 }),
     );
     expectIncludesAll(html, [
       "</fieldset>",
@@ -51,8 +51,8 @@ describe("renderDayPricesFieldset", () => {
 
   test("a fresh form offers a single day", () => {
     const html = renderDayPricesFieldset();
-    assertStringIncludes(html, 'name="day_price_1"');
-    assert(!html.includes('name="day_price_2"'));
+    assertStringIncludes(html, 'name="dayPrice1"');
+    assert(!html.includes('name="dayPrice2"'));
   });
 });
 
@@ -60,29 +60,29 @@ describe("listingToFieldValues", () => {
   test("carries the slug and the price as typed money", () => {
     const values = listingToFieldValues(
       testListingWithCount({
-        non_transferable: true,
+        nonTransferable: true,
         slug: "summer-entry",
-        unit_price: 1500,
+        unitPrice: 1500,
       }),
     );
     expect(values.slug).toBe("summer-entry");
-    expect(values.unit_price).toBe("15.00");
-    expect(values.non_transferable).toBe("1");
+    expect(values.unitPrice).toBe("15.00");
+    expect(values.nonTransferable).toBe("1");
     expect(values.hidden).toBe("");
   });
 
   test("a money box types its price, and a free recurring price stays empty", () => {
     expect(
       [0, 1, 500].map(
-        (unit_price) =>
-          listingToFieldValues(testListingWithCount({ unit_price })).unit_price,
+        (unitPrice) =>
+          listingToFieldValues(testListingWithCount({ unitPrice })).unitPrice,
       ),
     ).toEqual(["0.00", "0.01", "5.00"]);
     expect(
       [0, 1, 500].map(
-        (recurring_price) =>
-          listingToFieldValues(testListingWithCount({ recurring_price }))
-            .recurring_price,
+        (recurringPrice) =>
+          listingToFieldValues(testListingWithCount({ recurringPrice }))
+            .recurringPrice,
       ),
     ).toEqual(["", "0.01", "5.00"]);
   });
@@ -100,21 +100,21 @@ describe("listingToFieldValues", () => {
   test("carries site months only while the listing holds a plan", () => {
     const kept = listingToFieldValues(
       testListingWithCount({
-        initial_site_months: 6,
-        months_per_unit: 3,
+        initialSiteMonths: 6,
+        monthsPerUnit: 3,
       }),
     );
-    expect(kept.initial_site_months).toBe("6");
-    expect(kept.months_per_unit).toBe("3");
+    expect(kept.initialSiteMonths).toBe("6");
+    expect(kept.monthsPerUnit).toBe("3");
 
     const planless = listingToFieldValues(
       testListingWithCount({
-        initial_site_months: 0,
-        months_per_unit: 0,
+        initialSiteMonths: 0,
+        monthsPerUnit: 0,
       }),
     );
-    expect(planless.initial_site_months).toBe("");
-    expect(planless.months_per_unit).toBe("");
+    expect(planless.initialSiteMonths).toBe("");
+    expect(planless.monthsPerUnit).toBe("");
   });
 });
 
@@ -127,10 +127,10 @@ describe("defaultsToFieldValues", () => {
       thankYouUrl: "",
     };
     expect(defaultsToFieldValues(defaults)).toEqual({
-      bookable_days: "Monday, Tuesday",
+      bookableDays: "Monday, Tuesday",
       hidden: "1",
-      minimum_days_before: "2",
-      thank_you_url: "",
+      minimumDaysBefore: "2",
+      thankYouUrl: "",
     });
   });
 });

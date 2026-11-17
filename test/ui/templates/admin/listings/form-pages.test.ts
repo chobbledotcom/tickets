@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { settings } from "#db/settings.ts";
 import { t } from "#i18n";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
@@ -40,9 +41,9 @@ describe("adminListingNewPage", () => {
     expectIncludesAll(html, [
       "Add Listing",
       'name="name"',
-      'name="max_attendees"',
-      'name="thank_you_url"',
-      'name="unit_price"',
+      'name="maxAttendees"',
+      'name="thankYouUrl"',
+      'name="unitPrice"',
       // The shared form keeps the site's own ticket wording on every install.
       t("fields.listing.price"),
     ]);
@@ -56,7 +57,7 @@ describe("adminListingNewPage", () => {
   test("renders group checkboxes when groups exist", () => {
     const groups = [testGroup({ id: 2, name: "My Group" })];
     const html = adminListingNewPage(groups, OWNER_SESSION);
-    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "My Group"]);
+    expectIncludesAll(html, ['name="groupIds"', 'value="2"', "My Group"]);
   });
 
   test("renders error when provided", () => {
@@ -112,7 +113,7 @@ describe("adminListingNewPage", () => {
   const tickedDays = (templateId: string): string[] => {
     const html = newPageFor(templateId);
     return WEEK.filter((day) =>
-      html.includes(`name="bookable_days" value="${day}" checked`),
+      html.includes(`name="bookableDays" value="${day}" checked`),
     );
   };
 
@@ -127,8 +128,8 @@ describe("adminListingNewPage", () => {
 
   test("seeds the donation with pay more ticked and no check-in", () => {
     expectIncludesAll(newPageFor("donation"), [
-      'name="can_pay_more" value="1" checked',
-      'name="purchase_only" value="1" checked',
+      'name="canPayMore" value="1" checked',
+      'name="purchaseOnly" value="1" checked',
     ]);
   });
 
@@ -142,21 +143,36 @@ describe("adminListingNewPage", () => {
 
   test("carries custom sentinel through as template_id hidden input", () => {
     expectIncludesAll(newPageFor("custom"), [
-      'name="template_id"',
+      'name="templateId"',
       'value="custom"',
     ]);
   });
 
-  test("carries duplicated_from hidden input when present in submitted values", () => {
+  test("carries the duplicatedFrom hidden input when the rejected create posted it", () => {
     const html = adminListingNewPage([], OWNER_SESSION, {
-      values: { duplicated_from: "42" },
+      values: { duplicatedFrom: "42" },
     });
-    expectIncludesAll(html, ['name="duplicated_from"', 'value="42"']);
+    expectIncludesAll(html, ['name="duplicatedFrom" type="hidden" value="42"']);
   });
 
-  test("does not render duplicated_from input when not in submitted values", () => {
+  test("does not render the duplicatedFrom input when not in submitted values", () => {
     const html = adminListingNewPage([], OWNER_SESSION, { values: {} });
-    assert(!html.includes('name="duplicated_from"'));
+    assert(!html.includes('name="duplicatedFrom"'));
+  });
+
+  test("keeps the use-defaults tick when the rejected create posted it", () => {
+    settings.setForTest({ listing_defaults: '{"hidden":true}' });
+    try {
+      const ticked = adminListingNewPage([], OWNER_SESSION, {
+        values: { useDefaults: "1" },
+      });
+      const unticked = adminListingNewPage([], OWNER_SESSION, { values: {} });
+      expect(ticked).toMatch(/checked[^>]*id="use-defaults"/);
+      expect(unticked).not.toMatch(/checked[^>]*id="use-defaults"/);
+      assertStringIncludes(unticked, 'id="use-defaults"');
+    } finally {
+      settings.clearTestOverride("listing_defaults");
+    }
   });
 });
 
@@ -165,16 +181,16 @@ describe("adminListingPage edit form pre-fills date and location", () => {
 
   test("empty date shows no pre-filled value in edit form", () => {
     const html = editPanelHtml(
-      testListingWithCount({ attendee_count: 0, date: "" }),
+      testListingWithCount({ attendeeCount: 0, date: "" }),
     );
     // The date field should render split date and time inputs
-    expectIncludesAll(html, ['name="date_date"', 'name="date_time"']);
+    expectIncludesAll(html, ['name="dateDate"', 'name="dateTime"']);
   });
 
   test("non-empty date shows formatted split values in edit form", () => {
     const html = editPanelHtml(
       testListingWithCount({
-        attendee_count: 0,
+        attendeeCount: 0,
         date: "2026-06-15T14:00:00.000Z",
       }),
     );
@@ -184,7 +200,7 @@ describe("adminListingPage edit form pre-fills date and location", () => {
 
   test("pre-fills location in edit form", () => {
     const html = editPanelHtml(
-      testListingWithCount({ attendee_count: 0, location: "Village Hall" }),
+      testListingWithCount({ attendeeCount: 0, location: "Village Hall" }),
     );
     assertStringIncludes(html, 'value="Village Hall"');
   });
@@ -194,22 +210,22 @@ describe("adminListingEditPage max_price field", () => {
   registerListingTemplateHooks();
 
   // A can_pay_more listing rendered on the edit form for the given max_price.
-  const maxPriceEditHtml = (max_price: number) =>
+  const maxPriceEditHtml = (maxPrice: number) =>
     editPanelHtml(
       testListingWithCount({
-        attendee_count: 0,
-        can_pay_more: true,
-        max_price,
+        attendeeCount: 0,
+        canPayMore: true,
+        maxPrice,
       }),
     );
 
   test("renders max_price field with value when set", () => {
     const html = maxPriceEditHtml(50000);
-    expectIncludesAll(html, ['name="max_price"', 'value="500.00"']);
+    expectIncludesAll(html, ['name="maxPrice"', 'value="500.00"']);
   });
 
   test("renders max_price field with 0.00 when zero", () => {
     const html = maxPriceEditHtml(0);
-    expectIncludesAll(html, ['name="max_price"', 'value="0.00"']);
+    expectIncludesAll(html, ['name="maxPrice"', 'value="0.00"']);
   });
 });

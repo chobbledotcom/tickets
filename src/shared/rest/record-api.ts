@@ -17,6 +17,7 @@ import {
   type AdminApiResource,
   adminApiIdParam,
 } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import type {
   CrudApiHandlers,
   CrudChildHandlers,
@@ -110,9 +111,10 @@ export const recordJsonDeletePolicy = (
   record: RecordSurface,
 ): AuthPolicy<"json"> => jsonPolicy(deleteAudienceFor(record));
 
-const stripRow = <Row>(row: Row, keys: string[]): Record<string, unknown> => {
-  if (keys.length === 0) return row as Record<string, unknown>;
-  const stripped = { ...(row as Record<string, unknown>) };
+/** The row as the JSON API sends it: under its column names, without the
+ *  keys that the resource keeps private. */
+const stripRow = (row: object, keys: string[]): Record<string, unknown> => {
+  const stripped: Record<string, unknown> = snakeCaseKeys(row);
   for (const key of keys) delete stripped[key];
   return stripped;
 };

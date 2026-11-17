@@ -65,13 +65,13 @@ describe("admin group action templates", () => {
       'data-duplicate-preview data-timezone="UTC"',
     ]);
     expect(html).toMatch(
-      /<input(?=[^>]*name="new_name")(?=[^>]*required)(?=[^>]*type="text")(?=[^>]*value="Summer &lt;Crew&gt; \(copy\)")[^>]*>/,
+      /<input(?=[^>]*name="newName")(?=[^>]*required)(?=[^>]*type="text")(?=[^>]*value="Summer &lt;Crew&gt; \(copy\)")[^>]*>/,
     );
     // The duplicate page's back-link lands on the group page, which is where
     // the Actions tab links it from, and its copy heads a prose block.
     expectIncludesAll(html, [
       'href="/admin/groups/17">← Summer &lt;Crew&gt;</a>',
-      // The find field starts empty (its own name_find input shows no value).
+      // The find field starts empty (its own nameFind input shows no value).
       "<td data-preview-original-name>",
       '<div class="prose"><h1>Duplicate Group</h1>',
       // The nested nav highlight matches the landing's Groups section.
@@ -79,17 +79,12 @@ describe("admin group action templates", () => {
     ]);
     // The find/replace pairs keep their input kinds.
     expect(html).toMatch(
-      /<input(?=[^>]*name="name_replace")(?=[^>]*type="text")[^>]*>/,
+      /<input(?=[^>]*name="nameReplace")(?=[^>]*type="text")[^>]*>/,
     );
     expect(html).toMatch(
-      /<input(?=[^>]*name="date_replace")(?=[^>]*type="date")[^>]*>/,
+      /<input(?=[^>]*name="dateReplace")(?=[^>]*type="date")[^>]*>/,
     );
-    for (const name of [
-      "name_find",
-      "name_replace",
-      "date_find",
-      "date_replace",
-    ]) {
+    for (const name of ["nameFind", "nameReplace", "dateFind", "dateReplace"]) {
       assertStringIncludes(html, `name="${name}"`);
     }
     expectIncludesAll(html, [
@@ -102,8 +97,8 @@ describe("admin group action templates", () => {
       "<td data-preview-original-date>",
       "<td data-preview-new-date>",
     ]);
-    expect(html).toMatch(/<input(?=[^>]*name="name_find")(?=[^>]*type="text")/);
-    expect(html).toMatch(/<input(?=[^>]*name="date_find")(?=[^>]*type="date")/);
+    expect(html).toMatch(/<input(?=[^>]*name="nameFind")(?=[^>]*type="text")/);
+    expect(html).toMatch(/<input(?=[^>]*name="dateFind")(?=[^>]*type="date")/);
     expectIncludesAll(html, [
       'id="duplicate-group-form"',
       "<span>Duplicate Group</span>",
@@ -123,7 +118,7 @@ describe("admin group action templates", () => {
     await withRequestContext(async () => {
       setSavedFormData(
         new FormParams(
-          "date_find=2026-03-02&date_replace=2026-03-09&name_find=First&name_replace=Second&new_name=Chosen Copy",
+          "dateFind=2026-03-02&dateReplace=2026-03-09&nameFind=First&nameReplace=Second&newName=Chosen Copy",
         ),
       );
       const listing = testListingWithCount({
@@ -152,7 +147,7 @@ describe("admin group action templates", () => {
 
   test("restores a submitted empty new name as empty", async () => {
     await withRequestContext(async () => {
-      setSavedFormData(new FormParams("new_name="));
+      setSavedFormData(new FormParams("newName="));
 
       const html = adminDuplicateGroupPage(GROUP, [ACTIVE], OWNER_SESSION);
 
@@ -165,12 +160,10 @@ describe("admin group action templates", () => {
   test("restores each replacement independently when one is absent", async () => {
     // A submitted form may carry one field of a pair and not its partner
     // (the POST stores what it received). The absent side falls back to
-    // empty, so an empty date_find leaves the dates unshifted and an empty
-    // name_replace deletes the find text instead of substituting it.
+    // empty, so an empty dateFind leaves the dates unshifted and an empty
+    // nameReplace deletes the find text instead of substituting it.
     await withRequestContext(async () => {
-      setSavedFormData(
-        new FormParams("date_replace=2026-03-09&name_find=First"),
-      );
+      setSavedFormData(new FormParams("dateReplace=2026-03-09&nameFind=First"));
 
       const listing = testListingWithCount({
         date: "2026-03-02T18:00:00.000Z",
@@ -190,14 +183,12 @@ describe("admin group action templates", () => {
   });
 
   test("restores the date shift when only the reference date was submitted", async () => {
-    // The mirrored asymmetry: date_find present, date_replace absent. The
+    // The mirrored asymmetry: dateFind present, dateReplace absent. The
     // absent replace falls back to empty, so the empty replace leaves the
     // dates unshifted.
     await withRequestContext(async () => {
       setSavedFormData(
-        new FormParams(
-          "date_find=2026-03-02&name_find=First&name_replace=Second",
-        ),
+        new FormParams("dateFind=2026-03-02&nameFind=First&nameReplace=Second"),
       );
 
       const listing = testListingWithCount({
@@ -264,7 +255,7 @@ describe("admin group action templates", () => {
       '<button class="danger" type="submit">',
     ]);
     expect(html).toMatch(
-      /<input(?=[^>]*name="confirm_identifier")(?=[^>]*placeholder="Summer &lt;Crew&gt;")(?=[^>]*required)[^>]*>/,
+      /<input(?=[^>]*name="confirmIdentifier")(?=[^>]*placeholder="Summer &lt;Crew&gt;")(?=[^>]*required)[^>]*>/,
     );
     // The warning lead is bold wording, joined to the count that follows it.
     expectIncludesAll(html, [
@@ -291,7 +282,7 @@ describe("admin group action templates", () => {
     assert(!html.includes("Warning:"));
     assert(!html.includes('<button class="danger" type="submit">'));
     expectIncludesAll(html, [
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       // An activate-flipping page still sits in the Groups nav section, so the
       // nav highlights Groups the way the landing does.
       '<a class="active" href="/admin/groups"',

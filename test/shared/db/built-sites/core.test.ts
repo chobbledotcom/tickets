@@ -4,14 +4,16 @@ import { parseSiteDataBlob, type SiteDataBlob } from "#db/built-sites/blob.ts";
 import type { BuiltSiteFormInput } from "#db/built-sites/types.ts";
 import {
   builtSites,
-  builtSitesCrudTable,
+  findBuiltSiteById,
   insertBuiltSite,
 } from "#db/built-sites.ts";
 import { execute } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
+import { storedSiteRow } from "./fixtures.ts";
 
 /** The form every site-data case starts from, so each case lists only the
  *  fields it is about. */
@@ -20,15 +22,10 @@ const BASE_FORM: Partial<BuiltSiteFormInput> = {
   siteUrl: "test.b-cdn.net",
 };
 
-const formBlob = async (input: Partial<BuiltSiteFormInput>) => {
-  const values = await builtSitesCrudTable.toDbValues({
-    ...BASE_FORM,
-    ...input,
-  });
-  return parseSiteDataBlob(values.site_data as string);
-};
+const formBlob = async (input: Partial<BuiltSiteFormInput>) =>
+  (await storedSiteRow({ ...BASE_FORM, ...input })).blob;
 
-/** One toDbValues case: the fields it adds to BASE_FORM, the blob keys the
+/** One stored-site case: the fields it adds to BASE_FORM, the blob keys the
  *  stored JSON must carry with which value, and the keys it must omit. */
 const siteDataCases: {
   title: string;
@@ -45,32 +42,32 @@ const siteDataCases: {
       u: "test.b-cdn.net",
       v: 2,
     },
-    title: "toDbValues creates valid site-data JSON",
+    title: "storing a site creates valid site-data JSON",
   },
   {
     input: { dbProvider: "turso", hostingProvider: "deno" },
     present: { dp: "turso", hp: "deno" },
-    title: "toDbValues includes selected providers",
+    title: "storing a site includes selected providers",
   },
   {
     input: { dbToken: "secret-token", dbUrl: "libsql://db.turso.io" },
     present: { d: "libsql://db.turso.io", t: "secret-token" },
-    title: "toDbValues includes db credentials when provided",
+    title: "storing a site includes db credentials when provided",
   },
   {
     absent: ["d", "t"],
     input: {},
-    title: "toDbValues omits db keys when empty",
+    title: "storing a site omits db keys when empty",
   },
   {
     input: { hostingId: "98765" },
     present: { s: "98765" },
-    title: "toDbValues includes hosting id when provided",
+    title: "storing a site includes hosting id when provided",
   },
   {
     absent: ["s"],
     input: {},
-    title: "toDbValues omits hosting id when empty",
+    title: "storing a site omits hosting id when empty",
   },
 ];
 
@@ -163,7 +160,7 @@ describeWithEnv("built-site storage", { db: true }, () => {
       "bunny",
       TEST_SCHEDULED_KEY,
     );
-    const site = await builtSitesCrudTable.read.one({ id: row.id });
+    const site = await findBuiltSiteById(row.id);
     expect(site?.scheduledTaskKey).toBe(TEST_SCHEDULED_KEY);
   });
 
@@ -186,7 +183,8 @@ describeWithEnv("built-site storage", { db: true }, () => {
   });
 
   test("legacy empty renewal tokens remain empty strings", async () => {
-    const row = await builtSites.table.insert({
+    const row = await records.built_sites.insert({
+      created: "2026-01-01T00:00:00Z",
       siteData: JSON.stringify({
         n: "Legacy renewal",
         rt: "",
@@ -194,8 +192,6 @@ describeWithEnv("built-site storage", { db: true }, () => {
         v: 1,
       }),
     });
-    expect(
-      (await builtSitesCrudTable.read.one({ id: row.id }))?.renewalToken,
-    ).toBe("");
+    expect((await findBuiltSiteById(row.id))?.renewalToken).toBe("");
   });
 });

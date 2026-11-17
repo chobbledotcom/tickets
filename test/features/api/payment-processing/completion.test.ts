@@ -135,7 +135,7 @@ describeWithEnv(
         ...entry,
         listing: {
           ...entry.listing,
-          webhook_url: "https://example.com/registration",
+          webhookUrl: "https://example.com/registration",
         },
       };
 

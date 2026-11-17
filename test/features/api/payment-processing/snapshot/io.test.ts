@@ -7,11 +7,7 @@ import { execute } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { setGroupPackageMembers, setListingGroups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import {
-  modifierGroups,
-  modifierListings,
-  modifiersTable,
-} from "#db/modifiers.ts";
+import { modifierGroups, modifierListings } from "#db/modifiers.ts";
 import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import { priceCheckout } from "#shared/checkout-pricing.ts";
@@ -26,6 +22,7 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
 
 const loadStaleScopePricing = async (scope: "groups" | "listings") => {
@@ -39,10 +36,9 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
   });
   const group = await createTestGroup({ name: "Modifier group" });
   await setListingGroups(groupLink.id, [group.id]);
-  const modifier = await modifiersTable.insert({
+  const modifier = await insertModifier({
     calcKind: "percent",
     calcValue: 10,
-    direction: "charge",
     name: "Scoped charge",
     scope,
   });
@@ -51,8 +47,8 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
 
   const intent = bookingIntent(
     [
-      { e: listingLink.id, p: listingLink.unit_price, q: 1 },
-      { e: groupLink.id, p: groupLink.unit_price, q: 1 },
+      { e: listingLink.id, p: listingLink.unitPrice, q: 1 },
+      { e: groupLink.id, p: groupLink.unitPrice, q: 1 },
     ],
     { modifiers: [{ i: modifier.id, q: 1 }] },
   );
@@ -66,7 +62,7 @@ const loadStaleScopePricing = async (scope: "groups" | "listings") => {
       name: listing.name,
       quantity: 1,
       slug: listing.slug,
-      unitPrice: listing.unit_price,
+      unitPrice: listing.unitPrice,
     })),
     modifiers: snapshot.modifierSpecs,
     name: intent.name,
@@ -96,7 +92,7 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
     const intent = bookingIntent(
       listings.map((listing) => ({
         e: listing.id,
-        p: listing.unit_price,
+        p: listing.unitPrice,
         q: 1,
       })),
     );
@@ -230,18 +226,15 @@ describeWithEnv("paid order snapshot IO", { db: true }, () => {
       },
     ]);
 
-    const directModifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
+    const directModifier = await insertModifier({
       direction: "discount",
       minVisits: 3,
       name: "Direct discount",
       scope: "listings",
     });
-    const groupModifier = await modifiersTable.insert({
+    const groupModifier = await insertModifier({
       calcKind: "percent",
       calcValue: 10,
-      direction: "charge",
       name: "Package charge",
       scope: "groups",
     });

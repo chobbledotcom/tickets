@@ -17,10 +17,10 @@ import type { Listing } from "#types";
 /** The smallest form the create page accepts, plus the given boxes. */
 export const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
+    maxAttendees: "50",
+    maxQuantity: "5",
     name: "Parsed listing",
-    unit_price: "0",
+    unitPrice: "0",
     ...extra,
   });
 

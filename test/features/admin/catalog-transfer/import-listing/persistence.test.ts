@@ -8,7 +8,8 @@ import {
 } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
 import { getGroupDayPrices } from "#db/listing-prices.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, newListingValues } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { sql, sqlLiteral } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
@@ -59,7 +60,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: 0, quantity: 1 },
+      { groupId: group.id, listingId: id, packagePrice: 0, quantity: 1 },
     ]);
     expect((await getGroupDayPrices(group.id)).get(id)).toEqual(
       new Map([[2, 700]]),
@@ -83,7 +84,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     expect(await getGroupPackagePrices(group.id)).toEqual([
-      { group_id: group.id, listing_id: id, package_price: null, quantity: 1 },
+      { groupId: group.id, listingId: id, packagePrice: null, quantity: 1 },
     ]);
     expect([...(await getGroupDayPrices(group.id)).entries()]).toEqual([]);
   });
@@ -96,8 +97,8 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     });
 
     const listing = await getListingWithCount(id);
-    expect(listing?.attachment_name).toBe("");
-    expect(listing?.attachment_url).toBe("");
+    expect(listing?.attachmentName).toBe("");
+    expect(listing?.attachmentUrl).toBe("");
   });
 
   test("writes every resolved parent edge", async () => {
@@ -123,9 +124,9 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
     expect(await getGroupPackagePrices(groupId)).toEqual([
       {
-        group_id: groupId,
-        listing_id: member.id,
-        package_price: null,
+        groupId,
+        listingId: member.id,
+        packagePrice: null,
         quantity: 1,
       },
     ]);
@@ -148,7 +149,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
         version: 1,
       }),
       writeRowInTransaction(
-        await listingsTable.insertStatement!(standardInput),
+        await records.listings.insertStatement(newListingValues(standardInput)),
         null,
         (tx, id) => setListingGroupsTx(tx, id, standardInput.groupIds),
       ),
@@ -175,7 +176,7 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
     expect(
       new Set(
         (await getListingsByGroupId(group.id)).map(
-          (listing) => listing.listing_type,
+          (listing) => listing.listingType,
         ),
       ).size,
     ).toBe(1);

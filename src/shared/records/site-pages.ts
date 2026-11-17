@@ -4,10 +4,10 @@
  * update, read, and delete are overrides on this same declaration.
  */
 
+import { records } from "#db/record-table.ts";
 import { deleteSitePageWithEdges } from "#db/site-page-items.ts";
 import {
   createSitePage,
-  getSitePageById,
   type SitePageWriteInput,
   sitePages,
   updateSitePage,
@@ -37,7 +37,7 @@ export const sitePageRecord = defineNamedRowRecord<
   api: ADMIN_API_RESOURCES["site-pages"],
   // The list page shows the nav columns only.
   getAll: () => sitePages.getAll(),
-  load: getSitePageById,
+  load: records.site_pages.find,
   nameLabel: "site.pages.name_label",
   rule: sitePageRule,
   surface: "sitePages",
@@ -47,7 +47,7 @@ export const sitePageRecord = defineNamedRowRecord<
     "notFound" | "slugTaken"
   >({
     create: createSitePage,
-    load: getSitePageById,
+    load: records.site_pages.find,
     log: logPage,
     message: () => t("site.pages.error.slug_taken"),
     notFound: "notFound",

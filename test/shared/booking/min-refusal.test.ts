@@ -29,8 +29,8 @@ describe("packageBundleMembers", () => {
           [12, 1],
         ]),
         new Map([
-          [11, { min_quantity: 3, name: "Suite" }],
-          [12, { min_quantity: 1, name: "Addon" }],
+          [11, { minQuantity: 3, name: "Suite" }],
+          [12, { minQuantity: 1, name: "Addon" }],
         ]),
       ),
     ).toEqual([
@@ -48,7 +48,7 @@ describe("packageBundleMembers", () => {
           [11, 2],
           [99, 4],
         ]),
-        new Map([[11, { min_quantity: 3, name: "Suite" }]]),
+        new Map([[11, { minQuantity: 3, name: "Suite" }]]),
       ),
     ).toEqual([{ fixed: 2, minQuantity: 3, name: "Suite" }]);
   });

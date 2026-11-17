@@ -9,7 +9,7 @@ import {
 } from "#db/attendees/tokens.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import { compact, requiredMapValue, unique } from "#fp";
 import { requireRequestPrivateKey } from "#shared/session-private-key.ts";
 import type { PreviousBooking } from "#templates/admin/attendee-page.tsx";
@@ -103,7 +103,7 @@ export const loadPreviousBookings = async (
 
   const [statuses, listingNameById] = await Promise.all([
     attendeeStatuses.getAll(),
-    listingNames.byIds(listingIdsFor(resolved)),
+    listingNamesByIds(listingIdsFor(resolved)),
   ]);
   const statusNameById = new Map(
     statuses.map((status) => [status.id, status.name]),

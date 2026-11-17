@@ -27,7 +27,7 @@ export const questionTextForm = defineForm({
     {
       invalidMessage: questionDisplayTypeError,
       label: "Display as",
-      name: "display_type",
+      name: "displayType",
       options: requireChoiceOptions(
         "Display as",
         QUESTION_DISPLAY_TYPES.map((value) => ({

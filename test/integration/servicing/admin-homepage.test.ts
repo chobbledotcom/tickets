@@ -45,16 +45,16 @@ describeWithEnv("servicing — the service event form", { db: true }, () => {
       `/admin/servicing/new?select_${listing.id}=1&start_date=2099-07-01`,
     );
     expect(body).toMatch(
-      new RegExp(`name="quantity_${listing.id}"[^>]*value="1"`),
+      new RegExp(`name="quantity${listing.id}"[^>]*value="1"`),
     );
-    expectIncludesAll(body, ['name="start_date"', 'value="2099-07-01"']);
+    expectIncludesAll(body, ['name="startDate"', 'value="2099-07-01"']);
   });
 
   test("the edit page renders saved booking quantities", async () => {
     const { id, listing } = await roomAWithBoiler();
     const body = await renderAdminPage(`/admin/servicing/${id}`);
     expect(body).toMatch(
-      new RegExp(`name="quantity_${listing.id}"[^>]*value="2"`),
+      new RegExp(`name="quantity${listing.id}"[^>]*value="2"`),
     );
     assertStringIncludes(body, 'value="2099-07-01"');
   });

@@ -75,16 +75,16 @@ const handleReservationConflict = async (
   data: ValidatedSession,
   existing: ProcessedPayment,
 ): Promise<PaymentResult> => {
-  if (existing.attendee_id !== null) {
+  if (existing.attendeeId !== null) {
     return alreadyProcessedResult(data.intent.items[0]!.e, {
       ...existing,
-      attendee_id: existing.attendee_id,
+      attendeeId: existing.attendeeId,
     });
   }
   // A recorded terminal failure replays the same handled outcome (refund
   // already issued, sold out, price changed). It re-validates nothing and
   // re-refunds nothing. failure_data is encrypted, so this read is async.
-  const failure = await parseSessionFailure(existing.failure_data);
+  const failure = await parseSessionFailure(existing.failureData);
   if (failure) {
     // A completion marker says the placeholder can still owe money records:
     // finish them before answering, so a crashed first delivery cannot park
@@ -328,7 +328,7 @@ const processReservedSession: SessionProcessor = async (sessionId, data) => {
     // prunable processed_payments row), so one leg here means a replay.
     const alreadySettled = await readExists(
       from(tables.transfers).where({
-        event_group: await balanceEventGroup(sessionId),
+        eventGroup: await balanceEventGroup(sessionId),
       }),
     );
     if (alreadySettled) {

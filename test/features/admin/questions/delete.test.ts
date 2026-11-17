@@ -20,7 +20,7 @@ describeWithEnv(
         await withFailingOrderTrigger("questions", async () => {
           await expect(
             adminFormPost("/admin/questions", {
-              display_type: "radio",
+              displayType: "radio",
               text: "Ghost?",
             }),
           ).rejects.toThrow("order write failed");
@@ -35,7 +35,7 @@ describeWithEnv(
 
         const { response } = await adminFormPost(
           `/admin/questions/${id}/delete`,
-          { confirm_identifier: "Wrong" },
+          { confirmIdentifier: "Wrong" },
         );
 
         await expectFlashRedirect(
@@ -51,7 +51,7 @@ describeWithEnv(
 
         const { response } = await adminFormPost(
           `/admin/questions/${id}/delete`,
-          { confirm_identifier: "Doomed question?" },
+          { confirmIdentifier: "Doomed question?" },
         );
 
         await expectFlashRedirect(

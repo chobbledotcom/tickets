@@ -37,7 +37,7 @@ describe("orderGalleryPage packages", () => {
         {
           group: testGroup({
             id: 1,
-            is_package: true,
+            isPackage: true,
             name: "Zeta Bundle",
             slug: "zeta",
           }),
@@ -46,7 +46,7 @@ describe("orderGalleryPage packages", () => {
         {
           group: testGroup({
             id: 2,
-            is_package: true,
+            isPackage: true,
             name: "Alpha Bundle",
             slug: "alpha",
           }),
@@ -88,7 +88,7 @@ describe("orderGalleryPage packages", () => {
       [
         {
           group: testGroup({
-            is_package: true,
+            isPackage: true,
             name: "Frozen Bundle",
             slug: "frozen",
           }),

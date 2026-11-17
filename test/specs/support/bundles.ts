@@ -7,7 +7,8 @@
 
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupPackagePrices } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
 import { map } from "#fp";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
@@ -122,7 +123,7 @@ const bundleForm = (
 ): Record<string, string> => {
   const filledIn = Object.fromEntries(
     map((part: PartOfBundle) => {
-      const box = `package_price_${listingIdNamed(world, part.name)}`;
+      const box = `packagePrice${listingIdNamed(world, part.name)}`;
       assertStringIncludes(html, `name="${box}"`);
       return [
         box,
@@ -198,8 +199,8 @@ export const organiserSellsAsBundle = (
 ): Promise<void> =>
   savesBundleForm(world, name, (page) => ({
     ...bundleForm(world, parts, page),
-    hide_package_listings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
-    is_package: choiceOnForm(page, BUNDLE_BOX, true),
+    hidePackageListings: choiceOnForm(page, PRIVATE_BOX, keepPartsPrivate),
+    isPackage: choiceOnForm(page, BUNDLE_BOX, true),
   }));
 
 /** What the site tells an organiser when a group's own form saves, and when a
@@ -207,31 +208,31 @@ export const organiserSellsAsBundle = (
 export const GROUP_SAVED = "Group updated";
 export const GROUP_DELETED = "Group deleted";
 
-const BUNDLE_BOX = "is_package";
-const PRIVATE_BOX = "hide_package_listings";
+const BUNDLE_BOX = "isPackage";
+const PRIVATE_BOX = "hidePackageListings";
 
 /** The organiser stops selling this as a bundle, by clearing the box. Keeps
  * what they were told, because this is refused for a private bundle. */
 export const organiserStopsBundling: ReadAboutOneThing = async (world, name) =>
   saveBundleForm(world, name, (page) => ({
-    is_package: boxCleared(page, BUNDLE_BOX),
+    isPackage: boxCleared(page, BUNDLE_BOX),
   }));
 
 /** The organiser lets people see what is inside again. */
 export const organiserRevealsParts: ActOnOneThing = (world, name) =>
   savesBundleForm(world, name, (page) => ({
-    hide_package_listings: boxCleared(page, PRIVATE_BOX),
+    hidePackageListings: boxCleared(page, PRIVATE_BOX),
   }));
 
 /** The bundle as the site has it now, or nothing if it is gone. */
 const readBundle = (world: TicketsWorld, name: string) =>
-  groups.table.read.one({ id: bundleNamed(world, name).id });
+  records.groups.find(bundleNamed(world, name).id);
 
 /** Whether the site is still selling this as one bundle. */
 export const isStillABundle: AsksAboutOneThing = async (world, name) => {
   // A bundle that vanished is not the same as one that stopped being a bundle,
   // and answering "no" for both would hide a group the site destroyed.
-  return stillThere(await readBundle(world, name), name).is_package;
+  return stillThere(await readBundle(world, name), name).isPackage;
 };
 
 /** What the bundle charges for one part, or nothing when the organiser set no
@@ -245,9 +246,9 @@ export const bundleChargeForOrNull = async (
 ): Promise<number | null> => {
   const wanted = listingIdNamed(world, part);
   const rows = await getGroupPackagePrices(bundleNamed(world, name).id);
-  const inBundle = rows.find((row: GroupListing) => row.listing_id === wanted);
+  const inBundle = rows.find((row: GroupListing) => row.listingId === wanted);
   if (!inBundle) throw new Error(`The ${part} is not in the ${name} at all`);
-  return inBundle.package_price;
+  return inBundle.packagePrice;
 };
 
 /**
@@ -269,7 +270,7 @@ export const customerOpensBundlePage: ReadAboutOneThing<TestBrowser> = async (
   // be chosen in a real browser however well a crafted send goes through.
   assertStringIncludes(
     browser.currentHtml,
-    `name="package_quantity_${group.id}"`,
+    `name="packageQuantity${group.id}"`,
   );
   world.bundleBookingPage = browser.pageText;
   leaveEvidencePage(world, ["bundle-booking-page"], `/ticket/${group.slug}`);
@@ -294,7 +295,7 @@ export const customerBuysBundles: BuysBundles = async (
   // The box's name carries the group it belongs to, read off the page the
   // customer is really filling in rather than guessed from the id.
   const quantityField = stillThere(
-    browser.currentHtml.match(/name="(package_quantity_[^"]*)"/)?.[1],
+    browser.currentHtml.match(/name="(packageQuantity[^"]*)"/)?.[1],
     "bundle quantity box",
   );
   const filledIn = {
@@ -322,7 +323,7 @@ export const organiserDeletesBundle: ReadAboutOneThing = async (
     world,
     `/admin/groups/${bundleNamed(world, name).id}/delete`,
   );
-  const typed = "confirm_identifier";
+  const typed = "confirmIdentifier";
   expect(whyValueCannotBeSent(browser.currentHtml, typed, name)).toBeNull();
   await browser.submitForm({ [typed]: name }, "Delete Group");
   return browser.pageText;
@@ -347,6 +348,6 @@ export const customerOpensPartPage: ReadAboutOneThing<TestBrowser> = async (
 export const expectPartOnSaleAlone: ActOnOneThing = async (world, part) => {
   const browser = await customerOpensPartPage(world, part);
   assertStringIncludes(browser.pageText, part);
-  const box = `quantity_${listingNamed(world, part).id}`;
+  const box = `quantity${listingNamed(world, part).id}`;
   expect(whyValueCannotBeSent(browser.currentHtml, box, "1")).toBeNull();
 };

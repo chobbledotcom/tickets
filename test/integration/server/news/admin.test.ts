@@ -2,7 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { getNewsPostById, getNewsPostCards } from "#db/news-posts.ts";
+import { getNewsPostCards } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { CONTENT_FIELD_LIMITS } from "#routes/admin/content-form-fields.ts";
 import { wasActivityLogged as wasLogged } from "#test-utils/activity-log.ts";
@@ -30,7 +31,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
   const findPost = async (name: string): Promise<NewsPost> => {
     const card = (await getNewsPostCards()).find((c) => c.name === name);
     if (!card) throw new Error(`post ${name} not found`);
-    return (await getNewsPostById(card.id))!;
+    return (await records.news_posts.find(card.id))!;
   };
 
   describe("list + new", () => {
@@ -54,8 +55,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       const html = await expectHtmlResponse(await adminGet(`${BASE}/new`), 200);
       expectIncludesAll(html, [
         `maxlength="${CONTENT_FIELD_LIMITS.name}" name="name"`,
-        `maxlength="${CONTENT_FIELD_LIMITS.meta_title}" name="meta_title"`,
-        `maxlength="${CONTENT_FIELD_LIMITS.meta_description}" name="meta_description"`,
+        `maxlength="${CONTENT_FIELD_LIMITS.metaTitle}" name="metaTitle"`,
+        `maxlength="${CONTENT_FIELD_LIMITS.metaDescription}" name="metaDescription"`,
       ]);
     });
 
@@ -87,8 +88,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("creates a post with every field and redirects to its editor", async () => {
       const { response } = await create("Launch", {
         content: "Body **text**",
-        meta_description: "Meta description",
-        meta_title: "Meta title",
+        metaDescription: "Meta description",
+        metaTitle: "Meta title",
         snippet: "Short summary",
       });
       const post = await findPost("Launch");
@@ -98,8 +99,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         true,
       )(response);
       expect(post.content).toBe("Body **text**");
-      expect(post.meta_title).toBe("Meta title");
-      expect(post.meta_description).toBe("Meta description");
+      expect(post.metaTitle).toBe("Meta title");
+      expect(post.metaDescription).toBe("Meta description");
       expect(post.snippet).toBe("Short summary");
       expect(post.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       // The permalink slug is auto-generated from the created date and name.
@@ -112,8 +113,8 @@ describeWithEnv("server (admin news)", { db: true }, () => {
       const post = await findPost("No optional fields");
       expect(post).toMatchObject({
         content: "",
-        meta_description: "",
-        meta_title: "",
+        metaDescription: "",
+        metaTitle: "",
         snippet: "",
       });
     });
@@ -183,7 +184,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("an image POST with storage disabled bounces to the edit tab, not the hidden images tab", async () => {
       const post = await createTestNewsPost("Storage off post");
       const { response } = await adminFormPost(`${BASE}/${post.id}/images`, {
-        image_ids: "1",
+        imageIds: "1",
       });
       // The images tab is hidden with storage off, so the disabled-storage
       // message must land on the (visible) edit tab.
@@ -227,7 +228,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         "News post updated",
         true,
       )(response);
-      const updated = await getNewsPostById(post.id);
+      const updated = await records.news_posts.find(post.id);
       expect(updated?.name).toBe("After update");
       expect(updated?.snippet).toBe("new snippet");
       expect(updated?.content).toBe("new body");
@@ -247,7 +248,7 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         fields,
       );
       expect(response.status).toBe(400);
-      const unchanged = await getNewsPostById(post.id);
+      const unchanged = await records.news_posts.find(post.id);
       expect([unchanged?.name, unchanged?.slug]).toEqual([
         post.name,
         post.slug,
@@ -275,7 +276,9 @@ describeWithEnv("server (admin news)", { db: true }, () => {
         "News post updated",
         true,
       )(response);
-      expect((await getNewsPostById(post.id))?.name).toBe("Keeps slug renamed");
+      expect((await records.news_posts.find(post.id))?.name).toBe(
+        "Keeps slug renamed",
+      );
     });
 
     test("update rejects a missing name and keeps the submitted slug", async () => {
@@ -315,19 +318,19 @@ describeWithEnv("server (admin news)", { db: true }, () => {
     test("requires the exact post name to confirm", async () => {
       const post = await createTestNewsPost("Keep me");
       const { response } = await adminFormPost(`${BASE}/${post.id}/delete`, {
-        confirm_identifier: "wrong name",
+        confirmIdentifier: "wrong name",
       });
       expectErrorFlash(response, "does not match");
-      expect(await getNewsPostById(post.id)).not.toBeNull();
+      expect(await records.news_posts.find(post.id)).not.toBeNull();
     });
 
     test("deletes on a matching confirmation and logs", async () => {
       const post = await createTestNewsPost("Delete me");
       const { response } = await adminFormPost(`${BASE}/${post.id}/delete`, {
-        confirm_identifier: "Delete me",
+        confirmIdentifier: "Delete me",
       });
       expectRedirectWithFlash(BASE, "News post deleted", true)(response);
-      expect(await getNewsPostById(post.id)).toBeNull();
+      expect(await records.news_posts.find(post.id)).toBeNull();
       expect(await wasLogged("News post 'Delete me' deleted")).toBe(true);
     });
   });

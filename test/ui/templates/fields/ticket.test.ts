@@ -33,7 +33,7 @@ describe("getTicketFields — field composition", () => {
     expect(fieldNames("address")).toEqual(["name", "address"]);
     expect(fieldNames("special_instructions")).toEqual([
       "name",
-      "special_instructions",
+      "specialInstructions",
     ]);
     expect(fieldNames("email,phone")).toEqual(["name", "email", "phone"]);
     expect(fieldNames("email,phone,address,special_instructions")).toEqual([
@@ -41,7 +41,7 @@ describe("getTicketFields — field composition", () => {
       "email",
       "phone",
       "address",
-      "special_instructions",
+      "specialInstructions",
     ]);
   });
 
@@ -121,7 +121,7 @@ describe("extractContact", () => {
         email: "ada@example.com",
         name: "Ada Byron",
         phone: "07946 123456",
-        special_instructions: "Leave at the desk",
+        specialInstructions: "Leave at the desk",
       }),
     ).toEqual({
       address: "1 Road",
@@ -139,7 +139,7 @@ describe("extractContact", () => {
         email: null,
         name: "Ada Byron",
         phone: null,
-        special_instructions: null,
+        specialInstructions: null,
       }),
     ).toEqual({
       address: "",
@@ -192,7 +192,7 @@ describe("getTicketFields — field validation", () => {
   test("special_instructions field is required", () => {
     expectInvalid("Special Instructions is required")(
       getTicketFields("special_instructions", false),
-      { name: "Jane", special_instructions: "" },
+      { name: "Jane", specialInstructions: "" },
     );
   });
 

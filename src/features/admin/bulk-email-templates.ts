@@ -49,8 +49,8 @@ const answerTemplateSave = (
 export const handleTemplateSavePost = validatedEmailPost(
   "/admin/emails/templates",
   async ({ subject, body, target }, form) => {
-    const updateExisting = form.getFlag("update_existing");
-    const templateIdParam = form.get("template_id");
+    const updateExisting = form.getFlag("updateExisting");
+    const templateIdParam = form.get("templateId");
     const templateId = templateIdParam
       ? parsePositiveIntId(templateIdParam)
       : null;

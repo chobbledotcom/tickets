@@ -75,9 +75,7 @@ describeWithEnv("server (balance payment replay)", { db: true }, () => {
       mockRequest(`/payment/success?session_id=${sessionId}`),
     );
     await expectHtmlResponse(replay, 200, 'data-payment-result="success"');
-    expect((await getProcessedPayment(sessionId))?.attendee_id).toBe(
-      attendeeId,
-    );
+    expect((await getProcessedPayment(sessionId))?.attendeeId).toBe(attendeeId);
     expect(mockRefund.calls.length).toBe(0);
 
     // The replay recreated the pruned idempotency row, but it must restore the

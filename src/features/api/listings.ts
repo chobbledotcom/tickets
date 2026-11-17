@@ -69,7 +69,7 @@ export const handleListListings = async (): Promise<Response> => {
 export const handleGetListing = withGuardedListing(
   async (_request, listing, isSoldOutParent) => {
     let availableDates: string[] | undefined;
-    if (listing.listing_type === "daily") {
+    if (listing.listingType === "daily") {
       const holidays = await getActiveHolidays();
       // A daily parent's API dates must match what the web selector offers. A
       // date no required child can serve (for the inherited span) is removed
@@ -115,7 +115,7 @@ const buildChildAvailability = (
 ): Promise<{ slug: string; available: boolean }[] | null> =>
   mapParentChildren(parent, async (child) => {
     let childDateAvail = true;
-    if (child.listing_type === "daily" && date) {
+    if (child.listingType === "daily" && date) {
       childDateAvail = getBookableStartDates(
         child,
         await getActiveHolidays(),
@@ -147,7 +147,7 @@ export const handleCheckAvailability = withGuardedListing(
     const date = url.searchParams.get("date") || undefined;
     // A daily parent is available only on dates its required children can serve.
     // A daily listing with no children is returned unchanged by the helper.
-    if (listing.listing_type === "daily" && date) {
+    if (listing.listingType === "daily" && date) {
       const holidays = await getActiveHolidays();
       const childServableDates = await keepParentDailyDatesChildrenCanServe(
         listing,

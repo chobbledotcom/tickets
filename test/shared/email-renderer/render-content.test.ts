@@ -177,7 +177,7 @@ describeEmailRenderer(() => {
 
     test("renders paid listing with currency in confirmation", async () => {
       const data = await buildTestData([
-        makeEntry({ unit_price: 1000 }, { price_paid: "2000", quantity: 2 }),
+        makeEntry({ unitPrice: 1000 }, { price_paid: "2000", quantity: 2 }),
       ]);
       const result = await renderEmailContent("confirmation", data);
 
@@ -188,7 +188,7 @@ describeEmailRenderer(() => {
     test("shows the amount owed when a balance is outstanding", async () => {
       const data = await buildTestData([
         makeEntry(
-          { unit_price: 1000 },
+          { unitPrice: 1000 },
           { price_paid: "0", remaining_balance: 2000 },
         ),
       ]);
@@ -203,7 +203,7 @@ describeEmailRenderer(() => {
     test("omits the amount owed when the booking is fully paid", async () => {
       const data = await buildTestData([
         makeEntry(
-          { unit_price: 1000 },
+          { unitPrice: 1000 },
           { price_paid: "1000", remaining_balance: 0 },
         ),
       ]);

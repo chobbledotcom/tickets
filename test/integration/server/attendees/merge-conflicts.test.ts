@@ -81,7 +81,7 @@ describeWithEnv(
         // panel with the validation error flashed and the search re-armed.
         const { response } = await adminFormPost(
           `/admin/attendees/${target.id}/merge`,
-          { merge_version: "stale-version", source_token: sourceToken },
+          { mergeVersion: "stale-version", sourceToken: sourceToken },
         );
         expectRedirect(
           response,
@@ -130,7 +130,7 @@ describeWithEnv(
         );
 
         const { response } = await submitMerge(target.id, sourceToken, {
-          [`booking_${listing.id}:null:0:0`]: "take_source",
+          [`booking${listing.id}:null:0:0`]: "take_source",
         });
         expect(response.status).toBe(302);
 
@@ -147,7 +147,7 @@ describeWithEnv(
         });
 
         const { response } = await submitMerge(target.id, sourceToken, {
-          [`booking_${listing1.id}:null:0:0`]: "take_source",
+          [`booking${listing1.id}:null:0:0`]: "take_source",
         });
         expect(response.status).toBe(302);
         expectFlash(response, expect.stringContaining("Merged"), true);

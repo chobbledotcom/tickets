@@ -12,6 +12,7 @@ import {
 import { abortUnless } from "#db/guarded-writes.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
 import { notNullGuardFailure } from "#db/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settingsVersionIncrement } from "#db/settings/cache.ts";
 import {
   type BooleanJsonField,
@@ -23,6 +24,7 @@ import {
 } from "#db/settings/raw-writes.ts";
 import { setSnapshotField } from "#db/settings/snapshot.ts";
 import { type SqlStatement, sql, sqlCommas, sqlLiteral } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { range } from "#fp";
 import {
   ADMIN_FEATURES,
@@ -101,11 +103,11 @@ const writeAdminFeatureEnabled = async (
   return true;
 };
 
-type PreparedLogisticsDefault = {
-  current: string | null;
-  nextEncrypted: string | null;
-  nextPlain: string | null;
-};
+/** The stored listing defaults, and the new value when it changes. A change
+ *  needs a stored value to change. */
+type PreparedLogisticsDefault =
+  | { current: string | null; nextEncrypted: null; nextPlain: null }
+  | { current: string; nextEncrypted: string; nextPlain: string };
 
 const prepareLogisticsDefault = async (): Promise<PreparedLogisticsDefault> => {
   const result = await queryOnePrimary<unknown>(
@@ -147,7 +149,10 @@ const logisticsDisableStatements = (
   const statements: SqlStatement[] = [requireSettingCondition(unchanged)];
   if (prepared.nextEncrypted !== null) {
     statements.push(
-      sql`UPDATE settings SET value = ${prepared.nextEncrypted} WHERE key = ${CONFIG_KEYS.LISTING_DEFAULTS} AND value = ${prepared.current}`,
+      update(tables.settings, { value: prepared.nextEncrypted }).where({
+        key: CONFIG_KEYS.LISTING_DEFAULTS,
+        value: prepared.current,
+      }),
     );
   }
   statements.push(

@@ -43,7 +43,7 @@ const createInvoicePost = async (
 ): Promise<Response> =>
   (
     await adminFormPost("/admin/invoices/new", {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       body,
       number: String(number),
     })
@@ -83,7 +83,7 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
       await adminGet("/admin/invoices/new?attendee=42"),
     );
     expect(inputNamed(html, "number")).toContain('value="1"');
-    expect(inputNamed(html, "attendee_id")).toContain('value="42"');
+    expect(inputNamed(html, "attendeeId")).toContain('value="42"');
     expectIncludesAll(html, [
       "Preview invoice",
       // The first form only checks the booking; the preview page makes the
@@ -273,14 +273,14 @@ describeWithEnv("server (admin invoices)", { db: true }, () => {
     const cookie = await createTestManagerSession();
     const attendeeId = await createOwing(1500);
     const preview = await postFormAs("/admin/invoices/preview", cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       number: "1",
     });
     expect(preview.status).toBe(200);
     assertStringIncludes(await preview.text(), "<h1>Invoice 1</h1>");
 
     const response = await postFormAs("/admin/invoices/new", cookie, {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       body: "Invoice one.",
       number: "1",
     });

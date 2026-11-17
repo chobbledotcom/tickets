@@ -42,7 +42,7 @@ export const logisticsAgentPage: EditEntityPage<LogisticsAgent> =
     edit: async (agent, _ctx, rejected) => {
       const users = await loadAgentUserOptions();
       const selectedIds = rejected
-        ? selectedIdsFromForm(rejected.form, "user_ids", users)
+        ? selectedIdsFromForm(rejected.form, "userIds", users)
         : await agentUsers.getIds(agent.id);
       return LogisticsAgentEditPanel({
         agent,

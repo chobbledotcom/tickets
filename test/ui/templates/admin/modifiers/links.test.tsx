@@ -17,11 +17,11 @@ const MODIFIER = testModifier({ id: 1 });
 describe("SCOPE_LINK_KINDS", () => {
   test("maps each kind to its form field and plural type term", () => {
     expect(SCOPE_LINK_KINDS.listings).toEqual({
-      field: "listing_ids",
+      field: "listingIds",
       term: "terms.listings",
     });
     expect(SCOPE_LINK_KINDS.groups).toEqual({
-      field: "group_ids",
+      field: "groupIds",
       term: "terms.groups",
     });
   });
@@ -57,8 +57,8 @@ describe("ScopeLinksForm", () => {
     });
     expectIncludesAll(html, [
       "<strong>Linked listings (1):</strong>",
-      'checked name="listing_ids" type="checkbox" value="7"',
-      '<label><input name="listing_ids" type="checkbox" value="8"',
+      'checked name="listingIds" type="checkbox" value="7"',
+      '<label><input name="listingIds" type="checkbox" value="8"',
       "VIP Pass",
     ]);
   });
@@ -71,10 +71,10 @@ describe("ScopeLinksForm", () => {
     });
     expectIncludesAll(html, [
       "<strong>Linked groups (0):</strong>",
-      'name="group_ids" type="checkbox" value="3"',
+      'name="groupIds" type="checkbox" value="3"',
       "Weekend",
     ]);
-    assert(!html.includes('name="listing_ids"'));
+    assert(!html.includes('name="listingIds"'));
   });
 
   test("sorts a deactivated listing last and renders it muted", () => {
@@ -88,7 +88,7 @@ describe("ScopeLinksForm", () => {
     });
     const live = html.indexOf('value="8"');
     const retired = html.indexOf(
-      '<label class="muted"><input name="listing_ids" type="checkbox" value="7"',
+      '<label class="muted"><input name="listingIds" type="checkbox" value="7"',
     );
     expect(live).toBeGreaterThan(-1);
     expect(retired).toBeGreaterThan(live);
@@ -131,8 +131,8 @@ describe("AnswerLinksForm", () => {
     });
     expectIncludesAll(html, [
       "<strong>Linked answers (1):</strong>",
-      'checked name="answer_ids" type="checkbox" value="10"',
-      '<label><input name="answer_ids" type="checkbox" value="11"',
+      'checked name="answerIds" type="checkbox" value="10"',
+      '<label><input name="answerIds" type="checkbox" value="11"',
     ]);
   });
 
@@ -141,7 +141,7 @@ describe("AnswerLinksForm", () => {
       options: [{ id: 10, name: "Size — Large" }],
       selected: [],
     });
-    assert(!html.includes('<label class="muted"><input name="answer_ids"'));
+    assert(!html.includes('<label class="muted"><input name="answerIds"'));
   });
 
   test("shows the empty note when there are no answers to link", () => {

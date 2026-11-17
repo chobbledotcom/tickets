@@ -65,10 +65,10 @@ describe("booking model — capacity", () => {
     test("standard listing capacity is max_attendees minus attendee_count", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 3,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 100,
+          attendeeCount: 3,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 100,
         }),
         false,
         undefined,
@@ -79,7 +79,7 @@ describe("booking model — capacity", () => {
 
     test("daily listings have unlimited seat capacity of their own", () => {
       const tl = buildTicketListing(
-        listing({ listing_type: "daily", max_quantity: 5 }),
+        listing({ listingType: "daily", maxQuantity: 5 }),
         false,
         undefined,
       );
@@ -93,9 +93,9 @@ describe("booking model — capacity", () => {
       const tl = buildTicketListing(
         listing(
           dailyOverrides({
-            max_attendees: 2,
-            max_quantity: 5,
-            min_quantity: 3,
+            maxAttendees: 2,
+            maxQuantity: 5,
+            minQuantity: 3,
           }),
         ),
         false,
@@ -111,10 +111,10 @@ describe("booking model — capacity", () => {
       // date, so it still caps the ceiling (max_quantity on top of it).
       const tl = buildTicketListing(
         listing({
-          attendee_count: 5,
-          listing_type: "daily",
-          max_attendees: 5,
-          max_quantity: 100,
+          attendeeCount: 5,
+          listingType: "daily",
+          maxAttendees: 5,
+          maxQuantity: 100,
         }),
         false,
         undefined,
@@ -126,7 +126,7 @@ describe("booking model — capacity", () => {
     test("a daily listing still sells out when its shared group pool is empty", () => {
       // The per-date own cap doesn't apply date-lessly, but the group pool does.
       const tl = buildTicketListing(
-        listing({ listing_type: "daily", max_quantity: 5 }),
+        listing({ listingType: "daily", maxQuantity: 5 }),
         false,
         0,
       );
@@ -137,9 +137,9 @@ describe("booking model — capacity", () => {
     test("sold out when remaining spots are zero", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 10,
-          listing_type: "standard",
-          max_attendees: 10,
+          attendeeCount: 10,
+          listingType: "standard",
+          maxAttendees: 10,
         }),
         false,
         undefined,
@@ -151,10 +151,10 @@ describe("booking model — capacity", () => {
     test("group cap takes the minimum of the listing's own remaining and the shared group's remaining", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
+          attendeeCount: 0,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
         }),
         false,
         3,
@@ -165,9 +165,9 @@ describe("booking model — capacity", () => {
     test("closed listings have zero purchasable even with stock, at any minimum", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
+          attendeeCount: 0,
+          listingType: "standard",
+          maxAttendees: 10,
         }),
         true,
         undefined,
@@ -178,11 +178,11 @@ describe("booking model — capacity", () => {
       // A minimum above the stock cannot make a closed listing sell.
       const withMinimum = buildTicketListing(
         listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          min_quantity: 3,
+          attendeeCount: 0,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
+          minQuantity: 3,
         }),
         true,
         undefined,
@@ -195,11 +195,11 @@ describe("booking model — capacity", () => {
     test("sold out when remaining spots sit below the minimum", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 9,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          min_quantity: 3,
+          attendeeCount: 9,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
+          minQuantity: 3,
         }),
         false,
         undefined,
@@ -211,11 +211,11 @@ describe("booking model — capacity", () => {
     test("allows exactly the minimum when remaining spots meet it", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 8,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          min_quantity: 2,
+          attendeeCount: 8,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
+          minQuantity: 2,
         }),
         false,
         undefined,
@@ -227,11 +227,11 @@ describe("booking model — capacity", () => {
     test("clamps maxPurchasable to remaining spots above the minimum", () => {
       const tl = buildTicketListing(
         listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          min_quantity: 3,
+          attendeeCount: 0,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
+          minQuantity: 3,
         }),
         false,
         undefined,
@@ -243,11 +243,11 @@ describe("booking model — capacity", () => {
       // The listing's own remaining is 10, but the group pool clamps it to 2.
       const tl = buildTicketListing(
         listing({
-          attendee_count: 0,
-          listing_type: "standard",
-          max_attendees: 10,
-          max_quantity: 10,
-          min_quantity: 3,
+          attendeeCount: 0,
+          listingType: "standard",
+          maxAttendees: 10,
+          maxQuantity: 10,
+          minQuantity: 3,
         }),
         false,
         2,
@@ -261,9 +261,9 @@ describe("booking model — capacity", () => {
       // binds — max_quantity is the only ceiling.
       const tl = buildTicketListing(
         listing({
-          listing_type: "daily",
-          max_quantity: 5,
-          min_quantity: 3,
+          listingType: "daily",
+          maxQuantity: 5,
+          minQuantity: 3,
         }),
         false,
         undefined,

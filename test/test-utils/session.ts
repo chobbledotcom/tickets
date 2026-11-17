@@ -1,6 +1,8 @@
 import { generateSecureToken } from "#crypto/utils.ts";
 import { createApiKey } from "#db/api-keys.ts";
+import { tables } from "#db/select/tables.ts";
 import { getSession } from "#db/sessions.ts";
+import { insertInto } from "#db/write.ts";
 import { handleRequest } from "#routes";
 import type { AuthSession } from "#routes/auth.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
@@ -63,8 +65,8 @@ export const getTestSession = async (): Promise<{
 
   const cached = getSetupState()?.session;
   if (cached) {
-    const { getDb, insert } = await import("#db/client.ts");
-    await getDb().execute(insert("sessions", cached.sessionRow));
+    const { getDb } = await import("#db/client.ts");
+    await getDb().execute(insertInto(tables.sessions, cached.sessionRow));
     const csrfToken = await signCsrfToken();
     const session = { cookie: cached.cookie, csrfToken };
     setTestSession(session);
@@ -93,8 +95,8 @@ export const getTestAuthSession = async (): Promise<AuthSession> => {
   return {
     adminLevel: "owner",
     token,
-    userId: session.user_id!,
-    wrappedDataKey: session.wrapped_data_key,
+    userId: session.userId!,
+    wrappedDataKey: session.wrappedDataKey,
   };
 };
 
@@ -185,11 +187,11 @@ export const createTestAgentSession = async (
   const userId = await createUserWithSession(
     username,
     {
-      admin_level: await enc("agent"),
-      password_hash: passwordHashEnc,
-      username_hash: await enc(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: userWrappedKey,
+      adminLevel: await enc("agent"),
+      passwordHash: passwordHashEnc,
+      usernameHash: await enc(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: userWrappedKey,
     },
     {
       csrfToken: "agent-csrf",
@@ -227,12 +229,12 @@ export const createTestEditorSession = async (
   const userId = await createUserWithSession(
     username,
     {
-      admin_level: await enc("editor"),
-      kek_version: 2,
-      password_hash: await enc(await hashPassword(password)),
-      username_hash: await enc(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: null,
+      adminLevel: await enc("editor"),
+      kekVersion: 2,
+      passwordHash: await enc(await hashPassword(password)),
+      usernameHash: await enc(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: null,
     },
     { csrfToken: "editor-csrf", token, wrappedKey: null },
   );
@@ -347,10 +349,10 @@ export const postFormAs = async (
   cookie: string,
   data: TestFormValues = {},
 ): Promise<Response> => {
-  const csrf_token = await signCsrfToken();
+  const csrfToken = await signCsrfToken();
   return awaitTestRequest(path, {
     cookie,
-    data: { ...data, csrf_token },
+    data: { ...data, csrfToken },
   });
 };
 
@@ -375,8 +377,8 @@ export const adminFormPost = async (
   const response = await awaitTestRequest(path, {
     cookie,
     data: {
-      csrf_token: csrfToken,
-      ...(version !== undefined ? { settings_version: version } : {}),
+      csrfToken,
+      ...(version !== undefined ? { settingsVersion: version } : {}),
       ...data,
     },
   });
@@ -395,12 +397,7 @@ export const adminMultipartPost = async (
 ): Promise<{ response: Response; cookie: string; csrfToken: string }> => {
   const { cookie, csrfToken } = await getTestSession();
   const response = await handleRequest(
-    mockMultipartRequest(
-      path,
-      { csrf_token: csrfToken, ...data },
-      cookie,
-      file,
-    ),
+    mockMultipartRequest(path, { csrfToken, ...data }, cookie, file),
   );
   return { cookie, csrfToken, response };
 };

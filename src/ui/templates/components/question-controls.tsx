@@ -71,10 +71,10 @@ export const questionControl = (
   q: QuestionWithAnswers,
   view: QuestionControlView,
 ): JSX.Element => {
-  const name = `question_${q.id}`;
+  const name = `question${q.id}`;
   const wrapArgs = { listingIds: view.listingIds, q };
   const single =
-    q.display_type === "radio" ? undefined : singleControls[q.display_type];
+    q.displayType === "radio" ? undefined : singleControls[q.displayType];
   if (single) {
     return questionWrapper(wrapArgs, single(view, name));
   }

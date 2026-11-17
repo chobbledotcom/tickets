@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { createListing } from "#db/listings/records.ts";
 import {
   isNameTakenAnywhere,
   loadCatalogNameIndex,
@@ -71,7 +71,7 @@ describeWithEnv("name-registry", { db: true }, () => {
     // must not occupy the empty-string key — it never participates in
     // uniqueness or name lookup.
     const slug = "blank-name";
-    await listingsTable.insert({
+    await createListing({
       maxAttendees: 1,
       maxPrice: 0,
       name: "   ",
@@ -100,14 +100,14 @@ describeWithEnv("name-registry", { db: true }, () => {
     // simulate legacy data that predates the rule: two listings, one name.
     const slugA = "dup-a";
     const slugB = "dup-b";
-    await listingsTable.insert({
+    await createListing({
       maxAttendees: 1,
       maxPrice: 0,
       name: "Twin",
       slug: slugA,
       slugIndex: await hmacHash(slugA),
     });
-    await listingsTable.insert({
+    await createListing({
       maxAttendees: 1,
       maxPrice: 0,
       name: "Twin",

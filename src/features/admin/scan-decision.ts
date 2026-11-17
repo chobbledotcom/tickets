@@ -59,7 +59,7 @@ const scanPool = ({
 }: DoorAsk):
   | { failure: "not_found" | "wrong_listing" }
   | { rows: TokenEntry[]; widened: boolean } => {
-  const doorSafe = entries.filter((entry) => !entry.listing.purchase_only);
+  const doorSafe = entries.filter((entry) => !entry.listing.purchaseOnly);
   const inScope = doorSafe.filter((entry) => scope.has(entry.listing.id));
   if (!force || inScope.length > 0) {
     return inScope.length === 0
@@ -114,7 +114,7 @@ export const decideScan = (
   if (owed.length === 0) return { kind: "already_checked_in", live };
   const admitted = scanAdmits(pool.widened, checkInEveryListing, owed);
   const rows = admitted.flat();
-  if (!idVerified && rows.some((entry) => entry.listing.non_transferable)) {
+  if (!idVerified && rows.some((entry) => entry.listing.nonTransferable)) {
     return { kind: "verify_id", rows };
   }
   const perListing = admitted.map(owedTickets);

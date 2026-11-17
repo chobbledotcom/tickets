@@ -50,13 +50,13 @@ describeWithEnv(
         listing: { maxAttendees: 10, name: "L" },
         quantity: 2,
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(2);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(2);
       // Edit qty 2 → 4: the UPDATE trigger must add +2 to booked_quantity.
       await updateServicingEvent(event.id, {
         bookings: [{ listingId: listing.id, quantity: 4 }],
         name: "Bigger Hold",
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
     });
 
     test("a mixed-kind listing (servicing + real attendee) splits booked_quantity and tickets_count", async () => {
@@ -67,8 +67,8 @@ describeWithEnv(
       const listing = await setupListingLWithHoldAndAttendee();
       const reloaded = await reloadAggregates(listing.id);
       expect(reloaded).toMatchObject({
-        attendee_count: 4, // 3 servicing + 1 real
-        tickets_count: 1, // only the real attendee
+        attendeeCount: 4, // 3 servicing + 1 real
+        ticketsCount: 1, // only the real attendee
       });
     });
 
@@ -78,7 +78,7 @@ describeWithEnv(
       // ticket, so the recompute and the triggers must keep that split.
       expectListingAggregateSplit(
         await recalculateListingAggregates(listing.id),
-        { booked_quantity: 4, tickets_count: 1 },
+        { bookedQuantity: 4, ticketsCount: 1 },
       );
     });
 
@@ -90,7 +90,7 @@ describeWithEnv(
         listing: { maxAttendees: 10, name: "L" },
         quantity: 4,
       });
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
       // Attempt the edit; either it rejects (qty=0 not allowed) or it succeeds
       // and booked_quantity drops to 0. Either way, booked_quantity must not
       // stay at 4.
@@ -101,10 +101,10 @@ describeWithEnv(
         });
       } catch {
         // Rejected — the original quantity still holds.
-        expect((await reloadAggregates(listing.id))?.attendee_count).toBe(4);
+        expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(4);
         return;
       }
-      expect((await reloadAggregates(listing.id))?.attendee_count).toBe(0);
+      expect((await reloadAggregates(listing.id))?.attendeeCount).toBe(0);
     });
   },
 );

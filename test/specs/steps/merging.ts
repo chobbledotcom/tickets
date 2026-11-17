@@ -153,7 +153,7 @@ Then(
   function (this: TicketsWorld): void {
     const html = requiredWorldValue(this.mergePreviewHtml, "the merge page");
     // The conflicting booking is offered, but no money question comes with it.
-    assertStringIncludes(html, 'name="booking_');
+    assertStringIncludes(html, 'name="booking');
     assert(!html.includes("merge-money-decision"));
     assert(!html.includes("Discarded payment"));
   },

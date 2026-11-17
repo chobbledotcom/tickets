@@ -1,5 +1,6 @@
 /** Evidence-to-state transitions shared by initial work and later retries. */
 
+import { pick } from "@std/collections";
 import {
   loadRefundAuthorityById,
   type RefundAuthorityRow,
@@ -47,11 +48,8 @@ import type {
 
 export const REFUND_OBSERVATION_DELAY_MS = 5 * 60 * 1000;
 
-const receipt = (row: RefundAuthorityRow): RefundAuthorityReceipt => ({
-  id: row.id,
-  referenceIndex: row.referenceIndex,
-  revision: row.revision,
-});
+const receipt = (row: RefundAuthorityRow): RefundAuthorityReceipt =>
+  pick(row, ["id", "referenceIndex", "revision"]);
 
 type RefundAttentionState = Extract<
   RefundAuthorityState,

@@ -22,16 +22,16 @@ const hiddenPackage = () => [
  * present it standalone or concealed. */
 const lengthClashListings = (first: { name: string; slug: string }) => [
   ticketListing({
-    customisable_days: true,
-    day_prices: { 1: 500 },
-    duration_days: 1,
+    customisableDays: true,
+    dayPrices: { 1: 500 },
+    durationDays: 1,
     id: 1,
     ...first,
   }),
   ticketListing({
-    customisable_days: true,
-    day_prices: { 3: 900 },
-    duration_days: 3,
+    customisableDays: true,
+    dayPrices: { 3: 900 },
+    durationDays: 3,
     id: 2,
     name: "Long",
     slug: "long1",
@@ -46,8 +46,8 @@ const dateClash = (first: { name: string; slug: string }) => ({
     { dates: ["2026-02-01"], id: 2, name: "Far" },
   ],
   listings: [
-    ticketListing({ id: 1, listing_type: "daily", ...first }),
-    ticketListing({ id: 2, listing_type: "daily", name: "Far", slug: "far01" }),
+    ticketListing({ id: 1, listingType: "daily", ...first }),
+    ticketListing({ id: 2, listingType: "daily", name: "Far", slug: "far01" }),
   ],
 });
 

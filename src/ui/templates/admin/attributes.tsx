@@ -348,7 +348,7 @@ export const ListingAttributesPanel = (
                     checkedIds={selectedOptionIds}
                     id={option.id}
                     label={` ${option.text}`}
-                    name="option_ids"
+                    name="optionIds"
                   />
                 ))
               ),

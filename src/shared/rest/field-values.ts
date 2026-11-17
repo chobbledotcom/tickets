@@ -5,22 +5,22 @@
  */
 
 import * as v from "valibot";
-import { toCamelCase } from "#shared/column-names.ts";
+import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { flagOfKind } from "#shared/fp-bind.ts";
+import { bindFirst, flagOfKind } from "#shared/fp-bind.ts";
 import {
   dateField,
   optionalTextField,
   switchField,
   textField,
 } from "#shared/rest/api-body-fields.ts";
-import {
-  type ByInputKey,
-  byFieldKind,
-  type FieldKind,
-  type FieldSpec,
-  type FieldSpecs,
-  type StoredValue,
+import type {
+  ByColumn,
+  ByInputKey,
+  FieldKind,
+  FieldSpec,
+  FieldSpecs,
+  StoredValue,
 } from "#shared/rest/field-specs.ts";
 import { commaParts } from "#shared/split.ts";
 import { RecurringIntervalChoiceSchema } from "#shared/subscriptions/plan.ts";
@@ -150,7 +150,8 @@ const API_REFUSALS: Partial<Record<FieldKind, (key: string) => string>> = {
 
 /** The message the JSON API answers when a field refuses its value. */
 export const apiRefusal = (field: FieldSpec): string =>
-  API_REFUSALS[field.kind]?.(field.key) ?? `${field.key} has an invalid value`;
+  API_REFUSALS[field.kind]?.(columnName(field.key)) ??
+  `${columnName(field.key)} has an invalid value`;
 
 /** Both views of a field that the API reads as an optional value. */
 const optionalViews = (field: FieldSpec) => {
@@ -158,23 +159,30 @@ const optionalViews = (field: FieldSpec) => {
   return { create: view, update: view };
 };
 
+/** The views that `build` gives for the API key of the field. */
+const viewsAtApiKey = <View>(
+  build: (key: string) => View,
+  field: FieldSpec,
+): View => build(columnName(field.key));
+const atApiKey = bindFirst(viewsAtApiKey);
+
 /** The create and update wire views of each kind. A name is required text. A
  *  date is a calendar date text. Every other kind is optional. */
 const API_FIELDS = {
   contactFields: optionalViews,
   count: optionalViews,
-  date: (field: FieldSpec) => dateField(field.key),
+  date: atApiKey(dateField),
   datetime: optionalViews,
   dayPrices: optionalViews,
   durationDays: optionalViews,
   listingType: optionalViews,
-  name: (field: FieldSpec) => textField(field.key),
+  name: atApiKey(textField),
   optionalDatetime: optionalViews,
   price: optionalViews,
   privateText: optionalViews,
   recurringInterval: optionalViews,
-  switch: (field: FieldSpec) => switchField(field.key),
-  text: (field: FieldSpec) => optionalTextField(field.key),
+  switch: atApiKey(switchField),
+  text: atApiKey(optionalTextField),
   weekdays: optionalViews,
 } as const satisfies Record<FieldKind, unknown>;
 
@@ -183,11 +191,20 @@ type ApiViews = {
   [Kind in FieldKind]: ReturnType<(typeof API_FIELDS)[Kind]>;
 };
 
+/** The wire views of every field, keyed by API key. */
+type ApiFieldViews<Fields extends FieldSpecs> = ByColumn<Fields, ApiViews>;
+
 /** The wire views of every field, ready for `apiBodyPair` and `idRow`. */
-export const apiFieldsOf = <const Fields extends FieldSpecs>(fields: Fields) =>
-  byFieldKind<Fields, ApiViews>(fields, (field) =>
-    API_FIELDS[field.kind](field),
-  );
+export const apiFieldsOf = <const Fields extends FieldSpecs>(
+  fields: Fields,
+): ApiFieldViews<Fields> =>
+  // Each API key holds the views of its own field kind.
+  Object.fromEntries(
+    fields.map((field) => [
+      columnName(field.key),
+      API_FIELDS[field.kind](field),
+    ]),
+  ) as ApiFieldViews<Fields>;
 
 /** The value each kind carries in a catalogue transfer. JSON keys are text. */
 type TransferValue = Omit<StoredValue, "dayPrices"> & {
@@ -213,7 +230,7 @@ export const transferSchema = <const Fields extends FieldSpecs>(
     v.strictObject(
       Object.fromEntries(
         fields.map((field) => [
-          toCamelCase(field.key),
+          field.key,
           field.required
             ? fieldValueSchema(field)
             : v.optional(fieldValueSchema(field)),

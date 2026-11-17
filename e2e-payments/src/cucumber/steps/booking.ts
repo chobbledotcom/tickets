@@ -464,7 +464,7 @@ const changeListingPrice = async (world: LiveWorld): Promise<void> => {
     await catalogWords("entity-pages", "entity.tab.edit"),
   );
   await ownerOf(world).fill(
-    "unit_price",
+    "unitPrice",
     ((config.unitPrice + 100) / 100).toFixed(2),
   );
   await ownerOf(world).clickButton(

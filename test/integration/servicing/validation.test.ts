@@ -71,7 +71,7 @@ describeWithEnv(
         name: "L",
       });
       const { response } = await adminFormPost("/admin/servicing/new", {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         name: "Bad Service",
         // Deliberately omitting start_date.
       });
@@ -90,10 +90,10 @@ describeWithEnv(
       listingId: number,
     ): Promise<void> => {
       const { response } = await adminFormPost(path, {
-        day_count: "0",
+        dayCount: "0",
         name: "Zero-Day Service",
-        start_date: "2026-07-01",
-        [`quantity_${listingId}`]: "1",
+        startDate: "2026-07-01",
+        [`quantity${listingId}`]: "1",
       });
       await expectFlashRedirect(
         path,
@@ -140,10 +140,10 @@ describeWithEnv(
         name: "L",
       });
       const event = await createEventByPost({
-        day_count: "1",
+        dayCount: "1",
         name: "One-Day Service",
-        start_date: "2026-07-01",
-        [`quantity_${listing.id}`]: "1",
+        startDate: "2026-07-01",
+        [`quantity${listing.id}`]: "1",
       });
       expect(event.bookings[0]?.listingId).toBe(listing.id);
       expect(event.bookings[0]?.durationDays).toBe(1);
@@ -155,8 +155,8 @@ describeWithEnv(
       const listingA = await createTestListing({ maxAttendees: 10, name: "A" });
       const listingB = await createTestListing({ maxAttendees: 10, name: "B" });
       const event = await createEventByPost({
-        [`quantity_${listingA.id}`]: "0",
-        [`quantity_${listingB.id}`]: "2",
+        [`quantity${listingA.id}`]: "0",
+        [`quantity${listingB.id}`]: "2",
         name: "Filtered Service",
       });
       // Only the positive-quantity booking on listingB was saved.
@@ -171,7 +171,7 @@ describeWithEnv(
       // throws when a daily listing is booked but start_date is absent.
       const { id, listing } = await createDatedServicingScenario();
       const { response } = await adminFormPost(`/admin/servicing/${id}`, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         name: "Updated",
         // Deliberately omitting start_date.
       });

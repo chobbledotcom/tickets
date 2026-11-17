@@ -40,7 +40,7 @@ describeWithEnv("integration: duration_days", { db: true }, () => {
       expect(String(row.rows[0]!.end_at)).toBe("2026-08-15T00:00:00.000Z");
 
       const fresh = await getListingWithCount(listing.id);
-      expect(fresh?.duration_days).toBe(5);
+      expect(fresh?.durationDays).toBe(5);
     });
   });
 });

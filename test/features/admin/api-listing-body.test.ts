@@ -240,7 +240,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         expect(
           await bodyToUpdateInput(
             { max_attendees: maxAttendees },
-            testListingWithCount({ max_attendees: 10 }),
+            testListingWithCount({ maxAttendees: 10 }),
           ),
         ).toEqual({ error: "max_attendees has an invalid value", ok: false });
       }
@@ -254,9 +254,9 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
           max_price: 0,
         },
         testListingWithCount({
-          day_prices: { 1: 1_000 },
-          max_attendees: 10,
-          max_price: 4_000,
+          dayPrices: { 1: 1_000 },
+          maxAttendees: 10,
+          maxPrice: 4_000,
         }),
       );
 
@@ -271,14 +271,14 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
     test("takes a supplied name, trimmed", async () => {
       const result = await bodyToUpdateInput(
         { name: " Renamed " },
-        testListingWithCount({ max_attendees: 10, name: "Old" }),
+        testListingWithCount({ maxAttendees: 10, name: "Old" }),
       );
       expect(result.ok && result.value.name).toBe("Renamed");
     });
 
     test("rejects malformed group_ids instead of silently clearing membership", async () => {
       const existing = testListingWithCount({
-        max_attendees: 10,
+        maxAttendees: 10,
         name: "Has Groups",
         slug: "has-groups",
       });
@@ -290,20 +290,20 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("preserves existing values when fields not provided", async () => {
       const existing = testListingWithCount({
-        bookable_days: ["Monday"],
-        closes_at: "2026-01-02T00:00:00.000Z",
+        bookableDays: ["Monday"],
+        closesAt: "2026-01-02T00:00:00.000Z",
         date: "2026-01-01T00:00:00.000Z",
         description: "Existing desc",
         location: "Old Place",
-        max_attendees: 50,
-        max_quantity: 2,
-        maximum_days_after: 90,
-        minimum_days_before: 1,
+        maxAttendees: 50,
+        maximumDaysAfter: 90,
+        maxQuantity: 2,
+        minimumDaysBefore: 1,
         name: "Existing",
         slug: "existing-slug",
-        thank_you_url: "https://old.com/thanks",
-        unit_price: 100,
-        webhook_url: "https://old.com/hook",
+        thankYouUrl: "https://old.com/thanks",
+        unitPrice: 100,
+        webhookUrl: "https://old.com/hook",
       });
       const result = await bodyToUpdateInput({}, existing);
       expect(result.ok).toBe(true);
@@ -349,10 +349,10 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("preserves use_defaults when absent and toggles it when sent", async () => {
       const existing = testListingWithCount({
-        max_attendees: 10,
+        maxAttendees: 10,
         name: "Inheriting",
         slug: "inheriting",
-        use_defaults: true,
+        useDefaults: true,
       });
       // Omitted → the flag is preserved (an unrelated PUT can't un-inherit it).
       const kept = await bodyToUpdateInput({}, existing);
@@ -364,8 +364,8 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
 
     test("leaves an unset closing time out of an update that omits it", async () => {
       const existing = testListingWithCount({
-        closes_at: null,
-        max_attendees: 10,
+        closesAt: null,
+        maxAttendees: 10,
         name: "No Closes",
         slug: "no-closes",
       });
@@ -384,7 +384,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         unitPrice: 500,
       });
       const fetched = await getListingWithCount(listing.id);
-      expect(fetched?.months_per_unit).toBe(3);
+      expect(fetched?.monthsPerUnit).toBe(3);
     });
 
     test("initial_site_months round-trips on save", async () => {
@@ -393,7 +393,7 @@ describeWithEnv("Admin API - Listings", { db: true }, () => {
         initialSiteMonths: 6,
       });
       const fetched = await getListingWithCount(listing.id);
-      expect(fetched?.initial_site_months).toBe(6);
+      expect(fetched?.initialSiteMonths).toBe(6);
     });
 
     test("months_per_unit > 0 with purchase_only=0 is rejected", async () => {

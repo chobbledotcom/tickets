@@ -1,1 +1,1 @@
-export const RECALCULATE_FIELD_NAME = "recalculate_fields";
+export const RECALCULATE_FIELD_NAME = "recalculateFields";

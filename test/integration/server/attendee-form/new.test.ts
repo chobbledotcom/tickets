@@ -34,15 +34,15 @@ describeWithEnv(
 
       test("renders the shared contact length limits", async () => {
         const html = await bareCreateForm();
-        for (const name of [
-          "name",
-          "email",
-          "address",
-          "special_instructions",
+        for (const [id, name] of [
+          ["name", "name"],
+          ["email", "email"],
+          ["address", "address"],
+          ["special_instructions", "specialInstructions"],
         ]) {
           assertStringIncludes(
             html,
-            `id="${name}" maxlength="250" name="${name}"`,
+            `id="${id}" maxlength="250" name="${name}"`,
           );
         }
         assertStringIncludes(html, 'id="phone" maxlength="32" name="phone"');
@@ -78,8 +78,8 @@ describeWithEnv(
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
         expectExcludesAll(html, [
-          'name="start_date"',
-          'id="day_count"',
+          'name="startDate"',
+          'id="dayCount"',
           "only affects daily listings",
         ]);
       });
@@ -89,8 +89,8 @@ describeWithEnv(
         const response = await adminGet("/admin/attendees/new");
         const html = await expectHtmlResponse(response, 200);
         expectIncludesAll(html, [
-          'name="start_date"',
-          'id="day_count"',
+          'name="startDate"',
+          'id="dayCount"',
           // The note makes clear the date is optional and daily-only.
           "only affects daily listings",
         ]);
@@ -133,12 +133,12 @@ describeWithEnv(
         // Both chosen listings start at quantity 1.
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, a.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, a.id)}"[^>]*value="1"`,
           ),
         );
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, b.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, b.id)}"[^>]*value="1"`,
           ),
         );
       });
@@ -186,7 +186,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
           ),
         );
         assertStringIncludes(html, 'value="2026-07-01"');
@@ -200,10 +200,10 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="1"`,
           ),
         );
-        expect(html).toMatch(/name="start_date"[^>]*value=""/);
+        expect(html).toMatch(/name="startDate"[^>]*value=""/);
       });
 
       test("falls back to all-zero quantities when no selection resolves", async () => {
@@ -215,7 +215,7 @@ describeWithEnv(
         const html = await expectHtmlResponse(response, 200);
         expect(html).toMatch(
           new RegExp(
-            `name="qty_${attendeeLineIndex(html, listing.id)}"[^>]*value="0"`,
+            `name="qty${attendeeLineIndex(html, listing.id)}"[^>]*value="0"`,
           ),
         );
       });
@@ -237,7 +237,7 @@ describeWithEnv(
         const response = await adminGet(`/admin/attendees/${attendeeId}/edit`);
         const html = await response.text();
         // The shared day-count select preselects the booking's current 2-day span.
-        assertStringIncludes(html, 'id="day_count"');
+        assertStringIncludes(html, 'id="dayCount"');
         expect(hasSelectedOption(html, "2")).toBe(true);
       });
 
@@ -266,7 +266,7 @@ describeWithEnv(
         const response = await adminGet(
           `/admin/attendees/new?return_url=${encodeURIComponent(returnUrl)}`,
         );
-        await expectHtmlResponse(response, 200, 'name="return_url"', returnUrl);
+        await expectHtmlResponse(response, 200, 'name="returnUrl"', returnUrl);
       });
     });
 
@@ -277,7 +277,7 @@ describeWithEnv(
       // loaded, so a placeholder id is fine.
       testRequiresAuth("/admin/attendees/1");
       testRequiresAuth("/admin/attendees/1", {
-        body: { line_count: "1", name: "X" },
+        body: { lineCount: "1", name: "X" },
         method: "POST",
       });
     });

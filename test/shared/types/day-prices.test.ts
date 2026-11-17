@@ -53,27 +53,27 @@ describe("parseDayPrices", () => {
 describe("availableDayCounts", () => {
   test("is empty for a non-customisable listing", () => {
     const listing = testListing({
-      customisable_days: false,
-      day_prices: { 1: 1000 },
-      duration_days: 3,
+      customisableDays: false,
+      dayPrices: { 1: 1000 },
+      durationDays: 3,
     });
     expect(availableDayCounts(listing)).toEqual([]);
   });
 
   test("returns priced counts within the maximum, sorted ascending", () => {
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800, 3: 2500 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800, 3: 2500 },
+      durationDays: 3,
     });
     expect(availableDayCounts(listing)).toEqual([1, 2, 3]);
   });
 
   test("excludes priced counts above the maximum duration", () => {
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 1: 1000, 5: 4000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 5: 4000 },
+      durationDays: 3,
     });
     expect(availableDayCounts(listing)).toEqual([1]);
   });
@@ -83,9 +83,9 @@ describe("availableDayCounts", () => {
     // The filter guards the other ways a listing reaches here — a hand-built
     // one in a test, or a row written before the parser existed.
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 0: 500, 1: 1000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 0: 500, 1: 1000 },
+      durationDays: 3,
     });
     expect(availableDayCounts(listing)).toEqual([1]);
   });
@@ -171,9 +171,9 @@ describe("hasTicketQuantity", () => {
 
 describe("dayPriceFor", () => {
   const listing = testListing({
-    customisable_days: true,
-    day_prices: { 1: 1000, 2: 1800 },
-    duration_days: 3,
+    customisableDays: true,
+    dayPrices: { 1: 1000, 2: 1800 },
+    durationDays: 3,
   });
 
   test("returns the configured price for an offered count", () => {
@@ -188,9 +188,9 @@ describe("dayPriceFor", () => {
     // A free tier is a price the listing offers. Reading it as "no price"
     // would drop the count off the booking page instead of offering it free.
     const free = testListing({
-      customisable_days: true,
-      day_prices: { 1: 0, 2: 1800 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1: 0, 2: 1800 },
+      durationDays: 3,
     });
     expect(dayPriceFor(free, 1)).toBe(0);
   });
@@ -205,27 +205,27 @@ describe("dayPriceFor", () => {
     // holds a 0 or a fraction must still be refused by the count check, not
     // by the absent-price fallback underneath it.
     const odd = testListing({
-      customisable_days: true,
-      day_prices: { 0: 500, 1: 1000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 0: 500, 1: 1000 },
+      durationDays: 3,
     });
     expect(dayPriceFor(odd, 0)).toBeNull();
   });
 
   test("returns null for a count that is not a whole number of days", () => {
     const fractional = testListing({
-      customisable_days: true,
-      day_prices: { 1.5: 700, 2: 1800 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 1.5: 700, 2: 1800 },
+      durationDays: 3,
     });
     expect(dayPriceFor(fractional, 1.5)).toBeNull();
   });
 
   test("returns null for a count above the maximum even when priced", () => {
     const overlong = testListing({
-      customisable_days: true,
-      day_prices: { 2: 1800, 9: 5000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 2: 1800, 9: 5000 },
+      durationDays: 3,
     });
     expect(dayPriceFor(overlong, 9)).toBeNull();
   });
@@ -233,7 +233,7 @@ describe("dayPriceFor", () => {
   test("returns null for a non-customisable listing", () => {
     expect(
       dayPriceFor(
-        testListing({ customisable_days: false, day_prices: { 1: 1000 } }),
+        testListing({ customisableDays: false, dayPrices: { 1: 1000 } }),
         1,
       ),
     ).toBeNull();
@@ -242,50 +242,50 @@ describe("dayPriceFor", () => {
 
 describe("isPaidListing", () => {
   test("is true for a flat-priced or pay-more listing", () => {
-    expect(isPaidListing(testListing({ unit_price: 500 }))).toBe(true);
-    expect(
-      isPaidListing(testListing({ can_pay_more: true, unit_price: 0 })),
-    ).toBe(true);
+    expect(isPaidListing(testListing({ unitPrice: 500 }))).toBe(true);
+    expect(isPaidListing(testListing({ canPayMore: true, unitPrice: 0 }))).toBe(
+      true,
+    );
   });
 
   test("is true for the smallest price a listing can charge", () => {
     // One minor unit is still a price. The boundary matters because a listing
     // charging a penny must take payment, not be treated as free.
-    expect(isPaidListing(testListing({ unit_price: 1 }))).toBe(true);
+    expect(isPaidListing(testListing({ unitPrice: 1 }))).toBe(true);
   });
 
   test("is true for a customisable listing with any non-zero day price", () => {
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 1: 0, 2: 1800 },
-      unit_price: 0,
+      customisableDays: true,
+      dayPrices: { 1: 0, 2: 1800 },
+      unitPrice: 0,
     });
     expect(isPaidListing(listing)).toBe(true);
   });
 
   test("is true for the smallest day price a listing can charge", () => {
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 1: 0, 2: 1 },
-      unit_price: 0,
+      customisableDays: true,
+      dayPrices: { 1: 0, 2: 1 },
+      unitPrice: 0,
     });
     expect(isPaidListing(listing)).toBe(true);
   });
 
   test("is false for a free customisable listing (all day prices zero)", () => {
     const listing = testListing({
-      customisable_days: true,
-      day_prices: { 1: 0, 2: 0 },
-      unit_price: 0,
+      customisableDays: true,
+      dayPrices: { 1: 0, 2: 0 },
+      unitPrice: 0,
     });
     expect(isPaidListing(listing)).toBe(false);
   });
 
   test("ignores day prices when the listing isn't customisable", () => {
     const listing = testListing({
-      customisable_days: false,
-      day_prices: { 1: 1000 },
-      unit_price: 0,
+      customisableDays: false,
+      dayPrices: { 1: 1000 },
+      unitPrice: 0,
     });
     expect(isPaidListing(listing)).toBe(false);
   });

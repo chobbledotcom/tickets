@@ -20,7 +20,6 @@ import {
   getGroupBySlugIndex,
   getGroupPackagePrices,
   getListingsByGroupId,
-  groups,
   setGroupListingsActive,
 } from "#db/groups.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
@@ -32,12 +31,13 @@ import {
 } from "#db/listing-prices.ts";
 import {
   getStoredListingsWithCountsByIds,
-  listingsTable,
+  newListingValues,
 } from "#db/listings/records.ts";
 import {
   catalogNameLengthError,
   isNameTakenAnywhere,
 } from "#db/name-registry.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { createVerifiedFormRoute } from "#routes/admin/confirmation.ts";
@@ -212,15 +212,15 @@ const handleDuplicateGroupPost = groupFormPost(
   "/admin/groups/:id/duplicate",
   async (group, form) => {
     const formUrl = adminPath("groupDuplicate", { id: group.id });
-    const newName = form.getString("new_name").trim();
+    const newName = form.getString("newName").trim();
     if (!newName) {
       return errorRedirect(formUrl, t("group_actions.new_name_required"));
     }
 
-    const nameFind = form.getString("name_find");
-    const nameReplace = form.getString("name_replace");
-    const dateFind = form.getString("date_find");
-    const dateReplace = form.getString("date_replace");
+    const nameFind = form.getString("nameFind");
+    const nameReplace = form.getString("nameReplace");
+    const dateFind = form.getString("dateFind");
+    const dateReplace = form.getString("dateReplace");
     const dayOffset = computeDayOffset(dateFind, dateReplace);
 
     const listings = await getListingsByGroupId(group.id);
@@ -244,7 +244,7 @@ const handleDuplicateGroupPost = groupFormPost(
         );
         return {
           input: await buildDuplicateListingInput(stored, {
-            closesAt: shiftUtcIsoByDays(stored.closes_at ?? "", dayOffset),
+            closesAt: shiftUtcIsoByDays(stored.closesAt ?? "", dayOffset),
             date: shiftUtcIsoByDays(stored.date, dayOffset),
             name: applyNameReplacement(stored.name, nameFind, nameReplace),
           }),
@@ -271,7 +271,7 @@ const handleDuplicateGroupPost = groupFormPost(
 
     const memberBySource = new Map(
       (await getGroupPackagePrices(group.id)).map((row) => [
-        row.listing_id,
+        row.listingId,
         row,
       ]),
     );
@@ -284,20 +284,22 @@ const handleDuplicateGroupPost = groupFormPost(
     // clone by the slug_index each was just inserted with, so no per-row id
     // read is needed. Parent/child edges are remapped after the batch commits,
     // since they read the new clone rows.
-    const groupInsert = await groups.table.insertStatement!({
+    const groupInsert = await records.groups.insertStatement({
       description: group.description,
       hidden: group.hidden,
-      hidePackageListings: group.hide_package_listings,
-      isPackage: group.is_package,
-      maxAttendees: group.max_attendees,
+      hidePackageListings: group.hidePackageListings,
+      isPackage: group.isPackage,
+      maxAttendees: group.maxAttendees,
       name: newName,
-      showHiddenListings: group.show_hidden_listings,
+      showHiddenListings: group.showHiddenListings,
       slug,
       slugIndex,
-      termsAndConditions: group.terms_and_conditions,
+      termsAndConditions: group.termsAndConditions,
     });
     const cloneInserts = await Promise.all(
-      cloneInputs.map(({ input }) => listingsTable.insertStatement!(input)),
+      cloneInputs.map(({ input }) =>
+        records.listings.insertStatement(newListingValues(input)),
+      ),
     );
     const membershipInserts = cloneInputs.map(({ sourceId, input }) => {
       // Every clone was just read as a member of the source group, so it always
@@ -324,11 +326,10 @@ const handleDuplicateGroupPost = groupFormPost(
     );
     const newGroupId = duplicated.id;
     const idBySlugIndex = new Map(
-      (await getListingsByGroupId(newGroupId)).map((l) => [l.slug_index, l.id]),
+      (await getListingsByGroupId(newGroupId)).map((l) => [l.slugIndex, l.id]),
     );
-    // The clones above went through insertStatement in the batch, and this
-    // bypasses the listingsTable wrapper. Sync their `base` price rows
-    // explicitly, or a priced clone has no matching base row until it is edited.
+    // The batch wrote the clones, not createListing. Sync their `base` price
+    // rows here, or a priced clone has no base row until an edit.
     await syncListingPricesForIds([...idBySlugIndex.values()]);
     const idMap = new Map(
       cloneInputs.map(({ sourceId, input }) => [
@@ -371,7 +372,7 @@ const handleDuplicateGroupPost = groupFormPost(
             sourceId,
             `Cloned listing ${sourceId} missing`,
           ),
-          price: row.package_price,
+          price: row.packagePrice,
         })),
       ),
       ...groupDayPriceStatements(

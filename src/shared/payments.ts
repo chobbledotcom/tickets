@@ -68,7 +68,7 @@ const unitFields = (unit: PurchaseUnit): Partial<CheckoutItem> =>
 const recurringFields = (
   listing: RecurringListingColumns,
 ): Partial<CheckoutItem> => {
-  const { recurring_interval: interval, recurring_price: price } = listing;
+  const { recurringInterval: interval, recurringPrice: price } = listing;
   if (interval === "" || price <= 0) return {};
   return { recurring: { interval, price } };
 };

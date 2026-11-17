@@ -159,7 +159,7 @@ const loadBatchSnapshot = async (
     mapNotNullish((t: TransferInput) => t.reversesId)(groups.flat()),
   );
   const [existing, stored, originals] = await selectTransfersMany(read, [
-    byColumnIn("event_group", eventGroups),
+    byColumnIn("eventGroup", eventGroups),
     byColumnIn("reference", references),
     byColumnIn("id", reversesIds),
   ]);

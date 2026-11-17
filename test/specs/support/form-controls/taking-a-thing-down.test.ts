@@ -20,8 +20,8 @@ describe("taking a thing down from its own page", () => {
           followed.push(text);
           return Promise.resolve();
         },
-        currentHtml: '<input name="confirm_identifier" value="">',
-        formBodyFor: () => '<input name="confirm_identifier" value="">',
+        currentHtml: '<input name="confirmIdentifier" value="">',
+        formBodyFor: () => '<input name="confirmIdentifier" value="">',
         pageText: "Page deleted",
         submitForm: (values: Record<string, string>) => {
           sent.push(values);
@@ -56,7 +56,7 @@ describe("taking a thing down from its own page", () => {
 
   test("types the name into the box the page asks for", async () => {
     expect((await afterTakingDown()).sent).toEqual([
-      { confirm_identifier: "Directions" },
+      { confirmIdentifier: "Directions" },
     ]);
   });
 

@@ -26,14 +26,14 @@ describe("adminModifiersPage", () => {
   test("renders a rule summary and edit link for each modifier", () => {
     const html = adminModifiersPage(
       [
-        mod({ calc_kind: "percent", direction: "discount", id: 1 }),
+        mod({ calcKind: "percent", direction: "discount", id: 1 }),
         mod({
-          calc_kind: "fixed",
-          calc_value: 500,
+          calcKind: "fixed",
+          calcValue: 500,
           direction: "charge",
           id: 2,
         }),
-        mod({ calc_kind: "multiply", calc_value: 1.5, id: 3 }),
+        mod({ calcKind: "multiply", calcValue: 1.5, id: 3 }),
       ],
       OWNER_SESSION,
     );
@@ -49,7 +49,7 @@ describe("adminModifiersPage", () => {
 
   test("shows the trigger-maintained usage figures", () => {
     const html = adminModifiersPage(
-      [mod({ id: 1, total_revenue: 2500, total_uses: 7, usage_count: 3 })],
+      [mod({ id: 1, totalRevenue: 2500, totalUses: 7, usageCount: 3 })],
       OWNER_SESSION,
     );
     expectIncludesAll(html, [
@@ -111,7 +111,7 @@ describe("adminModifierDeletePage", () => {
     expectIncludesAll(html, [
       "Delete Modifier",
       "Loyalty",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       '<a class="active" href="/admin/modifiers">',
     ]);
     // Removing a modifier is not a data-loss action, so the confirm button is

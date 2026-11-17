@@ -16,7 +16,7 @@ describe("test-compat", () => {
       expect(group).toMatchObject({
         description: "",
         name: "Test Group",
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       expect(group.slug.length).toBe(5);
     });
@@ -27,7 +27,7 @@ describe("test-compat", () => {
         expected: {
           name: "After",
           slug: "update-name-group",
-          terms_and_conditions: "Terms",
+          termsAndConditions: "Terms",
         },
         field: "name",
         patch: { name: "After" },
@@ -44,7 +44,7 @@ describe("test-compat", () => {
         seed: { name: "Name", slug: "before-slug", termsAndConditions: "" },
       },
       {
-        expected: { slug: "terms-only", terms_and_conditions: "New terms" },
+        expected: { slug: "terms-only", termsAndConditions: "New terms" },
         field: "terms_and_conditions",
         patch: { termsAndConditions: "New terms" },
         seed: { name: "Name", slug: "terms-only", termsAndConditions: "" },
@@ -67,8 +67,8 @@ describe("test-compat", () => {
         slug: "delete-group-helper",
       });
       await deleteTestGroup(group.id);
-      const { groups } = await import("#db/groups.ts");
-      expect(await groups.table.read.one({ id: group.id })).toBeNull();
+      const { getGroupById } = await import("#db/groups.ts");
+      expect(await getGroupById(group.id)).toBeNull();
     });
   });
 

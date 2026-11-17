@@ -5,18 +5,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   byFieldKey,
-  byFieldKind,
   closedFieldErrorOrNull,
   closedFields,
-  type FieldKind,
   featureClosedKeys,
   fieldOfKey,
 } from "#shared/rest/field-specs.ts";
 
 const FIELDS = [
-  { key: "start_date", kind: "date" },
+  { key: "startDate", kind: "date" },
   { key: "name", kind: "name" },
-  { feature: "logistics", key: "is_public", kind: "switch" },
+  { feature: "logistics", key: "isPublic", kind: "switch" },
   { key: "note", kind: "text", lockedFor: ["demo", "editor"] },
 ] as const;
 
@@ -24,25 +22,12 @@ describe("field specs", () => {
   test("byFieldKey keys each built value by its own column", () => {
     expect(byFieldKey(FIELDS, (field) => `${field.kind}:${field.key}`)).toEqual(
       {
-        is_public: "switch:is_public",
+        isPublic: "switch:isPublic",
         name: "name:name",
         note: "text:note",
-        start_date: "date:start_date",
+        startDate: "date:startDate",
       },
     );
-  });
-
-  test("byFieldKind builds one value per field from its kind", () => {
-    expect(
-      byFieldKind<typeof FIELDS, Record<FieldKind, string>>(FIELDS, (field) =>
-        field.kind.toUpperCase(),
-      ),
-    ).toEqual({
-      is_public: "SWITCH",
-      name: "NAME",
-      note: "TEXT",
-      start_date: "DATE",
-    });
   });
 
   test("a field closes for its feature turned off and for each writer it locks out", () => {
@@ -69,7 +54,7 @@ describe("field specs", () => {
       closedFor(false, true, true),
     ]).toEqual([
       [],
-      [["is_public", "logistics"]],
+      [["isPublic", "logistics"]],
       [["note", "editor"]],
       [["note", "demo"]],
     ]);
@@ -77,28 +62,28 @@ describe("field specs", () => {
 
   test("a supplied closed field is refused with its reason, and an open one passes", () => {
     const closed = new Map([
-      ["assign_built_site", "builder"],
-      ["webhook_url", "demo"],
+      ["assignBuiltSite", "builder"],
+      ["webhookUrl", "demo"],
       ["active", "editor"],
-      ["uses_logistics", "logistics"],
-      ["recurring_price", "subscriptions"],
+      ["usesLogistics", "logistics"],
+      ["recurringPrice", "subscriptions"],
     ] as const);
     const refusal = (key: string) => closedFieldErrorOrNull(closed, [key]);
 
     expect([
-      refusal("assign_built_site"),
-      refusal("webhook_url"),
+      refusal("assignBuiltSite"),
+      refusal("webhookUrl"),
       refusal("active"),
-      refusal("uses_logistics"),
-      refusal("recurring_price"),
+      refusal("usesLogistics"),
+      refusal("recurringPrice"),
       refusal("name"),
-      closedFieldErrorOrNull(closed, ["name", "active", "webhook_url"]),
+      closedFieldErrorOrNull(closed, ["name", "active", "webhookUrl"]),
     ]).toEqual([
-      "assign_built_site needs site building turned on",
-      "webhook_url cannot be set in the demo",
+      "assignBuiltSite needs site building turned on",
+      "webhookUrl cannot be set in the demo",
       "editors cannot set active",
-      "uses_logistics needs logistics turned on",
-      "recurring_price needs subscriptions turned on",
+      "usesLogistics needs logistics turned on",
+      "recurringPrice needs subscriptions turned on",
       null,
       "editors cannot set active",
     ]);
@@ -106,16 +91,16 @@ describe("field specs", () => {
 
   test("the refusal names the attributes feature and the owner-only rule", () => {
     const closed = new Map([
-      ["attribute_option_ids", "attributes"],
-      ["option_ids", "nonOwner"],
+      ["attributeOptionIds", "attributes"],
+      ["optionIds", "nonOwner"],
     ] as const);
 
     expect([
-      closedFieldErrorOrNull(closed, ["attribute_option_ids"]),
-      closedFieldErrorOrNull(closed, ["option_ids"]),
+      closedFieldErrorOrNull(closed, ["attributeOptionIds"]),
+      closedFieldErrorOrNull(closed, ["optionIds"]),
     ]).toEqual([
-      "attribute_option_ids needs attributes turned on",
-      "option_ids is owner-only",
+      "attributeOptionIds needs attributes turned on",
+      "optionIds is owner-only",
     ]);
   });
 

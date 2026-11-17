@@ -31,13 +31,13 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
 
   describe("verifyOrRedirect", () => {
     test("returns null when the typed name matches", () => {
-      const form = new FormParams({ confirm_identifier: "Test Listing" });
+      const form = new FormParams({ confirmIdentifier: "Test Listing" });
 
       expect(verifyOrRedirect(form, "Test Listing", "/admin/test")).toBeNull();
     });
 
     test("redirects with the label and no action suffix on mismatch", () => {
-      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const form = new FormParams({ confirmIdentifier: "Wrong" });
 
       const result = verifyOrRedirect(form, "Test Listing", "/admin/test")!;
       expect(result.status).toBe(302);
@@ -50,7 +50,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
     });
 
     test("redirects with the label and action suffix on mismatch", () => {
-      const form = new FormParams({ confirm_identifier: "Wrong" });
+      const form = new FormParams({ confirmIdentifier: "Wrong" });
 
       const result = verifyOrRedirect(
         form,
@@ -71,7 +71,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       resetI18nForTest();
       try {
         const result = verifyOrRedirect(
-          new FormParams({ confirm_identifier: "Wrong" }),
+          new FormParams({ confirmIdentifier: "Wrong" }),
           "Test Listing",
           "/admin/test",
           t("attendees.name_label"),

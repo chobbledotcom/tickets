@@ -23,7 +23,7 @@ import { setupListingAndLogin } from "#test-utils/session.ts";
 const UPDATED_BOXES = {
   name: "Updated Listing",
   slug: "updated-listing",
-  thank_you_url: "https://example.com/updated",
+  thankYouUrl: "https://example.com/updated",
 };
 
 const LISTING_SETUP = { maxAttendees: 100, thankYouUrl: "https://example.com" };
@@ -61,7 +61,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/listing/1/edit",
-          { ...baseListingForm, ...UPDATED_BOXES, csrf_token: "invalid-token" },
+          { ...baseListingForm, ...UPDATED_BOXES, csrfToken: "invalid-token" },
           cookie,
         ),
       );
@@ -75,39 +75,37 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
 
     test("updates listing when authenticated", async () => {
       const { response, updated } = await saveFirstListing({
-        max_attendees: "200",
-        max_quantity: "5",
-        thank_you_url: "https://example.com/updated",
-        unit_price: "20.00",
+        maxAttendees: "200",
+        maxQuantity: "5",
+        thankYouUrl: "https://example.com/updated",
+        unitPrice: "20.00",
       });
       await expectFlashRedirect(
         "/admin/listing/1",
         "Listing updated",
       )(response);
       expect([
-        updated?.max_attendees,
-        updated?.thank_you_url,
-        updated?.unit_price,
+        updated?.maxAttendees,
+        updated?.thankYouUrl,
+        updated?.unitPrice,
       ]).toEqual([200, "https://example.com/updated", 2000]);
     });
 
     test("updates listing running totals from the edit form", async () => {
       const { response, updated } = await saveFirstListing({
-        booked_quantity: "12",
-        tickets_count: "4",
+        bookedQuantity: "12",
+        ticketsCount: "4",
       });
       expect(response.status).toBe(302);
       // income is no longer a column override — it's projected from the ledger,
       // so the form only edits the count aggregates now.
-      expect([updated?.attendee_count, updated?.tickets_count]).toEqual([
-        12, 4,
-      ]);
+      expect([updated?.attendeeCount, updated?.ticketsCount]).toEqual([12, 4]);
     });
 
     test("rejects invalid listing running totals", async () => {
       const { response } = await saveFirstListing({
-        booked_quantity: "-1",
-        tickets_count: "4",
+        bookedQuantity: "-1",
+        ticketsCount: "4",
       });
       await expectHtmlResponse(
         response,
@@ -119,10 +117,10 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
     test("refuses a webhook URL when updating listing in demo mode", async () => {
       setDemoModeForTest(true);
       const { response, updated } = await saveFirstListing({
-        max_attendees: "200",
-        webhook_url: "https://example.com/new-webhook",
+        maxAttendees: "200",
+        webhookUrl: "https://example.com/new-webhook",
       });
-      expect([response.status, updated?.max_attendees]).toEqual([400, 100]);
+      expect([response.status, updated?.maxAttendees]).toEqual([400, 100]);
     });
   });
 });

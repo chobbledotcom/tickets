@@ -19,7 +19,7 @@ describeWithEnv(
   "server public > can_pay_more (single ticket)",
   { db: true, triggers: true },
   () => {
-    describe("can_pay_more", () => {
+    describe("canPayMore", () => {
       /** GETs a listing's ticket page and returns the rendered HTML — the
        * shared fetch behind every can_pay_more price-input assertion below. */
       const getTicketHtml = async (
@@ -49,7 +49,7 @@ describeWithEnv(
       test("GET shows price input when can_pay_more is enabled", async () => {
         const listing = await payMoreListing();
         const html = await getTicketHtml(listing);
-        expect(html).toMatch(/name="custom_price(_\d+)?"/);
+        expect(html).toMatch(/name="customPrice(\d+)?"/);
 
         expectIncludesAll(html, [
           "Price per ticket (£10 minimum)",
@@ -64,13 +64,13 @@ describeWithEnv(
           unitPrice: 1000,
         });
         const html = await getTicketHtml(listing);
-        expect(html).not.toMatch(/name="custom_price(_\d+)?"/);
+        expect(html).not.toMatch(/name="customPrice(\d+)?"/);
       });
 
       test("GET shows price input for can_pay_more listings with zero unit_price", async () => {
         const listing = await payMoreListing({ unitPrice: undefined });
         const html = await getTicketHtml(listing);
-        expect(html).toMatch(/name="custom_price(_\d+)?"/);
+        expect(html).toMatch(/name="customPrice(\d+)?"/);
 
         expectIncludesAll(html, [
           "Price per ticket (optional, up to £100)",
@@ -81,7 +81,7 @@ describeWithEnv(
       test("GET shows optional price input for free can_pay_more listings", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
         const html = await getTicketHtml(listing);
-        expect(html).toMatch(/name="custom_price(_\d+)?"/);
+        expect(html).toMatch(/name="customPrice(\d+)?"/);
 
         expectIncludesAll(html, [
           "Price per ticket (optional, up to £100)",
@@ -93,7 +93,7 @@ describeWithEnv(
         await setupStripe();
         const listing = await payMoreListing({ unitPrice: 0 });
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "5.00",
+          customPrice: "5.00",
           email: "donor@example.com",
           name: "Donor",
           quantity: "1",
@@ -104,7 +104,7 @@ describeWithEnv(
       test("POST free can_pay_more with empty price registers for free", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "",
+          customPrice: "",
           email: "free@example.com",
           name: "Freebie",
           quantity: "1",
@@ -115,7 +115,7 @@ describeWithEnv(
       test("POST free can_pay_more with zero price registers for free", async () => {
         const listing = await payMoreListing({ unitPrice: 0 });
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "0",
+          customPrice: "0",
           email: "free@example.com",
           name: "Freebie",
           quantity: "1",
@@ -126,7 +126,7 @@ describeWithEnv(
       test("POST rejects price below minimum", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "5.00",
+          customPrice: "5.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -139,7 +139,7 @@ describeWithEnv(
         await setupStripe();
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "10.00",
+          customPrice: "10.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -151,7 +151,7 @@ describeWithEnv(
         await setupStripe();
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "25.00",
+          customPrice: "25.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -162,7 +162,7 @@ describeWithEnv(
       test("POST rejects price above maximum", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "150.00",
+          customPrice: "150.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -174,7 +174,7 @@ describeWithEnv(
       test("POST preserves form values when price exceeds maximum", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "150.00",
+          customPrice: "150.00",
           email: "preserved@example.com",
           name: "Preserved Name",
           quantity: "1",
@@ -187,7 +187,7 @@ describeWithEnv(
         await setupStripe();
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "100.00",
+          customPrice: "100.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -210,7 +210,7 @@ describeWithEnv(
       test("POST rejects empty custom_price for paid can_pay_more listing", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "",
+          customPrice: "",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -222,7 +222,7 @@ describeWithEnv(
       test("POST rejects invalid custom_price", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "abc",
+          customPrice: "abc",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -234,7 +234,7 @@ describeWithEnv(
       test("POST rejects negative custom_price", async () => {
         const listing = await payMoreListing();
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "-5.00",
+          customPrice: "-5.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -252,7 +252,7 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        expect(hasCheckedInput(html, "can_pay_more", "1")).toBe(true);
+        expect(hasCheckedInput(html, "canPayMore", "1")).toBe(true);
       });
 
       test("admin edit page shows can_pay_more unchecked for disabled listing", async () => {
@@ -267,14 +267,14 @@ describeWithEnv(
           },
         );
         const html = await response.text();
-        assertStringIncludes(html, 'name="can_pay_more"');
-        expect(hasCheckedInput(html, "can_pay_more", "1")).toBe(false);
+        assertStringIncludes(html, 'name="canPayMore"');
+        expect(hasCheckedInput(html, "canPayMore", "1")).toBe(false);
       });
 
       test("POST respects custom max_price", async () => {
         const listing = await payMoreListing({ maxPrice: 2000 });
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "25.00",
+          customPrice: "25.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",
@@ -287,7 +287,7 @@ describeWithEnv(
         await setupStripe();
         const listing = await payMoreListing({ maxPrice: 5000 });
         const response = await submitTicketForm(listing.slug, {
-          custom_price: "45.00",
+          customPrice: "45.00",
           email: "test@example.com",
           name: "Test User",
           quantity: "1",

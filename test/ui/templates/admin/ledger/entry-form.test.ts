@@ -22,7 +22,7 @@ describe("ledger entry forms", () => {
     const html = ledgerEntryForm.render();
     const amount = inputNamed(html, "amount");
     expectIncludesAll(amount, ['min="0"', "required"]);
-    assertStringIncludes(inputNamed(html, "occurred_at"), "required");
+    assertStringIncludes(inputNamed(html, "occurredAt"), "required");
   });
 
   test("preselects the posted entry type when redisplaying the add form", () => {
@@ -51,11 +51,11 @@ describe("ledger entry forms", () => {
     ];
     const html = defineLedgerEntryAddForm(options).render({
       amount: "5.00",
-      entry_type: MANUAL_ATTENDEE_CHARGE,
-      occurred_at: "2026-06-22T09:30",
+      entryType: MANUAL_ATTENDEE_CHARGE,
+      occurredAt: "2026-06-22T09:30",
     });
     // The type choice itself is a required control.
-    assertStringIncludes(inputNamed(html, "entry_type"), "required");
+    assertStringIncludes(inputNamed(html, "entryType"), "required");
     expectIncludesAll(html, [
       '<option value="manual_attendee_charge" selected>Charge</option>',
       '<option value="manual_attendee_payment">Payment</option>',
@@ -75,8 +75,8 @@ describe("ledger entry forms", () => {
     const result = defineLedgerEntryAddForm(options).validate(
       new FormParams({
         amount: "5.00",
-        entry_type: MANUAL_ATTENDEE_CHARGE,
-        occurred_at: "2026-06-22T09:30",
+        entryType: MANUAL_ATTENDEE_CHARGE,
+        occurredAt: "2026-06-22T09:30",
       }),
     );
     expect(result).toEqual({
@@ -92,14 +92,14 @@ describe("ledger entry forms", () => {
       const result = ledgerEntryForm.validate(
         new FormParams({
           amount: "12.34",
-          occurred_at: "2026-06-22T09:30",
+          occurredAt: "2026-06-22T09:30",
         }),
       );
       expect(result).toEqual({
         valid: true,
         values: {
           amount: 1234,
-          occurred_at: "2026-06-22T09:30:00.000Z",
+          occurredAt: "2026-06-22T09:30:00.000Z",
         },
       });
     },
@@ -110,7 +110,7 @@ describe("ledger entry forms", () => {
       ledgerEntryForm.validate(
         new FormParams({
           amount: "12.345",
-          occurred_at: "2026-06-22T09:30",
+          occurredAt: "2026-06-22T09:30",
         }),
       ),
     ).toEqual({ error: "Enter a valid amount.", valid: false });
@@ -119,7 +119,7 @@ describe("ledger entry forms", () => {
   test("returns the catalog error for an invalid date and time", () => {
     expect(
       ledgerEntryForm.validate(
-        new FormParams({ amount: "12.34", occurred_at: "not-a-date" }),
+        new FormParams({ amount: "12.34", occurredAt: "not-a-date" }),
       ),
     ).toEqual({ error: "Enter a valid date and time.", valid: false });
   });

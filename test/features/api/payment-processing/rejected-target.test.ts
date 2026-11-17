@@ -201,7 +201,7 @@ describeWithEnv("a refunded rejection's Money target", { db: true }, () => {
     );
 
     const stored = await getProcessedPayment(rejection.sessionId);
-    const outcome = await parseSessionFailure(stored!.failure_data);
+    const outcome = await parseSessionFailure(stored!.failureData);
     expect(outcome).toEqual({
       completion: { code: "malformed_charge" },
       error: "The payment could not be read, so it was refunded.",

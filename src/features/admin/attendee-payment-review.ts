@@ -61,9 +61,9 @@ const handlePaymentReviewPost = attendeeActions[ACTION].verified(
     const result = await acknowledgeCurrentPaymentReview({
       attendeeId: attendee.id,
       listingId,
-      reviewIdentity: form.getString("review_identity"),
+      reviewIdentity: form.getString("reviewIdentity"),
     });
-    const returnUrl = form.getString("return_url");
+    const returnUrl = form.getString("returnUrl");
     switch (result.kind) {
       case "acknowledged":
         return adminRedirect(

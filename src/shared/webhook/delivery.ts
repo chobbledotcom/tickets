@@ -97,7 +97,7 @@ export const registrationWebhookUrls = (
 ): string[] =>
   unique(
     mapNotNullish(
-      (entry: RegistrationEntry) => entry.listing.webhook_url || null,
+      (entry: RegistrationEntry) => entry.listing.webhookUrl || null,
     )(entries),
   );
 

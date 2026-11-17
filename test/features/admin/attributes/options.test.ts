@@ -34,7 +34,7 @@ const postEasyOptionDelete = async (
   const optionId = attribute.options[0]!.id;
   const { response } = await adminFormPost(
     `/admin/attributes/${attribute.id}/options/${optionId}/delete`,
-    { confirm_identifier: confirmIdentifier },
+    { confirmIdentifier },
   );
   return { attributeId: attribute.id, optionId, response };
 };

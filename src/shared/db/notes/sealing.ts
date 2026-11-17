@@ -37,7 +37,7 @@ export const openNote = async (
   row: SystemNoteRow,
   privateKey: CryptoKey,
 ): Promise<SystemNote> => {
-  const { system_name: _systemName, ...visible } = row;
+  const { systemName: _systemName, ...visible } = row;
   return { ...visible, note: await openText(row, privateKey) };
 };
 

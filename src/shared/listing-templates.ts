@@ -139,19 +139,15 @@ export const LISTING_TEMPLATES: readonly ListingTemplate[] = [
 
 export type DimensionSource = Pick<
   Listing,
-  | "date"
-  | "listing_type"
-  | "purchase_only"
-  | "recurring_price"
-  | "uses_logistics"
+  "date" | "listingType" | "purchaseOnly" | "recurringPrice" | "usesLogistics"
 >;
 
 export const dimensionsOf = (source: DimensionSource): Dimensions => ({
-  daily: source.listing_type === "daily",
+  daily: source.listingType === "daily",
   dated: source.date !== "",
-  logistics: source.uses_logistics,
-  purchaseable: source.purchase_only,
-  subscribed: source.recurring_price > 0,
+  logistics: source.usesLogistics,
+  purchaseable: source.purchaseOnly,
+  subscribed: source.recurringPrice > 0,
 });
 
 /** True when the signature pins this dimension to the other value. */

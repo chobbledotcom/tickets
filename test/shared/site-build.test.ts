@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { setEncryptionKeyForTest } from "#crypto/encryption.ts";
-import { builtSites, builtSitesCrudTable } from "#db/built-sites.ts";
+import { builtSites } from "#db/built-sites.ts";
 import {
   type BuildSiteResult,
   builderApi,
@@ -13,6 +13,7 @@ import { buildRetainedSite } from "#shared/site-build.ts";
 import { withBuildSiteMocks } from "#test-utils/builder-mocks.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { withEnv } from "#test-utils/env.ts";
+import { wrapDbClient } from "#test-utils/record-queries.ts";
 import { TEST_SCHEDULED_KEY } from "#test-utils/scheduled.ts";
 
 const BUILD_RESULT = {
@@ -135,12 +136,16 @@ describeWithEnv("site build", { db: true }, () => {
     // provider error stays the first cause the caller reports.
     await withBuildSiteMocks(
       async () => {
-        using _delete = stub(builtSitesCrudTable, "deleteById", () =>
-          Promise.reject(new Error("delete boom")),
-        );
+        const restore = wrapDbClient({
+          batch: () => {},
+          execute: (statement) =>
+            statement.sql.startsWith("DELETE FROM built_sites")
+              ? Promise.reject(new Error("delete boom"))
+              : null,
+        });
         const { result } = await buildRetainedSite("Failed Site", {
           siteName: "Failed Site",
-        });
+        }).finally(restore);
         expect(result.ok).toBe(false);
         if (result.ok) return;
         expect(result.error).toBe(

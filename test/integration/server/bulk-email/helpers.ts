@@ -71,7 +71,7 @@ export const seedMarketingDraftWithUnsubscriber = async () => {
   await unsubscribeHash(await hashEmail("alice@example.com"));
   await adminFormPost("/admin/emails/preview", {
     body: "Promo",
-    listing_id: String(listing.id),
+    listingId: String(listing.id),
     marketing: "1",
     subject: "Sale",
   });

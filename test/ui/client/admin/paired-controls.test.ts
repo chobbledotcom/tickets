@@ -12,12 +12,12 @@ describe("paired controls", () => {
   const setupPair = () => {
     const window = dom.installDom(`
       <form>
-        <label><input type="checkbox" name="is_reservation"
-               data-exclusive-with="is_paid_default"
+        <label><input type="checkbox" name="isReservation"
+               data-exclusive-with="isPaidDefault"
                data-exclusive-why="A paid status can't also be a reservation">
                Reservation</label>
-        <label><input type="checkbox" name="is_paid_default"
-               data-exclusive-with="is_reservation"
+        <label><input type="checkbox" name="isPaidDefault"
+               data-exclusive-with="isReservation"
                data-exclusive-why="A paid status can't also be a reservation">
                Paid</label>
       </form>
@@ -31,8 +31,8 @@ describe("paired controls", () => {
         `input[name="${name}"]`,
       );
     return {
-      paid: input("is_paid_default"),
-      reservation: input("is_reservation"),
+      paid: input("isPaidDefault"),
+      reservation: input("isReservation"),
       window,
     };
   };
@@ -92,10 +92,10 @@ describe("paired controls", () => {
   test("a pair without a why renders its holder without a reason", () => {
     const window = dom.installDom(`
       <form>
-        <label><input type="checkbox" name="customisable_days"
-               data-exclusive-with="can_pay_more"> Days</label>
-        <label><input type="checkbox" name="can_pay_more"
-               data-exclusive-with="customisable_days"> Pay more</label>
+        <label><input type="checkbox" name="customisableDays"
+               data-exclusive-with="canPayMore"> Days</label>
+        <label><input type="checkbox" name="canPayMore"
+               data-exclusive-with="customisableDays"> Pay more</label>
       </form>
     `);
 
@@ -103,7 +103,7 @@ describe("paired controls", () => {
 
     const days = requireElement<HTMLInputElement>(
       window.document,
-      'input[name="customisable_days"]',
+      'input[name="customisableDays"]',
     );
     expect(whyHolder(days).textContent).toBe("");
   });
@@ -111,11 +111,11 @@ describe("paired controls", () => {
   test("a control the server rendered already checked holds its counterpart at once", () => {
     const window = dom.installDom(`
       <form>
-        <label><input type="checkbox" name="customisable_days" checked
-               data-exclusive-with="can_pay_more"
+        <label><input type="checkbox" name="customisableDays" checked
+               data-exclusive-with="canPayMore"
                data-exclusive-why="These cannot combine"> Days</label>
-        <label><input type="checkbox" name="can_pay_more"
-               data-exclusive-with="customisable_days"> Pay more</label>
+        <label><input type="checkbox" name="canPayMore"
+               data-exclusive-with="customisableDays"> Pay more</label>
       </form>
     `);
 
@@ -123,7 +123,7 @@ describe("paired controls", () => {
 
     const payMore = requireElement<HTMLInputElement>(
       window.document,
-      'input[name="can_pay_more"]',
+      'input[name="canPayMore"]',
     );
     expect(payMore.disabled).toBe(true);
   });
@@ -131,12 +131,12 @@ describe("paired controls", () => {
   test("a conflict the server re-rendered keeps both controls editable, and stays resolved", () => {
     const window = dom.installDom(`
       <form>
-        <label><input type="checkbox" name="is_reservation" checked
-               data-exclusive-with="is_paid_default"
+        <label><input type="checkbox" name="isReservation" checked
+               data-exclusive-with="isPaidDefault"
                data-exclusive-why="A paid status can't also be a reservation">
                Reservation</label>
-        <label><input type="checkbox" name="is_paid_default" checked
-               data-exclusive-with="is_reservation"
+        <label><input type="checkbox" name="isPaidDefault" checked
+               data-exclusive-with="isReservation"
                data-exclusive-why="A paid status can't also be a reservation">
                Paid</label>
       </form>
@@ -151,8 +151,8 @@ describe("paired controls", () => {
       );
     // Disabling in both directions would lock the pair until a reload, so
     // the server-rendered conflict stays editable and its flash explains it.
-    const reservation = pick("is_reservation");
-    const paid = pick("is_paid_default");
+    const reservation = pick("isReservation");
+    const paid = pick("isPaidDefault");
     expect(reservation.disabled).toBe(false);
     expect(paid.disabled).toBe(false);
 

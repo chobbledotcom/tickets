@@ -10,17 +10,17 @@
 import type { ResultSet } from "@libsql/client";
 import { ATTENDEE } from "#accounting/accounts.ts";
 import { type BatchExecutor, resultRows } from "#db/client.ts";
-import { among, named } from "#db/select/expression.ts";
+import {
+  among,
+  type Expr,
+  type Operand,
+  valued,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { Node, Query } from "#db/select/shape.ts";
 import { type RowOf, tables } from "#db/select/tables.ts";
-import {
-  type SqlSlot,
-  type SqlStatement,
-  sql,
-  sqlCommas,
-  sqlNames,
-} from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { type InsertOptions, insertInto, type NewValues } from "#db/write.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 import { account } from "#shared/ledger/account.ts";
 import type {
@@ -62,7 +62,7 @@ type TransferRow = TransferEndpoints & {
 const COLUMNS = sql`id, source_type, source_id, dest_type, dest_id, amount, occurred_at, recorded_at, reference, event_group, kind, memo, reverses_id, reverses_group, posted_by`;
 
 /** Turn a database row into the {@link Transfer} the rest of the code uses.
- *  A kindless leg is stored as `kind = ''` (see {@link legColumns}). It maps
+ *  A kindless leg is stored as `kind = ''` (see {@link legRow}). It maps
  *  back to an *omitted* `kind`, mirroring `reverses_id`, so a stored transfer
  *  and a never-stored {@link TransferInput} agree on what "no kind" looks like. */
 const rowToTransfer = (row: TransferRow): Transfer => ({
@@ -81,77 +81,67 @@ const rowToTransfer = (row: TransferRow): Transfer => ({
   source: account(row.source_type, row.source_id),
 });
 
-/** One column of a transfers INSERT: its name, and the value or SQL expression
- *  it takes. */
-type LegColumn = { col: string; value: SqlSlot };
+/** Gives one leg side's account id. The default binds the id. The batch
+ *  booking writer swaps in its in-batch subquery for the attendee side
+ *  ({@link bookingLegBatchInsert}). */
+type AccountIdOf = (acct: AccountRef) => Operand<string>;
 
-const lit = (col: string, value: SqlSlot): LegColumn => ({ col, value });
-
-/** Renders one leg side's account id column. The default binds the id as a
- *  literal. The batch booking writer swaps in its in-batch subquery for the
- *  attendee side ({@link bookingLegBatchInsert}). */
-type AccountIdColumn = (col: string, acct: AccountRef) => LegColumn;
-
-const literalId: AccountIdColumn = (col, acct) => lit(col, acct.id);
+const literalId: AccountIdOf = (acct) => acct.id;
 
 /**
- * The column→value plan for one transfers row, in a fixed order — the single
- * place the table's INSERT columns and defaults live. Every insert variant
- * (plain, `OR IGNORE`, guarded, batch-booking) renders from this one plan via
- * {@link renderInsert}. A new column — or a changed default — is then written
- * exactly once and can never drift between the write paths.
+ * The new transfers row for one leg — the single place the table's INSERT
+ * columns and defaults live. Every insert variant (plain, `OR IGNORE`,
+ * guarded, batch-booking) writes this one row. A new column — or a changed
+ * default — is then written exactly once and can never drift between the
+ * write paths.
  */
-const legColumns = (
+const legRow = (
   t: TransferInput,
   recordedAt: string,
-  idCol: AccountIdColumn = literalId,
-): LegColumn[] => [
-  lit("source_type", t.source.type),
-  idCol("source_id", t.source),
-  lit("dest_type", t.destination.type),
-  idCol("dest_id", t.destination),
-  lit("amount", t.amount),
-  lit("occurred_at", instantToEpochMs(t.occurredAt)),
-  lit("recorded_at", instantToEpochMs(recordedAt)),
-  lit("reference", t.reference),
-  lit("event_group", t.eventGroup),
-  lit("kind", t.kind ?? ""),
-  lit("memo", t.memo ?? ""),
-  lit("reverses_id", t.reversesId ?? null),
-  lit("reverses_group", t.reversesGroup ?? ""),
-  lit("posted_by", t.postedBy ?? "system"),
-];
+  idOf: AccountIdOf = literalId,
+): NewValues<"transfers"> => ({
+  amount: t.amount,
+  destId: idOf(t.destination),
+  destType: t.destination.type,
+  eventGroup: t.eventGroup,
+  kind: t.kind ?? "",
+  memo: t.memo ?? "",
+  occurredAt: instantToEpochMs(t.occurredAt),
+  postedBy: t.postedBy ?? "system",
+  recordedAt: instantToEpochMs(recordedAt),
+  reference: t.reference,
+  reversesGroup: t.reversesGroup ?? "",
+  reversesId: t.reversesId ?? null,
+  sourceId: idOf(t.source),
+  sourceType: t.source.type,
+});
 
-/**
- * Render the INSERT for a column plan. Without a guard it is a plain
- * `VALUES (…)` insert. With one, the values become `SELECT … WHERE <guard>`, so
- * the row lands only while the guard still holds. One statement either way, so
- * it can ride in a single batch.
- */
-const renderInsert = (
-  opening: SqlStatement,
-  columns: LegColumn[],
-  guard?: SqlStatement,
-): SqlStatement => {
-  const values = sqlCommas(columns.map((column) => sql`${column.value}`));
-  const names = sqlNames(columns.map((column) => column.col));
-  return guard
-    ? sql`${opening} transfers (${names}) SELECT ${values} WHERE ${guard}`
-    : sql`${opening} transfers (${names}) VALUES (${values})`;
-};
+/** Insert one leg row. With a guard the values become `SELECT … WHERE
+ *  <guard>`, so the row lands only while the guard still holds. One statement
+ *  either way, so it can ride in a single batch. */
+const insertLeg = (
+  options: InsertOptions<"transfers">,
+  row: NewValues<"transfers">,
+  guard: SqlStatement | undefined,
+): SqlStatement =>
+  insertInto(
+    tables.transfers,
+    row,
+    guard === undefined ? options : { ...options, when: valued(guard) },
+  );
 
-const INSERT = sql`INSERT INTO`;
-const INSERT_IF_NEW = sql`INSERT OR IGNORE INTO`;
+const INSERT: InsertOptions<"transfers"> = {};
+const INSERT_IF_NEW: InsertOptions<"transfers"> = { or: "IGNORE" };
 
-/** The INSERT for one transfer under one opening. `recordedAt` is the
- * write-time clock. With a guard the leg lands only while the guard holds, so
- * the leg can ride in a one-shot batch. */
+/** The INSERT for one transfer under one set of insert options. `recordedAt`
+ * is the write-time clock. With a guard the leg lands only while the guard
+ * holds, so the leg can ride in a one-shot batch. */
 const insertUnder = (
-  opening: SqlStatement,
+  options: InsertOptions<"transfers">,
   t: TransferInput,
   recordedAt: string,
   guard?: SqlStatement,
-): SqlStatement => renderInsert(opening, legColumns(t, recordedAt), guard);
+): SqlStatement => insertLeg(options, legRow(t, recordedAt), guard);
 
 /** Build the INSERT for one transfer. The settle batch passes a guard to post
  * a balance-payment leg atomically. That batch stays a batch, not an
@@ -185,12 +175,12 @@ export const bookingLegBatchInsert = (
   attendeeIdSql: SqlStatement,
   guard: SqlStatement,
 ): SqlStatement =>
-  renderInsert(
+  insertLeg(
     INSERT_IF_NEW,
-    legColumns(t, recordedAt, (col, acct) =>
+    legRow(t, recordedAt, (acct) =>
       acct.type === ATTENDEE
-        ? lit(col, sql`CAST(${attendeeIdSql} AS TEXT)`)
-        : literalId(col, acct),
+        ? valued(sql`CAST(${attendeeIdSql} AS TEXT)`)
+        : literalId(acct),
     ),
     guard,
   );
@@ -217,7 +207,8 @@ export const byColumnIn =
     values: readonly (string | number)[],
   ): TransferRead =>
   (ledger) =>
-    ledger.where(() => among(named(column), values));
+    // The column is a text or a number column, as `values` is.
+    ledger.where((leg) => among(leg[column] as Expr<string | number>, values));
 
 const transferStatement = (read: LedgerRead): SqlStatement =>
   read.columns(() => COLUMNS);
@@ -289,7 +280,7 @@ export const selectByEventGroup = (
   read: BatchExecutor,
   eventGroup: string,
 ): Promise<Transfer[]> =>
-  selectTransfers(read, byColumnIn("event_group", [eventGroup]));
+  selectTransfers(read, byColumnIn("eventGroup", [eventGroup]));
 
 /** The stored transfer with this id, or null when none exists. */
 export const selectById = async (

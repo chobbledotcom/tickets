@@ -5,9 +5,10 @@ import type { BlindIndex } from "#crypto/sealed.ts";
 import { execute } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import { getGroupPackagePrices } from "#db/groups.ts";
+import { getGroupPackagePrices, newGroupValues } from "#db/groups.ts";
 import { listingParents } from "#db/listing-parents.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { createListing, getListingWithCount } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -66,7 +67,7 @@ const importLogisticsListing = async (name: string): Promise<boolean> => {
   });
   if (!result.ok) throw new Error(result.error);
   return (await getListingWithCount(requireEntityImport(result).id))!
-    .uses_logistics;
+    .usesLogistics;
 };
 
 /** A file for a one-place listing under the named parents. */
@@ -106,17 +107,16 @@ const hiddenPackageParent = async (): Promise<void> => {
     sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${pkg.id}`,
   );
   const { groups } = await import("#db/groups.ts");
-  groups.cache.invalidate();
+  groups.invalidate();
   const parent = await createTestListing({ name: "Pkg Parent" });
   await assignListingsToGroup([parent.id], pkg.id);
 };
 
 /** Two stored listings that share one name. */
 const twinParents = async (): Promise<void> => {
-  const { listingsTable } = await import("#db/listings/records.ts");
   const { hmacHash } = await import("#crypto/hashing.ts");
   for (const slug of ["twin-a", "twin-b"]) {
-    await listingsTable.insert({
+    await createListing({
       maxAttendees: 1,
       maxPrice: 0,
       name: "Twin Parent",
@@ -256,10 +256,7 @@ describeWithEnv(
         await editorExportCopy(),
         "editor",
       );
-      expect([imported.webhook_url, imported.use_defaults]).toEqual([
-        "",
-        false,
-      ]);
+      expect([imported.webhookUrl, imported.useDefaults]).toEqual(["", false]);
     });
 
     test("keeps the webhook URL for a non-editor import", async () => {
@@ -275,7 +272,7 @@ describeWithEnv(
         },
         "owner",
       );
-      expect(imported.webhook_url).toBe("https://example.com/hook");
+      expect(imported.webhookUrl).toBe("https://example.com/hook");
     });
 
     test("refuses a built-site plan listing whatever the builder configuration", async () => {
@@ -305,10 +302,10 @@ describeWithEnv(
       });
       if (!result.ok) throw new Error(result.error);
       const row = (await getGroupPackagePrices(group.id)).find(
-        (r) => r.listing_id === requireEntityImport(result).id,
+        (r) => r.listingId === requireEntityImport(result).id,
       )!;
       // The override is dropped because the group isn't a package.
-      expect(row.package_price).toBeNull();
+      expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
     });
 
@@ -324,7 +321,7 @@ describeWithEnv(
       const row = (
         await getGroupPackagePrices(requireEntityImport(result).id)
       )[0]!;
-      expect(row.package_price).toBeNull();
+      expect(row.packagePrice).toBeNull();
       expect(row.quantity).toBe(1);
     });
 
@@ -332,11 +329,10 @@ describeWithEnv(
       // More parents than the per-request N+1 guard (25) and the transaction
       // round-trip cap (~30) would allow one query/insert each — proves the
       // batched nested-parent check and the set-wise edge insert.
-      const { listingsTable } = await import("#db/listings/records.ts");
       // Supply dayPrices so insert does not read them back per row, which
       // would trip the N+1 guard across this 30-row setup.
       const parentNames = await storeThirty("Parent", (row) =>
-        listingsTable.insert({
+        createListing({
           ...row,
           dayPrices: {},
           maxAttendees: 1,
@@ -362,9 +358,8 @@ describeWithEnv(
       // the groups directly (like the many-parents case) rather than via
       // createTestGroup, whose trailing getAllGroups() would itself trip the read
       // guard 30 times over in this one test context.
-      const { groups } = await import("#db/groups.ts");
       const groupNames = await storeThirty("Group", (row) =>
-        groups.table.insert(row),
+        records.groups.insert(newGroupValues(row)),
       );
       const result = await importCatalog({
         groups: groupNames.map((group) => ({ group })),

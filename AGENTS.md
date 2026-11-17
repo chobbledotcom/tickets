@@ -591,7 +591,7 @@ to do.
   with a `WHERE`/`LIMIT`.
 - Full-row reads are the exceptions: an entity cache that also backs
   single-record reads (`getAllListings`), full-table backup and restore, and
-  `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
+  the one-row reads and writes in `record-table.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
 
 ### The `sql` Tag

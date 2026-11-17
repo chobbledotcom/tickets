@@ -5,7 +5,7 @@
  * custom routes beside the generated six.
  */
 
-import { getNewsPostById } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import { newsRecord } from "#shared/records/news.ts";
 import { recordPages } from "#shared/rest/record-pages.ts";
@@ -50,7 +50,7 @@ const pages = recordPages(newsRecord, {
 
 const images = contentImageHandlers({
   itemType: "news",
-  load: getNewsPostById,
+  load: records.news_posts.find,
   nameOf: (post) => post.name,
   record: newsRecord,
 });

@@ -149,7 +149,7 @@ const packageMergedFields = (ctx: TicketCtx): string =>
  * package omits its members entirely. */
 export const handleGetPackage = withPackageContext(
   async (_request, { ctx, group, limit, minimum, tree }) => {
-    const customisable = ctx.listings.some((e) => e.listing.customisable_days);
+    const customisable = ctx.listings.some((e) => e.listing.customisableDays);
     const dayCounts = customisable
       ? pageDayCounts(ctx.listings, ctx.childrenByParentId, true)
       : [];
@@ -161,7 +161,7 @@ export const handleGetPackage = withPackageContext(
     const holidays = await getActiveHolidays();
     const memberQuantities = fixedQuantitiesByListingId(tree);
     const bookableChildren = bookableChildIds(ctx.childrenByParentId);
-    const members = group.hide_package_listings
+    const members = group.hidePackageListings
       ? undefined
       : ctx.listings.map((e) => {
           const children = packageChildren(ctx, e.listing.id)
@@ -169,7 +169,7 @@ export const handleGetPackage = withPackageContext(
             .map((child) =>
               resolvedToPublicListing(
                 child,
-                child.listing.listing_type === "daily"
+                child.listing.listingType === "daily"
                   ? getAvailableDates(child.listing, holidays)
                   : undefined,
               ),
@@ -300,10 +300,8 @@ const resolvePackageOrder = async (
   if (!dateResult.ok) return apiError(dateResult.error);
   const date = dateResult.date;
 
+  // The JSON `dayCount` is also the name of the day-count box.
   const form = toFormParams(body);
-  if (body.dayCount !== undefined) {
-    form.set("day_count", String(body.dayCount));
-  }
   const dayResult = await resolveDayCount(
     listingsWithQuantity(ctx.listings, quantities),
     form,
@@ -369,7 +367,7 @@ export const handleBookPackage: SlugRouteHandler = async (
         customPrices: new Map(),
         date,
         dayCount,
-        hasCustomisable: ctx.listings.some((e) => e.listing.customisable_days),
+        hasCustomisable: ctx.listings.some((e) => e.listing.customisableDays),
         nameFor: standInNameFor(standIns, new Set()),
         quantities,
       },

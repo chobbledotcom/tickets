@@ -99,7 +99,7 @@ describe("test-utils — ticket & join flows", () => {
         email: "explicit@example.com",
         name: "Explicit Quantity",
         quantity: "5",
-        [`quantity_${listing.id}`]: "2",
+        [`quantity${listing.id}`]: "2",
       });
       await expectSingleAttendeeQuantity(response, listing.id, 2);
     });
@@ -107,7 +107,7 @@ describe("test-utils — ticket & join flows", () => {
     test("maps generic custom price onto the single listing field", async () => {
       const listing = await payableListing();
       const response = await submitTicketForm(listing.slug, {
-        custom_price: "25.00",
+        customPrice: "25.00",
         email: "custom-price@example.com",
         name: "Custom Price",
         quantity: "1",
@@ -118,8 +118,8 @@ describe("test-utils — ticket & join flows", () => {
     test("keeps an explicit custom price over the generic field", async () => {
       const listing = await payableListing();
       const response = await submitTicketForm(listing.slug, {
-        custom_price: "5.00",
-        [`custom_price_${listing.id}`]: "25.00",
+        customPrice: "5.00",
+        [`customPrice${listing.id}`]: "25.00",
         email: "explicit-price@example.com",
         name: "Explicit Price",
         quantity: "1",
@@ -168,7 +168,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode } = await createTestInvite("joinhelper");
       const response = await submitJoinForm(inviteCode, {
         password: "newpassword123",
-        password_confirm: "newpassword123",
+        passwordConfirm: "newpassword123",
       });
       expectRedirectWithFlash(
         "/join/complete",
@@ -180,7 +180,7 @@ describe("test-utils — ticket & join flows", () => {
       const { inviteCode } = await createTestInvite("joinhelper2");
       const response = await submitJoinForm(inviteCode, {
         password: "password123",
-        password_confirm: "different",
+        passwordConfirm: "different",
       });
       expect(response.status).toBe(302);
     });
@@ -194,7 +194,7 @@ describe("test-utils — ticket & join flows", () => {
     test("creates an invite and returns the invite code", async () => {
       const { inviteCode, cookie, csrfToken } =
         await createTestInvite("invitee1");
-      expect(inviteCode).toBeTruthy();
+      expect(inviteCode).toMatch(/^[A-Za-z0-9_-]+$/);
       assertStringIncludes(cookie, `${getSessionCookieName()}=`);
       expect(csrfToken).toMatch(/^s1\./);
     });
@@ -255,7 +255,7 @@ describe("test-utils — ticket & join flows", () => {
     test("returns cookie and CSRF token after successful login", async () => {
       const session = await loginAsAdmin();
       assertStringIncludes(session.cookie, `${getSessionCookieName()}=`);
-      expect(session.csrfToken).toBeTruthy();
+      expect(session.csrfToken).toMatch(/^s1\./);
       expect(typeof session.csrfToken).toBe("string");
     });
   });

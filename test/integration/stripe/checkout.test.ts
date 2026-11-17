@@ -30,7 +30,7 @@ describeStripe("stripe", () => {
 
   describe("createCheckoutSession - phone metadata", () => {
     test("includes phone in metadata when provided", async () => {
-      const listing = testListing({ unit_price: 1000 });
+      const listing = testListing({ unitPrice: 1000 });
       await expectSessionCreated(
         checkoutIntent({
           email: "john@example.com",
@@ -44,7 +44,7 @@ describeStripe("stripe", () => {
 
   describe("createCheckoutSession - no email", () => {
     test("creates checkout session without customer_email when email is empty", async () => {
-      const listing = testListing({ unit_price: 1000 });
+      const listing = testListing({ unitPrice: 1000 });
       await expectSessionCreated(
         checkoutIntent({
           email: "",

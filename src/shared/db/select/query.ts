@@ -26,11 +26,13 @@ import {
   wholeCondition,
 } from "#db/select/expression.ts";
 import {
+  type ColumnOf,
   type CountRow,
   type Joins,
   type Node,
   type None,
   type Out,
+  type Picked,
   type Query,
   type Selection,
   type Spec,
@@ -38,6 +40,7 @@ import {
   Via,
   type Where,
 } from "#db/select/shape.ts";
+import { fromColumn, withSources } from "#db/select/sources.ts";
 import {
   type ReferenceOf,
   referenceOf,
@@ -53,6 +56,7 @@ import {
   sqlJoin,
   sqlName,
 } from "#db/sql.ts";
+import { fieldName } from "#shared/column-names.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
 
 type NodeFn<Root, Result> = (node: Root) => Result;
@@ -104,7 +108,10 @@ const nodeOf = (
   }
   plan.aliases.push(alias);
   return Object.fromEntries(
-    table.columns.map(([name]) => [name, column(alias, name)]),
+    table.columns.map(([name]) => [
+      fieldName(name),
+      fromColumn(column(alias, name), { column: name, table: table.name }),
+    ]),
   );
 };
 
@@ -258,14 +265,16 @@ const query = <Root, First>(
   };
 
   /** The statement that reads each picked value under its name. */
-  const named = (pick: (node: Root) => Selection): SqlStatement =>
-    statement((node) =>
-      sqlCommas(
-        Object.entries(pick(node)).map(
-          ([name, value]) => sql`${value} AS ${sqlName(name)}`,
-        ),
-      ),
-    );
+  const named = (pick: (node: Root) => Selection): SqlStatement => {
+    let picked: [string, SqlStatement][] = [];
+    const read = statement((node) => {
+      picked = Object.entries(pick(node));
+      return sqlCommas(
+        picked.map(([name, value]) => sql`${value} AS ${sqlName(name)}`),
+      );
+    });
+    return withSources(read, picked);
+  };
 
   return {
     aggregate: (pick) => {
@@ -280,6 +289,15 @@ const query = <Root, First>(
     columns: statement,
     count: () =>
       statement(() => sql`COUNT(*) AS count`) as RowsStatement<CountRow>,
+    everyColumn: () =>
+      named((node) =>
+        Object.fromEntries(
+          table.columns.map(([column]) => {
+            const field = fieldName(column);
+            return [field, columnOf(node, field)];
+          }),
+        ),
+      ) as RowsStatement<Picked<First, ColumnOf<First>>>,
     exists: () => wholeCondition(sql`EXISTS (${statement(() => sql`1`)})`),
     groupBy: (group) => next({ group }),
     join: (key, joinedTable, on) =>
@@ -332,13 +350,6 @@ export const from = <Name extends TableName, const Joined extends Spec = None>(
   table: TableHandle<Name>,
   spec: Joins<Name, Joined> = NO_JOINS,
 ): Query<Node<Name, Joined>> => query(table, spec, bareRead(table));
-
-/** Rows of the table of this name, for code over any table. The read has no
- *  typed node, so its conditions name their columns by text. */
-export const fromNamed = (name: string): Query<unknown> => {
-  const table = { columns: [], name, singular: name };
-  return query(table, {}, bareRead(table));
-};
 
 /** A join of the rows of `table` whose reference `edge` points at the parent. */
 export const via = <

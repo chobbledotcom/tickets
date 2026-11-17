@@ -15,25 +15,25 @@ import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
 describeWithEnv("settings length refusals", { db: true }, () => {
   const cases = [
-    ["email", "email_api_key", MAX_INPUT_LENGTH],
-    ["email", "email_from_address", MAX_INPUT_LENGTH],
-    ["sms-gateway", "sms_gateway_username", MAX_INPUT_LENGTH],
-    ["sms-gateway", "sms_gateway_base_url", MAX_INPUT_LENGTH],
-    ["sms-gateway", "sms_gateway_password", MAX_INPUT_LENGTH],
-    ["sms-gateway", "sms_gateway_passphrase", MAX_INPUT_LENGTH],
-    ["sms-gateway", "sms_gateway_webhook_secret", MAX_INPUT_LENGTH],
-    ["apple-wallet", "apple_wallet_team_id", MAX_INPUT_LENGTH],
-    ["apple-wallet", "apple_wallet_signing_key", MAX_TEXTAREA_LENGTH],
-    ["google-wallet", "google_wallet_service_account_email", MAX_INPUT_LENGTH],
-    ["google-wallet", "google_wallet_service_account_key", MAX_TEXTAREA_LENGTH],
+    ["email", "emailApiKey", MAX_INPUT_LENGTH],
+    ["email", "emailFromAddress", MAX_INPUT_LENGTH],
+    ["sms-gateway", "smsGatewayUsername", MAX_INPUT_LENGTH],
+    ["sms-gateway", "smsGatewayBaseUrl", MAX_INPUT_LENGTH],
+    ["sms-gateway", "smsGatewayPassword", MAX_INPUT_LENGTH],
+    ["sms-gateway", "smsGatewayPassphrase", MAX_INPUT_LENGTH],
+    ["sms-gateway", "smsGatewayWebhookSecret", MAX_INPUT_LENGTH],
+    ["apple-wallet", "appleWalletTeamId", MAX_INPUT_LENGTH],
+    ["apple-wallet", "appleWalletSigningKey", MAX_TEXTAREA_LENGTH],
+    ["google-wallet", "googleWalletServiceAccountEmail", MAX_INPUT_LENGTH],
+    ["google-wallet", "googleWalletServiceAccountKey", MAX_TEXTAREA_LENGTH],
     ["email-templates/confirmation", "subject", MAX_INPUT_LENGTH],
     ["email-templates/confirmation", "html", MAX_EMAIL_TEMPLATE_LENGTH],
     ["email-templates/confirmation", "text", MAX_EMAIL_TEMPLATE_LENGTH],
-    ["embed-hosts", "embed_hosts", MAX_INPUT_LENGTH],
-    ["business-email", "business_email", MAX_INPUT_LENGTH],
-    ["terms", "terms_and_conditions", MAX_TEXTAREA_LENGTH],
-    ["custom-css", "custom_css", MAX_TEXTAREA_LENGTH],
-    ["address-lookup", "address_lookup_api_key", MAX_INPUT_LENGTH],
+    ["embed-hosts", "embedHosts", MAX_INPUT_LENGTH],
+    ["business-email", "businessEmail", MAX_INPUT_LENGTH],
+    ["terms", "termsAndConditions", MAX_TEXTAREA_LENGTH],
+    ["custom-css", "customCss", MAX_TEXTAREA_LENGTH],
+    ["address-lookup", "addressLookupApiKey", MAX_INPUT_LENGTH],
   ] as const;
 
   test("renders each POST limit on its browser control", async () => {
@@ -62,16 +62,16 @@ describeWithEnv("settings length refusals", { db: true }, () => {
   }
 
   for (const [route, name] of [
-    ["stripe", "stripe_secret_key"],
-    ["square", "square_access_token"],
-    ["square", "square_location_id"],
-    ["square-webhook", "square_webhook_signature_key"],
-    ["sumup", "sumup_api_key"],
-    ["sumup", "sumup_merchant_code"],
-    ["custom-domain", "custom_domain"],
+    ["stripe", "stripeSecretKey"],
+    ["square", "squareAccessToken"],
+    ["square", "squareLocationId"],
+    ["square-webhook", "squareWebhookSignatureKey"],
+    ["sumup", "sumupApiKey"],
+    ["sumup", "sumupMerchantCode"],
+    ["custom-domain", "customDomain"],
     ["host-subdomain", "subdomain"],
-    ["listing-column-order", "column_order"],
-    ["attendee-column-order", "column_order"],
+    ["listing-column-order", "columnOrder"],
+    ["attendee-column-order", "columnOrder"],
   ] as const) {
     test(`refuses oversized ${route} ${name} before external calls`, async () => {
       using fetch = stubFetch(new Error("Unexpected external call"));
@@ -91,8 +91,8 @@ describeWithEnv("settings length refusals", { db: true }, () => {
     const oldKey = "x".repeat(MAX_INPUT_LENGTH + 1);
     await settings.update.email.apiKey(oldKey);
     const { response } = await adminFormPost("/admin/settings/email", {
-      email_api_key: MASK_SENTINEL,
-      email_provider: "resend",
+      emailApiKey: MASK_SENTINEL,
+      emailProvider: "resend",
     });
     expect(response.status).toBe(302);
     expect(settings.email.apiKey).toBe(oldKey);
@@ -101,16 +101,16 @@ describeWithEnv("settings length refusals", { db: true }, () => {
   test("accepts an email key exactly at the new limit", async () => {
     const key = "x".repeat(MAX_INPUT_LENGTH);
     await adminFormPost("/admin/settings/email", {
-      email_api_key: key,
-      email_provider: "resend",
+      emailApiKey: key,
+      emailProvider: "resend",
     });
     expect(settings.email.apiKey).toBe(key);
   });
 
   test("refuses an oversized email key before any settings change", async () => {
     const { response } = await adminFormPost("/admin/settings/email", {
-      email_api_key: "x".repeat(251),
-      email_provider: "resend",
+      emailApiKey: "x".repeat(251),
+      emailProvider: "resend",
     });
     expectRedirectWithFlash(
       "/admin/settings-advanced?form=settings-email#settings-email",

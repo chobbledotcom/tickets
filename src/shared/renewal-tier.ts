@@ -8,19 +8,15 @@ import { sort } from "#fp";
 export type TierListing = Awaited<ReturnType<typeof getAllListings>>[number];
 export type RenewalTierListing = Pick<
   TierListing,
-  | "active"
-  | "assign_built_site"
-  | "hidden"
-  | "months_per_unit"
-  | "purchase_only"
+  "active" | "assignBuiltSite" | "hidden" | "monthsPerUnit" | "purchaseOnly"
 >;
 
 export const isQualifyingTierListing = (listing: RenewalTierListing): boolean =>
-  listing.purchase_only &&
+  listing.purchaseOnly &&
   listing.hidden &&
-  listing.months_per_unit > 0 &&
+  listing.monthsPerUnit > 0 &&
   listing.active &&
-  !listing.assign_built_site;
+  !listing.assignBuiltSite;
 
 /** All listings that qualify as renewal tiers. */
 export const getQualifyingTierListings = async (): Promise<TierListing[]> => {
@@ -34,7 +30,7 @@ export const pickTierListing = async (): Promise<TierListing | null> => {
   if (qualifying.length === 0) return null;
   const sorted = sort(
     (a: (typeof qualifying)[number], b: (typeof qualifying)[number]) =>
-      a.unit_price - b.unit_price,
+      a.unitPrice - b.unitPrice,
   )(qualifying);
   return sorted[0]!;
 };

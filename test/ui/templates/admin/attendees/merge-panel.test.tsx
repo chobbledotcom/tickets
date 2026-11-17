@@ -74,8 +74,8 @@ describe("AttendeeMergePanel", () => {
     expectIncludesAll(html, [
       "<h3>Merge Preview</h3>",
       '<form action="/admin/attendees/42/merge" autocomplete="off" method="POST">',
-      '<input name="source_token" type="hidden" value="source&amp;token">',
-      '<input name="merge_version" type="hidden" value="merge-version-9">',
+      '<input name="sourceToken" type="hidden" value="source&amp;token">',
+      '<input name="mergeVersion" type="hidden" value="merge-version-9">',
       "Keep current: Target &lt;Person&gt;",
       "Use source: Source &amp; Person",
       "<strong>Warning:</strong> This will permanently delete the source attendee. This cannot be undone.",

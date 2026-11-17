@@ -3,7 +3,7 @@
  *
  * `/admin/listing/new` shows a picker card page until the operator names a
  * template. A rejected create has to re-open the same shaped form, so the page
- * carries the template in a hidden `template_id` field — either the one the
+ * carries the template in a hidden `templateId` field — either the one the
  * operator submitted, or one worked out from what they typed.
  */
 
@@ -36,7 +36,7 @@ const expectPicker = (html: string): void => {
 
 /** The template the page will carry back into a re-submitted create. */
 const carriedTemplate = (html: string): string | null =>
-  /name="template_id"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? null;
+  /name="templateId"[^>]*value="([^"]*)"/.exec(html)?.[1] ?? null;
 
 /** A create that always fails validation, so the error page renders. The blank
  * name is what fails; every other field is the shape under test. */
@@ -156,7 +156,7 @@ describeWithEnv("a rejected create keeps its template", { db: true }, () => {
     // template instead of reading the submitted one would say so.
     const html = await rejectedCreate(
       { date: "2026-09-01T10:00", listingType: "standard" },
-      { template_id: "weekly-event" },
+      { templateId: "weekly-event" },
     );
 
     expect(carriedTemplate(html)).toBe("weekly-event");

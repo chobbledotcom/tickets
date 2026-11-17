@@ -22,8 +22,8 @@ describe("ListingGroupSelect", () => {
     expectIncludesAll(html, [
       '<fieldset class="checkboxes">',
       "<legend>Group</legend>",
-      '<input name="group_ids" type="checkbox" value="3"> Weekend',
-      '<input name="group_ids" type="checkbox" value="9"> Christmas Bundle',
+      '<input name="groupIds" type="checkbox" value="3"> Weekend',
+      '<input name="groupIds" type="checkbox" value="9"> Christmas Bundle',
     ]);
   });
 
@@ -38,8 +38,8 @@ describe("ListingGroupSelect", () => {
       }),
     );
     expectIncludesAll(html, [
-      '<input name="group_ids" type="checkbox" value="3"> Weekend',
-      '<input checked name="group_ids" type="checkbox" value="9"> Weekend',
+      '<input name="groupIds" type="checkbox" value="3"> Weekend',
+      '<input checked name="groupIds" type="checkbox" value="9"> Weekend',
     ]);
   });
 });

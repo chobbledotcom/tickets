@@ -12,7 +12,7 @@ export const createAgentAssignedToFirstUser = async (
   const userId = (await getAllUsers())[0]!.id;
   const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
     name,
-    user_ids: String(userId),
+    userIds: String(userId),
   });
   return { id, response, userId };
 };

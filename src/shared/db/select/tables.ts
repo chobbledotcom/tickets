@@ -3,21 +3,27 @@
  * Every table as a read sees it. Each table has the type of its stored row,
  * the columns that refer to another table, and the word a query calls it by.
  *
- * All of it comes from the schema declaration, apart from the values that
- * `StoredValues` names. A column that the schema does not declare is a compile
- * error in a read.
+ * All of it comes from the schema declaration, apart from the stored types
+ * that the codecs in `#db/codecs/columns.ts` name. A column that the schema
+ * does not declare is a compile error in a read.
  */
 
-import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
+import type { CODECS } from "#db/codecs/columns.ts";
+import type { AppOf, StoredOf } from "#db/codecs/kinds.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
 import { columnFacts } from "#db/migrations/schema/scalar-columns.ts";
-import type { Column, ColumnKind } from "#db/migrations/schema/types.ts";
 import type {
-  RecurringIntervalChoice,
-  SubscriptionStatus,
-} from "#shared/subscriptions/plan.ts";
-import type { ImageUseItemType, Modifier, SitePageItemType } from "#types";
+  Column,
+  ColumnKind,
+  Filling,
+} from "#db/migrations/schema/types.ts";
+import {
+  type CamelCased,
+  type CamelWord,
+  columnName,
+  type SnakeWord,
+} from "#shared/column-names.ts";
 
 type Declared = (typeof TYPED_SCHEMA)[number];
 
@@ -29,74 +35,101 @@ type ColumnOf<Name extends TableName> = Extract<
   readonly [Name, unknown]
 >[1]["columns"][number];
 
-type StoredIn<Kind> = Kind extends ColumnKind<infer Stored> ? Stored : never;
+type StoredIn<Kind> =
+  Kind extends ColumnKind<infer Stored, Filling> ? Stored : never;
+
+/** The columns of a table that a new row can leave out. */
+type OptionalColumnOf<Name extends TableName> = {
+  [Each in ColumnOf<Name> as Each[1] extends ColumnKind<unknown, "optional">
+    ? Each[0]
+    : never]: true;
+};
 
 /** The row of a table as its column types alone give it. */
-type DeclaredRow<Name extends TableName> = {
+export type DeclaredRow<Name extends TableName> = {
   [Each in ColumnOf<Name> as Each[0]]: StoredIn<Each[1]>;
 };
 
-/** The values that the code writes to a column whose type says only "text".
- *  The database does not check them. The code that writes the column keeps
- *  them true, and a read takes the type of the column from here. */
-type StoredValues = {
-  attendees: { pii_blob: OwnerKeyEncrypted | "" };
-  contact_preferences: { stats_blob: OwnerKeyEncrypted | "" };
-  groups: { name: EnvKeyEncrypted };
-  image_uses: { item_type: ImageUseItemType };
-  listing_attendees: {
-    recurring_interval: RecurringIntervalChoice;
-    subscription_status: SubscriptionStatus | "";
-  };
-  listings: { recurring_interval: RecurringIntervalChoice };
-  modifiers: Pick<Modifier, "calc_kind" | "direction" | "scope" | "trigger"> & {
-    name: EnvKeyEncrypted;
-  };
-  site_page_items: { item_type: SitePageItemType };
-  system_notes: { note: EnvKeyEncrypted | OwnerKeyEncrypted };
-  users: { admin_level: EnvKeyEncrypted; username_hash: EnvKeyEncrypted };
-};
-
-/** The named values of one table, or nothing for a table with none. */
-type ValuesOf<Name> = Name extends keyof StoredValues
-  ? StoredValues[Name]
+/** The codecs of one table, or none. */
+type CodecsOf<Name> = Name extends keyof typeof CODECS
+  ? (typeof CODECS)[Name]
   : Record<never, never>;
 
 type StoredAt<Row, Column> = Column extends keyof Row ? Row[Column] : never;
 
-/** The columns of one entry of `StoredValues` that fit no declared column. A
- *  value fits when the type of its column can hold it. */
-type UnfitIn<Name extends keyof StoredValues> = {
-  [Column in keyof StoredValues[Name]]: StoredValues[Name][Column] extends StoredAt<
-    DeclaredRow<Name>,
-    Column
-  >
+/** The columns of one table whose codec stores a value that its declared
+ *  column cannot hold. */
+type UnfitIn<Name extends keyof typeof CODECS> = {
+  [Column in keyof CodecsOf<Name>]: StoredOf<
+    CodecsOf<Name>[Column]
+  > extends StoredAt<DeclaredRow<Name>, Column>
     ? never
     : Column;
-}[keyof StoredValues[Name]];
+}[keyof CodecsOf<Name>];
 
-/** Every entry of `StoredValues` that fits no declared column. */
+/** Every codec that stores a value that its column cannot hold. */
 type Unfit = {
-  [Name in keyof StoredValues]: UnfitIn<Name>;
-}[keyof StoredValues];
+  [Name in keyof typeof CODECS]: UnfitIn<Name>;
+}[keyof typeof CODECS];
 
-/** The row a table stores: each column, and the value it holds. An entry of
- *  `StoredValues` that fits no column leaves every row with no type. */
-export type RowOf<Name extends TableName> = [Unfit] extends [never]
+/** A row of a table, with each column read through `Through`. A codec that
+ *  does not fit its column leaves every row with no type. */
+type RowThrough<Name extends TableName, Stored extends boolean> = [
+  Unfit,
+] extends [never]
   ? {
-      [Column in keyof DeclaredRow<Name>]: Column extends keyof ValuesOf<Name>
-        ? ValuesOf<Name>[Column]
+      [Column in keyof DeclaredRow<Name>]: Column extends keyof CodecsOf<Name>
+        ? Stored extends true
+          ? StoredOf<CodecsOf<Name>[Column]>
+          : AppOf<CodecsOf<Name>[Column]>
         : StoredAt<DeclaredRow<Name>, Column>;
     }
   : never;
+
+/** The row a table stores, under its column names. Only SQL text and the
+ *  codecs name a column this way. */
+type StoredColumns<Name extends TableName> = RowThrough<Name, true>;
+
+/** The row a table stores: each field, and the value it holds. */
+export type RowOf<Name extends TableName> = CamelCased<StoredColumns<Name>>;
+
+/** The row the code reads: each field through its codec. */
+export type DecodedRowOf<Name extends TableName> = CamelCased<
+  RowThrough<Name, false>
+>;
+
+/** The stored fields that the database can fill (`Optional` true), or the
+ *  ones it cannot (false). */
+type FillableFields<
+  Name extends TableName,
+  Optional extends boolean,
+> = CamelCased<{
+  [Column in keyof StoredColumns<Name> as (
+    Column extends keyof OptionalColumnOf<Name>
+      ? true
+      : false
+  ) extends Optional
+    ? Column
+    : never]: StoredColumns<Name>[Column];
+}>;
+
+/** A new row of a table: every field that the database cannot fill, and any
+ *  of the others. */
+export type NewRowOf<Name extends TableName> = FillableFields<Name, false> &
+  Partial<FillableFields<Name, true>>;
 
 /** The referring columns of a table, and the table each one points at. */
 type ReferencesOf<Name extends TableName> = Name extends keyof typeof REFERENCES
   ? (typeof REFERENCES)[Name]
   : Record<never, never>;
 
-/** The name a join uses for a referring column: the column without `_id`. */
-type JoinKey<ColumnName> = ColumnName extends `${infer Key}_id` ? Key : never;
+/** The name a join uses for a referring column: the field without `Id`. */
+type JoinKey<ColumnName> = ColumnName extends `${infer Key}_id`
+  ? CamelWord<Key>
+  : never;
+
+/** The referring column behind a join key. */
+type ReferringColumn<Key extends string> = `${SnakeWord<Key>}_id`;
 
 /** The names a join can follow from a table. */
 export type ReferenceOf<Name extends TableName> = JoinKey<
@@ -107,11 +140,14 @@ export type ReferenceOf<Name extends TableName> = JoinKey<
 export type TargetOf<
   Name extends TableName,
   Key extends ReferenceOf<Name>,
-> = ReferencesOf<Name>[`${Key}_id` & keyof ReferencesOf<Name>] & TableName;
+> = ReferencesOf<Name>[ReferringColumn<Key> & keyof ReferencesOf<Name>] &
+  TableName;
 
 /** Whether the referring column can hold nothing. */
 export type IsOptional<Name extends TableName, Key extends ReferenceOf<Name>> =
-  null extends StoredAt<RowOf<Name>, `${Key}_id`> ? true : false;
+  null extends StoredAt<StoredColumns<Name>, ReferringColumn<Key>>
+    ? true
+    : false;
 
 /** The references of `From` that point at `To`. */
 export type ReferenceTo<From extends TableName, To extends TableName> = {
@@ -227,7 +263,7 @@ export const referenceOf = (
   table: TableHandle<string>,
   key: string,
 ): Reference => {
-  const column = `${key}_id`;
+  const column = `${columnName(key)}_id`;
   const declared = table.columns.find(([name]) => name === column);
   if (declared === undefined) {
     throw new Error(`${table.name} has no ${column} column to join along`);
@@ -253,3 +289,8 @@ export const tableNamed = (name: string): TableHandle => {
   }
   return tables[name as TableName];
 };
+
+/** The tables whose rows have an `id` column. */
+export type TableWithId = {
+  [Name in TableName]: "id" extends keyof RowOf<Name> ? Name : never;
+}[TableName];

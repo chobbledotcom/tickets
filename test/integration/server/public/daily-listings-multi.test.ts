@@ -67,8 +67,8 @@ describeWithEnv(
             date: validDate,
             email: "multidaily@example.com",
             name: "Multi Daily User",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         expectReservedRedirectWithTokens(response);
@@ -86,8 +86,8 @@ describeWithEnv(
             date: validDate,
             email: "multipaid@example.com",
             name: "Multi Daily Paid",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         expect(response.status).toBe(302);

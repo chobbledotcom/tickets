@@ -1,5 +1,6 @@
-import { type ModifierRow, modifiersTable } from "#db/modifiers.ts";
+import type { ModifierRow } from "#db/modifiers.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 
 type TestListing = Awaited<ReturnType<typeof createTestListing>>;
 
@@ -22,10 +23,9 @@ export const createServiceChargeScenario =
       maxAttendees: 50,
       unitPrice: 1000,
     });
-    const modifier = await modifiersTable.insert({
+    const modifier = await insertModifier({
       calcKind: "percent",
       calcValue: 10,
-      direction: "charge",
       name: "Service charge",
     });
     return { listing, modifier };

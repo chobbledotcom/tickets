@@ -30,7 +30,7 @@ export const EmailNotificationsForm = (
       <label>
         {t("settings.advanced.email_provider")}
         <SelectField
-          name="email_provider"
+          name="emailProvider"
           options={[
             {
               label: s.hostEmailLabel || t("settings.advanced.email_none"),
@@ -47,12 +47,12 @@ export const EmailNotificationsForm = (
       <MaskedInput
         configured={s.emailApiKeyConfigured}
         label={t("settings.advanced.api_key")}
-        {...settingsFormFieldAttributes("settings-email", "email_api_key")}
+        {...settingsFormFieldAttributes("settings-email", "emailApiKey")}
         placeholder={t("settings.advanced.api_key_placeholder")}
       />
       <TextField
         label={t("settings.advanced.from_address")}
-        {...settingsFormFieldAttributes("settings-email", "email_from_address")}
+        {...settingsFormFieldAttributes("settings-email", "emailFromAddress")}
         placeholder={s.businessEmail || "tickets@yourdomain.com"}
         type="email"
         value={s.emailFromAddress}

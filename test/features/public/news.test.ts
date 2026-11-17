@@ -62,7 +62,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     await enablePublicSite();
     const image = await makeImage("FooterPoster");
     await adminFormPost("/admin/settings/site-footer", {
-      site_footer: `Thanks for coming.![FooterPoster](img#${image.id})`,
+      siteFooter: `Thanks for coming.![FooterPoster](img#${image.id})`,
     });
     const post = await makePost("Footer Drop");
     const body = await (
@@ -78,7 +78,7 @@ describeWithEnv("public /news routes", { db: true }, () => {
     await enablePublicSite();
     const image = await makeImage("FooterIndex");
     await adminFormPost("/admin/settings/site-footer", {
-      site_footer: `Thanks for coming.![FooterIndex](img#${image.id})`,
+      siteFooter: `Thanks for coming.![FooterIndex](img#${image.id})`,
     });
     await makePost("Index Drop");
     const body = await (await handleRequest(mockRequest("/news"))).text();

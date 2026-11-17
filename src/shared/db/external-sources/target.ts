@@ -12,11 +12,13 @@ import {
   type RecordTarget,
   type RecordTargets,
 } from "#db/record-target.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import { EXTERNAL_LINK_KINDS, type ExternalLinkKind } from "./types.ts";
 
 /** The table the links live in. Trusted constant, never input. */
-const LINK_TABLE = "external_source_links";
+const LINK_TABLE = tables.external_source_links;
 
 /** The columns a link stores its record target in. */
 const LINK_COLUMNS = { id: "link_id", kind: "link_type" };
@@ -37,13 +39,17 @@ export const externalLinkTargets: RecordTargets<ExternalLinkKind> =
  *  way it owns its notes and image uses. */
 export const clearExternalLinksStatement = (
   target: ExternalLinkTarget,
-): SqlStatement => externalLinkTargets.deleteFrom(LINK_TABLE)(target);
+): SqlStatement =>
+  deleteFrom(LINK_TABLE).where(() => externalLinkTargets.where(target));
 
 /** Delete the links that name any of the records another query chooses. */
 export const clearExternalLinksForIdsStatement = (
   kind: ExternalLinkKind,
   ids: SqlStatement,
-): SqlStatement => externalLinkTargets.deleteChosenBy(LINK_TABLE)(kind, ids);
+): SqlStatement =>
+  deleteFrom(LINK_TABLE).where(() =>
+    externalLinkTargets.whereChosenBy(kind, ids),
+  );
 
 /** Move the links that name one record to another record, as a merge does. */
 export const repointExternalLinksStatement = (
@@ -51,4 +57,7 @@ export const repointExternalLinksStatement = (
   sourceId: number,
   targetId: number,
 ): SqlStatement =>
-  sql`UPDATE ${sqlName(LINK_TABLE)} SET ${sqlName(LINK_COLUMNS.id)} = ${targetId} WHERE ${sqlName(LINK_COLUMNS.kind)} = ${kind} AND ${sqlName(LINK_COLUMNS.id)} = ${sourceId}`;
+  update(tables.external_source_links, { linkId: targetId }).where({
+    linkId: sourceId,
+    linkType: kind,
+  });

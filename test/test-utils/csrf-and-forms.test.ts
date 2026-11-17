@@ -77,7 +77,7 @@ describe("test-utils — csrf & form helpers", () => {
       expect(result).toBe(null);
     });
 
-    test("returns csrf_token when session exists", async () => {
+    test("returns csrfToken when session exists", async () => {
       await createTestDb();
       const { createSession } = await import("#db/sessions.ts");
       await createSession(
@@ -112,9 +112,9 @@ describe("test-utils — csrf & form helpers", () => {
 
   describe("HTML form helpers", () => {
     const html = [
-      '<input name="csrf_token" value="">',
-      '<input name="quantity_1" value="2">',
-      '<input name="quantity_2" value="3">',
+      '<input name="csrfToken" value="">',
+      '<input name="quantity1" value="2">',
+      '<input name="quantity2" value="3">',
       '<input type="checkbox" name="features" value="email" checked>',
       '<input type="checkbox" name="features" value="sms">',
       '<input type="checkbox" name="other" value="email" checked>',
@@ -123,20 +123,20 @@ describe("test-utils — csrf & form helpers", () => {
     ].join("");
 
     test("extractInputValue returns the exact matching value", () => {
-      expect(extractInputValue(html, "csrf_token")).toBe("");
-      expect(extractInputValue(html, "quantity_1")).toBe("2");
+      expect(extractInputValue(html, "csrfToken")).toBe("");
+      expect(extractInputValue(html, "quantity1")).toBe("2");
       expect(extractInputValue(html, "missing")).toBe(null);
     });
 
     test("hasInputWithValue requires the requested name and value", () => {
-      expect(hasInputWithValue(html, "quantity_1", "2")).toBe(true);
-      expect(hasInputWithValue(html, "quantity_1", "3")).toBe(false);
-      expect(hasInputWithValue(html, "quantity_3", "2")).toBe(false);
+      expect(hasInputWithValue(html, "quantity1", "2")).toBe(true);
+      expect(hasInputWithValue(html, "quantity1", "3")).toBe(false);
+      expect(hasInputWithValue(html, "quantity3", "2")).toBe(false);
     });
 
     test("inputTagWithValue returns only the requested input tag", () => {
       expect(inputTagWithValue(html, "3")).toBe(
-        '<input name="quantity_2" value="3">',
+        '<input name="quantity2" value="3">',
       );
       expect(inputTagWithValue(html, "email", "other")).toBe(
         '<input type="checkbox" name="other" value="email" checked>',
@@ -164,56 +164,56 @@ describe("test-utils — csrf & form helpers", () => {
     test("normalizeSingleListingFields maps generic ticket fields to the listing id", () => {
       const result = normalizeSingleListingFields(
         {
-          custom_price: "25.00",
+          customPrice: "25.00",
           email: "buyer@example.com",
           name: "Buyer",
           quantity: "3",
         },
-        '<input name="quantity_42" value="1">',
+        '<input name="quantity42" value="1">',
       );
       expect(result).toEqual({
-        custom_price_42: "25.00",
+        customPrice42: "25.00",
         email: "buyer@example.com",
         name: "Buyer",
-        quantity_42: "3",
+        quantity42: "3",
       });
     });
 
     test("normalizeSingleListingFields defaults quantity and preserves explicit fields", () => {
       const result = normalizeSingleListingFields(
         {
-          custom_price: "5.00",
-          custom_price_42: "25.00",
+          customPrice: "5.00",
+          customPrice42: "25.00",
           email: "buyer@example.com",
           name: "Buyer",
           quantity: "4",
-          quantity_42: "2",
+          quantity42: "2",
         },
-        '<input name="quantity_42" value="1">',
+        '<input name="quantity42" value="1">',
       );
       expect(result).toEqual({
-        custom_price: "5.00",
-        custom_price_42: "25.00",
+        customPrice: "5.00",
+        customPrice42: "25.00",
         email: "buyer@example.com",
         name: "Buyer",
         quantity: "4",
-        quantity_42: "2",
+        quantity42: "2",
       });
       expect(
         normalizeSingleListingFields(
           { email: "buyer@example.com", name: "Buyer" },
-          '<input name="quantity_42" value="1">',
+          '<input name="quantity42" value="1">',
         ),
       ).toEqual({
         email: "buyer@example.com",
         name: "Buyer",
-        quantity_42: "1",
+        quantity42: "1",
       });
     });
 
     test("csrfTokenOrSignedFallback keeps an empty token distinct from no token", async () => {
       expect(
-        await csrfTokenOrSignedFallback('<input name="csrf_token" value="">'),
+        await csrfTokenOrSignedFallback('<input name="csrfToken" value="">'),
       ).toBe("");
       expect(await csrfTokenOrSignedFallback("<form></form>")).toMatch(/^s1\./);
     });
@@ -224,19 +224,19 @@ describe("test-utils — csrf & form helpers", () => {
       expect(extractCsrfToken(null)).toBe(null);
     });
 
-    test("returns null when html has no csrf_token field", () => {
+    test("returns null when html has no csrfToken field", () => {
       expect(extractCsrfToken("<form><input type='text'></form>")).toBe(null);
     });
 
-    test("extracts csrf_token value from html form", () => {
-      expect(extractCsrfToken('<input name="csrf_token" value="abc123">')).toBe(
+    test("extracts csrfToken value from html form", () => {
+      expect(extractCsrfToken('<input name="csrfToken" value="abc123">')).toBe(
         "abc123",
       );
     });
   });
 
   describe("requireJoinCsrfToken", () => {
-    test("throws when html has no csrf_token field", () => {
+    test("throws when html has no csrfToken field", () => {
       expect(() => requireJoinCsrfToken("<form></form>")).toThrow(
         "Failed to get CSRF token for join flow",
       );
@@ -244,7 +244,7 @@ describe("test-utils — csrf & form helpers", () => {
 
     test("returns csrf token when present in html", () => {
       expect(
-        requireJoinCsrfToken('<input name="csrf_token" value="abc123">'),
+        requireJoinCsrfToken('<input name="csrfToken" value="abc123">'),
       ).toBe("abc123");
     });
   });

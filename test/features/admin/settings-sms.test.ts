@@ -24,17 +24,17 @@ const FLASH_TARGET =
 /** One row per single-line setting: its form field and the label a refusal
  *  names it by. */
 const SMS_FIELDS = [
-  ["sms_gateway_username", "Phone app username"],
-  ["sms_gateway_password", "Phone app password"],
-  ["sms_gateway_webhook_secret", "Webhook signing secret (optional)"],
-  ["sms_gateway_passphrase", "End-to-end key (passphrase)"],
+  ["smsGatewayUsername", "Phone app username"],
+  ["smsGatewayPassword", "Phone app password"],
+  ["smsGatewayWebhookSecret", "Webhook signing secret (optional)"],
+  ["smsGatewayPassphrase", "End-to-end key (passphrase)"],
 ] as const;
 
 const post = async (data: Record<string, string>): Promise<Response> =>
   await handleSmsGatewayPost(
     mockFormRequest(
       PATH,
-      { ...data, csrf_token: await testCsrfToken() },
+      { ...data, csrfToken: await testCsrfToken() },
       await testCookie(),
     ),
   );
@@ -43,8 +43,8 @@ describeWithEnv("settings (sms gateway form)", { db: true }, () => {
   test(`saves a username of exactly ${MAX_INPUT_LENGTH} characters`, async () => {
     const username = "u".repeat(MAX_INPUT_LENGTH);
     const response = await post({
-      sms_gateway_passphrase: "p".repeat(SMS_PASSPHRASE_MIN_LENGTH),
-      sms_gateway_username: username,
+      smsGatewayPassphrase: "p".repeat(SMS_PASSPHRASE_MIN_LENGTH),
+      smsGatewayUsername: username,
     });
 
     expectRedirectWithFlash(
@@ -59,8 +59,8 @@ describeWithEnv("settings (sms gateway form)", { db: true }, () => {
 
   test(`refuses a passphrase below ${SMS_PASSPHRASE_MIN_LENGTH} and saves nothing`, async () => {
     const response = await post({
-      sms_gateway_passphrase: "p".repeat(SMS_PASSPHRASE_MIN_LENGTH - 1),
-      sms_gateway_username: "user",
+      smsGatewayPassphrase: "p".repeat(SMS_PASSPHRASE_MIN_LENGTH - 1),
+      smsGatewayUsername: "user",
     });
 
     expect(response.status).toBe(302);
@@ -81,7 +81,7 @@ describeWithEnv("settings (sms gateway form)", { db: true }, () => {
       // The passphrase field is what the loop is over-long this round; the
       // other rounds need a valid passphrase so only the studied refusal
       // can answer.
-      if (field !== "sms_gateway_passphrase") {
+      if (field !== "smsGatewayPassphrase") {
         data.sms_gateway_passphrase = "p".repeat(SMS_PASSPHRASE_MIN_LENGTH);
       }
       const response = await post(data);

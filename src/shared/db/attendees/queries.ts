@@ -8,7 +8,7 @@ import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { SUBSCRIPTION_PLAN_COLUMNS } from "#db/attendee-types.ts";
 import { ATTENDEE_KIND } from "#db/attendees/kind.ts";
 import { decryptAttendeeFields, decryptPiiBlob } from "#db/attendees/pii.ts";
-import { attendeeIdOfToken } from "#db/attendees/reads.ts";
+import { attendeeIdOfToken, sealedContactsOf } from "#db/attendees/reads.ts";
 import {
   ATTENDEE_FIELDS,
   type AttendeeKindFilter,
@@ -21,8 +21,10 @@ import {
   refundedRowOf,
 } from "#db/attendees/select.ts";
 import { queryOne } from "#db/client.ts";
-import { columnFrom, columnMapByIds, nameSource } from "#db/query.ts";
-import { readExists } from "#db/read.ts";
+import { columnFrom } from "#db/query.ts";
+import { readExists, readRows } from "#db/read.ts";
+import { records } from "#db/record-table.ts";
+import { readForIds } from "#db/rows-for-ids.ts";
 import { greaterThan } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
@@ -33,6 +35,7 @@ import {
   sqlList,
   sqlLiteral,
 } from "#db/sql.ts";
+import { fieldById } from "#fp";
 import type { AttendeeSort } from "#shared/attendee-list-controls.ts";
 import type { Attendee } from "#types";
 
@@ -231,8 +234,8 @@ type LineTest<Listings> = (
 /** The booking rows of an attendee on one listing, or on one of several. */
 const linesOf = (attendeeId: number, listings: number | number[]) =>
   from(tables.listing_attendees).where({
-    attendee_id: attendeeId,
-    listing_id: listings,
+    attendeeId,
+    listingId: listings,
   });
 
 /**
@@ -294,9 +297,7 @@ export const hasPaidLine: LineTest<number[]> = (attendeeId, listingIds) =>
   readExists(
     linesOf(attendeeId, listingIds).where((line) =>
       ledgerLegs()
-        .where(
-          saleLeg(line.attendee_id, line.listing_id, line.ledger_event_group),
-        )
+        .where(saleLeg(line.attendeeId, line.listingId, line.ledgerEventGroup))
         .exists(),
     ),
   );
@@ -360,13 +361,13 @@ export const getAttendeesByIds = (
   ids: number[],
   kind?: AttendeeKindFilter,
 ): Promise<Attendee[]> =>
-  ids.length === 0
-    ? Promise.resolve([])
-    : loadAttendeeRows({
-        join: "left",
-        owedScope: "booking",
-        where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
-      });
+  readForIds(ids, () =>
+    loadAttendeeRows({
+      join: "left",
+      owedScope: "booking",
+      where: { attendeeIds: ids, ...(kind === undefined ? {} : { kind }) },
+    }),
+  );
 
 /**
  * Bounded id → name lookup for the given attendees, decrypting only the name
@@ -374,24 +375,37 @@ export const getAttendeesByIds = (
  * attendee). Empty ids ⇒ empty map. Used for link labels in the activity log;
  * a deleted attendee's id simply has no entry.
  */
-export const getAttendeeNamesByIds = (
+export const getAttendeeNamesByIds = async (
   ids: number[],
   privateKey: CryptoKey,
 ): Promise<Map<number, string>> =>
-  nameSource(
-    "attendees",
-    "attendee",
-    "pii_blob",
-    async (raw: OwnerKeyEncrypted) =>
-      (await decryptPiiBlob(raw, privateKey, false)).name,
-  ).byIds(ids);
+  new Map(
+    await Promise.all(
+      (await readRows(sealedContactsOf(ids))).map(
+        async ({ id, piiBlob }) =>
+          [
+            id,
+            // A stored attendee always holds owner-key ciphertext.
+            (
+              await decryptPiiBlob(
+                piiBlob as OwnerKeyEncrypted,
+                privateKey,
+                false,
+              )
+            ).name,
+          ] as const,
+      ),
+    ),
+  );
 
 /** Bounded id → kind lookup for attendee-linked admin surfaces. Empty ids ⇒
  * empty map. Unknown/deleted ids are omitted. */
-export const getAttendeeKindsByIds = (
+export const getAttendeeKindsByIds = async (
   ids: number[],
 ): Promise<Map<number, string>> =>
-  columnMapByIds<string>("attendees", "attendee", "kind", ids);
+  fieldById("kind")(
+    await readRows(records.attendees.byId(ids).pick("id", "kind")),
+  );
 
 /**
  * Get an attendee by ID (decrypted)

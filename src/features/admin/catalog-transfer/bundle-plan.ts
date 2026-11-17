@@ -9,6 +9,7 @@
  * on the site. A name is therefore an unambiguous key.
  */
 
+import { pick } from "@std/collections";
 import { listingInputToEdge } from "#shared/listing-edge.ts";
 import type { EdgeListing } from "#shared/listing-parents-rules.ts";
 import {
@@ -103,18 +104,22 @@ const sameDayPrices = (a: DayPrices, b: DayPrices): boolean => {
 export const siteGroupIdsOfPairs = (pairs: Iterable<PlannedPair>): number[] =>
   siteIdsOfRefs([...pairs].map((pair) => pair.group));
 
+/** The fields of a listing that the edge rules read. */
+const EDGE_LISTING_FIELDS = [
+  "assignBuiltSite",
+  "customisableDays",
+  "dayPrices",
+  "durationDays",
+  "id",
+  "listingType",
+  "minQuantity",
+  "monthsPerUnit",
+  "name",
+] as const satisfies readonly (keyof EdgeListing)[];
+
 /** The stored listing row projected onto the edge-compatibility shape. */
-export const edgeListingOfRow = (row: ListingWithCount): EdgeListing => ({
-  assign_built_site: row.assign_built_site,
-  customisable_days: row.customisable_days,
-  day_prices: row.day_prices,
-  duration_days: row.duration_days,
-  id: row.id,
-  listing_type: row.listing_type,
-  min_quantity: row.min_quantity,
-  months_per_unit: row.months_per_unit,
-  name: row.name,
-});
+export const edgeListingOfRow = (row: ListingWithCount): EdgeListing =>
+  pick(row, EDGE_LISTING_FIELDS);
 
 /** The planned listing projected onto the same shape. The id is not the
  * row's id, because the row does not exist yet. The edge rules read the
@@ -132,7 +137,7 @@ export const bundlePackageMemberError = (
   // A planned listing's parent references carry no id yet. The rule reads
   // only whether the list is empty, so one placeholder stands in for them.
   const key = memberBlockKey(
-    { can_pay_more: plan.input.canPayMore ?? false },
+    { canPayMore: plan.input.canPayMore ?? false },
     { childIds: [], parentIds: plan.parentKeys.length === 0 ? [] : [0] },
     hideListings,
   );

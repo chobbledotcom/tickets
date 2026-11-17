@@ -49,7 +49,7 @@ export const captureCheckoutIntent = async (
   const { checkout, getCaptured } = stubCheckout();
   try {
     const response = await submitTicketForm(listing.slug, {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
       email: "buyer@example.com",
       name: "Buyer",
       ...fields,

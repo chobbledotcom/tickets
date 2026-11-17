@@ -15,7 +15,7 @@ const postPreview = async (content: string): Promise<Response> =>
   handleRequest(
     mockFormRequest(
       "/admin/markdown-preview",
-      { content, csrf_token: await signCsrfToken() },
+      { content, csrfToken: await signCsrfToken() },
       await testCookie(),
     ),
   );

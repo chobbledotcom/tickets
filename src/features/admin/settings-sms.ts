@@ -27,11 +27,11 @@ type SmsGatewayFormData = {
 export const handleSmsGatewayPost = settingsHandler<SmsGatewayFormData>({
   advanced: true,
   extract: (form) => ({
-    baseUrl: form.getString("sms_gateway_base_url").trim(),
-    passphrase: processSecretField(form, "sms_gateway_passphrase"),
-    password: processSecretField(form, "sms_gateway_password"),
-    username: form.getString("sms_gateway_username").trim(),
-    webhookSecret: processSecretField(form, "sms_gateway_webhook_secret"),
+    baseUrl: form.getString("smsGatewayBaseUrl").trim(),
+    passphrase: processSecretField(form, "smsGatewayPassphrase"),
+    password: processSecretField(form, "smsGatewayPassword"),
+    username: form.getString("smsGatewayUsername").trim(),
+    webhookSecret: processSecretField(form, "smsGatewayWebhookSecret"),
   }),
   formId: "settings-sms-gateway",
   label: "SMS gateway settings",

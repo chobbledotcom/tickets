@@ -34,9 +34,9 @@ const loadsByListing = async (
     spanLoadsOf(
       from(tables.listing_attendees)
         .as("attendee")
-        .where({ listing_id: listingIds }),
+        .where({ listingId: listingIds }),
       days,
-      (line) => line.listing_id,
+      (line) => line.listingId,
     ),
   );
   const byListing = Map.groupBy(rows, (row) => row.owner_id);
@@ -63,7 +63,7 @@ export type CapacitySnapshot = {
 export const judgedByDay = (
   listing: ListingCapacityRow,
   snapshot: Pick<CapacitySnapshot, "days">,
-): boolean => countsPerDate(listing.listing_type) && snapshot.days.length > 0;
+): boolean => countsPerDate(listing.listingType) && snapshot.days.length > 0;
 
 /**
  * Read capacity for `listings` once, covering every day the widest booking
@@ -159,7 +159,7 @@ const datelessRemainingOf = (
     .idsFor(snapshot.membership, listing.id)
     .map((groupId) => snapshot.datelessGroupRemaining.get(groupId))
     .filter((remaining): remaining is number => remaining !== undefined);
-  return Math.min(listing.max_attendees - listing.attendee_count, ...groupCaps);
+  return Math.min(listing.maxAttendees - listing.attendeeCount, ...groupCaps);
 };
 
 /** How many units each listing has left, each judged over its own booking
@@ -191,7 +191,7 @@ export const remainingFromSnapshot = <Listing extends ListingCapacityRow>(
       const ownRemaining = Math.min(
         ...days.map(
           (day) =>
-            listing.max_attendees -
+            listing.maxAttendees -
             requiredMapValue(booked, day, `No booking total for ${day}`),
         ),
       );
@@ -234,7 +234,7 @@ export const perDayRemainingFromSnapshot = (
           new Map(
             snapshot.days.map((day) => [
               day,
-              listing.max_attendees -
+              listing.maxAttendees -
                 requiredMapValue(booked, day, `No booking total for ${day}`),
             ]),
           ),

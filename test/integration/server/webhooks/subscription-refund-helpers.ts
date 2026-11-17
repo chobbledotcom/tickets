@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { returnsNext, stub } from "@std/testing/mock";
 import { queryAll, queryOne } from "#db/client.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import type { ProviderRead } from "#payment/provider-read.ts";
 import { taggedPaymentReference } from "#payment/provider-reference.ts";
@@ -80,7 +80,7 @@ export const checkoutListingId = async (
     ...overrides,
   });
   if (overrides.active === false)
-    await listingsTable.update(listing.id, { active: false });
+    await updateListing(listing.id, { active: false });
   return listing.id;
 };
 

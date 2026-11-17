@@ -15,6 +15,7 @@ import {
   executeBatch,
   queryBatch,
   queryOne,
+  resultsOf,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
@@ -131,7 +132,7 @@ const recordingReader = (): {
   const asked: SqlStatement[][] = [];
   const reader: BatchExecutor = (statements) => {
     asked.push([...statements]);
-    return Promise.resolve(statements.map(() => emptyResultSet()));
+    return Promise.resolve(resultsOf(statements.map(() => emptyResultSet())));
   };
   return { asked, reader };
 };
@@ -163,7 +164,7 @@ describe("accounting > rows > selectTransfersMany", () => {
     await storeTwoLegs();
 
     const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
-      byColumnIn("event_group", ["evt-b"]),
+      byColumnIn("eventGroup", ["evt-b"]),
       byColumnIn("reference", ["ref-a"]),
     ]);
 
@@ -209,13 +210,13 @@ describe("accounting > rows > selectTransfersMany", () => {
           batches += 1;
           return scope.batch(statements);
         },
-        execute: (statement) => {
+        execute: (statement: SqlStatement) => {
           singles += 1;
           return scope.execute(statement);
         },
       };
       return selectTransfersMany(counted.batch, [
-        byColumnIn("event_group", ["evt-a"]),
+        byColumnIn("eventGroup", ["evt-a"]),
         byColumnIn("reference", ["ref-b"]),
       ]);
     });

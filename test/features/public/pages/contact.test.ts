@@ -33,7 +33,7 @@ const submitContact = async (
   handlePublicContactSubmit(
     mockFormRequest("/contact", {
       ...fields,
-      csrf_token: csrfToken ?? (await signCsrfToken()),
+      csrfToken: csrfToken ?? (await signCsrfToken()),
     }),
   );
 

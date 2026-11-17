@@ -1,16 +1,14 @@
-import type { ListingType } from "#types";
+import type { ListingWithCount } from "#types";
 
 /** The listing fields used by group-capacity lookups. */
-export interface ListingForGroupLookup {
-  id: number;
-  listing_type: ListingType;
-}
+export type ListingForGroupLookup = Pick<
+  ListingWithCount,
+  "id" | "listingType"
+>;
 
 /** A listing's identity, capacity, and current booked quantity. */
-export interface ListingCapacityRow extends ListingForGroupLookup {
-  attendee_count: number;
-  max_attendees: number;
-}
+export type ListingCapacityRow = ListingForGroupLookup &
+  Pick<ListingWithCount, "attendeeCount" | "maxAttendees">;
 
 /** Load values keyed by listing or group id for a set of days. */
 export type PerIdDayLoader<Value> = (

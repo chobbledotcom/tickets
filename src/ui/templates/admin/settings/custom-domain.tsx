@@ -34,7 +34,7 @@ export const CustomDomainForm = (
           label={t("settings.advanced.domain_label")}
           {...settingsFormFieldAttributes(
             "settings-custom-domain",
-            "custom_domain",
+            "customDomain",
           )}
           placeholder={t("settings.advanced.custom_domain_placeholder")}
           type="text"

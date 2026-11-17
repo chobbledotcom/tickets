@@ -10,7 +10,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getGroupSaleState } from "#db/groups/sale-state.ts";
 import { getListingsByGroupId } from "#db/groups.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -47,7 +47,7 @@ describeWithEnv("db > group sale state", { db: true }, () => {
       }
       for (const name of testCase.offSale) {
         const listing = await createTestListing({ groupId: group.id, name });
-        await listingsTable.update(listing.id, { active: false });
+        await updateListing(listing.id, { active: false });
       }
       const members = await getListingsByGroupId(group.id);
       const saleState = await getGroupSaleState(group.id);

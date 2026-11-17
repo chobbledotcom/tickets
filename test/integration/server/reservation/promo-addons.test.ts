@@ -64,7 +64,7 @@ describeWithEnv(
       });
       const addOn = await createOptionalAddOn();
       const captured = await captureCheckoutIntent(listing, {
-        [`addon_${addOn.id}`]: "1",
+        [`addon${addOn.id}`]: "1",
       });
       expect(captured?.items[0]?.unitPrice).toBe(0);
       expect(captured?.reservationAmount).toBe("10%");

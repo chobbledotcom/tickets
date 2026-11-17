@@ -43,9 +43,9 @@ export const loadAttendeeLedgerPanel = async (
     getOpenInvoice(attendeeId),
   ]);
 
-  const deposit = status?.is_reservation
+  const deposit = status?.isReservation
     ? computeReservationDeposit(
-        status.reservation_amount,
+        status.reservationAmount,
         summary.reservationSubtotal,
         summary.totalQuantity,
       )

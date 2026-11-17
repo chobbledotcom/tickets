@@ -64,7 +64,7 @@ const runRecovery = async (
     ticketToken: string;
   },
 ): Promise<PaymentResult> => {
-  const item = { e: loaded.id, p: loaded.unit_price, q: 1 };
+  const item = { e: loaded.id, p: loaded.unitPrice, q: 1 };
   return await recoverOrRefundUnexpectedCreate({
     error: opts.error,
     freeTexts: opts.freeTexts,
@@ -74,7 +74,7 @@ const runRecovery = async (
     ticketToken: opts.ticketToken,
     validatedItems: [
       {
-        expectedPrice: loaded.unit_price,
+        expectedPrice: loaded.unitPrice,
         item,
         listing: loaded,
         name: loaded.name,

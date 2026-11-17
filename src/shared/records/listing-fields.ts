@@ -14,80 +14,80 @@ import type {
 export const LISTING_FIELDS = [
   // Only staff change the bookable state.
   { default: true, key: "active", kind: "switch", lockedFor: ["editor"] },
-  { feature: "builder", key: "assign_built_site", kind: "switch" },
+  { feature: "builder", key: "assignBuiltSite", kind: "switch" },
   // A child listing with this switch on keeps its own booking page, catalog
   // entry, and API eligibility. Off, it exists only as a foldable add-on.
-  { key: "bookable_alone", kind: "switch" },
+  { key: "bookableAlone", kind: "switch" },
   {
     default: VALID_DAY_NAMES,
-    key: "bookable_days",
+    key: "bookableDays",
     kind: "weekdays",
   },
-  { key: "can_pay_more", kind: "switch" },
-  { key: "closes_at", kind: "optionalDatetime" },
-  { key: "customisable_days", kind: "switch" },
+  { key: "canPayMore", kind: "switch" },
+  { key: "closesAt", kind: "optionalDatetime" },
+  { key: "customisableDays", kind: "switch" },
   { key: "date", kind: "datetime" },
-  { key: "day_prices", kind: "dayPrices" },
+  { key: "dayPrices", kind: "dayPrices" },
   { key: "description", kind: "privateText" },
-  { default: 1, key: "duration_days", kind: "durationDays" },
+  { default: 1, key: "durationDays", kind: "durationDays" },
   { default: "email", key: "fields", kind: "contactFields" },
   { key: "hidden", kind: "switch" },
   {
     default: 0,
     feature: "builder",
-    key: "initial_site_months",
+    key: "initialSiteMonths",
     kind: "count",
     min: 0,
   },
   {
     default: "standard",
-    key: "listing_type",
+    key: "listingType",
     kind: "listingType",
   },
   { key: "location", kind: "privateText" },
-  { key: "max_attendees", kind: "count", min: 1, required: true },
-  { default: 90, key: "maximum_days_after", kind: "count", min: 0 },
-  { default: 0, key: "max_price", kind: "price" },
-  { default: 1, key: "max_quantity", kind: "count", min: 1 },
-  { default: 1, key: "minimum_days_before", kind: "count", min: 0 },
+  { key: "maxAttendees", kind: "count", min: 1, required: true },
+  { default: 90, key: "maximumDaysAfter", kind: "count", min: 0 },
+  { default: 0, key: "maxPrice", kind: "price" },
+  { default: 1, key: "maxQuantity", kind: "count", min: 1 },
+  { default: 1, key: "minimumDaysBefore", kind: "count", min: 0 },
   // The smallest quantity above none that one purchase can book.
-  { default: 1, key: "min_quantity", kind: "count", min: 1 },
+  { default: 1, key: "minQuantity", kind: "count", min: 1 },
   {
     default: 0,
     feature: "builder",
-    key: "months_per_unit",
+    key: "monthsPerUnit",
     kind: "count",
     min: 0,
   },
   { key: "name", kind: "name", required: true },
-  { key: "non_transferable", kind: "switch" },
-  { key: "purchase_only", kind: "switch" },
+  { key: "nonTransferable", kind: "switch" },
+  { key: "purchaseOnly", kind: "switch" },
   // A subscription offer: the recurring price each period, and its interval.
   // A price of 0 with no interval means the listing takes no subscriptions.
   {
     default: "",
     feature: "subscriptions",
-    key: "recurring_interval",
+    key: "recurringInterval",
     kind: "recurringInterval",
   },
   {
     default: 0,
     feature: "subscriptions",
-    key: "recurring_price",
+    key: "recurringPrice",
     kind: "price",
   },
-  { key: "thank_you_url", kind: "privateText" },
-  { default: 0, key: "unit_price", kind: "price" },
+  { key: "thankYouUrl", kind: "privateText" },
+  { default: 0, key: "unitPrice", kind: "price" },
   // On, the fields the operator's listing defaults cover follow the settings
   // live instead of this row's own values.
   // This switch also changes the webhook that a listing uses.
-  { key: "use_defaults", kind: "switch", lockedFor: ["editor"] },
+  { key: "useDefaults", kind: "switch", lockedFor: ["editor"] },
   // On (with logistics enabled), the listing is dropped off and collected, so
   // its attendees carry logistics agents.
-  { feature: "logistics", key: "uses_logistics", kind: "switch" },
+  { feature: "logistics", key: "usesLogistics", kind: "switch" },
   // The registration webhook posts full attendee personal data to this URL.
   {
-    key: "webhook_url",
+    key: "webhookUrl",
     kind: "privateText",
     lockedFor: ["demo", "editor"],
   },
@@ -100,11 +100,11 @@ export const LISTING_FIELDS = [
 export const LISTING_LINK_KEYS = [
   {
     feature: "attributes",
-    key: "attribute_option_ids",
+    key: "attributeOptionIds",
     lockedFor: ["nonOwner"],
   },
-  { key: "child_listing_ids" },
-  { key: "group_ids" },
+  { key: "childListingIds" },
+  { key: "groupIds" },
 ] as const satisfies readonly KeyAccess[];
 
 /** Every key of a listing write that carries an access rule. */

@@ -287,7 +287,7 @@ type ProviderStep = (
 /** Select the active payment provider via the radio form on /admin/settings. */
 export const selectProvider: ProviderStep = async (session, provider) => {
   await session.goto("/admin/settings");
-  await session.check("payment_provider", provider);
+  await session.check("paymentProvider", provider);
   await session.clickButton(
     await catalogWords("settings", "settings.save_payment_provider"),
   );

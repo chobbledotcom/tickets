@@ -126,7 +126,7 @@ Then(
   "the answer control can still be used",
   function (this: TicketsWorld): void {
     const html = scenarioBrowser(this).currentHtml;
-    const field = `question_${this.buyerQuestion!.id}`;
+    const field = `question${this.buyerQuestion!.id}`;
     // The radio's sendable value is the answer's own number, read from the
     // served form the way a browser would send it.
     const offered = html.match(

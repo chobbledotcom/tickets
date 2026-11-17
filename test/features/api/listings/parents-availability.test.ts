@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { publicDailyParentWithMondayChild } from "#test/features/api/listings/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookableStartDates } from "#test-utils/db-helpers/listings.ts";
@@ -73,7 +73,7 @@ describeWithEnv(
       const { parent, children } = await makeParent({ children: [{}, {}] });
       const okChild = children[0]!;
       const closedChild = children[1]!;
-      await listingsTable.update(closedChild.id, {
+      await updateListing(closedChild.id, {
         closesAt: "2000-01-01T00:00:00.000Z",
       });
       expectChildAvailability(

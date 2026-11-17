@@ -13,9 +13,10 @@
 
 import { type TicketMoveAnswer, ticketCount } from "#booking/ticket-moves.ts";
 import type { ScanOperationGuard } from "#db/attendees/door-moves.ts";
-import { insertOrIgnore, queryOne, type TxScope, update } from "#db/client.ts";
+import { queryOne, type TxScope } from "#db/client.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
+import { insertInto, update } from "#db/write.ts";
 import { limit } from "#shared/limits.ts";
 import { DAY_MS, nowIso } from "#shared/now.ts";
 
@@ -46,13 +47,17 @@ export const claimScanOperation =
   (delivery: ScanDelivery): ((tx: TxScope) => Promise<boolean>) =>
   async (tx) => {
     const result = await tx.execute(
-      insertOrIgnore("processed_scan_operations", {
-        created: nowIso(),
-        listing_ids: JSON.stringify([...delivery.listingIds]),
-        operation_id: delivery.operationId,
-        quantity: delivery.quantity,
-        token_hash: delivery.tokenHash,
-      }),
+      insertInto(
+        tables.processed_scan_operations,
+        {
+          created: nowIso(),
+          listingIds: JSON.stringify([...delivery.listingIds]),
+          operationId: delivery.operationId,
+          quantity: delivery.quantity,
+          tokenHash: delivery.tokenHash,
+        },
+        { or: "IGNORE" },
+      ),
     );
     return result.rowsAffected > 0;
   };
@@ -71,14 +76,10 @@ export const settleScanOperation = async (
   tx: TxScope,
 ): Promise<void> => {
   await tx.execute(
-    update(
-      "processed_scan_operations",
-      {
-        listing_ids: JSON.stringify([...landed.listingIds]),
-        quantity: landed.quantity,
-      },
-      { operation_id: operationId, token_hash: tokenHash },
-    ),
+    update(tables.processed_scan_operations, {
+      listingIds: JSON.stringify([...landed.listingIds]),
+      quantity: landed.quantity,
+    }).where({ operationId, tokenHash }),
   );
 };
 
@@ -92,12 +93,12 @@ export const deliveredScanOperation = async (
 ): Promise<DeliveredScanOperation | null> => {
   const row = await queryOne(
     from(tables.processed_scan_operations)
-      .where({ operation_id: operationId, token_hash: tokenHash })
-      .pick("listing_ids", "quantity"),
+      .where({ operationId, tokenHash })
+      .pick("listingIds", "quantity"),
   );
   if (!row) return null;
   return {
-    listingIds: JSON.parse(row.listing_ids) as number[],
+    listingIds: JSON.parse(row.listingIds) as number[],
     quantity: row.quantity,
   };
 };

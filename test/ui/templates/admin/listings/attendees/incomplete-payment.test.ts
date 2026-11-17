@@ -71,7 +71,7 @@ describe("completePaymentAttendees", () => {
   registerListingTemplateHooks();
 
   test("drops unresolved-payment rows on a paid listing", () => {
-    const listing = testListingWithCount({ unit_price: 1000 });
+    const listing = testListingWithCount({ unitPrice: 1000 });
     const paid = testAttendee({
       id: 1,
       payment_id: "pi_ok",
@@ -82,7 +82,7 @@ describe("completePaymentAttendees", () => {
   });
 
   test("keeps an empty-payment-id attendee with a processed reference", () => {
-    const listing = testListingWithCount({ unit_price: 1000 });
+    const listing = testListingWithCount({ unitPrice: 1000 });
     const balancePaid = testAttendee({
       id: 2,
       payment_id: "",
@@ -94,7 +94,7 @@ describe("completePaymentAttendees", () => {
   });
 
   test("keeps every row on a free listing", () => {
-    const listing = testListingWithCount({ unit_price: 0 });
+    const listing = testListingWithCount({ unitPrice: 0 });
     const a = testAttendee({ id: 1, payment_id: "", price_paid: "0" });
     const b = testAttendee({ id: 2, payment_id: "", price_paid: "1000" });
     expect(completePaymentAttendees(listing, [a, b])).toEqual([a, b]);
@@ -106,8 +106,8 @@ describe("attendeeStatsForListing", () => {
 
   test("splits out unresolved-payment rows only when the listing is paid", () => {
     const listing = testListingWithCount({
-      attendee_count: 3,
-      unit_price: 1000,
+      attendeeCount: 3,
+      unitPrice: 1000,
     });
     const stuck = testAttendee({ id: 1, payment_id: "", price_paid: "1000" });
     const paid = attendeeStatsForListing(listing, [stuck], true);

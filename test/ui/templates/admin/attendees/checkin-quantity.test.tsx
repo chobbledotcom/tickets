@@ -40,8 +40,8 @@ describe("attendee check-in quantity page", () => {
       'class="stack"',
       'class="prose"',
       'id="checkin-admit-count"',
-      'name="check_in" type="hidden" value="true"',
-      'name="return_filter" type="hidden"',
+      'name="checkIn" type="hidden" value="true"',
+      'name="returnFilter" type="hidden"',
       'name="quantity"',
       '<a class="active" href="/admin/">Home</a>',
     ]);
@@ -55,7 +55,7 @@ describe("attendee check-in quantity page", () => {
     expectIncludesAll(html, [
       "Check in tickets",
       "Tickets to check in",
-      'name="check_in" type="hidden" value="true"',
+      'name="checkIn" type="hidden" value="true"',
     ]);
   });
 
@@ -69,7 +69,7 @@ describe("attendee check-in quantity page", () => {
       '<option selected value="1">1 ticket</option>',
       // The way out is its own form, named and addressed apart from the way in.
       'id="checkin-release-count"',
-      'name="check_in" type="hidden" value="false"',
+      'name="checkIn" type="hidden" value="false"',
     ]);
   });
 
@@ -86,8 +86,8 @@ describe("attendee check-in quantity page", () => {
 
     expectIncludesAll(html, [
       'action="/admin/listing/5/attendee/10/checkin"',
-      'name="check_in" type="hidden" value="true"',
-      'name="check_in" type="hidden" value="false"',
+      'name="checkIn" type="hidden" value="true"',
+      'name="checkIn" type="hidden" value="false"',
     ]);
   });
 
@@ -96,7 +96,7 @@ describe("attendee check-in quantity page", () => {
 
     expectIncludesAll(html, [
       '<form action="/admin/listing/5/attendee/11/checkin" autocomplete="off" method="POST" class="stack">',
-      'name="return_filter" type="hidden" value="all"',
+      'name="returnFilter" type="hidden" value="all"',
       'name="quantity"',
       'for="checkin-admit-count"',
       '<select id="checkin-admit-count" name="quantity">',
@@ -118,12 +118,12 @@ describe("attendee check-in quantity page", () => {
     );
     assertStringIncludes(
       admitForm,
-      'name="check_in" type="hidden" value="true"',
+      'name="checkIn" type="hidden" value="true"',
     );
     assert(!admitForm.includes('value="false"'));
     assertStringIncludes(
       releaseForm,
-      'name="check_in" type="hidden" value="false"',
+      'name="checkIn" type="hidden" value="false"',
     );
     assert(!releaseForm.includes('value="true"'));
   });

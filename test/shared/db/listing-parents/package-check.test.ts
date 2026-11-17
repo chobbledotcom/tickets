@@ -7,7 +7,8 @@ import {
   requireListingChildrenPackageCheck,
   setListingChildrenWithPackageCheckTx,
 } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -72,7 +73,7 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
 
   test("rolls back when a child endpoint was deleted before the tx", async () => {
     const { parent, child } = await parentAndChild();
-    await listingsTable.deleteById(child.id);
+    await records.listings.delete(child.id);
 
     await expect(
       writeCheckedEdge(parent.id, [child.id]),
@@ -83,7 +84,7 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
   test("rejects when the parent endpoint was deleted before the tx", async () => {
     const child = await createTestListing({ name: "Orphaned child" });
     const parent = await createTestListing({ name: "Vanished parent" });
-    await listingsTable.deleteById(parent.id);
+    await records.listings.delete(parent.id);
 
     await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
       t("error.listing_deleted"),
@@ -115,7 +116,7 @@ describeWithEnv("db > listing-parents > package check", { db: true }, () => {
 
   test("rejects edge fields changed after validation", async () => {
     const { parent, child } = await parentAndChild();
-    await listingsTable.update(child.id, { listingType: "daily" });
+    await updateListing(child.id, { listingType: "daily" });
 
     await expect(writeCheckedEdge(parent.id, [child.id])).rejects.toThrow(
       t("listings_table.children_err_child_daily", { name: child.name }),

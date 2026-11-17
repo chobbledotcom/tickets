@@ -18,7 +18,7 @@ async function doAuthenticatedRequest<T>(
   const response = await handleRequest(
     buildRequest(
       path,
-      { ...formData, csrf_token: session.csrfToken },
+      { ...formData, csrfToken: session.csrfToken },
       session.cookie,
     ),
   );

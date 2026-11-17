@@ -61,11 +61,11 @@ export const listingSpec: TargetSpec<ListingTarget> = {
   ...listingScoped,
   allowEmpty: false,
   composeControl: (target) =>
-    fixedControl("listing_id", String(target.listingId)),
+    fixedControl("listingId", String(target.listingId)),
   composeCopy: BULK_COMPOSE_COPY,
   describe: (target) => describeListingAttendees(target.listingId),
   ...rawFieldReaders(listingTargetFromRaw, {
-    form: "listing_id",
+    form: "listingId",
     query: "listing",
   }),
   loadPiiBlobs: (target) => getAttendeePiiBlobsForListings([target.listingId]),
@@ -103,7 +103,7 @@ export const listingDaySpec: TargetSpec<ListingDayTarget> = {
   allowEmpty: false,
   composeControl: (target) => ({
     fields: [
-      ["listing_id", String(target.listingId)],
+      ["listingId", String(target.listingId)],
       ["day", target.day],
     ],
     mode: "fixed",
@@ -114,7 +114,7 @@ export const listingDaySpec: TargetSpec<ListingDayTarget> = {
       target.listingId,
       ` on ${formatDateLabel(target.day)}`,
     ),
-  fromForm: (form) => listingDayTargetFrom(form, "listing_id"),
+  fromForm: (form) => listingDayTargetFrom(form, "listingId"),
   fromQuery: (params) => listingDayTargetFrom(params, "listing"),
   loadPiiBlobs: (target) =>
     getAttendeePiiBlobsForListingDay(target.listingId, dateToRange(target.day)),

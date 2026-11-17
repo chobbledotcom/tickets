@@ -96,10 +96,10 @@ const SCENES: Record<ScreenshotName, Scene> = {
     prepare: async (page) => {
       const values: Record<string, string> = {
         location: "The Lantern Hall, Bristol",
-        max_attendees: "240",
-        max_quantity: "8",
+        maxAttendees: "240",
+        maxQuantity: "8",
         name: "Summer Sessions 2026",
-        unit_price: "18.50",
+        unitPrice: "18.50",
       };
       for (const [name, value] of Object.entries(values)) {
         await page
@@ -136,10 +136,10 @@ const setupAdmin = async (
   username = USERNAME,
 ): Promise<void> => {
   await page.goto(`${baseUrl}/setup/`);
-  await page.locator('[name="admin_username"]').fill(username);
-  await page.locator('[name="admin_password"]').fill(PASSWORD);
-  await page.locator('[name="admin_password_confirm"]').fill(PASSWORD);
-  await page.locator('[name="accept_agreement"]').check();
+  await page.locator('[name="adminUsername"]').fill(username);
+  await page.locator('[name="adminPassword"]').fill(PASSWORD);
+  await page.locator('[name="adminPasswordConfirm"]').fill(PASSWORD);
+  await page.locator('[name="acceptAgreement"]').check();
   await submit(page, 'form[action="/setup/"]');
 
   await page.goto(`${baseUrl}/`);
@@ -148,7 +148,7 @@ const setupAdmin = async (
   await submit(page, 'form[action="/admin/login"]');
 
   await page.goto(`${baseUrl}/admin/settings`);
-  await page.locator('[name="business_email"]').fill("hello@example.com");
+  await page.locator('[name="businessEmail"]').fill("hello@example.com");
   await submit(page, 'form[action="/admin/settings/business-email"]');
 };
 
@@ -160,8 +160,8 @@ const setupApp = async (
   await setupAdmin(page, baseUrl);
   await server.enableStripe();
   await page.goto(`${baseUrl}/admin/seeds`);
-  await page.locator('[name="listing_count"]').fill("5");
-  await page.locator('[name="attendees_per_listing"]').fill("8");
+  await page.locator('[name="listingCount"]').fill("5");
+  await page.locator('[name="attendeesPerListing"]').fill("8");
   await submit(page, 'form[action="/admin/seeds"]');
 
   await page.goto(`${baseUrl}/admin/`);
@@ -198,7 +198,7 @@ const applyTheme = async (
   await page.goto(`${baseUrl}/admin/settings-advanced`);
   const form = page.locator('form[action="/admin/settings/custom-css"]');
   await form
-    .locator('[name="custom_css"]')
+    .locator('[name="customCss"]')
     .fill(`${await cssFor(theme)}\n${extraCss}`, { force: true });
   await submit(page, 'form[action="/admin/settings/custom-css"]');
 };

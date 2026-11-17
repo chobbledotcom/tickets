@@ -6,7 +6,7 @@
  * /admin/site/news/:id/edit resolves to it too.
  */
 
-import { getNewsPostById } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import type { EditEntityPage } from "#routes/admin/entity-write-tab.ts";
 import { adminPattern } from "#shared/admin-surface.ts";
 import { newsRecord } from "#shared/records/news.ts";
@@ -22,6 +22,6 @@ export const newsPage: EditEntityPage<NewsPost> =
     deleteLabelKey: "news.delete_submit",
     editPanel: newsEditPanel,
     itemType: "news",
-    load: (id) => getNewsPostById(id),
+    load: (id) => records.news_posts.find(id),
     navActive: adminPattern("news"),
   });

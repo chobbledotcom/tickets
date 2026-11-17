@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { encrypt } from "#crypto/encryption.ts";
 import { queryAll } from "#db/client.ts";
 import { TYPED_SCHEMA } from "#db/migrations/schema/index.ts";
 import { REFERENCES } from "#db/migrations/schema/references.ts";
@@ -18,6 +19,8 @@ import {
   tables,
 } from "#db/select/tables.ts";
 import { type Read, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
+import { columnName, fieldName } from "#shared/column-names.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describe("tables", () => {
@@ -27,6 +30,15 @@ describe("tables", () => {
     expect(tables.listing_attendees.columns).toBe(
       TYPED_SCHEMA.find(([name]) => name === "listing_attendees")?.[1].columns,
     );
+  });
+
+  test("gives every column a field name that converts back to it", () => {
+    // The code names each column by its field, so the names must convert both
+    // ways.
+    const lossy = Object.values(tables)
+      .flatMap((table) => table.columns.map(([column]) => column))
+      .filter((column) => columnName(fieldName(column)) !== column);
+    expect(lossy).toEqual([]);
   });
 });
 
@@ -118,9 +130,13 @@ describeWithEnv("the declared schema", { db: true }, () => {
     }
   });
 
-  test("gives a row its stored types", async () => {
+  test("gives a row the decoded value of a sealed column", async () => {
     await queryAll(
-      sql`INSERT INTO holidays (name, start_date, end_date) VALUES ('h', '2026-01-01', '2026-01-02')`,
+      insertInto(tables.holidays, {
+        endDate: "2026-01-02",
+        name: await encrypt("h"),
+        startDate: "2026-01-01",
+      }),
     );
     const rows = await queryAll(
       from(tables.holidays).select((holiday) => ({
@@ -149,7 +165,7 @@ describeWithEnv("the declared schema", { db: true }, () => {
   });
 
   test("gives a column the values that the schema names for it", () => {
-    const read = from(tables.system_notes).pick("type", "entity_type");
+    const read = from(tables.system_notes).pick("type", "entityType");
     const typed: Read<{ type: "system" | "owner" }> = read;
     // @ts-expect-error a note is of the system or of the owner
     const refused: Read<{ type: "system" }> = read;

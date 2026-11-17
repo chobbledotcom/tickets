@@ -18,6 +18,10 @@ import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { withPoisonedWrite } from "#test-utils/db-poison.ts";
 import {
   createServicingHold,
@@ -54,28 +58,17 @@ const attachTextAndChoiceQuestions = async (
   choiceQuestionId: number;
   choiceAnswerId: number;
 }> => {
-  const { answersTable, questionsTable } = await import(
-    "#db/questions/tables.ts"
-  );
-  const { questionListings } = await import("#db/questions/queries.ts");
-  const textQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "free_text",
-    text: "Boiler notes?",
-  });
-  const choiceQuestion = await questionsTable.insert({
-    assignAll: false,
-    displayType: "radio",
+  const [textQuestion] = await freeTextQuestionsOn(listingId, [
+    "Boiler notes?",
+  ]);
+  const {
+    answers: [choiceAnswer],
+    question: choiceQuestion,
+  } = await seedQuestion({
+    answers: ["Vaillant"],
+    listingIds: [listingId],
     text: "Boiler model?",
   });
-  const choiceAnswer = await answersTable.insert({
-    questionId: choiceQuestion.id,
-    sortOrder: 0,
-    text: "Vaillant",
-  });
-  for (const q of [textQuestion.id, choiceQuestion.id]) {
-    await questionListings.setIds(q, [listingId]);
-  }
   return {
     choiceAnswerId: choiceAnswer.id,
     choiceQuestionId: choiceQuestion.id,

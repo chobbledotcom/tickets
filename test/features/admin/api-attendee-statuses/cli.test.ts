@@ -1,14 +1,14 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { runApi } from "#cli/run.ts";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { records } from "#db/record-table.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
 import { runDeps } from "#test-utils/cli-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const createStatus = async (name: string): Promise<void> => {
-  await attendeeStatuses.table.insert({ name });
+  await records.attendee_statuses.insert({ name });
 };
 
 /** The CLI drives the resource off the same table as the routes, so the list

@@ -22,7 +22,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("saves valid listing column order", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "{{name}}, {{status}}" },
+        { columnOrder: "{{name}}, {{status}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -38,7 +38,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("rejects invalid column name", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "{{invalid}}" },
+        { columnOrder: "{{invalid}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -51,7 +51,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       await settings.update.listingColumnOrder("{{name}}");
       const { response } = await adminFormPost(
         "/admin/settings/listing-column-order",
-        { column_order: "" },
+        { columnOrder: "" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -81,7 +81,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("saves valid attendee column order", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "{{name}}, {{qty}}, {{ticket}}" },
+        { columnOrder: "{{name}}, {{qty}}, {{ticket}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -100,7 +100,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
     test("rejects invalid column name", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "{{bogus}}" },
+        { columnOrder: "{{bogus}}" },
       );
       await expectFlashRedirect(
         formUrl,
@@ -113,7 +113,7 @@ describeWithEnv("server (admin settings: column order)", { db: true }, () => {
       await settings.update.attendeeColumnOrder("{{name}}");
       const { response } = await adminFormPost(
         "/admin/settings/attendee-column-order",
-        { column_order: "" },
+        { columnOrder: "" },
       );
       await expectFlashRedirect(
         formUrl,

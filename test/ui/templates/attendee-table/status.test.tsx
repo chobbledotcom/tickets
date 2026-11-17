@@ -114,7 +114,7 @@ describe("attendee status cells", () => {
 
     assertStringIncludes(
       html,
-      '<input name="return_filter" type="hidden" value="">',
+      '<input name="returnFilter" type="hidden" value="">',
     );
   });
 
@@ -123,10 +123,10 @@ describe("attendee status cells", () => {
 
     expect(renderStatus({ checked_in: 0, id: 7 })).toBe(
       '<form action="/admin/listing/9/attendee/7/checkin" autocomplete="off" method="POST" class="inline">' +
-        `<input name="csrf_token" type="hidden" value="${token}">` +
-        '<input name="check_in" type="hidden" value="true">' +
+        `<input name="csrfToken" type="hidden" value="${token}">` +
+        '<input name="checkIn" type="hidden" value="true">' +
         '<input name="quantity" type="hidden" value="1">' +
-        '<input name="return_filter" type="hidden" value="all">' +
+        '<input name="returnFilter" type="hidden" value="all">' +
         '<button class="link-button checkin" type="submit">Check in</button></form>',
     );
   });
@@ -139,9 +139,9 @@ describe("attendee status cells", () => {
 
     expectIncludesAll(html, [
       'action="/admin/listing/9/attendee/8/checkin"',
-      '<input name="check_in" type="hidden" value="false">',
-      '<input name="return_filter" type="hidden" value="in">',
-      '<input name="return_url" type="hidden" value="/admin/checkin/today">',
+      '<input name="checkIn" type="hidden" value="false">',
+      '<input name="returnFilter" type="hidden" value="in">',
+      '<input name="returnUrl" type="hidden" value="/admin/checkin/today">',
       '<button class="link-button checkout" type="submit">Check out</button>',
     ]);
   });
@@ -231,7 +231,7 @@ describe("attendee status cells", () => {
 
     assertStringIncludes(
       html,
-      '<input name="check_in" type="hidden" value="false">',
+      '<input name="checkIn" type="hidden" value="false">',
     );
   });
 
@@ -253,7 +253,7 @@ describe("attendee status cells", () => {
     assert(html.includes("<form"));
     assertStringIncludes(
       html,
-      '<input name="check_in" type="hidden" value="false">',
+      '<input name="checkIn" type="hidden" value="false">',
     );
     assert(!html.includes("badge-ok"));
   });

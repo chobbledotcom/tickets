@@ -64,9 +64,9 @@ const retainedFailure = async () => {
     await getProcessedPayment(SESSION_ID),
     "Rejected checkout session not found",
   );
-  expect(row.attendee_id).toBeNull();
+  expect(row.attendeeId).toBeNull();
   return requireValue(
-    await parseSessionFailure(row.failure_data),
+    await parseSessionFailure(row.failureData),
     "Rejected checkout outcome not found",
   );
 };
@@ -169,8 +169,8 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
               await getProcessedPayment(SESSION_ID),
               "In-flight reservation missing",
             );
-            expect(reserved.failure_data).toBe("");
-            expect(reserved.attendee_id).toBeNull();
+            expect(reserved.failureData).toBe("");
+            expect(reserved.attendeeId).toBeNull();
             {
               // A sufficiently delayed request can lose its empty reservation
               // to the real stale-row cleaner before its atomic plan store.
@@ -178,7 +178,7 @@ describeWithEnv("rejected subscription retention errors", { db: true }, () => {
                 Date,
                 "now",
                 () =>
-                  Date.parse(reserved.processed_at) + STALE_RESERVATION_MS + 1,
+                  Date.parse(reserved.processedAt) + STALE_RESERVATION_MS + 1,
               );
               expect(await deleteAllStaleReservations()).toBe(1);
             }

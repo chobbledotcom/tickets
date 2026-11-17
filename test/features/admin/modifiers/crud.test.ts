@@ -72,8 +72,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await expectCreated(createData());
       const modifier = await lastModifier();
       expect(modifier.name).toBe("Early bird");
-      expect(modifier.calc_kind).toBe("percent");
-      expect(modifier.calc_value).toBe(10);
+      expect(modifier.calcKind).toBe("percent");
+      expect(modifier.calcValue).toBe(10);
       expect(modifier.direction).toBe("discount");
       expect(await storedFeatureEnabled("modifiers")).toBe(true);
     });
@@ -105,31 +105,27 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "creates a fixed charge modifier",
         {
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: "Booking surcharge",
         },
-        { calc_kind: "fixed", calc_value: 5, direction: "charge" },
+        { calcKind: "fixed", calcValue: 5, direction: "charge" },
       ],
       [
         "accepts a fixed amount at the currency's precision",
-        { calc_kind: "fixed", calc_value: "5.50" },
-        { calc_value: 5.5 },
+        { calcKind: "fixed", calcValue: "5.50" },
+        { calcValue: 5.5 },
       ],
     ]);
 
     createAcceptanceTests([
       [
         "stores the minimum order in minor units",
-        { min_subtotal: "50" },
-        { min_subtotal: toMinorUnits(50) },
+        { minSubtotal: "50" },
+        { minSubtotal: toMinorUnits(50) },
       ],
-      [
-        "defaults the minimum order to zero when blank",
-        {},
-        { min_subtotal: 0 },
-      ],
+      ["defaults the minimum order to zero when blank", {}, { minSubtotal: 0 }],
     ]);
 
     createAcceptanceTests([
@@ -138,44 +134,44 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       [
         "stores the max times per order on a question-answer modifier",
         {
-          calc_kind: "fixed",
-          calc_value: "10",
+          calcKind: "fixed",
+          calcValue: "10",
           direction: "charge",
-          max_per_order: "2",
+          maxPerOrder: "2",
           name: "Zone 2 delivery",
           trigger: "answer",
         },
-        { max_per_order: 2 },
+        { maxPerOrder: 2 },
       ],
     ]);
 
     createAcceptanceTests([
       [
         "drops the max times per order for other triggers",
-        { max_per_order: "1" },
-        { max_per_order: null },
+        { maxPerOrder: "1" },
+        { maxPerOrder: null },
       ],
       [
         "accepts the max times per order at its declared minimum",
-        { max_per_order: "1", trigger: "answer" },
-        { max_per_order: 1 },
+        { maxPerOrder: "1", trigger: "answer" },
+        { maxPerOrder: 1 },
       ],
     ]);
 
     createRefusalTests([
       [
         "rejects a fixed amount with too many decimals for the currency",
-        { calc_kind: "fixed", calc_value: "10.005" },
+        { calcKind: "fixed", calcValue: "10.005" },
         "Amount has more decimal places than your currency allows",
       ],
       [
         "rejects a negative minimum order",
-        { min_subtotal: "-5" },
+        { minSubtotal: "-5" },
         "Minimum order must be a valid amount for your currency",
       ],
       [
         "rejects a minimum order with too many decimals for the currency",
-        { min_subtotal: "10.005" },
+        { minSubtotal: "10.005" },
         "Minimum order must be a valid amount for your currency",
       ],
     ]);
@@ -183,12 +179,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createRefusalTests([
       [
         "rejects a max times per order below 1",
-        { max_per_order: "0", trigger: "answer" },
+        { maxPerOrder: "0", trigger: "answer" },
         "Max times per order (optional) must be 1 or greater",
       ],
       [
         "rejects a fractional max times per order",
-        { max_per_order: "1.5", trigger: "answer" },
+        { maxPerOrder: "1.5", trigger: "answer" },
         "Max times per order (optional) must be a whole number",
       ],
     ]);
@@ -196,17 +192,17 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createRefusalTests([
       [
         "rejects a non-numeric value",
-        { calc_value: "abc" },
+        { calcValue: "abc" },
         "Enter a valid number",
       ],
       [
         "rejects a percentage above 100",
-        { calc_value: "150" },
+        { calcValue: "150" },
         "Percentage must be greater than 0 and at most 100",
       ],
       [
         "rejects a percentage charge with trailing junk",
-        { calc_value: "150abc", direction: "charge" },
+        { calcValue: "150abc", direction: "charge" },
         "Enter a valid number",
       ],
     ]);
@@ -214,12 +210,12 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createRefusalTests([
       [
         "rejects a percentage charge above the safe limit",
-        { calc_value: String(MAX_PERCENT_CHARGE + 1), direction: "charge" },
+        { calcValue: String(MAX_PERCENT_CHARGE + 1), direction: "charge" },
         "Percentage must be greater than 0 and at most 10,000",
       ],
       [
         "rejects a zero percentage discount",
-        { calc_value: "0" },
+        { calcValue: "0" },
         "Percentage must be greater than 0 and at most 100",
       ],
     ]);
@@ -227,17 +223,17 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createRefusalTests([
       [
         "rejects a zero percentage charge",
-        { calc_value: "0", direction: "charge" },
+        { calcValue: "0", direction: "charge" },
         "Percentage must be greater than 0",
       ],
       [
         "rejects a non-positive multiplier",
-        { calc_kind: "multiply", calc_value: "0" },
+        { calcKind: "multiply", calcValue: "0" },
         "Multiplier must be greater than 0",
       ],
       [
         "rejects a non-positive fixed amount",
-        { calc_kind: "fixed", calc_value: "0" },
+        { calcKind: "fixed", calcValue: "0" },
         "Amount must be greater than 0",
       ],
     ]);
@@ -245,7 +241,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createRefusalTests([
       [
         "rejects an unknown modifier type",
-        { calc_kind: "bogus" },
+        { calcKind: "bogus" },
         "Invalid modifier type",
       ],
       [
@@ -257,21 +253,18 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
 
     test("creates a percentage charge above 100", async () => {
       await expectCreated(
-        createData({ calc_value: "150", direction: "charge" }),
+        createData({ calcValue: "150", direction: "charge" }),
       );
       const modifier = await lastModifier();
-      expect([modifier.calc_value, modifier.direction]).toEqual([
-        150,
-        "charge",
-      ]);
+      expect([modifier.calcValue, modifier.direction]).toEqual([150, "charge"]);
     });
 
     test("re-renders the create form with the validation error", async () => {
       const { cookie, response } = await adminFormPost(
         "/admin/modifiers",
         createData({
-          calc_kind: "fixed",
-          calc_value: "0",
+          calcKind: "fixed",
+          calcValue: "0",
           direction: "charge",
         }),
       );
@@ -291,8 +284,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       return {
         edit: createData({
-          calc_kind: "fixed",
-          calc_value: "5",
+          calcKind: "fixed",
+          calcValue: "5",
           direction: "charge",
           name: `${name} renamed`,
           scope: "listings",

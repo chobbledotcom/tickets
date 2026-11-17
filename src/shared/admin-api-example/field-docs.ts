@@ -5,6 +5,7 @@
  */
 
 import type * as v from "valibot";
+import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { objectEntries } from "#shared/rest/api-body-fields.ts";
 import { readBody } from "#shared/rest/field-reads.ts";
@@ -95,7 +96,7 @@ const createRow = (field: FieldSpec): FieldDocRow => {
     defaultJson: read.ok
       ? jsonOrNull(field.default ?? Object.values(read.value)[0])
       : null,
-    key: field.key,
+    key: columnName(field.key),
     required: !read.ok,
     value: KIND_FORMS[field.kind](field),
   };
@@ -119,7 +120,7 @@ export const specFieldDocs = (
   closed: ReadonlySet<string>,
 ): FieldDocs => {
   const declared = fields
-    .filter((field) => !closed.has(field.key))
+    .filter((field) => !closed.has(columnName(field.key)))
     .map(createRow);
   const extra = Object.entries(extras)
     .filter(([key]) => !closed.has(key))

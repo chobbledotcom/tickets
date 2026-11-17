@@ -1,24 +1,14 @@
 {
-  "test/features/admin/api-attendees.test.ts": 2,
-  "test/features/admin/api-groups/create.test.ts": 3,
-  "test/features/admin/api-groups/delete.test.ts": 2,
-  "test/features/admin/api-holidays.test.ts": 2,
-  "test/features/admin/parity/groups.test.ts": 2,
   "test/features/api/booking/basics.test.ts": 5,
-  "test/features/api/booking/parents.test.ts": 1,
   "test/features/api/booking/payments.test.ts": 5,
   "test/features/api/packages/booking/capacity.test.ts": 1,
   "test/features/auth/session.test.ts": 3,
-  "test/integration/db/listings/crud.test.ts": 2,
-  "test/integration/server/seeds.test.ts": 2,
   "test/integration/server/site-assignment-renewal.test.ts": 2,
   "test/scripts/mutation/generate.test.ts": 1,
   "test/scripts/mutation/isolation/interrupts.test.ts": 1,
   "test/shared/api-example.test.ts": 5,
   "test/shared/apple-wallet.test.ts": 10,
-  "test/shared/booking/option-demand/surfaces.test.ts": 2,
   "test/shared/crypto/hybrid.test.ts": 2,
   "test/shared/crypto/keys.test.ts": 2,
-  "test/shared/google-wallet.test.ts": 3,
-  "test/test-utils/error-paths.test.ts": 1
+  "test/shared/google-wallet.test.ts": 3
 }

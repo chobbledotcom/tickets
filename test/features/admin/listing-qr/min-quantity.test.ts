@@ -37,7 +37,7 @@ describeWithEnv("admin listing QR minimum quantity", { db: true }, () => {
   test("the POST form accepts a quantity exactly at the minimum", async () => {
     const listing = await batchedListing();
     const { payload } = await postQr(listing)({
-      customer_name: "Ada",
+      customerName: "Ada",
       quantity: "3",
       value: "5.00",
     });

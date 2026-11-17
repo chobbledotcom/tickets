@@ -18,7 +18,6 @@ import {
   transfersByAccount,
 } from "#accounting/queries.ts";
 import { postTransfers } from "#accounting/store.ts";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import {
   applyAttendeeAtomicEdit,
   loadExistingLines,
@@ -26,6 +25,7 @@ import {
 import { createAttendeeAtomicImpl } from "#db/attendees/create.ts";
 import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { queryOne } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { attendeeTaxSaveWork } from "#routes/admin/attendee-tax.ts";
@@ -331,7 +331,7 @@ describeWithEnv("tax > explicit attendee saves", { db: true }, () => {
   it("reconciles the receivable to zero when the save leaves no real line", async () => {
     const fixture = await booking();
     await settings.update.tax(added);
-    const status = await attendeeStatuses.table.insert({ name: "Ready" });
+    const status = await records.attendee_statuses.insert({ name: "Ready" });
     const result = await applyAttendeeAtomicEdit(
       fixture.attendee.id,
       { ...attendeePiiOf(fixture.attendee), name: "Gone" },

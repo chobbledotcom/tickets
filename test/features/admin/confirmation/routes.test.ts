@@ -47,7 +47,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       const response = await route(
         mockFormRequest(
           "/admin/verified/a",
-          { confirm_identifier: "Wrong", csrf_token: csrfToken },
+          { confirmIdentifier: "Wrong", csrfToken },
           cookie,
         ),
         { slug: "a" },
@@ -73,7 +73,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       const response = await route(
         mockFormRequest(
           "/admin/verified/b",
-          { confirm_identifier: "Name b", csrf_token: csrfToken },
+          { confirmIdentifier: "Name b", csrfToken },
           cookie,
         ),
         { slug: "b" },
@@ -169,7 +169,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Wrong", csrf_token: csrfToken },
+          { confirmIdentifier: "Wrong", csrfToken },
           cookie,
         ),
         1,
@@ -191,7 +191,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          { confirmIdentifier: "Alpha", csrfToken },
           cookie,
         ),
         1,
@@ -208,7 +208,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       const response = await build().post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Wrong", csrf_token: csrfToken },
+          { confirmIdentifier: "Wrong", csrfToken },
           cookie,
         ),
         1,
@@ -233,7 +233,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       const response = await build().post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          { confirmIdentifier: "Alpha", csrfToken },
           cookie,
         ),
         1,
@@ -257,7 +257,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          { confirmIdentifier: "Alpha", csrfToken },
           cookie,
         ),
         1,
@@ -275,7 +275,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/7/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          { confirmIdentifier: "Alpha", csrfToken },
           cookie,
         ),
         7,
@@ -334,7 +334,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrfToken },
+          { confirmIdentifier: "Alpha", csrfToken },
           cookie,
         ),
         1,
@@ -371,7 +371,7 @@ describeWithEnv("typed-name confirmation", { db: true }, () => {
       }).post(
         mockFormRequest(
           "/admin/test/1/delete",
-          { confirm_identifier: "Alpha", csrf_token: csrf },
+          { confirmIdentifier: "Alpha", csrfToken: csrf },
           managerCookie,
         ),
         1,

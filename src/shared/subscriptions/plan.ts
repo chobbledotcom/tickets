@@ -25,8 +25,8 @@ export type RecurringIntervalChoice = v.InferOutput<
 /** The plan a listing offers a new subscriber. `recurring_price` is minor
  * units before VAT each period, and 0 means an ordinary ticket. */
 export type RecurringListingColumns = {
-  recurring_interval: RecurringIntervalChoice;
-  recurring_price: number;
+  recurringInterval: RecurringIntervalChoice;
+  recurringPrice: number;
 };
 
 const PERIOD_OF: Record<RecurringInterval, Temporal.DurationLike> = {

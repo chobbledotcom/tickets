@@ -160,9 +160,9 @@ describe("applyDemoOverrides", () => {
 
   test("does not modify fields not in the mapping", () => {
     setDemoModeForTest(true);
-    const form = new FormParams({ csrf_token: "abc123", name: "Real" });
+    const form = new FormParams({ csrfToken: "abc123", name: "Real" });
     applyDemoOverrides(form, ATTENDEE_DEMO_FIELDS);
-    expect(form.get("csrf_token")).toBe("abc123");
+    expect(form.get("csrfToken")).toBe("abc123");
   });
 
   test("works with listing demo fields", () => {

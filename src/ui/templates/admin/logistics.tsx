@@ -128,7 +128,7 @@ const AgentUsersSelector = ({
         <CheckboxLabel
           checked={selected.has(user.id) || undefined}
           label={` ${user.username} (${user.adminLevel})`}
-          name="user_ids"
+          name="userIds"
           value={String(user.id)}
         />
       ))

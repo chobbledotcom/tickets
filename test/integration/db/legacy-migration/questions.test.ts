@@ -1,9 +1,11 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { insert } from "#db/client.ts";
+import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { initDb } from "#db/migrations.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import {
   createLegacyMigrationHarness,
   stubPragmaForeignKeysOff,
@@ -17,23 +19,23 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
   test("adds question display type when legacy question tables have foreign keys", async () => {
     const client = await h.createLegacyDbWithListing();
     await client.execute(
-      insert("questions", {
+      insertInto(tables.questions, {
         id: 1,
-        text: "Encrypted question",
+        text: "Encrypted question" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
-      insert("answers", {
+      insertInto(tables.answers, {
         id: 1,
-        question_id: 1,
-        text: "Encrypted answer",
+        questionId: 1,
+        text: "Encrypted answer" as EnvKeyEncrypted,
       }),
     );
     await client.execute(
-      insert("listing_questions", {
+      insertInto(tables.listing_questions, {
         id: 1,
-        listing_id: 1,
-        question_id: 1,
+        listingId: 1,
+        questionId: 1,
       }),
     );
 
@@ -59,9 +61,18 @@ describe("db > listing_attendees migration from legacy schema (questions)", () =
 
   test("deletes a migrated listing and its question links under FK enforcement", async () => {
     const client = await h.createLegacyDbWithListing();
-    await client.execute(insert("questions", { id: 1, text: "Encrypted" }));
     await client.execute(
-      insert("listing_questions", { id: 1, listing_id: 1, question_id: 1 }),
+      insertInto(tables.questions, {
+        id: 1,
+        text: "Encrypted" as EnvKeyEncrypted,
+      }),
+    );
+    await client.execute(
+      insertInto(tables.listing_questions, {
+        id: 1,
+        listingId: 1,
+        questionId: 1,
+      }),
     );
 
     using _pragmaStub = stubPragmaForeignKeysOff(client);

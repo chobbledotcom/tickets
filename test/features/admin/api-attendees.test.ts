@@ -2,10 +2,10 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { accountBalance, transfersByAccount } from "#accounting/queries.ts";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { PENDING_NOTIFICATION } from "#db/attendees/notification-flags.ts";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
+import { records } from "#db/record-table.ts";
 import { account } from "#shared/ledger/account.ts";
 import {
   assertJson,
@@ -49,8 +49,8 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
         });
         expect(body.attendee.id).toBeGreaterThan(0);
         // The answer never leaks the sealed blob or its blind index.
-        expect(body.attendee.pii_blob).toBeUndefined();
-        expect(body.attendee.ticket_token_index).toBeUndefined();
+        expect(Object.keys(body.attendee)).not.toContain("pii_blob");
+        expect(Object.keys(body.attendee)).not.toContain("ticket_token_index");
       },
     );
     const attendeeId = created.attendee.id as number;
@@ -179,11 +179,9 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
     const writeoff = legs.find(
       (leg) => leg.kind === "manual_attendee_writeoff",
     );
-    expect(charge).toBeDefined();
-    expect(charge!.amount).toBe(250);
+    expect(charge?.amount).toBe(250);
     expect(charge!.destination.type).toBe("writeoff");
-    expect(writeoff).toBeDefined();
-    expect(writeoff!.amount).toBe(100);
+    expect(writeoff?.amount).toBe(100);
     expect(writeoff!.source.type).toBe("writeoff");
   });
 
@@ -348,7 +346,7 @@ describeWithEnv("Admin API - POST /api/admin/attendees", { db: true }, () => {
 
   test("resolves status by name and refuses an unknown status", async () => {
     const listing = await createTestListing({ name: "Status Fair" });
-    const vip = await attendeeStatuses.table.insert({ name: "VIP" });
+    const vip = await records.attendee_statuses.insert({ name: "VIP" });
     const created = await assertJson(
       createBooking(listing.id, { name: "VIP Buyer", status: "VIP" }),
       201,

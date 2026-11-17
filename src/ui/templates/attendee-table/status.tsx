@@ -93,9 +93,9 @@ const CheckinControls = ({
       action={`/admin/listing/${listingId}/attendee/${attendee.id}/checkin`}
       class="inline"
     >
-      <input name="check_in" type="hidden" value={out ? "false" : "true"} />
+      <input name="checkIn" type="hidden" value={out ? "false" : "true"} />
       <input name="quantity" type="hidden" value="1" />
-      <input name="return_filter" type="hidden" value={activeFilter} />
+      <input name="returnFilter" type="hidden" value={activeFilter} />
       <ReturnUrlField returnUrl={returnUrl} />
       <button
         class={out ? "link-button checkout" : "link-button checkin"}

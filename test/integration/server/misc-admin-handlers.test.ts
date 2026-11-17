@@ -6,6 +6,7 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
   mockFormRequest,
   mockMultipartRequest,
@@ -51,9 +52,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const cookie = await testCookie();
       const csrfToken = await testCsrfToken();
       const handler = createActionHandler(config);
-      return handler(
-        mockFormRequest(path, { csrf_token: csrfToken, ...fields }, cookie),
-      );
+      return handler(mockFormRequest(path, { csrfToken, ...fields }, cookie));
     };
 
     test("createActionHandler supports custom error mapping", async () => {
@@ -101,7 +100,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockFormRequest("/admin/test-owner", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/test-owner", { csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);
@@ -127,11 +126,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       });
 
       const response = await handler(
-        mockMultipartRequest(
-          "/admin/test-multipart",
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockMultipartRequest("/admin/test-multipart", { csrfToken }, cookie),
       );
 
       expect(response.status).toBe(302);
@@ -195,7 +190,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
       expect(entries[0]?.message).toBe("Fixed listing action");
-      expect(entries[0]?.listing_id).toBe(42);
+      expect(entries[0]?.listingId).toBe(42);
     });
 
     test("createActionHandler computes listingId from submitted form", async () => {
@@ -215,7 +210,7 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       expect(response.status).toBe(302);
       const entries = await getAllActivityLog();
       expect(entries[0]?.message).toBe("Computed listing action");
-      expect(entries[0]?.listing_id).toBe(77);
+      expect(entries[0]?.listingId).toBe(77);
     });
 
     test("getDateFilter returns valid date", async () => {
@@ -324,21 +319,12 @@ describeWithEnv("server (misc: admin handlers)", { db: true }, () => {
       const { createTestAttendeeDirect } = await import(
         "#test-utils/db-helpers/attendees.ts"
       );
-      const { answersTable, questionsTable } = await import(
-        "#db/questions/tables.ts"
-      );
-      const { questionListings } = await import("#db/questions/queries.ts");
 
       const listing = await createTestListing({ maxAttendees: 10 });
-      const question = await questionsTable.insert({
-        displayType: "radio",
+      const { question } = await seedQuestion({
+        answers: ["Veg"],
+        listingIds: [listing.id],
         text: "Food preference",
-      });
-      await questionListings.setIds(question.id, [listing.id]);
-      await answersTable.insert({
-        questionId: question.id,
-        sortOrder: 0,
-        text: "Veg",
       });
       const { attendee } = await createTestAttendeeDirect(
         listing.id,

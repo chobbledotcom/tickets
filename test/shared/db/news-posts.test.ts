@@ -6,7 +6,6 @@ import { queryAll } from "#db/client.ts";
 import { appendImageToItem, getImagesForItem } from "#db/images.ts";
 import {
   deleteNewsPostWithImages,
-  getNewsPostById,
   getNewsPostBySlugIndex,
   getNewsPostCards,
   getNewsPostNames,
@@ -14,6 +13,7 @@ import {
   hasNewsPosts,
   updateNewsPost,
 } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { insertBrokenImage, makeImage } from "#test-utils/admin-images.ts";
@@ -55,17 +55,17 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       // `created` stays plaintext ISO so SQL can order newest-first.
       expect(raw[0]?.created).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-      const back = await getNewsPostById(created.id);
+      const back = await records.news_posts.find(created.id);
       expect(back?.name).toBe("Launch day");
-      expect(back?.meta_title).toBe("Launch | Acme");
-      expect(back?.meta_description).toBe("Launch description");
+      expect(back?.metaTitle).toBe("Launch | Acme");
+      expect(back?.metaDescription).toBe("Launch description");
       expect(back?.snippet).toBe("We launched!");
       expect(back?.content).toBe("We are **live**");
       expect(back?.created).toBe(created.created);
     });
 
-    test("getNewsPostById returns null for a missing id", async () => {
-      expect(await getNewsPostById(9999)).toBeNull();
+    test("records.news_posts.find returns null for a missing id", async () => {
+      expect(await records.news_posts.find(9999)).toBeNull();
     });
 
     test("empty optional fields stay empty strings, never ciphertext", async () => {
@@ -75,7 +75,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       );
       expect(raw[0]?.snippet).toBe("");
       expect(raw[0]?.content).toBe("");
-      const back = await getNewsPostById(created.id);
+      const back = await records.news_posts.find(created.id);
       expect(back?.snippet).toBe("");
       expect(back?.content).toBe("");
     });
@@ -98,8 +98,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(updated.value.name).toBe("After");
       expect(updated.value.snippet).toBe("new snippet");
       expect(updated.value.content).toBe("new content");
-      expect(updated.value.meta_title).toBe("new title");
-      expect(updated.value.meta_description).toBe("new description");
+      expect(updated.value.metaTitle).toBe("new title");
+      expect(updated.value.metaDescription).toBe("new description");
       expect(updated.value.created).toBe(created.created);
       // The edited slug (and its blind index) now resolve the post.
       expect(updated.value.slug).toBe("edited-slug");
@@ -128,14 +128,14 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       // The card carries the decrypted /news permalink.
       expect(cards[0]?.slug).toBe("2026-07-02-newer");
       // The FIRST linked image (by sort_order) projects into the card.
-      expect(cards[0]?.image_url).toBe(first.filename);
-      expect(cards[0]?.image_thumb_url).toBe(first.filename_thumb);
-      expect(cards[0]?.image_alt_text).toBe(first.alt_text);
-      expect(cards[0]?.image_url).not.toBe(second.filename);
+      expect(cards[0]?.imageUrl).toBe(first.filename);
+      expect(cards[0]?.imageThumbUrl).toBe(first.filenameThumb);
+      expect(cards[0]?.imageAltText).toBe(first.altText);
+      expect(cards[0]?.imageUrl).not.toBe(second.filename);
       // A post with no images projects the empty-string convention.
-      expect(cards[1]?.image_url).toBe("");
-      expect(cards[1]?.image_thumb_url).toBe("");
-      expect(cards[1]?.image_alt_text).toBe("");
+      expect(cards[1]?.imageUrl).toBe("");
+      expect(cards[1]?.imageThumbUrl).toBe("");
+      expect(cards[1]?.imageAltText).toBe("");
     });
 
     test("projects the broken-image marker for a broken linked image", async () => {
@@ -146,8 +146,8 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       });
 
       const cards = await getNewsPostCards();
-      expect(cards[0]?.image_url).toBe(BROKEN_IMAGE_FILENAME);
-      expect(cards[0]?.image_thumb_url).toBe(BROKEN_IMAGE_FILENAME);
+      expect(cards[0]?.imageUrl).toBe(BROKEN_IMAGE_FILENAME);
+      expect(cards[0]?.imageThumbUrl).toBe(BROKEN_IMAGE_FILENAME);
       expect(
         errors.contains(
           `news post ${post.id} image decrypted to an empty value`,
@@ -227,7 +227,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
         slug: post.slug,
         snippet: "",
       });
-      const reloaded = await getNewsPostById(post.id);
+      const reloaded = await records.news_posts.find(post.id);
       expect(reloaded?.name).toBe("Renamed");
       expect(reloaded?.slug).toBe("2026-07-06-original-name");
     });
@@ -303,7 +303,7 @@ describeWithEnv("db > news-posts", { db: true }, () => {
       expect(await getImagesForItem("news", post.id)).toHaveLength(1);
 
       await deleteNewsPostWithImages(post.id);
-      expect(await getNewsPostById(post.id)).toBeNull();
+      expect(await records.news_posts.find(post.id)).toBeNull();
       expect(await getImagesForItem("news", post.id)).toHaveLength(0);
       const kept = await queryAll<{ id: number }>(
         sql`SELECT id FROM images WHERE id = ${image.id}`,

@@ -1,27 +1,8 @@
 /**
- * A minimal `{ id, name }` table for exercising the REST write steps without a
- * real domain table. Kept here so the REST test suites share one fixture rather
- * than each re-declaring the table and its DDL.
+ * The row and input shapes of a minimal `{ id, name }` record, so the REST
+ * test suites share one shape rather than each declaring it again. The
+ * logistics agents table stores this shape.
  */
-
-import { getDb } from "#db/client.ts";
-import { sql, sqlName } from "#db/sql.ts";
-import { col, defineTable, type Table } from "#db/table.ts";
 
 export type IdNameRow = { id: number; name: string };
 export type IdNameInput = { name: string };
-
-/** A `{ id, name }` table definition backed by `name`. */
-export const makeIdNameTable = (name: string): Table<IdNameRow, IdNameInput> =>
-  defineTable<IdNameRow, IdNameInput>({
-    name,
-    primaryKey: "id",
-    schema: { id: col.generated<number>(), name: col.simple<string>() },
-  });
-
-/** Create the backing table for {@link makeIdNameTable} in the current test DB. */
-export const createIdNameTable = async (name: string): Promise<void> => {
-  await getDb().execute(
-    sql`CREATE TABLE IF NOT EXISTS ${sqlName(name)} (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`,
-  );
-};

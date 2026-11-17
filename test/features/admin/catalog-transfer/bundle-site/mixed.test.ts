@@ -60,8 +60,8 @@ describeWithEnv("bundle references to stored rows", { db: true }, () => {
     const packId = await storedGroupIdOf("Stored Pack");
     const joinerId = await storedListingIdOf("Joiner");
     const members = await getGroupPackagePrices(packId);
-    expect(members.find((row) => row.listing_id === joinerId)).toMatchObject({
-      package_price: 700,
+    expect(members.find((row) => row.listingId === joinerId)).toMatchObject({
+      packagePrice: 700,
     });
     // The stored parent edge landed.
     const addOnId = await storedListingIdOf("Add-on");

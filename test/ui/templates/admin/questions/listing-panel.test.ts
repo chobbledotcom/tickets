@@ -52,7 +52,7 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     expectIncludesAll(html, [
-      '<input name="question_ids" type="checkbox" value="1">',
+      '<input name="questionIds" type="checkbox" value="1">',
       // A single space sits before the "(1 option…)" summary inside the label.
       "<small> (1 option: Yes)</small>",
     ]);
@@ -64,8 +64,8 @@ describe("adminListingQuestionsPage", () => {
     const questions = [
       testQuestion({
         answers: [
-          testAnswer({ id: 10, sort_order: 0, text: "A" }),
-          testAnswer({ id: 11, sort_order: 1, text: "B" }),
+          testAnswer({ id: 10, sortOrder: 0, text: "A" }),
+          testAnswer({ id: 11, sortOrder: 1, text: "B" }),
         ],
         id: 1,
         text: "Q?",
@@ -86,9 +86,9 @@ describe("adminListingQuestionsPage", () => {
     const questions = [
       testQuestion({
         answers: [
-          testAnswer({ id: 10, sort_order: 0, text: "S" }),
-          testAnswer({ id: 11, sort_order: 1, text: "M" }),
-          testAnswer({ id: 12, sort_order: 2, text: "L" }),
+          testAnswer({ id: 10, sortOrder: 0, text: "S" }),
+          testAnswer({ id: 11, sortOrder: 1, text: "M" }),
+          testAnswer({ id: 12, sortOrder: 2, text: "L" }),
         ],
         id: 1,
         text: "Size?",

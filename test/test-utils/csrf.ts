@@ -12,7 +12,7 @@ import {
 
 export const extractCsrfToken = (html: string | null): string | null => {
   if (!html) return null;
-  return extractInputValue(html, "csrf_token");
+  return extractInputValue(html, "csrfToken");
 };
 
 export const extractInputValue = (
@@ -102,17 +102,17 @@ export const getCsrfTokenFromCookie = async (
 
   const sessionToken = sessionMatch[1];
   const session = await getSession(sessionToken);
-  return session?.csrf_token ?? null;
+  return session?.csrfToken ?? null;
 };
 
 export const submitJoinForm = async (
   inviteCode: string,
-  data: { password: string; password_confirm: string },
+  data: { password: string; passwordConfirm: string },
 ): Promise<Response> => {
   const joinPath = `/join/${inviteCode}`;
   const joinCsrf = requireJoinCsrfToken(await testPageHtml(joinPath));
   return awaitTestRequest(joinPath, {
-    data: { ...data, csrf_token: joinCsrf },
+    data: { ...data, csrfToken: joinCsrf },
   });
 };
 
@@ -155,7 +155,7 @@ export const submitMultiTicketForm = async (
   const { csrfToken } = await getPageWithCsrf(path);
   return awaitTestRequest(path, {
     cookie: `csrf_token=${csrfToken}`,
-    data: { ...data, csrf_token: csrfToken },
+    data: { ...data, csrfToken },
   });
 };
 
@@ -171,7 +171,7 @@ export const postRunningTotal = async (
   return handleRequest(
     mockFormRequest(`/calculate/${postSlug}`, {
       ...data,
-      csrf_token: csrfToken,
+      csrfToken,
     }),
   );
 };
@@ -200,8 +200,8 @@ export const bookTwoListings = (
   submitMultiTicketForm(slug, {
     email: "john@example.com",
     name: "John Doe",
-    [`quantity_${listing1Id}`]: quantity1,
-    [`quantity_${listing2Id}`]: quantity2,
+    [`quantity${listing1Id}`]: quantity1,
+    [`quantity${listing2Id}`]: quantity2,
   });
 
 /** `bookTwoListings` specialised to one of each — the most common case. */
@@ -227,8 +227,8 @@ export const bookTwoListingsAsTestUser = (
     ...extraFields,
     email: "test@example.com",
     name: "Test User",
-    [`quantity_${listing1Id}`]: quantity1,
-    [`quantity_${listing2Id}`]: quantity2,
+    [`quantity${listing1Id}`]: quantity1,
+    [`quantity${listing2Id}`]: quantity2,
   });
 
 /** Books one of each of two listings and asserts the booking was turned away
@@ -247,7 +247,7 @@ export const expectBookOneEachRejected = async (
 };
 
 const extractQuantityListingId = (html: string): string | null => {
-  const match = html.match(/name="quantity_(\d+)"/);
+  const match = html.match(/name="quantity(\d+)"/);
   return match?.[1] ?? null;
 };
 
@@ -258,17 +258,17 @@ export const normalizeSingleListingFields = (
   const listingId = extractQuantityListingId(html);
   if (!listingId) return data;
   const result = { ...data };
-  if (!(`quantity_${listingId}` in result)) {
+  if (!(`quantity${listingId}` in result)) {
     if ("quantity" in result) {
-      result[`quantity_${listingId}`] = result.quantity;
+      result[`quantity${listingId}`] = result.quantity;
       delete result.quantity;
     } else {
-      result[`quantity_${listingId}`] = "1";
+      result[`quantity${listingId}`] = "1";
     }
   }
-  if ("custom_price" in result && !(`custom_price_${listingId}` in result)) {
-    result[`custom_price_${listingId}`] = result.custom_price;
-    delete result.custom_price;
+  if ("customPrice" in result && !(`customPrice${listingId}` in result)) {
+    result[`customPrice${listingId}`] = result.customPrice;
+    delete result.customPrice;
   }
   return result;
 };

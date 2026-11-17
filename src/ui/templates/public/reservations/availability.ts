@@ -46,7 +46,7 @@ const standaloneRowUnavailable = (
       info,
       page.childrenByParentId?.get(info.listing.id) ?? [],
       page,
-    ) < info.listing.min_quantity
+    ) < info.listing.minQuantity
   );
 };
 

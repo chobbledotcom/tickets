@@ -23,19 +23,19 @@ const source: ExternalSource = {
   created: "2026-11-03T09:00:00.000Z",
   id: 1,
   name: "Village diary",
-  url_pattern: "https://diary.example/events/{external_id}",
+  urlPattern: "https://diary.example/events/{external_id}",
 };
 
 const link = (
   fields: Partial<ExternalSourceLink> = {},
 ): ExternalSourceLink => ({
   created: "2026-11-03T09:05:00.000Z",
-  external_id: "EVT-1",
-  external_id_index: null,
+  externalId: "EVT-1",
+  externalIdIndex: null,
   id: 1,
-  link_id: 7,
-  link_type: "listing",
-  source_id: source.id,
+  linkId: 7,
+  linkType: "listing",
+  sourceId: source.id,
   ...fields,
 });
 
@@ -71,7 +71,7 @@ describeWithEnv("external sources page", { encryptionKey: true }, () => {
   });
 
   test("says a record has no external id yet", () => {
-    const html = pageOf([{ links: [link({ external_id: null })], source }]);
+    const html = pageOf([{ links: [link({ externalId: null })], source }]);
     assertStringIncludes(html, "Not named yet");
     // The pattern itself still shows; only the filled address is absent.
     assert(!html.includes('href="https://diary.example/events/'));
@@ -81,8 +81,8 @@ describeWithEnv("external sources page", { encryptionKey: true }, () => {
     const html = pageOf([
       {
         links: [
-          link({ id: 2, link_id: 3, link_type: "attendee" }),
-          link({ id: 3, link_id: 4, link_type: "group" }),
+          link({ id: 2, linkId: 3, linkType: "attendee" }),
+          link({ id: 3, linkId: 4, linkType: "group" }),
         ],
         source,
       },

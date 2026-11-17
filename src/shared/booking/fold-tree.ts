@@ -163,7 +163,7 @@ const hasUnavailableChildSelection = (
   bookableIds: ReadonlySet<number>,
   form: FormParams,
 ): boolean => {
-  const prefix = `child_qty_${parentId}_`;
+  const prefix = `${childQuantityFieldName(parentId)}_`;
   return [...form.keys()].some((key) => {
     if (!key.startsWith(prefix)) return false;
     const childId = parseNonNegativeInt(key.slice(prefix.length));
@@ -176,7 +176,7 @@ const hasUnavailableChildSelection = (
 };
 
 /** Resolve the per-unit child selection for one in-cart parent: read each bookable
- * child's `child_qty_<parentId>_<childId>`, auto-assign the whole parent quantity
+ * child's `childQty<parentId>_<childId>`, auto-assign the whole parent quantity
  * to a sole bookable child when NOTHING was submitted, and require the chosen
  * quantities to sum to exactly the parent's quantity. Returns the chosen children
  * (each qty > 0) or an error (none bookable / total too low or high / a quantity
@@ -243,12 +243,12 @@ const childCustomPrice = (
   form: FormParams,
   name: string,
 ): number | { error: string } | undefined => {
-  if (!child.listing.can_pay_more) return;
+  if (!child.listing.canPayMore) return;
   const result = parseCustomPrice(
     form,
     childPriceFieldName(parentId, child.listing.id),
-    child.listing.unit_price,
-    child.listing.max_price,
+    child.listing.unitPrice,
+    child.listing.maxPrice,
   );
   if (!result.ok) return { error: `${name}: ${result.error}` };
   return result.price;
@@ -298,10 +298,10 @@ export const foldChild = (
   // its per-date cap is enforced by the folded `checkAvailability`
   // (rejected, never clamped). A STANDARD child's cap is cumulative and
   // date-independent, so it stays authoritative here.
-  if (child.listing.listing_type !== "daily" && summed > child.maxPurchasable) {
+  if (child.listing.listingType !== "daily" && summed > child.maxPurchasable) {
     return formatAtomicError("capacity_exceeded", name);
   }
-  if (child.listing.customisable_days) {
+  if (child.listing.customisableDays) {
     const durationError = recordDuration(state, duration);
     if (durationError) return durationError;
   }

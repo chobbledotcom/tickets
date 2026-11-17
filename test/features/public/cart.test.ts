@@ -53,8 +53,8 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
 
     const html = await cartHtml([group.slug, solo.slug]);
     expectIncludesAll(html, [
-      `name="package_quantity_${group.id}"`,
-      `name="quantity_${solo.id}"`,
+      `name="packageQuantity${group.id}"`,
+      `name="quantity${solo.id}"`,
       "Kit tent",
       "Lantern",
     ]);
@@ -69,7 +69,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     });
 
     const html = await cartHtml([group.slug, solo.slug, solo.slug]);
-    expect(countOf(html, `name="quantity_${solo.id}"`)).toBe(1);
+    expect(countOf(html, `name="quantity${solo.id}"`)).toBe(1);
   });
 
   test("keeps one section for a package named twice", async () => {
@@ -77,8 +77,8 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     const other = await createFreePackage("Other kit", "Other tent");
 
     const html = await cartHtml([group.slug, group.slug, other.group.slug]);
-    expect(countOf(html, `name="package_quantity_${group.id}"`)).toBe(1);
-    expect(countOf(html, `name="package_quantity_${other.group.id}"`)).toBe(1);
+    expect(countOf(html, `name="packageQuantity${group.id}"`)).toBe(1);
+    expect(countOf(html, `name="packageQuantity${other.group.id}"`)).toBe(1);
   });
 
   test("drops a listing that is no longer on sale", async () => {
@@ -91,7 +91,7 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     await deactivateTestListing(gone.id);
 
     const html = await cartHtml([group.slug, gone.slug]);
-    assert(!html.includes(`name="quantity_${gone.id}"`));
+    assert(!html.includes(`name="quantity${gone.id}"`));
     assertStringIncludes(html, "Live tent");
   });
 
@@ -99,9 +99,6 @@ describeWithEnv("cart slug resolution", { db: true }, () => {
     const { group } = await createFreePackage("Lone kit", "Lone tent");
 
     const html = await cartHtml([group.slug]);
-    expectIncludesAll(html, [
-      `name="package_quantity_${group.id}"`,
-      "Lone tent",
-    ]);
+    expectIncludesAll(html, [`name="packageQuantity${group.id}"`, "Lone tent"]);
   });
 });

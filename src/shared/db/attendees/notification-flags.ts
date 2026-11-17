@@ -18,13 +18,10 @@ import {
   resultRows,
   withTransaction,
 } from "#db/client.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlList,
-  sqlLiteral,
-  sqlName,
-} from "#db/sql.ts";
+import { among, greaterThan } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
+import { type Changes, type ColumnName, update } from "#db/write.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { Attendee } from "#types";
 
@@ -45,19 +42,29 @@ export const PENDING_NOTIFICATION = {
 export type PendingNotificationSide = "email" | "webhooks";
 
 /** The flag column each side owns. */
-const FLAG_COLUMN: Record<PendingNotificationSide, SqlStatement> = {
-  email: sql`email_pending`,
-  webhooks: sql`webhooks_pending`,
-};
+const FLAG_COLUMN = {
+  email: "emailPending",
+  webhooks: "webhooksPending",
+} as const satisfies Record<PendingNotificationSide, ColumnName<"attendees">>;
+
+/** The change that sets one side's flag. */
+const flagChange = (
+  side: PendingNotificationSide,
+  value: PendingNotificationFlag,
+): Changes<"attendees"> => ({ [FLAG_COLUMN[side]]: value });
 
 /** Zero one side's flag for the given attendees. Touches rows whose flag is
  * up, and is what a send runs after its far side accepted. */
 export const clearPendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
-): SqlStatement => sql`UPDATE attendees SET ${FLAG_COLUMN[side]} = 0
-        WHERE id IN (${sqlList(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} > 0`;
+): SqlStatement =>
+  update(tables.attendees, flagChange(side, PENDING_NOTIFICATION.none)).where(
+    (attendee) => [
+      among(attendee.id, attendeeIds),
+      greaterThan(attendee[FLAG_COLUMN[side]], 0),
+    ],
+  );
 
 /** Write one side's flag back to the value the claim found. Touches rows
  * whose flag is down, and is what releases a recovery's claim. The captured
@@ -66,9 +73,11 @@ export const restorePendingFlagStatement = (
   side: PendingNotificationSide,
   attendeeIds: readonly number[],
   value: PendingNotificationFlag,
-): SqlStatement => sql`UPDATE attendees SET ${FLAG_COLUMN[side]} = ${value}
-        WHERE id IN (${sqlList(attendeeIds)})
-          AND ${FLAG_COLUMN[side]} = 0`;
+): SqlStatement =>
+  update(tables.attendees, flagChange(side, value)).where({
+    [FLAG_COLUMN[side]]: PENDING_NOTIFICATION.none,
+    id: attendeeIds,
+  });
 
 /** One side a recovery claimed, with the flag value the claim found. The
  * restore writes this value back, so a refused or failed send keeps the
@@ -105,7 +114,10 @@ export const claimOutstandingNotificationFlags = async (
       .map(([side, previous]) => ({ previous, side }));
     if (claimed.length > 0) {
       await tx.execute(
-        sql`UPDATE attendees SET email_pending = 0, webhooks_pending = 0 WHERE id = ${attendeeId}`,
+        update(tables.attendees, {
+          emailPending: PENDING_NOTIFICATION.none,
+          webhooksPending: PENDING_NOTIFICATION.none,
+        }).where({ id: attendeeId }),
       );
     }
     return claimed;

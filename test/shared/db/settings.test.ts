@@ -94,7 +94,7 @@ describeWithEnv("db > settings", { db: true }, () => {
     test("updateUserPassword returns false when dataKey unwrap fails", async () => {
       const user = await getUserByUsername(TEST_ADMIN_USERNAME);
       expect(user).not.toBeNull();
-      const storedHash = user!.password_hash;
+      const storedHash = user!.passwordHash;
       if (storedHash === "") {
         throw new Error("the test admin has no stored password hash");
       }
@@ -106,7 +106,7 @@ describeWithEnv("db > settings", { db: true }, () => {
       const { settings: s } = await import("#db/settings.ts");
       const result = await s.updateUserPassword(user!.id, {
         newPassword: "newpassword",
-        oldKekVersion: user!.kek_version,
+        oldKekVersion: user!.kekVersion,
         oldPassword: TEST_ADMIN_PASSWORD,
         oldPasswordHash: passwordHash!,
         // Hand-crafted corrupt stored wrap — test fixture cast.

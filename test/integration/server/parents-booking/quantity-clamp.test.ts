@@ -152,7 +152,7 @@ describeWithEnv(
       test(c.name, async () => {
         const { parent } = await c.setup();
         const body = await (await ticketGet(parent.slug)).text();
-        const options = selectOptions(body, `name="quantity_${parent.id}"`);
+        const options = selectOptions(body, `name="quantity${parent.id}"`);
         assertStringIncludes(options, `value=${c.contains}`);
         for (const value of c.notContains) {
           assert(!options.includes(`value=${value}`));
@@ -177,7 +177,7 @@ describeWithEnv(
       const body = await (await ticketGet(parent.slug)).text();
       const options = selectOptions(
         body,
-        `name="child_qty_${parent.id}_${shared.id}"`,
+        `name="childQty${parent.id}_${shared.id}"`,
       );
       assertStringIncludes(options, 'value="1"');
       assert(!options.includes('value="2"'));

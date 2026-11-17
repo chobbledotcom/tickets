@@ -3,6 +3,8 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryAll } from "#db/client.ts";
 import { setGroupPackageMembers } from "#db/groups.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { assertJson } from "#test-utils/assertions.ts";
@@ -175,8 +177,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
       "stale@example.com",
       "Stale Buyer",
     );
-    const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
+    await records.groups.update(group.id, { hidePackageListings: true });
 
     try {
       await assertJson(
@@ -371,8 +372,7 @@ describeWithEnv("server (webhooks) — dual booking paths", { db: true }, () => 
     // itself" mid-payment: those standalone units now lead to a 404 page, so
     // the order must be saved-and-refunded — the package allocation must not
     // exempt the line's surplus from the stale check.
-    const { listingsTable } = await import("#db/listings/records.ts");
-    await listingsTable.update(addon.id, { bookableAlone: false });
+    await updateListing(addon.id, { bookableAlone: false });
 
     try {
       await expectSavedAndRefunded();

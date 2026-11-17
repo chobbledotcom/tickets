@@ -14,7 +14,7 @@ const postPreview = (
   opts: { cookie?: string; csrfToken?: string },
 ): Promise<Response> => {
   const params: Record<string, string> = { content };
-  if (opts.csrfToken !== undefined) params.csrf_token = opts.csrfToken;
+  if (opts.csrfToken !== undefined) params.csrfToken = opts.csrfToken;
   return handleRequest(
     mockRequest("/admin/markdown-preview", {
       body: new URLSearchParams(params).toString(),

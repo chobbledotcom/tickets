@@ -1,9 +1,9 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { createExternalSourceLink } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
 import { assertAdminHtml, testRequiresAuth } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestExternalSource } from "#test-utils/db-helpers/external-sources.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminGet } from "#test-utils/session.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
@@ -12,10 +12,10 @@ const PATH = "/admin/external-sources";
 
 /** One source with one listing link, made the way the API makes it. */
 const seedDirectory = async (): Promise<{ listingId: number }> => {
-  const source = await externalSourcesTable.insert({
-    name: "Village diary",
-    urlPattern: "https://diary.example/events/{external_id}",
-  });
+  const source = await createTestExternalSource(
+    "Village diary",
+    "https://diary.example/events/{external_id}",
+  );
   const listing = await createTestListing({ name: "Watercolour day" });
   const created = await createExternalSourceLink(source.id, {
     externalId: "EVT-1",
@@ -47,10 +47,10 @@ describeWithEnv("server (admin external sources)", { db: true }, () => {
     });
 
     test("names a record the other system has not named yet", async () => {
-      const source = await externalSourcesTable.insert({
-        name: "Imports",
-        urlPattern: "https://imports.example/{external_id}",
-      });
+      const source = await createTestExternalSource(
+        "Imports",
+        "https://imports.example/{external_id}",
+      );
       const listing = await createTestListing({ name: "Pottery day" });
       await createExternalSourceLink(source.id, {
         externalId: null,

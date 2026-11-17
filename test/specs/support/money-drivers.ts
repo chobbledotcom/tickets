@@ -118,7 +118,7 @@ export const runStripeSuccess = async (
     await getProcessedPayment(order.sessionId),
     missingAttendee,
   );
-  return requireValue(payment.attendee_id, missingAttendee);
+  return requireValue(payment.attendeeId, missingAttendee);
 };
 
 /**
@@ -187,7 +187,7 @@ export const refundByTyping = async (
     async (mockRefund) => {
       await fillInAndSend(
         browser,
-        { confirm_identifier: where.typed },
+        { confirmIdentifier: where.typed },
         where.buttonText,
       );
       countsProviderRefundCalls(world, mockRefund.calls);

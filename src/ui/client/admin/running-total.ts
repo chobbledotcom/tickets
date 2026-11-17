@@ -9,13 +9,7 @@
  * a quote only needs the pricing inputs, and the server ignores contact
  * details anyway. */
 
-const PII_FIELDS = [
-  "name",
-  "email",
-  "phone",
-  "address",
-  "special_instructions",
-];
+const PII_FIELDS = ["name", "email", "phone", "address", "specialInstructions"];
 
 const RECALC_DELAY_MS = 250;
 

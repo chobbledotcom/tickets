@@ -12,8 +12,8 @@ import {
   type ModifierRow,
   modifierGroups,
   modifierListings,
-  modifiersTable,
 } from "#db/modifiers.ts";
+import { tables } from "#db/select/tables.ts";
 import { childAddOnSaveError } from "#routes/admin/modifier-add-on-reachability.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
@@ -82,5 +82,5 @@ export const modifierRecord = defineNamedRowRecord<
   rule: modifierRule,
   storedValues: (modifier) => modifier,
   surface: "modifiers",
-  table: modifiersTable,
+  table: tables.modifiers,
 });

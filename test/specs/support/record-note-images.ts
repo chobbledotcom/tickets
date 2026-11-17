@@ -67,7 +67,7 @@ export const saveRecordWithOverLongNote: SavesOverLongNote = async (
   const overLong = `Still here. ![${image.alt}](img#${image.id}) ${"x".repeat(MAX_TEXTAREA_LENGTH)}`;
   const browser = await openRecord(world, emailFor(who));
   await browser.submitForm(
-    { admin_notes: overLong, public_booking_count: "0" },
+    { adminNotes: overLong, publicBookingCount: "0" },
     "Save record",
   );
   return browser;

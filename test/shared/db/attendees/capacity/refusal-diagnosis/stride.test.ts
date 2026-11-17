@@ -8,8 +8,9 @@ import {
   cloneGroupMembershipStatement,
   getListingsByGroupId,
 } from "#db/groups.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { newListingValues } from "#db/listings/records.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -45,9 +46,9 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
         name: `Strided member ${index}`,
       });
       clones.push(
-        await listingsTable.insertStatement!(clone),
+        await records.listings.insertStatement(newListingValues(clone)),
         cloneGroupMembershipStatement({
-          groupSlugIndex: shared.slug_index,
+          groupSlugIndex: shared.slugIndex,
           listingSlugIndex: clone.slugIndex,
           quantity: 1,
         }),
@@ -190,7 +191,7 @@ describeWithEnv("db > refusedOrderUnfitListingIds", { db: true }, () => {
     // fail loudly when the cache does not hold it.
     const { groups } = await import("#db/groups.ts");
     const fullGroup = requireValue(
-      (await groups.cache.getAll()).find(
+      (await groups.getAll()).find(
         (group) => group.name === "Spare full group",
       ),
       "Spare full group was not found",

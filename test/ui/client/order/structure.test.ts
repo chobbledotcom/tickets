@@ -61,8 +61,8 @@ describe("order widget structure", {
     h.run(
       makeCatalog(
         [
-          listing({ id: 1, slug: "fixed", unit_price: 1500 }),
-          listing({ id: 2, slug: "small", unit_price: 500 }),
+          listing({ id: 1, slug: "fixed", unitPrice: 1500 }),
+          listing({ id: 2, slug: "small", unitPrice: 500 }),
         ],
         false,
       ),

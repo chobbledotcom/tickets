@@ -117,8 +117,8 @@ describeWithEnv("server listings > date and location", { db: true }, () => {
     test("rejects invalid listing date on edit", async () => {
       await expectOwnEditRefused(
         {
-          date_date: "not-a-date",
-          date_time: "99:99",
+          dateDate: "not-a-date",
+          dateTime: "99:99",
         },
         "Please enter a valid date and time",
       );

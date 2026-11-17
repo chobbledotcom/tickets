@@ -6,14 +6,14 @@
 import {
   deleteExternalSource,
   getAllExternalSources,
-  getExternalSource,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
 import {
   type ExternalSource,
   type ExternalSourceInput,
   ExternalUrlPatternSchema,
 } from "#db/external-sources/types.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
@@ -59,12 +59,12 @@ export const externalSourceRecord = defineNamedRowRecord<
   // no delete route. The JSON delete therefore answers the page's audience too
   // rather than inventing a page the surface does not have.
   getAll: getAllExternalSources,
-  load: getExternalSource,
+  load: records.external_sources.find,
   // Read-your-writes: the create and update answers re-read the row from the
   // primary, so a lagging replica cannot miss the row the write just made.
-  loadAfterWrite: externalSourcesTable.findByIdPrimary,
+  loadAfterWrite: records.external_sources.findPrimary,
   onDelete: (id) => deleteExternalSource(id),
   rule: sourceRule,
   surface: { deleteDestination: "externalSources", list: "externalSources" },
-  table: externalSourcesTable,
+  table: tables.external_sources,
 });

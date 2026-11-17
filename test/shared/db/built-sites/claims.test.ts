@@ -3,7 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { ensureBuiltSiteSchedulerKey } from "#db/built-site-scheduler.ts";
 import { takePooledSiteForBuyer } from "#db/built-sites/claims.ts";
 import {
-  builtSitesCrudTable,
+  findBuiltSiteById,
   getAssignableBuiltSites,
   insertBuiltSite,
   updateBuiltSite,
@@ -31,7 +31,7 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
     expect(take.kind).toBe("claimed");
     expect(take.kind === "claimed" && take.site.id).toBe(row.id);
     expect(pool).toHaveLength(0);
-    expect(await builtSitesCrudTable.read.one({ id: row.id })).toMatchObject({
+    expect(await findBuiltSiteById(row.id)).toMatchObject({
       assignable: false,
       assignedAttendeeId: 42,
       assignedListingId: 7,
@@ -152,15 +152,13 @@ describeWithEnv("taking a pooled site for a buyer", { db: true }, () => {
       const key = await ensureBuiltSiteSchedulerKey(site.id);
       await claim;
 
-      expect(await builtSitesCrudTable.read.one({ id: site.id })).toMatchObject(
-        {
-          assignable: false,
-          assignedAttendeeId: 42,
-          assignedListingId: 7,
-          scheduledTaskKey: key,
-          siteDataRevision: 2,
-        },
-      );
+      expect(await findBuiltSiteById(site.id)).toMatchObject({
+        assignable: false,
+        assignedAttendeeId: 42,
+        assignedListingId: 7,
+        scheduledTaskKey: key,
+        siteDataRevision: 2,
+      });
     } finally {
       restore();
     }

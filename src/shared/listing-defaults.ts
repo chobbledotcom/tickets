@@ -12,7 +12,9 @@
  */
 
 import * as v from "valibot";
+import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { prefixedBoxName } from "#shared/forms/prefixed-name.ts";
 import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
@@ -46,12 +48,12 @@ export type ResolveContext = { hasLogistics: boolean };
  * that selects only some of them gets only those overlaid — see
  * {@link resolveListingDefaults}.
  */
-export type ResolvableListing = Partial<Listing> & { use_defaults: boolean };
+export type ResolvableListing = Partial<Listing> & { useDefaults: boolean };
 
 export type ListingDefaultField = {
   /** Key in {@link ListingDefaults}. */
   key: keyof ListingDefaults;
-  /** Matching listing column / listing-form field name (snake_case). */
+  /** Matching listing field, which is also the listing-form field name. */
   field: keyof Listing;
   kind: ListingDefaultKind;
   /**
@@ -69,11 +71,11 @@ export type ListingDefaultField = {
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const UNGATED_FIELDS: readonly ListingDefaultField[] = [
-  { field: "bookable_days", key: "bookableDays", kind: "days" },
-  { field: "minimum_days_before", key: "minimumDaysBefore", kind: "number" },
-  { field: "maximum_days_after", key: "maximumDaysAfter", kind: "number" },
-  { field: "webhook_url", key: "webhookUrl", kind: "url" },
-  { field: "thank_you_url", key: "thankYouUrl", kind: "url" },
+  { field: "bookableDays", key: "bookableDays", kind: "days" },
+  { field: "minimumDaysBefore", key: "minimumDaysBefore", kind: "number" },
+  { field: "maximumDaysAfter", key: "maximumDaysAfter", kind: "number" },
+  { field: "webhookUrl", key: "webhookUrl", kind: "url" },
+  { field: "thankYouUrl", key: "thankYouUrl", kind: "url" },
 ];
 /* jscpd:ignore-end */
 
@@ -92,38 +94,40 @@ const UNGATED_FIELDS: readonly ListingDefaultField[] = [
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
   {
     appliesTo: (_listing, { hasLogistics }) => hasLogistics,
-    field: "uses_logistics",
+    field: "usesLogistics",
     key: "usesLogistics",
     kind: "bool",
   },
   ...UNGATED_FIELDS,
   {
-    appliesTo: (listing) => listing.months_per_unit === 0,
+    appliesTo: (listing) => listing.monthsPerUnit === 0,
     field: "hidden",
-    gateReads: ["months_per_unit"],
+    gateReads: ["monthsPerUnit"],
     key: "hidden",
     kind: "bool",
   },
 ] as const;
 
-/** The HTML form input name for a field's default value. */
-export const listingDefaultInputName = (field: ListingDefaultField): string =>
-  `default_${field.field}`;
+/** The HTML form input name for a field's default value: `bookableDays`
+ *  becomes `defaultBookableDays`. */
+export const listingDefaultInputName = ({
+  field,
+}: ListingDefaultField): string => prefixedBoxName("default", field);
 
 /** The i18n key for one field's label or hint text. */
 const listingDefaultTextKey =
   (suffix: "label" | "hint") =>
   (field: ListingDefaultField): string =>
-    `listing_defaults.field.${field.field}.${suffix}`;
+    `listing_defaults.field.${columnName(field.field)}.${suffix}`;
 
 export const listingDefaultLabelKey = listingDefaultTextKey("label");
 
 export const listingDefaultHintKey = listingDefaultTextKey("hint");
 
-/** A kebab-case CSS marker class per field (e.g. `uses_logistics` →
+/** A kebab-case CSS marker class per field (e.g. `usesLogistics` →
  * `listing-form--default-uses-logistics`). */
 export const listingDefaultFieldClass = (field: keyof Listing): string =>
-  `listing-form--default-${String(field).replace(/_/g, "-")}`;
+  `listing-form--default-${columnName(field).replace(/_/g, "-")}`;
 
 /** The fields that currently have a default set, in display order. */
 export const setListingDefaultFields = (
@@ -158,7 +162,7 @@ export const resolveListingDefaults = <T extends ResolvableListing>(
   defaults: ListingDefaults,
   hasLogistics: boolean,
 ): T => {
-  if (!listing.use_defaults) return listing;
+  if (!listing.useDefaults) return listing;
   const ctx: ResolveContext = { hasLogistics };
   const overlay: Partial<Record<keyof Listing, unknown>> = {};
   for (const { key, field, appliesTo, gateReads } of setListingDefaultFields(
@@ -188,12 +192,12 @@ export const resolveListingDate = <T extends Partial<Listing>>(
   listing: T,
 ): T => {
   if (!("date" in listing)) return listing;
-  if (!("listing_type" in listing)) {
+  if (!("listingType" in listing)) {
     throw new Error(
-      "Cannot resolve the listing date: the row selects it but not listing_type, which its rule reads",
+      "Cannot resolve the listing date: the row selects it but not listingType, which its rule reads",
     );
   }
-  return listing.listing_type === "daily" ? { ...listing, date: "" } : listing;
+  return listing.listingType === "daily" ? { ...listing, date: "" } : listing;
 };
 
 /**
@@ -216,4 +220,4 @@ export const serializeListingDefaults = (defaults: ListingDefaults): string =>
 export const showUseDefaultsToggle = (
   closed: ClosedFields,
   defaults: ListingDefaults,
-): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");
+): boolean => hasAnyListingDefault(defaults) && !closed.has("useDefaults");

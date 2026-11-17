@@ -5,15 +5,19 @@
 
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { generateTicketToken } from "#crypto/utils.ts";
 import { buildAttendeeInsert } from "#db/attendees/create.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
 import { encryptAttendeeFields } from "#db/attendees/pii.ts";
-import { executeBatch, insert, queryAll } from "#db/client.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
 import { syncListingPricesForIds } from "#db/listing-price-sync.ts";
 import { dayCountPriceStatements } from "#db/listing-prices.ts";
+import { valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { chunk, map, range, sum } from "#fp";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import {
@@ -44,8 +48,10 @@ const DEMO_UNIT_PRICES = [500, 1000, 1500, 2000, 2500, 3000, 5000];
 
 /** Generate slugs that are unique within the batch. The slugs made so far are
  * the only "already taken" list — nothing is in the database yet. */
-const generateUniqueSlugs = async (count: number): Promise<SlugWithIndex[]> => {
-  const results: SlugWithIndex[] = [];
+const generateUniqueSlugs = async (
+  count: number,
+): Promise<SlugWithIndex<BlindIndex>[]> => {
+  const results: SlugWithIndex<BlindIndex>[] = [];
   for (const _slot of range(0, count)) {
     results.push(
       await generateUniqueSlug(hmacHash, (slug) =>
@@ -70,7 +76,7 @@ const prepareListing = async (
   maxAttendees: number,
   unitPrice: number,
   slug: string,
-  slugIndex: string,
+  slugIndex: BlindIndex,
   customisable: boolean,
 ) => {
   const name = DEMO_LISTING_NAMES[index % DEMO_LISTING_NAMES.length]!;
@@ -90,30 +96,30 @@ const prepareListing = async (
   // serves them all — each decrypts to "" exactly as before.
   const empty = await encrypt("");
 
-  return insert("listings", {
+  return insertInto(tables.listings, {
     active: 1,
-    attachment_name: empty,
-    attachment_url: empty,
-    bookable_days: JSON.stringify(VALID_DAY_NAMES),
-    closes_at: empty,
+    attachmentName: empty,
+    attachmentUrl: empty,
+    bookableDays: JSON.stringify(VALID_DAY_NAMES),
+    closesAt: empty,
     created,
-    customisable_days: customisable ? 1 : 0,
+    customisableDays: customisable ? 1 : 0,
     date: empty,
     description: encDesc,
     fields: "email",
-    listing_type: "standard",
+    listingType: "standard",
     location: encLoc,
-    max_attendees: maxAttendees,
-    max_quantity: 4,
-    maximum_days_after: 90,
-    minimum_days_before: 1,
+    maxAttendees: maxAttendees,
+    maximumDaysAfter: 90,
+    maxQuantity: 4,
+    minimumDaysBefore: 1,
     name: encName,
-    non_transferable: 0,
+    nonTransferable: 0,
     slug: encSlug,
-    slug_index: slugIndex,
-    thank_you_url: empty,
-    unit_price: unitPrice,
-    webhook_url: empty,
+    slugIndex: slugIndex,
+    thankYouUrl: empty,
+    unitPrice: unitPrice,
+    webhookUrl: empty,
   });
 };
 
@@ -140,8 +146,11 @@ const prepareAttendee = async (
 
   return [
     buildAttendeeInsert(enc, { statusId: null }),
-    sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-            VALUES (${listingId}, ${attendeeByToken(enc.ticketTokenIndex)}, ${quantity})`,
+    insertInto(tables.listing_attendees, {
+      attendeeId: valued<number>(attendeeByToken(enc.ticketTokenIndex)),
+      listingId: listingId,
+      quantity,
+    }),
   ];
 };
 

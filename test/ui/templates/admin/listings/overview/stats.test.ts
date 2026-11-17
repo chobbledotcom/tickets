@@ -12,7 +12,7 @@ import { testAttendee, testListingWithCount } from "#test-utils/factories.ts";
 describe("overviewStatsFromAttendees", () => {
   test("reports zero complete revenue for a free listing", () => {
     const stats = overviewStatsFromAttendees(
-      testListingWithCount({ attendee_count: 1, unit_price: 0 }),
+      testListingWithCount({ attendeeCount: 1, unitPrice: 0 }),
       [testAttendee()],
     );
     expect(stats.completeRevenue).toBe(0);

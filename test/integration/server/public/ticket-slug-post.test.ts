@@ -70,11 +70,11 @@ describeWithEnv(
             {
               email: "group@example.com",
               name: "Group User",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "2",
-              csrf_token: csrfToken,
+              [`quantity${listing1.id}`]: "1",
+              [`quantity${listing2.id}`]: "2",
+              csrfToken,
             },
-            `csrf_token=${csrfToken}`,
+            `csrfToken=${csrfToken}`,
           ),
         );
         expectReservedRedirectWithTokens(response);
@@ -120,11 +120,11 @@ describeWithEnv(
             {
               email: "first@example.com",
               name: "First User",
-              [`quantity_${listing1.id}`]: "2",
-              [`quantity_${listing2.id}`]: "0",
-              csrf_token: csrfToken1,
+              [`quantity${listing1.id}`]: "2",
+              [`quantity${listing2.id}`]: "0",
+              csrfToken: csrfToken1,
             },
-            `csrf_token=${csrfToken1}`,
+            `csrfToken=${csrfToken1}`,
           ),
         );
         expectReservedRedirectWithTokens(r1);
@@ -141,11 +141,11 @@ describeWithEnv(
             {
               email: "second@example.com",
               name: "Second User",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken2,
+              [`quantity${listing1.id}`]: "1",
+              [`quantity${listing2.id}`]: "1",
+              csrfToken: csrfToken2,
             },
-            `csrf_token=${csrfToken2}`,
+            `csrfToken=${csrfToken2}`,
           ),
         );
         // The first atomic insert (listing1 qty=1) succeeds (group: 3/3),

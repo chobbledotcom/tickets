@@ -19,14 +19,18 @@ import {
 
 import type { EnvKeyEncrypted, OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { attendeeByToken } from "#db/attendees/create-batch.ts";
-import { insert, queryBatch, resultRows, type TxScope } from "#db/client.ts";
-import { idAndCreatedSchema } from "#db/common-schema.ts";
+import { queryBatch, resultRows, type TxScope } from "#db/client.ts";
 import { decryptListingWithCount } from "#db/listings/records.ts";
-import { listingReader } from "#db/listings/select.ts";
+import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
+import { readRows } from "#db/read.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
+import { desc, valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import type { Matching, Node } from "#db/select/shape.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 import { CONFIG_KEYS, settings } from "#db/settings.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
-import { col, defineTable } from "#db/table.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { isNullish } from "#fp";
 import { nowIso } from "#shared/now.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -40,58 +44,31 @@ export type StoredLogMessage = OwnerKeyEncrypted | EnvKeyEncrypted;
 
 /** Activity log entry as callers see it: the message decrypted to plaintext. */
 export interface ActivityLogEntry {
-  attendee_id: number | null;
+  attendeeId: number | null;
   created: string;
   id: number;
-  listing_id: number | null;
+  listingId: number | null;
   message: string;
 }
 
 /** An activity log row as stored — the message is still sealed ciphertext.
- * {@link decryptLogRows} turns these into plaintext {@link ActivityLogEntry}s. */
-type StoredActivityLogEntry = Omit<ActivityLogEntry, "message"> & {
-  message: StoredLogMessage;
-};
-
-/** Activity log input for create */
-export type ActivityLogInput = {
-  listingId?: number | null;
-  attendeeId?: number | null;
-  message: StoredLogMessage;
-};
+ * Its crypto cannot be a codec: the write key is resolved at runtime and the
+ * read key is the per-request private key. {@link decryptLogRows} turns these
+ * rows into plaintext {@link ActivityLogEntry}s. */
+type StoredActivityLogEntry = DecodedRowOf<"activity_log">;
 
 /**
- * Activity log table definition.
- *
- * `message` is a plain column here because its crypto can't be expressed as a
- * static transform. The write key is resolved at runtime (owner public key
- * when configured, else the env key). The read key is the per-request private
- * key. {@link logActivity} and {@link decryptLogRows} own those two steps.
+ * The newest entries that `where` keeps. Newest first, by id rather than by
+ * created. Id is AUTOINCREMENT, so it rises with created (newest row = highest
+ * id). Being the rowid, it is served straight from the primary key /
+ * idx_activity_log_listing_id without a sort over the unbounded log table.
  */
-export const activityLogTable = defineTable<
-  StoredActivityLogEntry,
-  ActivityLogInput
->({
-  name: "activity_log",
-  primaryKey: "id",
-  schema: {
-    ...idAndCreatedSchema(nowIso),
-    attendee_id: col.simple<number | null>(),
-    listing_id: col.simple<number | null>(),
-    message: col.simple<StoredLogMessage>(),
-  },
-});
-
-/** The whole stored entry — what every log read selects. */
-const logEntries = activityLogTable.read;
-
-/**
- * Newest first, by id rather than by created. Id is AUTOINCREMENT, so it
- * rises with created (newest row = highest id). Being the rowid, it is served
- * straight from the primary key / idx_activity_log_listing_id without a sort
- * over the unbounded log table.
- */
-const NEWEST_FIRST = { order: sql`id DESC` };
+const newestEntries = (where: Matching<Node<"activity_log">>, limit: number) =>
+  from(tables.activity_log)
+    .where(where)
+    .orderBy((entry) => [desc(entry.id)])
+    .limit(limit)
+    .everyColumn();
 
 /**
  * Decrypt a stored log message, routing by format prefix: owner-key (hybrid)
@@ -157,20 +134,23 @@ export const logActivities = async (
   // reset earlier this request).
   const publicKey = await ownerPublicKey();
   const statements = await Promise.all(
-    activities.map(async (activity) =>
-      activityLogTable.insertStatement(
-        {
-          attendeeId: activity.attendeeId ?? null,
-          ...(await sealedLine(activity, publicKey)),
-        },
-        undefined,
-        activityLogTable.columns,
-      ),
-    ),
+    activities.map(async (activity) => {
+      const line = await sealedLine(activity, publicKey);
+      return insertInto(tables.activity_log, {
+        attendeeId: activity.attendeeId ?? null,
+        created: nowIso(),
+        listingId: line.listingId,
+        message: line.message,
+      }).returning("id", "created", "attendeeId", "listingId");
+    }),
   );
   const results = await batchOnScope(statements, transaction);
   return results.map((result, index) => ({
-    ...resultRows<StoredActivityLogEntry>(result)[0]!,
+    // The batch hands back plain result sets, so the row type is named here.
+    ...requireValue(
+      resultRows<Omit<ActivityLogEntry, "message">>(result)[0],
+      "Activity log row missing",
+    ),
     message: activities[index]!.message,
   }));
 };
@@ -230,10 +210,10 @@ export const bookingActivityStatements = (
   tokenIndex: string,
 ): SqlStatement[] =>
   activities.map((activity) =>
-    insert("activity_log", {
-      attendee_id: attendeeByToken(tokenIndex),
+    insertInto(tables.activity_log, {
+      attendeeId: valued<number | null>(attendeeByToken(tokenIndex)),
       created: nowIso(),
-      listing_id: activity.listingId,
+      listingId: activity.listingId,
       message: activity.message,
     }),
   );
@@ -263,10 +243,9 @@ const queryActivityLog = async (
   limit: number,
 ): Promise<ActivityLogEntry[]> =>
   decryptLogRows(
-    await logEntries.many(
+    await readRows(
       // A null listing means "every listing", which is no filter at all.
-      listingId === null ? {} : { listing_id: listingId },
-      { ...NEWEST_FIRST, limit },
+      newestEntries(listingId === null ? {} : { listingId }, limit),
     ),
   );
 
@@ -292,12 +271,7 @@ export const getAttendeeActivityLog = async (
   attendeeId: number,
   limit = 100,
 ): Promise<ActivityLogEntry[]> =>
-  decryptLogRows(
-    await logEntries.many(
-      { attendee_id: attendeeId },
-      { ...NEWEST_FIRST, limit },
-    ),
-  );
+  decryptLogRows(await readRows(newestEntries({ attendeeId }, limit)));
 
 /** Result type for listing + activity log batch query */
 export type ListingWithActivityLog = {
@@ -315,17 +289,15 @@ export const getListingWithActivityLogOrNull = async (
 ): Promise<ListingWithActivityLog | null> => {
   const results = await queryBatch([
     listingReader.statement({ where: { ids: [listingId] } }),
-    logEntries.statement({ listing_id: listingId }, { ...NEWEST_FIRST, limit }),
+    newestEntries({ listingId }, limit),
   ]);
 
-  const listingRow = resultRows<ListingWithCount>(results[0]!)[0];
+  const listingRow = resultRows<ListingRecordRow>(results[0]!)[0];
   if (!listingRow) return null;
 
   const listing = await decryptListingWithCount(listingRow);
 
-  const entries = await decryptLogRows(
-    resultRows<StoredActivityLogEntry>(results[1]!),
-  );
+  const entries = await decryptLogRows(resultRows(results[1]!));
 
   return { entries, listing };
 };

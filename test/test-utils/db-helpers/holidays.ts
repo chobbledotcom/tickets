@@ -4,10 +4,10 @@ import { doAuthenticatedFormRequest } from "./request.ts";
 
 /** A hand-built holiday row, for tests that sort or fold without a database. */
 export const testHoliday = (overrides: Partial<Holiday> = {}): Holiday => ({
-  end_date: "2026-12-25",
+  endDate: "2026-12-25",
   id: 1,
   name: "Test Holiday",
-  start_date: "2026-12-25",
+  startDate: "2026-12-25",
   ...overrides,
 });
 
@@ -31,9 +31,9 @@ export const createTestHoliday = (
   return doAuthenticatedFormRequest(
     "/admin/holidays",
     {
-      end_date: input.endDate,
+      endDate: input.endDate,
       name: input.name,
-      start_date: input.startDate,
+      startDate: input.startDate,
     },
     async () => {
       const { holidays } = await import("#db/holidays.ts");
@@ -48,8 +48,8 @@ export const createTestHoliday = (
  * edit form re-sends the fields it does not change, and the delete form
  * confirms by name. */
 const storedHoliday = async (holidayId: number): Promise<Holiday> => {
-  const { holidays } = await import("#db/holidays.ts");
-  return (await holidays.table.read.one({ id: holidayId })) as Holiday;
+  const { records } = await import("#db/record-table.ts");
+  return (await records.holidays.find(holidayId)) as Holiday;
 };
 
 export const updateTestHoliday = async (
@@ -61,9 +61,9 @@ export const updateTestHoliday = async (
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/edit`,
     {
-      end_date: updates.endDate ?? existing.end_date,
+      endDate: updates.endDate ?? existing.endDate,
       name: updates.name ?? existing.name,
-      start_date: updates.startDate ?? existing.start_date,
+      startDate: updates.startDate ?? existing.startDate,
     },
     () => storedHoliday(holidayId),
     "update holiday",
@@ -75,7 +75,7 @@ export const deleteTestHoliday = async (holidayId: number): Promise<void> => {
 
   return doAuthenticatedFormRequest(
     `/admin/holidays/${holidayId}/delete`,
-    { confirm_identifier: existing.name },
+    { confirmIdentifier: existing.name },
     async () => {},
     "delete holiday",
   );

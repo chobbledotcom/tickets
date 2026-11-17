@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
-import { type SqlSlot, sql, sqlInsertRowsOrNull, sqlName } from "#db/sql.ts";
+import { type SqlSlot, sql, sqlName, sqlNames, sqlRows } from "#db/sql.ts";
 
 /** A parent row's trigger-maintained count columns, by name. */
 export type AggregateCounts = Readonly<Record<string, number>>;
@@ -57,17 +57,22 @@ export const seedAggregateRows = (
   seed: readonly AggregateSeedRow[],
 ): Promise<unknown> => {
   const extra = rows.values ?? {};
-  const statement = sqlInsertRowsOrNull(
-    rows.table,
-    [rows.parent, "attendee_id", "quantity", ...Object.keys(extra)],
-    seed.map(([attendeeId, quantity]) => [
-      parentId,
-      attendeeId,
-      quantity,
-      ...Object.values(extra),
-    ]),
+  if (seed.length === 0) return Promise.resolve();
+  const columns = [
+    rows.parent,
+    "attendee_id",
+    "quantity",
+    ...Object.keys(extra),
+  ];
+  const values = seed.map(([attendeeId, quantity]) => [
+    parentId,
+    attendeeId,
+    quantity,
+    ...Object.values(extra),
+  ]);
+  return getDb().execute(
+    sql`INSERT INTO ${sqlName(rows.table)} (${sqlNames(columns)}) VALUES ${sqlRows(values)}`,
   );
-  return statement ? getDb().execute(statement) : Promise.resolve();
 };
 
 const rowWrites = (rows: AggregateRows): AggregateRowWrites => ({

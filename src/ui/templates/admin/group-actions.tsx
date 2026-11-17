@@ -137,10 +137,10 @@ export const adminDuplicateGroupPage: GroupActionPage = (
   // A failed duplicate restores the submitted replacements into the form.
   // The preview must open on those same values, not on empty ones.
   const restored = {
-    dateFind: savedFormValueOrNull("date_find") ?? "",
-    dateReplace: savedFormValueOrNull("date_replace") ?? "",
-    nameFind: savedFormValueOrNull("name_find") ?? "",
-    nameReplace: savedFormValueOrNull("name_replace") ?? "",
+    dateFind: savedFormValueOrNull("dateFind") ?? "",
+    dateReplace: savedFormValueOrNull("dateReplace") ?? "",
+    nameFind: savedFormValueOrNull("nameFind") ?? "",
+    nameReplace: savedFormValueOrNull("nameReplace") ?? "",
   };
   const initialRows = buildDuplicatePreview(
     listings.map(
@@ -184,24 +184,24 @@ export const adminDuplicateGroupPage: GroupActionPage = (
           autofocus
           duplicate
           label={t("group_actions.form_new_group_name")}
-          name="new_name"
+          name="newName"
           required
           type="text"
-          value={savedFormValueOrNull("new_name") ?? `${group.name} (copy)`}
+          value={savedFormValueOrNull("newName") ?? `${group.name} (copy)`}
         />
         <TextFields
           duplicate
           fields={[
             {
               label: t("group_actions.form_find_in_names"),
-              name: "name_find",
+              name: "nameFind",
               placeholder: t("group_actions.form_find_placeholder"),
               type: "text",
               value: restored.nameFind,
             },
             {
               label: t("group_actions.form_replace_with"),
-              name: "name_replace",
+              name: "nameReplace",
               type: "text",
               value: restored.nameReplace,
             },
@@ -215,13 +215,13 @@ export const adminDuplicateGroupPage: GroupActionPage = (
           fields={[
             {
               label: t("group_actions.form_reference_date"),
-              name: "date_find",
+              name: "dateFind",
               type: "date",
               value: restored.dateFind,
             },
             {
               label: t("group_actions.form_target_date"),
-              name: "date_replace",
+              name: "dateReplace",
               type: "date",
               value: restored.dateReplace,
             },

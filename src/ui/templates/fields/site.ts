@@ -27,17 +27,17 @@ export const siteHomeForm = defineForm({
       id: "website_title",
       label: t("site.home.title_label"),
       maxlength: MAX_INPUT_LENGTH,
-      name: "website_title",
+      name: "websiteTitle",
       type: "text" as const,
     },
-    siteTextarea("homepage_text", "site.home.text"),
+    siteTextarea("homepageText", "site.home.text"),
   ] as const,
 });
 
 export const siteContactForm = defineForm({
-  fields: [siteTextarea("contact_page_text", "site.contact.text")] as const,
+  fields: [siteTextarea("contactPageText", "site.contact.text")] as const,
 });
 
 export const siteOrderForm = defineForm({
-  fields: [siteTextarea("order_intro_text", "site.order.text")] as const,
+  fields: [siteTextarea("orderIntroText", "site.order.text")] as const,
 });

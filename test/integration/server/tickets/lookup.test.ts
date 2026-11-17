@@ -11,7 +11,7 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { verifyAttachmentUrl } from "#shared/attachment-url.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -76,7 +76,7 @@ describeWithEnv("ticket view (/t/:tokens)", { db: true }, () => {
       "Ada",
       "ada@test.com",
     );
-    await listingsTable.update(listing.id, {
+    await updateListing(listing.id, {
       attachmentName: "Guide.pdf",
       attachmentUrl: "guide.pdf",
     });

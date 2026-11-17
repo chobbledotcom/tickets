@@ -73,14 +73,14 @@ type ImageEntry = typeof ADMIN_API_RESOURCES.images;
 
 /** The links a row carries, as every image endpoint answers with them. */
 const imageItems = (uses: readonly ImageUse[]) =>
-  uses.map(({ item_id: itemId, item_type: itemType }) => ({
+  uses.map(({ itemId, itemType }) => ({
     item_id: itemId,
     item_type: itemType,
   }));
 
 /** The two proxy URLs a row carries. */
 const imageUrls = (image: Image) => ({
-  thumb_url: getImageProxyUrl(image.filename_thumb),
+  thumb_url: getImageProxyUrl(image.filenameThumb),
   url: getImageProxyUrl(image.filename),
 });
 
@@ -92,7 +92,7 @@ type ImageResponseRow = (
 
 /** One image as every image endpoint answers with it. */
 const toImageRow: ImageResponseRow = (image, uses) => ({
-  alt_text: image.alt_text,
+  alt_text: image.altText,
   id: image.id,
   items: imageItems(uses),
   name: image.name,
@@ -169,13 +169,13 @@ const toUpdateInput: WriteMapper<
 > = (body, existing) => {
   const metadata = imageMetadataOrError(
     body.name ?? existing.name,
-    body.alt_text ?? existing.alt_text,
+    body.alt_text ?? existing.altText,
   );
   if (!metadata.ok) return metadata;
   return okResult({
     ...metadata.value,
     filename: existing.filename,
-    filenameThumb: existing.filename_thumb,
+    filenameThumb: existing.filenameThumb,
     items:
       body.items === undefined
         ? null
@@ -315,7 +315,7 @@ export const writeImageUpdate = async (
   const verdict = await imageRecord.update(image.id, {
     ...input.metadata,
     filename: image.filename,
-    filenameThumb: image.filename_thumb,
+    filenameThumb: image.filenameThumb,
     items: input.items,
   });
   if (verdict.kind === "refused") {

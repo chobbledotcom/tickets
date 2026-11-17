@@ -287,7 +287,7 @@ describe("adminCalendarPage", () => {
       dateFilter: "2026-03-15",
     });
     expectIncludesAll(html, [
-      'name="return_url" type="hidden" value="/admin/calendar?date=2026-03-15#attendees"',
+      'name="returnUrl" type="hidden" value="/admin/calendar?date=2026-03-15#attendees"',
       'value="/admin/calendar#attendees"',
     ]);
     expect(html).toMatch(

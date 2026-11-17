@@ -230,8 +230,8 @@ export const AddAttendeeSection = ({
         html={renderFields(
           getAddAttendeeFields(
             listing.fields,
-            listing.listing_type === "daily",
-            listing.customisable_days && listing.listing_type === "daily"
+            listing.listingType === "daily",
+            listing.customisableDays && listing.listingType === "daily"
               ? availableDayCounts(listing)
               : undefined,
           ),
@@ -272,7 +272,7 @@ export const attendeeStatsForListing = (
     paymentReferenceAttendeeIds,
   );
   const adjustedCount =
-    listing.attendee_count - sumQuantity(incompleteAttendees);
+    listing.attendeeCount - sumQuantity(incompleteAttendees);
   const completeQuantitySum = sumQuantity(completeAttendees);
   return {
     adjustedCount,

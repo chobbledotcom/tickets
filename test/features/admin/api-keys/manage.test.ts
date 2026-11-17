@@ -127,7 +127,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       const response = (
         await adminFormPost(`/admin/api-keys/${id}/delete`, {
-          confirm_identifier: "Doomed Key",
+          confirmIdentifier: "Doomed Key",
         })
       ).response;
 
@@ -144,7 +144,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       const response = (
         await adminFormPost(`/admin/api-keys/${id}/delete`, {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         })
       ).response;
 
@@ -161,7 +161,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       const post = (
         await adminFormPost(`/admin/api-keys/${id}/delete`, {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         })
       ).response;
       const followed = await followRedirectWithFlash(
@@ -183,7 +183,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
     test("POST /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {
       const response = (
         await adminFormPost("/admin/api-keys/99999/delete", {
-          confirm_identifier: "anything",
+          confirmIdentifier: "anything",
         })
       ).response;
 
@@ -202,7 +202,7 @@ describeWithEnv("API key manage page", { db: true }, () => {
 
       expect(response.status).toBe(200);
       const html = await response.text();
-      expectIncludesAll(html, ["Confirm Key", "confirm_identifier"]);
+      expectIncludesAll(html, ["Confirm Key", "confirmIdentifier"]);
     });
 
     test("GET /admin/api-keys/:id/delete returns 404 for nonexistent key", async () => {

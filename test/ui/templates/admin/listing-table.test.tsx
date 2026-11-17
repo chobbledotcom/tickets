@@ -73,11 +73,11 @@ describe("listingTable", () => {
       cost: 200,
       date: "2026-04-10",
       income: 1200,
-      months_per_unit: 12,
+      monthsPerUnit: 12,
       name: "Gala",
       profit: 1000,
-      tickets_count: 7,
-      unit_price: 450,
+      ticketsCount: 7,
+      unitPrice: 450,
     });
 
     expect(
@@ -104,8 +104,8 @@ describe("listingTable", () => {
       created: "2026-04-05T12:00:00Z",
       date: "2026-04-10",
       location: "Town Hall",
-      months_per_unit: 12,
-      unit_price: 450,
+      monthsPerUnit: 12,
+      unitPrice: 450,
     });
 
     expect(cell("created", listing)).toBe("Sunday 5 April 2026");
@@ -113,9 +113,9 @@ describe("listingTable", () => {
     expect(cell("date", testListingWithCount({ date: "" }))).toBe("");
     expect(cell("location", listing)).toBe("Town Hall");
     expect(cell("price", listing)).toBe(formatCurrency(450));
-    expect(cell("price", testListingWithCount({ unit_price: 0 }))).toBe("Free");
+    expect(cell("price", testListingWithCount({ unitPrice: 0 }))).toBe("Free");
     expect(cell("renewal", listing)).toBe("Renewal (12 months)");
-    expect(cell("renewal", testListingWithCount({ months_per_unit: 0 }))).toBe(
+    expect(cell("renewal", testListingWithCount({ monthsPerUnit: 0 }))).toBe(
       "",
     );
   });
@@ -167,7 +167,7 @@ describe("listingTable", () => {
         listings: [
           testListingWithCount({
             id: 7,
-            image_url: "https://example.com/gala.jpg",
+            imageUrl: "https://example.com/gala.jpg",
             name: "Gala",
           }),
         ],

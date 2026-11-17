@@ -9,7 +9,7 @@ import type { Group } from "#types";
  *  id at set-up, because a later step may have taken a group away and the story
  *  still needs to find the one it has now. */
 export const findGroup = async (name: string): Promise<Group | undefined> =>
-  (await groups.cache.getAll()).find((g) => g.name === name);
+  (await groups.getAll()).find((g) => g.name === name);
 
 /** Find a group by name, creating it if it does not exist. Used by `Given`
  *  steps that accumulate members under the same group name across multiple

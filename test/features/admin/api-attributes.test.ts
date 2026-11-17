@@ -2,11 +2,11 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
-  attributesTable,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
 import {
@@ -201,7 +201,7 @@ describeWithEnv("Admin API - Attributes", { db: true }, () => {
       // path must still treat such a row as existing: an absent name falls back
       // to the stored value (and fails as "cannot be empty"), not to the
       // create path's "is required".
-      const row = await attributesTable.insert({ name: "" });
+      const row = await records.attributes.insert({ name: "" });
       await assertJson(
         apiRequest(`/api/admin/attributes/${row.id}`, {
           body: {},

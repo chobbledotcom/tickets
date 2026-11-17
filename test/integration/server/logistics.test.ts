@@ -4,6 +4,7 @@ import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { agentUsers } from "#db/user-agents.ts";
 import { getAllUsers } from "#db/users.ts";
@@ -99,7 +100,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost("/admin/logistics", {
         name: "Unassigned van",
-        user_ids: String(userId),
+        userIds: String(userId),
       });
       expect(response.status).toBe(302);
       const id = (await logisticsAgents.getAll()).find(
@@ -170,7 +171,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // Submitting an unknown user id clears the links (it is dropped).
       await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "Crewed Van",
-        user_ids: "999999",
+        userIds: "999999",
       });
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
@@ -191,13 +192,13 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
           (
             await adminFormPost(`/admin/logistics/${id}/edit`, {
               name: "Partly saved van",
-              user_ids: String(userId),
+              userIds: String(userId),
             })
           ).response,
       );
 
       expect(response.status).toBe(503);
-      expect((await logisticsAgents.table.read.one({ id: id }))!.name).toBe(
+      expect((await records.logistics_agents.find(id))!.name).toBe(
         "Atomic van",
       );
       expect(await agentUsers.getIds(id)).toEqual([]);
@@ -220,7 +221,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       // A crafted submission with the editor's id is dropped server-side.
       await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "No Editors Van",
-        user_ids: String(editorUserId),
+        userIds: String(editorUserId),
       });
       expect(await agentUsers.getIds(id)).toEqual([]);
     });
@@ -237,14 +238,14 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/logistics/${id}/delete`,
         {
-          confirm_identifier: "Doomed Van",
+          confirmIdentifier: "Doomed Van",
         },
       );
       await expectFlashRedirect(
         "/admin/logistics",
         "Logistics agent deleted",
       )(response);
-      expect(await logisticsAgents.table.read.one({ id: id })).toBeNull();
+      expect(await records.logistics_agents.find(id)).toBeNull();
     });
 
     test("deleting an agent clears its booking references", async () => {
@@ -252,7 +253,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const { attendeeId, listingId } = await createBookingWithAgent(id);
 
       await adminFormPost(`/admin/logistics/${id}/delete`, {
-        confirm_identifier: "Assigned Van",
+        confirmIdentifier: "Assigned Van",
       });
 
       const got = await getLogisticsAssignments(attendeeId);
@@ -281,7 +282,7 @@ describeWithEnv("server (admin logistics)", { db: true }, () => {
       const userId = (await getAllUsers())[0]!.id;
       const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
         name: "   ",
-        user_ids: String(userId),
+        userIds: String(userId),
       });
       const body = await response.text();
       expect(response.status).toBe(400);

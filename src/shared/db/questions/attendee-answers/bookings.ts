@@ -9,7 +9,9 @@ import { decryptWithOwnerKey } from "#crypto/hybrid.ts";
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
 import { queryAll } from "#db/client.ts";
-import { answersTable } from "#db/questions/tables.ts";
+import { pickedColumns } from "#db/picked-columns.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import { mapParallel } from "#fp";
 import { ascending } from "#types";
@@ -48,10 +50,14 @@ export const getQuestionBookings = async (
   questionId: number,
   privateKey: CryptoKey,
 ): Promise<QuestionBooking[]> => {
+  const answer = pickedColumns({
+    answer_text: tableNode(tables.answers, "answer").text,
+  });
   const rows = await queryAll<QuestionBookingRow>(
-    sql`SELECT attendee_answer.attendee_id,
+    answer.decoded(
+      sql`SELECT attendee_answer.attendee_id,
             attendee_answer.answer_id,
-            answer.text AS answer_text,
+            ${answer.list},
             string.encrypted_text,
             attendee.created,
             (SELECT GROUP_CONCAT(DISTINCT listingAttendee.listing_id)
@@ -67,6 +73,7 @@ export const getQuestionBookings = async (
          ON string.id = attendee_answer.string_id
       WHERE attendee_answer.question_id = ${questionId}
       ORDER BY attendee.created DESC, attendee_answer.attendee_id DESC`,
+    ),
   );
   return mapParallel(async (row: QuestionBookingRow) => {
     // The booking's listing ids read back from the comma-separated
@@ -77,10 +84,7 @@ export const getQuestionBookings = async (
         : row.listing_ids.split(",").map(Number).sort(ascending);
     return {
       answer_id: row.answer_id,
-      answer_text:
-        row.answer_text === null
-          ? null
-          : await answersTable.readColumn("text", row.answer_text),
+      answer_text: row.answer_text,
       attendee_id: row.attendee_id,
       created: row.created,
       free_text:

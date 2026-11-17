@@ -2,8 +2,6 @@ import { assert } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { addDays } from "#shared/dates.ts";
 import { todayInTz } from "#shared/timezone.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -14,6 +12,7 @@ import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
 import { adminGet, setupListingAndLogin } from "#test-utils/session.ts";
 
@@ -35,16 +34,13 @@ describeWithEnv(
           "Ada Lovelace",
           "ada@example.com",
         );
-        const q = await questionsTable.insert({
-          displayType: "radio",
+        const {
+          answers: [small],
+        } = await seedQuestion({
+          answers: ["Small"],
+          listingIds: [listing.id],
           text: "Size",
         });
-        const small = await answersTable.insert({
-          questionId: q.id,
-          sortOrder: 0,
-          text: "Small",
-        });
-        await listingQuestions.setIds(listing.id, [q.id]);
         await saveAttendeeAnswers(new Map([[attendee.id, [small.id]]]));
         return attendee;
       };

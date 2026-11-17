@@ -25,9 +25,18 @@ import {
   storePaymentReference,
   unclaimedPaymentReference,
 } from "#db/payment-reference-store.ts";
+import {
+  and,
+  type Condition,
+  equal,
+  lessThan,
+  valued,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
+import type { Node } from "#db/select/shape.ts";
 import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom, insertInto, update } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import {
   EMPTY_ROW_STATE,
@@ -52,20 +61,33 @@ export { STALE_RESERVATION_MS };
  */
 export const UNRESOLVED_RESERVATION = sql`attendee_id IS NULL AND failure_data = ''`;
 
+/** {@link UNRESOLVED_RESERVATION} as a condition of a write. */
+const unresolved = valued<boolean>(UNRESOLVED_RESERVATION);
+
+/** The condition that keeps the row of this session while its reservation is
+ *  unresolved and each of `more` holds. */
+export const unresolvedSessionRow =
+  (sessionId: string, ...more: Condition[]) =>
+  (payment: Node<"processed_payments">): Condition[] => [
+    equal(payment.paymentSessionId, sessionId),
+    unresolved,
+    ...more,
+  ];
+
 /** Processed payment record */
 export type ProcessedPayment = {
-  payment_session_id: string;
-  attendee_id: number | null;
-  processed_at: string;
+  paymentSessionId: string;
+  attendeeId: number | null;
+  processedAt: string;
   /** Encrypted "+"-joined ticket tokens; "" while none are stored. */
-  ticket_tokens: EnvKeyEncrypted | "";
+  ticketTokens: EnvKeyEncrypted | "";
   /** Encrypted payment-row state carrying an outcome once a session reaches a
    * handled terminal failure (refund issued, sold out, price changed, …); ""
    * while a row is in-progress or finalized. The message can embed an
    * encrypted-at-rest listing name, so the whole state is encrypted too. */
-  failure_data: EnvKeyEncrypted | "";
+  failureData: EnvKeyEncrypted | "";
   /** Provider-specific refundable payment reference (e.g. Stripe pi_...). */
-  payment_reference: OwnerKeyEncrypted | "";
+  paymentReference: OwnerKeyEncrypted | "";
 };
 
 const FAILURE_DATA_CONTEXT = "processed_payments.failure_data";
@@ -93,9 +115,8 @@ const sessionIdWrite =
  * redelivery collide and return 409 until the row goes stale (~5 min), gating
  * refund recovery on a local timer instead of provider redelivery.
  */
-export const releaseReservation = sessionIdWrite(
-  (sessionId) =>
-    sql`DELETE FROM processed_payments WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
+export const releaseReservation = sessionIdWrite((sessionId) =>
+  deleteFrom(tables.processed_payments).where(unresolvedSessionRow(sessionId)),
 );
 
 /**
@@ -107,7 +128,10 @@ export const releaseReservation = sessionIdWrite(
 export const deleteAllStaleReservations = async (): Promise<number> => {
   const cutoff = isoBefore(STALE_RESERVATION_MS);
   const result = await execute(
-    sql`DELETE FROM processed_payments WHERE ${UNRESOLVED_RESERVATION} AND processed_at < ${cutoff}`,
+    deleteFrom(tables.processed_payments).where((payment) => [
+      unresolved,
+      lessThan(payment.processedAt, cutoff),
+    ]),
   );
   return result.rowsAffected;
 };
@@ -126,28 +150,39 @@ export const reserveSession = async (
   // reset to exactly the state every other writer calls empty.
   const blank = await paymentRowStateValues(EMPTY_ROW_STATE);
   const [claimResult, lookupResult] = await executeBatchWithResults([
-    sql`INSERT INTO processed_payments (payment_session_id, attendee_id, processed_at)
-            VALUES (${sessionId}, NULL, ${claimedAt})
-            ON CONFLICT(payment_session_id) DO UPDATE SET
-              attendee_id = NULL,
-              processed_at = excluded.processed_at,
-              ticket_tokens = '',
-              failure_data = ${blank.failureData},
-              protected_state = ${blank.protectedState},
-              payment_reference = '',
-              payment_reference_index = ''
-            WHERE ${UNRESOLVED_RESERVATION}
-              AND processed_payments.processed_at < ${staleBefore}
-            RETURNING payment_session_id`,
+    insertInto(
+      tables.processed_payments,
+      {
+        attendeeId: null,
+        paymentSessionId: sessionId,
+        processedAt: claimedAt,
+      },
+      {
+        onConflict: {
+          on: ["paymentSessionId"],
+          set: () => ({
+            attendeeId: null,
+            failureData: blank.failureData,
+            paymentReference: "",
+            paymentReferenceIndex: "",
+            protectedState: blank.protectedState,
+            ticketTokens: "",
+          }),
+          take: ["processedAt"],
+          where: (row) =>
+            and(unresolved, lessThan(row.processedAt, staleBefore)),
+        },
+      },
+    ).returning("paymentSessionId"),
     from(tables.processed_payments)
-      .where({ payment_session_id: sessionId })
+      .where({ paymentSessionId: sessionId })
       .pick(
-        "payment_session_id",
-        "attendee_id",
-        "processed_at",
-        "ticket_tokens",
-        "failure_data",
-        "payment_reference",
+        "paymentSessionId",
+        "attendeeId",
+        "processedAt",
+        "ticketTokens",
+        "failureData",
+        "paymentReference",
       ),
   ]);
   if (resultRows(claimResult!)[0] !== undefined) return { reserved: true };
@@ -178,7 +213,9 @@ export const finalizeSessionIfUnresolved = async (
 ): Promise<void> => {
   if (paymentReference === null) {
     await execute(
-      sql`UPDATE processed_payments SET attendee_id = ${attendeeId} WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
+      update(tables.processed_payments, { attendeeId }).where(
+        unresolvedSessionRow(sessionId),
+      ),
     );
     return;
   }
@@ -189,11 +226,11 @@ export const finalizeSessionIfUnresolved = async (
   const storedReference = await storePaymentReference(paymentReference);
   await withTransaction(async (tx) => {
     const finalized = await tx.execute(
-      sql`UPDATE processed_payments
-               SET attendee_id = ${attendeeId}, payment_reference = ${storedReference.encrypted},
-                   payment_reference_index = ${storedReference.index}
-             WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}
-               AND ${referenceClaim}`,
+      update(tables.processed_payments, {
+        attendeeId,
+        paymentReference: storedReference.encrypted,
+        paymentReferenceIndex: storedReference.index,
+      }).where(unresolvedSessionRow(sessionId, valued(referenceClaim))),
     );
     if (finalized.rowsAffected > 0) return;
     const blocked = await tx.execute(
@@ -227,7 +264,9 @@ export const prepareSessionFailure = async (
   sessionId: string,
   failure: StoredPaymentFailure,
 ): Promise<PreparedSessionFailure> => ({
-  statement: sql`UPDATE processed_payments SET failure_data = ${await encrypt(storedSessionFailure(failure))} WHERE payment_session_id = ${sessionId} AND ${UNRESOLVED_RESERVATION}`,
+  statement: update(tables.processed_payments, {
+    failureData: await encrypt(storedSessionFailure(failure)),
+  }).where(unresolvedSessionRow(sessionId)),
 });
 
 /** The stored outcome bytes a session row currently holds, read from the
@@ -272,11 +311,13 @@ export const advanceStoredOutcomeOnce = async (
 ): Promise<void> => {
   const toState = storedSessionFailure(to);
   const changed = await execute(
-    sql`UPDATE processed_payments
-        SET failure_data = ${await encrypt(toState)}
-      WHERE payment_session_id = ${sessionId}
-        AND attendee_id IS NULL
-        AND failure_data = ${fence}`,
+    update(tables.processed_payments, {
+      failureData: await encrypt(toState),
+    }).where({
+      attendeeId: null,
+      failureData: fence,
+      paymentSessionId: sessionId,
+    }),
   );
   if (changed.rowsAffected === 1) return;
   const after = await readStoredOutcome(sessionId);
@@ -357,7 +398,8 @@ export const decryptSessionTokens = async (
 /**
  * Clear stored ticket tokens for a session (after redirect has consumed them)
  */
-export const clearSessionTokens = sessionIdWrite(
-  (sessionId) =>
-    sql`UPDATE processed_payments SET ticket_tokens = '' WHERE payment_session_id = ${sessionId}`,
+export const clearSessionTokens = sessionIdWrite((sessionId) =>
+  update(tables.processed_payments, { ticketTokens: "" }).where({
+    paymentSessionId: sessionId,
+  }),
 );

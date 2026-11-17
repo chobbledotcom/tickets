@@ -33,7 +33,7 @@ describeWithEnv(
   () => {
     describe("POST /admin/attendees/new", () => {
       testRequiresAuth("/admin/attendees/new", {
-        body: { line_count: "1", name: "X" },
+        body: { lineCount: "1", name: "X" },
         method: "POST",
         setup: async () => {
           await createTestListing({ maxAttendees: 100 });
@@ -65,9 +65,9 @@ describeWithEnv(
           email: "paid@example.com",
           name: "Paid",
           ...attendeeLineFields([{ eventId: event.id, quantity: 2 }]),
-          adjustment_amount_0: "-500",
-          adjustment_description_0: "Delivery credit",
-          payment_amount_0: "1500",
+          adjustmentAmount0: "-500",
+          adjustmentDescription0: "Delivery credit",
+          paymentAmount0: "1500",
         });
         expectRedirect(response, "/admin/attendees/");
         const attendees = await expectAttendeeLineCount(event.id, 1);
@@ -89,7 +89,7 @@ describeWithEnv(
           ...attendeeLineFields([
             { eventId: event.id, noQuantity: true, quantity: 1 },
           ]),
-          remaining_balance: "20",
+          remainingBalance: "20",
         });
         expectRedirect(response, "/admin/attendees/");
         const attendees = await expectAttendeeLineCount(event.id, 1);

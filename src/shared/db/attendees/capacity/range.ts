@@ -48,14 +48,14 @@ export const spanLoadsOf = <Root extends Line, First>(
   const { startAt, endAt } = daySpan(days);
   return read
     .where((line) => [
-      lessThan(line.start_at, endAt),
-      greaterThan(line.end_at, startAt),
+      lessThan(line.startAt, endAt),
+      greaterThan(line.endAt, startAt),
     ])
     .select((line) => ({
-      end_at: valued<string>(line.end_at),
+      end_at: valued<string>(line.endAt),
       owner_id: owner(line),
       quantity: line.quantity,
-      start_at: valued<string>(line.start_at),
+      start_at: valued<string>(line.startAt),
     }));
 };
 

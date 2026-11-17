@@ -10,7 +10,7 @@ import {
   invalidateListingsCache,
 } from "#db/listings/records.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { getAllModifiers, modifiersTable } from "#db/modifiers.ts";
+import { getAllModifiers } from "#db/modifiers.ts";
 import { createSystemNote, getNoteRows } from "#db/notes/queries.ts";
 import { attendeeNotes } from "#db/notes/target.ts";
 import { reserveSession } from "#db/processed-payments.ts";
@@ -22,7 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { insertModifierUsage } from "#test-utils/modifiers.ts";
+import { insertModifier, insertModifierUsage } from "#test-utils/modifiers.ts";
 import {
   finalizeReservedPayment,
   getProcessedPayment,
@@ -120,8 +120,8 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
 
     const updated = await getListingWithCount(listing.id);
     expect(updated).toMatchObject({
-      attendee_count: 0,
-      tickets_count: 0,
+      attendeeCount: 0,
+      ticketsCount: 0,
     });
     // Income is the ledger projection: releasing the booking frees capacity but
     // does not reverse the recognised revenue (a hard delete posts no reversal).
@@ -146,9 +146,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     const updated = await getListingWithCount(listing.id);
     expect(fetched).toBeNull();
     expect(updated).toMatchObject({
-      attendee_count: 3,
+      attendeeCount: 3,
       income: 1200,
-      tickets_count: 1,
+      ticketsCount: 1,
     });
   });
 
@@ -165,16 +165,16 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     // The raw UPDATE bypasses the wrapped client's cache invalidation.
     invalidateListingsCache();
     expect(await getListingWithCount(listing.id)).toMatchObject({
-      attendee_count: 0,
-      tickets_count: 0,
+      attendeeCount: 0,
+      ticketsCount: 0,
     });
 
     await deleteAttendee(attendee.id, { releaseBookings: false });
 
     expect(await getListingWithCount(listing.id)).toMatchObject({
-      attendee_count: 0,
+      attendeeCount: 0,
       income: 0,
-      tickets_count: 0,
+      ticketsCount: 0,
     });
   });
 
@@ -183,11 +183,7 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
       "Modifier User",
       "modifier@example.com",
     );
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
-      calcValue: 5,
-      direction: "charge",
-      name: "Add-on",
+    const modifier = await insertModifier({
       stock: null,
     });
 
@@ -211,9 +207,9 @@ describeWithEnv("db > attendees > deleteAttendee", { db: true }, () => {
     // modifier legs, so it reads 0.
     const reread = (await getAllModifiers()).find((m) => m.id === modifier.id);
     expect(reread).toMatchObject({
-      total_revenue: 0,
-      total_uses: 3,
-      usage_count: 1,
+      totalRevenue: 0,
+      totalUses: 3,
+      usageCount: 1,
     });
   });
 

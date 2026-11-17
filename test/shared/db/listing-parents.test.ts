@@ -337,7 +337,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
       const error = await edgeIncompatibilityAfterChange(
-        edge(parent.id, { months_per_unit: 12 }),
+        edge(parent.id, { monthsPerUnit: 12 }),
       );
       expect(error).not.toBeNull();
     });
@@ -346,7 +346,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
       const error = await edgeIncompatibilityAfterChange(
-        edge(childA.id, { months_per_unit: 12 }),
+        edge(childA.id, { monthsPerUnit: 12 }),
       );
       expect(error).not.toBeNull();
     });
@@ -361,7 +361,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
       const error = await edgeIncompatibilityAfterChange(
-        edge(parent.id, { listing_type: "daily", name: "Daily base" }),
+        edge(parent.id, { listingType: "daily", name: "Daily base" }),
       );
       expect(error).toBeNull();
     });
@@ -376,7 +376,7 @@ describeWithEnv("db > listing-parents", { db: true }, () => {
       const { parent, childA } = await threeListings();
       await listingChildren.setIds(parent.id, [childA.id]);
       const error = await edgeIncompatibilityAfterChange(
-        edge(childA.id, { listing_type: "daily", name: "Daily add-on" }),
+        edge(childA.id, { listingType: "daily", name: "Daily add-on" }),
       );
       // Specifically the daily-direction error (naming the child and explaining
       // WHY): swapping the arguments would read the standard parent as a

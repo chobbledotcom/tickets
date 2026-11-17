@@ -10,6 +10,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import type { BlindIndex } from "#crypto/sealed.ts";
 import { listingReader } from "#db/listings/select.ts";
 
 const LISTINGS_FROM = "FROM listings AS listing";
@@ -37,9 +38,9 @@ describe("the listing reader's statement", () => {
     for (const projection of [
       "AS income",
       "AS cost",
-      "AS day_prices",
-      "AS image_url",
-      "listing.booked_quantity AS attendee_count",
+      "AS dayPrices",
+      "AS imageUrl",
+      "listing.booked_quantity AS attendeeCount",
     ]) {
       assertStringIncludes(sql, projection);
     }
@@ -59,7 +60,7 @@ describe("the listing reader's statement", () => {
 
   test("filters by slug index", () => {
     const { sql, args } = listingReader.statement({
-      where: { slugIndexes: ["abc"] },
+      where: { slugIndexes: ["abc" as BlindIndex] },
     });
     expect(tail(sql)).toBe(`${LISTINGS_FROM} WHERE listing.slug_index IN (?1)`);
     expect(args).toEqual(["abc"]);

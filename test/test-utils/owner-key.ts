@@ -16,10 +16,10 @@ export const getOwnerDataKey = async (): Promise<CryptoKey> => {
     "#test-utils/internal.ts"
   );
   const owner = await getUserByUsername(TEST_ADMIN_USERNAME);
-  if (!owner?.wrapped_data_key) {
+  if (!owner?.wrappedDataKey) {
     throw new Error("Test owner has no wrapped data key");
   }
   const ownerHash = (await verifyUserPassword(owner, TEST_ADMIN_PASSWORD))!;
   const kek = await deriveKEKFromPassword(TEST_ADMIN_PASSWORD, ownerHash);
-  return unwrapKey(owner.wrapped_data_key, kek);
+  return unwrapKey(owner.wrappedDataKey, kek);
 };

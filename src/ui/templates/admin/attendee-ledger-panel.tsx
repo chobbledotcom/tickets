@@ -79,11 +79,11 @@ const OrderSummaryList = ({ view }: ViewProps): JSX.Element => {
         amount={summary.depositPaid}
         label={t("attendee_balance.paid_so_far_label")}
       />
-      {status?.is_reservation && (
+      {status?.isReservation && (
         <MoneyItem
           amount={deposit}
           label={t("attendee_balance.reservation_deposit_label", {
-            amount: status.reservation_amount,
+            amount: status.reservationAmount,
           })}
         />
       )}

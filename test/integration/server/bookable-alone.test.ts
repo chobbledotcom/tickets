@@ -16,7 +16,9 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { listingChildren } from "#db/listing-parents.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
@@ -152,10 +154,10 @@ describeWithEnv(
         });
         await updateTestListing(solo.id, { bookableAlone: false });
         expect(
-          (await listingsTable.read.pick(["bookable_alone"]).one({
-            id: solo.id,
-          }))!.bookable_alone,
-        ).toBe(false);
+          await readRows(
+            from(tables.listings).where({ id: solo.id }).pick("bookableAlone"),
+          ),
+        ).toEqual([{ bookableAlone: false }]);
       });
     });
   },

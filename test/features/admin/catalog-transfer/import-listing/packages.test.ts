@@ -56,7 +56,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       maxAttendees: 1,
       name: "Trimmed Days",
     });
-    expect(stored.day_prices).toEqual({ 1: 1000 });
+    expect(stored.dayPrices).toEqual({ 1: 1000 });
   });
 
   test("keeps a day price when no duration is given (defaults to 1)", async () => {
@@ -69,7 +69,7 @@ describeWithEnv("catalog-transfer package day overrides", { db: true }, () => {
       maxAttendees: 1,
       name: "Default Duration",
     });
-    expect(stored.day_prices[1]).toBe(1000);
+    expect(stored.dayPrices[1]).toBe(1000);
   });
 
   test("rejects a listing-import package day-override for an unoffered span", async () => {

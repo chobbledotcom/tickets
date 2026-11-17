@@ -82,7 +82,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   test("builds payload for a single paid listing with price_paid on attendee", async () => {
     const entries = [
       makeEntry(
-        { unit_price: 500 },
+        { unitPrice: 500 },
         { payment_id: "pi_abc123", price_paid: "1000", quantity: 2 },
       ),
     ];
@@ -105,7 +105,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // per unit, not the paid-now amount divided by quantity.
     const entries = [
       makeEntry(
-        { id: 42, unit_price: 0 },
+        { id: 42, unitPrice: 0 },
         {
           package_group_id: 7,
           payment_id: "pi_pkg",
@@ -136,7 +136,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   test("falls back to the base price for a package member with no override", async () => {
     const entries = [
       makeEntry(
-        { id: 43, unit_price: 1200 },
+        { id: 43, unitPrice: 1200 },
         { package_group_id: 7, price_paid: "1200", quantity: 1 },
       ),
     ];
@@ -165,7 +165,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // per-day override: the payload's unit_price is that override, derived
     // from the stored [start, end) range — never the base listing price.
     const entries = twoNightPackageEntries(
-      { customisable_days: true, id: 44, unit_price: 0 },
+      { customisableDays: true, id: 44, unitPrice: 0 },
       "1500",
     );
     const payload = buildWebhookPayload(
@@ -185,11 +185,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // 2-day price the checkout actually charged — never the base unit_price.
     const entries = twoNightPackageEntries(
       {
-        customisable_days: true,
-        day_prices: { 2: 3000 },
-        duration_days: 2,
+        customisableDays: true,
+        dayPrices: { 2: 3000 },
+        durationDays: 2,
         id: 45,
-        unit_price: 0,
+        unitPrice: 0,
       },
       "3000",
     );
@@ -204,11 +204,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     const entries = [
       makeEntry(
         {
-          customisable_days: true,
-          day_prices: { 1: 500, 2: 1500 },
-          duration_days: 2,
+          customisableDays: true,
+          dayPrices: { 1: 500, 2: 1500 },
+          durationDays: 2,
           id: 46,
-          unit_price: 500,
+          unitPrice: 500,
         },
         {
           date: "2026-08-01",
@@ -228,11 +228,11 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
     // reports it once — not summed across the booking lines.
     const entries = [
       makeEntry(
-        { id: 1, name: "Listing A", slug: "listing-a", unit_price: 1000 },
+        { id: 1, name: "Listing A", slug: "listing-a", unitPrice: 1000 },
         { price_paid: "0", remaining_balance: 3000, ticket_token: "AA00BB" },
       ),
       makeEntry(
-        { id: 2, name: "Listing B", slug: "listing-b", unit_price: 2000 },
+        { id: 2, name: "Listing B", slug: "listing-b", unitPrice: 2000 },
         { price_paid: "0", remaining_balance: 3000, ticket_token: "CC11DD" },
       ),
     ];
@@ -246,7 +246,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
   test("builds payload for multi-listing entries", async () => {
     const entries = [
       makeEntry(
-        { id: 1, name: "Listing A", slug: "listing-a", unit_price: 300 },
+        { id: 1, name: "Listing A", slug: "listing-a", unitPrice: 300 },
         {
           payment_id: "pi_multi",
           price_paid: "300",
@@ -254,7 +254,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
         },
       ),
       makeEntry(
-        { id: 2, name: "Listing B", slug: "listing-b", unit_price: 700 },
+        { id: 2, name: "Listing B", slug: "listing-b", unitPrice: 700 },
         {
           payment_id: "pi_multi",
           price_paid: "1400",
@@ -293,7 +293,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
           payment_id: "pi_donate",
           price_paid: "500",
         }),
-        listing: makeListing({ can_pay_more: true, unit_price: 0 }),
+        listing: makeListing({ canPayMore: true, unitPrice: 0 }),
       },
     ];
 
@@ -333,7 +333,7 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
   test("returns 0 price_paid when attendee has no price_paid on paid listing", async () => {
     const payload = await buildWebhookPayload(
-      [makeEntry({ unit_price: 500 }, { quantity: 3 })],
+      [makeEntry({ unitPrice: 500 }, { quantity: 3 })],
       "GBP",
       "public",
     );

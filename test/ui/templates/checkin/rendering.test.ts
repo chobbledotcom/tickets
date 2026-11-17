@@ -151,7 +151,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
         // The form posts this hidden input, so the name the POST handler reads
         // is part of what the page renders. The input and the bulk button sit
         // together, apart from the per-row forms that carry the same name.
-        '<input name="check_in" type="hidden" value="true">' +
+        '<input name="checkIn" type="hidden" value="true">' +
           '<button class="bulk-checkin" type="submit">Check In All</button>',
       ]);
     });
@@ -258,7 +258,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       await handleRequest(
         mockFormRequest(
           `/admin/listing/${first.id}/attendee/${attendee.id}/checkin`,
-          { check_in: "true", csrf_token: session.csrfToken, quantity: "1" },
+          { checkIn: "true", csrfToken: session.csrfToken, quantity: "1" },
           session.cookie,
         ),
       );
@@ -285,7 +285,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       expectIncludesAll(body, [
         "Check Out All",
         // The bulk way out posts its own false spelling, tied to its button.
-        '<input name="check_in" type="hidden" value="false">' +
+        '<input name="checkIn" type="hidden" value="false">' +
           '<button class="bulk-checkout" type="submit">Check Out All</button>',
       ]);
     });
@@ -307,7 +307,7 @@ describeWithEnv("check-in page (GET /checkin/:tokens)", { db: true }, () => {
       assertStringIncludes(body, "Refunded");
       assert(!body.includes("Check In All"));
       assert(!body.includes("Check Out All"));
-      assert(!body.includes('name="check_in"'));
+      assert(!body.includes('name="checkIn"'));
     });
   });
 });

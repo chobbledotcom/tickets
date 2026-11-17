@@ -8,6 +8,7 @@ import { type TxScope, withTransaction } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import {
   hydrateListingLinks,
+  linkIdsOf,
   listingChildren,
   listingParents,
   setListingChildrenWithPackageCheckTx,
@@ -159,7 +160,7 @@ const childEdgeError = async (
     // still reachable and the edge must not be blocked. This mirrors the
     // modifier/listing save reachability, which count a flagged child among
     // the live pages.
-    if (listing.bookable_alone) continue;
+    if (listing.bookableAlone) continue;
     const addOn = await resolveChildOnlyAddOn(listing.id, pageIds);
     if (addOn) return childAddOnError(addOn, listing.name);
   }
@@ -361,10 +362,10 @@ export const remapDuplicatedGroupEdges = async (
   idMap: ReadonlyMap<number, number>,
 ): Promise<string[]> => {
   const sourceIds = [...idMap.keys()];
-  const [childrenByParent, parentsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(sourceIds),
-    listingParents.getIdsByKeys(sourceIds),
-  ]);
+  const {
+    childIdsByParent: childrenByParent,
+    parentIdsByChild: parentsByChild,
+  } = await linkIdsOf(sourceIds);
   return copyGroupEdgePlans(idMap, [
     {
       existingMode: "replace",
@@ -394,7 +395,7 @@ export const handleAdminListingChildren: TypedRouteHandler<"POST /admin/listing/
   listingChildrenHandler(async (listing, _session, form, _request, { id }) => {
     const result = await validateChildEdges(
       listing,
-      form.getNumberArray("child_listing_ids"),
+      form.getNumberArray("childListingIds"),
     );
     if (!result.ok) {
       return redirect(`/admin/listing/${id}/edit`, result.error, false);

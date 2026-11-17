@@ -33,7 +33,7 @@ describeAdminSettings(() => {
     await handleRequest(
       mockFormRequest(
         PATH,
-        { ...fields, csrf_token: await testCsrfToken() },
+        { ...fields, csrfToken: await testCsrfToken() },
         await testCookie(),
       ),
     );

@@ -11,7 +11,10 @@ import { formatCurrency } from "#shared/currency.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { postRunningTotal, quoteTicketHtml } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
@@ -20,19 +23,14 @@ const quotePackage = (
   group: { id: number; slug: string },
   count: string,
 ): Promise<string> =>
-  quoteTicketHtml(group.slug, { [`package_quantity_${group.id}`]: count });
+  quoteTicketHtml(group.slug, { [`packageQuantity${group.id}`]: count });
 
 describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
   test("a hidden package's quote fragment names the package, never a member", async () => {
     await setupStripe();
-    const group = await createTestGroup({
-      hidden: false,
-      isPackage: true,
-      name: "Mystery Box",
+    const group = await createHiddenPackageGroup("Mystery Box", {
       slug: "mystery-box",
     });
-    const { groups } = await import("#db/groups.ts");
-    await groups.table.update(group.id, { hidePackageListings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Secret Contents",
@@ -43,7 +41,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     ]);
 
     const response = await postRunningTotal(group.slug, group.slug, {
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -117,7 +115,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
 
     // "abc" → 0 packages → empty order.
     const response = await postRunningTotal(group.slug, group.slug, {
-      [`package_quantity_${group.id}`]: "abc",
+      [`packageQuantity${group.id}`]: "abc",
     });
     assertStringIncludes(await response.text(), "select at least one");
   });
@@ -218,7 +216,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     });
 
     const response = await postRunningTotal("festival", "festival", {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");

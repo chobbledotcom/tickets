@@ -87,7 +87,7 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
     expect(response.status).toBe(400);
     assertStringIncludes(html, "Refresh payment status");
     assert(!html.includes("Refund Attendee</button>"));
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
   });
 
   test("names the attendee field and preserves the return address on a refused confirmation", async () => {
@@ -97,9 +97,9 @@ describeWithEnv("admin attendee action loaders", { db: true }, () => {
       mockFormRequest(
         refundUrl(ctx.attendee.id),
         {
-          confirm_identifier: "Wrong Name",
-          csrf_token: ctx.csrfToken,
-          return_url: returnUrl,
+          confirmIdentifier: "Wrong Name",
+          csrfToken: ctx.csrfToken,
+          returnUrl,
         },
         ctx.cookie,
       ),

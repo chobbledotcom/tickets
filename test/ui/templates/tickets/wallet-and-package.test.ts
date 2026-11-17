@@ -61,7 +61,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("shows the listing image with its card class", () => {
     const html = ticketViewPage([
-      cardFromEntry({ listing: { image_url: "photo.jpg" } }, token),
+      cardFromEntry({ listing: { imageUrl: "photo.jpg" } }, token),
     ]);
     expectIncludesAll(html, [
       'class="ticket-card-image"',
@@ -103,7 +103,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("leaves no placeholder text on a purchase-only card", () => {
     const html = ticketViewPage(
-      [cardFromEntry({ listing: { purchase_only: true } }, token)],
+      [cardFromEntry({ listing: { purchaseOnly: true } }, token)],
       true,
       true,
     );
@@ -112,7 +112,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("heads and titles a purchase-only page Your Purchase", () => {
     const html = ticketViewPage([
-      cardFromEntry({ listing: { purchase_only: true } }, token),
+      cardFromEntry({ listing: { purchaseOnly: true } }, token),
     ]);
     expectIncludesAll(html, [
       "<h1>Your Purchase</h1>",
@@ -170,7 +170,7 @@ describe("ticketViewPage wallet links and package cards", () => {
 
   test("warns that a package needs ID when a member is non-transferable", () => {
     const html = ticketViewPage(
-      [packageMember(undefined, { id: 1, non_transferable: true })],
+      [packageMember(undefined, { id: 1, nonTransferable: true })],
       false,
       false,
       packageDisplays(false),
@@ -186,7 +186,7 @@ describe("ticketViewPage wallet links and package cards", () => {
       [
         packageMember(
           { date: "2026-06-15" },
-          { duration_days: 1, id: 1, listing_type: "daily" },
+          { durationDays: 1, id: 1, listingType: "daily" },
         ),
       ],
       false,

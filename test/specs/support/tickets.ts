@@ -10,7 +10,7 @@
 import { expect } from "@std/expect";
 import * as v from "valibot";
 import { execute } from "#db/client.ts";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { sql, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import { nowMs } from "#shared/now.ts";
@@ -78,7 +78,7 @@ export const attachFileTo = async (
   listingId: number,
   name: string,
 ): Promise<void> => {
-  await listingsTable.update(listingId, {
+  await updateListing(listingId, {
     attachmentName: name,
     attachmentUrl: name.toLowerCase().replaceAll(" ", "-"),
   });

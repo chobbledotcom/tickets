@@ -1,14 +1,13 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { expectFlash } from "#test-utils/assertions.ts";
 import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { seedOrderActivity } from "#test-utils/contact-tokens.ts";
 import { submitTicketForm } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { modifierUsageAmount } from "#test-utils/modifiers.ts";
+import { insertModifier, modifierUsageAmount } from "#test-utils/modifiers.ts";
 import {
   addServiceCharge,
   attendeeCount,
@@ -62,7 +61,7 @@ describeWithEnv(
       });
       const captured = await captureCheckoutIntent(listing);
       // The seeded default is a full-payment status, so no deposit snapshot.
-      expect(captured?.reservationAmount).toBeUndefined();
+      expect(captured).not.toHaveProperty("reservationAmount");
     });
 
     test("carries resolved modifiers into a full-payment checkout", async () => {
@@ -85,8 +84,7 @@ describeWithEnv(
         thankYouUrl: "https://example.com",
         unitPrice: 1000,
       });
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
+      const modifier = await insertModifier({
         calcValue: 20,
         direction: "discount",
         name: "Comp",
@@ -139,7 +137,7 @@ describeWithEnv(
       const { listing, race } = await setupSoldOutModifierRace("phone");
 
       const response = await submitTicketForm(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         name: "Buyer",
         phone: "07700900123",
       }).finally(() => race.restore());

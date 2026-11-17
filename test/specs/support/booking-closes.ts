@@ -15,9 +15,9 @@ import type { TicketsWorld } from "#test/specs/support/world.ts";
 const noonOn = (
   world: TicketsWorld,
   daysFromToday: number,
-): { closes_at_date: string; closes_at_time: string } => ({
-  closes_at_date: dayFromToday(world, daysFromToday),
-  closes_at_time: "12:00",
+): { closesAtDate: string; closesAtTime: string } => ({
+  closesAtDate: dayFromToday(world, daysFromToday),
+  closesAtTime: "12:00",
 });
 
 /** The organiser sets the moment this listing stops taking bookings, through

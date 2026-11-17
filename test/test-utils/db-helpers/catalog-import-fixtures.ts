@@ -36,7 +36,7 @@ export const importChildOfHiddenGroupMember = async (config: {
   await execute(
     sql`UPDATE groups SET hide_package_listings = 1 WHERE id = ${group.id}`,
   );
-  groups.cache.invalidate();
+  groups.invalidate();
   const parent = await createTestListing({ name: config.parentName });
   await assignListingsToGroup([parent.id], group.id);
   return await importCatalog({

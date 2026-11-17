@@ -75,14 +75,14 @@ const extractModifierInput = async (
   const code = values.trigger === "code" ? values.code.trim() : "";
   return {
     active: values.active === "1",
-    calcKind: values.calc_kind,
-    calcValue: values.calc_value,
+    calcKind: values.calcKind,
+    calcValue: values.calcValue,
     code,
     codeIndex: code ? await hmacHash(matchKey(code)) : null,
     direction: values.direction,
-    maxPerOrder: values.trigger === "answer" ? values.max_per_order : null,
-    minSubtotal: toMinorUnits(values.min_subtotal),
-    minVisits: values.min_visits,
+    maxPerOrder: values.trigger === "answer" ? values.maxPerOrder : null,
+    minSubtotal: toMinorUnits(values.minSubtotal),
+    minVisits: values.minVisits,
     name: values.name,
     scope: values.scope,
     stock: values.stock,
@@ -92,13 +92,13 @@ const extractModifierInput = async (
 
 const modifierValuesError = (values: ModifierFormValues): string | null => {
   const valueError = validateCalcValue(
-    values.calc_kind,
-    values.calc_value,
+    values.calcKind,
+    values.calcValue,
     values.direction,
   );
   if (valueError) return t(valueError);
-  return values.calc_kind === "fixed" &&
-    exceedsCurrencyPrecision(values.calc_value)
+  return values.calcKind === "fixed" &&
+    exceedsCurrencyPrecision(values.calcValue)
     ? "Amount has more decimal places than your currency allows"
     : null;
 };
@@ -119,7 +119,7 @@ const scopeLinksFor = async (
     };
   }
   if (modifier.scope === "groups") {
-    const allGroups = await groups.cache.getAll();
+    const allGroups = await groups.getAll();
     // Groups have no deactivated state, so every group option is active.
     return {
       kind: "groups",
@@ -295,7 +295,7 @@ const handleEditPost: TypedRouteHandler<"POST /admin/modifiers/:id/edit"> = (
 const adjustModifierRevenueForm = makeMoneyAdjustHandler<Modifier>({
   adjust: (modifier, target) => adjustModifierRevenue(modifier.id, target),
   editPath: (id) => `/admin/modifiers/${id}/edit`,
-  field: "total_revenue",
+  field: "totalRevenue",
   load: getModifier,
   logMessage: (modifier) => `Modifier '${modifier.name}' revenue adjusted`,
   pattern: "/admin/modifiers/:id/revenue",

@@ -18,7 +18,7 @@ const expectDuplicateRejected = async (
   body: Record<string, string>,
   refusal: string,
 ): Promise<void> => {
-  const groupsBefore = (await groups.cache.getAll()).length;
+  const groupsBefore = (await groups.getAll()).length;
   const listingsBefore = (await getAllListings()).length;
   const { response } = await adminFormPost(
     `/admin/groups/${groupId}/duplicate`,
@@ -30,18 +30,18 @@ const expectDuplicateRejected = async (
     `/admin/groups/${groupId}/duplicate`,
   );
   expectErrorFlash(response, refusal);
-  expect((await groups.cache.getAll()).length).toBe(groupsBefore);
+  expect((await groups.getAll()).length).toBe(groupsBefore);
   expect((await getAllListings()).length).toBe(listingsBefore);
 };
 
 const duplicateForm = (
   overrides: Record<string, string>,
 ): Record<string, string> => ({
-  date_find: "",
-  date_replace: "",
-  name_find: "",
-  name_replace: "",
-  new_name: "Copy",
+  dateFind: "",
+  dateReplace: "",
+  nameFind: "",
+  nameReplace: "",
+  newName: "Copy",
   ...overrides,
 });
 
@@ -63,9 +63,9 @@ describeWithEnv(
       await expectDuplicateRejected(
         group.id,
         duplicateForm({
-          name_find: "A Member",
-          name_replace: "A Clone",
-          new_name: "Taken Name",
+          nameFind: "A Member",
+          nameReplace: "A Clone",
+          newName: "Taken Name",
         }),
         'named "Taken Name" already exists',
       );
@@ -84,9 +84,9 @@ describeWithEnv(
       await expectDuplicateRejected(
         group.id,
         duplicateForm({
-          name_find: "Sole Member",
-          name_replace: "Shared Name",
-          new_name: "Shared Name",
+          nameFind: "Sole Member",
+          nameReplace: "Shared Name",
+          newName: "Shared Name",
         }),
         'would be named "Shared Name"',
       );
@@ -105,7 +105,7 @@ describeWithEnv(
       // with the still-existing source listing.
       await expectDuplicateRejected(
         group.id,
-        duplicateForm({ new_name: "Clashy Copy" }),
+        duplicateForm({ newName: "Clashy Copy" }),
         'named "Only Member" already exists',
       );
     });
@@ -113,19 +113,19 @@ describeWithEnv(
     test("rejects an empty new group name with an error flash", async () => {
       // Sits beside the Cucumber story `catalogue.copy-a-group-of-listings`.
       // The story refuses a name clash through the real rendered form, but the
-      // `new_name` field is `required` on that form, so the form-controls net
+      // `newName` field is `required` on that form, so the form-controls net
       // (and a real browser's own validation) blocks an empty value before it
       // is sent. This server-side guard catches a form-bypassing POST that
-      // submits an empty `new_name` directly — a branch the rendered form
+      // submits an empty `newName` directly — a branch the rendered form
       // cannot reach, so it stays as a direct technical contract.
       const group = await createTestGroup({ name: "Needs Name" });
       await createTestListing({ groupId: group.id, name: "E" });
 
-      const groupCountBefore = (await groups.cache.getAll()).length;
+      const groupCountBefore = (await groups.getAll()).length;
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
-        duplicateForm({ new_name: "" }),
+        duplicateForm({ newName: "" }),
       );
 
       expect(response.status).toBe(302);
@@ -136,7 +136,7 @@ describeWithEnv(
       );
       // The refusal names the missing field.
       expectErrorFlash(response, "New group name is required");
-      expect((await groups.cache.getAll()).length).toBe(groupCountBefore);
+      expect((await groups.getAll()).length).toBe(groupCountBefore);
     });
   },
 );

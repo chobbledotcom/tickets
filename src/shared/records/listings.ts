@@ -9,14 +9,17 @@ import {
   getAllListings,
   getListingWithCount,
   getListingWithCountPrimary,
-  listingsTable,
 } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
   refuseUndatedListingSwitch,
   validateListingInput,
 } from "#shared/listings-actions.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordRule, RecordShapeOf } from "#shared/rest/record.ts";
 import { ruleFromValidator } from "#shared/rest/record-command.ts";
@@ -32,8 +35,8 @@ const savedListingInput = (
     ? input
     : {
         ...input,
-        recurringInterval: input.recurringInterval ?? stored.recurring_interval,
-        recurringPrice: input.recurringPrice ?? stored.recurring_price,
+        recurringInterval: input.recurringInterval ?? stored.recurringInterval,
+        recurringPrice: input.recurringPrice ?? stored.recurringPrice,
       };
 
 /** Judge the row as the save leaves it, and write the input as it came. */
@@ -51,6 +54,7 @@ export const listingRecord = defineNamedRowRecord<
   // The listing delete, deactivate, and reactivate routes are staff-only, the
   // same audience the dashboard's lifecycle controls declare.
   checkTx: refuseUndatedListingSwitch,
+  fieldDefaults: LISTING_FIELDS,
   getAll: getAllListings,
   linkActivityToRow: true,
   load: getListingWithCount,
@@ -58,5 +62,5 @@ export const listingRecord = defineNamedRowRecord<
   logAfterCommit: true,
   rule: listingRule,
   surface: { deleteDestination: "listingDelete", list: "listings" },
-  table: listingsTable,
+  table: tables.listings,
 });

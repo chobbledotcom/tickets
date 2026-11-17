@@ -107,7 +107,7 @@ describe("the shared attendee-list controls", () => {
       basePath: "/admin/attendees",
       listings: [
         testListingWithCount({ id: 1 }),
-        testListingWithCount({ id: 2, listing_type: "daily" }),
+        testListingWithCount({ id: 2, listingType: "daily" }),
       ],
       withTypes: true,
     });

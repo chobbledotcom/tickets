@@ -15,11 +15,13 @@ import {
   readBody,
   readOpenBody,
   shownFieldKeys,
-  transferClosedErrorOrNull,
   transferValues,
   unshownFieldOrNull,
 } from "#shared/rest/field-reads.ts";
-import type { ClosedFields } from "#shared/rest/field-specs.ts";
+import {
+  type ClosedFields,
+  closedFieldErrorOrNull,
+} from "#shared/rest/field-specs.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 
 /** No field is closed to this writer. */
@@ -35,17 +37,17 @@ const listingCreate = (body: Record<string, unknown>) =>
   );
 
 /** A stored listing row, for the update reads. */
-const storedListing = { closes_at: null, max_attendees: 5, name: "Listing" };
+const storedListing = { closesAt: null, maxAttendees: 5, name: "Listing" };
 
 const storedGroup = {
   description: "About",
   hidden: false,
-  hide_package_listings: false,
-  is_package: true,
-  max_attendees: 40,
-  scan_checks_in_all_listings: false,
-  show_hidden_listings: true,
-  terms_and_conditions: "Terms",
+  hidePackageListings: false,
+  isPackage: true,
+  maxAttendees: 40,
+  scanChecksInAllListings: false,
+  showHiddenListings: true,
+  termsAndConditions: "Terms",
 };
 
 const storedGroupInput = {
@@ -65,10 +67,10 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 const { toCreateInput, toUpdateInput } = bodyMappers(HOLIDAY_FIELDS);
 
 const stored = {
-  end_date: "2026-08-31",
+  endDate: "2026-08-31",
   id: 1,
   name: "Summer Break",
-  start_date: "2026-07-01",
+  startDate: "2026-07-01",
 };
 
 describe("field reads", () => {
@@ -76,7 +78,7 @@ describe("field reads", () => {
     const shapes: [
       Same<
         Holiday,
-        { end_date: string; id: number; name: string; start_date: string }
+        { endDate: string; id: number; name: string; startDate: string }
       >,
       Same<
         HolidayInput,
@@ -160,11 +162,11 @@ describe("field reads", () => {
     const status = bodyMappers(STATUS_FIELDS);
     const storedStatus = {
       id: 1,
-      is_paid_default: false,
-      is_public_default: true,
-      is_reservation: true,
+      isPaidDefault: false,
+      isPublicDefault: true,
+      isReservation: true,
       name: "Reserved",
-      reservation_amount: "10",
+      reservationAmount: "10",
     };
 
     expect(status.toCreateInput({ is_reservation: true, name: "New" })).toEqual(
@@ -209,9 +211,9 @@ describe("field reads", () => {
   test("a checked form becomes the input the fields declare", () => {
     expect(
       formInput(HOLIDAY_FIELDS)({
-        end_date: "2026-12-26",
+        endDate: "2026-12-26",
         name: "Christmas",
-        start_date: "2026-12-24",
+        startDate: "2026-12-24",
       }),
     ).toEqual({
       endDate: "2026-12-26",
@@ -261,7 +263,7 @@ describe("field reads", () => {
   });
 
   test("an API read refuses a field the writer cannot set, before any value check", () => {
-    const closed: ClosedFields = new Map([["webhook_url", "editor"]]);
+    const closed: ClosedFields = new Map([["webhookUrl", "editor"]]);
     expect([
       readBody(
         LISTING_FIELDS,
@@ -341,7 +343,7 @@ describe("field reads", () => {
       readOpenBody(
         GROUP_FIELDS,
         {},
-        { ...storedGroup, name: "Stored", show_hidden_listings: false },
+        { ...storedGroup, name: "Stored", showHiddenListings: false },
       ),
     ).toEqual({
       ok: true,
@@ -361,13 +363,13 @@ describe("field reads", () => {
         {
           description: "Description",
           hidden: "1",
-          hide_package_listings: "0",
-          is_package: "",
-          max_attendees: null,
+          hidePackageListings: "0",
+          isPackage: "",
+          maxAttendees: null,
           name: "Package",
-          scan_checks_in_all_listings: "1",
-          show_hidden_listings: "1",
-          terms_and_conditions: "Terms",
+          scanChecksInAllListings: "1",
+          showHiddenListings: "1",
+          termsAndConditions: "Terms",
         },
         new Set(GROUP_FIELDS.map((field) => field.key)),
       ),
@@ -387,8 +389,8 @@ describe("field reads", () => {
   test("a form keeps a zero and reads only the fields its page shows", () => {
     const input = formFieldsInput(
       LISTING_FIELDS,
-      { active: "1", maximum_days_after: 0, name: "Listing" },
-      new Set(["maximum_days_after", "minimum_days_before", "name"]),
+      { active: "1", maximumDaysAfter: 0, name: "Listing" },
+      new Set(["maximumDaysAfter", "minimumDaysBefore", "name"]),
     );
     expect(input).toEqual({
       maximumDaysAfter: 0,
@@ -401,12 +403,12 @@ describe("field reads", () => {
     const input = formFieldsInput(
       LISTING_FIELDS,
       {
-        bookable_days: "Monday,Friday",
-        closes_at: "",
+        bookableDays: "Monday,Friday",
+        closesAt: "",
         date: "2026-01-10T10:00",
-        unit_price: "12.50",
+        unitPrice: "12.50",
       },
-      new Set(["bookable_days", "closes_at", "date", "unit_price"]),
+      new Set(["bookableDays", "closesAt", "date", "unitPrice"]),
     );
     expect(input).toEqual({
       bookableDays: ["Monday", "Friday"],
@@ -420,24 +422,24 @@ describe("field reads", () => {
     expect(
       formFieldsInput(
         LISTING_FIELDS,
-        { recurring_price: "", unit_price: "12.50" },
-        new Set(["recurring_price", "unit_price"]),
+        { recurringPrice: "", unitPrice: "12.50" },
+        new Set(["recurringPrice", "unitPrice"]),
       ),
     ).toEqual({ recurringPrice: 0, unitPrice: 1250 });
   });
 
   test("a form price box that holds no price and has no default throws", () => {
     const noDefault = LISTING_FIELDS.map((field) =>
-      field.key === "unit_price" ? { key: field.key, kind: field.kind } : field,
+      field.key === "unitPrice" ? { key: field.key, kind: field.kind } : field,
     );
     for (const value of ["", "abc"]) {
       expect(() =>
         formFieldsInput(
           value === "" ? noDefault : LISTING_FIELDS,
-          { unit_price: value },
-          new Set(["unit_price"]),
+          { unitPrice: value },
+          new Set(["unitPrice"]),
         ),
-      ).toThrow("The unit_price form box holds no price");
+      ).toThrow("The unitPrice form box holds no price");
     }
   });
 
@@ -446,44 +448,41 @@ describe("field reads", () => {
       LISTING_FIELDS,
       [
         { name: "name" },
-        { name: "webhook_url", visible: false },
+        { name: "webhookUrl", visible: false },
         { name: "slug" },
         { name: "hidden", visible: true },
       ],
-      ["use_defaults"],
+      ["useDefaults"],
     );
-    expect([...shown]).toEqual(["hidden", "name", "use_defaults"]);
+    expect([...shown]).toEqual(["hidden", "name", "useDefaults"]);
   });
 
   test("a form that sends a declared box its page did not show names that field", () => {
     const shown = new Set(["name"]);
     expect([
-      unshownFieldOrNull(LISTING_FIELDS, ["name", "csrf_token"], shown),
-      unshownFieldOrNull(LISTING_FIELDS, ["webhook_url", "name"], shown),
-    ]).toEqual([null, "webhook_url"]);
+      unshownFieldOrNull(LISTING_FIELDS, ["name", "csrfToken"], shown),
+      unshownFieldOrNull(LISTING_FIELDS, ["webhookUrl", "name"], shown),
+    ]).toEqual([null, "webhookUrl"]);
   });
 
   test("a transfer leaves out withheld columns and empty day prices", () => {
     const row = {
-      attachment_name: "private.pdf",
-      day_prices: {},
+      attachmentName: "private.pdf",
+      dayPrices: {},
       name: "Listing",
-      webhook_url: "secret",
+      webhookUrl: "secret",
     };
     expect([
-      transferValues(LISTING_FIELDS, row, new Map([["webhook_url", "editor"]])),
-      transferValues(LISTING_FIELDS, { day_prices: { 1: 500 } }),
+      transferValues(LISTING_FIELDS, row, new Map([["webhookUrl", "editor"]])),
+      transferValues(LISTING_FIELDS, { dayPrices: { 1: 500 } }),
     ]).toEqual([{ name: "Listing" }, { dayPrices: { 1: 500 } }]);
   });
 
   test("a transfer that supplies a closed field is refused by its transfer key", () => {
-    const closed: ClosedFields = new Map([["uses_logistics", "logistics"]]);
+    const closed: ClosedFields = new Map([["usesLogistics", "logistics"]]);
     expect([
-      transferClosedErrorOrNull(closed, {
-        name: "Listing",
-        usesLogistics: false,
-      }),
-      transferClosedErrorOrNull(closed, { name: "Listing" }),
+      closedFieldErrorOrNull(closed, ["name", "usesLogistics"]),
+      closedFieldErrorOrNull(closed, ["name"]),
     ]).toEqual(["usesLogistics needs logistics turned on", null]);
   });
 });

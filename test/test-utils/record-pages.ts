@@ -83,7 +83,7 @@ export const formRequest = async (
 ): Promise<Request> => {
   const cookie = await testCookie();
   const csrfToken = await testCsrfToken();
-  return mockFormRequest(path, { csrf_token: csrfToken, ...data }, cookie);
+  return mockFormRequest(path, { csrfToken, ...data }, cookie);
 };
 
 export const createAs = async (
@@ -102,7 +102,7 @@ export const deleteAs = async (
 ): Promise<Response> =>
   pages.deletePost(
     await formRequest("/admin/holidays/7/delete", {
-      confirm_identifier: typed,
+      confirmIdentifier: typed,
     }),
     { id: 7 },
   );

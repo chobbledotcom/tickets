@@ -47,7 +47,7 @@ const AgentSelector = ({
     hint={t("users.agents.hint")}
     legend={t("users.agents.legend")}
   >
-    <ItemCheckboxList checkedIds={selected} items={agents} name="agent_ids" />
+    <ItemCheckboxList checkedIds={selected} items={agents} name="agentIds" />
   </CheckboxFieldset>
 );
 

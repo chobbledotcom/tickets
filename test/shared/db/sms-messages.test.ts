@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { records } from "#db/record-table.ts";
 import {
-  deleteSmsMessage,
   getSmsMessageByProviderId,
   pruneSmsMessagesBefore,
   recordSmsMessage,
@@ -34,10 +34,10 @@ describeWithEnv("db > sms_messages", { db: true }, () => {
     expect(await getSmsMessageByProviderId("missing")).toBeNull();
   });
 
-  test("deleteSmsMessage removes the row", async () => {
+  test("records.sms_messages.delete removes the row", async () => {
     await record({ providerId: "gone" });
     const row = await getSmsMessageByProviderId("gone");
-    await deleteSmsMessage(row!.id);
+    await records.sms_messages.delete(row!.id);
     expect(await getSmsMessageByProviderId("gone")).toBeNull();
   });
 

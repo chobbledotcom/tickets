@@ -25,10 +25,10 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
 
     expect(await getListingOfferFlags(listing.id)).toEqual({
       active: true,
-      assign_built_site: false,
+      assignBuiltSite: false,
       hidden: true,
-      months_per_unit: 3,
-      purchase_only: true,
+      monthsPerUnit: 3,
+      purchaseOnly: true,
     });
     expect(await getListingOfferFlags(listing.id + 1)).toBe(undefined);
     expect(await getListingPickerNames()).toEqual(
@@ -37,11 +37,11 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
           listing.id,
           {
             active: true,
-            assign_built_site: false,
+            assignBuiltSite: false,
             hidden: true,
-            months_per_unit: 3,
+            monthsPerUnit: 3,
             name: "Picker listing",
-            purchase_only: true,
+            purchaseOnly: true,
           },
         ],
       ]),
@@ -62,14 +62,14 @@ describeWithEnv("db > listing catalog", { db: true }, () => {
     expect(await getCatalogListings()).toEqual([
       {
         active: true,
-        can_pay_more: false,
-        customisable_days: false,
+        canPayMore: false,
+        customisableDays: false,
         hidden: false,
         id: member.id,
-        listing_type: "standard",
+        listingType: "standard",
         name: "Independent member",
         slug: member.slug,
-        unit_price: 1234,
+        unitPrice: 1234,
       },
     ]);
   });

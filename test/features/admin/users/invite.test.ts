@@ -11,6 +11,7 @@ import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { getUserByUsername } from "#db/users.ts";
 import { t } from "#i18n";
@@ -33,7 +34,7 @@ const NEW_PATH = "/admin/users/new";
 const LIST_PATH = "/admin/users";
 
 const invite = (username: string, adminLevel = "manager") =>
-  adminFormPost(LIST_PATH, { admin_level: adminLevel, username });
+  adminFormPost(LIST_PATH, { adminLevel, username });
 
 /** The invite's stored wrapped key, or null when it carries none. */
 const wrappedKeyOf = async (username: string): Promise<string | null> => {
@@ -137,7 +138,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     const id = await idOf("goner");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${id}/delete`, {
-      confirm_identifier: "goner",
+      confirmIdentifier: "goner",
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.user_deleted"))(response);
@@ -149,7 +150,7 @@ describeWithEnv("removing a user", { db: true }, () => {
     const id = await idOf("exactly");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${id}/delete`, {
-      confirm_identifier: "not exactly",
+      confirmIdentifier: "not exactly",
     });
 
     await expectFlashRedirect(
@@ -165,7 +166,7 @@ describeWithEnv("removing a user", { db: true }, () => {
 
     const { response } = await adminFormPost(
       `${LIST_PATH}/${owner.id}/delete`,
-      { confirm_identifier: TEST_ADMIN_USERNAME },
+      { confirmIdentifier: TEST_ADMIN_USERNAME },
     );
 
     expect(response.status).toBe(400);
@@ -174,7 +175,7 @@ describeWithEnv("removing a user", { db: true }, () => {
 
   test("answers 404 for a user that is not there", async () => {
     const { response } = await adminFormPost(`${LIST_PATH}/99999/delete`, {
-      confirm_identifier: "ghost",
+      confirmIdentifier: "ghost",
     });
 
     expect(response.status).toBe(404);
@@ -198,8 +199,8 @@ describeWithEnv(
         mockFormRequest(
           LIST_PATH,
           {
-            admin_level: "manager",
-            csrf_token: csrfToken,
+            adminLevel: "manager",
+            csrfToken,
             username: "keyless",
           },
           cookie,
@@ -258,11 +259,10 @@ describeWithEnv(
 describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
   const agentUserWithVan = async (username: string) => {
     const { enableFeature } = await import("#test-utils/settings.ts");
-    const { logisticsAgents } = await import("#db/logistics-agents.ts");
     await enableFeature("logistics");
-    const van = await logisticsAgents.table.insert({ name: "Van 1" });
+    const van = await records.logistics_agents.insert({ name: "Van 1" });
     await adminFormPost(LIST_PATH, {
-      admin_level: "agent",
+      adminLevel: "agent",
       username,
     });
     return { userId: (await getUserByUsername(username))!.id, van };
@@ -280,7 +280,7 @@ describeWithEnv("choosing which vans an agent drives", { db: true }, () => {
     const { userId, van } = await agentUserWithVan("loggeddriver");
 
     const { response } = await adminFormPost(`${LIST_PATH}/${userId}/agents`, {
-      agent_ids: String(van.id),
+      agentIds: String(van.id),
     });
 
     await expectFlashRedirect(LIST_PATH, t("success.agents_updated"))(response);

@@ -49,7 +49,7 @@ export const LISTING_FIELDS = [
     hint: "Daily listings require attendees to select a specific date when booking",
     invalidMessage: "Listing type must be standard or daily.",
     label: "Listing type",
-    name: "listing_type",
+    name: "listingType",
     options: [
       {
         label: "Standard",
@@ -90,7 +90,7 @@ export const LISTING_FIELDS = [
     hint: "For daily listings, this limit applies per date",
     label: "Max attendees",
     min: 1,
-    name: "max_attendees",
+    name: "maxAttendees",
     required: true,
     section: "tickets",
     type: "number",
@@ -99,7 +99,7 @@ export const LISTING_FIELDS = [
     hint: "Maximum tickets a customer can buy in one transaction",
     label: "Max tickets per purchase",
     min: 1,
-    name: "max_quantity",
+    name: "maxQuantity",
     required: true,
     section: "tickets",
     type: "number",
@@ -108,14 +108,14 @@ export const LISTING_FIELDS = [
     hint: "Minimum tickets a customer can buy in one transaction",
     label: "Min tickets per purchase",
     min: 1,
-    name: "min_quantity",
+    name: "minQuantity",
     section: "tickets",
     type: "number",
   },
   {
     hint: "Select which days of the week are available for booking",
     label: "Bookable days (for daily listings)",
-    name: "bookable_days",
+    name: "bookableDays",
     options: WEEKDAYS.map((day) => ({ label: day, value: day })),
     section: "daily",
     type: "checkbox-group",
@@ -124,7 +124,7 @@ export const LISTING_FIELDS = [
     hint: "How many days in advance attendees must book (0 = same day)",
     label: "Minimum days notice (for daily listings)",
     min: 0,
-    name: "minimum_days_before",
+    name: "minimumDaysBefore",
     section: "daily",
     type: "number",
   },
@@ -132,7 +132,7 @@ export const LISTING_FIELDS = [
     hint: "How far into the future attendees can book (0 = no limit)",
     label: "Maximum days ahead (for daily listings)",
     min: 0,
-    name: "maximum_days_after",
+    name: "maximumDaysAfter",
     section: "daily",
     type: "number",
   },
@@ -141,14 +141,14 @@ export const LISTING_FIELDS = [
     label: "Booking duration (days)",
     max: 90,
     min: 1,
-    name: "duration_days",
+    name: "durationDays",
     section: "duration",
     type: "number",
   },
   {
     hint: "Let visitors choose how many days to book (1 up to the Booking duration above), each priced separately below. Works for standard and daily listings. Cannot be combined with Allow pay more.",
     label: "Customisable days",
-    name: "customisable_days",
+    name: "customisableDays",
     options: [
       {
         label: "Let visitors choose the number of days",
@@ -186,7 +186,7 @@ export const LISTING_FIELDS = [
   {
     inputmode: "decimal",
     label: "Ticket price",
-    name: "unit_price",
+    name: "unitPrice",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 10.00",
     required: true,
@@ -198,7 +198,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Let attendees pay more than the ticket price (the price above becomes a minimum)",
     label: "Allow pay more",
-    name: "can_pay_more",
+    name: "canPayMore",
     options: [
       {
         label: "Allow attendees to set their own price",
@@ -212,14 +212,14 @@ export const LISTING_FIELDS = [
     ...MONEY_TEXT,
     hint: "Stripe charges this again each period, from one period after the first payment. VAT follows your tax settings. The first payment is the ticket price.",
     label: "Recurring price (leave empty for an ordinary ticket)",
-    name: "recurring_price",
+    name: "recurringPrice",
     section: "tickets",
     visible: false,
   },
   {
     hint: "How often Stripe charges the recurring price.",
     label: "Charge again every",
-    name: "recurring_interval",
+    name: "recurringInterval",
     options: INTERVAL_CHOICES.map(([label, value]) => ({ label, value })),
     section: "tickets",
     type: "select",
@@ -230,7 +230,7 @@ export const LISTING_FIELDS = [
     hint: "The maximum price attendees can pay. Must be at least £1 more than the ticket price.",
     inputmode: "decimal",
     label: "Maximum price (for pay more)",
-    name: "max_price",
+    name: "maxPrice",
     pattern: "\\d+(\\.\\d{1,2})?",
     placeholder: "e.g. 100.00",
     section: "tickets",
@@ -240,14 +240,14 @@ export const LISTING_FIELDS = [
   {
     hint: "Leave blank for no deadline. Times are in your configured timezone.",
     label: "Registration closes at (optional)",
-    name: "closes_at",
+    name: "closesAt",
     section: "tickets",
     type: "datetime",
   },
   {
     hint: "Leave blank to show a simple success message",
     label: "Thank you URL (optional)",
-    name: "thank_you_url",
+    name: "thankYouUrl",
     placeholder: "https://example.com/thank-you",
     section: "advanced",
     type: "url",
@@ -255,7 +255,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Receives POST with attendee name, email, and phone on registration",
     label: "Webhook URL (optional)",
-    name: "webhook_url",
+    name: "webhookUrl",
     placeholder: "https://example.com/webhook",
     section: "advanced",
     type: "url",
@@ -264,7 +264,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Requires attendees to show ID matching the ticket name at entry",
     label: "Non-transferable tickets",
-    name: "non_transferable",
+    name: "nonTransferable",
     options: [
       {
         label: "No",
@@ -294,7 +294,7 @@ export const LISTING_FIELDS = [
   {
     hint: "For items people buy without being checked in, such as raffles, fundraisers, donations, merch, or digital products. Hides QR codes, check-in, and wallet passes. Shows ‘Buy now’ instead of ‘Reserve’.",
     label: "No check-in",
-    name: "purchase_only",
+    name: "purchaseOnly",
     options: [
       {
         label: "Disable check-in for this item",
@@ -307,7 +307,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Only matters when this listing is offered under one or more parents. Keeps its own booking page, catalogue entry and API eligibility so it can be sold on its own, as well as folded into its parents. Off (the default) means being a child hides its standalone page.",
     label: "Can be booked by itself",
-    name: "bookable_alone",
+    name: "bookableAlone",
     options: [
       {
         label:
@@ -321,7 +321,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Handled by an agent at the customer's location. Attendees gain start and end agent selectors (e.g. delivery/collection, set-up/teardown, or pickup/drop-off).",
     label: "Needs logistics",
-    name: "uses_logistics",
+    name: "usesLogistics",
     options: [
       {
         label: "Assign agents to this listing's bookings",
@@ -337,7 +337,7 @@ export const LISTING_FIELDS = [
     label: "Months per unit (renewal tiers only)",
     max: 24,
     min: 0,
-    name: "months_per_unit",
+    name: "monthsPerUnit",
     section: "advanced",
     type: "number",
     visible: false,
@@ -347,7 +347,7 @@ export const LISTING_FIELDS = [
     label: "Initial site months (built site listings only)",
     max: 120,
     min: 0,
-    name: "initial_site_months",
+    name: "initialSiteMonths",
     section: "advanced",
     type: "number",
     visible: false,
@@ -355,7 +355,7 @@ export const LISTING_FIELDS = [
   {
     hint: "Automatically assign a site when someone books this listing. Quantity buys months, not extra sites.",
     label: "Assign built site",
-    name: "assign_built_site",
+    name: "assignBuiltSite",
     options: [
       {
         label: "Assign a site on booking",

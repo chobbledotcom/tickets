@@ -52,7 +52,7 @@ const ownerWritesQuestion = (
   withAdminPage(world, "/admin/questions", async (browser) => {
     await fillInAndSend(
       browser,
-      { display_type: displayType, text },
+      { displayType: displayType, text },
       "Add question",
     );
     const id = browser.currentUrl.match(/\/admin\/questions\/(\d+)/)?.[1];
@@ -69,7 +69,7 @@ const ownerAssignsQuestionTo: ActOnOneThing = (world, listingName) =>
     world,
     listingName,
     "questions",
-    "question_ids",
+    "questionIds",
     askedQuestion(world).id,
     "Questions updated",
   );
@@ -124,7 +124,7 @@ export const questionFieldOn = (
   world: TicketsWorld,
   browser: TestBrowser,
 ): string => {
-  const name = `question_${askedQuestion(world).id}`;
+  const name = `question${askedQuestion(world).id}`;
   assertStringIncludes(browser.currentHtml, `name="${name}"`);
   return name;
 };
@@ -148,7 +148,7 @@ export const visitorBooksAnswering: BooksAnsweringAQuestion = async (
     {
       email: "buyer@example.com",
       name: "Casey Buyer",
-      [`quantity_${listingNamed(world, listingName).id}`]: "1",
+      [`quantity${listingNamed(world, listingName).id}`]: "1",
       [questionFieldOn(world, browser)]: answer,
     },
     "Continue",
@@ -296,7 +296,7 @@ export const offeredAnswersInOrder = async (
   text: string,
 ): Promise<string[]> => {
   const browser = await visitorOpensBooking(world, listingName);
-  const field = `question_${questionIdFor(world, text)}`;
+  const field = `question${questionIdFor(world, text)}`;
   assertStringIncludes(browser.currentHtml, `name="${field}"`);
   // Each answer renders as one labelled radio under the question's name, in
   // the order the site put them in, so the labels themselves are the order a

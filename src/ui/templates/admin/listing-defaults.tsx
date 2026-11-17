@@ -114,7 +114,7 @@ const DaysControl = ({
     <label>
       <input
         checked={value !== undefined}
-        name="default_bookable_days_enabled"
+        name="defaultBookableDaysEnabled"
         type="checkbox"
         value="1"
       />
@@ -199,7 +199,7 @@ export const adminListingDefaultsPage = (
   success?: string,
 ): string => {
   const fields = LISTING_DEFAULT_FIELDS.filter(
-    (field) => field.field !== "uses_logistics" || hasLogistics,
+    (field) => field.field !== "usesLogistics" || hasLogistics,
   );
   const renderField = (field: ListingDefaultField) => (
     <DefaultControl defaults={defaults} field={field} />

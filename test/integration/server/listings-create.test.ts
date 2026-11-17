@@ -2,12 +2,9 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
+import { getDb } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
-import {
-  getAllListings,
-  getListingWithCount,
-  listingsTable,
-} from "#db/listings/records.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
@@ -31,6 +28,7 @@ import {
   testCookie,
 } from "#test-utils/session.ts";
 import { featureSetting } from "#test-utils/settings.ts";
+import { sqlText } from "#test-utils/sql-text.ts";
 import { expectTemporaryError } from "#test-utils/temporary-error.ts";
 
 describeWithEnv("server listings > create", { db: true }, () => {
@@ -51,7 +49,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
       settings.setForTest(featureSetting());
       const { response } = await submitListingCreate({
         name: "Hireable",
-        template_id: "hireable-item",
+        templateId: "hireable-item",
       });
       await expectHtmlResponse(
         response,
@@ -65,16 +63,16 @@ describeWithEnv("server listings > create", { db: true }, () => {
       [
         "returns date required error for one-off-event template with no date",
         {
-          listing_type: "standard",
-          purchase_only: "",
-          template_id: "one-off-event",
-          uses_logistics: "",
+          listingType: "standard",
+          purchaseOnly: "",
+          templateId: "one-off-event",
+          usesLogistics: "",
         },
         "date is required",
       ],
       [
         "re-renders with carried template_id when create validation fails",
-        { name: "", template_id: "online-digital" },
+        { name: "", templateId: "online-digital" },
         'value="online-digital"',
       ],
     ] as const) {
@@ -109,7 +107,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         () =>
           withExpectedError(() =>
             submitListingCreate({
-              max_attendees: "50",
+              maxAttendees: "50",
               name: "Saved before error",
             }),
           ),
@@ -117,18 +115,28 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
       const listings = await getAllListings();
       expect(listings.map(({ name }) => name)).toEqual(["Saved before error"]);
-      expect(listings[0]?.max_attendees).toBe(50);
+      expect(listings[0]?.maxAttendees).toBe(50);
       await expectTemporaryError(false)(response);
     });
 
     test("still creates when the read-back replica lags the just-committed write", async () => {
-      // The primary read-back succeeds even while an optional replica read
-      // still misses the newly committed row.
-      // The optional replica read misses the row; the primary read-back the
-      // create path actually uses must still find it.
-      const readStub = stub(listingsTable.read, "one", () =>
-        Promise.resolve(null),
-      );
+      // A lagging replica: each listings read off the primary misses the new
+      // listing, the first in this database. The primary read-back that the
+      // create path uses must still find it.
+      const db = getDb();
+      const realExecute = db.execute.bind(db);
+      const readStub = stub(db, "execute", async (...args) => {
+        const result = await realExecute(
+          ...(args as Parameters<typeof realExecute>),
+        );
+        if (!/\bFROM listings\b/.test(String(sqlText(args[0])))) return result;
+        const rows = result.rows.filter((row) => row.id !== 1);
+        return {
+          ...result,
+          rows,
+          toJSON: () => ({ ...result.toJSON(), rows }),
+        };
+      });
       try {
         const { response } = await submitListingCreate({
           name: "Lagged Listing",
@@ -148,7 +156,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
       const { response } = await submitListingCreate({
         name: "Demo Listing",
-        webhook_url: "https://example.com/webhook",
+        webhookUrl: "https://example.com/webhook",
       });
 
       expect([response.status, await getListingWithCount(1)]).toEqual([
@@ -163,7 +171,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
         slug: "listing-group",
       });
       const { response } = await submitListingCreate({
-        group_ids: String(group.id),
+        groupIds: String(group.id),
         name: "Grouped Listing",
       });
       await expectFlashRedirect("/admin", "Listing created")(response);
@@ -174,7 +182,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("rejects non-existent group_id on create", async () => {
       const { response } = await submitListingCreate({
-        group_ids: "999",
+        groupIds: "999",
         name: "Bad Group Listing",
       });
       expectStatus(400)(response);
@@ -196,8 +204,8 @@ describeWithEnv("server listings > create", { db: true }, () => {
       });
 
       const { response } = await submitListingCreate({
-        group_ids: String(group.id),
-        listing_type: "daily",
+        groupIds: String(group.id),
+        listingType: "daily",
         name: "Daily Mismatch",
       });
       expectStatus(400)(response);
@@ -206,7 +214,7 @@ describeWithEnv("server listings > create", { db: true }, () => {
     });
 
     for (const [name, token] of [
-      ["rejects invalid CSRF token", { csrf_token: "invalid-csrf-token" }],
+      ["rejects invalid CSRF token", { csrfToken: "invalid-csrf-token" }],
       ["rejects missing CSRF token", {}],
     ] as const) {
       test(name, async () => {
@@ -223,9 +231,9 @@ describeWithEnv("server listings > create", { db: true }, () => {
 
     test("stays on form with error on validation failure", async () => {
       const { response } = await adminMultipartPost("/admin/listing", {
-        max_attendees: "",
+        maxAttendees: "",
         name: "",
-        thank_you_url: "",
+        thankYouUrl: "",
       });
       await expectHtmlResponse(response, 400, "Add Listing");
     });
@@ -233,10 +241,10 @@ describeWithEnv("server listings > create", { db: true }, () => {
     test("preserves submitted group selection when create fails validation", async () => {
       const group = await createTestGroup({ name: "Keep Me Group" });
       const { response } = await adminMultipartPost("/admin/listing", {
-        group_ids: String(group.id),
-        max_attendees: "",
+        groupIds: String(group.id),
+        maxAttendees: "",
         name: "",
-        thank_you_url: "",
+        thankYouUrl: "",
       });
       const html = await response.text();
       expect(response.status).toBe(400);

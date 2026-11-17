@@ -77,7 +77,7 @@ const parentDatesOf = (
   parent: ListingWithCount,
   holidays: Holiday[],
 ): ReadonlySet<string> | null =>
-  parent.listing_type === "daily"
+  parent.listingType === "daily"
     ? new Set(getBookableStartDates(parent, holidays))
     : null;
 
@@ -330,7 +330,7 @@ export const childJoinsMinimumBooking = (
   return evaluations.some(
     restServesAfterReservation(
       caps,
-      parent.min_quantity,
+      parent.minQuantity,
       child.id,
       facts.groupIds,
       listingGroups.idsFor(caps.membership, parent.id),

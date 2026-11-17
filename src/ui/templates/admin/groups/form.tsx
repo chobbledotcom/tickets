@@ -24,12 +24,12 @@ const groupToFieldValues = (
     group,
     getGroupForm().fields,
     {
-      max_attendees: (value) => value.max_attendees || null,
+      maxAttendees: (value) => value.maxAttendees || null,
     },
     // A new group's form starts with its hidden-listings box ticked, matching
     // the column default. The public group page offers hidden members until
     // the operator unticks it.
-    group === undefined ? { show_hidden_listings: "1" } : undefined,
+    group === undefined ? { showHiddenListings: "1" } : undefined,
   );
 
 /** Admin group create page. */
@@ -71,7 +71,7 @@ const MemberDayPriceInputs = ({
           {t("fields.group.package_day_price", { count: days })}
           <input
             inputmode="decimal"
-            name={`package_day_price_${listing.id}_${days}`}
+            name={`packageDayPrice${listing.id}Days${days}`}
             // Every count from availableDayCounts has a configured day price.
             placeholder={toMajorUnits(dayPriceFor(listing, days)!)}
             type="text"
@@ -101,12 +101,12 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
         <>
           <input
             inputmode="decimal"
-            name={`package_price_${listing.id}`}
-            placeholder={toMajorUnits(listing.unit_price)}
+            name={`packagePrice${listing.id}`}
+            placeholder={toMajorUnits(listing.unitPrice)}
             type="text"
             value={override === null ? "" : toMajorUnits(override)}
           />
-          {listing.customisable_days && (
+          {listing.customisableDays && (
             <MemberDayPriceInputs
               dayPrices={member?.dayPrices}
               listing={listing}
@@ -123,7 +123,7 @@ const packageMembersTable = defineTable<ListingWithCount, PackageMemberValues>([
       <input
         inputmode="numeric"
         min="1"
-        name={`package_qty_${listing.id}`}
+        name={`packageQty${listing.id}`}
         type="number"
         value={String(members.get(listing.id)?.quantity ?? 1)}
       />

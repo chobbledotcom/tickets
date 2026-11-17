@@ -29,8 +29,8 @@ describe("order > options", () => {
   describe("listingOption", () => {
     const standard = {
       id: 5,
-      listing_type: "standard",
-      min_quantity: 3,
+      listingType: "standard",
+      minQuantity: 3,
       name: "Workshop",
     };
 
@@ -50,8 +50,8 @@ describe("order > options", () => {
     test("a daily listing needs a date", () => {
       const daily = {
         id: 7,
-        listing_type: "daily",
-        min_quantity: 1,
+        listingType: "daily",
+        minQuantity: 1,
         name: "Day Pass",
       };
       expect(listingOption(daily, true).needsDate).toBe(true);
@@ -66,8 +66,8 @@ describe("order > options", () => {
   describe("packageOption", () => {
     const group = { id: 3, name: "Weekend Bundle" };
     const members = [
-      { id: 10, listing_type: "standard" },
-      { id: 11, listing_type: "standard" },
+      { id: 10, listingType: "standard" },
+      { id: 11, listingType: "standard" },
     ];
 
     test("books each member at its per-package quantity under the package key", () => {
@@ -117,8 +117,8 @@ describe("order > options", () => {
 
     test("needs a date when any member is a daily listing", () => {
       const withDaily = [
-        { id: 10, listing_type: "standard" },
-        { id: 11, listing_type: "daily" },
+        { id: 10, listingType: "standard" },
+        { id: 11, listingType: "daily" },
       ];
       expect(packageOption(group, withDaily, new Map(), true).needsDate).toBe(
         true,

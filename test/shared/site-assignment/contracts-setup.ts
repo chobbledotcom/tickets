@@ -8,9 +8,9 @@ import { stubFetch } from "#test-utils/fetch-stub.ts";
 export const assignmentEntry = (attendeeId = 81) =>
   makeTestEntry(
     {
-      assign_built_site: true,
+      assignBuiltSite: true,
       id: 71,
-      initial_site_months: 3,
+      initialSiteMonths: 3,
       name: "Hosted listing",
     },
     { id: attendeeId },

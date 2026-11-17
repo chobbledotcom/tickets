@@ -71,13 +71,13 @@ export const subscribe = async (
 export const withMonthlyPlan = async <Listing extends { id: number }>(
   listing: Listing,
 ): Promise<
-  Listing & { recurring_interval: "month"; recurring_price: number }
+  Listing & { recurringInterval: "month"; recurringPrice: number }
 > => {
   await execute(
     sql`UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ${listing.id}`,
   );
   invalidateListingsCache();
-  return { ...listing, recurring_interval: "month", recurring_price: 500 };
+  return { ...listing, recurringInterval: "month", recurringPrice: 500 };
 };
 
 /** The legs one invoice posted, as kind, from, to, amount and time. */

@@ -118,22 +118,22 @@ describe("built-site templates", () => {
 
     test("lists each tier with units sold from attendee_count", () => {
       const monthly = testListingWithCount({
-        attendee_count: 7,
+        attendeeCount: 7,
         hidden: true,
         id: 11,
-        months_per_unit: 1,
+        monthsPerUnit: 1,
         name: "Monthly tier",
-        purchase_only: true,
-        unit_price: 500,
+        purchaseOnly: true,
+        unitPrice: 500,
       });
       const annual = testListingWithCount({
-        attendee_count: 2,
+        attendeeCount: 2,
         hidden: true,
         id: 12,
-        months_per_unit: 12,
+        monthsPerUnit: 12,
         name: "Annual tier",
-        purchase_only: true,
-        unit_price: 5000,
+        purchaseOnly: true,
+        unitPrice: 5000,
       });
       const site = testBuiltSite({ readOnlyFrom: "" });
       const html = adminBuiltSitesPage([site], OWNER_SESSION, undefined, [
@@ -156,13 +156,13 @@ describe("built-site templates", () => {
     test("maps exact empty and populated field values", () => {
       expect(builtSiteToFieldValues()).toEqual({
         assignable: "",
-        db_provider: "bunny",
-        db_token: "",
-        db_url: "",
-        hosting_id: "",
-        hosting_provider: "bunny",
+        dbProvider: "bunny",
+        dbToken: "",
+        dbUrl: "",
+        hostingId: "",
+        hostingProvider: "bunny",
         name: "",
-        site_url: "",
+        siteUrl: "",
         updates: "release",
       });
       expect(
@@ -181,13 +181,13 @@ describe("built-site templates", () => {
         ),
       ).toEqual({
         assignable: "1",
-        db_provider: "turso",
-        db_token: "token",
-        db_url: "libsql://site",
-        hosting_id: "app-1",
-        hosting_provider: "deno",
+        dbProvider: "turso",
+        dbToken: "token",
+        dbUrl: "libsql://site",
+        hostingId: "app-1",
+        hostingProvider: "deno",
         name: "Site",
-        site_url: "site.example",
+        siteUrl: "site.example",
         updates: "alpha",
       });
     });

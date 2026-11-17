@@ -1,45 +1,25 @@
-import type { InValue } from "@libsql/client";
-import { type ColumnDef, col, type TableSchema } from "#db/table.ts";
-import { mapNotNullish } from "#fp";
-import { nowIso } from "#shared/now.ts";
-import {
-  type BuiltSite,
-  type BuiltSiteFormInput,
-  type BuiltSitePlainFields,
-  type BuiltSitePlainInput,
-  type BuiltSiteRow,
-  type DbProvider,
-  DEFAULT_UPDATE_TIER,
-  type HostingProvider,
-  type UpdateTier,
+import type { RecordChanges } from "#db/record-table.ts";
+import type { DecodedRowOf } from "#db/select/tables.ts";
+import type {
+  BuiltSite,
+  BuiltSitePlainFields,
+  DbProvider,
+  HostingProvider,
+  UpdateTier,
 } from "./types.ts";
 
-export const idCol = col.generated<number>();
-export const createdCol = col.withDefault(() => nowIso());
-
-const assignableCol = {} as ColumnDef<number>;
-const nullCol = col.withDefault<number | null>(() => null);
-const nullStrCol = col.withDefault<string | null>(() => null);
 const passthrough = <T>(value: T): T => value;
 const nullable = <T>(value: T | null): T | null => value ?? null;
 
-/** A plain column that reads back as the given default when the row holds
- * none. */
-const plainColumn = <
-  DbKey extends string,
-  SiteKey extends keyof BuiltSite & string,
-  Value extends string | number,
->(
-  dbKey: DbKey,
+/** A field that the site and its stored row both name. */
+type PlainKey = keyof BuiltSite & keyof DecodedRowOf<"built_sites"> & string;
+
+/** A plain column that stores the value of the site through `convert`, the
+ *  same way in both directions. */
+const plainColumn = <SiteKey extends PlainKey, Value>(
   siteKey: SiteKey,
-  empty: Value,
-) => ({
-  dbKey,
-  fromRow: passthrough<Value>,
-  schema: col.withDefault(() => empty),
-  siteKey,
-  toInput: passthrough<Value>,
-});
+  convert: (value: Value) => Value,
+) => ({ fromRow: convert, siteKey, toInput: convert });
 
 /** The app↔db mappings every 0/1 boolean column shares. */
 const boolFlagMappings = {
@@ -49,179 +29,49 @@ const boolFlagMappings = {
 
 export const builtSitePlainColumns = [
   {
-    dbKey: "assignable",
-    formDefault: false,
-    schema: assignableCol,
     ...boolFlagMappings,
-    siteKey: "assignable",
+    siteKey: "assignable" satisfies PlainKey,
   },
-  {
-    dbKey: "assigned_attendee_id",
-    fromRow: nullable<number>,
-    schema: nullCol,
-    siteKey: "assignedAttendeeId",
-    toInput: nullable<number>,
-  },
-  {
-    dbKey: "assigned_listing_id",
-    fromRow: nullable<number>,
-    schema: nullCol,
-    siteKey: "assignedListingId",
-    toInput: nullable<number>,
-  },
-  plainColumn("database_key_rotation_started", "databaseKeyRotationStarted", 0),
-  plainColumn("read_only_from", "readOnlyFrom", ""),
-  {
-    dbKey: "renewal_token_index",
-    fromRow: nullable<string>,
-    schema: nullStrCol,
-    siteKey: "renewalTokenIndex",
-    toInput: nullable<string>,
-  },
-  plainColumn("site_data_revision", "siteDataRevision", 0),
-  {
-    dbKey: "updates",
-    formDefault: DEFAULT_UPDATE_TIER,
-    fromRow: passthrough<UpdateTier>,
-    schema: col.withDefault<UpdateTier>(() => DEFAULT_UPDATE_TIER),
-    siteKey: "updates",
-    toInput: passthrough<UpdateTier>,
-  },
+  plainColumn("assignedAttendeeId", nullable<number>),
+  plainColumn("assignedListingId", nullable<number>),
+  plainColumn("databaseKeyRotationStarted", passthrough<number>),
+  plainColumn("readOnlyFrom", passthrough<string>),
+  plainColumn("renewalTokenIndex", nullable<string>),
+  plainColumn("siteDataRevision", passthrough<number>),
+  plainColumn("updates", passthrough<UpdateTier>),
 ] as const;
 
-export type BuiltSitePlainColumn = (typeof builtSitePlainColumns)[number];
-
-const crudSchemaFor = <Column extends { siteKey: keyof BuiltSite }>(
-  columns: readonly Column[],
-): Pick<TableSchema<BuiltSite>, Column["siteKey"]> =>
-  Object.fromEntries(columns.map(({ siteKey }) => [siteKey, {}])) as Pick<
-    TableSchema<BuiltSite>,
-    Column["siteKey"]
-  >;
-
-export const builtSitePlainSchema = Object.fromEntries(
-  builtSitePlainColumns.map(({ dbKey, schema }) => [dbKey, schema]),
-) as Pick<TableSchema<BuiltSiteRow>, BuiltSitePlainColumn["dbKey"]>;
-
-export const builtSiteCrudPlainSchema = crudSchemaFor(builtSitePlainColumns);
+/** One field of the site data blob. It names its short key in the blob and the
+ *  site field that it fills. It says whether every blob holds it, and the
+ *  value that it takes when the blob leaves it out. */
+const blobColumn = <Value extends string | null>(
+  blobKey: string,
+  siteKey: keyof BuiltSite & string,
+  required: boolean,
+  defaultValue: Value,
+) => ({ blobKey, defaultValue, required, siteKey });
 
 export const builtSiteBlobColumns = [
-  {
-    blobKey: "n",
-    defaultValue: "",
-    formDbKey: "name",
-    required: true,
-    siteKey: "name",
-  },
-  {
-    blobKey: "u",
-    defaultValue: "",
-    formDbKey: "site_url",
-    required: true,
-    siteKey: "siteUrl",
-  },
-  {
-    blobKey: "d",
-    defaultValue: "",
-    formDbKey: "db_url",
-    required: false,
-    siteKey: "dbUrl",
-  },
-  {
-    blobKey: "t",
-    defaultValue: "",
-    formDbKey: "db_token",
-    required: false,
-    siteKey: "dbToken",
-  },
-  {
-    blobKey: "s",
-    defaultValue: "",
-    formDbKey: "hosting_id",
-    required: false,
-    siteKey: "hostingId",
-  },
-  {
-    blobKey: "hp",
-    defaultValue: "bunny" as HostingProvider,
-    formDbKey: "hosting_provider",
-    required: false,
-    siteKey: "hostingProvider",
-  },
-  {
-    blobKey: "dp",
-    defaultValue: "bunny" as DbProvider,
-    formDbKey: "db_provider",
-    required: false,
-    siteKey: "dbProvider",
-  },
-  {
-    blobKey: "rt",
-    defaultValue: null,
-    required: false,
-    siteKey: "renewalToken",
-  },
-  {
-    blobKey: "sk",
-    defaultValue: null,
-    required: false,
-    siteKey: "scheduledTaskKey",
-  },
+  blobColumn("n", "name", true, ""),
+  blobColumn("u", "siteUrl", true, ""),
+  blobColumn("d", "dbUrl", false, ""),
+  blobColumn("t", "dbToken", false, ""),
+  blobColumn("s", "hostingId", false, ""),
+  blobColumn<HostingProvider>("hp", "hostingProvider", false, "bunny"),
+  blobColumn<DbProvider>("dp", "dbProvider", false, "bunny"),
+  blobColumn("rt", "renewalToken", false, null),
+  blobColumn("sk", "scheduledTaskKey", false, null),
 ] as const;
 
-type BuiltSiteBlobColumn = (typeof builtSiteBlobColumns)[number];
-export const builtSiteCrudBlobSchema =
-  crudSchemaFor<BuiltSiteBlobColumn>(builtSiteBlobColumns);
-
-type BuiltSiteFormMapping = {
-  dbKey: string;
-  defaultValue: boolean | string;
-  siteKey: keyof BuiltSiteFormInput;
-};
-
-export const builtSiteFormMappings: BuiltSiteFormMapping[] = [
-  ...mapNotNullish((column: BuiltSitePlainColumn | BuiltSiteBlobColumn) =>
-    "formDefault" in column
-      ? {
-          dbKey: column.dbKey,
-          defaultValue: column.formDefault,
-          siteKey: column.siteKey,
-        }
-      : "formDbKey" in column
-        ? {
-            dbKey: column.formDbKey,
-            defaultValue: column.defaultValue,
-            siteKey: column.siteKey,
-          }
-        : null,
-  )([...builtSitePlainColumns, ...builtSiteBlobColumns]),
-];
-
-export const builtSiteInputKeyMap = Object.fromEntries(
-  builtSiteFormMappings.map(({ dbKey, siteKey }) => [dbKey, siteKey]),
-) as Record<string, string>;
-
-export const emptyBuiltSiteFormInput = (): BuiltSiteFormInput =>
-  Object.fromEntries(
-    builtSiteFormMappings.map(({ defaultValue, siteKey }) => [
-      siteKey,
-      defaultValue,
-    ]),
-  ) as BuiltSiteFormInput;
-
-export const mapPlainFields = <Key extends "dbKey" | "siteKey">(
+/** The plain columns of the site fields that `input` names. Each column maps
+ *  its own field, so the values are the stored values of the columns. */
+export const plainColumnValues = (
   input: Partial<BuiltSitePlainFields>,
-  key: Key,
-): Partial<Record<BuiltSitePlainColumn[Key], InValue>> =>
+): RecordChanges<"built_sites"> =>
   Object.fromEntries(
     builtSitePlainColumns.flatMap((column) => {
       if (!Object.hasOwn(input, column.siteKey)) return [];
       const value = input[column.siteKey] as never;
-      return [[column[key], column.toInput(value)]];
+      return [[column.siteKey, column.toInput(value)]];
     }),
-  ) as Partial<Record<BuiltSitePlainColumn[Key], InValue>>;
-
-export const plainSiteInput = (
-  input: Partial<BuiltSitePlainFields>,
-): Partial<BuiltSitePlainInput> =>
-  mapPlainFields(input, "siteKey") as Partial<BuiltSitePlainInput>;
+  ) as RecordChanges<"built_sites">;

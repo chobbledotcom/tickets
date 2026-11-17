@@ -40,10 +40,10 @@ describeWithEnv(
         const res = await postBooking(slugs, {
           email: "stageB@example.com",
           name: "Stage B",
-          [`quantity_${parentA.id}`]: "1",
-          [`quantity_${parentB.id}`]: "1",
-          [`child_qty_${parentA.id}_${child.id}`]: "1",
-          [`child_qty_${parentB.id}_${child.id}`]: "1",
+          [`quantity${parentA.id}`]: "1",
+          [`quantity${parentB.id}`]: "1",
+          [`childQty${parentA.id}_${child.id}`]: "1",
+          [`childQty${parentB.id}_${child.id}`]: "1",
         });
         expectReserved(res);
 
@@ -70,7 +70,9 @@ describeWithEnv(
         expect(childBookings.every((b) => b.quantity === 1)).toBe(true);
         // All 4 rows share one order_token.
         const token = bookings[0]!.order_token;
-        expect(token).toBeTruthy();
+        expect(token).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u,
+        );
         expect(bookings.every((b) => b.order_token === token)).toBe(true);
       },
     );

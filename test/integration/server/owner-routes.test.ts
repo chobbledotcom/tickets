@@ -23,23 +23,23 @@ describeWithEnv("server (owner-only route authorization)", { db: true }, () => {
     body: Record<string, string>;
     path: string;
   }> = [
-    { body: { csrf_token: "mgr-csrf" }, path: "/admin/settings" },
+    { body: { csrfToken: "mgr-csrf" }, path: "/admin/settings" },
     {
-      body: { csrf_token: "mgr-csrf", name: "Test Key" },
+      body: { csrfToken: "mgr-csrf", name: "Test Key" },
       path: "/admin/api-keys",
     },
-    { body: { csrf_token: "mgr-csrf" }, path: "/admin/backup/create" },
-    { body: { csrf_token: "mgr-csrf" }, path: "/admin/update/check" },
-    { body: { csrf_token: "mgr-csrf" }, path: "/admin/sessions" },
+    { body: { csrfToken: "mgr-csrf" }, path: "/admin/backup/create" },
+    { body: { csrfToken: "mgr-csrf" }, path: "/admin/update/check" },
+    { body: { csrfToken: "mgr-csrf" }, path: "/admin/sessions" },
     // The manual money-correction routes post to the source-of-truth ledger, so
     // they are owner-only (decision 14). The role check fires before the entity
     // load, so a non-existent id still 403s for a manager.
     {
-      body: { csrf_token: "mgr-csrf", income: "10" },
+      body: { csrfToken: "mgr-csrf", income: "10" },
       path: "/admin/listing/1/income",
     },
     {
-      body: { csrf_token: "mgr-csrf", total_revenue: "10" },
+      body: { csrfToken: "mgr-csrf", totalRevenue: "10" },
       path: "/admin/modifiers/1/revenue",
     },
   ];

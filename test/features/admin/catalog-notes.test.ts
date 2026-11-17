@@ -144,7 +144,7 @@ const noteRoutesSuite = (kind: NoteKind): void => {
       const html = await response.text();
       expectIncludesAll(html, ["Are you sure", "deletable"]);
       // The intermediate page never asks for the copy/paste confirmation.
-      assert(!html.includes('name="confirm_identifier"'));
+      assert(!html.includes('name="confirmIdentifier"'));
     });
 
     test("GET delete on a missing note is a 404", async () => {

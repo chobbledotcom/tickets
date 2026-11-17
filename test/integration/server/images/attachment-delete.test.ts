@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount, updateListing } from "#db/listings/records.ts";
 import { handleRequest } from "#routes";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -26,7 +26,7 @@ const submitAttachmentDelete = (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attachment/delete`,
-      { csrf_token: csrfToken },
+      { csrfToken },
       cookie,
     ),
   );
@@ -44,7 +44,7 @@ describeWithEnv(
     describe("POST /admin/listing/:id/attachment/delete", () => {
       test("removes attachment from listing and storage", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "file.pdf",
           attachmentUrl: "to-delete.pdf",
         });
@@ -61,8 +61,8 @@ describeWithEnv(
           )(response);
 
           const updated = await getListingWithCount(listing.id);
-          expect(updated?.attachment_url).toBe("");
-          expect(updated?.attachment_name).toBe("");
+          expect(updated?.attachmentUrl).toBe("");
+          expect(updated?.attachmentName).toBe("");
         });
       });
 
@@ -82,7 +82,7 @@ describeWithEnv(
 
       test("keeps attachment linked when storage deletion fails", async () => {
         const { listing, cookie, csrfToken } = await setupListingAndLogin();
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           attachmentName: "guide.pdf",
           attachmentUrl: "delete-fails.pdf",
         });
@@ -108,8 +108,8 @@ describeWithEnv(
         });
 
         const updated = await getListingWithCount(listing.id);
-        expect(updated?.attachment_url).toBe("delete-fails.pdf");
-        expect(updated?.attachment_name).toBe("guide.pdf");
+        expect(updated?.attachmentUrl).toBe("delete-fails.pdf");
+        expect(updated?.attachmentName).toBe("guide.pdf");
       });
 
       test("returns 404 for non-existent listing", async () => {

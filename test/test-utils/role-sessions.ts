@@ -4,8 +4,9 @@
  * that wraps the shared data key, and the door-only `scanner` helper.
  */
 
-import type { InValue } from "@libsql/client";
 import type { WrappedKey } from "#crypto/sealed.ts";
+import { tables } from "#db/select/tables.ts";
+import { insertInto, type NewValues } from "#db/write.ts";
 import { getSessionCookieName } from "#shared/cookies.ts";
 import type { AdminLevel } from "#types";
 
@@ -13,18 +14,18 @@ import type { AdminLevel } from "#types";
  * only in the row they store and the key the session carries. */
 export const createUserWithSession = async (
   username: string,
-  row: Record<string, InValue>,
+  row: NewValues<"users">,
   session: {
     token: string;
     csrfToken: string;
     wrappedKey: WrappedKey | null;
   },
 ): Promise<number> => {
-  const { getDb, insert } = await import("#db/client.ts");
+  const { getDb } = await import("#db/client.ts");
   const { createSession } = await import("#db/sessions.ts");
   const { getUserByUsername, invalidateUsersCache: invalidateUsers } =
     await import("#db/users.ts");
-  await getDb().execute(insert("users", row));
+  await getDb().execute(insertInto(tables.users, row));
   invalidateUsers();
   const userId = (await getUserByUsername(username))!.id;
   await createSession(
@@ -55,11 +56,11 @@ export const createKeyedRoleSession = async (
   const userId = await createUserWithSession(
     named.username,
     {
-      admin_level: await enc(role),
-      password_hash: "",
-      username_hash: await enc(named.username),
-      username_index: await hmacHash(named.username),
-      wrapped_data_key: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
+      adminLevel: await enc(role),
+      passwordHash: "",
+      usernameHash: await enc(named.username),
+      usernameIndex: await hmacHash(named.username),
+      wrappedDataKey: await wrapKeyWithToken(dataKey, "user-key-placeholder"),
     },
     {
       csrfToken: named.csrfToken,

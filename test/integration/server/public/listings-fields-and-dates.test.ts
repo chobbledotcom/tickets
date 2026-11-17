@@ -1,6 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { addDays } from "#shared/dates.ts";
@@ -217,8 +218,7 @@ describeWithEnv(
           minimumDaysBefore: 0,
           name: "Hidden Daily Member",
         });
-        const { groups } = await import("#db/groups.ts");
-        await groups.table.update(pkg.id, { hidePackageListings: true });
+        await records.groups.update(pkg.id, { hidePackageListings: true });
         await bookAttendee(member, { date, quantity: 1 });
         await createTestListing({ maxAttendees: 50, name: "Plain Listing" });
 

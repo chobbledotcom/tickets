@@ -59,7 +59,7 @@ const packageSlugs = async (
 
 /** Resolve the slugs from cold caches, under a hard database-call allowance. */
 const coldCartCalls = (slugs: string[]): Promise<number> => {
-  groups.cache.invalidate();
+  groups.invalidate();
   invalidateListingsCache();
   return countDatabaseCalls(CART_CALL_LIMIT, () =>
     loadCartPackagesBySlugs(slugs),
@@ -100,7 +100,7 @@ describeWithEnv("public package slug loading", { db: true }, () => {
       maxAttendees: 0,
       name: "Sold out member",
     });
-    expect(listing.max_attendees).toBe(0);
+    expect(listing.maxAttendees).toBe(0);
 
     const response = await handleGroupTicketBySlug(
       mockRequest(`/ticket/${group.slug}`),

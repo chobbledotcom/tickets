@@ -79,7 +79,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("selects the exact empty payment state", async () => {
       const html = await (await adminGet("/admin/settings")).text();
       expect(html).toMatch(
-        /<input checked name="payment_provider" type="radio" value="none">/,
+        /<input checked name="paymentProvider" type="radio" value="none">/,
       );
       assertStringIncludes(html, "None (payments disabled)");
     });

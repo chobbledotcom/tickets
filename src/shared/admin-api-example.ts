@@ -23,6 +23,7 @@ import {
   type AdminApiHoliday,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
+import { type SnakeCased, snakeCaseKeys } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { withoutKeys } from "#shared/fp-records.ts";
 import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
@@ -63,11 +64,11 @@ export const BOOKING_TOTAL_FIELDS = [
 /** The example listing, exactly as the admin endpoints answer with it. It
  * adds the ids of the groups it is in and the attribute options it selects.
  * The example is in neither. */
-export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
+export const ADMIN_API_EXAMPLE_ADMIN_LISTING: SnakeCased<AdminListing> & {
   attribute_option_ids: number[];
   group_ids: number[];
 } = {
-  ...toAdminListing(API_EXAMPLE_LISTING),
+  ...snakeCaseKeys(toAdminListing(API_EXAMPLE_LISTING)),
   attribute_option_ids: [],
   group_ids: [],
 };
@@ -125,7 +126,7 @@ const ADMIN_API_EXAMPLE_GROUP = {
   show_hidden_listings: true,
   slug: "summer-series",
   terms_and_conditions: "",
-} satisfies Omit<Group, "slug_index">;
+} satisfies SnakeCased<Omit<Group, "slugIndex">>;
 
 const ADMIN_API_GROUP_CREATE_BODY = {
   description: "Workshops running through the summer.",
@@ -285,7 +286,7 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 /** The booking window a listing gets when its create body says nothing. */
 const LISTING_DEFAULT_DAYS_AFTER = fieldOfKey(
   LISTING_FIELDS,
-  "maximum_days_after",
+  "maximumDaysAfter",
 ).default;
 
 /** The documented path of one listing custom route. */

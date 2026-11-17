@@ -31,7 +31,7 @@ describe("withReturnUrl", () => {
 describe("ReturnUrlField", () => {
   test("renders the URL into a hidden input for the form handler", () => {
     expect(String(ReturnUrlField({ returnUrl: "/admin/ledger" }))).toBe(
-      '<input name="return_url" type="hidden" value="/admin/ledger">',
+      '<input name="returnUrl" type="hidden" value="/admin/ledger">',
     );
   });
 

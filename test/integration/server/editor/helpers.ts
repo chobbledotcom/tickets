@@ -16,9 +16,9 @@ export const postMultipartAs = async (
   cookie: string,
   data: TestFormValues,
 ): Promise<Response> => {
-  const csrf_token = await signCsrfToken();
+  const csrfToken = await signCsrfToken();
   return handleRequest(
-    mockMultipartRequest(path, { ...data, csrf_token }, cookie),
+    mockMultipartRequest(path, { ...data, csrfToken }, cookie),
   );
 };
 

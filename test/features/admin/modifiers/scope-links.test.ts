@@ -8,7 +8,6 @@ import {
   modifierGroups,
   modifierListings,
 } from "#db/modifiers.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { matchKey } from "#shared/keys.ts";
 import {
   expectFlashRedirect,
@@ -18,6 +17,7 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 import {
   createAcceptanceTests,
@@ -37,7 +37,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await createModifier({ name: "Doomed" });
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/delete`,
-        { confirm_identifier: "Doomed" },
+        { confirmIdentifier: "Doomed" },
       );
       await expectFlashRedirect(
         "/admin/modifiers",
@@ -79,7 +79,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         200,
         "Linked listings",
         "VIP",
-        'name="listing_ids"',
+        'name="listingIds"',
       );
     });
 
@@ -92,23 +92,23 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         200,
         "Linked groups",
         "Weekend",
-        'name="group_ids"',
+        'name="groupIds"',
       );
       // Groups have no deactivated state, so a group option is never muted.
-      assert(!html.includes('<label class="muted"><input name="group_ids"'));
+      assert(!html.includes('<label class="muted"><input name="groupIds"'));
     });
 
     test("links the chosen scope targets via their forms", async () => {
       const { id, listing } = await seedListingsScopedModifier();
       await adminFormPost(`/admin/modifiers/${id}/links`, {
-        listing_ids: String(listing.id),
+        listingIds: String(listing.id),
       });
       expect(await modifierListings.getIds(id)).toEqual([listing.id]);
 
       const group = await createTestGroup({ name: "Linked group" });
       const scoped = await createModifier({ name: "GS", scope: "groups" });
       await adminFormPost(`/admin/modifiers/${scoped.id}/links`, {
-        group_ids: String(group.id),
+        groupIds: String(group.id),
       });
       expect(await modifierGroups.getIds(scoped.id)).toEqual([group.id]);
     });
@@ -121,7 +121,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       // selectedIds keeps only positive integers: -1 is an integer but not
       // > 0, so it must be dropped — the filter is `isInteger(n) && n > 0`,
       // not `||` (which would let -1 through and store it).
-      await adminFormPost(`/admin/modifiers/${id}/links`, { group_ids: "-1" });
+      await adminFormPost(`/admin/modifiers/${id}/links`, { groupIds: "-1" });
       expect(await modifierGroups.getIds(id)).toEqual([]);
     });
 
@@ -152,16 +152,8 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       question: string,
       answer: string,
     ): Promise<{ questionId: number; answerId: number }> => {
-      const q = await questionsTable.insert({
-        displayType: "radio",
-        text: question,
-      });
-      const a = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 0,
-        text: answer,
-      });
-      return { answerId: a.id, questionId: q.id };
+      const seeded = await seedQuestion({ answers: [answer], text: question });
+      return { answerId: seeded.answers[0].id, questionId: seeded.question.id };
     };
 
     test("edit page lists linkable answers for an answer-triggered modifier", async () => {
@@ -173,7 +165,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         200,
         "Linked answers",
         "Size? — Large",
-        'name="answer_ids"',
+        'name="answerIds"',
       );
     });
 
@@ -182,7 +174,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await createModifier({ name: "Tier", trigger: "answer" });
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/answers`,
-        { answer_ids: String(answerId) },
+        { answerIds: String(answerId) },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -234,14 +226,14 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("stores a promo code's blind index and drops one on another trigger", async () => {
       const coded = await createModifier({ code: "Summer25", trigger: "code" });
       expect(coded.code).toBe("Summer25");
-      expect(coded.code_index).toBe(await hmacHash(matchKey("Summer25")));
+      expect(coded.codeIndex).toBe(await hmacHash(matchKey("Summer25")));
 
       const leftover = await createModifier({
         code: "LEFTOVER",
         trigger: "automatic",
       });
       expect(leftover.code).toBe("");
-      expect(leftover.code_index).toBeNull();
+      expect(leftover.codeIndex).toBeNull();
     });
   });
 
@@ -249,30 +241,30 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     createAcceptanceTests([
       [
         "stores the minimum previous bookings gate",
-        { min_visits: "2" },
-        { min_visits: 2 },
+        { minVisits: "2" },
+        { minVisits: 2 },
       ],
       [
         "accepts zero, the declared minimum",
-        { min_visits: "0" },
-        { min_visits: 0 },
+        { minVisits: "0" },
+        { minVisits: 0 },
       ],
     ]);
 
     createRefusalTests([
       [
         "rejects minimum previous bookings on optional add-ons",
-        { min_visits: "1", trigger: "optional" },
+        { minVisits: "1", trigger: "optional" },
         "Optional add-ons cannot require previous bookings",
       ],
       [
         "rejects a negative minimum previous bookings value",
-        { min_visits: "-1" },
+        { minVisits: "-1" },
         "Minimum previous bookings (optional) must be 0 or greater",
       ],
       [
         "rejects a fractional minimum previous bookings value",
-        { min_visits: "1.5" },
+        { minVisits: "1.5" },
         "Minimum previous bookings (optional) must be a whole number",
       ],
     ]);

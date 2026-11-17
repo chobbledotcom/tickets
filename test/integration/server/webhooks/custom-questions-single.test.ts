@@ -5,13 +5,15 @@ import {
   getAttendeeAnswersBatch,
   getAttendeeTextAnswers,
 } from "#db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
 import { signedMeta, singleItem } from "#test-utils/factories.ts";
 import { setupStripe } from "#test-utils/settings.ts";
@@ -44,16 +46,13 @@ describeWithEnv(
         unitPrice: 1000,
       });
 
-      const q = await questionsTable.insert({
-        displayType: "radio",
+      const {
+        answers: [a1],
+      } = await seedQuestion({
+        answers: ["Vegan"],
+        listingIds: [listing.id],
         text: "Dietary needs?",
       });
-      const a1 = await answersTable.insert({
-        questionId: q.id,
-        sortOrder: 1,
-        text: "Vegan",
-      });
-      await listingQuestions.setIds(listing.id, [q.id]);
 
       await expectWebhookProcessed(
         checkoutSessionEvent({
@@ -92,11 +91,11 @@ describeWithEnv(
         name: "Round Trip Paid",
         unitPrice: 1000,
       });
-      const question = await questionsTable.insert({
+      const { question } = await seedQuestion({
         displayType: "free_text",
+        listingIds: [listing.id],
         text: "Access needs?",
       });
-      await listingQuestions.setIds(listing.id, [question.id]);
 
       // Drive the REAL checkout so ticket-submit resolves the free-text answer
       // to a string id and packs it into the intent. Capture that intent: its
@@ -114,7 +113,7 @@ describeWithEnv(
           await submitTicketForm(listing.slug, {
             email: "rt@example.com",
             name: "Round Tripper",
-            [`question_${question.id}`]: "Step-free entrance",
+            [`question${question.id}`]: "Step-free entrance",
           }),
         );
       } finally {
@@ -165,22 +164,10 @@ describeWithEnv(
         name: "Corrupt Ref Paid",
         unitPrice: 1000,
       });
-      const goodQ = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Access needs?",
-      });
-      const lostQ = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Dietary needs?",
-      });
-      const nonsenseQ = await questionsTable.insert({
-        displayType: "free_text",
-        text: "Anything else?",
-      });
-      await listingQuestions.setIds(listing.id, [
-        goodQ.id,
-        lostQ.id,
-        nonsenseQ.id,
+      const [goodQ, lostQ, nonsenseQ] = await freeTextQuestionsOn(listing.id, [
+        "Access needs?",
+        "Dietary needs?",
+        "Anything else?",
       ]);
 
       const stringIds = await getOrCreateStringIds(["Step-free entrance"]);

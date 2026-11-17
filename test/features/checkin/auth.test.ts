@@ -81,7 +81,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       // An agent's run-sheet view never carries the bulk actions: their
       // session is not a door role, so the POST would refuse them.
       expectExcludesAll(allowedBody, [
-        'name="check_in"',
+        'name="checkIn"',
         "Check In All",
         `href="/admin/attendees/${own.attendee.id}"`,
         `href="/admin/listing/${own.listing.id}"`,
@@ -124,7 +124,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       assertStringIncludes(body, "Refunded Person");
       // A refunded leg offers nothing to change, and an agent's session is
       // not a door role: no bulk action may appear.
-      expectExcludesAll(body, ["Check In All", 'name="check_in"']);
+      expectExcludesAll(body, ["Check In All", 'name="checkIn"']);
     });
 
     test("a scanner's door role alone offers no action on a token no row can change", async () => {
@@ -144,7 +144,7 @@ describeWithEnv("check-in page role authorization", { db: true }, () => {
       expectExcludesAll(body, [
         "Check In All",
         "Check Out All",
-        'name="check_in"',
+        'name="checkIn"',
       ]);
     });
 

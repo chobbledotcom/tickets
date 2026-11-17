@@ -59,7 +59,7 @@ describeWithEnv("the holiday page", { db: true }, () => {
     const response = await holidayPage.renderEditError(
       holiday.id,
       await getTestAuthSession(),
-      new FormParams({ end_date: "2026-01-01", start_date: "2026-06-01" }),
+      new FormParams({ endDate: "2026-01-01", startDate: "2026-06-01" }),
       "End date is before the start date",
     );
     const html = await response.text();

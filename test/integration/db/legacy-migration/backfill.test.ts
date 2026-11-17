@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { insert, setDb } from "#db/client.ts";
+import { setDb } from "#db/client.ts";
 import { initDb, invalidateInitDbCache } from "#db/migrations.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import {
   createLegacyMigrationHarness,
   expectAttendeeCols,
@@ -11,6 +13,7 @@ import {
   stubPragmaForeignKeysOff,
 } from "#test/integration/db/legacy-migration/helpers.ts";
 import { expectAttendeeRow } from "#test-utils/attendee-rows.ts";
+import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";
 import { setupTestEncryptionKey } from "#test-utils/env.ts";
 
 describe("db > listing_attendees migration from legacy schema (backfill)", () => {
@@ -20,33 +23,16 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
   test("migration backfills listing_attendees, listing duration, and processed_payments", async () => {
     const client = await h.createLegacyDb();
 
+    await client.execute(await listingRowStatement("Test Listing", { id: 1 }));
     await client.execute(
-      insert("listings", {
-        created: "2024-01-01T00:00:00Z",
-        id: 1,
-        max_attendees: 100,
-        name: "Test Listing",
-      }),
+      sql`INSERT INTO attendees (checked_in_v2, created, date, email, id, listing_id, name, price_paid_v2, quantity, refunded_v2)
+        VALUES (${0}, ${"2024-01-01T00:00:00Z"}, ${"2024-06-15"}, ${"test@example.com"}, ${1}, ${1}, ${"Test User"}, ${1000}, ${2}, ${0})`,
     );
     await client.execute(
-      insert("attendees", {
-        checked_in_v2: 0,
-        created: "2024-01-01T00:00:00Z",
-        date: "2024-06-15",
-        email: "test@example.com",
-        id: 1,
-        listing_id: 1,
-        name: "Test User",
-        price_paid_v2: 1000,
-        quantity: 2,
-        refunded_v2: 0,
-      }),
-    );
-    await client.execute(
-      insert("processed_payments", {
-        attendee_id: 1,
-        payment_session_id: "ps_test_123",
-        processed_at: "2024-01-01T00:00:00Z",
+      insertInto(tables.processed_payments, {
+        attendeeId: 1,
+        paymentSessionId: "ps_test_123",
+        processedAt: "2024-01-01T00:00:00Z",
       }),
     );
 
@@ -105,12 +91,8 @@ describe("db > listing_attendees migration from legacy schema (backfill)", () =>
 
     // Insert a row so we can verify it's untouched (not lost to a spurious recreation)
     await client.execute(
-      insert("attendees", {
-        created: "2024-05-01T00:00:00Z",
-        id: 1,
-        pii_blob: "blob-data",
-        ticket_token_index: "tok_skip",
-      }),
+      sql`INSERT INTO attendees (created, id, pii_blob, ticket_token_index)
+        VALUES (${"2024-05-01T00:00:00Z"}, ${1}, ${"blob-data"}, ${"tok_skip"})`,
     );
 
     // Force a named migration re-run by making legacy markers stale and

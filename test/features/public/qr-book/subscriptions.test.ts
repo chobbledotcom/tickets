@@ -1,7 +1,7 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -27,7 +27,7 @@ describeWithEnv("subscription QR checkout", { db: true }, () => {
           maxAttendees: 10,
           unitPrice: 1000,
         });
-        await listingsTable.update(listing.id, {
+        await updateListing(listing.id, {
           recurringInterval: "month",
           recurringPrice: 500,
         });

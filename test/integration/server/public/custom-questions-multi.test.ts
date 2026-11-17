@@ -59,9 +59,9 @@ describeWithEnv(
         const response = await submitMultiTicketForm(slug, {
           email: "multiq@example.com",
           name: "Multi Q User",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${question.id}`]: String(answer1.id),
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -86,10 +86,10 @@ describeWithEnv(
         const response = await submitMultiTicketForm(slug, {
           email: "perlisting@example.com",
           name: "Per Listing User",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "1",
-          [`question_${q1.questionId}`]: String(q1.answerId),
-          [`question_${q2.questionId}`]: String(q2.answerId),
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "1",
+          [`question${q1.questionId}`]: String(q1.answerId),
+          [`question${q2.questionId}`]: String(q2.answerId),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -113,9 +113,9 @@ describeWithEnv(
         const response = await submitMultiTicketForm(slug, {
           email: "shared@example.com",
           name: "Shared Q User",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "0",
-          [`question_${q1.questionId}`]: String(q1.answerId),
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "0",
+          [`question${q1.questionId}`]: String(q1.answerId),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -142,8 +142,8 @@ describeWithEnv(
         const response = await submitMultiTicketForm(slug, {
           email: "filter@example.com",
           name: "Filter User",
-          [`quantity_${listing1.id}`]: "0",
-          [`quantity_${listing2.id}`]: "1",
+          [`quantity${listing1.id}`]: "0",
+          [`quantity${listing2.id}`]: "1",
         });
         expectReservedRedirectWithTokens(response);
       });
@@ -159,8 +159,8 @@ describeWithEnv(
         const response = await submitMultiTicketForm(slug, {
           email: "error@example.com",
           name: "Error User",
-          [`quantity_${listing1.id}`]: "1",
-          [`quantity_${listing2.id}`]: "0",
+          [`quantity${listing1.id}`]: "1",
+          [`quantity${listing2.id}`]: "0",
           // No question answer provided
         });
         expect(response.status).toBe(302);

@@ -50,7 +50,7 @@ export const expectedItemPrice = (
   const rule = packageMemberPriceRule(
     memberLine ? pkg!.priceMap.get(item.e) : undefined,
     memberLine ? pkg!.dayPriceMap.get(item.e) : undefined,
-    listing.customisable_days,
+    listing.customisableDays,
   );
   return effectivePrice(rule, listing, NO_CUSTOM_PRICES, dayCount) * item.q;
 };

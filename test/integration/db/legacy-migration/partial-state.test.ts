@@ -1,6 +1,6 @@
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
-import { insert, setDb } from "#db/client.ts";
+import { setDb } from "#db/client.ts";
 import { initDb } from "#db/migrations.ts";
 import { sql } from "#db/sql.ts";
 import {
@@ -51,14 +51,8 @@ describe("db > listing_attendees migration from legacy schema (partial state)", 
     )`);
 
     await client.execute(
-      insert("attendees", {
-        created: "2024-03-01T00:00:00Z",
-        email: "alice@example.com",
-        id: 1,
-        name: "Alice",
-        pii_blob: "encrypted-data",
-        ticket_token_index: "tok_abc",
-      }),
+      sql`INSERT INTO attendees (created, email, id, name, pii_blob, ticket_token_index)
+        VALUES (${"2024-03-01T00:00:00Z"}, ${"alice@example.com"}, ${1}, ${"Alice"}, ${"encrypted-data"}, ${"tok_abc"})`,
     );
 
     await initDb();

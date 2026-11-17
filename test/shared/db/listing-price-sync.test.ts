@@ -139,7 +139,7 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
   test("a page of listings syncs in one batch per page", async () => {
     // The guarded delete and insert for each listing ride one batch with the
     // source read, however many listings the page holds.
-    const listings: { id: number; unit_price: number }[] = [];
+    const listings: { id: number; unitPrice: number }[] = [];
     for (const unitPrice of [500, 501, 502]) {
       listings.push(await createTestListing({ unitPrice }));
     }
@@ -151,7 +151,7 @@ describeWithEnv("listing base-mirror sync", { db: true }, () => {
     ).toBe(1);
     for (const listing of listings) {
       expect(await priceRows(listing.id)).toEqual([
-        { price_id: "", price_type: "base", unit_price: listing.unit_price },
+        { price_id: "", price_type: "base", unit_price: listing.unitPrice },
       ]);
     }
   });

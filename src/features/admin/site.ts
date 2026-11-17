@@ -97,8 +97,8 @@ const handleSiteHomePost = createAuthedFormRoute({
   },
   onInvalid: ({ error }) => errorRedirect("/admin/site", error),
   onValid: async ({ values }) => {
-    await settings.update.websiteTitle(values.website_title);
-    await settings.update.homepageText(values.homepage_text);
+    await settings.update.websiteTitle(values.websiteTitle);
+    await settings.update.homepageText(values.homepageText);
     await logActivity("Homepage updated");
     return redirect("/admin/site", t("site.homepage_updated"), true);
   },
@@ -107,7 +107,7 @@ const handleSiteHomePost = createAuthedFormRoute({
 /** Handle POST /admin/site/contact/form - toggle the public contact form */
 const handleSiteContactFormTogglePost = settingsToggle({
   auth: SITE_FORM,
-  field: "contact_form_enabled",
+  field: "contactFormEnabled",
   label: "Contact form",
   redirectTo: "/admin/site/contact",
   save: (v) => settings.update.contactFormEnabled(v),
@@ -118,7 +118,7 @@ const handleSiteContactPost = settingsHandler({
   auth: SITE_FORM,
   extract: (form) => {
     applyDemoOverrides(form, SITE_CONTACT_DEMO_FIELDS);
-    return form.getString("contact_page_text");
+    return form.getString("contactPageText");
   },
   log: () => "Contact page updated",
   redirectTo: "/admin/site/contact",
@@ -143,7 +143,7 @@ const handleSiteOrderGet = sitePage(async (session, _request, flash) => {
 /** Handle POST /admin/site/order/toggle - enable/disable the public order page */
 const handleSiteOrderTogglePost = settingsToggle({
   auth: SITE_FORM,
-  field: "order_enabled",
+  field: "orderEnabled",
   label: "Order page",
   redirectTo: "/admin/site/order",
   save: (v) => settings.update.orderEnabled(v),
@@ -152,7 +152,7 @@ const handleSiteOrderTogglePost = settingsToggle({
 /** Handle POST /admin/site/order - save the order page intro text */
 const handleSiteOrderPost = settingsHandler({
   auth: SITE_FORM,
-  extract: (form) => form.getString("order_intro_text"),
+  extract: (form) => form.getString("orderIntroText"),
   log: () => "Order page updated",
   redirectTo: "/admin/site/order",
   save: (v) => settings.update.orderIntroText(v),

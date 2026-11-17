@@ -52,12 +52,12 @@ const recordFromForm = (
   form: FormParams,
   current: ContactRecord,
 ): ContactRecord => ({
-  adminBookingCount: nonNegativeInt(form, "admin_booking_count"),
-  adminNotes: form.getString("admin_notes"),
+  adminBookingCount: nonNegativeInt(form, "adminBookingCount"),
+  adminNotes: form.getString("adminNotes"),
   contactCount: nonNegativeInt(form, "messages"),
   lastContact: current.lastContact,
-  lastSubject: form.getString("last_subject"),
-  publicBookingCount: nonNegativeInt(form, "public_booking_count"),
+  lastSubject: form.getString("lastSubject"),
+  publicBookingCount: nonNegativeInt(form, "publicBookingCount"),
   visits: nonNegativeInt(form, "visits"),
 });
 

@@ -54,7 +54,7 @@ describeWithEnv(
           thankYouUrl: "https://example.com/thanks",
         });
         const response = await submitTicketForm(listing.slug, {
-          agree_terms: "1",
+          agreeTerms: "1",
           email: "john@example.com",
           name: "John Doe",
         });

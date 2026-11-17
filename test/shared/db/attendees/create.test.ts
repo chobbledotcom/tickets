@@ -14,7 +14,6 @@ import {
 } from "#db/attendees/create.ts";
 import { queryOne, withTransaction } from "#db/client.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { sql } from "#db/sql.ts";
 import { postBookingLegsTx } from "#shared/checkout-complete.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -30,6 +29,7 @@ import {
   surcharge,
 } from "#test-utils/db-helpers/attendee-creation.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   getProcessedPayment,
   taggedPaymentReference,
@@ -41,11 +41,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await modifiersTable.insert({
-      calcKind: "fixed",
+    const m = await insertModifier({
       calcValue: 1,
-      direction: "charge",
-      name: "Add-on",
       stock: 5,
     });
     const { plan } = await buildPlan({
@@ -75,7 +72,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map([[m.id, 1]]));
     // Session finalized atomically: attendee_id set in the same batch.
     const session = await getProcessedPayment("sess_batch_ok");
-    expect(session!.attendee_id).toBe(attendeeId);
+    expect(session!.attendeeId).toBe(attendeeId);
     expect(
       await queryOne<{ pii_payment_session_id: string }>(
         sql`SELECT pii_payment_session_id FROM attendees WHERE id = ${attendeeId}`,
@@ -121,7 +118,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
 
     await expectNothingWritten(listing.id, 0);
     expect(
-      (await getProcessedPayment("sess_mismatched_payment"))!.attendee_id,
+      (await getProcessedPayment("sess_mismatched_payment"))!.attendeeId,
     ).toBe(null);
   });
 
@@ -130,10 +127,8 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 5,
       unitPrice: 500,
     });
-    const m = await modifiersTable.insert({
-      calcKind: "fixed",
+    const m = await insertModifier({
       calcValue: 1,
-      direction: "charge",
       name: "Sold out add-on",
       stock: 0,
     });
@@ -157,7 +152,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     // Nothing landed: no attendee, no legs, no stock, session left unresolved.
     await expectNothingWritten(listing.id, 0);
     expect(await modifierUsedQuantities([m.id])).toEqual(new Map());
-    expect((await getProcessedPayment("sess_batch_soldout"))!.attendee_id).toBe(
+    expect((await getProcessedPayment("sess_batch_soldout"))!.attendeeId).toBe(
       null,
     );
   });
@@ -264,17 +259,13 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
       maxAttendees: 0,
       unitPrice: 500,
     });
-    const unlimited = await modifiersTable.insert({
-      calcKind: "fixed",
+    const unlimited = await insertModifier({
       calcValue: 1,
-      direction: "charge",
       name: "Unlimited",
       stock: null,
     });
-    const plenty = await modifiersTable.insert({
-      calcKind: "fixed",
+    const plenty = await insertModifier({
       calcValue: 1,
-      direction: "charge",
       name: "Plenty",
       stock: 5,
     });
@@ -325,7 +316,7 @@ describeWithEnv("db > createBookingAtomic", { db: true }, () => {
     });
     await expectNothingWritten(listing.id, plan.legs.length);
     expect(
-      (await getProcessedPayment("sess_batch_existing_ledger"))!.attendee_id,
+      (await getProcessedPayment("sess_batch_existing_ledger"))!.attendeeId,
     ).toBe(null);
   });
 });

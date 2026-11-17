@@ -44,7 +44,7 @@ export const organiserAddsBooking = (
         ...(booking.day === undefined ? {} : { date: booking.day }),
         ...(booking.dayCount === undefined
           ? {}
-          : { day_count: String(booking.dayCount) }),
+          : { dayCount: String(booking.dayCount) }),
       },
       "Add Attendee",
     );

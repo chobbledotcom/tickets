@@ -63,7 +63,7 @@ describeWithEnv("admin email templates", { db: true }, () => {
     await handleRequest(
       mockFormRequest(
         path,
-        { ...fields, csrf_token: await testCsrfToken() },
+        { ...fields, csrfToken: await testCsrfToken() },
         await testCookie(),
       ),
     );

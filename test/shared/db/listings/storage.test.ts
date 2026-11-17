@@ -3,15 +3,33 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
-import { getDb } from "#db/client.ts";
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
-import { rawListingsTable } from "#db/listings/table.ts";
+import { execute, getDb } from "#db/client.ts";
+import { fieldCodecs } from "#db/codecs/fields.ts";
+import { json } from "#db/codecs/kinds.ts";
+import { openItemImages } from "#db/images.ts";
+import {
+  createListing,
+  getListingWithCount,
+  updateListing,
+} from "#db/listings/records.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
-import type { ListingInput } from "#shared/records/listing-fields.ts";
+import {
+  LISTING_FIELDS,
+  type ListingInput,
+} from "#shared/records/listing-fields.ts";
 import { testCases } from "#test-utils/case-table.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";
 import { setupErrorSpy } from "#test-utils/error-spy.ts";
-import { type DayPrices, MAX_DURATION_DAYS } from "#types";
+import { DayPricesSchema, MAX_DURATION_DAYS } from "#types";
+
+const LISTING_CODECS = fieldCodecs("listings", LISTING_FIELDS);
+
+/** The codec of the day prices that a listing read projects. */
+const storedDayPrices = json(DayPricesSchema, "listings.day_prices");
 
 describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   const errors = setupErrorSpy();
@@ -21,7 +39,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     slug: string,
     fields: Partial<ListingInput> = {},
   ) =>
-    listingsTable.insert({
+    createListing({
       maxAttendees: 100,
       maxPrice: 10000,
       name: slug,
@@ -35,61 +53,61 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const saved = await getListingWithCount(listing.id);
     expect(saved).toMatchObject({
       active: true,
-      assign_built_site: false,
-      bookable_alone: false,
-      can_pay_more: false,
-      customisable_days: false,
-      duration_days: 1,
+      assignBuiltSite: false,
+      bookableAlone: false,
+      canPayMore: false,
+      customisableDays: false,
+      durationDays: 1,
       fields: "email",
       hidden: false,
-      initial_site_months: 0,
-      listing_type: "standard",
-      max_price: 10000,
-      max_quantity: 1,
-      maximum_days_after: 90,
-      minimum_days_before: 1,
-      months_per_unit: 0,
-      non_transferable: false,
-      purchase_only: false,
-      unit_price: 0,
-      use_defaults: false,
-      uses_logistics: false,
+      initialSiteMonths: 0,
+      listingType: "standard",
+      maximumDaysAfter: 90,
+      maxPrice: 10000,
+      maxQuantity: 1,
+      minimumDaysBefore: 1,
+      monthsPerUnit: 0,
+      nonTransferable: false,
+      purchaseOnly: false,
+      unitPrice: 0,
+      useDefaults: false,
+      usesLogistics: false,
     });
   });
 
-  test("applies numeric defaults at the raw table boundary", async () => {
-    expect(rawListingsTable.schema.duration_days.default?.()).toBe(1);
-    const listing = await rawListingsTable.insert({
-      maxAttendees: 100,
-      name: "raw defaults",
-      slug: "raw-storage-defaults",
-      slugIndex: await hmacHash("raw-storage-defaults"),
-    } as ListingInput);
-    expect(listing.duration_days).toBe(1);
-    expect(listing.max_price).toBe(0);
+  test("a bare row takes its numeric defaults from the table", async () => {
+    await execute(await listingRowStatement("bare defaults"));
+    const [row] = await readRows(
+      from(tables.listings).pick("durationDays", "maxPrice"),
+    );
+    expect(row).toEqual({ durationDays: 1, maxPrice: 0 });
   });
 
   test("names each projected image when its stored filename is broken", async () => {
     const stored = await encrypt("");
-    await rawListingsTable.readColumn("image_thumb_url", stored, 8);
+    await openItemImages(
+      { imageAltText: "", imageThumbUrl: stored, imageUrl: "" },
+      "listing 8",
+    );
     assertStringIncludes(
       errors.lastMessage() ?? "",
       "listing 8 thumbnail image",
     );
-    await rawListingsTable.readColumn("image_url", stored, 9);
+    await openItemImages(
+      { imageAltText: "", imageThumbUrl: "", imageUrl: stored },
+      "listing 9",
+    );
     assertStringIncludes(errors.lastMessage() ?? "", "listing 9 image");
   });
 
   describe("date and closes_at read transforms", () => {
     test("reads an encrypted empty stored date as empty", async () => {
-      expect(await rawListingsTable.readColumn("date", await encrypt(""))).toBe(
-        "",
-      );
+      expect(await LISTING_CODECS.date.decode(await encrypt(""), 1)).toBe("");
     });
 
     test("names stored datetime when a decrypted date is invalid", async () => {
       await expect(
-        rawListingsTable.readColumn("date", await encrypt("not-a-dateZ")),
+        LISTING_CODECS.date.decode(await encrypt("not-a-dateZ"), 1),
       ).rejects.toThrow("stored datetime has invalid datetime: not-a-dateZ");
     });
 
@@ -97,7 +115,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
     const savedValue = async (
       slug: string,
       fields: Partial<ListingInput>,
-      column: "date" | "closes_at",
+      column: "date" | "closesAt",
     ): Promise<unknown> => {
       const listing = await insertListing(slug, fields);
       return (await getListingWithCount(listing.id))?.[column];
@@ -122,14 +140,14 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "returns null for no-deadline listing",
         "test-read-1",
         { closesAt: "" },
-        "closes_at",
+        "closesAt",
         null,
       ],
       [
         "returns normalized ISO string for valid datetime",
         "test-read-2",
         { closesAt: "2099-12-31T23:59" },
-        "closes_at",
+        "closesAt",
         "2099-12-31T23:59:00.000Z",
       ],
     ] as const) {
@@ -163,7 +181,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   describe("duration_days write validation", () => {
     const insertWithDuration = async (slug: string, durationDays: number) => {
       const listing = await insertListing(slug, { durationDays });
-      return (await getListingWithCount(listing.id))!.duration_days;
+      return (await getListingWithCount(listing.id))!.durationDays;
     };
 
     test("accepts whole days within the supported range", async () => {
@@ -191,10 +209,10 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
     test("clamps an out-of-range update", async () => {
       const listing = await insertListing("test-dur-upd");
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         durationDays: MAX_DURATION_DAYS + 1,
       });
-      expect((await getListingWithCount(listing.id))!.duration_days).toBe(
+      expect((await getListingWithCount(listing.id))!.durationDays).toBe(
         MAX_DURATION_DAYS,
       );
     });
@@ -235,7 +253,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         "test-bd-day",
         '["Monday","Funday"]',
       );
-      expect((await getListingWithCount(listing.id))?.bookable_days).toEqual([
+      expect((await getListingWithCount(listing.id))?.bookableDays).toEqual([
         "Monday",
         "Funday",
       ]);
@@ -243,35 +261,25 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
   });
 
   describe("day_prices read transform", () => {
-    test("accepts a stored day-price object", async () => {
-      expect(
-        await rawListingsTable.readColumn(
-          "day_prices",
-          '{"1":100,"2":180}' as unknown as DayPrices,
-        ),
-      ).toEqual({ 1: 100, 2: 180 });
+    test("accepts a stored day-price object", () => {
+      expect(storedDayPrices.decode('{"1":100,"2":180}', 7)).toEqual({
+        1: 100,
+        2: 180,
+      });
     });
 
-    test("rejects arrays, invalid keys, and invalid prices", async () => {
+    test("rejects arrays, invalid keys, and invalid prices", () => {
       for (const stored of ["[]", '{"0":100}', '{"1":"100"}']) {
-        await expect(
-          rawListingsTable.readColumn(
-            "day_prices",
-            stored as unknown as DayPrices,
-            7,
-          ),
-        ).rejects.toThrow("Invalid stored JSON in listings.day_prices row 7");
+        expect(() => storedDayPrices.decode(stored, 7)).toThrow(
+          "Invalid stored JSON in listings.day_prices row 7",
+        );
       }
     });
 
-    test("rejects colliding canonical and leading-zero day keys", async () => {
-      await expect(
-        rawListingsTable.readColumn(
-          "day_prices",
-          '{"01":100,"1":200}' as unknown as DayPrices,
-          7,
-        ),
-      ).rejects.toThrow("Invalid stored JSON in listings.day_prices row 7");
+    test("rejects colliding canonical and leading-zero day keys", () => {
+      expect(() => storedDayPrices.decode('{"01":100,"1":200}', 7)).toThrow(
+        "Invalid stored JSON in listings.day_prices row 7",
+      );
     });
   });
 });

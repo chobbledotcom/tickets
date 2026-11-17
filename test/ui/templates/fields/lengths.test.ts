@@ -129,7 +129,7 @@ describe("form length boundaries", () => {
     ["builder", builderForm],
     ["built-site", getBuiltSiteForm()],
   ] as const) {
-    const token = byName(form.fields, "db_token");
+    const token = byName(form.fields, "dbToken");
     test(`${label} db_token renders the machine-credential cap`, () => {
       assertStringIncludes(
         renderField(token, ""),
@@ -142,7 +142,7 @@ describe("form length boundaries", () => {
     test(`${label} db_token rejects one character past the cap`, () => {
       expect(
         validateForm(
-          new FormParams({ db_token: "t".repeat(MAX_TEXTAREA_LENGTH + 1) }),
+          new FormParams({ dbToken: "t".repeat(MAX_TEXTAREA_LENGTH + 1) }),
           [token],
         ),
       ).toEqual({

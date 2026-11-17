@@ -8,13 +8,12 @@
 import type {
   Client,
   InStatement,
-  InValue,
   ResultSet,
   Transaction,
   TransactionMode,
 } from "@libsql/client";
+import { decodeResult, decodeResults } from "#db/codecs/decode.ts";
 import { createDatabaseClient } from "#db/database-client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
 import { classifyDatabaseError, DATABASE_RETRY } from "#db/errors.ts";
 import {
   beginTransaction,
@@ -30,18 +29,14 @@ import {
 } from "#db/query-log.ts";
 import {
   type Read,
-  type SqlSlot,
+  type RowsStatement,
   type SqlStatement,
   sql,
-  sqlCommas,
-  sqlJoin,
   sqlName,
-  sqlNames,
 } from "#db/sql.ts";
 import { isReadSql, sqlOf, writeSqlOf } from "#db/sql-text.ts";
 import type { StatementClient } from "#db/statement-client.ts";
 import { trackedTxBatch, trackedTxExecute } from "#db/tracked-transaction.ts";
-import { equalityClauses } from "#db/where-clauses.ts";
 import { lazyRef } from "#fp";
 import { invalidateCachesForWrite } from "#shared/cache-registry.ts";
 import { getEnv } from "#shared/env.ts";
@@ -153,8 +148,11 @@ type AroundExecute = Parameters<typeof wrapExecute>[1];
 const executeWithRoundTrip =
   (around: AroundExecute) =>
   (target: Pick<Client, "execute">, operation: string) =>
-    wrapExecute(target, (statement, execute) =>
-      around(statement, () => databaseRoundTrip(operation, execute)),
+    wrapExecute(target, async (statement, execute) =>
+      decodeResult(
+        statement,
+        await around(statement, () => databaseRoundTrip(operation, execute)),
+      ),
     );
 
 /** Count and retry a bare client statement. Transaction statements use only the
@@ -175,18 +173,29 @@ const TRANSACTION_OPERATION: Record<TransactionOperation, string> = {
   rollback: "transaction rollback",
 };
 
+/** A transaction whose reads decode their rows. */
+const decodingTransaction = (transaction: Transaction): Transaction =>
+  proxyMembers(transaction, {
+    batch: async (statements: InStatement[]) =>
+      decodeResults(statements, await transaction.batch(statements)),
+    execute: async (statement: InStatement) =>
+      decodeResult(statement, await transaction.execute(statement)),
+  });
+
 const transactionWithRoundTripGuard = (transaction: Transaction): Transaction =>
-  wrapTransactionOperations(transaction, (operation, run) =>
-    // Rollback is mandatory cleanup: an interactive transaction left open (its
-    // rollback blocked) poisons the shared write connection for the rest of the
-    // request. It is counted like any other subrequest — so the running total
-    // stays accurate for later calls — but never blocked, so it always runs even
-    // once the budget is spent.
-    databaseRoundTrip(
-      TRANSACTION_OPERATION[operation],
-      run,
-      operation !== "rollback",
-    ),
+  wrapTransactionOperations(
+    decodingTransaction(transaction),
+    (operation, run) =>
+      // Rollback is mandatory cleanup: an interactive transaction left open (its
+      // rollback blocked) poisons the shared write connection for the rest of the
+      // request. It is counted like any other subrequest — so the running total
+      // stays accurate for later calls — but never blocked, so it always runs even
+      // once the budget is spent.
+      databaseRoundTrip(
+        TRANSACTION_OPERATION[operation],
+        run,
+        operation !== "rollback",
+      ),
   );
 
 const guardedClients = new WeakMap<Client, Client>();
@@ -197,8 +206,11 @@ const withRoundTripGuard = (client: Client): Client => {
   if (existing) return existing;
   const guarded = proxyMembers(client, {
     [GUARDED_CLIENT]: true,
-    batch: (statements: InStatement[], mode?: TransactionMode) =>
-      databaseRoundTrip("batch", () => client.batch(statements, mode)),
+    batch: async (statements: InStatement[], mode?: TransactionMode) =>
+      decodeResults(
+        statements,
+        await databaseRoundTrip("batch", () => client.batch(statements, mode)),
+      ),
     execute: executeWithTransientRetry(client, "statement"),
     executeMultiple: (sql: string): Promise<void> =>
       databaseRoundTrip("script", () => client.executeMultiple(sql)),
@@ -243,8 +255,20 @@ export const setDb = (client: Client | StatementClient | null): void =>
   // A StatementClient is a libsql client behind a narrower type.
   dbSetter(client as Client | null);
 
+declare const RESULT_ROWS: unique symbol;
+
+/** A result whose rows have the type that its statement names. */
+export type RowsResult<Row> = ResultSet & { readonly [RESULT_ROWS]?: Row };
+
+/** Run one statement. A statement that names its rows gives a result of
+ *  those rows, so a caller cannot name another row type for them. */
+export type RunStatement = {
+  <Row>(statement: RowsStatement<Row>): Promise<RowsResult<Row>>;
+  (statement: SqlStatement): Promise<ResultSet>;
+};
+
 /** Cast libsql ResultSet rows to a typed array (single centralized assertion) */
-export const resultRows = <T>(result: ResultSet): T[] => result.rows as T[];
+export const resultRows = <T>(result: RowsResult<T>): T[] => result.rows as T[];
 
 /** Raised when a write can't get through because the database stays locked after
  *  the retries below — too busy. The request layer turns this into a friendly
@@ -323,7 +347,7 @@ const executeTrackedStatement: StatementRunner<ResultSet> = (statement) =>
  * through here (queryOne/queryAll wrap it), so cache invalidation is driven by
  * the write itself rather than by each call site remembering to invalidate.
  */
-export const execute: StatementRunner<ResultSet> = async (statement) => {
+export const execute: RunStatement = async (statement: SqlStatement) => {
   const result = await executeTrackedStatement(statement);
   invalidateForSql(statement.sql);
   return result;
@@ -415,70 +439,6 @@ export const countRows = async (table: string): Promise<number> => {
   return row.n;
 };
 
-/** One delete-rows-matching-a-field target: which table, matched on which
- * field, for which value. */
-export type DeleteByFieldTarget = {
-  table: string;
-  field: string;
-  value: InValue;
-};
-
-/** Build the DELETE statement for one {@link DeleteByFieldTarget} — for batches
- * that mix these deletes with other statements. */
-export const deleteByFieldStatement = ({
-  table,
-  field,
-  value,
-}: DeleteByFieldTarget): SqlStatement => deleteFrom(table, { [field]: value });
-
-/** Delete rows matching a field value */
-export const deleteByField = async (
-  table: string,
-  field: string,
-  value: InValue,
-): Promise<void> => {
-  await execute(deleteByFieldStatement({ field, table, value }));
-};
-
-/** Delete rows from multiple tables in a single batch transaction */
-export const deleteByFieldBatch = (
-  deletes: DeleteByFieldTarget[],
-): Promise<void> => executeBatch(deletes.map(deleteByFieldStatement));
-
-/**
- * Delete one row and the rows that point at it, children first, in one batch.
- * Each child names the column that holds the parent's id.
- */
-export const deleteWithChildren =
-  (
-    table: string,
-    children: readonly { field: string; table: string }[],
-  ): ((id: number) => Promise<void>) =>
-  (id) =>
-    deleteByFieldBatch([
-      ...children.map((child) => ({ ...child, value: id })),
-      { field: "id", table, value: id },
-    ]);
-
-/**
- * Reset selected aggregate columns. Each column's recount is an expression
- * that reads the id of the row it sits on, as `<table>.id`.
- */
-export const resetAggregates = async <T extends string>(
-  table: string,
-  entityId: InValue,
-  fields: readonly T[],
-  recount: Record<T, SqlStatement>,
-): Promise<void> => {
-  if (fields.length === 0) return;
-  const resets = sqlCommas(
-    fields.map((field) => sql`${sqlName(field)} = ${recount[field]}`),
-  );
-  await execute(
-    sql`UPDATE ${sqlName(table)} SET ${resets} WHERE id = ${entityId}`,
-  );
-};
-
 /**
  * Execute a batch with optional query logging, then invalidate caches for every
  * table the batch mutated. Invalidation runs once the transaction has
@@ -515,14 +475,28 @@ export const executeBatchWithoutCacheInvalidation = async (
   await runBatch(statements, "write", false, false);
 };
 
+/** The result of each statement of a batch, in its place. */
+export type ResultsOf<Statements extends readonly SqlStatement[]> = {
+  -readonly [Index in keyof Statements]: Statements[Index] extends RowsStatement<
+    infer Row
+  >
+    ? RowsResult<Row>
+    : ResultSet;
+};
+
 /** Runs several statements as one batch and answers each in turn: the shape
  *  {@link queryBatch} and {@link executeBatchWithResults} have, and the one
  *  {@link TxScope}'s `batch` fits. A caller that reads either from the client
  *  or through an open transaction takes one of these instead of naming both. */
-export type BatchExecutor = (
-  statements: SqlStatement[],
-) => Promise<ResultSet[]>;
+export type BatchExecutor = <const Statements extends readonly SqlStatement[]>(
+  statements: Statements,
+) => Promise<ResultsOf<Statements>>;
 
+/** The results of a batch under the types of its statements. libsql answers
+ *  each statement in its place. */
+export const resultsOf = <Statements extends readonly SqlStatement[]>(
+  results: ResultSet[],
+): ResultsOf<Statements> => results as ResultsOf<Statements>;
 /** What makes a read batch safe to retry: a write smuggled into one is rejected
  *  loudly here, so every statement really is a side-effect-free SELECT. */
 const requireReadStatements = (statements: readonly SqlStatement[]): void => {
@@ -549,11 +523,13 @@ const batchFor =
     // The async body turns a smuggled write into a rejected promise, not a
     // synchronous throw.
     if (isRead) requireReadStatements(statements);
-    return runBatch(
-      statements,
-      typeof mode === "function" ? mode() : mode,
-      true,
-      isRead,
+    return resultsOf(
+      await runBatch(
+        [...statements],
+        typeof mode === "function" ? mode() : mode,
+        true,
+        isRead,
+      ),
     );
   };
 
@@ -588,8 +564,8 @@ export const executeBatch = async (
  *  callback: run statements singly or as one batch; commit/rollback are managed
  *  for you. */
 export type TxScope = {
-  batch: (statements: SqlStatement[]) => Promise<ResultSet[]>;
-  execute: (statement: SqlStatement) => Promise<ResultSet>;
+  batch: BatchExecutor;
+  execute: RunStatement;
 };
 
 /** Reads narrow pre-update state through an open write transaction. */
@@ -615,14 +591,14 @@ const runWriteTransactionOnce = async <T>(
   const writtenSql: string[] = [];
   let statementCount = 0;
   const scope: TxScope = {
-    batch: (statements) => {
+    batch: async (statements) => {
       const sqls = statements.map((statement) => statement.sql);
       writtenSql.push(...sqls);
       statementCount += 1;
       enforceTransactionRoundTripGuard(statementCount, sqls.join("; "));
-      return trackedTxBatch(tx)(statements);
+      return resultsOf(await trackedTxBatch(tx)([...statements]));
     },
-    execute: (statement) => {
+    execute: (statement: SqlStatement) => {
       writtenSql.push(statement.sql);
       // Holding the write lock across many sequential round-trips is the
       // "Transaction timed-out" shape; chatty writes belong in a batch.
@@ -729,9 +705,9 @@ export const withReadSnapshot: TransactionRunner = (work) =>
       const tx = await getDb().transaction("read");
       // The SELECT-only runners the snapshot hands its work: each refuses a
       // non-SELECT before it reaches `tx`.
-      const batch = (statements: SqlStatement[]): Promise<ResultSet[]> => {
+      const batch: BatchExecutor = async (statements) => {
         requireReadStatements(statements);
-        return trackedTxBatch(tx)(statements);
+        return resultsOf(await trackedTxBatch(tx)([...statements]));
       };
       const execute = (statement: SqlStatement): Promise<ResultSet> => {
         requireReadStatements([statement]);
@@ -779,62 +755,3 @@ export const insertedRowId = (
     )})`,
   );
 };
-
-/** Build an INSERT that starts with `opening`, from a column-to-value record. */
-const insertStartingWith =
-  (opening: SqlStatement) =>
-  (
-    table: string,
-    values: Record<string, SqlSlot>,
-    returningColumn?: string,
-  ): SqlStatement => {
-    const columns = sqlNames(Object.keys(values));
-    const slots = sqlCommas(
-      Object.values(values).map((value) => sql`${value}`),
-    );
-    const written = sql`${opening} ${sqlName(table)} (${columns}) VALUES (${slots})`;
-    return returningColumn === undefined
-      ? written
-      : sql`${written} RETURNING ${sqlName(returningColumn)}`;
-  };
-
-/**
- * Build an INSERT statement from a table name and column-to-value record. A
- * value that is itself a statement goes into the SQL as written, which is how
- * a column takes an expression such as `last_insert_rowid()`.
- *
- * Pass `returningColumn` when the caller needs a value back from the written
- * row, such as a generated key read with {@link insertedRowId}.
- */
-export const insert = insertStartingWith(sql`INSERT INTO`);
-
-/**
- * {@link insert}, dropping a row whose unique key is already stored instead of
- * raising a constraint error. This is the once-only latch resumable flows lean
- * on: a replayed write re-derives the same key and lands nowhere. It silences
- * every conflict on the statement, so use it only where the unique key IS the
- * idempotency rule.
- */
-export const insertOrIgnore = insertStartingWith(sql`INSERT OR IGNORE INTO`);
-
-/**
- * Build an UPDATE statement, the WHERE record ANDed as equality checks. A SET
- * value can be a statement, such as a counter increment. A write needing a
- * richer guard — `IS NULL`, an inequality, a subquery — keeps its own SQL
- * rather than bending this one.
- */
-export const update = (
-  table: string,
-  set: Record<string, SqlSlot>,
-  where: Record<string, InValue>,
-): SqlStatement =>
-  sql`UPDATE ${sqlName(table)} SET ${sqlCommas(
-    equalityClauses(set),
-  )} WHERE ${sqlJoin(equalityClauses(where), sql` AND `)}`;
-
-/** Build the {@link update} statement and run it in one call — the executing
- * form for the single-statement call sites (batch and transactional callers
- * use {@link update} itself). */
-export const executeUpdate = (
-  ...parts: Parameters<typeof update>
-): Promise<ResultSet> => execute(update(...parts));

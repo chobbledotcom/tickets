@@ -35,13 +35,13 @@ const bySortThen =
     sortOf(a) - sortOf(b) || tieOf(a) - tieOf(b);
 
 const bySortOrderThenId = bySortThen<SitePageNavRow>(
-  (p) => p.sort_order,
+  (p) => p.sortOrder,
   (p) => p.id,
 );
 
 const itemOrder = bySortThen<SitePageItem>(
-  (i) => i.sort_order,
-  (i) => i.item_id,
+  (i) => i.sortOrder,
+  (i) => i.itemId,
 );
 
 /** The child → parent map over raw `page`-type edges (first edge wins — the
@@ -54,8 +54,8 @@ export const pageParentMapFromEdges = (
 ): ReadonlyMap<number, number> => {
   const parentByChild = new Map<number, number>();
   for (const edge of edges) {
-    if (edge.item_type === "page" && !parentByChild.has(edge.item_id)) {
-      parentByChild.set(edge.item_id, edge.page_id);
+    if (edge.itemType === "page" && !parentByChild.has(edge.itemId)) {
+      parentByChild.set(edge.itemId, edge.pageId);
     }
   }
   return parentByChild;
@@ -74,9 +74,9 @@ export const buildForest = (
 
   const itemsByPage = new Map<number, SitePageItem[]>();
   for (const item of items) {
-    const list = itemsByPage.get(item.page_id);
+    const list = itemsByPage.get(item.pageId);
     if (list) list.push(item);
-    else itemsByPage.set(item.page_id, [item]);
+    else itemsByPage.set(item.pageId, [item]);
   }
   for (const list of itemsByPage.values()) list.sort(itemOrder);
 
@@ -128,9 +128,9 @@ export const descendantsOf = (forest: Forest, pageId: number): Set<number> => {
   const out = new Set<number>();
   const walk = (id: number): void => {
     for (const item of forest.itemsByPage.get(id) ?? []) {
-      if (item.item_type !== "page" || out.has(item.item_id)) continue;
-      out.add(item.item_id);
-      walk(item.item_id);
+      if (item.itemType !== "page" || out.has(item.itemId)) continue;
+      out.add(item.itemId);
+      walk(item.itemId);
     }
   };
   walk(pageId);
@@ -211,9 +211,9 @@ const anchorPageId = (
   // which is unused while the page is nested), then page id.
   const candidates: { edgeOrder: number; pageId: number }[] = [];
   for (const [pid, list] of forest.itemsByPage) {
-    const match = list.find((i) => i.item_type === kind && i.item_id === id);
+    const match = list.find((i) => i.itemType === kind && i.itemId === id);
     if (match && forest.byId.has(pid)) {
-      candidates.push({ edgeOrder: match.sort_order, pageId: pid });
+      candidates.push({ edgeOrder: match.sortOrder, pageId: pid });
     }
   }
   candidates.sort((x, y) => x.edgeOrder - y.edgeOrder || x.pageId - y.pageId);
@@ -300,7 +300,7 @@ export const buildNavModel = (
   > = {
     group: leafNode,
     listing: leafNode,
-    page: (item, active) => pageNode(item.item_id, active),
+    page: (item, active) => pageNode(item.itemId, active),
   };
 
   const levelOf = (pageId: number, i: number): NavNode[] => {
@@ -308,7 +308,7 @@ export const buildNavModel = (
     return (forest.itemsByPage.get(pageId) ?? [])
       .map((item) => {
         const key = sitePageItemTargets.key(targetOfPageItem(item));
-        return NODE_BUILDERS[item.item_type](item, key === activeKey);
+        return NODE_BUILDERS[item.itemType](item, key === activeKey);
       })
       .filter((n): n is NavNode => n !== null);
   };

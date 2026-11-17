@@ -1,7 +1,7 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { imagesTable, setItemsForImage } from "#db/images.ts";
+import { insertImageRecord, setItemsForImage } from "#db/images.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -43,8 +43,8 @@ describeWithEnv(
           "Group Listing 1",
           "Group Listing 2",
           `action="/ticket/${group.slug}"`,
-          `quantity_${listing1.id}`,
-          `quantity_${listing2.id}`,
+          `quantity${listing1.id}`,
+          `quantity${listing2.id}`,
         );
       });
 
@@ -82,7 +82,7 @@ describeWithEnv(
           maxAttendees: 50,
           name: "Poster Group Listing",
         });
-        const image = await imagesTable.insert({
+        const image = await insertImageRecord({
           altText: "Poster group hero",
           filename: nonEmptyString("poster-group.webp"),
           filenameThumb: nonEmptyString("poster-group-thumb.webp"),

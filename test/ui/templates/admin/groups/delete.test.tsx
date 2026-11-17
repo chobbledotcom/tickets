@@ -22,7 +22,7 @@ describe("adminGroupDeletePage", () => {
       "Are you sure you want to delete the group <strong>Autumn Tours</strong> (autumn-tours)?",
       "<p>Listings in this group will not be deleted. They will be moved out of the group.</p>",
       "Type the group name &quot;Autumn Tours&quot; to confirm.",
-      'name="confirm_identifier" placeholder="Autumn Tours" required',
+      'name="confirmIdentifier" placeholder="Autumn Tours" required',
     ]);
   });
 

@@ -17,7 +17,7 @@ export type TicketQuantities = Map<number, number>;
 /** Per-listing pre-fill applied when scanning a signed QR link */
 export type TicketPrefill = {
   quantity?: number;
-  /** Pre-fill the custom_price input for can_pay_more listings (minor units) */
+  /** Pre-fill the custom price input for pay-more listings (minor units) */
   customPriceMinor?: number;
 };
 

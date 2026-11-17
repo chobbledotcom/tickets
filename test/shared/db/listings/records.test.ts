@@ -4,17 +4,18 @@ import { describe, it as test } from "@std/testing/bdd";
 import { hmacHash } from "#crypto/hashing.ts";
 import { execute, queryOne } from "#db/client.ts";
 import { getListingDayPrices } from "#db/listing-prices.ts";
+import { getAllListingOptions } from "#db/listings/catalog.ts";
 import {
-  getAllListingOptions,
+  createListing,
   getAllListings,
   getListingsBySlugs,
   getListingWithCount,
   getStoredListingsWithCountsByIds,
   getStoredListingWithCount,
-  listingNames,
-  listingsTable,
+  listingNamesByIds,
   requireListingsWithCountsByIds,
   requireListingWithCount,
+  updateListing,
 } from "#db/listings/records.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
@@ -94,7 +95,7 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
           { active: false, id: beta.id, name: "Beta" },
         ]);
         expect(getQueryLog().map((entry) => entry.sql)).toEqual([
-          "SELECT listing.id, listing.name, listing.active FROM listings AS listing ORDER BY listing.id ASC",
+          "SELECT listing.id AS id, listing.name AS name, listing.active AS active FROM listings AS listing ORDER BY listing.id",
         ]);
       });
     });
@@ -103,21 +104,21 @@ describeWithEnv("db > listings > records", { db: true, triggers: true }, () => {
       expect(await getAllListingOptions()).toEqual([]);
     });
 
-    test("listingNames.byIds returns decrypted names only for the given ids", async () => {
+    test("listingNamesByIds returns decrypted names only for the given ids", async () => {
       const alpha = await createTestListing({
         maxAttendees: 10,
         name: "Alpha",
       });
       const beta = await createTestListing({ maxAttendees: 10, name: "Beta" });
 
-      const names = await listingNames.byIds([alpha.id]);
+      const names = await listingNamesByIds([alpha.id]);
 
       expect(names.get(alpha.id)).toBe("Alpha");
       expect(names.has(beta.id)).toBe(false);
     });
 
-    test("listingNames.byIds returns an empty map for no ids", async () => {
-      const names = await listingNames.byIds([]);
+    test("listingNamesByIds returns an empty map for no ids", async () => {
+      const names = await listingNamesByIds([]);
       expect(names.size).toBe(0);
     });
   });
@@ -175,7 +176,7 @@ describeWithEnv(
   },
   () => {
     const insertPriced = async () =>
-      await listingsTable.insert({
+      await createListing({
         dayPrices: { 2: 500 },
         maxAttendees: 10,
         maxPrice: 0,
@@ -197,16 +198,16 @@ describeWithEnv(
 
     test("an insert stores day prices, mirrors the base price, and carries no image", async () => {
       const listing = await insertPriced();
-      expect(listing.image_url).toBe("");
-      expect(listing.image_thumb_url).toBe("");
-      expect(listing.image_alt_text).toBe("");
+      expect(listing.imageUrl).toBe("");
+      expect(listing.imageThumbUrl).toBe("");
+      expect(listing.imageAltText).toBe("");
       expect((await getListingDayPrices(listing.id))[2]).toBe(500);
       expect(await storedBasePrice(listing.id)).toBe(700);
     });
 
     test("an update rewrites the day prices and re-mirrors the base price", async () => {
       const listing = await insertPriced();
-      await listingsTable.update(listing.id, {
+      await updateListing(listing.id, {
         dayPrices: { 3: 900 },
         unitPrice: 800,
       });

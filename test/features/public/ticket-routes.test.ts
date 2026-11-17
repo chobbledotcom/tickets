@@ -183,8 +183,8 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     const booking = await submitMultiTicketForm(group.slug, {
       email: "buyer@example.com",
       name: "Jane Doe",
-      [`quantity_${publicTier.id}`]: "1",
-      [`quantity_${hiddenTier.id}`]: "3",
+      [`quantity${publicTier.id}`]: "1",
+      [`quantity${hiddenTier.id}`]: "3",
     });
     expect(booking.status).toBe(302);
     const bookingLocation = booking.headers.get("location");
@@ -337,7 +337,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expectIncludesAll(html, [
-      `name="package_quantity_${group.id}"`,
+      `name="packageQuantity${group.id}"`,
       // Only the group fallback renders the description; the lone-package cart
       // path would drop it.
       "The package page names what the group page says.",
@@ -361,7 +361,7 @@ describeWithEnv("public ticket routes", { db: true }, () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expectIncludesAll(html, [
-      `name="package_quantity_${group.id}"`,
+      `name="packageQuantity${group.id}"`,
       "Combo Pkg Stall",
       "Combo Addon",
     ]);

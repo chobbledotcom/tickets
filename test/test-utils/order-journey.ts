@@ -9,7 +9,7 @@
  *   await runOrderJourney({
  *     catalog: { packages: [...], listings: [...], parents: [...] },
  *     select: { packages: ["Kit"], listings: ["Tent"], date },
- *     form: (c) => ({ [`package_quantity_${c.group("Kit").id}`]: "1", ... }),
+ *     form: (c) => ({ [`packageQuantity${c.group("Kit").id}`]: "1", ... }),
  *     rows: (c) => [[c.listing("Tent").id, c.group("Kit").id, 0, 2, ""]],
  *     through: async (ctx) => { ...innards... },
  *   });
@@ -374,10 +374,10 @@ export const openEditorFromRoster = async (
 /** The value of the editor line's quantity box at `index` — callers pass an
  * index scraped from the same page, so the box always exists. */
 export const lineQty = (html: string, index: string): string =>
-  new RegExp(`name="qty_${index}"[^>]*value="([^"]*)"`).exec(html)![1]!;
+  new RegExp(`name="qty${index}"[^>]*value="([^"]*)"`).exec(html)![1]!;
 
 /** How many editor lines target the listing (across every path). */
 export const lineCountFor = (html: string, listingId: number): number =>
-  [...html.matchAll(/name="line_listing_\d+"[^>]*value="(\d+)"/g)].filter(
+  [...html.matchAll(/name="lineListing\d+"[^>]*value="(\d+)"/g)].filter(
     (match) => Number(match[1]) === listingId,
   ).length;

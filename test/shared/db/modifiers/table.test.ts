@@ -11,8 +11,8 @@ import {
   getModifierNamesByIds,
   MODIFIER_AGGREGATE_FIELDS,
   modifierAggregates,
-  modifiersTable,
 } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { insertModifierWithUsages } from "#test-utils/db-helpers/modifier-usages.ts";
@@ -24,20 +24,20 @@ describeWithEnv("db modifiers table", { db: true }, () => {
       const row = await insertModifier({ name: "Defaults" });
       const stored = await getModifier(row.id);
       expect(stored?.active).toBe(true);
-      expect(stored?.min_subtotal).toBe(0);
-      expect(stored?.min_visits).toBe(0);
-      expect(stored?.max_per_order).toBeNull();
+      expect(stored?.minSubtotal).toBe(0);
+      expect(stored?.minVisits).toBe(0);
+      expect(stored?.maxPerOrder).toBeNull();
       expect(stored?.scope).toBe("all");
       expect(stored?.trigger).toBe("automatic");
     });
 
     test("update writes behavioural columns", async () => {
       const row = await insertModifier({ name: "Capped" });
-      await modifiersTable.update(row.id, {
+      await records.modifiers.update(row.id, {
         maxPerOrder: 1,
         trigger: "answer",
       });
-      expect((await getModifier(row.id))?.max_per_order).toBe(1);
+      expect((await getModifier(row.id))?.maxPerOrder).toBe(1);
     });
   });
 
@@ -60,7 +60,7 @@ describeWithEnv("db modifiers table", { db: true }, () => {
     test("getActiveModifiers returns only the active ones", async () => {
       const active = await insertModifier({ name: "Live" });
       const inactive = await insertModifier({ name: "Off" });
-      await modifiersTable.update(inactive.id, { active: false });
+      await records.modifiers.update(inactive.id, { active: false });
 
       const names = (await getActiveModifiers()).map((m) => m.name);
       assertArrayIncludes(names, ["Live"]);
@@ -93,34 +93,34 @@ describeWithEnv("db modifiers table", { db: true }, () => {
   describe("aggregates", () => {
     test("manual aggregate writes persist", async () => {
       const row = await insertModifier({ name: "Counted" });
-      const totals = { total_uses: 9, usage_count: 4 };
+      const totals = { totalUses: 9, usageCount: 4 };
       await modifierAggregates.update(row.id, totals);
       expect(await getModifier(row.id)).toMatchObject(totals);
     });
 
     test("resetting the aggregates recalculates them from usage rows", async () => {
       const row = await insertModifierWithUsages({ name: "Recounted" });
-      const wrong = { total_uses: 99, usage_count: 99 };
+      const wrong = { totalUses: 99, usageCount: 99 };
       await modifierAggregates.update(row.id, wrong);
 
       await modifierAggregates.reset(row.id, [...MODIFIER_AGGREGATE_FIELDS]);
       expect(await getModifier(row.id)).toMatchObject({
-        total_uses: 5,
-        usage_count: 2,
+        totalUses: 5,
+        usageCount: 2,
       });
     });
 
     test("adjustModifierRevenue moves the projected total to the target", async () => {
       const row = await insertModifier({ name: "Earner" });
-      expect((await getModifier(row.id))?.total_revenue).toBe(0);
+      expect((await getModifier(row.id))?.totalRevenue).toBe(0);
 
       await adjustModifierRevenue(row.id, 1750);
-      expect((await getModifier(row.id))?.total_revenue).toBe(1750);
+      expect((await getModifier(row.id))?.totalRevenue).toBe(1750);
 
       // Re-adjusting to the same target is a no-op, and lowering moves it down.
       await adjustModifierRevenue(row.id, 1750);
       await adjustModifierRevenue(row.id, 1200);
-      expect((await getModifier(row.id))?.total_revenue).toBe(1200);
+      expect((await getModifier(row.id))?.totalRevenue).toBe(1200);
     });
   });
 });

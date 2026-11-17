@@ -22,7 +22,7 @@ describeWithEnv(
   { db: true },
   () => {
     describe("POST /checkin/:tokens", () => {
-      test("checks in attendee with check_in=true and shows success", async () => {
+      test("checks in attendee with checkIn=true and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",
           "eve@test.com",
@@ -51,7 +51,7 @@ describeWithEnv(
         ]);
       });
 
-      test("checks out attendee with check_in=false and shows success", async () => {
+      test("checks out attendee with checkIn=false and shows success", async () => {
         const { token, session } = await setupCheckinTest(
           "Eve",
           "eve@test.com",
@@ -223,7 +223,7 @@ describeWithEnv(
           "frank@test.com",
         );
         const response = await handleRequest(
-          mockFormRequest(`/checkin/${token}`, { csrf_token: "fake" }),
+          mockFormRequest(`/checkin/${token}`, { csrfToken: "fake" }),
         );
         expect(response.status).toBe(302);
         expect(response.headers.get("Location")).toBe("/admin");
@@ -237,7 +237,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             `/checkin/${token}`,
-            { csrf_token: "wrong-token" },
+            { csrfToken: "wrong-token" },
             session.cookie,
           ),
         );
@@ -248,7 +248,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockFormRequest(
             "/checkin/bad-token",
-            { csrf_token: await testCsrfToken() },
+            { csrfToken: await testCsrfToken() },
             await testCookie(),
           ),
         );

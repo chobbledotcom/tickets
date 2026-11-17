@@ -237,7 +237,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/attributes/${attribute.id}/delete`,
-        { confirm_identifier: "Wrong" },
+        { confirmIdentifier: "Wrong" },
       );
 
       await expectFlashRedirect(
@@ -262,7 +262,7 @@ describeWithEnv("server (admin attribute CRUD)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/attributes/${attribute.id}/delete`,
-        { confirm_identifier: "Audience" },
+        { confirmIdentifier: "Audience" },
       );
 
       await expectFlashRedirect(
