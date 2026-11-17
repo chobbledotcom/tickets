@@ -36,14 +36,14 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("creates listing with unit_price when authenticated", async () => {
       const { listing } = await createAnswer(302, {
         name: "Paid Listing",
-        unit_price: "10.00",
+        unitPrice: "10.00",
       });
       expect(listing?.unitPrice).toBe(1000);
     });
 
     test("refuses a blank unit_price and asks for 0 for a free listing", async () => {
       await expectRefusedCreate(
-        { name: "Free Listing", unit_price: "" },
+        { name: "Free Listing", unitPrice: "" },
         "Enter a ticket price. Type 0 for free.",
       );
     });
@@ -53,7 +53,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       // 10.005 has 3 decimals — invalid in GBP (2). Without validation this
       // would be silently dropped; instead the save is rejected.
       await expectRefusedCreate(
-        { day_price_1: "10.005", name: "Bad Day Price" },
+        { dayPrice1: "10.005", name: "Bad Day Price" },
         "valid day price",
       );
     });
@@ -61,9 +61,9 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("keeps repeated bookable days after a rejected create", async () => {
       const html = await expectRefusedCreate(
         {
-          bookable_days: ["Monday", "Wednesday"],
-          day_price_1: "10.005",
-          listing_type: "daily",
+          bookableDays: ["Monday", "Wednesday"],
+          dayPrice1: "10.005",
+          listingType: "daily",
           name: "Bad Day Price",
         },
         "valid day price",
@@ -76,7 +76,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
 
     test("accepts a create with a valid day price and stores it", async () => {
       const { listing } = await createAnswer(302, {
-        day_price_1: "10.00",
+        dayPrice1: "10.00",
         name: "Good Day Price",
       });
       expect(listing?.dayPrices).toEqual({ 1: 1000 });
@@ -85,9 +85,9 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
   describe("POST /admin/listing with can_pay_more", () => {
     test("creates listing with can_pay_more enabled", async () => {
       const { listing } = await createAnswer(302, {
-        can_pay_more: "1",
+        canPayMore: "1",
         name: "Pay More Listing",
-        unit_price: "10.00",
+        unitPrice: "10.00",
       });
       expect([listing?.canPayMore, listing?.unitPrice]).toEqual([true, 1000]);
     });
@@ -95,7 +95,7 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("creates listing with can_pay_more disabled by default", async () => {
       const { listing } = await createAnswer(302, {
         name: "Normal Listing",
-        unit_price: "5.00",
+        unitPrice: "5.00",
       });
       expect(listing?.canPayMore).toBe(false);
     });
@@ -106,12 +106,12 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
       const { response } = await adminMultipartPost(
         `/admin/listing/${listing.id}/edit`,
         {
-          can_pay_more: "1",
-          max_attendees: String(listing.maxAttendees),
-          max_quantity: String(listing.maxQuantity),
+          canPayMore: "1",
+          maxAttendees: String(listing.maxAttendees),
+          maxQuantity: String(listing.maxQuantity),
           name: listing.name,
           slug: listing.slug,
-          unit_price: "10.00",
+          unitPrice: "10.00",
         },
       );
       expect(response.status).toBe(302);
@@ -140,10 +140,10 @@ describeWithEnv("server listings > create validation", { db: true }, () => {
     test("rejects max_price less than unit_price + 100 when can_pay_more", async () => {
       await expectRefusedCreate(
         {
-          can_pay_more: "1",
-          max_price: "10.50",
+          canPayMore: "1",
+          maxPrice: "10.50",
           name: "Bad Max Price",
-          unit_price: "10.00",
+          unitPrice: "10.00",
         },
         "Maximum price must be at least £1 more than the ticket price",
       );

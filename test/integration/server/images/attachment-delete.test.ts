@@ -26,7 +26,7 @@ const submitAttachmentDelete = (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/attachment/delete`,
-      { csrf_token: csrfToken },
+      { csrfToken },
       cookie,
     ),
   );

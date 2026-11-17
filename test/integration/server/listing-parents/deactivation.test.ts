@@ -103,7 +103,7 @@ describeWithEnv(
       const { thatPage } = await rescuingPageSetup();
       const { response } = await adminFormPost(
         `/admin/listing/${thatPage.id}/deactivate`,
-        { confirm_identifier: thatPage.name },
+        { confirmIdentifier: thatPage.name },
       );
       response.body?.cancel();
       expect(response.status).toBe(302);
@@ -166,7 +166,7 @@ describeWithEnv(
       const plain = await createTestListing({ name: "Plain" });
       const { response } = await adminFormPost(
         `/admin/listing/${plain.id}/deactivate`,
-        { confirm_identifier: plain.name },
+        { confirmIdentifier: plain.name },
       );
       response.body?.cancel();
       expect((await getListingWithCount(plain.id))?.active).toBe(false);
@@ -199,7 +199,7 @@ describeWithEnv(
       const { thatPage } = await rescuingPageSetup();
       const { response } = await adminFormPost(
         `/admin/listing/${thatPage.id}/delete`,
-        { confirm_identifier: thatPage.name },
+        { confirmIdentifier: thatPage.name },
       );
       response.body?.cancel();
       expectFlash(response, await childOnlyAddOnFlash(), false);

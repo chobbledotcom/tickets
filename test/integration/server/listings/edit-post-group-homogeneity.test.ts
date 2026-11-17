@@ -35,7 +35,7 @@ const refusedRegroup = async (
   message: string,
 ) => {
   const { response } = await submitOwnListingEdit(listing, {
-    group_ids: String(groupId),
+    groupIds: String(groupId),
     ...boxes,
   });
   await expectHtmlResponse(response, 400, message);
@@ -53,7 +53,7 @@ describeWithEnv(
         // The flip alone would leave the listing in a group of the other type.
         const stored = await refusedRegroup(
           await listingWithSibling("daily"),
-          { listing_type: "standard" },
+          { listingType: "standard" },
           "already contains daily listings",
         );
         expect(stored.listingType).toBe("daily");
@@ -62,7 +62,7 @@ describeWithEnv(
       test("rejects enabling customisable days on a listing whose group mates are fixed-length", async () => {
         const stored = await refusedRegroup(
           await listingWithSibling("standard"),
-          { customisable_days: "1", day_price_1: "1.00" },
+          { customisableDays: "1", dayPrice1: "1.00" },
           "already contains listings with a fixed number of days",
         );
         expect(stored.customisableDays).toBe(false);

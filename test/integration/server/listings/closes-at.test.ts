@@ -167,8 +167,8 @@ describeWithEnv("server listings > closes_at field", { db: true }, () => {
     test("rejects invalid closes_at format", async () => {
       await expectOwnEditRefused(
         {
-          closes_at_date: "not-a-date",
-          closes_at_time: "99:99",
+          closesAtDate: "not-a-date",
+          closesAtTime: "99:99",
         },
         "Please enter a valid date and time",
       );

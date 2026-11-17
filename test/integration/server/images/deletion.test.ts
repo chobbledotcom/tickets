@@ -23,7 +23,7 @@ const submitListingDelete = (
   handleRequest(
     mockFormRequest(
       `/admin/listing/${listingId}/delete`,
-      { confirm_identifier: listingName, csrf_token: csrfToken },
+      { confirmIdentifier: listingName, csrfToken },
       cookie,
     ),
   );

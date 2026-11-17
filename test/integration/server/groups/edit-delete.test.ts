@@ -93,10 +93,10 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/edit`,
           {
-            csrf_token: csrfToken,
+            csrfToken,
             name: "Changed",
             slug: "changed",
-            terms_and_conditions: "",
+            termsAndConditions: "",
           },
           cookie,
         ),
@@ -157,7 +157,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost(`/admin/groups/${g2.id}/edit`, {
         name: "Two",
         slug: g1.slug,
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       await expectFlashRedirect(
         `/admin/groups/${g2.id}/edit`,
@@ -170,7 +170,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost("/admin/groups/999/edit", {
         name: "Missing",
         slug: "missing",
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       expectStatus(404)(response);
     });
@@ -188,7 +188,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         200,
         "Delete Group",
         "Listings in this group will not be deleted",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
 
@@ -210,8 +210,8 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         mockFormRequest(
           `/admin/groups/${group.id}/delete`,
           {
-            confirm_identifier: "Delete Allow",
-            csrf_token: csrfToken,
+            confirmIdentifier: "Delete Allow",
+            csrfToken,
           },
           cookie,
         ),
@@ -229,7 +229,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,
         {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         },
       );
       await expectFlashRedirect(
@@ -263,7 +263,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
 
     test("returns 404 when deleting a non-existent group", async () => {
       const { response } = await adminFormPost("/admin/groups/999/delete", {
-        confirm_identifier: "Anything",
+        confirmIdentifier: "Anything",
       });
       expectStatus(404)(response);
     });
@@ -291,7 +291,7 @@ describeWithEnv("server (admin groups) — edit & delete", { db: true }, () => {
         const response = await handleRequest(
           mockFormRequest(
             `/admin/groups/${group.id}/delete`,
-            { confirm_identifier: group.name, csrf_token: csrfToken },
+            { confirmIdentifier: group.name, csrfToken },
             cookie,
           ),
         );

@@ -153,7 +153,7 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
 
     test("rejects invalid listing_type value", async () => {
       const { response } = await submitListingCreate({
-        listing_type: "invalid",
+        listingType: "invalid",
         name: "Bad Type Listing",
       });
       expectStatus(400)(response);
@@ -220,10 +220,10 @@ describeWithEnv("server listings > daily listing type", { db: true }, () => {
       const listing = (await getListingWithCount(1))!;
 
       const { response } = await submitListingEdit(1, {
-        bookable_days: "Funday,Bunday",
-        listing_type: "daily",
-        maximum_days_after: "90",
-        minimum_days_before: "1",
+        bookableDays: "Funday,Bunday",
+        listingType: "daily",
+        maximumDaysAfter: "90",
+        minimumDaysBefore: "1",
         name: "Edit Target",
         slug: listing.slug,
       });

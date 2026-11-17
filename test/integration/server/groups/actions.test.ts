@@ -41,9 +41,9 @@ describeWithEnv(
           mockFormRequest(
             "/admin/groups",
             {
-              csrf_token: csrfToken,
+              csrfToken,
               name: "Redirect Test",
-              terms_and_conditions: "",
+              termsAndConditions: "",
             },
             cookie,
           ),
@@ -65,10 +65,10 @@ describeWithEnv(
           mockFormRequest(
             `/admin/groups/${group.id}/edit`,
             {
-              csrf_token: csrfToken,
+              csrfToken,
               name: "Edited Redir",
               slug: "edited-redir",
-              terms_and_conditions: "",
+              termsAndConditions: "",
             },
             cookie,
           ),
@@ -108,7 +108,7 @@ describeWithEnv(
 
         await assertAdminHtml(
           `/admin/groups/${group.id}/edit`,
-          "max_attendees",
+          "maxAttendees",
           "25",
         );
       });

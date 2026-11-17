@@ -72,7 +72,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
     const previewListing = async (listing: { id: number }) => {
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Update",
       });
       return (await adminGet("/admin/emails/preview")).text();
@@ -114,7 +114,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "First",
       });
       await adminFormPost("/admin/emails/send", {});
@@ -168,7 +168,7 @@ describeWithEnv("server bulk email > notes and history", { db: true }, () => {
       // A bulk-email send gives the email contact outreach history...
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Newsletter",
       });
       await adminFormPost("/admin/emails/send", {});

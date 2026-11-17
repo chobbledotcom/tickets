@@ -34,8 +34,8 @@ const submitListingImageUpload = (
     mockMultipartRequest(
       `/admin/listing/${listingId}/images/upload`,
       {
-        alt_text: "",
-        csrf_token: csrfToken,
+        altText: "",
+        csrfToken,
         name: file.name,
       },
       cookie,

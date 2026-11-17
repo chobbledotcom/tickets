@@ -23,7 +23,7 @@ import { setupListingAndLogin } from "#test-utils/session.ts";
 const UPDATED_BOXES = {
   name: "Updated Listing",
   slug: "updated-listing",
-  thank_you_url: "https://example.com/updated",
+  thankYouUrl: "https://example.com/updated",
 };
 
 const LISTING_SETUP = { maxAttendees: 100, thankYouUrl: "https://example.com" };
@@ -61,7 +61,7 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/listing/1/edit",
-          { ...baseListingForm, ...UPDATED_BOXES, csrf_token: "invalid-token" },
+          { ...baseListingForm, ...UPDATED_BOXES, csrfToken: "invalid-token" },
           cookie,
         ),
       );
@@ -75,10 +75,10 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
 
     test("updates listing when authenticated", async () => {
       const { response, updated } = await saveFirstListing({
-        max_attendees: "200",
-        max_quantity: "5",
-        thank_you_url: "https://example.com/updated",
-        unit_price: "20.00",
+        maxAttendees: "200",
+        maxQuantity: "5",
+        thankYouUrl: "https://example.com/updated",
+        unitPrice: "20.00",
       });
       await expectFlashRedirect(
         "/admin/listing/1",
@@ -117,8 +117,8 @@ describeWithEnv("server listings > edit post basics", { db: true }, () => {
     test("refuses a webhook URL when updating listing in demo mode", async () => {
       setDemoModeForTest(true);
       const { response, updated } = await saveFirstListing({
-        max_attendees: "200",
-        webhook_url: "https://example.com/new-webhook",
+        maxAttendees: "200",
+        webhookUrl: "https://example.com/new-webhook",
       });
       expect([response.status, updated?.maxAttendees]).toEqual([400, 100]);
     });

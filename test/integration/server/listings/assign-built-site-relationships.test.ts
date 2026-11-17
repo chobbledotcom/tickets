@@ -45,9 +45,9 @@ describeWithEnv(
 
       const { response } = await adminFormPost("/admin/listing", {
         ...baseListingForm,
-        assign_built_site: "1",
-        group_ids: String(group.id),
-        initial_site_months: "1",
+        assignBuiltSite: "1",
+        groupIds: String(group.id),
+        initialSiteMonths: "1",
         name: "Create Form Plan",
       });
 

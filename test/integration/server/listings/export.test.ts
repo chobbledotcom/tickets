@@ -91,7 +91,7 @@ describeWithEnv("server listings > export", { db: true }, () => {
       // Check in the attendee's one ticket, the way the roster's toggle does.
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "1" },
+        { checkIn: "true", quantity: "1" },
       );
 
       const [header, ...rows] = parse(

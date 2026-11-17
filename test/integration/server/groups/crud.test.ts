@@ -106,9 +106,9 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         mockFormRequest(
           "/admin/groups",
           {
-            csrf_token: csrfToken,
+            csrfToken,
             name: "Manager Group",
-            terms_and_conditions: "",
+            termsAndConditions: "",
           },
           cookie,
         ),
@@ -210,7 +210,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         await seed();
         const { response } = await adminFormPost("/admin/groups", {
           name,
-          terms_and_conditions: "",
+          termsAndConditions: "",
         });
         await expectFlashRedirect(
           "/admin/groups/new",

@@ -24,7 +24,7 @@ describeWithEnv("server listings > assign_built_site", { db: true }, () => {
     test("refuses assign_built_site when CAN_BUILD_SITES is not set", async () => {
       using _env = withEnv({ CAN_BUILD_SITES: undefined });
       const { response } = await submitListingCreate({
-        assign_built_site: "1",
+        assignBuiltSite: "1",
       });
       expect([response.status, await getAllListings()]).toEqual([400, []]);
     });
