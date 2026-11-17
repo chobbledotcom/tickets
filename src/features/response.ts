@@ -9,6 +9,7 @@ import type {
   AdminPathParams,
 } from "#shared/admin-surface/ids.ts";
 import { adminPath } from "#shared/admin-surface.ts";
+import { columnName } from "#shared/column-names.ts";
 import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
@@ -166,11 +167,16 @@ type AdminRedirect = <Id extends AdminDestinationId>(
  * Field-name segments whose values must never be written to the re-fill stash,
  * even briefly: secrets the user should re-enter rather than have persisted in
  * server memory (passwords, API/secret keys, signing tokens, the CSRF token).
- * Matched as whole underscore-delimited segments, so "monkey"/"keyword" are
- * safe. PII is deliberately not listed — restoring it is the point of the
- * feature, and it is never reflected for sensitive field *types* anyway.
+ * Matched as whole words of a snake_case or camelCase name, so "monkey" and
+ * "keyword" are safe. PII is deliberately not listed — restoring it is the
+ * point of the feature, and it is never reflected for sensitive field *types*
+ * anyway.
  */
 const SENSITIVE_STASH_KEY = /(?:^|_)(?:password|secret|token|key)(?:_|$)/i;
+
+/** True when a word of the field name marks a secret. */
+const isSecretField = (key: string): boolean =>
+  SENSITIVE_STASH_KEY.test(key) || SENSITIVE_STASH_KEY.test(columnName(key));
 
 /**
  * On a failed PRG redirect, stash the just-submitted form values so the
@@ -184,7 +190,7 @@ const maybeStashForm = (explicit?: URLSearchParams): string | null => {
   if (!source) return null;
   const safe = new URLSearchParams();
   for (const [key, value] of source) {
-    if (!SENSITIVE_STASH_KEY.test(key)) safe.append(key, value);
+    if (!isSecretField(key)) safe.append(key, value);
   }
   const serialized = safe.toString();
   return serialized ? stashForm(serialized) : null;
