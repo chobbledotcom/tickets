@@ -1,4 +1,5 @@
 // effects: pure
+import { boxNameOfKind } from "#shared/forms/prefixed-name.ts";
 import type { ListingWithCount } from "#types";
 
 /**
@@ -142,32 +143,24 @@ export const childNodeKey = (parentNodeKey: string, childId: number): string =>
 // Form field names — the single source of truth render and submit share
 // ---------------------------------------------------------------------------
 
-/** The form control's name for one kind and the ids that address it. The
- * ids follow the kind and an underscore separates two ids (for example
- * `childQty5_9`). */
-const fieldNameFor =
-  (kind: string) =>
-  (...ids: number[]): string =>
-    `${kind}${ids.join("_")}`;
-
 /** The per-listing quantity control (`quantity<id>`) — a standalone listing, a
  * multi-slug cart member, a regular group member, or a parent. */
-export const quantityFieldName = fieldNameFor("quantity");
+export const quantityFieldName = boxNameOfKind("quantity");
 
 /** The pay-what-you-want price control for a top-level listing
  * (`customPrice<id>`). */
-export const customPriceFieldName = fieldNameFor("customPrice");
+export const customPriceFieldName = boxNameOfKind("customPrice");
 
 /** One child's per-unit quantity control (`childQty<parentId>_<childId>`). */
-export const childQuantityFieldName = fieldNameFor("childQty");
+export const childQuantityFieldName = boxNameOfKind("childQty");
 
 /** One child's pay-what-you-want price control
  * (`childPrice<parentId>_<childId>`). */
-export const childPriceFieldName = fieldNameFor("childPrice");
+export const childPriceFieldName = boxNameOfKind("childPrice");
 
 /** One package's "number of packages" control (`packageQuantity<groupId>`).
  * Per group, so a page selling several bundles posts one count each. */
-export const packageQuantityFieldName = fieldNameFor("packageQuantity");
+export const packageQuantityFieldName = boxNameOfKind("packageQuantity");
 
 /** A node's per-package fixed quantity: a `FIXED` (package member) node carries
  * it; any other rule contributes 1 (a buyer-chosen node counts once per unit). */

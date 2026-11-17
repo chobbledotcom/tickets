@@ -16,6 +16,7 @@ import {
   byFieldKey,
   type ClosedFields,
   closedFieldErrorOrNull,
+  definedByFieldKey,
   type FieldKind,
   type FieldSpec,
   type FieldSpecs,
@@ -305,15 +306,11 @@ export const transferValues = <const Fields extends FieldSpecs>(
   row: object,
   withheld: ClosedFields = NOTHING_CLOSED,
 ): Record<string, unknown> =>
-  definedValuesBy(
-    fields,
-    (field) => field.key,
-    (field) => {
-      // A stored row holds a field for each of its declared fields.
-      const value = (row as Record<string, unknown>)[field.key];
-      const skip = TRANSFER_SKIPS[field.kind];
-      return withheld.has(field.key) || value === undefined || skip?.(value)
-        ? undefined
-        : value;
-    },
-  );
+  definedByFieldKey(fields, (field) => {
+    // A stored row holds a field for each of its declared fields.
+    const value = (row as Record<string, unknown>)[field.key];
+    const skip = TRANSFER_SKIPS[field.kind];
+    return withheld.has(field.key) || value === undefined || skip?.(value)
+      ? undefined
+      : value;
+  });

@@ -16,14 +16,14 @@ import {
   typed,
   yesNo,
 } from "#db/codecs/kinds.ts";
-import { columnName, type SnakeWord } from "#shared/column-names.ts";
+import { columnName } from "#shared/column-names.ts";
 import { storedListingFields } from "#shared/listing-fields.ts";
 import { ErrorCode, logError } from "#shared/logger.ts";
 import type {
+  ByColumn,
   FieldKind,
   FieldSpec,
   FieldSpecs,
-  KindOf,
 } from "#shared/rest/field-specs.ts";
 import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import {
@@ -118,11 +118,11 @@ const KIND_CODECS: {
 };
 
 /** The codec of each stored field of a list, keyed by its column. */
-export type FieldCodecs<Fields extends FieldSpecs> = {
-  [Key in Fields[number]["key"] as KindOf<Fields, Key> extends "dayPrices"
-    ? never
-    : SnakeWord<Key>]: KindCodecs[KindOf<Fields, Key>];
-};
+export type FieldCodecs<Fields extends FieldSpecs> = ByColumn<
+  Fields,
+  KindCodecs,
+  "dayPrices"
+>;
 
 /** The codecs of a field list, stored in `table`. */
 export const fieldCodecs = <const Fields extends FieldSpecs>(

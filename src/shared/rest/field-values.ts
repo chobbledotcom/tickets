@@ -5,9 +5,9 @@
  */
 
 import * as v from "valibot";
-import { columnName, type SnakeWord } from "#shared/column-names.ts";
+import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
-import { flagOfKind } from "#shared/fp-bind.ts";
+import { bindFirst, flagOfKind } from "#shared/fp-bind.ts";
 import {
   dateField,
   optionalTextField,
@@ -15,11 +15,11 @@ import {
   textField,
 } from "#shared/rest/api-body-fields.ts";
 import type {
+  ByColumn,
   ByInputKey,
   FieldKind,
   FieldSpec,
   FieldSpecs,
-  KindOf,
   StoredValue,
 } from "#shared/rest/field-specs.ts";
 import { commaParts } from "#shared/split.ts";
@@ -159,23 +159,30 @@ const optionalViews = (field: FieldSpec) => {
   return { create: view, update: view };
 };
 
+/** The views that `build` gives for the API key of the field. */
+const viewsAtApiKey = <View>(
+  build: (key: string) => View,
+  field: FieldSpec,
+): View => build(columnName(field.key));
+const atApiKey = bindFirst(viewsAtApiKey);
+
 /** The create and update wire views of each kind. A name is required text. A
  *  date is a calendar date text. Every other kind is optional. */
 const API_FIELDS = {
   contactFields: optionalViews,
   count: optionalViews,
-  date: (field: FieldSpec) => dateField(columnName(field.key)),
+  date: atApiKey(dateField),
   datetime: optionalViews,
   dayPrices: optionalViews,
   durationDays: optionalViews,
   listingType: optionalViews,
-  name: (field: FieldSpec) => textField(columnName(field.key)),
+  name: atApiKey(textField),
   optionalDatetime: optionalViews,
   price: optionalViews,
   privateText: optionalViews,
   recurringInterval: optionalViews,
-  switch: (field: FieldSpec) => switchField(columnName(field.key)),
-  text: (field: FieldSpec) => optionalTextField(columnName(field.key)),
+  switch: atApiKey(switchField),
+  text: atApiKey(optionalTextField),
   weekdays: optionalViews,
 } as const satisfies Record<FieldKind, unknown>;
 
@@ -185,12 +192,7 @@ type ApiViews = {
 };
 
 /** The wire views of every field, keyed by API key. */
-type ApiFieldViews<Fields extends FieldSpecs> = {
-  [Key in Fields[number]["key"] as SnakeWord<Key>]: ApiViews[KindOf<
-    Fields,
-    Key
-  >];
-};
+type ApiFieldViews<Fields extends FieldSpecs> = ByColumn<Fields, ApiViews>;
 
 /** The wire views of every field, ready for `apiBodyPair` and `idRow`. */
 export const apiFieldsOf = <const Fields extends FieldSpecs>(

@@ -9,6 +9,7 @@
 
 import { requiredMapValue } from "#fp";
 import { columnName, type SnakeWord } from "#shared/column-names.ts";
+import { definedValuesBy } from "#shared/defined-values.ts";
 import type { RecurringIntervalChoice } from "#shared/subscriptions/plan.ts";
 import type { DateString } from "#shared/validation/date-string.ts";
 import type { DayPrices, ListingFields, ListingType } from "#types";
@@ -238,3 +239,23 @@ export const byFieldKey = <const Fields extends FieldSpecs, Value>(
   Object.fromEntries(
     fields.map((field: Fields[number]) => [field.key, build(field)]),
   ) as Record<Fields[number]["key"], Value>;
+
+/** The value that `valueFor` gives each declared field, keyed by its field
+ *  name. A field whose value is undefined adds no key. */
+export const definedByFieldKey = <const Fields extends FieldSpecs>(
+  fields: Fields,
+  valueFor: (field: Fields[number]) => unknown,
+): Record<string, unknown> =>
+  definedValuesBy(fields, (field) => field.key, valueFor);
+
+/** One value per declared field, keyed by its column. `Values` names the
+ *  value each kind gives. A field of a `Skipped` kind has no key. */
+export type ByColumn<
+  Fields extends FieldSpecs,
+  Values extends Record<FieldKind, unknown>,
+  Skipped extends FieldKind = never,
+> = {
+  [Key in Fields[number]["key"] as KindOf<Fields, Key> extends Skipped
+    ? never
+    : SnakeWord<Key>]: Values[KindOf<Fields, Key>];
+};

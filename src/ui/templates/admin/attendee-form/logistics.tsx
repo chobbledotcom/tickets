@@ -55,19 +55,20 @@ const LogisticsLeg = ({
     },
   };
   const details = detailsByLeg[leg];
+  const ids = listingId === undefined ? [] : [listingId];
   return (
     <div class="logistics-leg">
       <span class="logistics-leg-label">{details.label}</span>
       <input
         aria-label={details.timeLabel}
-        name={details.timeField(listingId)}
+        name={details.timeField(...ids)}
         type="time"
         value={details.time}
       />
       <select
         aria-label={details.agentLabel}
         class="logistics-leg-agent"
-        name={details.agentField(listingId)}
+        name={details.agentField(...ids)}
       >
         <option selected={details.agentId === null} value="">
           {t("attendee_form.agent_none")}

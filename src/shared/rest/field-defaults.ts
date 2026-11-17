@@ -5,11 +5,11 @@
  * where the table has a different default or none.
  */
 
-import { definedValuesBy } from "#shared/defined-values.ts";
-import type {
-  FieldKind,
-  FieldSpec,
-  FieldSpecs,
+import {
+  definedByFieldKey,
+  type FieldKind,
+  type FieldSpec,
+  type FieldSpecs,
 } from "#shared/rest/field-specs.ts";
 
 /** The first value of a field of each kind. A kind that a new row must give,
@@ -38,8 +38,4 @@ const NEW_ROW_VALUES: Record<FieldKind, (field: FieldSpec) => unknown> = {
 export const newRowDefaults = (
   fields: FieldSpecs,
 ): Readonly<Record<string, unknown>> =>
-  definedValuesBy(
-    fields,
-    (field) => field.key,
-    (field) => NEW_ROW_VALUES[field.kind](field),
-  );
+  definedByFieldKey(fields, (field) => NEW_ROW_VALUES[field.kind](field));
