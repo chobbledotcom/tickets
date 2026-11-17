@@ -354,7 +354,7 @@ describe("group admin panels", () => {
       });
       const live = html.indexOf('value="8"');
       const retired = html.indexOf(
-        '<label class="muted"><input name="listing_ids" type="checkbox" value="7"',
+        '<label class="muted"><input name="listingIds" type="checkbox" value="7"',
       );
       expect(live).toBeGreaterThan(-1);
       expect(retired).toBeGreaterThan(live);
@@ -378,7 +378,7 @@ describe("group admin panels", () => {
       });
       const joinable = html.indexOf('value="7"');
       const striker = html.indexOf(
-        '<input disabled name="listing_ids" type="checkbox" value="8"',
+        '<input disabled name="listingIds" type="checkbox" value="8"',
       );
       expect(striker).toBeGreaterThan(joinable);
       assertStringIncludes(

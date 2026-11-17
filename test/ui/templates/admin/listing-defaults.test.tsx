@@ -19,32 +19,29 @@ describe("adminListingDefaultsPage", () => {
   });
 
   test("offers the logistics default when the feature is on", () => {
-    assertStringIncludes(render({}, true), "default_uses_logistics");
+    assertStringIncludes(render({}, true), 'name="defaultUsesLogistics"');
   });
 
   test("leaves the logistics default out when the feature is off", () => {
-    assert(!render({}, false).includes("default_uses_logistics"));
+    assert(!render({}, false).includes('name="defaultUsesLogistics"'));
   });
 
   test("draws a number control for a number default", () => {
     const html = render({ minimumDaysBefore: 3 });
-    expectIncludesAll(html, [
-      'name="default_minimum_days_before"',
-      'value="3"',
-    ]);
+    expectIncludesAll(html, ['name="defaultMinimumDaysBefore"', 'value="3"']);
   });
 
   test("draws a url control for a url default", () => {
     const html = render({ webhookUrl: "https://example.com/hook" });
     expectIncludesAll(html, [
-      'name="default_webhook_url"',
+      'name="defaultWebhookUrl"',
       "https://example.com/hook",
     ]);
   });
 
   test("draws the day checkboxes, ticked for the chosen days", () => {
     const html = render({ bookableDays: ["Monday"] });
-    expectIncludesAll(html, ["default_bookable_days_enabled", "Monday"]);
+    expectIncludesAll(html, ['name="defaultBookableDaysEnabled"', "Monday"]);
   });
 
   test("offers no default, yes and no for a true/false default", () => {

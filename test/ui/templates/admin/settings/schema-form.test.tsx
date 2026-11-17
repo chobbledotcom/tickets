@@ -38,7 +38,7 @@ describe("settingsForm", () => {
     expectIncludesAll(html, [
       'action="/admin/settings/business-email"',
       'id="settings-business-email"',
-      'name="business_email"',
+      'name="businessEmail"',
       'type="email"',
       'value="ops@example.com"',
     ]);
@@ -50,7 +50,7 @@ describe("settingsForm", () => {
     );
 
     expectIncludesAll(html, [
-      'name="business_email"',
+      'name="businessEmail"',
       // The input itself must carry the empty value, not the empty csrf field.
       'type="email" value=""',
     ]);
@@ -61,7 +61,7 @@ describe("settingsForm", () => {
       settingsForm(SETTINGS_FORMS.bookingFee, { bookingFee: 0 }),
     );
 
-    expectIncludesAll(html, ['name="booking_fee"', 'type="number" value="0"']);
+    expectIncludesAll(html, ['name="bookingFee"', 'type="number" value="0"']);
   });
 
   test("uses the definition's declared formId as the form id", () => {
@@ -81,7 +81,7 @@ describe("settingsForm", () => {
     const html = htmlFor("embedHosts");
 
     expectIncludesAll(html, [
-      'name="embed_hosts"',
+      'name="embedHosts"',
       "Use *.example.com to allow all subdomains",
     ]);
   });
@@ -91,7 +91,7 @@ describe("settingsForm", () => {
 
     expectIncludesAll(html, [
       'action="/admin/settings/terms"',
-      'name="terms_and_conditions"',
+      'name="termsAndConditions"',
       "data-markdown-preview",
       "Be kind.",
       "Formatting",
@@ -109,8 +109,8 @@ describe("settingsForm", () => {
 
     expectIncludesAll(html, [
       'action="/admin/settings/external-order"',
-      'name="external_order_enabled"',
-      '<input checked name="external_order_enabled" type="radio" value="true">',
+      'name="externalOrderEnabled"',
+      '<input checked name="externalOrderEnabled" type="radio" value="true">',
     ]);
   });
 });
@@ -126,12 +126,12 @@ describe("settingsForm multi-field forms", () => {
     );
     expectIncludesAll(html, [
       'action="/admin/settings/tax"',
-      'checked name="tax_mode" type="radio" value="calculate_from_total"',
+      'checked name="taxMode" type="radio" value="calculate_from_total"',
       'inputmode="decimal"',
-      'name="tax_rate"',
+      'name="taxRate"',
       'pattern="[0-9]+([.][0-9]{1,2})?"',
       'type="text" value="7.25"',
-      'name="expected_tax"',
+      'name="expectedTax"',
       'type="hidden"',
       "&quot;rateBasisPoints&quot;:725",
     ]);
@@ -153,7 +153,7 @@ describe("settingsForm multi-field forms", () => {
 
     expectIncludesAll(html, [
       '<label class="checkbox">',
-      '<input name="underline_links" type="checkbox" value="true">',
+      '<input name="underlineLinks" type="checkbox" value="true">',
       "<small>Underline links everywhere, including the navigation.",
     ]);
   });
@@ -168,7 +168,7 @@ describe("settingsForm multi-field forms", () => {
 
     assertStringIncludes(
       html,
-      '<input checked name="underline_links" type="checkbox" value="true">',
+      '<input checked name="underlineLinks" type="checkbox" value="true">',
     );
   });
 
@@ -181,11 +181,11 @@ describe("settingsForm multi-field forms", () => {
     );
 
     expectIncludesAll(html, [
-      '<label for="calendar_feeds_group_by">Group feed entries by</label>',
-      '<select id="calendar_feeds_group_by" name="calendar_feeds_group_by">',
+      '<label for="calendarFeedsGroupBy">Group feed entries by</label>',
+      '<select id="calendarFeedsGroupBy" name="calendarFeedsGroupBy">',
       '<option selected value="listings">Listings</option>',
       '<option value="attendees">Attendees</option>',
-      '<input checked name="calendar_feeds_enabled" type="checkbox" value="true">',
+      '<input checked name="calendarFeedsEnabled" type="checkbox" value="true">',
     ]);
   });
 
@@ -199,12 +199,12 @@ describe("settingsForm multi-field forms", () => {
 
     // No labelFor: the label wraps the select, and the select has no id.
     expectIncludesAll(html, [
-      '<label>Provider<select name="address_lookup_provider">',
+      '<label>Provider<select name="addressLookupProvider">',
       '<option value="none">None (type addresses manually)</option>',
       '<option selected value="easypostcodes">',
     ]);
     const secret = html.match(
-      /<input[^>]*name="address_lookup_api_key"[^>]*>/,
+      /<input[^>]*name="addressLookupApiKey"[^>]*>/,
     )?.[0];
     assertStringIncludes(secret ?? "", 'type="password"');
     assertStringIncludes(secret ?? "", `value="${MASK_SENTINEL}"`);
@@ -251,7 +251,7 @@ describe("settingsForm schema options", () => {
       ),
     );
 
-    assertStringIncludes(html, 'name="business_email"');
+    assertStringIncludes(html, 'name="businessEmail"');
     assert(!html.includes("placeholder"));
   });
 
@@ -292,7 +292,7 @@ describe("settingsForm schema options", () => {
       ),
     );
 
-    const input = html.match(/<input[^>]*name="business_email"[^>]*>/)?.[0];
+    const input = html.match(/<input[^>]*name="businessEmail"[^>]*>/)?.[0];
     assertStringIncludes(input ?? "", 'type="number"');
     assertStringIncludes(input ?? "", 'max="10"');
     assertStringIncludes(input ?? "", 'min="0"');

@@ -80,11 +80,11 @@ describe("fields contracts", () => {
 
     test("the day-count select appears only when day counts are supplied", () => {
       // Daily but no day counts → no selector.
-      expect(hasField(getAddAttendeeFields(fields, true), "day_count")).toBe(
+      expect(hasField(getAddAttendeeFields(fields, true), "dayCount")).toBe(
         false,
       );
       // A single day count (length 1) still adds it — guards the `> 0` bound.
-      const one = byName(getAddAttendeeFields(fields, true, [1]), "day_count");
+      const one = byName(getAddAttendeeFields(fields, true, [1]), "dayCount");
       expect(one.type).toBe("select");
       expect(one.required).toBe(true);
     });
@@ -92,7 +92,7 @@ describe("fields contracts", () => {
     test("day-count options are labelled singular/plural by day count", () => {
       const select = byName(
         getAddAttendeeFields(fields, true, [1, 3]),
-        "day_count",
+        "dayCount",
       );
       expect((select.options ?? []).map((o) => o.label)).toEqual([
         "1 day",
@@ -104,12 +104,12 @@ describe("fields contracts", () => {
   describe("password fields", () => {
     test("a new-password field enforces an 8-char minimum; its confirm twin does not", () => {
       const setup = getSetupForm().fields;
-      const password = byName(setup, "admin_password");
+      const password = byName(setup, "adminPassword");
       expect(password.type).toBe("password");
       expect(password.required).toBe(true);
       expect(password.minlength).toBe(8);
 
-      const confirm = byName(setup, "admin_password_confirm");
+      const confirm = byName(setup, "adminPasswordConfirm");
       expect(confirm.required).toBe(true);
       // The confirm field must NOT carry a minlength — it only has to match.
       expect("minlength" in confirm).toBe(false);
@@ -117,19 +117,19 @@ describe("fields contracts", () => {
 
     test("change-password reuses the same new-password rules", () => {
       const fields = getChangePasswordForm().fields;
-      expect(byName(fields, "current_password").required).toBe(true);
-      expect(byName(fields, "new_password").minlength).toBe(8);
-      expect("minlength" in byName(fields, "new_password_confirm")).toBe(false);
+      expect(byName(fields, "currentPassword").required).toBe(true);
+      expect(byName(fields, "newPassword").minlength).toBe(8);
+      expect("minlength" in byName(fields, "newPasswordConfirm")).toBe(false);
     });
 
     test("caps chosen passwords but not the credential being checked", () => {
       const login = byName(getLoginForm().fields, "password");
       expect("maxlength" in login).toBe(false);
       const change = getChangePasswordForm().fields;
-      expect("maxlength" in byName(change, "current_password")).toBe(false);
-      expect(byName(change, "new_password").maxlength).toBe(MAX_INPUT_LENGTH);
+      expect("maxlength" in byName(change, "currentPassword")).toBe(false);
+      expect(byName(change, "newPassword").maxlength).toBe(MAX_INPUT_LENGTH);
       const setup = getSetupForm().fields;
-      expect(byName(setup, "admin_password").maxlength).toBe(MAX_INPUT_LENGTH);
+      expect(byName(setup, "adminPassword").maxlength).toBe(MAX_INPUT_LENGTH);
     });
   });
 
@@ -161,14 +161,14 @@ describe("fields contracts", () => {
     });
 
     test("the setup username field carries the client-side username constraints", () => {
-      const username = byName(getSetupForm().fields, "admin_username");
+      const username = byName(getSetupForm().fields, "adminUsername");
       expect(username.minlength).toBe(1);
       expect(username.maxlength).toBe(MAX_INPUT_LENGTH);
       expect(username.pattern).toBe("[a-zA-Z0-9][a-zA-Z0-9_\\-]*");
     });
 
     test("the setup username pattern refuses exactly what validateUsername refuses", () => {
-      const username = byName(getSetupForm().fields, "admin_username");
+      const username = byName(getSetupForm().fields, "adminUsername");
       const browser = new RegExp(`^(?:${username.pattern})$`, "v");
       // Length stays with the minlength/maxlength attributes, so the samples
       // keep inside 1-250 characters.
@@ -189,7 +189,7 @@ describe("fields contracts", () => {
     });
 
     test("the invite-user role is a required select", () => {
-      const role = byName(getInviteUserForm().fields, "admin_level");
+      const role = byName(getInviteUserForm().fields, "adminLevel");
       expect(role.type).toBe("select");
       expect(role.required).toBe(true);
     });
@@ -199,7 +199,7 @@ describe("fields contracts", () => {
       // first. Without a blank leading option, an unchanged required select
       // would silently submit owner — a privilege escalation. The blank must
       // lead, owner must still be selectable, and every schema role is offered.
-      const role = byName(getInviteUserForm().fields, "admin_level");
+      const role = byName(getInviteUserForm().fields, "adminLevel");
       const values = (role.options ?? []).map((o) => o.value);
       expect(values[0]).toBe("");
       expect(values).toEqual(["", ...AdminLevelSchema.options]);

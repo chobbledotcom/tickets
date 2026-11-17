@@ -72,8 +72,8 @@ describe("holiday templates", () => {
       expectIncludesAll(html, [
         'action="/admin/holidays"',
         'name="name"',
-        'name="start_date"',
-        'name="end_date"',
+        'name="startDate"',
+        'name="endDate"',
         // Submit button uses the create label and plus icon.
         "Create holiday",
       ]);
@@ -125,7 +125,7 @@ describe("holiday templates", () => {
       const html = getHolidayPages().deletePage(holiday, OWNER_SESSION);
       expectIncludesAll(html, [
         'action="/admin/holidays/42/delete"',
-        'name="confirm_identifier"',
+        'name="confirmIdentifier"',
         // The name to type is shown as the confirm target.
         "Christmas",
         "Delete holiday",

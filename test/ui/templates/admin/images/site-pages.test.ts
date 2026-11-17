@@ -43,9 +43,9 @@ describeWithEnv(
           formRequest(
             `/admin/site/pages/${page.id}/images`,
             [
-              ["csrf_token", csrfToken],
-              ["image_ids", String(second.id)],
-              ["image_ids", String(first.id)],
+              ["csrfToken", csrfToken],
+              ["imageIds", String(second.id)],
+              ["imageIds", String(first.id)],
             ],
             cookie,
           ),
@@ -69,7 +69,7 @@ describeWithEnv(
         const response = await handleRequest(
           formRequest(
             "/admin/site/pages/9999/images",
-            [["csrf_token", csrfToken]],
+            [["csrfToken", csrfToken]],
             cookie,
           ),
         );
@@ -148,10 +148,10 @@ describeWithEnv(
           formRequest(
             `/admin/images/${image.id}/edit`,
             [
-              ["csrf_token", await signCsrfToken()],
+              ["csrfToken", await signCsrfToken()],
               ["name", "Site image"],
-              ["alt_text", ""],
-              ["image_items", `page:${page.id}`],
+              ["altText", ""],
+              ["imageItems", `page:${page.id}`],
             ],
             cookie,
           ),
@@ -190,9 +190,9 @@ describeWithEnv(
           formRequest(
             `/admin/images/${image.id}/edit`,
             [
-              ["csrf_token", await signCsrfToken()],
+              ["csrfToken", await signCsrfToken()],
               ["name", "Renamed by manager"],
-              ["image_items", "page:9999"],
+              ["imageItems", "page:9999"],
             ],
             managerCookie,
           ),

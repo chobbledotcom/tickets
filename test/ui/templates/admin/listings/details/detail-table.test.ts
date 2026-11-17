@@ -80,7 +80,7 @@ describe("adminListingPage duration display", () => {
       attendees: [],
       listing,
     });
-    expectIncludesAll(html, ['name="day_count"', "Number of days"]);
+    expectIncludesAll(html, ['name="dayCount"', "Number of days"]);
   });
 
   test("notes when a customisable listing has no day prices set", () => {

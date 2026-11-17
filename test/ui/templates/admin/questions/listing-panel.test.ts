@@ -52,7 +52,7 @@ describe("adminListingQuestionsPage", () => {
       }),
     );
     expectIncludesAll(html, [
-      '<input name="question_ids" type="checkbox" value="1">',
+      '<input name="questionIds" type="checkbox" value="1">',
       // A single space sits before the "(1 option…)" summary inside the label.
       "<small> (1 option: Yes)</small>",
     ]);

@@ -197,8 +197,8 @@ describe("adminNoteNewPage", () => {
       "Add a note for Alice Example",
       'action="/admin/attendee/5/note"',
       'name="note"',
-      'name="csrf_token"',
-      'name="return_url" type="hidden" value="/admin/attendees/5"',
+      'name="csrfToken"',
+      'name="returnUrl" type="hidden" value="/admin/attendees/5"',
     ]);
   });
 
@@ -233,7 +233,7 @@ describe("adminNoteDeletePage", () => {
       'action="/admin/attendee/5/note/1/delete"',
     ]);
     // The intermediate page is deliberately NOT the copy/paste confirmation.
-    assert(!html.includes('name="confirm_identifier"'));
+    assert(!html.includes('name="confirmIdentifier"'));
     // It bounces back via return_url.
     assertStringIncludes(html, 'value="/admin/attendees/5"');
   });

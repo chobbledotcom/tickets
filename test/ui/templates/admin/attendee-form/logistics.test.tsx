@@ -42,16 +42,16 @@ describe("LogisticsSection", () => {
     const html = String(LogisticsSection({ logistics }));
 
     expectIncludesAll(html, [
-      'checked class="split-agents-toggle" name="split_logistics_agents"',
-      'name="logistics_start_time" type="time" value="09:00"',
-      'name="logistics_end_time" type="time" value="17:00"',
+      'checked class="split-agents-toggle" name="splitLogisticsAgents"',
+      'name="logisticsStartTime" type="time" value="09:00"',
+      'name="logisticsEndTime" type="time" value="17:00"',
       "Morning van",
       "Evening van",
       "Boat trip",
-      'name="logistics_start_time_42" type="time" value="10:15"',
-      'name="logistics_end_time_42" type="time" value="18:30"',
-      'name="logistics_start_42"',
-      'name="logistics_end_42"',
+      'name="logisticsStartTime42" type="time" value="10:15"',
+      'name="logisticsEndTime42" type="time" value="18:30"',
+      'name="logisticsStart42"',
+      'name="logisticsEnd42"',
     ]);
   });
 });

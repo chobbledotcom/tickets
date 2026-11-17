@@ -246,7 +246,7 @@ describe("adminLoginPage", () => {
       "Login",
       'action="/admin/login"',
       'type="password"',
-      'name="csrf_token"',
+      'name="csrfToken"',
     ]);
   });
 

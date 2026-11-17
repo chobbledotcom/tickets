@@ -28,7 +28,7 @@ describe("ticketPage day-count selector", () => {
       slugs: ["ab12c"],
     });
     expectIncludesAll(html, [
-      'name="day_count"',
+      'name="dayCount"',
       '<option value="1">1 day',
       '<option value="2">2 days',
       // The single-listing page annotates each option with its price.
@@ -85,7 +85,7 @@ describe("ticketPage day-count selector", () => {
     });
     const html = ticketPage({ listings: [a, b], slugs: ["ab12c", "cd34e"] });
     expectIncludesAll(html, [
-      'name="day_count"',
+      'name="dayCount"',
       '<option value="1">1 day</option>',
       '<option value="2">2 days</option>',
     ]);
@@ -101,6 +101,6 @@ describe("ticketPage day-count selector", () => {
       listings: [buildTicketListing(listing, false, undefined)],
       slugs: ["ab12c"],
     });
-    assert(!html.includes('name="day_count"'));
+    assert(!html.includes('name="dayCount"'));
   });
 });

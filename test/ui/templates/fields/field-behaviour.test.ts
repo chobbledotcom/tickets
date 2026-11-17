@@ -60,7 +60,7 @@ describe("fields behaviour", () => {
           I18N_REPLACEMENTS: `fixed|${replacement}`,
         });
         resetI18nForTest();
-        const field = byName(getModifierForm().fields, "calc_kind");
+        const field = byName(getModifierForm().fields, "calcKind");
         if (field.type !== "select") {
           throw new Error("calc_kind must be a select field");
         }
@@ -78,21 +78,21 @@ describe("fields behaviour", () => {
       expect(byName(modifierFields, "name").required).toBe(true);
     });
     test("calc_value requires a finite number", () => {
-      const calc = byName(modifierFields, "calc_value");
+      const calc = byName(modifierFields, "calcValue");
       expect(calc.required).toBe(true);
       accepts(calc, "5");
       accepts(calc, "1.5");
       rejects(calc, "abc");
     });
     test("min_subtotal parses blank to 0 and validates a currency amount", () => {
-      const field = byName(modifierFields, "min_subtotal");
+      const field = byName(modifierFields, "minSubtotal");
       expect(runParse(field, "")).toBe(0);
       expect(runParse(field, "5")).toBe(5);
       accepts(field, "5");
       rejects(field, "not-money");
     });
     test("min_visits parses blank to 0 and floors at 0", () => {
-      const field = byName(modifierFields, "min_visits");
+      const field = byName(modifierFields, "minVisits");
       expect(runParse(field, "")).toBe(0);
       expect(runParse(field, "3")).toBe(3);
       expect(field.min).toBe(0);
@@ -102,30 +102,30 @@ describe("fields behaviour", () => {
   describe("listing form fields", () => {
     const fields = getListingForm().fields;
     test("capacity fields are required with sensible minimums", () => {
-      expect(byName(fields, "max_attendees").min).toBe(1);
-      expect(byName(fields, "max_attendees").required).toBe(true);
-      expect(byName(fields, "max_quantity").min).toBe(1);
-      expect(byName(fields, "max_quantity").required).toBe(true);
-      expect(byName(fields, "minimum_days_before").min).toBe(0);
-      expect(byName(fields, "maximum_days_after").min).toBe(0);
+      expect(byName(fields, "maxAttendees").min).toBe(1);
+      expect(byName(fields, "maxAttendees").required).toBe(true);
+      expect(byName(fields, "maxQuantity").min).toBe(1);
+      expect(byName(fields, "maxQuantity").required).toBe(true);
+      expect(byName(fields, "minimumDaysBefore").min).toBe(0);
+      expect(byName(fields, "maximumDaysAfter").min).toBe(0);
     });
     test("whole-number catalog kinds refuse a fraction like the API does", () => {
       // The kind is the shared declaration: the listing JSON API refuses the
       // same fraction for every field here.
       for (const name of [
-        "max_attendees",
-        "max_quantity",
-        "min_quantity",
-        "minimum_days_before",
-        "maximum_days_after",
-        "months_per_unit",
-        "initial_site_months",
+        "maxAttendees",
+        "maxQuantity",
+        "minQuantity",
+        "minimumDaysBefore",
+        "maximumDaysAfter",
+        "monthsPerUnit",
+        "initialSiteMonths",
       ]) {
         rejects(byName(fields, name), "1.5");
       }
     });
     test("duration_days accepts 1..MAX and rejects a fraction", () => {
-      const duration = byName(fields, "duration_days");
+      const duration = byName(fields, "durationDays");
       expect(duration.min).toBe(1);
       expect(duration.max).toBe(MAX_DURATION_DAYS);
       accepts(duration, "1");
@@ -146,18 +146,18 @@ describe("fields behaviour", () => {
       expect(byName(fields, "description").markdown).toBe(true);
     });
     test("max_price defaults to 100 in the store's currency", () => {
-      expect(Number(byName(fields, "max_price").defaultValue)).toBe(100);
+      expect(Number(byName(fields, "maxPrice").defaultValue)).toBe(100);
     });
   });
 
   describe("month-count fields keep their bounds", () => {
     test("months-per-unit is 0..24", () => {
-      const field = byName(getListingForm().fields, "months_per_unit");
+      const field = byName(getListingForm().fields, "monthsPerUnit");
       expect(field.min).toBe(0);
       expect(field.max).toBe(24);
     });
     test("initial-site-months is 0..120", () => {
-      const field = byName(getListingForm().fields, "initial_site_months");
+      const field = byName(getListingForm().fields, "initialSiteMonths");
       expect(field.min).toBe(0);
       expect(field.max).toBe(120);
     });
@@ -167,7 +167,7 @@ describe("fields behaviour", () => {
     test("built-site name and url are required; updates only accepts a tier", () => {
       const fields = getBuiltSiteForm().fields;
       expect(byName(fields, "name").required).toBe(true);
-      expect(byName(fields, "site_url").required).toBe(true);
+      expect(byName(fields, "siteUrl").required).toBe(true);
       const updates = byName(fields, "updates");
       accepts(updates, "release");
       rejects(updates, "not-a-tier");
@@ -181,11 +181,11 @@ describe("fields behaviour", () => {
     test("group name is required and its terms render markdown", () => {
       const fields = getGroupCreateForm().fields;
       expect(byName(fields, "name").required).toBe(true);
-      expect(byName(fields, "terms_and_conditions").markdown).toBe(true);
+      expect(byName(fields, "termsAndConditions").markdown).toBe(true);
     });
     test("group max attendees refuses a fraction like the group API does", () => {
-      expect(byName(getGroupCreateForm().fields, "max_attendees").min).toBe(0);
-      rejects(byName(getGroupCreateForm().fields, "max_attendees"), "1.5");
+      expect(byName(getGroupCreateForm().fields, "maxAttendees").min).toBe(0);
+      rejects(byName(getGroupCreateForm().fields, "maxAttendees"), "1.5");
     });
     test("ticket name and email fields are required", () => {
       const fields = getTicketFields("email", false);

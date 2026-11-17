@@ -55,7 +55,7 @@ const renderHidingChildName = async (
   const html = await bookingPageHtml(parent.slug);
   expectIncludesAll(html, [
     `data-sole-child="${child.id}"`,
-    `name="child_price_${parent.id}_${child.id}"`,
+    `name="childPrice${parent.id}_${child.id}"`,
   ]);
   assert(!html.includes("Hidden add-on"));
   return html;
@@ -103,12 +103,12 @@ describeWithEnv(
       const html = await refilled.text();
       const optionsB = selectOptionsFromHtml(
         html,
-        `child_qty_${parent.id}_${childB.id}`,
+        `childQty${parent.id}_${childB.id}`,
       );
       assertStringIncludes(optionsB, 'value="1" selected');
       const optionsA = selectOptionsFromHtml(
         html,
-        `child_qty_${parent.id}_${childA.id}`,
+        `childQty${parent.id}_${childA.id}`,
       );
       assertStringIncludes(optionsA, 'value="0" selected');
     });
@@ -130,25 +130,23 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       expectIncludesAll(html, [
         `<fieldset class="child-selector" data-parent-id="${parent.id}">`,
-        `name="child_price_${parent.id}_${childA.id}"`,
-        `name="child_price_${parent.id}_${childB.id}"`,
-        `name="child_qty_${parent.id}_${fixedChild.id}"`,
+        `name="childPrice${parent.id}_${childA.id}"`,
+        `name="childPrice${parent.id}_${childB.id}"`,
+        `name="childQty${parent.id}_${fixedChild.id}"`,
       ]);
-      assert(
-        !html.includes(`name="child_price_${parent.id}_${fixedChild.id}"`),
-      );
+      assert(!html.includes(`name="childPrice${parent.id}_${fixedChild.id}"`));
       assertStringIncludes(
         html,
         `data-child-qty="${fixedChild.id}"><option value="0" selected>0</option><option value="1">1</option></select> Child 3 (£10)</label></fieldset>`,
       );
       expect(html).not.toMatch(
         new RegExp(
-          `name="child_price_${parent.id}_${childA.id}"[^>]*\\srequired`,
+          `name="childPrice${parent.id}_${childA.id}"[^>]*\\srequired`,
         ),
       );
       expect(html).not.toMatch(
         new RegExp(
-          `name="child_price_${parent.id}_${childB.id}"[^>]*\\srequired`,
+          `name="childPrice${parent.id}_${childB.id}"[^>]*\\srequired`,
         ),
       );
     });
@@ -161,17 +159,17 @@ describeWithEnv(
       await deactivateTestListing(deadChild.id);
 
       const html = await bookingPageHtml(parent.slug);
-      assert(!html.includes(`name="child_qty_${parent.id}_${liveChild.id}"`));
+      assert(!html.includes(`name="childQty${parent.id}_${liveChild.id}"`));
       assertStringIncludes(html, `data-sole-child="${liveChild.id}"`);
       expect(html).toMatch(
         new RegExp(
-          `<select name="child_qty_${parent.id}_${deadChild.id}"[^>]*\\sdisabled`,
+          `<select name="childQty${parent.id}_${deadChild.id}"[^>]*\\sdisabled`,
         ),
       );
-      assert(!html.includes(`name="child_price_${parent.id}_${deadChild.id}"`));
+      assert(!html.includes(`name="childPrice${parent.id}_${deadChild.id}"`));
       assertStringIncludes(
         html,
-        `<select name="child_qty_${parent.id}_${deadChild.id}" disabled><option value="0" selected>0</option></select> Child 2 (unavailable)</label></fieldset>`,
+        `<select name="childQty${parent.id}_${deadChild.id}" disabled><option value="0" selected>0</option></select> Child 2 (unavailable)</label></fieldset>`,
       );
     });
 
@@ -184,12 +182,12 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expectIncludesAll(html, [
-        `<select name="child_qty_${parent.id}_${childA.id}"`,
-        `<select name="child_qty_${parent.id}_${childB.id}"`,
+        `<select name="childQty${parent.id}_${childA.id}"`,
+        `<select name="childQty${parent.id}_${childB.id}"`,
       ]);
       const optionsA = await selectOptionsHtml(
         parent.slug,
-        `child_qty_${parent.id}_${childA.id}`,
+        `childQty${parent.id}_${childA.id}`,
       );
       assertStringIncludes(optionsA, 'value="2"');
       assert(!optionsA.includes('value="3"'));
@@ -210,8 +208,8 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
-      assertStringIncludes(html, `name="child_price_${parent.id}_${child.id}"`);
+      assert(!html.includes(`name="childQty${parent.id}_${child.id}"`));
+      assertStringIncludes(html, `name="childPrice${parent.id}_${child.id}"`);
     });
 
     test("a sole free child is informational", async () => {
@@ -221,7 +219,7 @@ describeWithEnv(
       });
 
       const html = await bookingPageHtml(parent.slug);
-      assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
+      assert(!html.includes(`name="childQty${parent.id}_${child.id}"`));
       expectIncludesAll(html, [
         `data-sole-child="${child.id}"`,
         // An ordinary sole child shows its name alone — no plan term.
@@ -304,9 +302,9 @@ describeWithEnv(
         "Choose an option for Parent",
         "Free A",
         "Free B",
-        `name="child_qty_${parent.id}_${childA.id}"`,
-        `name="child_qty_${parent.id}_${childB.id}"`,
-        `Free A</label><label class="child-option"><select name="child_qty_${parent.id}_${childB.id}"`,
+        `name="childQty${parent.id}_${childA.id}"`,
+        `name="childQty${parent.id}_${childB.id}"`,
+        `Free A</label><label class="child-option"><select name="childQty${parent.id}_${childB.id}"`,
       ]);
       assert(!html.includes("(£0"));
     });

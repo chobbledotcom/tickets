@@ -68,7 +68,7 @@ describe("ticketPage (single listing)", () => {
   test("includes CSRF token in form", async () => {
     const html = await renderTicket(listing);
     expectIncludesAll(html, [
-      'name="csrf_token"',
+      'name="csrfToken"',
       `value="${getCurrentCsrfToken()}"`,
     ]);
   });
@@ -128,7 +128,7 @@ describe("ticketPage (single listing)", () => {
     const html = await renderTicket(multiQtyListing);
     expectIncludesAll(html, [
       "Number of Tickets",
-      `name="quantity_${multiQtyListing.id}"`,
+      `name="quantity${multiQtyListing.id}"`,
       '<option value="1">1</option>',
       '<option value="5">5</option>',
       "Continue",
@@ -170,7 +170,7 @@ describe("ticketPage (single listing)", () => {
   test("hides quantity selector when max_quantity is 1", async () => {
     const html = await renderTicket(listing); // max_quantity is 1
     assert(!html.includes("Number of Tickets"));
-    expect(hasInputWithValue(html, `quantity_${listing.id}`, "1")).toBe(true);
+    expect(hasInputWithValue(html, `quantity${listing.id}`, "1")).toBe(true);
     assertStringIncludes(html, "Continue");
   });
 
@@ -244,7 +244,7 @@ describe("ticketPage (single listing)", () => {
     expectIncludesAll(html, [
       "No refunds allowed",
       'class="prose"',
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   });
 
@@ -262,7 +262,7 @@ describe("ticketPage (single listing)", () => {
   test("does not render terms when not provided", async () => {
     const html = await renderTicket(listing);
     assert(!html.includes('class="terms"'));
-    assert(!html.includes('name="agree_terms"'));
+    assert(!html.includes('name="agreeTerms"'));
   });
 
   test("renders custom questions when provided", async () => {
@@ -291,7 +291,7 @@ describe("ticketPage (single listing)", () => {
       },
     ];
     const html = await renderTicket(listing, { questions });
-    expectIncludesAll(html, ["Size?", 'name="question_1"']);
+    expectIncludesAll(html, ["Size?", 'name="question1"']);
   });
 
   test("includes OpenGraph tags when baseUrl is provided", async () => {

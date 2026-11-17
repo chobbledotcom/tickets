@@ -41,7 +41,7 @@ export type Page = {
  * the state labels the page ships beside the controls. */
 const formHtml = (provider: string, withToken: boolean): string => `
   <form id="settings-${provider}">
-    ${withToken ? `<input name="csrf_token" type="hidden" value="token-${provider}" />` : ""}
+    ${withToken ? `<input name="csrfToken" type="hidden" value="token-${provider}" />` : ""}
     <button class="secondary" data-testing="Testing..." id="${provider}-test-btn" type="button">${SAVE_LABEL}</button>
     <div class="hidden" data-failed="Connection test failed:" id="${provider}-test-result"></div>
   </form>`;

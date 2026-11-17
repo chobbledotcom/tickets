@@ -62,7 +62,7 @@ describe("renderDateSelector", () => {
 
 describe("renderDayCountSelector", () => {
   test("restores the submitted day count on a re-render", async () => {
-    const html = await withSubmittedValues({ day_count: "2" }, () =>
+    const html = await withSubmittedValues({ dayCount: "2" }, () =>
       renderDayCountSelector([1, 2, 3]),
     );
     assertStringIncludes(html, '<option value="2" selected>');
@@ -116,7 +116,7 @@ describe("renderPayMoreInput", () => {
   };
 
   test("restores the submitted price on a re-render", async () => {
-    const html = await withSubmittedValues({ custom_price: "25.00" }, () =>
+    const html = await withSubmittedValues({ customPrice: "25.00" }, () =>
       renderPayMoreInput(listing),
     );
     assertStringIncludes(html, 'value="25.00"');
@@ -167,12 +167,12 @@ describe("renderPayMoreInput", () => {
 
   test("prefills the entered value when it is at or above the minimum", () => {
     assertStringIncludes(
-      renderPayMoreInput(listing, "custom_price", 2500),
+      renderPayMoreInput(listing, "customPrice", 2500),
       'value="25.00"',
     );
     // Below the minimum the buyer cannot start lower than it.
     assertStringIncludes(
-      renderPayMoreInput(listing, "custom_price", 100),
+      renderPayMoreInput(listing, "customPrice", 100),
       'value="5.00"',
     );
   });
@@ -180,7 +180,7 @@ describe("renderPayMoreInput", () => {
   test("keeps a child's price input optional", () => {
     const html = renderPayMoreInput(
       listing,
-      "child_price_7_10",
+      "childPrice7_10",
       undefined,
       false,
     );
@@ -190,15 +190,15 @@ describe("renderPayMoreInput", () => {
 
 describe("renderTermsAndCheckbox", () => {
   test("keeps the box ticked when the buyer had agreed", async () => {
-    const html = await withSubmittedValues({ agree_terms: "1" }, () =>
+    const html = await withSubmittedValues({ agreeTerms: "1" }, () =>
       renderTermsAndCheckbox("Be kind."),
     );
-    assertStringIncludes(html, 'name="agree_terms" value="1" checked required');
+    assertStringIncludes(html, 'name="agreeTerms" value="1" checked required');
   });
 
   test("starts with the box clear", () => {
     const html = renderTermsAndCheckbox("Be kind.");
-    assertStringIncludes(html, 'name="agree_terms" value="1" required');
+    assertStringIncludes(html, 'name="agreeTerms" value="1" required');
     expectExcludesAll(html, ["checked"]);
   });
 });

@@ -153,7 +153,7 @@ describe("adminUserDeletePage", () => {
       "Delete User",
       "targetuser",
       '<a class="active" href="/admin/users">',
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       'action="/admin/users/5/delete"',
       "permanently delete",
     ]);

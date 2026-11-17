@@ -21,7 +21,7 @@ describe("adminAdvancedSettingsPage", () => {
     });
     expectIncludesAll(html, [
       "SMS Gateway",
-      'name="sms_gateway_username"',
+      'name="smsGatewayUsername"',
       "myuser",
       "https://sms.example.com",
       `minlength="${SMS_PASSPHRASE_MIN_LENGTH}"`,
@@ -36,9 +36,9 @@ describe("adminAdvancedSettingsPage", () => {
       smsGatewayWebhookConfigured: true,
     });
     expectIncludesAll(html, [
-      'name="sms_gateway_password"',
-      'name="sms_gateway_passphrase"',
-      'name="sms_gateway_webhook_secret"',
+      'name="smsGatewayPassword"',
+      'name="smsGatewayPassphrase"',
+      'name="smsGatewayWebhookSecret"',
       MASK_SENTINEL,
     ]);
   });

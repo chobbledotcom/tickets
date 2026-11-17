@@ -105,7 +105,7 @@ describe("adminListingPage filter links", () => {
       activeFilter: "in",
       attendees: [testAttendee({ checked_in: 1 })],
     });
-    expectIncludesAll(html, ['name="return_filter"', 'value="in"']);
+    expectIncludesAll(html, ['name="returnFilter"', 'value="in"']);
   });
 });
 

@@ -75,14 +75,14 @@ describe("attendee status templates", () => {
 
     assertStringIncludes(html, 'action="/admin/settings/statuses"');
     expect(html).toMatch(/name="name"[^>]*value=""/);
-    assertStringIncludes(html, 'name="is_reservation" type="checkbox"');
+    assertStringIncludes(html, 'name="isReservation" type="checkbox"');
     // The exclusive checkboxes carry data-exclusive attributes between
     // `checked` and `name`. A bare `checked name=` substring cannot prove
     // the flag is off, so match across the attributes.
-    expect(html).not.toMatch(/<input checked[^>]*name="is_reservation"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="is_public_default"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="is_paid_default"/);
-    expect(html).toMatch(/name="reservation_amount"[^>]*value="0"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isReservation"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isPublicDefault"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isPaidDefault"/);
+    expect(html).toMatch(/name="reservationAmount"[^>]*value="0"/);
     assertStringIncludes(html, "Create status");
   });
 
@@ -92,14 +92,14 @@ describe("attendee status templates", () => {
     assertStringIncludes(html, 'action="/admin/settings/statuses/7/edit"');
     expect(html).toMatch(/name="name"[^>]*value="Reserved"/);
     expect(html.match(/<input checked/g)).toHaveLength(3);
-    expect(html).toMatch(/name="reservation_amount"[^>]*value="25%"/);
+    expect(html).toMatch(/name="reservationAmount"[^>]*value="25%"/);
     assertStringIncludes(html, "Save status");
   });
 
   test("uses rejected values instead of restoring stored edit fields", () => {
     const values = new FormParams({
-      is_public_default: "true",
-      reservation_amount: "lots",
+      isPublicDefault: "true",
+      reservationAmount: "lots",
     });
     const html = String(
       AttendeeStatusEditPanel({
@@ -112,10 +112,10 @@ describe("attendee status templates", () => {
     assertStringIncludes(html, "Invalid reservation amount");
     expect(html).toMatch(/name="name"[^>]*value=""/);
     assert(!html.includes('value="Reserved"'));
-    expect(html).not.toMatch(/<input checked[^>]*name="is_reservation"/);
-    expect(html).toMatch(/<input checked[^>]*name="is_public_default"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="is_paid_default"/);
-    expect(html).toMatch(/name="reservation_amount"[^>]*value="lots"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isReservation"/);
+    expect(html).toMatch(/<input checked[^>]*name="isPublicDefault"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isPaidDefault"/);
+    expect(html).toMatch(/name="reservationAmount"[^>]*value="lots"/);
   });
 
   test("gives every field the shape the browser needs", () => {
@@ -123,7 +123,7 @@ describe("attendee status templates", () => {
 
     expectIncludesAll(html, [
       '<input maxlength="250" name="name" required type="text"',
-      '<input name="reservation_amount" type="text"',
+      '<input name="reservationAmount" type="text"',
       '<fieldset class="checkboxes">',
       '<label class="checkbox">',
     ]);
@@ -135,10 +135,10 @@ describe("attendee status templates", () => {
     const html = statusPages.newPage(OWNER_SESSION);
 
     expect(html).toMatch(
-      /data-exclusive-with="is_reservation"[^>]*name="is_paid_default"/,
+      /data-exclusive-with="isReservation"[^>]*name="isPaidDefault"/,
     );
     expect(html).toMatch(
-      /data-exclusive-with="is_paid_default"[^>]*name="is_reservation"/,
+      /data-exclusive-with="isPaidDefault"[^>]*name="isReservation"/,
     );
     assertStringIncludes(html, t("statuses.error_paid_default_reservation"));
   });
@@ -153,8 +153,8 @@ describe("attendee status templates", () => {
     // The stored status has none of the three flags, so a checkbox that shows
     // as ticked can only have come from what the operator submitted.
     const values = new FormParams({
-      is_paid_default: "true",
-      is_reservation: "true",
+      isPaidDefault: "true",
+      isReservation: "true",
       name: "Typed Instead",
     });
 
@@ -163,9 +163,9 @@ describe("attendee status templates", () => {
     );
 
     expect(html).toMatch(/name="name"[^>]*value="Typed Instead"/);
-    expect(html).toMatch(/<input checked[^>]*name="is_reservation"/);
-    expect(html).toMatch(/<input checked[^>]*name="is_paid_default"/);
-    expect(html).not.toMatch(/<input checked[^>]*name="is_public_default"/);
+    expect(html).toMatch(/<input checked[^>]*name="isReservation"/);
+    expect(html).toMatch(/<input checked[^>]*name="isPaidDefault"/);
+    expect(html).not.toMatch(/<input checked[^>]*name="isPublicDefault"/);
   });
 
   test("renders a non-dangerous typed-name delete form", () => {
@@ -179,7 +179,7 @@ describe("attendee status templates", () => {
       "Status is still in use",
       'action="/admin/settings/statuses/7/delete"',
       "Type the status name &quot;Reserved&quot; to confirm deletion:",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       "Delete status",
     ]);
     assert(!html.includes('<button class="danger"'));
@@ -213,7 +213,7 @@ describe("the delete page of a status attendees hold", () => {
       "1 attendee holds this status.",
       t("statuses.delete_reassign_warning"),
     ]);
-    expect(html).toMatch(/<select[^>]*name="reassign_status_id"[^>]*required/);
+    expect(html).toMatch(/<select[^>]*name="reassignStatusId"[^>]*required/);
     // The empty prompt stays preselected, so a save without a real pick
     // cannot slip through the browser's own required check.
     expectIncludesAll(html, [
@@ -227,7 +227,7 @@ describe("the delete page of a status attendees hold", () => {
   test("keeps the picker off a status nobody holds", () => {
     const html = render(null);
 
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     assert(!html.includes(t("statuses.delete_reassign_warning")));
   });
 
@@ -250,7 +250,7 @@ describe("the delete page of a status attendees hold", () => {
       html,
       "Choose another paid default before deleting this status",
     );
-    assert(!html.includes('name="reassign_status_id"'));
+    assert(!html.includes('name="reassignStatusId"'));
     expectIncludesAll(html, [
       'action="/admin/settings/statuses/9/delete"',
       "Delete status",

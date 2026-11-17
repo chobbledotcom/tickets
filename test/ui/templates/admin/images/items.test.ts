@@ -39,9 +39,9 @@ describeWithEnv("admin item image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/groups/${group.id}/images`,
           [
-            ["csrf_token", csrfToken],
-            ["image_ids", String(second.id)],
-            ["image_ids", String(first.id)],
+            ["csrfToken", csrfToken],
+            ["imageIds", String(second.id)],
+            ["imageIds", String(first.id)],
           ],
           cookie,
         ),
@@ -70,8 +70,8 @@ describeWithEnv("admin item image routes", { db: true, storage: "cdn" }, () => {
           formRequest(
             `/admin/groups/${group.id}/images`,
             [
-              ["csrf_token", csrfToken],
-              ["image_ids", String(image.id)],
+              ["csrfToken", csrfToken],
+              ["imageIds", String(image.id)],
             ],
             cookie,
           ),

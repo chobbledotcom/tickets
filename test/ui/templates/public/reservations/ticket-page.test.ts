@@ -138,7 +138,7 @@ describe("ticketPage — packages", () => {
       ],
       slugs: ["available", "sold-out"],
     });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes('class="ticket-listings"'));
   });
 
@@ -181,14 +181,14 @@ describe("ticketPage — packages", () => {
       slugs: [PKG_SLUG],
     });
     expectIncludesAll(html, [
-      'name="package_quantity_5"',
+      'name="packageQuantity5"',
       "Number of packages",
       "Tent",
       "&times;1",
       "Chair",
       "&times;4",
     ]);
-    assert(!html.includes('name="quantity_1"'));
+    assert(!html.includes('name="quantity1"'));
   });
 
   describeWithEnv(
@@ -265,7 +265,7 @@ describe("ticketPage — packages", () => {
 
   test("restores the submitted package quantity after a validation error", async () => {
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ package_quantity_5: "3" }));
+      setSavedFormData(new FormParams({ packageQuantity5: "3" }));
       const listings = [
         ticketListing({
           id: 1,
@@ -297,7 +297,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(7, [1, 2], { quantities: new Map([[1, 2]]) })],
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
+    expectIncludesAll(html, ['name="packageQuantity7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -325,7 +325,7 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    assert(!html.includes('name="package_quantity'));
+    assert(!html.includes('name="packageQuantity'));
     assertStringIncludes(html, "Sorry, all listings are sold out.");
   });
 
@@ -362,7 +362,7 @@ describe("ticketPage — packages", () => {
     });
     expectIncludesAll(html, [
       'class="ticket-package sold-out"',
-      'name="quantity_1"',
+      'name="quantity1"',
       'data-parent-id="1"',
     ]);
   });
@@ -383,7 +383,7 @@ describe("ticketPage — packages", () => {
       packages: evenSplitPackages(),
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_7"', '<option value="1"']);
+    expectIncludesAll(html, ['name="packageQuantity7"', '<option value="1"']);
     assert(!html.includes('<option value="2"'));
   });
 
@@ -401,7 +401,7 @@ describe("ticketPage — packages", () => {
       packages: [pagePackage(5, [1], { hideListings: true })],
       slugs: [PKG_SLUG],
     });
-    expectIncludesAll(html, ['name="package_quantity_5"', "Hidden Bundle"]);
+    expectIncludesAll(html, ['name="packageQuantity5"', "Hidden Bundle"]);
     assert(!html.includes("SecretItem"));
   });
 

@@ -47,7 +47,7 @@ describe("renderQuestions", () => {
 
     expectIncludesAll(html, [
       "Favourite colour?",
-      'name="question_1"',
+      'name="question1"',
       'value="10"',
       "Red",
       'value="11"',
@@ -107,7 +107,7 @@ describe("renderQuestions", () => {
     // control has an accessible name without a separate screen-reader element.
     expectIncludesAll(html, [
       '<label class="custom-question">Favourite colour?<select',
-      '<select name="question_1" required>',
+      '<select name="question1" required>',
       '<option value="">Select an answer</option>',
       '<option value="10">Red</option>',
     ]);
@@ -131,7 +131,7 @@ describe("renderQuestions", () => {
     // the select case, so the control has an accessible name on its own.
     expectIncludesAll(html, [
       '<label class="custom-question">Your name?<input',
-      'name="question_1"',
+      'name="question1"',
       'type="text"',
       "required",
     ]);
@@ -141,7 +141,7 @@ describe("renderQuestions", () => {
 
   test("restores a saved free-text answer from saved form data", async () => {
     const html = await withRequestContext(() => {
-      setSavedFormData(new FormParams({ question_1: "Ada Lovelace" }));
+      setSavedFormData(new FormParams({ question1: "Ada Lovelace" }));
       return renderQuestions([
         {
           answers: [],
@@ -158,7 +158,7 @@ describe("renderQuestions", () => {
 
   test("restores selected select answers from saved form data", async () => {
     const html = await withRequestContext(() => {
-      setSavedFormData(new FormParams({ question_1: "11" }));
+      setSavedFormData(new FormParams({ question1: "11" }));
       return renderQuestions(colourQuestion("select")).toString();
     });
 
@@ -169,7 +169,7 @@ describe("renderQuestions", () => {
   test("renders multiple questions", () => {
     const html = renderQuestions(twoRadioQuestions()).toString();
 
-    expectIncludesAll(html, ['name="question_1"', 'name="question_2"']);
+    expectIncludesAll(html, ['name="question1"', 'name="question2"']);
   });
 
   test("escapes HTML in question and answer text", () => {

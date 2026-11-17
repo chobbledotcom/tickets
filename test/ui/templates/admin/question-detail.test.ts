@@ -33,7 +33,7 @@ describe("QuestionEditPanel", () => {
       'action="/admin/questions/1/edit"',
       // The choice-type selector offers radio vs select, with the question's
       // current type (radio) pre-selected.
-      '<select name="display_type"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
+      '<select name="displayType"><option selected value="radio">Radio buttons</option><option value="select">Select box</option></select>',
     ]);
   });
 
@@ -51,7 +51,7 @@ describe("QuestionEditPanel", () => {
     // are not offered.
     assertStringIncludes(
       html,
-      '<input name="display_type" type="hidden" value="free_text"',
+      '<input name="displayType" type="hidden" value="free_text"',
     );
     assert(!html.includes("Radio buttons"));
     // The free-text note renders inside its prose block, so a free-text
@@ -208,7 +208,7 @@ describe("QuestionListingsSection", () => {
     expectIncludesAll(html, [
       '<form action="/admin/questions/1/listings" autocomplete="off" method="POST" id="question-listings">',
       "<strong>Linked listings (0):</strong>",
-      'name="listing_ids"',
+      'name="listingIds"',
       'value="1"',
       'value="2"',
       "Spring Gig",
@@ -224,8 +224,8 @@ describe("QuestionListingsSection", () => {
         question: { ...question, assignAll: true },
       }),
     );
-    const toggle = html.indexOf('checked name="assign_all" type="checkbox"');
-    const firstListing = html.indexOf('name="listing_ids"');
+    const toggle = html.indexOf('checked name="assignAll" type="checkbox"');
+    const firstListing = html.indexOf('name="listingIds"');
     expect(toggle).toBeGreaterThan(-1);
     expect(firstListing).toBeGreaterThan(toggle);
     assertStringIncludes(html, "Assign to all listings");
@@ -258,7 +258,7 @@ describe("QuestionListingsSection", () => {
     );
     const live = html.indexOf('value="2"');
     const retired = html.indexOf(
-      '<label class="muted"><input name="listing_ids" type="checkbox" value="1"',
+      '<label class="muted"><input name="listingIds" type="checkbox" value="1"',
     );
     expect(live).toBeGreaterThan(-1);
     expect(retired).toBeGreaterThan(live);
@@ -274,10 +274,10 @@ describe("QuestionListingsSection", () => {
     );
     assertStringIncludes(
       html,
-      'checked name="listing_ids" type="checkbox" value="1"',
+      'checked name="listingIds" type="checkbox" value="1"',
     );
     assert(
-      !html.includes('checked name="listing_ids" type="checkbox" value="2"'),
+      !html.includes('checked name="listingIds" type="checkbox" value="2"'),
     );
   });
 

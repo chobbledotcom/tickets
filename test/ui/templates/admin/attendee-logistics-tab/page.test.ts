@@ -194,7 +194,7 @@ describeWithEnv("attendee Logistics tab (POST)", { db: true }, () => {
     );
 
     const html = await logisticsTabHtml(id);
-    expectIncludesAll(html, ['name="logistics_start"', "Tab Van"]);
+    expectIncludesAll(html, ['name="logisticsStart"', "Tab Van"]);
 
     await adminFormPost(`/admin/attendees/${id}/logistics`, {
       address: "Somewhere",

@@ -72,8 +72,8 @@ describe("admin news templates", () => {
       'action="/admin/site/news"',
       "Name is required.",
       'name="name"',
-      'name="meta_title"',
-      'name="meta_description"',
+      'name="metaTitle"',
+      'name="metaDescription"',
       'name="snippet"',
       'name="content"',
     ]);
@@ -108,7 +108,7 @@ describe("admin news templates", () => {
       'action="/admin/site/news/17/delete"',
       "Name did not match.",
       "Type the post name &quot;Launch &amp; Learn&quot; to confirm deletion.",
-      'name="confirm_identifier" placeholder="Launch &amp; Learn" required',
+      'name="confirmIdentifier" placeholder="Launch &amp; Learn" required',
       "Delete News Post",
     ]);
   });

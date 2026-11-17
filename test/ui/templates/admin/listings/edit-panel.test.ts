@@ -39,7 +39,7 @@ describe("adminListingEditPage group select", () => {
         session: OWNER_SESSION,
       }),
     );
-    expectIncludesAll(html, ['name="group_ids"', 'value="2"', "checked"]);
+    expectIncludesAll(html, ['name="groupIds"', 'value="2"', "checked"]);
   });
 
   test("does not link to the JSON export (that now lives on the Actions tab)", () => {
@@ -77,7 +77,7 @@ describe("adminListingEditPage duration warning", () => {
       'id="listing-edit-submit"',
     ]);
     // The duration input the script reads is pre-filled with the stored value.
-    expect(html).toMatch(/name="duration_days"[^>]*value="3"/);
+    expect(html).toMatch(/name="durationDays"[^>]*value="3"/);
   });
 });
 
@@ -95,21 +95,21 @@ describe("adminListingEditPage day prices", () => {
     );
     // One input per day up to the maximum duration, pre-filled from day_prices.
     expectIncludesAll(html, [
-      'name="day_price_1"',
+      'name="dayPrice1"',
       'value="10.00"',
-      'name="day_price_2"',
+      'name="dayPrice2"',
       'value="18.00"',
       // The customisable-days checkbox is rendered checked for such a listing.
-      'name="customisable_days"',
+      'name="customisableDays"',
       "Day Prices (customisable days)",
     ]);
   });
 
   test("renders a single blank day-price row on the new-listing form", () => {
     const html = adminListingNewPage([], OWNER_SESSION);
-    assertStringIncludes(html, 'name="day_price_1"');
+    assertStringIncludes(html, 'name="dayPrice1"');
     // The maximum defaults to 1 day for a new listing, so only one row shows.
-    assert(!html.includes('name="day_price_2"'));
+    assert(!html.includes('name="dayPrice2"'));
   });
 });
 
@@ -164,8 +164,8 @@ describe("adminListingEditPage form sections", () => {
     const html = String(
       ListingEditPanel({ groups: [], listing, session: OWNER_SESSION }),
     );
-    const customisableIdx = html.indexOf('name="customisable_days"');
-    const dayPriceIdx = html.indexOf('name="day_price_1"');
+    const customisableIdx = html.indexOf('name="customisableDays"');
+    const dayPriceIdx = html.indexOf('name="dayPrice1"');
     const contactFieldsIdx = html.indexOf('name="fields"');
     // The prices follow the checkbox, and both sit before the later Options
     // section — i.e. no longer dumped at the bottom of the form.
@@ -181,8 +181,8 @@ describe("adminListingEditPage form sections", () => {
     );
     const advancedIdx = html.indexOf("<summary>Advanced settings</summary>");
     expect(advancedIdx).toBeGreaterThan(-1);
-    expect(advancedIdx).toBeLessThan(html.indexOf('name="webhook_url"'));
-    expect(advancedIdx).toBeLessThan(html.indexOf('name="thank_you_url"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="webhookUrl"'));
+    expect(advancedIdx).toBeLessThan(html.indexOf('name="thankYouUrl"'));
     expect(advancedIdx).toBeLessThan(html.indexOf('name="slug"'));
   });
 

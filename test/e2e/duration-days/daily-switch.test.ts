@@ -65,7 +65,7 @@ const confirmSwitchOfTwo = async (
   listing: { id: number; maxAttendees: number; name: string; slug: string },
   day: string,
 ): Promise<void> => {
-  const response = await postSwitch(listing, { assign_undated_to: day });
+  const response = await postSwitch(listing, { assignUndatedTo: day });
   await expectFlashRedirect(
     `/admin/listing/${listing.id}`,
     t("listings_table.listing_updated", {
@@ -91,7 +91,7 @@ describeWithEnv(
       expect(gatePage).toContain(
         t("listings_table.switch_daily_undated_heading", { count: 2 }),
       );
-      expect(gatePage).toContain("assign_undated_to");
+      expect(gatePage).toContain("assignUndatedTo");
 
       // Nothing was written: the listing is still standard and both rows
       // still carry no day.
@@ -171,7 +171,7 @@ describeWithEnv(
         sql`UPDATE listing_attendees SET start_at = ${`${day}T00:00:00Z`}, end_at = ${`${day}T23:59:59Z`} WHERE attendee_id = ${undated[0]!.attendee_id}`,
       );
 
-      const response = await postSwitch(listing, { assign_undated_to: day });
+      const response = await postSwitch(listing, { assignUndatedTo: day });
       expect(response.status).toBe(400);
       const page = await response.text();
       expect(page).toContain(
@@ -225,7 +225,7 @@ describeWithEnv(
     test("an ordinary save of a listing with undated bookings is not refused", async () => {
       const listing = await hallWithTwoBookings();
 
-      const response = await postSwitch(listing, { listing_type: "standard" });
+      const response = await postSwitch(listing, { listingType: "standard" });
       await expectFlashRedirect(
         `/admin/listing/${listing.id}`,
         "Listing updated",
@@ -239,14 +239,14 @@ describeWithEnv(
       // quietly write the stored row back and drop the switch.
       const listing = await hallWithTwoBookings();
 
-      const response = await postSwitch(listing, { max_attendees: "1" });
+      const response = await postSwitch(listing, { maxAttendees: "1" });
       expect(response.status).toBe(200);
       const page = await response.text();
       const room =
-        page.match(/name="max_attendees"[^>]*value="([^"]*)"/)?.[1] ??
-        page.match(/value="([^"]*)"[^>]*name="max_attendees"/)?.[1];
+        page.match(/name="maxAttendees"[^>]*value="([^"]*)"/)?.[1] ??
+        page.match(/value="([^"]*)"[^>]*name="maxAttendees"/)?.[1];
       expect(room).toBe("1");
-      const type = optionChosen(page, "listing_type");
+      const type = optionChosen(page, "listingType");
       // The type select carries the organiser's switch, not the stored row.
       expect(type).toBe("daily");
     });
@@ -299,7 +299,7 @@ describeWithEnv(
       });
       expect(response.status).toBe(400);
       const page = await response.text();
-      expect(page).toContain("assign_undated_to");
+      expect(page).toContain("assignUndatedTo");
       expect(page).toContain("Listing extra");
     });
   },

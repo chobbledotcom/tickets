@@ -19,14 +19,14 @@ describe("the listing booking-QR page", () => {
     overrides: Partial<ListingWithCount> = {},
   ): ListingWithCount =>
     ({
-      can_pay_more: false,
+      canPayMore: false,
       id: 12,
-      listing_type: "daily",
-      max_price: 2500,
-      max_quantity: 4,
-      min_quantity: 1,
+      listingType: "daily",
+      maxPrice: 2500,
+      maxQuantity: 4,
+      minQuantity: 1,
       name: "QR Listing",
-      unit_price: 1200,
+      unitPrice: 1200,
       ...overrides,
     }) as ListingWithCount;
 

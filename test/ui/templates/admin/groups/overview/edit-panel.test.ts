@@ -28,14 +28,14 @@ describe("GroupEditPanel package members table", () => {
       }),
     );
     expectIncludesAll(html, [
-      'name="package_price_1"',
+      'name="packagePrice1"',
       'value="15.00"',
-      'name="package_qty_1"',
+      'name="packageQty1"',
       'value="4"',
     ]);
     // Listing 2 (no row): blank price, quantity defaults to 1.
     expect(html).toMatch(
-      /<input(?=[^>]*name="package_price_2")(?=[^>]*value="")[^>]*>/,
+      /<input(?=[^>]*name="packagePrice2")(?=[^>]*value="")[^>]*>/,
     );
   });
 
@@ -51,7 +51,7 @@ describe("GroupEditPanel package members table", () => {
     );
     assertStringIncludes(
       html.match(
-        /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
+        /<input type="checkbox" name="scanChecksInAllListings"[^>]*>/,
       )![0] ?? "",
       " checked",
     );
@@ -66,7 +66,7 @@ describe("GroupEditPanel package members table", () => {
     assert(
       !closedHtml
         .match(
-          /<input type="checkbox" name="scan_checks_in_all_listings"[^>]*>/,
+          /<input type="checkbox" name="scanChecksInAllListings"[^>]*>/,
         )![0]
         .includes(" checked"),
     );

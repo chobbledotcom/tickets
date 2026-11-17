@@ -36,7 +36,7 @@ describe("pressing a payment test-connection button", () => {
       data: { lines: ["API Key: Invalid"], ok: false },
     });
     expect(asked).toEqual([
-      { body: "csrf_token=token-sumup", url: "/admin/settings/sumup/test" },
+      { body: "csrfToken=token-sumup", url: "/admin/settings/sumup/test" },
     ]);
   });
 
@@ -44,7 +44,7 @@ describe("pressing a payment test-connection button", () => {
     const open = page.open("stripe", [passing], false);
     open.button.click();
     await settle();
-    expect(open.asked[0]?.body).toBe("csrf_token=");
+    expect(open.asked[0]?.body).toBe("csrfToken=");
   });
 
   test("shuts the button while it waits, then puts the page's label back", async () => {
@@ -67,7 +67,7 @@ describe("pressing a payment test-connection button", () => {
     const hold = Promise.withResolvers<void>();
     const bare = (_provider: string, withToken: boolean): string =>
       `<form>
-        ${withToken ? `<input name="csrf_token" type="hidden" value="t" />` : ""}
+        ${withToken ? `<input name="csrfToken" type="hidden" value="t" />` : ""}
         <button data-testing="" id="stripe-test-btn" type="button">${SAVE_LABEL}</button>
         <div class="hidden" data-failed="Connection test failed:" id="stripe-test-result"></div>
       </form>`;
@@ -88,7 +88,7 @@ describe("pressing a payment test-connection button", () => {
     const hold = Promise.withResolvers<void>();
     const noLabel = (_provider: string, withToken: boolean): string =>
       `<form>
-        ${withToken ? `<input name="csrf_token" type="hidden" value="t" />` : ""}
+        ${withToken ? `<input name="csrfToken" type="hidden" value="t" />` : ""}
         <button id="stripe-test-btn" type="button">${SAVE_LABEL}</button>
         <div class="hidden" data-failed="Connection test failed:" id="stripe-test-result"></div>
       </form>`;
@@ -107,7 +107,7 @@ describe("pressing a payment test-connection button", () => {
       data: { lines: ["Access Token: Valid (sandbox mode)"], ok: true },
     });
     expect(asked).toEqual([
-      { body: "csrf_token=token-square", url: "/admin/settings/square/test" },
+      { body: "csrfToken=token-square", url: "/admin/settings/square/test" },
     ]);
   });
 

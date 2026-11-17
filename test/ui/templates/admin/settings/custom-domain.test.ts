@@ -57,7 +57,7 @@ describe("CustomDomainForm", () => {
       // The intro links the guide's buy-a-domain steps
       'The <a href="/admin/guide#custom-domain">setup guide</a> shows you how to point it here',
     ]);
-    const domainInput = formHtml.match(/<input[^>]*name="custom_domain"[^>]*>/);
+    const domainInput = formHtml.match(/<input[^>]*name="customDomain"[^>]*>/);
     expect(domainInput).not.toBeNull();
     if (domainInput === null) return;
     assertStringIncludes(

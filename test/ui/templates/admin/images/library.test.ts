@@ -155,7 +155,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockMultipartRequest(
             "/admin/images",
-            { alt_text: "", csrf_token: await testCsrfToken(), name: "" },
+            { altText: "", csrfToken: await testCsrfToken(), name: "" },
             await testCookie(),
           ),
         );
@@ -173,8 +173,8 @@ describeWithEnv(
           mockMultipartRequest(
             "/admin/images",
             {
-              alt_text: "Missing file alt",
-              csrf_token: await testCsrfToken(),
+              altText: "Missing file alt",
+              csrfToken: await testCsrfToken(),
               name: "Missing file",
             },
             await testCookie(),

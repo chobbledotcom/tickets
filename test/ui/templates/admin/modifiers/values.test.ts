@@ -55,8 +55,8 @@ describe("modifierToFieldValues", () => {
       }),
     );
     expect(values.active).toBe("");
-    expect(values.min_subtotal).toBe(25);
-    expect(values.min_visits).toBe(3);
+    expect(values.minSubtotal).toBe(25);
+    expect(values.minVisits).toBe(3);
     expect(values.stock).toBe(8);
   });
 
@@ -64,27 +64,27 @@ describe("modifierToFieldValues", () => {
     const capped = modifierToFieldValues(
       testModifier({ maxPerOrder: 2, trigger: "answer" }),
     );
-    expect(capped.max_per_order).toBe(2);
+    expect(capped.maxPerOrder).toBe(2);
 
     const uncapped = modifierToFieldValues(
       testModifier({ maxPerOrder: null, trigger: "answer" }),
     );
-    expect(uncapped.max_per_order).toBe("");
+    expect(uncapped.maxPerOrder).toBe("");
   });
 
   test("keeps an explicit zero max_per_order as 0, not blank", () => {
     // max_per_order is `?? ""` (nullish), like stock — a stored 0 (refused at
     // the form, but possible by direct repair) must survive a re-render.
     const values = modifierToFieldValues(testModifier({ maxPerOrder: 0 }));
-    expect(values.max_per_order).toBe(0);
+    expect(values.maxPerOrder).toBe(0);
   });
 
   test("renders a zero min_subtotal and absent stock as blank", () => {
     const values = modifierToFieldValues(
       testModifier({ minSubtotal: 0, minVisits: 0, stock: null }),
     );
-    expect(values.min_subtotal).toBe("");
-    expect(values.min_visits).toBe("");
+    expect(values.minSubtotal).toBe("");
+    expect(values.minVisits).toBe("");
     expect(values.stock).toBe("");
   });
 

@@ -37,7 +37,7 @@ describe("adminUserNewPage agent selector", () => {
     expectIncludesAll(html, [
       "Assigned logistics agents",
       '<fieldset class="checkboxes">',
-      'name="agent_ids"',
+      'name="agentIds"',
       "Van 1",
       'value="2"',
       "Delivery agent",
@@ -48,7 +48,7 @@ describe("adminUserNewPage agent selector", () => {
 
   test("renders the agent checkboxes for a single agent", () => {
     const html = adminUserNewPage(OWNER_SESSION, [{ id: 1, name: "Van 1" }]);
-    expectIncludesAll(html, ['name="agent_ids"', "Van 1"]);
+    expectIncludesAll(html, ['name="agentIds"', "Van 1"]);
   });
 
   test("omits the selector when there are no agents", () => {
@@ -83,12 +83,10 @@ describe("UserAgentsPanel", () => {
       "Assigned agents for driver",
       'action="/admin/users/7/agents"',
       // Van 2 (id 2) is checked, Van 1 (id 1) is not.
-      'checked name="agent_ids" type="checkbox" value="2"',
-      'name="agent_ids" type="checkbox" value="1"',
+      'checked name="agentIds" type="checkbox" value="2"',
+      'name="agentIds" type="checkbox" value="1"',
     ]);
-    assert(
-      !html.includes('checked name="agent_ids" type="checkbox" value="1"'),
-    );
+    assert(!html.includes('checked name="agentIds" type="checkbox" value="1"'));
   });
 
   test("prompts to add agents when none exist", () => {

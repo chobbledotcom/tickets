@@ -45,7 +45,7 @@ describeWithEnv("adminApiKeyDeletePage", { db: true }, () => {
       'action="/admin/api-keys/7/delete"',
       "<p>Warning: This will permanently delete this API key. Any integrations using it will stop working immediately.</p>",
       "<p>To delete this API key, type its name &quot;Deploy key&quot; into the box below:</p>",
-      'name="confirm_identifier" placeholder="Deploy key" required',
+      'name="confirmIdentifier" placeholder="Deploy key" required',
       '<button class="danger" type="submit">',
       "/icons.svg#trash-2",
       "Delete API Key",

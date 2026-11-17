@@ -11,13 +11,13 @@ describe("MaskedInput", () => {
       MaskedInput({
         configured: true,
         label: "API Key",
-        name: "email_api_key",
+        name: "emailApiKey",
         placeholder: "Enter API key",
       }),
     );
 
     expect(html).toBe(
-      `<label>API Key<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}"></label>`,
+      `<label>API Key<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="emailApiKey" placeholder="Enter API key" type="password" value="${MASK_SENTINEL}"></label>`,
     );
   });
 
@@ -26,13 +26,13 @@ describe("MaskedInput", () => {
       MaskedInput({
         configured: false,
         label: "API Key",
-        name: "email_api_key",
+        name: "emailApiKey",
         placeholder: "Enter API key",
       }),
     );
 
     expect(html).toBe(
-      `<label>API Key<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email_api_key" placeholder="Enter API key" type="password"></label>`,
+      `<label>API Key<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="emailApiKey" placeholder="Enter API key" type="password"></label>`,
     );
     assert(!html.includes("value="));
   });
@@ -43,7 +43,7 @@ describe("MaskedInput", () => {
         configured: false,
         label: "Webhook secret",
         maxlength: 64,
-        name: "the_webhook_secret",
+        name: "theWebhookSecret",
       }),
     );
 

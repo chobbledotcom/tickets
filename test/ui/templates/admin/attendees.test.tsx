@@ -135,7 +135,7 @@ describe("EditQuestions", () => {
     );
 
     expectIncludesAll(html, [
-      '<select name="question_1">',
+      '<select name="question1">',
       '<option value="">No answer</option>',
       '<option selected value="11">Large</option>',
     ]);
@@ -157,7 +157,7 @@ describe("EditQuestions", () => {
     );
 
     expectIncludesAll(html, [
-      'name="question_1" type="text"',
+      'name="question1" type="text"',
       'value="Allergic to nuts"',
     ]);
     assert(!html.includes('type="radio"'));
@@ -175,7 +175,7 @@ describe("EditQuestions", () => {
       },
     ]);
 
-    assertStringIncludes(html, 'name="question_7" type="text" value=""');
+    assertStringIncludes(html, 'name="question7" type="text" value=""');
   });
 
   test("renders complex markdown in a prose div for free-text questions", () => {

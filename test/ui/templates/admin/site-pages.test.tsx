@@ -112,8 +112,8 @@ describe("site page templates", () => {
       "Slug is already used",
       'name="name"',
       'name="slug"',
-      'name="meta_title"',
-      'name="meta_description"',
+      'name="metaTitle"',
+      'name="metaDescription"',
       'name="content"',
       "Create Page",
     ]);
@@ -127,8 +127,8 @@ describe("site page templates", () => {
     expect(html).toMatch(/name="name"[^>]*value="Inside"/);
     expect(html).toMatch(/name="slug"[^>]*value="inside"/);
     assertStringIncludes(html, 'href="/page/inside"');
-    expect(html).toMatch(/name="meta_title"[^>]*value="Inside title"/);
-    expect(html).toMatch(/name="meta_description"[^>]*value="A useful page"/);
+    expect(html).toMatch(/name="metaTitle"[^>]*value="Inside title"/);
+    expect(html).toMatch(/name="metaDescription"[^>]*value="A useful page"/);
     expectIncludesAll(html, ["Welcome **inside**.", "Save Changes"]);
   });
 
@@ -182,13 +182,13 @@ describe("site page templates", () => {
     expectIncludesAll(html, [
       'action="/admin/site/pages/7/items/page/13/remove"',
       "<h3>Add to this page</h3>",
-      '<input name="item_type" type="hidden" value="listing">',
+      '<input name="itemType" type="hidden" value="listing">',
       '<option value="21">Winter show</option>',
-      '<input name="item_type" type="hidden" value="page">',
+      '<input name="itemType" type="hidden" value="page">',
       '<option value="22">About</option>',
     ]);
     assert(
-      !html.includes('<input name="item_type" type="hidden" value="group">'),
+      !html.includes('<input name="itemType" type="hidden" value="group">'),
     );
   });
 

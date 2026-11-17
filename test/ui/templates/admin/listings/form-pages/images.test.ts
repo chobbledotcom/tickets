@@ -88,7 +88,7 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "assign_built_site",
+            'name="assignBuiltSite"',
             "Assign a site on booking",
           ]);
         });
@@ -97,7 +97,7 @@ describeWithEnv(
       test("hides assign built site field when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
-          assert(!html.includes("assign_built_site"));
+          assert(!html.includes('name="assignBuiltSite"'));
         });
       });
 
@@ -106,7 +106,7 @@ describeWithEnv(
           const html = editPanelHtml(
             testListingWithCount({ assignBuiltSite: true }),
           );
-          expectIncludesAll(html, ["assign_built_site", "checked"]);
+          expectIncludesAll(html, ['name="assignBuiltSite"', "checked"]);
         });
       });
 
@@ -114,7 +114,7 @@ describeWithEnv(
         withBuilder(() => {
           const listing = testListingWithCount({ assignBuiltSite: true });
           const html = adminDuplicateListingPage(listing, [], OWNER_SESSION);
-          assertStringIncludes(html, "assign_built_site");
+          assertStringIncludes(html, 'name="assignBuiltSite"');
         });
       });
     });
@@ -124,9 +124,9 @@ describeWithEnv(
         withBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectIncludesAll(html, [
-            "months_per_unit",
+            'name="monthsPerUnit"',
             "Months per unit",
-            "initial_site_months",
+            'name="initialSiteMonths"',
             "Initial site months",
           ]);
         });
@@ -136,9 +136,9 @@ describeWithEnv(
         withoutBuilder(() => {
           const html = adminListingNewPage([], OWNER_SESSION);
           expectExcludesAll(html, [
-            "months_per_unit",
+            'name="monthsPerUnit"',
             "Months per unit",
-            "initial_site_months",
+            'name="initialSiteMonths"',
             "Initial site months",
           ]);
         });
@@ -147,14 +147,20 @@ describeWithEnv(
       test("shows on edit page when CAN_BUILD_SITES is true", () => {
         withBuilder(() => {
           const html = editPanelHtml(builderListing());
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
       test("hides on edit page when CAN_BUILD_SITES is not set", () => {
         withoutBuilder(() => {
           const html = editPanelHtml(builderListing());
-          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -165,7 +171,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          expectIncludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectIncludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
 
@@ -176,7 +185,10 @@ describeWithEnv(
             [],
             OWNER_SESSION,
           );
-          expectExcludesAll(html, ["months_per_unit", "initial_site_months"]);
+          expectExcludesAll(html, [
+            'name="monthsPerUnit"',
+            'name="initialSiteMonths"',
+          ]);
         });
       });
     });

@@ -29,7 +29,7 @@ describe("listing lifecycle confirm pages", () => {
       "<strong>Warning:</strong> This permanently deletes the listing",
       "Its 3 attendee(s) will be unlinked",
       "To delete this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
-      'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
+      'name="confirmIdentifier" placeholder="Summer Camp &amp; Fun" required',
       '<button class="danger" type="submit">',
       "/icons.svg#trash-2",
       "Delete Listing",
@@ -60,7 +60,7 @@ describe("listing lifecycle confirm pages", () => {
       "<li>Reject any pending payments</li>",
       "<p>Existing attendees will not be affected.</p>",
       "To deactivate this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
-      'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
+      'name="confirmIdentifier" placeholder="Summer Camp &amp; Fun" required',
       '<button class="danger" type="submit">',
       "Deactivate Listing",
       "<title>Deactivate: Summer Camp &amp; Fun",
@@ -75,7 +75,7 @@ describe("listing lifecycle confirm pages", () => {
       "<p>Reactivating this listing will make it available for registrations again.</p>",
       "<p>The public ticket page will be accessible and new attendees can register.</p>",
       "To reactivate this listing, type its name &quot;Summer Camp &amp; Fun&quot; into the box below:",
-      'name="confirm_identifier" placeholder="Summer Camp &amp; Fun" required',
+      'name="confirmIdentifier" placeholder="Summer Camp &amp; Fun" required',
     ]);
     assert(!html.includes('<button class="danger" type="submit">'));
     expectIncludesAll(html, [

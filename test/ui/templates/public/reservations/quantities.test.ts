@@ -135,13 +135,13 @@ describe("restoredPackageQuantity", () => {
   });
 
   test("keeps an explicitly submitted count over the bundle minimum", async () => {
-    await withSubmittedValues({ package_quantity_7: "4" }, () =>
+    await withSubmittedValues({ packageQuantity7: "4" }, () =>
       expect(restoredPackageQuantity(7, 5, 3)).toBe(4),
     );
   });
 
   test("keeps an explicitly submitted zero", async () => {
-    await withSubmittedValues({ package_quantity_7: "0" }, () =>
+    await withSubmittedValues({ packageQuantity7: "0" }, () =>
       expect(restoredPackageQuantity(7, 5, 3)).toBe(0),
     );
   });
@@ -150,7 +150,7 @@ describe("restoredPackageQuantity", () => {
     // The buyer submitted one before the owner raised the floor to three, so
     // the select no longer offers it — the re-render selects none rather
     // than a count the fold would refuse.
-    await withSubmittedValues({ package_quantity_7: "1" }, () =>
+    await withSubmittedValues({ packageQuantity7: "1" }, () =>
       expect(restoredPackageQuantity(7, 5, 3)).toBe(0),
     );
   });
@@ -172,7 +172,7 @@ describe("restoredQuantity", () => {
 
   test("restores the just-submitted count", async () => {
     expect(
-      await withSubmittedValues({ quantity_1: "5" }, () =>
+      await withSubmittedValues({ quantity1: "5" }, () =>
         restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(5);
@@ -180,7 +180,7 @@ describe("restoredQuantity", () => {
 
   test("clamps a too-large submitted count", async () => {
     expect(
-      await withSubmittedValues({ quantity_1: "30" }, () =>
+      await withSubmittedValues({ quantity1: "30" }, () =>
         restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(10);
@@ -188,7 +188,7 @@ describe("restoredQuantity", () => {
 
   test("keeps zero for a non-numeric submitted count", async () => {
     expect(
-      await withSubmittedValues({ quantity_1: "abc" }, () =>
+      await withSubmittedValues({ quantity1: "abc" }, () =>
         restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
@@ -196,7 +196,7 @@ describe("restoredQuantity", () => {
 
   test("keeps zero for a hex-looking submitted count", async () => {
     expect(
-      await withSubmittedValues({ quantity_1: "0x10" }, () =>
+      await withSubmittedValues({ quantity1: "0x10" }, () =>
         restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
@@ -204,7 +204,7 @@ describe("restoredQuantity", () => {
 
   test("clamps a negative submitted count to zero", async () => {
     expect(
-      await withSubmittedValues({ quantity_1: "-3" }, () =>
+      await withSubmittedValues({ quantity1: "-3" }, () =>
         restoredQuantity(1, undefined, 10, 1),
       ),
     ).toBe(0);
@@ -218,7 +218,7 @@ describe("restoredChildQty", () => {
 
   test("restores a submitted child count, clamped high", async () => {
     expect(
-      await withSubmittedValues({ child_qty_7_10: "3" }, () =>
+      await withSubmittedValues({ childQty7_10: "3" }, () =>
         restoredChildQty(7, 10, 2),
       ),
     ).toBe(2);

@@ -51,8 +51,8 @@ const submitHeaderImage = async (
   const csrf = csrfToken ?? (await testCsrfToken());
   const ck = cookie ?? (await testCookie());
   return handleRequest(
-    mockMultipartRequest(HEADER_IMAGE_POST, { csrf_token: csrf }, ck, {
-      fieldName: "header_image",
+    mockMultipartRequest(HEADER_IMAGE_POST, { csrfToken: csrf }, ck, {
+      fieldName: "headerImage",
       ...file,
     }),
   );
@@ -81,7 +81,7 @@ const submitHeaderImageDelete = async (): Promise<Response> =>
   handleRequest(
     mockFormRequest(
       HEADER_IMAGE_DELETE,
-      { csrf_token: await testCsrfToken() },
+      { csrfToken: await testCsrfToken() },
       await testCookie(),
     ),
   );
@@ -136,7 +136,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
         expectIncludesAll(html, [
           'action="/admin/settings/header-image"',
           'enctype="multipart/form-data"',
-          'name="header_image"',
+          'name="headerImage"',
           'type="file"',
         ]);
       });
@@ -225,7 +225,7 @@ describeWithEnv("server (header image settings)", { db: true }, () => {
       await withStorageEnabled(async () => {
         const request = mockMultipartRequest(
           HEADER_IMAGE_POST,
-          { csrf_token: await testCsrfToken() },
+          { csrfToken: await testCsrfToken() },
           await testCookie(),
         );
         const response = await handleRequest(request);

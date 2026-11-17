@@ -137,7 +137,7 @@ describe("ticketPage — fields & form", () => {
     expectIncludesAll(html, [
       "<p>Rule one</p>",
       "<p>Rule two</p>",
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   });
 
@@ -176,7 +176,7 @@ describe("ticketPage — fields & form", () => {
     });
     expectIncludesAll(html, [
       "Size?",
-      'name="question_5"',
+      'name="question5"',
       'data-listing-ids="1"',
     ]);
   });
@@ -191,7 +191,7 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ addon_7: "2" }));
+      setSavedFormData(new FormParams({ addon7: "2" }));
       const html = ticketPage({
         addOns: [
           {
@@ -211,7 +211,7 @@ describe("ticketPage — fields & form", () => {
         '<span class="addon-name">T-shirt ',
         '<span class="addon-price">(+£5)</span>',
         'aria-label="T-shirt — Quantity"',
-        'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
+        'max="5" min="0" name="addon7" placeholder="0" type="number" value="2"',
       ]);
     });
   });
@@ -228,7 +228,7 @@ describe("ticketPage — fields & form", () => {
     expect(hasInputWithValue(html, "name", "Ada Lovelace")).toBe(true);
     assertStringIncludes(
       html,
-      'name="qr_token" type="hidden" value="signed-token"',
+      'name="qrToken" type="hidden" value="signed-token"',
     );
   });
 
@@ -244,7 +244,7 @@ describe("ticketPage — fields & form", () => {
       });
       assertStringIncludes(html, '<option value="2026-08-02" selected>');
       assert(!html.includes('<option value="2026-08-01" selected>'));
-      assertStringIncludes(html, 'name="day_count"');
+      assertStringIncludes(html, 'name="dayCount"');
       clearSavedFormData();
       const prefilledHtml = renderForm({
         dates: ["2026-08-01"],
@@ -317,7 +317,7 @@ describe("ticketPage — fields & form", () => {
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes("<select"));
     assert(!html.includes("Select Tickets"));
   });
@@ -335,10 +335,10 @@ describe("ticketPage — fields & form", () => {
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expectIncludesAll(html, [
       "<select",
-      'name="quantity_1"',
+      'name="quantity1"',
       "Number of Tickets",
     ]);
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(false);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(false);
     assert(!html.includes("ticket-listings"));
   });
 
@@ -380,7 +380,7 @@ describe("ticketPage — fields & form", () => {
       listingB(),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes("Select Tickets"));
   });
 

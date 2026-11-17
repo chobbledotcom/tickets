@@ -21,17 +21,17 @@ describeWithEnv("e2e: multi-day bookings — admin pages", { db: true }, () => {
       durationDays: number,
       groupId = 0,
     ): Record<string, string> => ({
-      duration_days: String(durationDays),
-      // Membership is carried by the group_ids checkboxes; only send one when the
+      durationDays: String(durationDays),
+      // Membership is carried by the groupIds checkboxes; only send one when the
       // listing is in a group (0 = ungrouped).
-      ...(groupId > 0 ? { group_ids: String(groupId) } : {}),
-      listing_type: "daily",
-      max_attendees: "100",
-      max_quantity: "1",
+      ...(groupId > 0 ? { groupIds: String(groupId) } : {}),
+      listingType: "daily",
+      maxAttendees: "100",
+      maxQuantity: "1",
       name: listing.name,
       slug: listing.slug,
-      thank_you_url: "https://example.com",
-      unit_price: "0",
+      thankYouUrl: "https://example.com",
+      unitPrice: "0",
     });
 
     /**

@@ -30,7 +30,7 @@ describe("adminQuestionDeletePage", () => {
     expectIncludesAll(html, [
       "Delete question",
       "T-shirt size?",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       'action="/admin/questions/1/delete"',
       'class="active" href="/admin/questions"',
     ]);
@@ -67,7 +67,7 @@ describe("adminAnswerDeletePage", () => {
     expectIncludesAll(html, [
       "Delete answer",
       "Small",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       'action="/admin/questions/1/answers/10/delete"',
     ]);
   });

@@ -111,7 +111,7 @@ describe("adminAnswerEditPage", () => {
       5,
     );
     expectIncludesAll(html, [
-      '<select id="modifier_id" name="modifier_id">',
+      '<select id="modifier_id" name="modifierId">',
       "Large surcharge",
       "Tiny discount",
       '<option selected value="5">',

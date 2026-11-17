@@ -156,13 +156,13 @@ describe("built-site templates", () => {
     test("maps exact empty and populated field values", () => {
       expect(builtSiteToFieldValues()).toEqual({
         assignable: "",
-        db_provider: "bunny",
-        db_token: "",
-        db_url: "",
-        hosting_id: "",
-        hosting_provider: "bunny",
+        dbProvider: "bunny",
+        dbToken: "",
+        dbUrl: "",
+        hostingId: "",
+        hostingProvider: "bunny",
         name: "",
-        site_url: "",
+        siteUrl: "",
         updates: "release",
       });
       expect(
@@ -181,13 +181,13 @@ describe("built-site templates", () => {
         ),
       ).toEqual({
         assignable: "1",
-        db_provider: "turso",
-        db_token: "token",
-        db_url: "libsql://site",
-        hosting_id: "app-1",
-        hosting_provider: "deno",
+        dbProvider: "turso",
+        dbToken: "token",
+        dbUrl: "libsql://site",
+        hostingId: "app-1",
+        hostingProvider: "deno",
         name: "Site",
-        site_url: "site.example",
+        siteUrl: "site.example",
         updates: "alpha",
       });
     });

@@ -79,8 +79,8 @@ describe("MergeDecisionTables", () => {
     expectIncludesAll(html, [
       "<th>Field</th><th>Keep current: Target Person</th><th>Use source: Source Person</th>",
       '<th scope="row">Name</th>',
-      '<input checked name="pii_name" type="radio" value="target"> Target &lt;script&gt;name&lt;/script&gt;',
-      '<input name="pii_name" type="radio" value="source"> Source &lt;strong&gt;name&lt;/strong&gt;',
+      '<input checked name="piiName" type="radio" value="target"> Target &lt;script&gt;name&lt;/script&gt;',
+      '<input name="piiName" type="radio" value="source"> Source &lt;strong&gt;name&lt;/strong&gt;',
     ]);
     assert(!html.includes("<script>name</script>"));
     assert(!html.includes("<strong>name</strong>"));
@@ -89,7 +89,7 @@ describe("MergeDecisionTables", () => {
       '<span style="white-space:pre-wrap">—</span>',
       '<span class="muted">(same)</span>',
     ]);
-    assert(!html.includes('name="pii_address" type="radio" value="source"'));
+    assert(!html.includes('name="piiAddress" type="radio" value="source"'));
   });
 
   test("renders every required choice for a conflicting answer", () => {
@@ -112,9 +112,9 @@ describe("MergeDecisionTables", () => {
     expectIncludesAll(html, [
       '<fieldset class="listing-section"><legend>Custom Question Answers</legend>',
       '<th scope="row">Favourite colour?</th>',
-      '<input checked name="answer_10" type="radio" value="target"> Red',
-      '<input name="answer_10" type="radio" value="source"> Blue',
-      '<input name="answer_10" type="radio" value="clear"> None',
+      '<input checked name="answer10" type="radio" value="target"> Red',
+      '<input name="answer10" type="radio" value="source"> Blue',
+      '<input name="answer10" type="radio" value="clear"> None',
     ]);
   });
 
@@ -150,8 +150,8 @@ describe("MergeDecisionTables", () => {
       "<thead><tr><th>Question</th><th>Status</th></tr></thead>",
       '<tr><th scope="row">Source answer?</th><td><span class="muted">Source kept (source, kept automatically)</span></td></tr>',
     ]);
-    assert(!html.includes('name="answer_11"'));
-    assert(!html.includes('name="answer_12"'));
+    assert(!html.includes('name="answer11"'));
+    assert(!html.includes('name="answer12"'));
   });
 
   test("renders booking conflicts and paid money controls", () => {
@@ -193,26 +193,26 @@ describe("MergeDecisionTables", () => {
       "<th>Listing</th><th>Date</th><th>Source (qty)</th><th>Status</th><th>Decision</th>",
       "2–3 February 2027",
       "<strong>Duplicate</strong> Current quantity: 5. Source quantity: 2.",
-      '<input checked name="booking_' +
+      '<input checked name="booking' +
         paidKey +
         '" type="radio" value="keep_target"> Keep current booking',
-      '<input name="booking_' +
+      '<input name="booking' +
         paidKey +
         '" type="radio" value="take_source"> Use source booking',
-      '<input name="booking_' +
+      '<input name="booking' +
         paidKey +
         '" type="radio" value="skip_source"> Skip source booking',
       `Source payment: ${formatCurrency(1234)}. Current payment: ${formatCurrency(567)}.`,
-      `<input name="money_${paidKey}" type="radio" value="credit"> Keep it as credit for this person`,
-      `<input name="money_${paidKey}" type="radio" value="writeoff"> Write it off`,
+      `<input name="money${paidKey}" type="radio" value="credit"> Keep it as credit for this person`,
+      `<input name="money${paidKey}" type="radio" value="writeoff"> Write it off`,
       "<strong>Conflicting metadata</strong> Current quantity: 1. Source quantity: 3.",
     ]);
-    assert(!html.includes('name="money_8:null:0:0"'));
+    assert(!html.includes('name="money8:null:0:0"'));
     assertStringIncludes(
       html,
       '<tr><td>Listing #9</td><td>—</td><td>1</td><td><span class="muted">Will be moved</span></td><td></td></tr>',
     );
-    assert(!html.includes('name="booking_9:null:0:0"'));
+    assert(!html.includes('name="booking9:null:0:0"'));
   });
 
   test("omits decision columns when every booking can move", () => {
@@ -234,7 +234,7 @@ describe("MergeDecisionTables", () => {
       '<span class="muted">Will be moved</span>',
     ]);
     assert(!html.includes("<th>Decision</th>"));
-    assert(!html.includes('name="booking_15:null:0:0"'));
+    assert(!html.includes('name="booking15:null:0:0"'));
     assert(!html.includes("Custom Question Answers"));
   });
 

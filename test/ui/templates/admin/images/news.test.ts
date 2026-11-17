@@ -39,9 +39,9 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/site/news/${post.id}/images`,
           [
-            ["csrf_token", csrfToken],
-            ["image_ids", String(second.id)],
-            ["image_ids", String(first.id)],
+            ["csrfToken", csrfToken],
+            ["imageIds", String(second.id)],
+            ["imageIds", String(first.id)],
           ],
           cookie,
         ),
@@ -65,7 +65,7 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
       const response = await handleRequest(
         formRequest(
           "/admin/site/news/9999/images",
-          [["csrf_token", csrfToken]],
+          [["csrfToken", csrfToken]],
           cookie,
         ),
       );
@@ -124,10 +124,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", await signCsrfToken()],
+            ["csrfToken", await signCsrfToken()],
             ["name", "Renamed by manager"],
-            ["alt_text", "changed alt"],
-            ["image_items", "news:9999"],
+            ["altText", "changed alt"],
+            ["imageItems", "news:9999"],
           ],
           managerCookie,
         ),
@@ -159,10 +159,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", await signCsrfToken()],
+            ["csrfToken", await signCsrfToken()],
             ["name", "Renamed freely"],
-            ["alt_text", "new alt"],
-            ["image_items", `news:${post.id}`],
+            ["altText", "new alt"],
+            ["imageItems", `news:${post.id}`],
           ],
           managerCookie,
         ),
@@ -191,8 +191,8 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/delete`,
           [
-            ["csrf_token", await signCsrfToken()],
-            ["confirm_identifier", "News-linked image"],
+            ["csrfToken", await signCsrfToken()],
+            ["confirmIdentifier", "News-linked image"],
           ],
           managerCookie,
         ),
@@ -233,10 +233,10 @@ describeWithEnv("admin news image routes", { db: true, storage: "cdn" }, () => {
         formRequest(
           `/admin/images/${image.id}/edit`,
           [
-            ["csrf_token", csrfToken],
+            ["csrfToken", csrfToken],
             ["name", "Attach me"],
-            ["alt_text", "alt"],
-            ["image_items", `news:${post.id}`],
+            ["altText", "alt"],
+            ["imageItems", `news:${post.id}`],
           ],
           cookie,
         ),

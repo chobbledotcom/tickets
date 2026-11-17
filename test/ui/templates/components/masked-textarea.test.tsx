@@ -11,13 +11,13 @@ describe("MaskedTextarea", () => {
       MaskedTextarea({
         configured: true,
         labelKey: "settings.advanced.apple_signing_cert",
-        name: "apple_wallet_signing_cert",
+        name: "appleWalletSigningCert",
         placeholder: "-----BEGIN CERTIFICATE-----",
       }),
     );
 
     expect(html).toBe(
-      `<label>Signing Certificate (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="apple_wallet_signing_cert" placeholder="-----BEGIN CERTIFICATE-----" rows="4">${MASK_SENTINEL}</textarea></label>`,
+      `<label>Signing Certificate (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="appleWalletSigningCert" placeholder="-----BEGIN CERTIFICATE-----" rows="4">${MASK_SENTINEL}</textarea></label>`,
     );
   });
 
@@ -26,14 +26,14 @@ describe("MaskedTextarea", () => {
       MaskedTextarea({
         configured: false,
         labelKey: "settings.advanced.google_service_key",
-        name: "google_wallet_service_account_key",
+        name: "googleWalletServiceAccountKey",
         placeholder: "-----BEGIN PRIVATE KEY-----",
       }),
     );
 
     assertStringIncludes(
       html,
-      `<label>Service Account Private Key (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="google_wallet_service_account_key" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea></label>`,
+      `<label>Service Account Private Key (PEM)<textarea maxlength="${MAX_TEXTAREA_LENGTH}" name="googleWalletServiceAccountKey" placeholder="-----BEGIN PRIVATE KEY-----" rows="4"></textarea></label>`,
     );
     assert(!html.includes(MASK_SENTINEL));
   });
@@ -44,7 +44,7 @@ describe("MaskedTextarea", () => {
         configured: false,
         labelKey: "settings.advanced.apple_signing_key",
         maxlength: 100,
-        name: "apple_wallet_signing_key",
+        name: "appleWalletSigningKey",
         placeholder: "-----BEGIN PRIVATE KEY-----",
       }),
     );

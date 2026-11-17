@@ -268,7 +268,7 @@ describe("ListingAttributesPanel", () => {
     );
     expectIncludesAll(html, [
       '<a class="btn small" href="/admin/attributes">',
-      '<input checked name="option_ids" type="checkbox" value="10">',
+      '<input checked name="optionIds" type="checkbox" value="10">',
     ]);
   });
 
@@ -298,7 +298,7 @@ describe("ListingAttributesPanel", () => {
     );
 
     assertStringIncludes(html, "<em>No options for this attribute yet.</em>");
-    assert(!html.includes('name="option_ids"'));
+    assert(!html.includes('name="optionIds"'));
   });
 
   test("offers the one option an attribute has", () => {
@@ -317,7 +317,7 @@ describe("ListingAttributesPanel", () => {
 
     assertStringIncludes(
       html,
-      '<input name="option_ids" type="checkbox" value="10">',
+      '<input name="optionIds" type="checkbox" value="10">',
     );
     assert(!html.includes("No options for this attribute yet."));
   });

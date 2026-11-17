@@ -111,7 +111,7 @@ describe("adminModifierDeletePage", () => {
     expectIncludesAll(html, [
       "Delete Modifier",
       "Loyalty",
-      'name="confirm_identifier"',
+      'name="confirmIdentifier"',
       '<a class="active" href="/admin/modifiers">',
     ]);
     // Removing a modifier is not a data-loss action, so the confirm button is

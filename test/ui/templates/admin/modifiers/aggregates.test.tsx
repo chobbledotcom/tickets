@@ -33,7 +33,7 @@ describe("ModifierRunningTotalsSection", () => {
       "/admin/modifiers/recalculate/1",
     ]);
     // The money total is projected from the ledger, not a running-totals field.
-    assert(!html.includes('name="total_revenue"'));
+    assert(!html.includes('name="totalRevenue"'));
   });
 });
 
