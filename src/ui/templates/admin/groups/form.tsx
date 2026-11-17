@@ -29,7 +29,7 @@ const groupToFieldValues = (
     // A new group's form starts with its hidden-listings box ticked, matching
     // the column default. The public group page offers hidden members until
     // the operator unticks it.
-    group === undefined ? { show_hidden_listings: "1" } : undefined,
+    group === undefined ? { showHiddenListings: "1" } : undefined,
   );
 
 /** Admin group create page. */
