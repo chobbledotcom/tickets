@@ -1047,7 +1047,7 @@
     "semicolon": 6
   },
   "src/shared/listing-templates.ts": {
-    "contraction": 2,
+    "contraction": 1,
     "banned-modal": 3
   },
   "src/shared/listings-actions.ts": {
