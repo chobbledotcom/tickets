@@ -17,9 +17,9 @@ import {
   claimProcessedSmsInbound,
   pruneProcessedSmsInboundBefore,
 } from "#db/processed-sms-inbound.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import {
-  deleteSmsMessage,
   getSmsMessageByProviderId,
   pruneSmsMessagesBefore,
   type SmsMessageRow,
@@ -96,7 +96,7 @@ const handleStatus =
   (payload: Record<string, unknown>): Promise<void> =>
     withReferencedRow(payload, async (row) => {
       await logActivity(note(payload), row.listing_id, row.attendee_id);
-      await deleteSmsMessage(row.id);
+      await records.sms_messages.delete(row.id);
     });
 
 const inboundWebhookId = (payload: Record<string, unknown>): string =>

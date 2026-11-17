@@ -6,12 +6,14 @@ import {
   unwrapKey,
   wrapKey,
 } from "#crypto/keys.ts";
-import { getDb, insert } from "#db/client.ts";
+import { getDb } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   getUserByUsername,
   invalidateUsersCache,
   verifyUserPassword,
 } from "#db/users.ts";
+import { insertInto } from "#db/write.ts";
 import {
   TEST_ADMIN_PASSWORD,
   TEST_ADMIN_USERNAME,
@@ -26,7 +28,7 @@ export const unwrapUserKey = async (
 ): Promise<CryptoKey> => {
   const hash = (await verifyUserPassword(user, password))!;
   return unwrapKey(
-    user.wrapped_data_key!,
+    user.wrappedDataKey!,
     await deriveKEKFromPassword(password, hash),
   );
 };
@@ -47,13 +49,13 @@ export const seedV1User = async (
   const passwordHash = await hashPassword(password);
   const wrapped = await wrapKey(dataKey, await deriveKEK(passwordHash));
   await getDb().execute(
-    insert("users", {
-      admin_level: await encrypt("manager"),
-      kek_version: 1,
-      password_hash: await encrypt(passwordHash),
-      username_hash: await encrypt(username),
-      username_index: await hmacHash(username),
-      wrapped_data_key: wrapped,
+    insertInto(tables.users, {
+      adminLevel: await encrypt("manager"),
+      kekVersion: 1,
+      passwordHash: await encrypt(passwordHash),
+      usernameHash: await encrypt(username),
+      usernameIndex: await hmacHash(username),
+      wrappedDataKey: wrapped,
     }),
   );
   invalidateUsersCache();

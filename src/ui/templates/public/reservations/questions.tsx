@@ -24,7 +24,7 @@ export const renderQuestion = (
   required: boolean,
   listingIds?: string,
 ): JSX.Element => {
-  const answered = savedFormValue(`question_${q.id}`);
+  const answered = savedFormValue(`question${q.id}`);
   return questionControl(q, {
     isChosen: (answerId) => answered === String(answerId),
     listingIds,
@@ -39,7 +39,7 @@ export const renderQuestion = (
  * drop it rather than render a required control a buyer can't satisfy (the parser
  * likewise treats it as not applicable). */
 export const answerableQuestion = (q: QuestionWithAnswers): boolean =>
-  q.display_type === "free_text" || q.answers.some((a) => a.active);
+  q.displayType === "free_text" || q.answers.some((a) => a.active);
 
 /** Render the custom question fields. A `questionListingMap` adds data-listing-ids
  * so JS can show/hide questions based on selected listing quantities. */

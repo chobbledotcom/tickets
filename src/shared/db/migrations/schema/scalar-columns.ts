@@ -19,7 +19,7 @@ import {
   sqlLiteral,
   sqlName,
 } from "#db/sql.ts";
-import type { ColumnKind } from "./types.ts";
+import type { ColumnKind, Filling } from "./types.ts";
 
 /** What a read must know about a column type beyond its SQL text. */
 type ColumnFacts = {
@@ -47,11 +47,20 @@ export const columnFacts = (type: SqlStatement): ColumnFacts => {
 };
 
 /** A type whose column always holds a value. */
-const storing = <Stored>(type: SqlStatement): ColumnKind<Stored> =>
-  withFacts(type, { canBeNull: false });
+const storing = <Stored, Fill extends Filling = "given">(
+  type: SqlStatement,
+): ColumnKind<Stored, Fill> => withFacts(type, { canBeNull: false });
 
-/** A type whose column can hold nothing. */
-const storingOrNull = <Stored>(type: SqlStatement): ColumnKind<Stored | null> =>
+/** A type whose column always holds a value, and that a new row can leave
+ *  out because the database fills it. */
+const storingFrom = <Stored>(
+  type: SqlStatement,
+): ColumnKind<Stored, "optional"> => storing<Stored, "optional">(type);
+
+/** A type whose column can hold nothing. A new row can leave it out. */
+const storingOrNull = <Stored>(
+  type: SqlStatement,
+): ColumnKind<Stored | null, "optional"> =>
   withFacts(type, { canBeNull: true });
 
 /** A type with more SQL after it holds the same value as the type it wraps. */
@@ -67,7 +76,9 @@ export const text = storing<string>(sql`TEXT NOT NULL`);
 export const textOrNull = storingOrNull<string>(sql`TEXT`);
 
 /** Text that the column always holds, and that starts blank. */
-export const textStartingBlank = storing<string>(sql`TEXT NOT NULL DEFAULT ''`);
+export const textStartingBlank = storingFrom<string>(
+  sql`TEXT NOT NULL DEFAULT ''`,
+);
 
 /** Text, or nothing, that starts at nothing. Older columns hold their empty
  *  value this way. */
@@ -75,10 +86,11 @@ export const textStartingAtNull = storingOrNull<string>(sql`TEXT DEFAULT NULL`);
 
 /** A required type with the value a new row starts at. A number stands as
  *  itself, and text is quoted. */
-export const defaulted = <Kind extends SqlStatement>(
-  type: Kind,
+export const defaulted = <Stored, Fill extends Filling>(
+  type: ColumnKind<Stored, Fill>,
   startingAt: string | number,
-): Kind => sameKind(type, sql`${type} DEFAULT ${sqlLiteral(startingAt)}`);
+): ColumnKind<Stored, "optional"> =>
+  withFacts(sql`${type} DEFAULT ${sqlLiteral(startingAt)}`, columnFacts(type));
 
 /** A whole number that the column always holds. */
 export const wholeNumber = storing<number>(sql`INTEGER NOT NULL`);
@@ -87,12 +99,12 @@ export const wholeNumber = storing<number>(sql`INTEGER NOT NULL`);
 export const wholeNumberOrNull = storingOrNull<number>(sql`INTEGER`);
 
 /** A whole number that the column always holds, and that starts at zero. */
-export const wholeNumberStartingAtZero = storing<number>(
+export const wholeNumberStartingAtZero = storingFrom<number>(
   sql`INTEGER NOT NULL DEFAULT 0`,
 );
 
 /** A whole number that the column always holds, and that starts at one. */
-export const wholeNumberStartingAtOne = storing<number>(
+export const wholeNumberStartingAtOne = storingFrom<number>(
   sql`INTEGER NOT NULL DEFAULT 1`,
 );
 
@@ -105,7 +117,9 @@ export const wholeNumberStartingAtNull =
 export const real = storing<number>(sql`REAL NOT NULL`);
 
 /** The row's own id, which the database grows by itself. */
-export const rowId = storing<number>(sql`INTEGER PRIMARY KEY AUTOINCREMENT`);
+export const rowId = storingFrom<number>(
+  sql`INTEGER PRIMARY KEY AUTOINCREMENT`,
+);
 
 /** A text key. SQLite still lets a text key hold nothing, so a key that must
  *  always be found uses {@link requiredTextKey}. */
@@ -128,12 +142,12 @@ export const checked =
  *  sends them cannot drift apart. */
 export const oneOf =
   <const Words extends readonly string[]>(column: string, words: Words) =>
-  <Stored extends string | null>(
-    type: ColumnKind<Stored>,
-  ): ColumnKind<Words[number] | Extract<Stored, null>> =>
+  <Stored extends string | null, Fill extends Filling>(
+    type: ColumnKind<Stored, Fill>,
+  ): ColumnKind<Words[number] | Extract<Stored, null>, Fill> =>
     checked(sql`${sqlName(column)} IN (${sqlCommas(words.map(sqlLiteral))})`)(
       type,
-    ) as ColumnKind<Words[number] | Extract<Stored, null>>;
+    ) as ColumnKind<Words[number] | Extract<Stored, null>, Fill>;
 
 /** Rules about the whole row. SQLite lets a table say them only on a column.
  *  They hang on the row's last column, one per line, aligned to read inside the

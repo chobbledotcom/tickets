@@ -35,7 +35,7 @@ const fullDefaults: ListingDefaults = {
 
 describe("shared > listing-defaults > resolveListingDefaults", () => {
   test("returns the listing unchanged when use_defaults is off", () => {
-    const listing = testListing({ hidden: false, use_defaults: false });
+    const listing = testListing({ hidden: false, useDefaults: false });
     expect(resolveListingDefaults(listing, fullDefaults, true)).toBe(listing);
   });
 
@@ -43,18 +43,18 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     // A read that selects some columns must come back with those columns'
     // effective values, and must not gain the ones it never asked for.
     const narrow = {
-      bookable_days: ["Sunday"],
+      bookableDays: ["Sunday"],
       id: 1,
-      use_defaults: true,
+      useDefaults: true,
     };
 
     const resolved = resolveListingDefaults(narrow, fullDefaults, true);
 
-    expect(resolved.bookable_days).toEqual(["Monday", "Wednesday"]);
+    expect(resolved.bookableDays).toEqual(["Monday", "Wednesday"]);
     expect(Object.keys(resolved).toSorted()).toEqual([
-      "bookable_days",
+      "bookableDays",
       "id",
-      "use_defaults",
+      "useDefaults",
     ]);
   });
 
@@ -63,39 +63,39 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     // other cannot be resolved — that is a bug in the read, not a default-off.
     expect(() =>
       resolveListingDefaults(
-        { hidden: false, id: 1, use_defaults: true },
+        { hidden: false, id: 1, useDefaults: true },
         fullDefaults,
         true,
       ),
-    ).toThrow("months_per_unit");
+    ).toThrow("monthsPerUnit");
   });
 
   test("overlays every set default when use_defaults is on", () => {
     const listing = testListing({
-      bookable_days: ["Sunday"],
+      bookableDays: ["Sunday"],
       hidden: false,
-      maximum_days_after: 90,
-      minimum_days_before: 1,
-      thank_you_url: "",
-      use_defaults: true,
-      uses_logistics: false,
-      webhook_url: "",
+      maximumDaysAfter: 90,
+      minimumDaysBefore: 1,
+      thankYouUrl: "",
+      useDefaults: true,
+      usesLogistics: false,
+      webhookUrl: "",
     });
     const resolved = resolveListingDefaults(listing, fullDefaults, true);
-    expect(resolved.bookable_days).toEqual(["Monday", "Wednesday"]);
+    expect(resolved.bookableDays).toEqual(["Monday", "Wednesday"]);
     expect(resolved.hidden).toBe(true);
-    expect(resolved.maximum_days_after).toBe(30);
-    expect(resolved.minimum_days_before).toBe(2);
-    expect(resolved.thank_you_url).toBe("https://example.com/thanks");
-    expect(resolved.uses_logistics).toBe(true);
-    expect(resolved.webhook_url).toBe("https://example.com/hook");
+    expect(resolved.maximumDaysAfter).toBe(30);
+    expect(resolved.minimumDaysBefore).toBe(2);
+    expect(resolved.thankYouUrl).toBe("https://example.com/thanks");
+    expect(resolved.usesLogistics).toBe(true);
+    expect(resolved.webhookUrl).toBe("https://example.com/hook");
   });
 
   test("leaves fields without a default untouched", () => {
     const listing = testListing({
       hidden: false,
-      use_defaults: true,
-      uses_logistics: true,
+      useDefaults: true,
+      usesLogistics: true,
     });
     // Only a webhook default is set — every other field keeps its own value.
     const resolved = resolveListingDefaults(
@@ -103,38 +103,38 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
       { webhookUrl: "https://example.com/only" },
       true,
     );
-    expect(resolved.webhook_url).toBe("https://example.com/only");
+    expect(resolved.webhookUrl).toBe("https://example.com/only");
     expect(resolved.hidden).toBe(false);
-    expect(resolved.uses_logistics).toBe(true);
+    expect(resolved.usesLogistics).toBe(true);
   });
 
   test("does not apply the logistics default while logistics is off", () => {
-    const listing = testListing({ use_defaults: true, uses_logistics: false });
+    const listing = testListing({ useDefaults: true, usesLogistics: false });
     // hasLogistics off → the stored uses_logistics=true default stays inert.
     expect(
       resolveListingDefaults(listing, { usesLogistics: true }, false)
-        .uses_logistics,
+        .usesLogistics,
     ).toBe(false);
     // hasLogistics on → the default applies.
     expect(
       resolveListingDefaults(listing, { usesLogistics: true }, true)
-        .uses_logistics,
+        .usesLogistics,
     ).toBe(true);
   });
 
   test("never makes a renewal tier visible via a hidden default", () => {
     const tier = testListing({
       hidden: true,
-      months_per_unit: 12,
-      purchase_only: true,
-      use_defaults: true,
+      monthsPerUnit: 12,
+      purchaseOnly: true,
+      useDefaults: true,
     });
     // A "Hidden = No" default must not flip a renewal tier visible.
     expect(resolveListingDefaults(tier, { hidden: false }, true).hidden).toBe(
       true,
     );
     // A non-renewal listing still inherits the hidden default.
-    const normal = testListing({ hidden: true, use_defaults: true });
+    const normal = testListing({ hidden: true, useDefaults: true });
     expect(resolveListingDefaults(normal, { hidden: false }, true).hidden).toBe(
       false,
     );
@@ -144,12 +144,12 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
     // The hidden gate withholds only `hidden` — the rest of the overlay still
     // applies, so the gate must not suppress the whole fold for a tier.
     const tier = testListing({
-      bookable_days: ["Sunday"],
+      bookableDays: ["Sunday"],
       hidden: true,
-      months_per_unit: 12,
-      purchase_only: true,
-      use_defaults: true,
-      webhook_url: "",
+      monthsPerUnit: 12,
+      purchaseOnly: true,
+      useDefaults: true,
+      webhookUrl: "",
     });
     const resolved = resolveListingDefaults(
       tier,
@@ -161,12 +161,12 @@ describe("shared > listing-defaults > resolveListingDefaults", () => {
       true,
     );
     expect(resolved.hidden).toBe(true); // withheld
-    expect(resolved.webhook_url).toBe("https://example.com/hook"); // applied
-    expect(resolved.bookable_days).toEqual(["Monday"]); // applied
+    expect(resolved.webhookUrl).toBe("https://example.com/hook"); // applied
+    expect(resolved.bookableDays).toEqual(["Monday"]); // applied
   });
 
   test("does not mutate the original listing", () => {
-    const listing = testListing({ hidden: false, use_defaults: true });
+    const listing = testListing({ hidden: false, useDefaults: true });
     resolveListingDefaults(listing, { hidden: true }, true);
     expect(listing.hidden).toBe(false);
   });
@@ -189,7 +189,7 @@ describe("shared > listing-defaults > setListingDefaultFields", () => {
       usesLogistics: true,
     });
     // Display order is uses_logistics before hidden, regardless of insertion.
-    expect(fields.map((f) => f.field)).toEqual(["uses_logistics", "hidden"]);
+    expect(fields.map((f) => f.field)).toEqual(["usesLogistics", "hidden"]);
   });
 
   test("is empty when nothing is set", () => {
@@ -199,13 +199,11 @@ describe("shared > listing-defaults > setListingDefaultFields", () => {
 
 describe("shared > listing-defaults > i18n + input-name builders", () => {
   const usesLogistics = LISTING_DEFAULT_FIELDS.find(
-    (f) => f.field === "uses_logistics",
+    (f) => f.field === "usesLogistics",
   ) as (typeof LISTING_DEFAULT_FIELDS)[number];
 
-  test("builds the form input name from the column", () => {
-    expect(listingDefaultInputName(usesLogistics)).toBe(
-      "default_uses_logistics",
-    );
+  test("builds the form input name from the field", () => {
+    expect(listingDefaultInputName(usesLogistics)).toBe("defaultUsesLogistics");
   });
 
   test("builds the label key from the column", () => {
@@ -223,7 +221,7 @@ describe("shared > listing-defaults > i18n + input-name builders", () => {
 
 describe("shared > listing-defaults > CSS marker classes", () => {
   test("kebab-cases the field name", () => {
-    expect(listingDefaultFieldClass("uses_logistics")).toBe(
+    expect(listingDefaultFieldClass("usesLogistics")).toBe(
       "listing-form--default-uses-logistics",
     );
   });
@@ -321,7 +319,7 @@ describe("shared > listing-defaults > resolveListingDate", () => {
   test("a daily listing's date reads as empty", () => {
     const listing = testListing({
       date: "2020-06-15T18:00:00.000Z",
-      listing_type: "daily",
+      listingType: "daily",
     });
     expect(resolveListingDate(listing).date).toBe("");
   });
@@ -329,7 +327,7 @@ describe("shared > listing-defaults > resolveListingDate", () => {
   test("a standard listing keeps its own date", () => {
     const listing = testListing({
       date: "2020-06-15T18:00:00.000Z",
-      listing_type: "standard",
+      listingType: "standard",
     });
     expect(resolveListingDate(listing)).toBe(listing);
   });
@@ -342,14 +340,14 @@ describe("shared > listing-defaults > resolveListingDate", () => {
   test("a narrow row selects listing_type beside date or cannot be resolved", () => {
     expect(() =>
       resolveListingDate({ date: "2020-06-15T18:00:00.000Z", id: 1 }),
-    ).toThrow("listing_type");
+    ).toThrow("listingType");
   });
 });
 
 describe("showUseDefaultsToggle", () => {
   test("the toggle shows once a default exists, unless the writer cannot set it", () => {
     const defaults: ListingDefaults = { hidden: true };
-    const locked = new Map([["use_defaults", "editor"]] as const);
+    const locked = new Map([["useDefaults", "editor"]] as const);
     expect([
       showUseDefaultsToggle(new Map(), defaults),
       showUseDefaultsToggle(new Map(), {}),

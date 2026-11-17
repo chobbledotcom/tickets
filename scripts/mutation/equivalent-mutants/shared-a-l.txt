@@ -47,8 +47,8 @@ src/shared/accounting/store.ts::newLegConflict~1dordwu  ?? → || audited:1n9la3
 src/shared/accounting/store.ts::eventGroupOf~004j2p7  Ledger event cannot be empty → "" audited:1n9la3z # every caller drops empty groups first (postTransfersTx returns early, assertUniqueGroups and loadBatchSnapshot take nonEmpty, planTransferBatch skips them), so requireValue never throws and no test can read its message
 src/shared/accounting/store.ts::postTransfers~0by69o5  Ledger post omitted its event → "" audited:1n9la3z # postTransferGroups returns one PostResult per group, so a one-group post always has a [0] and this message is unreachable
 src/shared/accounting/store.ts::postTransferGroupBatches.inserts~0v7qb7d  ?? → || audited:1n9la3z # companionStatements[index]: SqlStatement[]|undefined — an array is always truthy
-src/shared/accounting/rows.ts::legColumns~1u7xtcf  ?? → || audited:1q09ha1 # insertStatement kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
-src/shared/accounting/rows.ts::legColumns~12222gj  ?? → || audited:1q09ha1 # insertStatement memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts::legRow.kind~1u7xtcf ??→||  audited:1rc0veq   # legRow kind: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
+src/shared/accounting/rows.ts::legRow.memo~12222gj ??→||  audited:1rc0veq   # legRow memo: string|undefined, only falsy-non-null is "" and "" ?? "" === "" || ""
 src/shared/accounting/rows.ts::selectById~1wflyox  ?? → || audited:0ppimzx # selectById (await …)[0]: Transfer|undefined — a Transfer object is always truthy
 src/shared/accounting/rows.ts::selectTransfersMany~0htorzu  ?? → || audited:1q09ha1 # rowsByQuery.get(index): Transfer[]|undefined — an array is always truthy
 src/shared/accounting/manual-entries.ts::assertManualLedgerTransfer.kind~1kt86ag  ?? → || audited:10ni3kd # guard error message `transfer.kind ?? ""`: string|undefined, "" ?? "" === "" || ""
@@ -121,7 +121,7 @@ src/shared/images/resize.ts::areaAveragePixel.pixel%5b2%5d~1ho0of2  = → += aud
 # ToBoolean rather than comparing strictly to `true`/`false` — so an early
 # `return false` becoming `return undefined` is unobservable through
 # inferTemplate (the only caller) for any input, even though the exhaustive
-# 16-combo dimension table already covers every reachable production case.
+# 32-combo dimension table already covers every reachable production case.
 src/shared/listing-templates.ts::inferTemplate~1l4j8xo  ?? → || audited:09e7b6c # LISTING_TEMPLATES.find(): ListingTemplate|undefined — an object is always truthy, so ?? and || agree
 
 # bulk-replace.ts's formatIsoForPreview 24:00→00:00 fix-up: this guards against
@@ -211,7 +211,7 @@ src/shared/crypto/der.ts::encodeLength~0ikcwcz  128 → -128 audited:1p2b1tg # D
 # dates.ts — provably-equivalent survivors from the whole-file run over the
 # dates suites. Each is unobservable through every export that reaches the line.
 src/shared/dates.ts::DAYS_IN_MONTH~1fy1u1j  0 → 1 audited:0dl6sm1 # DAYS_IN_MONTH[0] is a 1-indexing placeholder; daysInMonth's month is always getUTCMonth()+1 (1-12), so index 0 is never read
-src/shared/dates.ts::getBookableStartDates~0d9dni6  1 → 0 audited:0dl6sm1 # getBookableStartDates' customisable duration override; normalizeDurationDays clamps 0 up to 1, so 0 and 1 are the same one-day span
+src/shared/dates.ts::getBookableStartDates~0y8kxlv 1→0  audited:07l6dvl   # getBookableStartDates' customisable duration override; getAvailableDates passes it through clampDurationDays, which clamps 0 up to 1, so 0 and 1 are the same one-day span
 src/shared/date-labels.ts::bookedRangeLabel.fallbackDurationDays~166vpj8  1 → 0 audited:1b0fyev # bookedRangeLabel's fallbackDurationDays default is only observed through the `> 1` guard and the `- 1` behind it; 0 and 1 both fail the guard identically
 src/shared/dates.ts::widestDatedEntry.widestEnd~0g843sj   → "mutated" audited:0dl6sm1 # widestDatedEntry's initial widestEnd is only compared while `widest !== null`, by which point it has been overwritten by a real end value
 src/shared/dates.ts::widestDatedEntry.end~0h8upet  ?? → || audited:0dl6sm1 # end_date is string|null; String(null ?? "") and String(null || "") agree, and for every string s (including "") String(s ?? "") === String(s || "")
@@ -226,21 +226,21 @@ src/shared/logger.ts::persistErrorToActivityLog~0kl9lpw  ?? → || audited:0mco9
 src/shared/listings-actions.ts::validateMaxPrice.minPrice~16xqeks  ?? → || audited:1s7h5dn # input.unitPrice is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingGroup.incompatibleByType~0d42sm3  ?? → || audited:1s7h5dn # input.canPayMore is boolean when present; false stays false with either operator
 src/shared/listings-actions.ts::validateListingGroup.checked~0ndre14  Missing group listing membership → "" audited:1s7h5dn # getListingsByGroupIds seeds every requested group id with at least an empty array, so the missing-key throw can never fire and its message is unobservable
-src/shared/listings-actions.ts::validateListingGroup.checked.customisable_days~0350hpg  ?? → || audited:1s7h5dn # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listings-actions.ts::validateListingGroup.checked.customisableDays~0350hpg ??→||  audited:1fasj9w   # input.customisableDays is boolean when present; false stays false with either operator
 src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  ?? → || audited:1s7h5dn # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateListingGroup.checked.id~1o94tt5  0 → 1 audited:1s7h5dn # checkGroupListingSettings never reads the candidate's id — sibling self-exclusion uses the separate excludeListingId argument
-src/shared/listings-actions.ts::validateListingGroup.checked.listing_type~1lqe3go  ?? → || audited:1s7h5dn # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listings-actions.ts::validateListingGroup.checked.listingType~1lqe3go ??→||  audited:1fasj9w   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
 src/shared/listings-actions.ts::validateListingGroup.checked~1o94tt5  ?? → || audited:1s7h5dn # existingId is a database id (>= 1) or undefined; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateRenewalConfig~01imco1  ?? → || audited:1s7h5dn # input.initialSiteMonths is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@1  ?? → || audited:1s7h5dn # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/listings-actions.ts::validateRenewalConfig~0ruet3x@2  ?? → || audited:1s7h5dn # same proof, second monthsPerUnit fallback in the dual-role guard
-src/shared/listing-edge.ts::listingInputToEdge.assign_built_site~1lirfge  ?? → || audited:1oetlmc # the operand is boolean|undefined: false passes through both operators' non-nullish path, so every input yields the same result
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.customisable_days~0350hpg  ?? → || audited:1oetlmc # input.customisableDays is boolean when present; false stays false with either operator
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.day_prices~1h4yd97  ?? → || audited:1oetlmc # input.dayPrices is an object when present, and objects are always truthy
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  ?? → || audited:1oetlmc # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
-src/shared/listing-edge.ts::dayPriceFieldsFromInput.duration_days~1ugulhp  1 → 0 audited:1oetlmc # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
-src/shared/listing-edge.ts::listingInputToEdge.listing_type~1lqe3go  ?? → || audited:1oetlmc # input.listingType is a non-empty picklist word when present, so the empty string never occurs
-src/shared/listing-edge.ts::listingInputToEdge.months_per_unit~0ruet3x  ?? → || audited:1oetlmc # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
+src/shared/listing-edge.ts::listingInputToEdge.assignBuiltSite~1lirfge ??→||  audited:10obg5y   # the operand is boolean|undefined: false passes through both operators' non-nullish path, so every input yields the same result
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.customisableDays~0350hpg ??→||  audited:10obg5y   # input.customisableDays is boolean when present; false stays false with either operator
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.dayPrices~1h4yd97 ??→||  audited:10obg5y   # input.dayPrices is an object when present, and objects are always truthy
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.durationDays~1ugulhp ??→||  audited:10obg5y   # input.durationDays is a whole number or absent; its only falsy value 0 clamps to clampDurationDays' floor of 1, the same result the fallback 1 produces
+src/shared/listing-edge.ts::dayPriceFieldsFromInput.durationDays~1ugulhp 1→0  audited:10obg5y   # when durationDays is absent, clampDurationDays raises the mutated fallback 0 to its floor of 1 — the same result as the fallback 1
+src/shared/listing-edge.ts::listingInputToEdge.listingType~1lqe3go ??→||  audited:10obg5y   # input.listingType is a non-empty picklist word when present, so the empty string never occurs
+src/shared/listing-edge.ts::listingInputToEdge.monthsPerUnit~0ruet3x ??→||  audited:10obg5y   # input.monthsPerUnit is a validated whole number or absent; its only falsy value 0 equals the fallback
 src/shared/admin-surface.ts::recordPath~11evcma  ?? → || audited:14pq1qs # `pattern.match(/:\w+/g) ?? []`: a global match returns null when nothing matches and a non-empty array otherwise, so the fallback is reached on exactly the same input either way
 
 # db/listings/attendees.ts — fallbacks whose left side can never be a
@@ -298,7 +298,7 @@ src/shared/attendee-list-controls.ts::compareOptionalDates.secondDate~01yky27  ?
 # The refund-order link's write and identity: reverses_group follows the same
 # kind/memo shape — a defined falsy value ("") equals the "" fallback, and any
 # defined value a writer passes is a non-empty event group.
-src/shared/accounting/rows.ts::legColumns~1hsch91  ?? → || audited:1q09ha1 # insertStatement reverses_group: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
+src/shared/accounting/rows.ts::legRow.reversesGroup~1hsch91 ??→||  audited:1rc0veq   # legRow reversesGroup: undefined or a non-empty event group; "" ?? "" === "" || "" on the only falsy case
 src/shared/ledger/reconcile.ts::IDENTITY_FIELDS~0pukv95  ?? → || audited:03e6lpt # reversesGroup identity: the only falsy-non-null value is "" and "" ?? "" === "" || ""
 src/shared/accounting/reverses-group.ts::readCursor~0ydkp21  ?? → || audited:1pyxzl5 # the stored cursor is a string or undefined; "" is the fallback itself, so "" ?? "" === "" || "" either way
 

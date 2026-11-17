@@ -310,7 +310,7 @@ When(
     const browser = scenarioBrowser(this);
     await fillInAndSend(
       browser,
-      { confirm_identifier: who },
+      { confirmIdentifier: who },
       "Mark payment reviewed",
     );
   },

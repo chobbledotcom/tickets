@@ -188,10 +188,8 @@ describe("adminListingsPage multi-booking link", () => {
     const venue = (optionId: number) => ({
       id: 10,
       name: "Venue",
-      options: [
-        { attribute_id: 10, id: optionId, sort_order: 0, text: "Hall" },
-      ],
-      sort_order: 0,
+      options: [{ attributeId: 10, id: optionId, sortOrder: 0, text: "Hall" }],
+      sortOrder: 0,
     });
     const html = adminListingsPage(
       [
@@ -217,10 +215,10 @@ describe("adminListingsPage multi-booking link", () => {
             id: 10,
             name: "Venue",
             options: [
-              { id: 101, sort_order: 0, text: "Hall" },
-              { id: 102, sort_order: 1, text: "Field" },
+              { id: 101, sortOrder: 0, text: "Hall" },
+              { id: 102, sortOrder: 1, text: "Field" },
             ],
-            sort_order: 0,
+            sortOrder: 0,
           },
         ],
         attributesByListing: new Map([

@@ -6,6 +6,7 @@ import {
   and,
   atLeast,
   atMost,
+  coalesce,
   desc,
   equal,
   given,
@@ -332,5 +333,15 @@ describe("matching", () => {
 
   test("gives no condition for an empty match", () => {
     expect(matching(named, {})).toEqual([]);
+  });
+});
+
+describe("coalesce", () => {
+  test("gives the fallback where the value is null", () => {
+    const value = coalesce(named<string | null>("nickname"), "none");
+    expect([value.sql, value.args]).toEqual([
+      "COALESCE(nickname, ?1)",
+      ["none"],
+    ]);
   });
 });

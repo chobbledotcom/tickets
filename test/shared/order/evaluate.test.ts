@@ -30,8 +30,8 @@ describe("listingOption", () => {
     const built = listingOption(
       {
         id: 5,
-        listing_type: "standard",
-        min_quantity: 3,
+        listingType: "standard",
+        minQuantity: 3,
         name: "Face Painting",
       },
       true,
@@ -47,8 +47,8 @@ describe("listingOption", () => {
     const built = listingOption(
       {
         id: 5,
-        listing_type: "daily",
-        min_quantity: 1,
+        listingType: "daily",
+        minQuantity: 1,
         name: "Bouncy Castle",
       },
       false,
@@ -63,8 +63,8 @@ describe("packageOption", () => {
     const built = packageOption(
       { id: 7, name: "Party Bundle" },
       [
-        { id: 1, listing_type: "standard" },
-        { id: 2, listing_type: "standard" },
+        { id: 1, listingType: "standard" },
+        { id: 2, listingType: "standard" },
       ],
       new Map([[1, 3]]),
       true,
@@ -82,8 +82,8 @@ describe("packageOption", () => {
     const built = packageOption(
       { id: 7, name: "Party Bundle" },
       [
-        { id: 1, listing_type: "standard" },
-        { id: 2, listing_type: "daily" },
+        { id: 1, listingType: "standard" },
+        { id: 2, listingType: "daily" },
       ],
       new Map(),
       true,
@@ -141,14 +141,14 @@ describe("evaluateOrder — plain availability", () => {
         listingOption(
           {
             id: 1,
-            listing_type: "standard",
-            min_quantity: 3,
+            listingType: "standard",
+            minQuantity: 3,
             name: "Base unit",
           },
           true,
         ),
         listingOption(
-          { id: 2, listing_type: "standard", min_quantity: 1, name: "Extra" },
+          { id: 2, listingType: "standard", minQuantity: 1, name: "Extra" },
           true,
         ),
       ],

@@ -15,27 +15,52 @@ import {
   isIpLockedOut,
   makeAttemptRecorder,
 } from "#db/attempt-lockout.ts";
+import {
+  atLeast,
+  type Expr,
+  literal,
+  plus,
+  valued,
+} from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { LOGIN_LOCKOUT_MS, MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { nowMs } from "#shared/now.ts";
+
+/** The lockout deadline once `attempts` reaches the limit, else no lockout. */
+const lockAt = (
+  attempts: Expr<number>,
+  values: LoginAttemptValues,
+): Expr<number | null> =>
+  valued(
+    sql`CASE WHEN ${atLeast(attempts, values.maxAttempts)} THEN ${values.lockDeadline} ELSE NULL END`,
+  );
 
 /** One statement counts the attempt and applies the lockout: the VALUES arm
  * covers an IP's first attempt, the conflict arm every later one, and both
  * decide the lockout inside the database — concurrent attempts each land as
  * their own increment instead of overwriting a shared read. */
-const recordAttemptStatement = (
-  values: LoginAttemptValues,
-): SqlStatement => sql`
-  INSERT INTO login_attempts (ip, attempts, locked_until, last_attempt)
-  VALUES (${values.hashedIp}, 1, CASE WHEN 1 >= ${values.maxAttempts} THEN ${values.lockDeadline} ELSE NULL END, ${values.now})
-  ON CONFLICT (ip) DO UPDATE SET
-    attempts = login_attempts.attempts + 1,
-    locked_until = CASE
-      WHEN login_attempts.attempts + 1 >= ${values.maxAttempts} THEN ${values.lockDeadline}
-      ELSE NULL
-    END,
-    last_attempt = ${values.now}
-  RETURNING locked_until`;
+const recordAttemptStatement = (values: LoginAttemptValues): SqlStatement =>
+  insertInto(
+    tables.login_attempts,
+    {
+      attempts: 1,
+      ip: values.hashedIp,
+      lastAttempt: values.now,
+      lockedUntil: lockAt(literal(1), values),
+    },
+    {
+      onConflict: {
+        on: ["ip"],
+        set: (row) => ({
+          attempts: plus(row.attempts, 1),
+          lastAttempt: values.now,
+          lockedUntil: lockAt(plus(row.attempts, 1), values),
+        }),
+      },
+    },
+  ).returning("lockedUntil");
 
 /** The values one recorded attempt carries. */
 interface LoginAttemptValues {

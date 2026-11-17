@@ -20,7 +20,9 @@ import {
 import { deleteAnswer } from "#db/questions/delete.ts";
 import { findAnswerById } from "#db/questions/parsing.ts";
 import { getQuestionWithAnswers } from "#db/questions/queries.ts";
-import { answersOrder, answersTable } from "#db/questions/tables.ts";
+import { answersOrder } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import {
   createRecalculatePageRenderer,
@@ -64,7 +66,7 @@ export type QuestionIdParams = { id: number };
 export const redirectToQuestion = redirectToDetail("question");
 
 /** Insert an answer and place it in its question's order, atomically. */
-const addAnswerRow = insertScopedOrderedRow(answersTable, answersOrder);
+const addAnswerRow = insertScopedOrderedRow(tables.answers, answersOrder);
 
 /** Add one answer to a question, in its order, and log it. The one add the
  *  HTML route and the JSON API route share. */
@@ -92,7 +94,7 @@ export const updateAnswerWithLog = async (
   answer: Answer,
   patch: { active?: boolean; text: string },
 ): Promise<void> => {
-  await answersTable.update(answer.id, patch);
+  await records.answers.update(answer.id, patch);
   await logActivity(
     `Answer '${patch.text}' updated in question ${question.id}`,
   );
@@ -124,7 +126,7 @@ const handleAddAnswer = createAuthedFormRoute<
     // Free-text questions collect a typed value, never an answer id, so the
     // request is refused with an error, and any answer-triggered modifiers
     // never run.
-    if (question.display_type === "free_text") {
+    if (question.displayType === "free_text") {
       return errorRedirect(
         `/admin/questions/${params.id}`,
         t("questions.answers.free_text_no_options"),
@@ -261,7 +263,7 @@ const handleEditAnswerPost: ParamsRoute<AnswerRouteParams> =
       params,
       values: { text },
     }) => {
-      const rawModifierId = form.getString("modifier_id");
+      const rawModifierId = form.getString("modifierId");
       const modifierId = rawModifierId ? parsePositiveInt(rawModifierId) : null;
       // A blank field clears the link. A value that is not an id, or an id
       // that cannot trigger this answer, is refused, never cleared.

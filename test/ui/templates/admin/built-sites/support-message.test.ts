@@ -44,7 +44,7 @@ describe("SupportMessagePanel", () => {
     expectIncludesAll(html, [
       'class="prose"',
       'action="/admin/built-sites/1/support-message"',
-      'name="support_message"',
+      'name="supportMessage"',
       "data-markdown-preview",
       // The stored limit is UTF-8 bytes, which a character maxlength cannot
       // express, so the panel states it instead.
@@ -57,7 +57,7 @@ describe("SupportMessagePanel", () => {
 
   test("shows an empty editor when no value is set", () => {
     const html = panelHtml({ ok: true, value: null });
-    assertStringIncludes(html, 'name="support_message"');
+    assertStringIncludes(html, 'name="supportMessage"');
     expect(editorContent(html)).toBe("");
   });
 
@@ -74,12 +74,12 @@ describe("SupportMessagePanel", () => {
       ok: false,
     });
     assertStringIncludes(html, "The support message could not be read");
-    assert(!html.includes('name="support_message"'));
+    assert(!html.includes('name="supportMessage"'));
   });
   test("keeps a refused save's draft beside the read failure", async () => {
     const html = await withRequestContext(() => {
       setSavedFormData(
-        new FormParams("support_message=%23+Draft+kept+through+the+outage"),
+        new FormParams("supportMessage=%23+Draft+kept+through+the+outage"),
       );
       return panelHtml({
         error: "Read support message failed (500): outage",
@@ -88,7 +88,7 @@ describe("SupportMessagePanel", () => {
     });
     expectIncludesAll(html, [
       "The support message could not be read",
-      'name="support_message"',
+      'name="supportMessage"',
     ]);
     expect(editorContent(html)).toBe("# Draft kept through the outage");
   });
@@ -97,7 +97,7 @@ describe("SupportMessagePanel", () => {
     const html = await withRequestContext(() => {
       // The operator cleared the field and the save failed: the empty
       // choice is theirs, so the stored value must not resurface.
-      setSavedFormData(new FormParams("support_message="));
+      setSavedFormData(new FormParams("supportMessage="));
       return panelHtml({ ok: true, value: "# Old message" });
     });
     expect(editorContent(html)).toBe("");
@@ -107,6 +107,6 @@ describe("SupportMessagePanel", () => {
     using _env = withEnv({ READ_ONLY_FROM: "2020-01-01T00:00:00.000Z" });
     const html = panelHtml({ ok: true, value: "# Quiet hours" });
     assertStringIncludes(html, "<h1>Quiet hours</h1>");
-    assert(!html.includes('name="support_message"'));
+    assert(!html.includes('name="supportMessage"'));
   });
 });

@@ -29,9 +29,9 @@ const buyerBlank = (attendeeId = 81) =>
 
 const configEntry = (initialSiteMonths = 3) => ({
   listing: {
-    assign_built_site: true,
+    assignBuiltSite: true,
     id: 71,
-    initial_site_months: initialSiteMonths,
+    initialSiteMonths: initialSiteMonths,
     name: "Hosted listing",
   },
 });
@@ -40,10 +40,10 @@ const tierFields = (
   overrides: Partial<Parameters<typeof isQualifyingTierListing>[0]> = {},
 ) => ({
   active: true,
-  assign_built_site: false,
+  assignBuiltSite: false,
   hidden: true,
-  months_per_unit: 1,
-  purchase_only: true,
+  monthsPerUnit: 1,
+  purchaseOnly: true,
   ...overrides,
 });
 
@@ -68,10 +68,10 @@ describe("site assignment configuration contracts", () => {
   test("requires every renewal-tier condition", () => {
     expect([
       isQualifyingTierListing(tierFields()),
-      isQualifyingTierListing(tierFields({ assign_built_site: true })),
-      isQualifyingTierListing(tierFields({ purchase_only: false })),
+      isQualifyingTierListing(tierFields({ assignBuiltSite: true })),
+      isQualifyingTierListing(tierFields({ purchaseOnly: false })),
       isQualifyingTierListing(tierFields({ hidden: false })),
-      isQualifyingTierListing(tierFields({ months_per_unit: 0 })),
+      isQualifyingTierListing(tierFields({ monthsPerUnit: 0 })),
       isQualifyingTierListing(tierFields({ active: false })),
     ]).toEqual([true, false, false, false, false, false]);
   });

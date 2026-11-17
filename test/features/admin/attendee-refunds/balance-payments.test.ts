@@ -1,13 +1,13 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { settleAttendeeBalance } from "#db/attendees/balance.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute } from "#db/client.ts";
 import { balanceFinalizeStatements } from "#db/payment-finalize.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import type { RefundCtx } from "#test/features/admin/refunds-helpers.ts";
 import {
@@ -54,7 +54,7 @@ const setupBalancePaidRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 1500,
   });
-  const status = await attendeeStatuses.table.insert({
+  const status = await records.attendee_statuses.insert({
     isReservation: false,
     name: "Confirmed",
     reservationAmount: "0",
@@ -93,7 +93,7 @@ const setupSettledReservationRefundTest = async (): Promise<RefundCtx> => {
     maxAttendees: 100,
     unitPrice: 10000,
   });
-  const status = await attendeeStatuses.table.insert({
+  const status = await records.attendee_statuses.insert({
     isReservation: true,
     name: "Reserved",
     reservationAmount: "20%",

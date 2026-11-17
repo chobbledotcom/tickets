@@ -2,11 +2,7 @@
  * Deletion for attendees.
  */
 
-import {
-  deleteByFieldStatement,
-  queryAll,
-  withTransaction,
-} from "#db/client.ts";
+import { queryAll, withTransaction } from "#db/client.ts";
 import {
   clearExternalLinksForIdsStatement,
   repointExternalLinksStatement,
@@ -14,7 +10,10 @@ import {
 import { ticketCountSumExpr } from "#db/migrations/schema/listing-aggregates.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { assertRowsFreeToMove } from "#db/payment-admit-move.ts";
+import { inStatement, plus } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import {
   ATTENDEE_DATA_RULES,
   type AttendeeDataRule,
@@ -51,11 +50,11 @@ const attendeeListingContributions = (
 const restoreListingContributions = (
   contributions: ListingContribution[],
 ): SqlStatement[] =>
-  contributions.map(
-    (row) => sql`UPDATE listings
-             SET booked_quantity = booked_quantity + ${row.booked_quantity},
-                 tickets_count = tickets_count + ${row.tickets_count}
-           WHERE id = ${row.listing_id}`,
+  contributions.map((row) =>
+    update(tables.listings, (listing) => ({
+      bookedQuantity: plus(listing.bookedQuantity, row.booked_quantity),
+      ticketsCount: plus(listing.ticketsCount, row.tickets_count),
+    })).where({ id: row.listing_id }),
   );
 
 const dependentDeleteStatement = (
@@ -107,6 +106,14 @@ export const attendeeRemovalStatements = (
       : [];
   });
 
+/** Remove the attendees with these ids, after every dependent row. */
+export const attendeesRemoval = (attendeeIds: SqlStatement): SqlStatement[] => [
+  ...attendeeRemovalStatements(attendeeIds),
+  deleteFrom(tables.attendees).where((attendee) =>
+    inStatement(attendee.id, attendeeIds),
+  ),
+];
+
 /** Clear the one booking-stage relationship a merge must replace early. */
 export const checkoutStageDeleteStatements = (
   attendeeIds: SqlStatement,
@@ -148,11 +155,7 @@ const purgeAttendee = (
     await tx.batch([
       ...attendeeRemovalStatements(sql`${attendeeId}`),
       ...restoreListingContributions(contributions),
-      deleteByFieldStatement({
-        field: "id",
-        table: "attendees",
-        value: attendeeId,
-      }),
+      deleteFrom(tables.attendees).where({ id: attendeeId }),
     ]);
   });
 

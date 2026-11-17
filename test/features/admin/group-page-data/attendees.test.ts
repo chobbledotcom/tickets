@@ -78,8 +78,8 @@ describeWithEnv("server (admin groups) — attendee stats", { db: true }, () => 
         { maxAttendees: 20, maxQuantity: 20 },
       );
       await listingAggregates.update(listing.id, {
-        booked_quantity: 9,
-        tickets_count: 1,
+        bookedQuantity: 9,
+        ticketsCount: 1,
       });
 
       const response = await adminGet(`/admin/groups/${group.id}`);

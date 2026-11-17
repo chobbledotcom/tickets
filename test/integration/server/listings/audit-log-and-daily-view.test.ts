@@ -31,10 +31,10 @@ describeWithEnv(
         });
 
         await submitListingEdit(listing.id, {
-          max_attendees: "200",
+          maxAttendees: "200",
           name: listing.name,
           slug: listing.slug,
-          thank_you_url: "https://example.com/updated",
+          thankYouUrl: "https://example.com/updated",
         });
 
         const logs = await getListingActivityLog(listing.id);

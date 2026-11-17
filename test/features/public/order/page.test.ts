@@ -1,6 +1,5 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { describe, it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import { enablePublicOrder } from "#test/features/public/order/helpers.ts";
@@ -17,7 +16,10 @@ import {
   assignTestAttributeOptions,
   createTestAttributeWithOptions,
 } from "#test-utils/db-helpers/attributes.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -237,12 +239,9 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
     });
 
     test("shows a concealing package and its standalone member", async () => {
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Mystery Box",
+      const group = await createHiddenPackageGroup("Mystery Box", {
         slug: "mystery-box",
       });
-      await groups.table.update(group.id, { hidePackageListings: true });
       const secret = await createTestListing({
         groupId: group.id,
         name: "Secret Widget",
@@ -263,7 +262,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });
       const html = await assertPublicHtml(
         `/ticket/${item.slug}?q_${item.id}=2`,
-        `name="quantity_${item.id}"`,
+        `name="quantity${item.id}"`,
       );
       assertStringIncludes(html, "selected>2</option>");
     });
@@ -273,8 +272,8 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const b = await createTestListing({ maxQuantity: 5, name: "Bravo" });
       const html = await assertPublicHtml(
         `/ticket/${a.slug}+${b.slug}?q_${a.id}=2`,
-        `name="quantity_${a.id}"`,
-        `name="quantity_${b.id}"`,
+        `name="quantity${a.id}"`,
+        `name="quantity${b.id}"`,
       );
       // Row A is pre-filled to 2; row B has no q param so stays unselected.
       assertStringIncludes(html, "selected>2</option>");
@@ -284,7 +283,7 @@ describeWithEnv("server (public order)", { db: true, triggers: true }, () => {
       const item = await createTestListing({ maxQuantity: 5, name: "Widget" });
       const html = await assertPublicHtml(
         `/ticket/${item.slug}?q_${item.id}=2x`,
-        `name="quantity_${item.id}"`,
+        `name="quantity${item.id}"`,
       );
       assert(!html.includes("selected>2</option>"));
     });

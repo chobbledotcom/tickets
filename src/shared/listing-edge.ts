@@ -12,9 +12,9 @@ import { clampDurationDays, type DayPricedListing } from "#types";
 export const dayPriceFieldsFromInput = (
   input: ListingInput,
 ): DayPricedListing => ({
-  customisable_days: input.customisableDays ?? false,
-  day_prices: input.dayPrices ?? {},
-  duration_days: clampDurationDays(input.durationDays ?? 1),
+  customisableDays: input.customisableDays ?? false,
+  dayPrices: input.dayPrices ?? {},
+  durationDays: clampDurationDays(input.durationDays ?? 1),
 });
 
 /** Project a (possibly partial) listing form input onto the edge-compatibility
@@ -25,10 +25,10 @@ export const listingInputToEdge = (
   id: number,
 ): EdgeListing => ({
   ...dayPriceFieldsFromInput(input),
-  assign_built_site: input.assignBuiltSite ?? false,
+  assignBuiltSite: input.assignBuiltSite ?? false,
   id,
-  listing_type: input.listingType ?? "standard",
-  min_quantity: input.minQuantity ?? 1,
-  months_per_unit: input.monthsPerUnit ?? 0,
+  listingType: input.listingType ?? "standard",
+  minQuantity: input.minQuantity ?? 1,
+  monthsPerUnit: input.monthsPerUnit ?? 0,
   name: input.name,
 });

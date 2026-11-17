@@ -1,8 +1,8 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { getLogisticsAssignments } from "#db/logistics.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import type { AttendeeFormLine } from "#routes/admin/attendee-form-model.ts";
@@ -37,7 +37,7 @@ const bookedLine = (
   error: null,
   existingBooking: null,
   key: "",
-  listing: testListingWithCount({ id, uses_logistics: delivered }),
+  listing: testListingWithCount({ id, usesLogistics: delivered }),
   listingId: id,
   noQuantity: false,
   packageGroupId: 0,
@@ -49,10 +49,10 @@ const bookedLine = (
 
 describe("attendee-logistics field names", () => {
   test("single vs split field names", () => {
-    expect(startAgentField()).toBe("logistics_start");
-    expect(startAgentField(7)).toBe("logistics_start_7");
-    expect(endAgentField()).toBe("logistics_end");
-    expect(endAgentField(7)).toBe("logistics_end_7");
+    expect(startAgentField()).toBe("logisticsStart");
+    expect(startAgentField(7)).toBe("logisticsStart7");
+    expect(endAgentField()).toBe("logisticsEnd");
+    expect(endAgentField(7)).toBe("logisticsEnd7");
   });
 });
 
@@ -129,7 +129,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("undefined when no delivered listing is booked", async () => {
     settings.setForTest(featureSetting("logistics"));
-    await logisticsAgents.table.insert({ name: "Van" });
+    await records.logistics_agents.insert({ name: "Van" });
     expect(await buildAttendeeLogisticsData([bookedLine(1, false)], null)).toBe(
       undefined,
     );
@@ -144,7 +144,7 @@ describeWithEnv("buildAttendeeLogisticsData", { db: true }, () => {
 
   test("returns agents and an empty single pair for a create form", async () => {
     settings.setForTest(featureSetting("logistics"));
-    await logisticsAgents.table.insert({ name: "Van" });
+    await records.logistics_agents.insert({ name: "Van" });
     const data = await buildAttendeeLogisticsData([bookedLine(5, true)], null);
     expect(data!.agents.map((a) => a.name)).toEqual(["Van"]);
     expect(data!.split).toBe(false);
@@ -165,9 +165,9 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       maxAttendees: 100,
       maxQuantity: 5,
     });
-    await listingsTable.update(listing.id, { usesLogistics: true });
-    const drop = await logisticsAgents.table.insert({ name: "Drop Van" });
-    const coll = await logisticsAgents.table.insert({ name: "Coll Van" });
+    await updateListing(listing.id, { usesLogistics: true });
+    const drop = await records.logistics_agents.insert({ name: "Drop Van" });
+    const coll = await records.logistics_agents.insert({ name: "Coll Van" });
     return { coll, drop, listing };
   };
 
@@ -179,11 +179,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
   ) => {
     const { cookie, csrfToken } = await getTestSession();
     const response = await handleRequest(
-      mockFormRequest(
-        "/admin/attendees/new",
-        { csrf_token: csrfToken, ...fields },
-        cookie,
-      ),
+      mockFormRequest("/admin/attendees/new", { csrfToken, ...fields }, cookie),
     );
     expect(response.status).toBe(302);
     const attendees = await getAttendeesRaw(listingId);
@@ -201,12 +197,12 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
     const html = await response.text();
     expectIncludesAll(html, [
       ">Logistics<",
-      'name="logistics_start"',
-      'name="logistics_end"',
+      'name="logisticsStart"',
+      'name="logisticsEnd"',
       `name="${SPLIT_AGENTS_FIELD}"`,
       // Per-listing (split mode) selectors and the time inputs are rendered too.
       `name="${startAgentField(listing.id)}"`,
-      'name="logistics_start_time"',
+      'name="logisticsStartTime"',
       "Drop Van",
     ]);
   });
@@ -251,7 +247,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       mockFormRequest(
         "/admin/attendees/new",
         {
-          csrf_token: csrfToken,
+          csrfToken,
           [startAgentField()]: String(drop.id),
           name: "Jane",
           ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
@@ -266,7 +262,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
         `/admin/attendees/${attendeeId}`,
         {
           [endAgentField(listing.id)]: String(coll.id),
-          csrf_token: csrfToken,
+          csrfToken,
           [startAgentField(listing.id)]: String(coll.id),
           name: "Jane",
           ...attendeeLineFields([{ eventId: listing.id, quantity: 1 }]),
@@ -293,7 +289,7 @@ describeWithEnv("attendee form logistics (HTTP)", { db: true }, () => {
       mockFormRequest(
         "/admin/attendees/new",
         {
-          csrf_token: csrfToken,
+          csrfToken,
           [endAgentField()]: String(coll.id),
           [startAgentField()]: String(drop.id),
           name: "Jane",

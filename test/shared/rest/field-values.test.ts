@@ -4,6 +4,7 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { columnName } from "#shared/column-names.ts";
 import type { FieldKind, FieldSpec } from "#shared/rest/field-specs.ts";
 import {
   apiFieldsOf,
@@ -16,14 +17,14 @@ import { MAX_DURATION_DAYS } from "#types";
 
 /* jscpd:ignore-start -- a list of strings, not code */
 const PLAIN_FIELDS = [
-  { key: "start_date", kind: "date" },
+  { key: "startDate", kind: "date" },
   { key: "name", kind: "name" },
-  { key: "is_public", kind: "switch" },
+  { key: "isPublic", kind: "switch" },
   { key: "note", kind: "text" },
   { key: "date", kind: "datetime" },
-  { key: "closes_at", kind: "optionalDatetime" },
-  { key: "duration_days", kind: "durationDays" },
-  { key: "unit_price", kind: "price" },
+  { key: "closesAt", kind: "optionalDatetime" },
+  { key: "durationDays", kind: "durationDays" },
+  { key: "unitPrice", kind: "price" },
 ] as const;
 /* jscpd:ignore-end */
 
@@ -101,7 +102,9 @@ describe("field values", () => {
       [views.seats.create, undefined, accepted(undefined)],
       [views.seats.update, 2, accepted(2)],
     ];
-    expect(Object.keys(views)).toEqual(FIELDS.map((field) => field.key));
+    expect(Object.keys(views)).toEqual(
+      FIELDS.map((field) => columnName(field.key)),
+    );
     expect(cases.map(([schema, value]) => viewAnswer(schema, value))).toEqual(
       cases.map(([, , answer]) => answer),
     );
@@ -173,15 +176,15 @@ describe("field values", () => {
   test("the API refusal names the field, with the rule for a date or a duration", () => {
     const refusals = FIELDS.map((field) => [field.key, apiRefusal(field)]);
     expect(Object.fromEntries(refusals)).toEqual({
-      closes_at: "closes_at must be a UTC instant of a real calendar day",
+      closesAt: "closes_at must be a UTC instant of a real calendar day",
       date: "date must be a UTC instant of a real calendar day",
-      duration_days: `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
-      is_public: "is_public has an invalid value",
+      durationDays: `duration_days must be a whole number from 1 to ${MAX_DURATION_DAYS}`,
+      isPublic: "is_public has an invalid value",
       name: "name has an invalid value",
       note: "note has an invalid value",
       seats: "seats has an invalid value",
-      start_date: "start_date has an invalid value",
-      unit_price: "unit_price has an invalid value",
+      startDate: "start_date has an invalid value",
+      unitPrice: "unit_price has an invalid value",
     });
   });
 
@@ -198,7 +201,7 @@ describe("field values", () => {
   test("the transfer schema reads every field by input name, exactly", () => {
     const schema = transferSchema([
       { key: "name", kind: "name", required: true },
-      { key: "max_quantity", kind: "count", min: 1 },
+      { key: "maxQuantity", kind: "count", min: 1 },
     ] as const);
 
     expect([

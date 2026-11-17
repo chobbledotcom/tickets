@@ -61,7 +61,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
       for (const reason of reasons) {
         const html = renderSuperuser({ available: false, reason });
         assert(!html.includes("Superuser Recovery"));
-        assert(!html.includes("superuser_choice"));
+        assert(!html.includes("superuserChoice"));
       }
     });
   });
@@ -95,7 +95,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
 
     test("radio inputs use the superuser choice field", () => {
       const html = renderSuperuser(baseSuperuser);
-      expect(html.match(/name="superuser_choice"/g)?.length).toBe(2);
+      expect(html.match(/name="superuserChoice"/g)?.length).toBe(2);
     });
 
     test("the self-managed radio has its stored value", () => {
@@ -128,7 +128,7 @@ describe("adminSettingsPage > SuperuserForm", () => {
 
     test("includes a CSRF token field", () => {
       const html = renderSuperuser(baseSuperuser);
-      expectIncludesAll(html, ['type="hidden"', 'name="csrf_token"']);
+      expectIncludesAll(html, ['type="hidden"', 'name="csrfToken"']);
     });
   });
 
@@ -137,22 +137,22 @@ describe("adminSettingsPage > SuperuserForm", () => {
       const html = renderSuperuser(
         availableSuperuser({ choice: "self-managed" }),
       );
-      expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
+      expect(hasCheckedInput(html, "superuserChoice", "self-managed")).toBe(
         true,
       );
-      expect(
-        hasCheckedInput(html, "superuser_choice", "enable-superuser"),
-      ).toBe(false);
+      expect(hasCheckedInput(html, "superuserChoice", "enable-superuser")).toBe(
+        false,
+      );
     });
 
     test("checks only enable-superuser for an enabled choice", () => {
       const html = renderSuperuser(availableSuperuser({ choice: "enabled" }));
-      expect(hasCheckedInput(html, "superuser_choice", "self-managed")).toBe(
+      expect(hasCheckedInput(html, "superuserChoice", "self-managed")).toBe(
         false,
       );
-      expect(
-        hasCheckedInput(html, "superuser_choice", "enable-superuser"),
-      ).toBe(true);
+      expect(hasCheckedInput(html, "superuserChoice", "enable-superuser")).toBe(
+        true,
+      );
     });
   });
 

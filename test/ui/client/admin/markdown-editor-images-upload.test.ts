@@ -109,7 +109,7 @@ describe("the image picker dialog", () => {
         expect(uploadCall?.args[1]?.method).toBe("POST");
         const body = uploadCall?.args[1]?.body;
         expect(body).toBeInstanceOf(FormData);
-        expect((body as FormData).get("csrf_token")).toBe("token-1");
+        expect((body as FormData).get("csrfToken")).toBe("token-1");
 
         await finishUpload(handle, textarea, dialog, flushSelection);
 

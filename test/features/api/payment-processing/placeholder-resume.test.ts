@@ -170,7 +170,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       await getProcessedPayment(sessionId),
       "the resumed session outcome is missing",
     );
-    expect(await parseSessionFailure(record.failure_data)).toEqual({
+    expect(await parseSessionFailure(record.failureData)).toEqual({
       completion: { code: "capacity_full" },
       error: REFUNDED_ANSWER,
       refunded: true,
@@ -225,7 +225,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
           await getProcessedPayment(sessionId),
           "the pending session outcome is missing",
         );
-        expect(await parseSessionFailure(record.failure_data)).toEqual({
+        expect(await parseSessionFailure(record.failureData)).toEqual({
           completion: { code: "capacity_full" },
           error: pendingError,
           status: 200,
@@ -350,7 +350,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     // The advance is durable, not recomputed: the stored outcome itself now
     // says the refund happened, so a later replay needs no anchor rows.
     const record = await getProcessedPayment(sessionId);
-    expect(await parseSessionFailure(record!.failure_data)).toMatchObject({
+    expect(await parseSessionFailure(record!.failureData)).toMatchObject({
       refunded: true,
     });
     await expectOnePairOfLegs(sessionId);
@@ -371,7 +371,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
     await processPaymentSession(sessionId, placeholder.data);
     const record = await getProcessedPayment(sessionId);
     const stored = requireValue(
-      await parseSessionFailure(record!.failure_data),
+      await parseSessionFailure(record!.failureData),
       "the advanced outcome is missing",
     );
     expect(stored.refunded).toBe(true);
@@ -432,7 +432,7 @@ describeWithEnv("resuming a crashed placeholder delivery", { db: true }, () => {
       "the pending session outcome is missing",
     );
     const stored = requireValue(
-      await parseSessionFailure(record.failure_data),
+      await parseSessionFailure(record.failureData),
       "the pending outcome is missing",
     );
     // The stored outcome is still the pending crash answer: the completion

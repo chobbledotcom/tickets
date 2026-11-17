@@ -42,8 +42,8 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     const response = await ownerPagePost("/admin/site/pages", {
       content: "Pack light.",
       hidden: "1",
-      meta_description: "Before you come",
-      meta_title: "Plan",
+      metaDescription: "Before you come",
+      metaTitle: "Plan",
       name: "Plan your weekend",
       slug: "plan-your-weekend",
     });
@@ -55,8 +55,8 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     expect(row).toMatchObject({
       content: "Pack light.",
       hidden: true,
-      meta_description: "Before you come",
-      meta_title: "Plan",
+      metaDescription: "Before you come",
+      metaTitle: "Plan",
       name: "Plan your weekend",
       slug: "plan-your-weekend",
     });
@@ -83,8 +83,8 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
       },
     );
     const row = await pageBySlug("plan-api-weekend");
-    expect(row.meta_title).toBe("Plan");
-    expect(row.meta_description).toBe("Before you come");
+    expect(row.metaTitle).toBe("Plan");
+    expect(row.metaDescription).toBe("Before you come");
   });
 
   test("page update unticks the Hidden box the way the form posts it", async () => {
@@ -95,8 +95,8 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     // An unticked checkbox never reaches the form: the field is absent.
     const response = await ownerPagePost(`/admin/site/pages/${page.id}/edit`, {
       content: "Still here",
-      meta_description: "",
-      meta_title: "",
+      metaDescription: "",
+      metaTitle: "",
       name: "Visit",
       slug: "visit",
     });
@@ -289,21 +289,21 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
   fixedPageTest(
     "home",
     "the home form and the api store the same homepage text",
-    "homepage_text",
+    "homepageText",
     "Homepage updated",
     "/admin/site",
   );
   fixedPageTest(
     "contact",
     "the contact form and the api store the same contact text",
-    "contact_page_text",
+    "contactPageText",
     "Contact page updated",
     "/admin/site/contact",
   );
   fixedPageTest(
     "terms",
     "the terms setting and the api store the same terms",
-    "terms_and_conditions",
+    "termsAndConditions",
     "Terms and conditions updated",
     "/admin/settings/terms",
     "/admin/settings?form=settings-terms#settings-terms",
@@ -317,7 +317,7 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
       "/admin/site",
       expect.stringContaining("Homepage text"),
       false,
-    )(await ownerPagePost("/admin/site", { homepage_text: long }));
+    )(await ownerPagePost("/admin/site", { homepageText: long }));
 
     // The API refuses the same content over the same cap with a 400.
     await assertJson(

@@ -23,7 +23,7 @@ export const previewInvoice = async (
 ): Promise<Response> =>
   (
     await adminFormPost("/admin/invoices/preview", {
-      attendee_id: String(attendeeId),
+      attendeeId: String(attendeeId),
       ...(body === undefined ? {} : { body }),
       number: String(number),
     })

@@ -16,6 +16,7 @@ import type {
   ListingAttendeeRow,
   UpdateAttendeePIIInput,
 } from "#db/attendee-types.ts";
+import { bookingRowDelete, inBookingSlot } from "#db/attendees/booking-rows.ts";
 import { hasDuplicateBookingSlot } from "#db/attendees/booking-slot.ts";
 import {
   buildCapacityCheckedInsert,
@@ -26,7 +27,11 @@ import { attendeePiiWriteStatements } from "#db/attendees/pii-write.ts";
 import { LISTING_ATTENDEE_ROW_COLS } from "#db/attendees/queries.ts";
 import { capacityConditionFor } from "#db/capacity.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
-import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { among, valued, whereTail } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { type Changes, update } from "#db/write.ts";
 import { requiredMapValue, unique } from "#fp";
 import {
   CANCELLABLE_STATUSES,
@@ -56,13 +61,21 @@ export const CAPACITY_GUARD: SqlStatement = sql`INSERT INTO listing_attendees (l
  * start_done/end_done completion flags — in the same write. A quantity-0 line
  * is hidden from run sheets, so a completed leg would otherwise haunt them;
  * resetting the done flags too stops a completed leg reappearing as done if the
- * line is later re-activated. Real lines (quantity ≥ 1) keep their state. The
- * fragment carries no bind args, so it slots into both update branches.
+ * line is later re-activated. Real lines (quantity ≥ 1) keep their state.
  */
-const noQuantityResetColumns = (quantity: number): SqlStatement =>
+const noQuantityResetColumns = (
+  quantity: number,
+): Changes<"listing_attendees"> =>
   quantity === 0
-    ? sql`, start_agent_id = NULL, end_agent_id = NULL, start_time = '', end_time = '', start_done = 0, end_done = 0`
-    : sql``;
+    ? {
+        endAgentId: null,
+        endDone: 0,
+        endTime: "",
+        startAgentId: null,
+        startDone: 0,
+        startTime: "",
+      }
+    : {};
 
 /** The booking shape `checkLineCapacity` and `buildCapacityCheckedInsert`
  * expect, projected from a desired line. */
@@ -229,12 +242,23 @@ export const updateStatementFor = (
 ): SqlStatement => {
   const { startAt, endAt } = lineRange(line);
   // A smaller quantity also lowers the admitted count, so it never exceeds it.
-  const setClause = sql`UPDATE listing_attendees SET quantity = ${line.quantity}, checked_in = MIN(checked_in, ${line.quantity}), start_at = ${startAt}, end_at = ${endAt}${noQuantityResetColumns(
-    line.quantity,
-  )} WHERE attendee_id = ${attendeeId} AND listing_id = ${line.listingId} AND start_at IS ${oldPin.startAt} AND parent_listing_id = ${oldPin.parentListingId} AND package_group_id = ${oldPin.packageGroupId}`;
-  return skipCapacityGuard
-    ? setClause
-    : sql`${setClause} AND ${capacityConditionFor(line, attendeeId)}`;
+  const changes = update(tables.listing_attendees, (row) => ({
+    checkedIn: valued<number>(sql`MIN(${row.checkedIn}, ${line.quantity})`),
+    endAt,
+    quantity: line.quantity,
+    startAt,
+    ...noQuantityResetColumns(line.quantity),
+  }));
+  const slot = inBookingSlot(attendeeId, {
+    listing_id: line.listingId,
+    package_group_id: oldPin.packageGroupId,
+    parent_listing_id: oldPin.parentListingId,
+    start_at: oldPin.startAt,
+  });
+  return changes.where((row) => [
+    ...slot(row),
+    skipCapacityGuard ? true : capacityConditionFor(line, attendeeId),
+  ]);
 };
 
 /** One desired line's write statement, and whether the batch must follow it
@@ -279,6 +303,21 @@ const removedLines = (
   );
 };
 
+/** A guard that aborts the batch while the booking row still has a running
+ * subscription: its row with no listing breaks NOT NULL. It tests the current
+ * plan, not changes(), so an absent ordinary row stays a no-op. */
+const livePlanGuard = (
+  attendeeId: number,
+  booking: ListingAttendeeRow,
+): SqlStatement => {
+  const row = tableNode(tables.listing_attendees, "listingAttendee");
+  return sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
+    SELECT NULL, NULL, 1 FROM listing_attendees AS listingAttendee${whereTail([
+      ...inBookingSlot(attendeeId, booking)(row),
+      among(row.subscriptionStatus, CANCELLABLE_STATUSES),
+    ])}`;
+};
+
 /** Each removed line has a live-plan guard before its delete. Capacity-checked
  * writes have CAPACITY_GUARD after them. The caller runs all statements as one
  * batch, so a refused write rolls the whole edit back. */
@@ -289,19 +328,10 @@ export const buildAttendeeEditBatch = (
   allowOverbook: boolean,
 ): SqlStatement[] => {
   const statements = removedLines(desired, existingByKey).flatMap(
-    (booking): SqlStatement[] => {
-      // The booking-slot identity both statements pin.
-      const slot = sql`attendee_id = ${attendeeId} AND listing_id = ${booking.listing_id} AND start_at IS ${booking.start_at ?? null} AND parent_listing_id = ${booking.parent_listing_id} AND package_group_id = ${booking.package_group_id}`;
-      // Test the current plan, not changes(): an absent ordinary row stays a no-op.
-      return [
-        sql`INSERT INTO listing_attendees (listing_id, attendee_id, quantity)
-                SELECT NULL, NULL, 1 FROM listing_attendees
-                WHERE ${slot}
-                  AND subscription_status IN (${sqlList(CANCELLABLE_STATUSES)})`,
-        sql`DELETE FROM listing_attendees
-            WHERE ${slot}`,
-      ];
-    },
+    (booking): SqlStatement[] => [
+      livePlanGuard(attendeeId, booking),
+      bookingRowDelete(attendeeId, booking),
+    ],
   );
   for (const line of [
     ...desired.filter((line) => line.exists),

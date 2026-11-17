@@ -48,7 +48,7 @@ import {
 import {
   availableDayCounts,
   isPaidListing,
-  type ListingFields,
+  type Listing,
   type ListingWithCount,
 } from "#types";
 import {
@@ -118,25 +118,22 @@ const handleDeleteIncomplete = attendeeFormAction(
 
 const buildCreateAttendeeInput = (
   values: AddAttendeeFormValues,
-  listing: {
-    id: number;
-    listing_type: string;
-    customisable_days: boolean;
-    duration_days: number;
-    fields: ListingFields;
-  },
+  listing: Pick<
+    Listing,
+    "customisableDays" | "durationDays" | "fields" | "id" | "listingType"
+  >,
 ) => {
-  const { name, email, phone, address, special_instructions, quantity, date } =
+  const { name, email, phone, address, specialInstructions, quantity, date } =
     values;
-  const isDaily = listing.listing_type === "daily";
+  const isDaily = listing.listingType === "daily";
   // Customisable daily bookings span the admin's chosen day count. Only a
   // whole number reaches the booking, so a forged select value never books a
   // span the form did not offer. Other bookings use the fixed duration: the
   // form offers a day count for a daily listing only.
   const durationDays =
-    isDaily && listing.customisable_days
-      ? requireValue(parsePositiveInt(values.day_count), "Day count missing")
-      : listing.duration_days;
+    isDaily && listing.customisableDays
+      ? requireValue(parsePositiveInt(values.dayCount), "Day count missing")
+      : listing.durationDays;
   return {
     address: address || "",
     bookings: [
@@ -158,7 +155,7 @@ const buildCreateAttendeeInput = (
     name,
     phone: phone || "",
     source: "admin" as const,
-    special_instructions: special_instructions || "",
+    special_instructions: specialInstructions || "",
   };
 };
 
@@ -177,8 +174,8 @@ const handleAddAttendee: TypedRouteHandler<"POST /admin/listing/:listingId/atten
           form,
           getAddAttendeeFields(
             listing.fields,
-            listing.listing_type === "daily",
-            listing.customisable_days && listing.listing_type === "daily"
+            listing.listingType === "daily",
+            listing.customisableDays && listing.listingType === "daily"
               ? availableDayCounts(listing)
               : undefined,
           ),
@@ -274,7 +271,7 @@ const bookingEntries = async (attendeeId: number): Promise<EmailEntry[]> => {
  * form without the field chose the email. A value the form does not offer
  * is a forged or stale form, and refuses the press. */
 const resendSides = (form: FormParams): ChosenSides | null => {
-  const value = form.get("resend_sides") ?? "email";
+  const value = form.get("resendSides") ?? "email";
   switch (value) {
     case "email":
       return { email: true, webhooks: false };

@@ -3,25 +3,13 @@
  */
 
 import * as v from "valibot";
-import { decrypt, encrypt } from "#crypto/encryption.ts";
 import { hmacHash } from "#crypto/hashing.ts";
 import type { BlindIndex } from "#crypto/sealed.ts";
-import {
-  execute,
-  executeBatch,
-  queryAll,
-  resultRows,
-  type TxScope,
-} from "#db/client.ts";
-import {
-  cachedEntityTable,
-  idAndEncryptedSlugSchema,
-} from "#db/common-schema.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
-import { fieldColumns } from "#db/field-columns.ts";
+import { execute, executeBatch, queryAll, type TxScope } from "#db/client.ts";
 import { validateListingGroupMembershipTx } from "#db/groups/membership.ts";
-import { GROUP_ROW, groupListings, listingGroups } from "#db/groups/table.ts";
-import { listingChildren, listingParents } from "#db/listing-parents.ts";
+import { groupListings, listingGroups } from "#db/groups/table.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
+import { linkIdsOf } from "#db/listing-parents.ts";
 import {
   getGroupDayPricesByGroupIds,
   groupDayPriceStatements,
@@ -31,21 +19,23 @@ import {
 import { decryptListingWithCount } from "#db/listings/records.ts";
 import { type ListingRecordRow, listingReader } from "#db/listings/select.ts";
 import { PRICE_TYPE_GROUP, PRICE_TYPE_GROUP_DAY } from "#db/price-types.ts";
-import { envNameSource, rowsByIds } from "#db/query.ts";
-import { readExists } from "#db/read.ts";
-import { among, equal, greaterThan } from "#db/select/expression.ts";
+import { readExists, readRows } from "#db/read.ts";
+import { type NewRecord, newRecordOf } from "#db/record-table.ts";
+import {
+  among,
+  type Expr,
+  equal,
+  inQuery,
+  valued,
+  when,
+} from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
 import { slugTakenIn } from "#db/slug-registry.ts";
-import {
-  type SqlStatement,
-  sql,
-  sqlJoin,
-  sqlList,
-  sqlLiteral,
-  sqlRows,
-} from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList, sqlLiteral } from "#db/sql.ts";
+import { tableCache } from "#db/table-cache.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
+import { deleteFrom, insertInto, insertingAll, update } from "#db/write.ts";
 import {
   flatMap,
   identity,
@@ -71,40 +61,36 @@ const groupIdsJson = defineStoredJson(
   v.array(v.pipe(v.number(), v.safeInteger(), v.minValue(1))),
 );
 
-/** Raw groups table with CRUD operations */
-const rawGroupsTable = defineIdTable<Group, GroupInput>("groups", {
-  ...idAndEncryptedSlugSchema(encrypt, decrypt),
-  ...fieldColumns("groups", GROUP_FIELDS)(encrypt, decrypt),
-});
-
-const packageDisplayColumns = rawGroupsTable.read.pick([
-  "id",
-  "hide_package_listings",
-  "name",
-]);
-
-/** Execute a query and decrypt the resulting group rows */
-export const groups = cachedEntityTable<Group, GroupInput>(
-  "groups",
-  rawGroupsTable,
-  {
-    fetchAll: () => rawGroupsTable.read.many({}, { order: sql`id ASC` }),
+/** Every group, keyed by id and by slug index. The codecs decrypt each
+ * group. */
+export const groups = tableCache(
+  tables.groups,
+  createKeyedCache<Group>({
+    fetchAll: () => readRows(from(tables.groups).sortedBy("id").everyColumn()),
     idOf: (g) => g.id,
-    keyOf: (g) => g.slug_index,
+    keyOf: (g) => g.slugIndex,
     ttlMs: GROUPS_CACHE_TTL_MS,
-  },
+  }),
 );
+
+/** The values of a new group from the form input. */
+export const newGroupValues: (input: GroupInput) => NewRecord<"groups"> =
+  newRecordOf(tables.groups, GROUP_FIELDS);
 
 /** Every group keyed by id, from the request-cached set — the batched
  * alternative to one read per id when resolving or validating many groups
  * without tripping the N+1 read guard. */
 export const getGroupsById = async (): Promise<Map<number, Group>> =>
-  mapById(identity<Group>)(await groups.cache.getAll());
+  mapById(identity<Group>)(await groups.getAll());
 
 /** Narrow id → name map for every group (selects + decrypts only the name), for
  * pickers/labels that must not load the whole groups cache. */
-export const getAllGroupNames = (): Promise<Map<number, string>> =>
-  envNameSource("groups", "groupRecord").all();
+export const getAllGroupNames = async (): Promise<Map<number, string>> =>
+  new Map(
+    (await readRows(from(tables.groups).sortedBy("id").pick("id", "name"))).map(
+      (group) => [group.id, group.name],
+    ),
+  );
 
 /** Groups by id in one query, read straight from the table: a group about to be
  * shown, edited or acted on must be the stored row, not a cached copy that
@@ -116,7 +102,11 @@ export const getGroupsByIds = async (
   ids.length === 0
     ? new Map()
     : mapById(identity<Group>)(
-        await rawGroupsTable.read.many({ id: [...new Set(ids)] }),
+        await readRows(
+          from(tables.groups)
+            .where({ id: [...new Set(ids)] })
+            .everyColumn(),
+        ),
       );
 
 /** One stored group, through the shared many-group read. Null when no group has
@@ -128,7 +118,7 @@ export const getGroupById = async (id: number): Promise<Group | null> =>
  * Get a single group by slug_index (from cache)
  */
 export const getGroupBySlugIndex = (slugIndex: string): Promise<Group | null> =>
-  groups.cache.getByKey(slugIndex);
+  groups.getByKey(slugIndex);
 
 /** Check if a group slug is already in use — across listings and groups. */
 export const isGroupSlugTaken = slugTakenIn("groups");
@@ -224,9 +214,9 @@ type AnyOf = (ids: readonly number[]) => Promise<boolean>;
 export const anyHiddenPackageGroup: AnyOf = (groupIds) =>
   readExists(
     from(tables.groups).where({
-      hide_package_listings: 1,
+      hidePackageListings: 1,
       id: groupIds,
-      is_package: 1,
+      isPackage: 1,
     }),
   );
 
@@ -236,8 +226,8 @@ export const anyHiddenPackageGroup: AnyOf = (groupIds) =>
 export const anyListingInPackageGroup: AnyOf = (listingIds) =>
   readExists(
     from(tables.group_listings, { group: {} }).where((member) => [
-      among(member.listing_id, listingIds),
-      equal(member.group.is_package, 1),
+      among(member.listingId, listingIds),
+      equal(member.group.isPackage, 1),
     ]),
   );
 
@@ -250,14 +240,14 @@ export const anyListingInPackageGroup: AnyOf = (listingIds) =>
  * every package save (group form, add-listings, listing form/API, catalog
  * import) turns an unpackageable member into its user-facing message. */
 export const packageMembersError = async (
-  listings: readonly { id: number; can_pay_more: boolean; name: string }[],
+  listings: readonly { id: number; canPayMore: boolean; name: string }[],
   hideListings: boolean | undefined,
 ): Promise<string | null> => {
   const listingIds = listings.map((listing) => listing.id);
-  const [childrenByParent, parentsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(listingIds),
-    listingParents.getIdsByKeys(listingIds),
-  ]);
+  const {
+    childIdsByParent: childrenByParent,
+    parentIdsByChild: parentsByChild,
+  } = await linkIdsOf(listingIds);
   const blocked = mapNotNullish((listing: (typeof listings)[number]) =>
     packageMemberError(
       listing,
@@ -279,72 +269,6 @@ export const packageMembersError = async (
   return blocked[0] ?? null;
 };
 
-/** Package-group display info for grouping a booking's lines under the package
- * name on tickets/emails. */
-export type PackageDisplay = { name: string; hideListings: boolean };
-
-/** The sold booking rows that hold the package id of this group. */
-const soldPackageLines = (groupId: number) =>
-  from(tables.listing_attendees)
-    .where({ package_group_id: groupId })
-    .where((line) => greaterThan(line.quantity, 0));
-
-/** Whether any sold booking still holds this group's package id. */
-export const hasPackageBookings = (groupId: number): Promise<boolean> =>
-  readExists(soldPackageLines(groupId));
-
-/** Transaction-local recheck: whether any sold booking still holds this
- *  group's package id. Used inside the group write transaction so a checkout
- *  that commits between a request-level sold-hidden check and the write rolls
- *  the un-packaging back rather than revealing concealed member names. */
-export const hasPackageBookingsTx = async (
-  tx: TxScope,
-  groupId: number,
-): Promise<boolean> =>
-  resultRows(await tx.execute(soldPackageLines(groupId).probe())).length > 0;
-
-/** The package displays for a set of (possibly repeated or zero)
- * `package_group_id`s — only ids naming a live package appear in the map. Lets
- * the ticket view collapse each token's package rows into one card per package,
- * so an attendee holding both a package booking and a standalone one (e.g. after
- * an attendee merge) doesn't fall back to per-row cards that leak a hidden member.
- * Groups are resolved together from their shared cache. */
-export const getPackageDisplaysByIds = async (
-  groupIds: readonly number[],
-): Promise<Map<number, PackageDisplay>> => {
-  const packageGroups = await packageDisplayColumns.many(
-    {},
-    {
-      alias: "groupRecord",
-      where: [
-        among(
-          GROUP_ROW.id,
-          [...new Set(groupIds)].filter((groupId) => groupId > 0),
-        ),
-        equal(GROUP_ROW.is_package, 1),
-      ],
-    },
-  );
-  return new Map(
-    packageGroups.map((group) => [
-      group.id,
-      {
-        hideListings: group.hide_package_listings,
-        name: group.name,
-      },
-    ]),
-  );
-};
-
-/** The package displays behind a set of booked rows — each row's attendee names
- * its persisted `package_group_id` (0 on a plain row, matching no package).
- * Shared by the ticket view, the wallet lookup, and the email renderer, which
- * all carry `{ attendee, listing }` row shapes. */
-export const packageDisplaysForRows = (
-  rows: ReadonlyArray<{ attendee: { package_group_id: number } }>,
-): Promise<Map<number, PackageDisplay>> =>
-  getPackageDisplaysByIds(rows.map((row) => row.attendee.package_group_id));
-
 /** One group_listings row for a DUPLICATED group, resolving both the new group
  * and the cloned listing by the slug_index each was just inserted with, so the
  * whole clone (group + listings + memberships) runs as one batch — one
@@ -352,12 +276,27 @@ export const packageDisplaysForRows = (
  * Carries the source member's per-package `quantity`; the flat price override
  * lives in `listing_prices` and is copied separately (keyed to the new group). */
 export const cloneGroupMembershipStatement = (member: {
-  groupSlugIndex: string;
-  listingSlugIndex: string;
+  groupSlugIndex: BlindIndex;
+  listingSlugIndex: BlindIndex;
   quantity: number;
-}): SqlStatement => sql`INSERT INTO group_listings (group_id, listing_id, quantity)
-        SELECT (SELECT id FROM groups WHERE slug_index = ${member.groupSlugIndex}),
-               (SELECT id FROM listings WHERE slug_index = ${member.listingSlugIndex}), ${member.quantity}`;
+}): SqlStatement =>
+  insertInto(tables.group_listings, {
+    groupId: idOfSlug(tables.groups, member.groupSlugIndex),
+    listingId: idOfSlug(tables.listings, member.listingSlugIndex),
+    quantity: member.quantity,
+  });
+
+/** The id of the row that the same batch inserted with this slug index. The
+ *  row is always there, and the NOT NULL column refuses a missing one. */
+const idOfSlug = (
+  table: typeof tables.groups | typeof tables.listings,
+  slugIndex: BlindIndex,
+): Expr<number> =>
+  valued(
+    from(table)
+      .where((row) => equal(row.slugIndex, slugIndex))
+      .scalar((row) => row.id),
+  );
 
 /**
  * Replace a listing's full set of group memberships (the listing-form
@@ -384,7 +323,10 @@ const listingGroupDiffStatements = (
   // well under the interactive round-trip guard even for a large group selection.
   if (toRemove.length > 0) {
     statements.push(
-      sql`DELETE FROM group_listings WHERE listing_id = ${listingId} AND group_id IN (${sqlList(toRemove)})`,
+      deleteFrom(tables.group_listings).where({
+        groupId: toRemove,
+        listingId,
+      }),
     );
     // Drop the listing's package price overrides for the groups it is leaving —
     // they live in listing_prices, not on the membership row, so they'd otherwise
@@ -392,13 +334,13 @@ const listingGroupDiffStatements = (
     // non-empty inside this branch.
     statements.push(removeGroupPricesStatement([listingId], toRemove)!);
   }
-  if (toAdd.length > 0) {
-    statements.push(
-      sql`INSERT OR IGNORE INTO group_listings (group_id, listing_id) VALUES ${sqlRows(
-        toAdd.map((groupId) => [groupId, listingId]),
-      )}`,
-    );
-  }
+  statements.push(
+    ...insertingAll(
+      tables.group_listings,
+      toAdd.map((groupId) => ({ groupId, listingId })),
+      { or: "IGNORE" },
+    ),
+  );
   return statements;
 };
 
@@ -474,11 +416,11 @@ const groupFlatPriceSubquery = (groupIdExpr: SqlStatement): SqlStatement =>
   sql`(SELECT listingPrice.unit_price FROM listing_prices AS listingPrice
       WHERE listingPrice.listing_id = groupListing.listing_id
         AND listingPrice.price_type = ${sqlLiteral(PRICE_TYPE_GROUP)}
-        AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS package_price`;
+        AND listingPrice.price_id = CAST(${groupIdExpr} AS TEXT)) AS packagePrice`;
 
 /**
- * Every membership row for a group, carrying its `package_price` override and
- * per-package `quantity`. A `null` `package_price` means "no override — use the
+ * Every membership row for a group, carrying its `packagePrice` override and
+ * per-package `quantity`. A `null` `packagePrice` means "no override — use the
  * listing's own price", `0` means explicitly free in this package, and a
  * positive value overrides the price; `quantity` defaults to 1. The override is
  * read from the `group` dimension of `listing_prices`; `quantity` from the
@@ -502,12 +444,12 @@ export const packageMemberMaps = (
 ): { prices: Map<number, number>; quantities: Map<number, number> } => ({
   prices: new Map(
     rows.flatMap((row) =>
-      row.package_price === null
+      row.packagePrice === null
         ? []
-        : [[row.listing_id, row.package_price] as const],
+        : [[row.listingId, row.packagePrice] as const],
     ),
   ),
-  quantities: new Map(rows.map((row) => [row.listing_id, row.quantity])),
+  quantities: new Map(rows.map((row) => [row.listingId, row.quantity])),
 });
 
 /** What a package charges for its members: the flat override + quantity maps
@@ -563,19 +505,19 @@ export const loadPackageMemberPricingByGroupIds = async (
 export const getGroupPackagePricesByGroupIds = async (
   groupIds: number[],
 ): Promise<Map<number, GroupListing[]>> =>
-  Map.groupBy(
-    await rowsByIds<GroupListing>(
-      groupIds,
-      (boundIds) =>
-        sql`SELECT groupListing.group_id, groupListing.listing_id,
+  groupIds.length === 0
+    ? new Map()
+    : Map.groupBy(
+        await queryAll<GroupListing>(
+          sql`SELECT groupListing.group_id AS groupId, groupListing.listing_id AS listingId,
             ${groupFlatPriceSubquery(sql`groupListing.group_id`)},
             groupListing.quantity
        FROM group_listings AS groupListing
-      WHERE groupListing.group_id IN (${boundIds})
+      WHERE groupListing.group_id IN (${sqlList(groupIds)})
    ORDER BY groupListing.listing_id ASC`,
-    ),
-    (row) => row.group_id,
-  );
+        ),
+        (row) => row.groupId,
+      );
 
 /** The statement that copies a source listing's per-package `quantity` onto a
  * freshly-duplicated listing's membership rows, for every package group they
@@ -586,17 +528,32 @@ export const getGroupPackagePricesByGroupIds = async (
 const copyPackageOverridesStatement = (
   sourceListingId: number,
   newListingId: number,
-): SqlStatement =>
-  sql`UPDATE group_listings AS cloneMembership
-        SET quantity = (
-              SELECT sourceMembership.quantity FROM group_listings AS sourceMembership
-               WHERE sourceMembership.group_id = cloneMembership.group_id AND sourceMembership.listing_id = ${sourceListingId})
-      WHERE cloneMembership.listing_id = ${newListingId}
-        AND cloneMembership.group_id IN (
-              SELECT groupListing.group_id
-                FROM group_listings AS groupListing
-               WHERE groupListing.listing_id = ${sourceListingId})
-        AND cloneMembership.group_id IN (SELECT id FROM groups WHERE is_package = 1)`;
+): SqlStatement => {
+  const sourceMemberships = () =>
+    from(tables.group_listings)
+      .as("sourceMembership")
+      .where({ listingId: sourceListingId });
+  return update(tables.group_listings, (clone) => ({
+    // The WHERE keeps only groups that the source is in, so one row is there.
+    quantity: valued<number>(
+      sourceMemberships()
+        .where((source) => equal(source.groupId, clone.groupId))
+        .scalar((source) => source.quantity),
+    ),
+  })).where((clone) => [
+    equal(clone.listingId, newListingId),
+    inQuery(
+      clone.groupId,
+      sourceMemberships().values((source) => source.groupId),
+    ),
+    inQuery(
+      clone.groupId,
+      from(tables.groups)
+        .where({ isPackage: 1 })
+        .values((group) => group.id),
+    ),
+  ]);
+};
 
 /** Copy the source's package overrides onto the duplicate's membership rows in
  * the SAME transaction that inserted them (the create write's `afterWrite`), so a
@@ -635,7 +592,7 @@ export const copyPackageMemberOverridesTx = async (
 /** Reset-every-member-to-default-quantity statement (quantity 1). The flat price
  * overrides are cleared separately via {@link groupFlatPriceStatements}. */
 const clearMembersStatement = (groupId: number) =>
-  sql`UPDATE group_listings SET quantity = 1 WHERE group_id = ${groupId}`;
+  update(tables.group_listings, { quantity: 1 }).where({ groupId });
 
 /** The single CASE-UPDATE that applies each valid member's `quantity`, resetting
  * every other member to the default (quantity 1) via the ELSE branch. One
@@ -645,16 +602,16 @@ const clearMembersStatement = (groupId: number) =>
 const memberQuantityStatement = (
   groupId: number,
   valid: PackageMemberInput[],
-): SqlStatement => {
-  const quantityCases = sqlJoin(
-    valid.map(
-      ({ listingId, quantity }) =>
-        sql` WHEN ${listingId} THEN ${quantity ?? 1}`,
+): SqlStatement =>
+  update(tables.group_listings, (member) => ({
+    quantity: when(
+      valid.map(({ listingId, quantity }) => [
+        equal(member.listingId, listingId),
+        quantity ?? 1,
+      ]),
+      1,
     ),
-    sql``,
-  );
-  return sql`UPDATE group_listings SET quantity = CASE listing_id ${quantityCases} ELSE 1 END WHERE group_id = ${groupId}`;
-};
+  })).where({ groupId });
 
 /** Keep only the submitted members that are CURRENT members of the group, so a
  * stale or crafted id is ignored rather than wiping real overrides, and collapse
@@ -736,11 +693,15 @@ export const setGroupListingsActive = async (
   active: boolean,
   tx?: TxScope,
 ): Promise<number> => {
-  // Unaliased `id`: this UPDATE has no table alias for SQLite to qualify.
-  const statement = sql`UPDATE listings SET active = ${active ? 1 : 0} WHERE id IN (
-       SELECT groupListing.listing_id
-         FROM group_listings AS groupListing
-        WHERE groupListing.group_id = ${groupId})`;
+  const statement = update(tables.listings, { active: active ? 1 : 0 }).where(
+    (listing) =>
+      inQuery(
+        listing.id,
+        from(tables.group_listings)
+          .where({ groupId })
+          .values((member) => member.listingId),
+      ),
+  );
   const result =
     tx === undefined ? await execute(statement) : await tx.execute(statement);
   return result.rowsAffected;

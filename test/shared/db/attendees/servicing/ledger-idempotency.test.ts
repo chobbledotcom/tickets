@@ -1,10 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { KIND } from "#accounting/kinds.ts";
-import {
-  COST_REPLAY_MISMATCH,
-  getServicingCosts,
-} from "#db/attendees/servicing.ts";
+import { getServicingCosts } from "#db/attendees/service-cost-legs.ts";
+import { COST_REPLAY_MISMATCH } from "#db/attendees/servicing.ts";
 import {
   expectFlashError,
   expectFlashSuccess,
@@ -50,9 +48,9 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
       (
         await adminFormPost(`/admin/servicing/${id}`, {
           amount: "90.00",
-          cost_idempotency_key: idempotencyKey,
+          costIdempotencyKey: idempotencyKey,
           memo: "Boiler part",
-          target_listing_id: String(listing.id),
+          targetListingId: String(listing.id),
         })
       ).response;
     const key = "idem-double-submit";
@@ -75,9 +73,9 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
       (
         await adminFormPost(`/admin/servicing/${id}`, {
           amount,
-          cost_idempotency_key: key,
+          costIdempotencyKey: key,
           memo: "Boiler part",
-          target_listing_id: String(listing.id),
+          targetListingId: String(listing.id),
         })
       ).response;
     await postCost("90.00");
@@ -97,9 +95,9 @@ describeWithEnv("servicing §22 - cost idempotency", { db: true }, () => {
       (
         await adminFormPost(`/admin/servicing/${id}`, {
           amount: "90.00",
-          cost_idempotency_key: key,
+          costIdempotencyKey: key,
           memo,
-          target_listing_id: String(listing.id),
+          targetListingId: String(listing.id),
         })
       ).response;
     await postCost("Original memo");

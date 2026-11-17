@@ -6,7 +6,7 @@
 
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { updateListing } from "#db/listings/records.ts";
 import { sql } from "#db/sql.ts";
 import { withMessageGroups } from "#i18n";
 import type { PaymentResult } from "#routes/api/webhook-types.ts";
@@ -91,7 +91,7 @@ const dailyFoldIntent = async (
     },
   );
   if (!bookableAlone) {
-    await listingsTable.update(child.id, { bookableAlone: false });
+    await updateListing(child.id, { bookableAlone: false });
   }
   return bundlePairIntent(group, { child, parent }, childQuantity, 5);
 };

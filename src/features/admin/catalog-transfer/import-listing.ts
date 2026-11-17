@@ -71,20 +71,20 @@ export const memberDayPriceError = (
 export const membersHomogeneous = (
   listings: readonly {
     name: string;
-    listing_type: ListingType;
-    customisable_days: boolean;
+    listingType: ListingType;
+    customisableDays: boolean;
   }[],
 ): string | null => {
   const [first, ...rest] = listings;
   if (!first) return null;
   const typeMismatch = rest.find(
-    (listing) => listing.listing_type !== first.listing_type,
+    (listing) => listing.listingType !== first.listingType,
   );
   if (typeMismatch) {
-    return `All listings in a group must be the same type, but "${first.name}" is ${first.listing_type} and "${typeMismatch.name}" is ${typeMismatch.listing_type}.`;
+    return `All listings in a group must be the same type, but "${first.name}" is ${first.listingType} and "${typeMismatch.name}" is ${typeMismatch.listingType}.`;
   }
   const customMismatch = rest.find(
-    (listing) => listing.customisable_days !== first.customisable_days,
+    (listing) => listing.customisableDays !== first.customisableDays,
   );
   return customMismatch
     ? `All listings in a group must agree on customisable days, but "${first.name}" and "${customMismatch.name}" differ.`

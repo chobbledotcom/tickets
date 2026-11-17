@@ -96,7 +96,7 @@ const listingNameCell = listingCell((listing, line, data) => {
 
 const listingDatesCell = listingCell((listing) => (
   <span class="muted small">
-    {listing.listing_type === "daily"
+    {listing.listingType === "daily"
       ? t("attendee_form.shared_dates")
       : t("attendee_form.fixed_date")}
   </span>
@@ -109,7 +109,7 @@ const listingQuantityCell = listingCell((listing, line, _data, index) => {
       <input
         aria-label={t("attendee_form.qty_aria", { title: listing.name })}
         class="line-qty"
-        max={listing.max_quantity}
+        max={listing.maxQuantity}
         min="0"
         name={`${QTY_PREFIX}${index}`}
         type="number"
@@ -175,7 +175,7 @@ const listingNoticesCell = (
 /** The create form's agreed-price box: blank applies the package path's or the
  *  listing's own price, so the placeholder names the price the row carries. */
 const listingPriceCell = listingCell((listing, line, _data, index) => {
-  const applies = line.packagePrice ?? listing.unit_price;
+  const applies = line.packagePrice ?? listing.unitPrice;
   return (
     <input
       aria-label={t("attendee_form.price_aria", { title: listing.name })}

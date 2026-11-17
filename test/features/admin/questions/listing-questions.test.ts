@@ -27,7 +27,7 @@ import { enableFeature } from "#test-utils/settings.ts";
 describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/listings", () => {
     testRequiresAuth("/admin/questions/1/listings", {
-      body: { listing_ids: "1" },
+      body: { listingIds: "1" },
       method: "POST",
       setup: async () => {
         await createQuestion("Listings auth question");
@@ -39,7 +39,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/questions/999/listings",
         {
-          listing_ids: String(listing.id),
+          listingIds: String(listing.id),
         },
       );
       expectStatus(404)(response);
@@ -51,7 +51,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/listings`,
-        { listing_ids: String(listing.id) },
+        { listingIds: String(listing.id) },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}`,
@@ -83,13 +83,13 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("stores assign-all and logs all-listings assignment", async () => {
       const qId = await createQuestion("Assign everyone?");
       await adminFormPost(`/admin/questions/${qId}/listings`, {
-        assign_all: "on",
+        assignAll: "on",
       });
 
       const { getQuestionWithAnswers } = await import(
         "#db/questions/queries.ts"
       );
-      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(true);
+      expect((await getQuestionWithAnswers(qId))!.assignAll).toBe(true);
 
       const response = await adminGet("/admin/log");
       const body = await response.text();
@@ -107,8 +107,8 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await expect(
         failLinkInsert(async () => {
           await adminFormPost(`/admin/questions/${qId}/listings`, {
-            assign_all: "on",
-            listing_ids: String(listing.id),
+            assignAll: "on",
+            listingIds: String(listing.id),
           });
         }),
       ).rejects.toThrow("link insert failed");
@@ -116,7 +116,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const { getQuestionWithAnswers, questionListings } = await import(
         "#db/questions/queries.ts"
       );
-      expect((await getQuestionWithAnswers(qId))!.assign_all).toBe(false);
+      expect((await getQuestionWithAnswers(qId))!.assignAll).toBe(false);
       expect(await questionListings.getIds(qId)).toEqual([]);
     });
 
@@ -124,7 +124,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const listing = await createTestListing({ name: "Singular listing" });
       const qId = await createQuestion("Singular listings log");
       await adminFormPost(`/admin/questions/${qId}/listings`, {
-        listing_ids: String(listing.id),
+        listingIds: String(listing.id),
       });
 
       const response = await adminGet("/admin/log");
@@ -173,7 +173,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expectStatus(404)(
         (
           await adminFormPost(`/admin/listing/${listing.id}/questions`, {
-            question_ids: "1",
+            questionIds: "1",
           })
         ).response,
       );
@@ -259,7 +259,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       return handleRequest(
         mockFormRequest(
           `/admin/listing/${listingId}/questions`,
-          { csrf_token: csrfToken, question_ids: questionIds },
+          { csrfToken, questionIds },
           cookie,
         ),
       );
@@ -278,7 +278,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     testRequiresAuth("/admin/listing/1/questions", {
       body: {
-        question_ids: "1",
+        questionIds: "1",
       },
       method: "POST",
       setup: async () => {
@@ -288,7 +288,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for non-existent listing", async () => {
       const { response } = await adminFormPost("/admin/listing/999/questions", {
-        question_ids: "1",
+        questionIds: "1",
       });
       expectStatus(404)(response);
     });
@@ -378,7 +378,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("logs question update", async () => {
       const id = await createQuestion("Before Update Q");
       await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "After Update Q",
       });
       const response = await adminGet("/admin/log");
@@ -389,7 +389,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("logs question deletion", async () => {
       const id = await createQuestion("Deleted Question");
       await adminFormPost(`/admin/questions/${id}/delete`, {
-        confirm_identifier: "Deleted Question",
+        confirmIdentifier: "Deleted Question",
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();
@@ -408,7 +408,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Answer Del Log Q");
       const aId = await addAnswer(qId, "Deleted Answer");
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/delete`, {
-        confirm_identifier: "Deleted Answer",
+        confirmIdentifier: "Deleted Answer",
       });
       const response = await adminGet("/admin/log");
       const body = await response.text();

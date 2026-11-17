@@ -149,10 +149,10 @@ describeWithEnv(
         const tomorrow = tomorrowInTz();
 
         const { response } = await adminFormPost("/admin/attendees/new", {
-          day_count: "1",
+          dayCount: "1",
           email: "mix@example.com",
           name: "Mix",
-          start_date: tomorrow,
+          startDate: tomorrow,
           ...attendeeLineFields([
             { eventId: standard.id, quantity: 1 },
             { eventId: daily.id, quantity: 2 },

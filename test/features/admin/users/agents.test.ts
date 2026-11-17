@@ -2,6 +2,7 @@ import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { logisticsAgents } from "#db/logistics-agents.ts";
+import { records } from "#db/record-table.ts";
 import { userAgents } from "#db/user-agents.ts";
 import { deleteUser, getUserByUsername } from "#db/users.ts";
 import { handleRequest } from "#routes";
@@ -24,14 +25,14 @@ import { testStatus } from "#test-utils/status-tests.ts";
 
 const inviteAgent = (username: string, agentId?: string) =>
   adminFormPost("/admin/users", {
-    admin_level: "agent",
+    adminLevel: "agent",
     username,
-    ...(agentId ? { agent_ids: agentId } : {}),
+    ...(agentId ? { agentIds: agentId } : {}),
   });
 
 const enableLogisticsWithVan = async () => {
   await enableFeature("logistics");
-  return await logisticsAgents.table.insert({ name: "Van 1" });
+  return await records.logistics_agents.insert({ name: "Van 1" });
 };
 
 const vanWithAssignedAgent = async (token: string, username: string) => {
@@ -127,7 +128,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     const { userId } = await vanWithAssignedAgent("ua1", "driveredit");
 
     await expectHtml(await adminGet(`/admin/users/${userId}/agents`), {
-      contains: ["Assigned agents for driveredit", 'name="agent_ids"'],
+      contains: ["Assigned agents for driveredit", 'name="agentIds"'],
       status: 200,
     });
   });
@@ -140,7 +141,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     });
 
     const { response } = await adminFormPost(`/admin/users/${userId}/agents`, {
-      agent_ids: String(van.id),
+      agentIds: String(van.id),
     });
     expectRedirect(response, "/admin/users");
     expect(await userAgents.getIds(userId)).toEqual([van.id]);
@@ -153,7 +154,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     "editing agents for a non-agent user is rejected": () =>
       adminGet("/admin/users/1/agents"),
     "posting agents for a missing user is a 404": async () =>
-      (await adminFormPost("/admin/users/99999/agents", { agent_ids: "1" }))
+      (await adminFormPost("/admin/users/99999/agents", { agentIds: "1" }))
         .response,
   });
 
@@ -168,7 +169,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("posting agents for a non-agent user is rejected", async () => {
     const { response } = await adminFormPost("/admin/users/1/agents", {
-      agent_ids: "1",
+      agentIds: "1",
     });
     expect(response.status).toBe(400);
   });

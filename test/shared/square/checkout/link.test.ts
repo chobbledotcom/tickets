@@ -163,14 +163,14 @@ describeSquare(() => {
       expect(args.idempotencyKey.length).toBeGreaterThan(0);
       expect(debugMessages(debugLog()).slice(-3)).toEqual([
         "[Square] Creating payment link for x1 listings",
-        "[SQL] INSERT INTO square_link_ends (session_index, state, sealed_handle, link_ends_at, next_attempt_at, created_at) VALUES (?1, ?2, ?3, ?4, ?4, ?5)",
+        "[SQL] INSERT INTO square_link_ends (created_at, link_ends_at, next_attempt_at, sealed_handle, session_index, state) VALUES (?1, ?2, ?2, ?3, ?4, ?5)",
         "[Square] Payment link created orderId=order_abc",
       ]);
     });
 
     test("includes booking fee line item when fee is set", async () => {
       await settings.update.bookingFee("2.5");
-      const listing = testListing({ unit_price: 1000 });
+      const listing = testListing({ unitPrice: 1000 });
       const { args } = await createLink(
         "order_fee",
         "https://square.link/fee",
@@ -182,7 +182,7 @@ describeSquare(() => {
               name: listing.name,
               quantity: 2,
               slug: listing.slug,
-              unitPrice: listing.unit_price,
+              unitPrice: listing.unitPrice,
             }),
           ],
           name: "Jane",

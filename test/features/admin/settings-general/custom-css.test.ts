@@ -17,7 +17,7 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/custom-css", () => {
     testRequiresAuth("/admin/settings/custom-css", {
       body: {
-        custom_css: "body { color: red; }",
+        customCss: "body { color: red; }",
       },
       method: "POST",
     });
@@ -27,8 +27,8 @@ describeAdminSettings(() => {
         mockFormRequest(
           "/admin/settings/custom-css",
           {
-            csrf_token: "invalid-csrf-token",
-            custom_css: "body { color: red; }",
+            csrfToken: "invalid-csrf-token",
+            customCss: "body { color: red; }",
           },
           await testCookie(),
         ),
@@ -38,7 +38,7 @@ describeAdminSettings(() => {
 
     test("saves custom CSS", async () => {
       const { response } = await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "body { color: red; }",
+        customCss: "body { color: red; }",
       });
 
       expect(response.status).toBe(302);
@@ -49,7 +49,7 @@ describeAdminSettings(() => {
     test("rejects CSS exceeding max length without saving it", async () => {
       const tooLong = "a".repeat(MAX_TEXTAREA_LENGTH + 1);
       const { response } = await adminFormPost("/admin/settings/custom-css", {
-        custom_css: tooLong,
+        customCss: tooLong,
       });
 
       expect(response.status).toBe(302);
@@ -63,17 +63,17 @@ describeAdminSettings(() => {
 
     test("stores whether the saved CSS uses Bunny's fonts", async () => {
       await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "@import url(https://fonts.bunny.net/css?family=aleo);",
+        customCss: "@import url(https://fonts.bunny.net/css?family=aleo);",
       });
       expect(settings.customCssBunnyFonts).toBe(true);
 
       await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "body { color: red; }",
+        customCss: "body { color: red; }",
       });
       expect(settings.customCssBunnyFonts).toBe(false);
 
       const { response } = await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "",
+        customCss: "",
       });
       expect(response.status).toBe(302);
       expect(settings.customCssBunnyFonts).toBe(false);
@@ -81,11 +81,11 @@ describeAdminSettings(() => {
 
     test("clears custom CSS when empty", async () => {
       await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "body { color: red; }",
+        customCss: "body { color: red; }",
       });
 
       const { response } = await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "",
+        customCss: "",
       });
 
       expect(response.status).toBe(302);
@@ -95,12 +95,12 @@ describeAdminSettings(() => {
 
     test("advanced settings page shows the custom CSS section", async () => {
       const response = await adminGet("/admin/settings-advanced");
-      await expectHtmlResponse(response, 200, "Custom CSS", "custom_css");
+      await expectHtmlResponse(response, 200, "Custom CSS", "customCss");
     });
 
     test("logs activity when custom CSS is updated", async () => {
       await adminFormPost("/admin/settings/custom-css", {
-        custom_css: "a { text-decoration: none; }",
+        customCss: "a { text-decoration: none; }",
       });
 
       const logs = await getAllActivityLog();

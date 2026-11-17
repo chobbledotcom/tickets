@@ -184,7 +184,7 @@ const settingsValueHandler =
           const task = await settings.withCurrentTask(
             cfg.taskName,
             () => Promise.resolve(cfg.save(value)),
-            form.getOptionalInt("settings_version"),
+            form.getOptionalInt("settingsVersion"),
           );
           if (!task.ok) return errorPage(task.error, cfg.formId);
         } else await cfg.save(value);

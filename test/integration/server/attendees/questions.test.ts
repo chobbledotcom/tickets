@@ -69,7 +69,7 @@ describeWithEnv(
         // The radio for the previously-saved answer is pre-checked.
         assertStringIncludes(
           html,
-          `<input checked name="question_${q.id}" type="radio" value="${a1.id}">`,
+          `<input checked name="question${q.id}" type="radio" value="${a1.id}">`,
         );
       });
 
@@ -133,7 +133,7 @@ describeWithEnv(
         );
         const response = await submitAttendeeEdit(attendee.id, {
           email: "john@example.com",
-          extra: { [`question_${q.id}`]: "99999" },
+          extra: { [`question${q.id}`]: "99999" },
           name: "John Doe",
         });
         expect(response.status).toBe(302);

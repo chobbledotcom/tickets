@@ -23,7 +23,7 @@ describeWithEnv("server (attendee form) — tax save", { db: true }, () => {
     const { attendee } = await listingWithAttendee(5, "Before", email);
     await settings.update.tax({ mode: "add_to_total", rateBasisPoints: 2000 });
     const extra = withPreview
-      ? { tax_preview: (await buildTaxSavePlan(attendee.id)).preview.token }
+      ? { taxPreview: (await buildTaxSavePlan(attendee.id)).preview.token }
       : {};
     const form = await buildAttendeeEditForm(attendee.id, {
       extra,
@@ -109,7 +109,7 @@ describeWithEnv("server (attendee form) — tax save", { db: true }, () => {
     );
     const statuses = await attendeeStatuses.getAll();
     const form = await buildAttendeeEditForm(attendee.id, {
-      extra: { status_id: String(statuses[0]!.id) },
+      extra: { statusId: String(statuses[0]!.id) },
       lines: [],
       name: "After",
     });

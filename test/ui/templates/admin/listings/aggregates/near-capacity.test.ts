@@ -9,32 +9,32 @@ describe("nearCapacity", () => {
 
   test("returns true when at 90% capacity", () => {
     const listing = testListingWithCount({
-      attendee_count: 90,
-      max_attendees: 100,
+      attendeeCount: 90,
+      maxAttendees: 100,
     });
     expect(nearCapacity(listing)).toBe(true);
   });
 
   test("returns true when over 90% capacity", () => {
     const listing = testListingWithCount({
-      attendee_count: 95,
-      max_attendees: 100,
+      attendeeCount: 95,
+      maxAttendees: 100,
     });
     expect(nearCapacity(listing)).toBe(true);
   });
 
   test("returns false when under 90% capacity", () => {
     const listing = testListingWithCount({
-      attendee_count: 89,
-      max_attendees: 100,
+      attendeeCount: 89,
+      maxAttendees: 100,
     });
     expect(nearCapacity(listing)).toBe(false);
   });
 
   test("returns true when fully sold out", () => {
     const listing = testListingWithCount({
-      attendee_count: 100,
-      max_attendees: 100,
+      attendeeCount: 100,
+      maxAttendees: 100,
     });
     expect(nearCapacity(listing)).toBe(true);
   });

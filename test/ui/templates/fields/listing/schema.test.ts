@@ -31,12 +31,12 @@ const revealing = withVisibility(true);
 const hiding = withVisibility(false);
 
 const BUILT_SITE_BOXES = [
-  "months_per_unit",
-  "initial_site_months",
-  "assign_built_site",
+  "monthsPerUnit",
+  "initialSiteMonths",
+  "assignBuiltSite",
 ];
 
-const RECURRING_BOXES = ["recurring_price", "recurring_interval"];
+const RECURRING_BOXES = ["recurringPrice", "recurringInterval"];
 
 const boxesOf = (names: string[], reason: ClosedReason) =>
   names.map((name): [string, ClosedReason] => [name, reason]);
@@ -44,7 +44,7 @@ const boxesOf = (names: string[], reason: ClosedReason) =>
 /** The boxes a site closes for each feature it turns off. */
 const FEATURE_BOXES: [string, ClosedReason][] = [
   ...boxesOf(BUILT_SITE_BOXES, "builder"),
-  ["uses_logistics", "logistics"],
+  ["usesLogistics", "logistics"],
   ...boxesOf(RECURRING_BOXES, "subscriptions"),
 ];
 
@@ -77,8 +77,8 @@ describe("listing field schemas", () => {
       servedWith(["logistics", "subscriptions"]),
       servedWith(["builder", "logistics"]),
     ]).toEqual([
-      revealing([...BUILT_SITE_BOXES, "uses_logistics", ...RECURRING_BOXES]),
-      revealing(["uses_logistics"]),
+      revealing([...BUILT_SITE_BOXES, "usesLogistics", ...RECURRING_BOXES]),
+      revealing(["usesLogistics"]),
       revealing(BUILT_SITE_BOXES),
       revealing(RECURRING_BOXES),
     ]);
@@ -91,8 +91,8 @@ describe("listing field schemas", () => {
   });
 
   test("closing the webhook hides only the webhook box", () => {
-    expect(servedWith(FEATURES_OFF, {}, ["webhook_url", "editor"])).toEqual(
-      hiding(["webhook_url"]),
+    expect(servedWith(FEATURES_OFF, {}, ["webhookUrl", "editor"])).toEqual(
+      hiding(["webhookUrl"]),
     );
   });
 

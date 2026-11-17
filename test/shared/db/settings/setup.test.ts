@@ -57,7 +57,7 @@ const ownerCanReadSiteData = async (
   const passwordHash = await verifyUserPassword(user, password);
   if (!passwordHash) throw new Error(`Owner ${username} rejected its password`);
   const kek = await deriveKEKFromPassword(password, passwordHash);
-  const dataKey = await unwrapKey(user.wrapped_data_key as WrappedKey, kek);
+  const dataKey = await unwrapKey(user.wrappedDataKey as WrappedKey, kek);
   const privateKey = await decryptWithKey(
     settings.wrappedPrivateKey as KeyEncrypted,
     dataKey,
@@ -164,7 +164,7 @@ describeWithEnv("db > settings > setup ceremony", { db: true }, () => {
       expect(settings.currency).toBe("USD");
 
       expect(settings.publicKey).not.toBe("");
-      expect(user!.wrapped_data_key).toMatch(/./);
+      expect(user!.wrappedDataKey).toMatch(/./);
       expect(settings.wrappedPrivateKey).not.toBe("");
     });
 

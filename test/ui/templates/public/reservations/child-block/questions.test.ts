@@ -26,7 +26,7 @@ const assignQuestionId = async (
 
 const expectQuestionControls = (html: string, questionIds: number[]): void => {
   for (const questionId of questionIds) {
-    assertStringIncludes(html, `name="question_${questionId}"`);
+    assertStringIncludes(html, `name="question${questionId}"`);
   }
 };
 
@@ -43,16 +43,16 @@ describeWithEnv(
       );
 
       const html = await bookingPageHtml(parent.slug);
-      expect(html.split(`name="question_${question.id}"`).length - 1).toBe(1);
+      expect(html.split(`name="question${question.id}"`).length - 1).toBe(1);
       assertStringIncludes(
         html,
         `class="custom-question" data-listing-ids="${child.id}"`,
       );
-      assert(!html.includes(`name="question_${question.id}" required`));
+      assert(!html.includes(`name="question${question.id}" required`));
 
       const res = await bookParent(parent.slug, {
         ...parentField(parent, "1"),
-        [`question_${question.id}`]: String(answer.id),
+        [`question${question.id}`]: String(answer.id),
       });
       expectReserved(res);
       const childRows = await getAttendeesRaw(child.id);
@@ -118,15 +118,15 @@ describeWithEnv(
       await listingQuestions.setIds(childB.id, [sharedQuestionId]);
 
       const html = await bookingPageHtml(parent.slug);
-      assertStringIncludes(html, `name="question_${pageQuestionId}" required`);
-      expect(html.split(`name="question_${sharedQuestionId}"`).length - 1).toBe(
+      assertStringIncludes(html, `name="question${pageQuestionId}" required`);
+      expect(html.split(`name="question${sharedQuestionId}"`).length - 1).toBe(
         1,
       );
       assertStringIncludes(
         html,
         `data-listing-ids="${childA.id} ${childB.id}"`,
       );
-      assert(!html.includes(`name="question_${sharedQuestionId}" required`));
+      assert(!html.includes(`name="question${sharedQuestionId}" required`));
     });
 
     test("an all-deactivated child choice question does not render", async () => {
@@ -139,7 +139,7 @@ describeWithEnv(
       );
 
       const html = await bookingPageHtml(parent.slug);
-      assert(!html.includes(`name="question_${question.id}"`));
+      assert(!html.includes(`name="question${question.id}"`));
     });
   },
 );

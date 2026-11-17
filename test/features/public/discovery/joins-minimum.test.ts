@@ -25,10 +25,10 @@ const GROUP = 10;
 const parent = (overrides: Partial<ListingWithCount> = {}): ListingWithCount =>
   testListingWithCount({
     id: 1,
-    listing_type: "standard",
-    max_attendees: 5,
-    max_quantity: 5,
-    min_quantity: 3,
+    listingType: "standard",
+    maxAttendees: 5,
+    maxQuantity: 5,
+    minQuantity: 3,
     name: "Batched base",
     ...overrides,
   }) as ListingWithCount;
@@ -75,18 +75,18 @@ describeWithEnv("childJoinsMinimumBooking", { db: true }, () => {
     // the target needs four places in a three-place pool.
     const target = testListingWithCount({
       id: 2,
-      listing_type: "standard",
-      max_attendees: 1,
-      max_quantity: 1,
-      min_quantity: 1,
+      listingType: "standard",
+      maxAttendees: 1,
+      maxQuantity: 1,
+      minQuantity: 1,
       name: "Shared pool add-on",
     }) as ListingWithCount;
     const free = testListingWithCount({
       id: 3,
-      listing_type: "standard",
-      max_attendees: 3,
-      max_quantity: 3,
-      min_quantity: 1,
+      listingType: "standard",
+      maxAttendees: 3,
+      maxQuantity: 3,
+      minQuantity: 1,
       name: "Free add-on",
     }) as ListingWithCount;
 
@@ -112,21 +112,21 @@ describeWithEnv("childJoinsMinimumBooking", { db: true }, () => {
       name: string,
     ): ListingWithCount =>
       testListingWithCount({
-        bookable_days: [...VALID_DAY_NAMES],
+        bookableDays: [...VALID_DAY_NAMES],
         id,
-        listing_type: "daily",
-        max_attendees: maxQuantity,
-        max_quantity: maxQuantity,
-        maximum_days_after: 10,
-        min_quantity: 1,
-        minimum_days_before: 0,
+        listingType: "daily",
+        maxAttendees: maxQuantity,
+        maximumDaysAfter: 10,
+        maxQuantity: maxQuantity,
+        minimumDaysBefore: 0,
+        minQuantity: 1,
         name,
       }) as ListingWithCount;
     const base = parent({
-      bookable_days: [...VALID_DAY_NAMES],
-      listing_type: "daily",
-      maximum_days_after: 10,
-      minimum_days_before: 0,
+      bookableDays: [...VALID_DAY_NAMES],
+      listingType: "daily",
+      maximumDaysAfter: 10,
+      minimumDaysBefore: 0,
     });
     const target = daily(2, 1, "Shared pool add-on");
     const free = daily(3, 3, "Free add-on");
@@ -148,18 +148,18 @@ describeWithEnv("childJoinsMinimumBooking", { db: true }, () => {
     // has no pair to fold on, so the gate answers false instead of crashing.
     const other = testListingWithCount({
       id: 3,
-      listing_type: "standard",
-      max_attendees: 3,
-      max_quantity: 3,
-      min_quantity: 1,
+      listingType: "standard",
+      maxAttendees: 3,
+      maxQuantity: 3,
+      minQuantity: 1,
       name: "Free add-on",
     }) as ListingWithCount;
     const absent = testListingWithCount({
       id: 4,
-      listing_type: "standard",
-      max_attendees: 5,
-      max_quantity: 5,
-      min_quantity: 1,
+      listingType: "standard",
+      maxAttendees: 5,
+      maxQuantity: 5,
+      minQuantity: 1,
       name: "Unlinked add-on",
     }) as ListingWithCount;
     const caps = capsFor(

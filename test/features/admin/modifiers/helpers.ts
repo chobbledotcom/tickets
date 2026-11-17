@@ -10,8 +10,8 @@ export const createData = (
   overrides: Record<string, string> = {},
 ): Record<string, string> => ({
   active: "1",
-  calc_kind: "percent",
-  calc_value: "10",
+  calcKind: "percent",
+  calcValue: "10",
   direction: "discount",
   name: "Early bird",
   ...overrides,

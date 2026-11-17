@@ -110,7 +110,7 @@ export const paymentReferenceRepresentations = (
 
 type StoredAttendee = {
   id: number;
-  pii_blob: string;
+  piiBlob: string;
 };
 
 type ExpectedPaymentRow = {
@@ -172,7 +172,7 @@ const attendeesMatch = (
   );
   return stored.every((attendee) => {
     const loadedPiiBlob = loadedById.get(Number(attendee.id));
-    return loadedPiiBlob !== undefined && loadedPiiBlob === attendee.pii_blob;
+    return loadedPiiBlob !== undefined && loadedPiiBlob === attendee.piiBlob;
   });
 };
 

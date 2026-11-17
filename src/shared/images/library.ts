@@ -26,7 +26,7 @@ export const isSiteContentImageType = (type: ImageUseItemType): boolean =>
  *  and its presence all render there. */
 const imageHasSiteContentUse = async (imageId: number): Promise<boolean> =>
   (await getImageUsesForImage(imageId)).some((use) =>
-    isSiteContentImageType(use.item_type),
+    isSiteContentImageType(use.itemType),
   );
 
 /** Somebody below a Site role cannot manage an image that public Site content

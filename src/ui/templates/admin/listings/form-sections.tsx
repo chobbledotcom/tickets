@@ -28,40 +28,56 @@ type ListingRenderValues = FormRenderValuesFor<
   ReturnType<typeof getListingForm>["fields"]
 >;
 
+/** A purchase-only, non-dated product seed: the buyer pays, nothing is
+ *  checked in, and the form collects exactly the given contact fields. */
+const purchaseSeed = (fields: string): ListingRenderValues => ({
+  fields,
+  listingType: "standard",
+  purchaseOnly: "1",
+  usesLogistics: "",
+});
+
+/** A checked-in seed booked on a day the buyer picks from the given days. */
+const dailySeed = (bookableDays: string): ListingRenderValues => ({
+  bookableDays,
+  durationDays: "1",
+  fields: "email",
+  listingType: "daily",
+  maximumDaysAfter: "90",
+  minimumDaysBefore: "1",
+  purchaseOnly: "",
+  usesLogistics: "",
+});
+
+/* jscpd:ignore-start -- a list of strings, not code */
 export const TEMPLATE_SEEDS: Record<string, ListingRenderValues> = {
+  "day-pass": dailySeed(ALL_BOOKABLE_DAYS),
+  donation: { ...purchaseSeed("email"), canPayMore: "1" },
   "hireable-item": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
+    ...dailySeed(ALL_BOOKABLE_DAYS),
     fields: "email,phone,address",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "1",
-    uses_logistics: "1",
+    purchaseOnly: "1",
+    usesLogistics: "1",
   },
   "one-off-event": {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "",
+    usesLogistics: "",
   },
-  "online-digital": {
+  "online-digital": purchaseSeed("email"),
+  "physical-product": purchaseSeed("email,address"),
+  subscription: {
     fields: "email",
-    listing_type: "standard",
-    purchase_only: "1",
-    uses_logistics: "",
+    listingType: "standard",
+    purchaseOnly: "",
+    recurringInterval: "month",
+    usesLogistics: "",
   },
-  "weekly-event": {
-    bookable_days: ALL_BOOKABLE_DAYS,
-    duration_days: "1",
-    fields: "email",
-    listing_type: "daily",
-    maximum_days_after: "90",
-    minimum_days_before: "1",
-    purchase_only: "",
-    uses_logistics: "",
-  },
+  // One day ticked, so the operator picks the day the class runs.
+  "weekly-event": dailySeed(VALID_DAY_NAMES[0]),
 };
+/* jscpd:ignore-end */
 
 type ListingSectionId = ReturnType<typeof getListingForm>["sections"][number];
 type ListingSectionRenderer = (
@@ -76,12 +92,12 @@ export const advancedSectionHasValues = (
   listing: ListingWithCount,
   builderEnabled: boolean,
 ): boolean => {
-  if (listing.thank_you_url || listing.webhook_url) return true;
+  if (listing.thankYouUrl || listing.webhookUrl) return true;
   return (
     builderEnabled &&
-    (listing.months_per_unit > 0 ||
-      listing.initial_site_months > 0 ||
-      listing.assign_built_site)
+    (listing.monthsPerUnit > 0 ||
+      listing.initialSiteMonths > 0 ||
+      listing.assignBuiltSite)
   );
 };
 
@@ -91,7 +107,7 @@ export const DurationWarning = ({
   listing: ListingWithCount;
 }): JSX.Element => (
   <div
-    data-duration-original={listing.duration_days}
+    data-duration-original={listing.durationDays}
     hidden
     id="duration-warning"
   >
@@ -207,7 +223,7 @@ export const ListingFormSections = ({
               <input
                 checked={useDefaultsChecked}
                 id="use-defaults"
-                name="use_defaults"
+                name="useDefaults"
                 type="checkbox"
                 value="1"
               />

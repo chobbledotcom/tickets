@@ -19,8 +19,8 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "0"],
-          ["package_price_3", "junk"],
+          ["isPackage", "0"],
+          ["packagePrice3", "junk"],
         ]),
       ),
     ).toBeNull();
@@ -30,10 +30,10 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", ""],
-          ["package_qty_3", " "],
-          ["package_day_price_3_1", ""],
+          ["isPackage", "1"],
+          ["packagePrice3", ""],
+          ["packageQty3", " "],
+          ["packageDayPrice3Days1", ""],
         ]),
       ),
     ).toBeNull();
@@ -43,19 +43,19 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
-          ["package_qty_3", "abc"],
-          ["package_day_price_3_1", "junk"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
+          ["packageQty3", "abc"],
+          ["packageDayPrice3Days1", "junk"],
         ]),
       ),
     ).toBe(t("error.package_member_quantity"));
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
-          ["package_day_price_3_1", "junk"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
+          ["packageDayPrice3Days1", "junk"],
         ]),
       ),
     ).toBe(t("error.package_member_day_price"));
@@ -65,16 +65,16 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_qty_3", "0"],
+          ["isPackage", "1"],
+          ["packageQty3", "0"],
         ]),
       ),
     ).toBe(t("error.package_member_quantity"));
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_qty_3", "1.5"],
+          ["isPackage", "1"],
+          ["packageQty3", "1.5"],
         ]),
       ),
     ).toBe(t("error.package_member_quantity"));
@@ -84,16 +84,16 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "-1"],
+          ["isPackage", "1"],
+          ["packagePrice3", "-1"],
         ]),
       ),
     ).toBe(t("error.package_member_price"));
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "1.234"],
+          ["isPackage", "1"],
+          ["packagePrice3", "1.234"],
         ]),
       ),
     ).toBe(t("error.package_member_price"));
@@ -103,16 +103,16 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_day_price_3_0", "5.00"],
+          ["isPackage", "1"],
+          ["packageDayPrice3Days0", "5.00"],
         ]),
       ),
     ).toBe(t("error.package_member_day_price"));
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_day_price_3_99999999999999999999", "5.00"],
+          ["isPackage", "1"],
+          ["packageDayPrice3Days99999999999999999999", "5.00"],
         ]),
       ),
     ).toBe(t("error.package_member_day_price"));
@@ -122,8 +122,8 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_day_price_3_91", "5.00"],
+          ["isPackage", "1"],
+          ["packageDayPrice3Days91", "5.00"],
         ]),
       ),
     ).toBe(t("error.package_member_day_price"));
@@ -133,11 +133,11 @@ describe("validatePackageMemberForm", () => {
     expect(
       validatePackageMemberForm(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
-          ["package_qty_3", "2"],
-          ["package_day_price_3_1", "5.00"],
-          ["package_day_price_3_2", "0"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
+          ["packageQty3", "2"],
+          ["packageDayPrice3Days1", "5.00"],
+          ["packageDayPrice3Days2", "0"],
         ]),
       ),
     ).toBeNull();
@@ -149,11 +149,11 @@ describe("parsePackageMembers", () => {
     expect(
       parsePackageMembers(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
-          ["package_qty_3", "2"],
-          ["package_day_price_3_1", "5.50"],
-          ["package_day_price_3_2", "0"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
+          ["packageQty3", "2"],
+          ["packageDayPrice3Days1", "5.50"],
+          ["packageDayPrice3Days2", "0"],
         ]),
       ),
     ).toEqual([
@@ -165,8 +165,8 @@ describe("parsePackageMembers", () => {
     expect(
       parsePackageMembers(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", ""],
+          ["isPackage", "1"],
+          ["packagePrice3", ""],
         ]),
       ),
     ).toEqual([{ dayPrices: {}, listingId: 3, price: null, quantity: 1 }]);
@@ -176,9 +176,9 @@ describe("parsePackageMembers", () => {
     expect(() =>
       parsePackageMembers(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
-          ["package_qty_3", "2abc"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
+          ["packageQty3", "2abc"],
         ]),
       ),
     ).toThrow("Package quantity is not a whole number: 2abc");
@@ -188,8 +188,8 @@ describe("parsePackageMembers", () => {
     expect(
       parsePackageMembers(
         formOf([
-          ["is_package", "1"],
-          ["package_price_3", "9.00"],
+          ["isPackage", "1"],
+          ["packagePrice3", "9.00"],
         ]),
       ),
     ).toEqual([{ dayPrices: {}, listingId: 3, price: 900, quantity: 1 }]);
@@ -199,8 +199,8 @@ describe("parsePackageMembers", () => {
     expect(
       parsePackageMembers(
         formOf([
-          ["is_package", "1"],
-          ["package_day_price_3_1", "5.50"],
+          ["isPackage", "1"],
+          ["packageDayPrice3Days1", "5.50"],
         ]),
       ),
     ).toEqual([]);

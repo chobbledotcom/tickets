@@ -144,7 +144,7 @@ describe("HTML input pattern attributes compile under the RegExp `v` flag", () =
   // login box disagree about one name.
   test("the setup field carries the shared username pattern", () => {
     const setupUsername = getSetupForm().fields.find(
-      (field) => field.name === "admin_username",
+      (field) => field.name === "adminUsername",
     );
     assert(setupUsername !== undefined, "the setup form has a username box");
     expect(setupUsername.pattern).toBe(getUsernameFieldBase().pattern);

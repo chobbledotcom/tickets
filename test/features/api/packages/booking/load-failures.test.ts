@@ -35,7 +35,11 @@ describePackageBooking(() => {
     const restoreDb = wrapDbClient({
       batch: () => {},
       execute: (statement) => {
-        if (!statement.sql.includes("groupRecord.hide_package_listings")) {
+        if (
+          !statement.sql.includes(
+            "groupRow.hide_package_listings AS hidePackageListings",
+          )
+        ) {
           return null;
         }
         packageFactFailureRan = true;

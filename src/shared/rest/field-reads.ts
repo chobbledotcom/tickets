@@ -2,8 +2,9 @@
  *  form, and from a stored row into a catalogue transfer. */
 
 import * as v from "valibot";
-import { toCamelCase } from "#shared/column-names.ts";
+import { columnName } from "#shared/column-names.ts";
 import { normalizeDatetime } from "#shared/dates.ts";
+import { definedValuesBy } from "#shared/defined-values.ts";
 import {
   optionalDateString,
   parseEach,
@@ -11,14 +12,16 @@ import {
   writeEntityName,
 } from "#shared/rest/crud-parsers.ts";
 import {
+  apiClosedFields,
   byFieldKey,
   type ClosedFields,
   closedFieldErrorOrNull,
+  definedByFieldKey,
   type FieldKind,
   type FieldSpec,
   type FieldSpecs,
   type FieldsInput,
-  type FieldsRow,
+  type FieldsStored,
   type ShownField,
 } from "#shared/rest/field-specs.ts";
 import { apiRefusal, fieldValueSchema } from "#shared/rest/field-values.ts";
@@ -37,10 +40,11 @@ type BodyRead = (
 
 /** Read one name. An update without a name keeps the stored one. */
 const nameRead: BodyRead = (field, body, stored) => {
-  const name = body[field.key];
+  const key = columnName(field.key);
+  const name = body[key];
   return name === undefined || typeof name === "string"
     ? writeEntityName(name, stored as string | null)
-    : errorResult(`${field.key} must be a string`);
+    : errorResult(`${key} must be a string`);
 };
 
 /** The value a create reads for a field it does not supply. A switch and a
@@ -74,7 +78,7 @@ const keptValue = (field: FieldSpec, stored: unknown): unknown =>
 
 /** Read one supplied value through the field's value rule. */
 const checkedRead: BodyRead = (field, body, stored) => {
-  const value = body[field.key];
+  const value = body[columnName(field.key)];
   if (value === undefined) return okResult(keptValue(field, stored));
   if (value === null) {
     return okResult(NULL_VALUES[field.kind] ?? keptValue(field, stored));
@@ -89,8 +93,8 @@ const BODY_READS: Record<FieldKind, BodyRead> = {
   count: checkedRead,
   date: (field, body, stored) =>
     stored === null
-      ? requireDateString(body, field.key)
-      : optionalDateString(body, field.key, stored as string),
+      ? requireDateString(body, columnName(field.key))
+      : optionalDateString(body, columnName(field.key), stored as string),
   datetime: checkedRead,
   dayPrices: checkedRead,
   durationDays: checkedRead,
@@ -151,10 +155,10 @@ const asInput = <Fields extends FieldSpecs>(
   values: readonly (readonly [string, unknown])[],
 ): FieldsInput<Fields> =>
   // Each entry is the value its own kind read.
-  Object.fromEntries(
-    values.flatMap(([key, value]) =>
-      value === undefined ? [] : [[toCamelCase(key), value]],
-    ),
+  definedValuesBy(
+    values,
+    ([key]) => key,
+    ([, value]) => value,
   ) as FieldsInput<Fields>;
 
 /** One JSON write: the body, and the stored row or null on create. */
@@ -169,11 +173,12 @@ const fieldOfBody = (
   ...[body, stored]: BodyWrite
 ): Result<unknown> => {
   if (stored === null) {
-    return field.required && (body[field.key] ?? null) === null
-      ? errorResult(`${field.key} is required`)
+    const key = columnName(field.key);
+    return field.required && (body[key] ?? null) === null
+      ? errorResult(`${key} is required`)
       : BODY_READS[field.kind](field, body, null);
   }
-  // A stored row holds a column for each of its declared fields.
+  // A stored row holds a field for each of its declared fields.
   const kept = (stored as Record<string, unknown>)[field.key];
   return BODY_READS[field.kind](field, body, kept);
 };
@@ -187,7 +192,10 @@ export const readBody = <Fields extends FieldSpecs>(
   stored: object | null,
   closed: ClosedFields,
 ): Result<FieldsInput<Fields>> => {
-  const refusal = closedFieldErrorOrNull(closed, Object.keys(body));
+  const refusal = closedFieldErrorOrNull(
+    apiClosedFields(closed),
+    Object.keys(body),
+  );
   if (refusal !== null) return errorResult(refusal);
   const read = parseEach((field: Fields[number]) => {
     const value = fieldOfBody(field, body, stored);
@@ -215,8 +223,10 @@ export const bodyMappers = <const Fields extends readonly OpenField[]>(
 ) => ({
   toCreateInput: (body: Record<string, unknown>) =>
     readOpenBody(fields, body, null),
-  toUpdateInput: (body: Record<string, unknown>, stored: FieldsRow<Fields>) =>
-    readOpenBody(fields, body, stored),
+  toUpdateInput: (
+    body: Record<string, unknown>,
+    stored: FieldsStored<Fields>,
+  ) => readOpenBody(fields, body, stored),
 });
 
 /** Read the fields that one checked form showed. A field the page did not
@@ -296,24 +306,11 @@ export const transferValues = <const Fields extends FieldSpecs>(
   row: object,
   withheld: ClosedFields = NOTHING_CLOSED,
 ): Record<string, unknown> =>
-  Object.fromEntries(
-    fields.flatMap((field) => {
-      // A stored row holds a column for each of its declared fields.
-      const value = (row as Record<string, unknown>)[field.key];
-      const skip = TRANSFER_SKIPS[field.kind];
-      return withheld.has(field.key) || value === undefined || skip?.(value)
-        ? []
-        : [[toCamelCase(field.key), value]];
-    }),
-  );
-
-/** The refusal for the first closed field that one transfer supplies, named
- *  by its transfer key. Null means the transfer supplies no closed field. */
-export const transferClosedErrorOrNull = (
-  closed: ClosedFields,
-  data: object,
-): string | null =>
-  closedFieldErrorOrNull(
-    new Map([...closed].map(([key, reason]) => [toCamelCase(key), reason])),
-    Object.keys(data),
-  );
+  definedByFieldKey(fields, (field) => {
+    // A stored row holds a field for each of its declared fields.
+    const value = (row as Record<string, unknown>)[field.key];
+    const skip = TRANSFER_SKIPS[field.kind];
+    return withheld.has(field.key) || value === undefined || skip?.(value)
+      ? undefined
+      : value;
+  });

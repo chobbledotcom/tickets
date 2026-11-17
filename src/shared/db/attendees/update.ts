@@ -15,15 +15,16 @@ import { ticketLinesQuery } from "#db/attendees/ticket-lines.ts";
 import {
   execute,
   executeBatch,
-  executeUpdate,
   queryAll,
   resultRows,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
-import { from } from "#db/select/query.ts";
+import { records } from "#db/record-table.ts";
+import { equal, notEqual, plus, valued } from "#db/select/expression.ts";
 import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import {
   filter,
   map,
@@ -54,9 +55,10 @@ export const moveTickets = (
     const { changed, moved } = spreadTicketMoves(direction, lines, moves);
     if (changed.length > 0) {
       await tx.batch(
-        changed.map(
-          (line) =>
-            sql`UPDATE listing_attendees SET checked_in = ${line.checked_in} WHERE id = ${line.id}`,
+        changed.map((line) =>
+          update(tables.listing_attendees, {
+            checkedIn: line.checked_in,
+          }).where({ id: line.id }),
         ),
       );
     }
@@ -67,10 +69,10 @@ export const incrementAttachmentDownloads = async (
   attendeeId: number,
   listingId: number,
 ): Promise<void> => {
-  await executeUpdate(
-    "listing_attendees",
-    { attachment_downloads: sql`attachment_downloads + 1` },
-    { attendee_id: attendeeId, listing_id: listingId },
+  await execute(
+    update(tables.listing_attendees, (line) => ({
+      attachmentDownloads: plus(line.attachmentDownloads, 1),
+    })).where({ attendeeId, listingId: listingId }),
   );
 };
 
@@ -99,9 +101,14 @@ export const recomputeListingBookingRanges = async (
 ): Promise<void> => {
   const duration = clampDurationDays(durationDays);
   await execute(
-    sql`UPDATE listing_attendees
-           SET end_at = REPLACE(datetime(start_at, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'
-           WHERE listing_id = ${listingId} AND start_at IS NOT NULL`,
+    update(tables.listing_attendees, (line) => ({
+      endAt: valued<string>(
+        sql`REPLACE(datetime(${line.startAt}, '+' || ${duration} || ' days'), ' ', 'T') || '.000Z'`,
+      ),
+    })).where((line) => [
+      equal(line.listingId, listingId),
+      notEqual(line.startAt, null),
+    ]),
   );
 };
 
@@ -225,10 +232,8 @@ export const checkGroupCapAfterDurationChange = async (
   listingId: number,
   groupId: number,
 ): Promise<string | null> => {
-  const cap = await queryAll(
-    from(tables.groups).where({ id: groupId }).pick("max_attendees"),
-  );
-  const groupLimit = cap[0]!.max_attendees;
+  const cap = await queryAll(records.groups.byId(groupId).pick("maxAttendees"));
+  const groupLimit = cap[0]!.maxAttendees;
   if (groupLimit <= 0) return null;
 
   const rows = await queryAll<GroupBookingRow>(

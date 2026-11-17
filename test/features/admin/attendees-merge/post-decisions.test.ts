@@ -49,7 +49,7 @@ describeWithEnv(
           "source",
         );
       expect(response.status).toBe(302);
-      expect(await answerOf(target.id, a2!.question_id)).toBe(a2!.id);
+      expect(await answerOf(target.id, a2!.questionId)).toBe(a2!.id);
 
       // The merged person is named by the name decision: the source here.
       expect(await mergeLog(listing1.id)).toBe(
@@ -67,7 +67,7 @@ describeWithEnv(
           "target",
         );
       expect(response.status).toBe(302);
-      expect(await answerOf(target.id, a1.question_id)).toBe(undefined);
+      expect(await answerOf(target.id, a1.questionId)).toBe(undefined);
 
       // Keeping the target's name names the merged person after the target.
       expect(await mergeLog(listing1.id)).toBe(

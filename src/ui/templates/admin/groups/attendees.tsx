@@ -68,7 +68,7 @@ export const GroupAttendeesPanel = ({
         questionData,
         returnUrl: `/admin/groups/${group.id}/attendees`,
         rows: buildAttendeeRows(attendees, listings, pairBookings),
-        showDate: listings.some((listing) => listing.listing_type === "daily"),
+        showDate: listings.some((listing) => listing.listingType === "daily"),
         showListing: true,
       })}
     />

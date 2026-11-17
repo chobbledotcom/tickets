@@ -7,7 +7,9 @@
 import { assert, assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { readOneRow } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -90,7 +92,7 @@ describeWithEnv("the listing page", { db: true }, () => {
 
     const live = await actions();
     await adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
-      confirm_identifier: listing.name,
+      confirmIdentifier: listing.name,
     });
     const dead = await actions();
 
@@ -100,9 +102,10 @@ describeWithEnv("the listing page", { db: true }, () => {
     );
     assert(!live.includes(`href="/admin/listing/${listing.id}/reactivate"`));
     expect(
-      (await listingsTable.read.pick(["active"]).one({ id: listing.id }))!
-        .active,
-    ).toBe(false);
+      await readOneRow(
+        from(tables.listings).where({ id: listing.id }).pick("active"),
+      ),
+    ).toEqual({ active: false });
     assertStringIncludes(
       dead,
       `href="/admin/listing/${listing.id}/reactivate"`,

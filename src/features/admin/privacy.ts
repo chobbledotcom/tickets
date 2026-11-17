@@ -288,7 +288,7 @@ const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
       );
     }
     await settings.update.orphanPurgeRetention(retention);
-    await settings.update.autoPurgeOrphans(form.has("auto_purge"));
+    await settings.update.autoPurgeOrphans(form.has("autoPurge"));
 
     if (form.getString("action") === "purge") {
       const deleted = await purgeOrphanedAttendees(
@@ -312,7 +312,7 @@ const handleOrphansPost = formHandlerAt("/admin/privacy/orphans")(
  */
 const handleErasePost = formHandlerAt("/admin/privacy/erase")(
   async ({ form }) => {
-    const channel = form.getString("contact_type");
+    const channel = form.getString("contactType");
     const identifier = form.getString("identifier").trim();
     if (!identifier) {
       return adminRedirect(

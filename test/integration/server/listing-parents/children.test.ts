@@ -83,7 +83,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const html = await listingEditPageHtml(parent.id);
     expectIncludesAll(html, [
       "Required child listings",
-      `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
+      `<input checked name="childListingIds" type="checkbox" value="${child.id}">`,
     ]);
   });
 
@@ -111,8 +111,8 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     await postChildren(parent.id, [child.id]);
     const html = await listingEditPageHtml(parent.id);
     expectIncludesAll(html, [
-      `<input checked name="child_listing_ids" type="checkbox" value="${child.id}">`,
-      `<input name="child_listing_ids" type="checkbox" value="${other.id}">`,
+      `<input checked name="childListingIds" type="checkbox" value="${child.id}">`,
+      `<input name="childListingIds" type="checkbox" value="${other.id}">`,
     ]);
   });
 
@@ -135,7 +135,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     await postChildren(child.id, [grandchild.id]);
     const html = await listingEditPageHtml(parent.id);
     expectIncludesAll(html, [
-      `<input disabled name="child_listing_ids" type="checkbox" value="${child.id}">`,
+      `<input disabled name="childListingIds" type="checkbox" value="${child.id}">`,
       "already has its own child listings",
     ]);
   });
@@ -149,7 +149,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     const html = await listingEditPageHtml(parent.id);
     assertStringIncludes(
       html,
-      `<input disabled name="child_listing_ids" type="checkbox" value="${daily.id}">`,
+      `<input disabled name="childListingIds" type="checkbox" value="${daily.id}">`,
     );
   });
 

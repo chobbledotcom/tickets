@@ -5,11 +5,11 @@ import { getDb } from "#db/client.ts";
 import { imageUrlsFor } from "#db/image-urls.ts";
 import {
   deleteImageRecord,
-  getImageById,
   type ImageInput,
   insertImageRecord,
   updateImageRecord,
 } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { getCurrentSettingsVersion } from "#db/settings.ts";
 import type { SqlStatement } from "#db/sql.ts";
 import { nonEmptyString } from "#shared/validation/string.ts";
@@ -42,7 +42,7 @@ describeWithEnv("db > image record writes", { db: true }, () => {
     await deleteImageRecord(image.id);
     const afterDelete = await getCurrentSettingsVersion();
 
-    expect(await getImageById(image.id)).toBeNull();
+    expect(await records.images.find(image.id)).toBeNull();
     expect(afterDelete).toBeGreaterThan(afterUpdate);
   });
 

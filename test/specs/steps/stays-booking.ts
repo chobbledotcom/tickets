@@ -298,7 +298,7 @@ Then(
     // A stay of N days starting on day 0 ends on day N-1, so day N is free.
     const day = addDays(
       testDate(stayStart(this)),
-      listingNamed(this, name).duration_days,
+      listingNamed(this, name).durationDays,
     );
     return expectStayCanBeBooked(this, name, day, true, guest(3));
   },

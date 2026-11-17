@@ -7,8 +7,10 @@ import {
   recomputeListingBookingRanges,
   updateAttendeePII,
 } from "#db/attendees/update.ts";
-import { executeUpdate, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendeePair } from "#test-utils/db-helpers/attendee-pair.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
@@ -136,7 +138,9 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
   };
 
   const setCap = async (groupId: number, cap: number): Promise<void> => {
-    await executeUpdate("groups", { max_attendees: cap }, { id: groupId });
+    await execute(
+      update(tables.groups, { maxAttendees: cap }).where({ id: groupId }),
+    );
   };
 
   test("recomputes the stored end date from the booking start", async () => {
@@ -224,15 +228,15 @@ describeWithEnv("db > attendees > booking ranges", { db: true }, () => {
     await bookAttendee(target, { date: DAY_1, quantity: 6 });
     await bookAttendee(sibling, { date: DAY_1, quantity: 5 });
     await bookAttendee(legacyEnd, { date: DAY_1, quantity: 20 });
-    await executeUpdate(
-      "listing_attendees",
-      { end_at: null },
-      { listing_id: sibling.id },
+    await execute(
+      update(tables.listing_attendees, { endAt: null }).where({
+        listingId: sibling.id,
+      }),
     );
-    await executeUpdate(
-      "listing_attendees",
-      { start_at: null },
-      { listing_id: legacyEnd.id },
+    await execute(
+      update(tables.listing_attendees, { startAt: null }).where({
+        listingId: legacyEnd.id,
+      }),
     );
     await setCap(group.id, 10);
 

@@ -88,7 +88,7 @@ describeWithEnv("the record delete pages", { db: true }, () => {
   test("a confirmed delete lands on the list with a success flash", async () => {
     const removed: [number, unknown][] = [];
     const pages = pagesFor(
-      { deleteInput: (data) => data.getString("confirm_identifier") },
+      { deleteInput: (data) => data.getString("confirmIdentifier") },
       {
         remove: (id, input) => {
           removed.push([id, input]);

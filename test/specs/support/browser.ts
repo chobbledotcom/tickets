@@ -211,7 +211,7 @@ export const takesDownFromOwnPage =
   async (world: TicketsWorld, typed: string): Promise<void> => {
     const browser = await openPage(world);
     await browser.clickLink(deleteLabel);
-    await fillInAndSend(browser, { confirm_identifier: typed }, deleteLabel);
+    await fillInAndSend(browser, { confirmIdentifier: typed }, deleteLabel);
     keepsWhatTheOrganiserSaw(world, browser);
   };
 

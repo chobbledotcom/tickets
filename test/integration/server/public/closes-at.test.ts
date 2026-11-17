@@ -47,11 +47,7 @@ const expectClosesDuringSubmission = async (
   await updateTestListing(listingIdToClose, { closesAt: pastCloseTime() });
 
   const response = await handleRequest(
-    mockFormRequest(
-      path,
-      { ...formData, csrf_token: csrfToken },
-      `csrf_token=${csrfToken}`,
-    ),
+    mockFormRequest(path, { ...formData, csrfToken }, `csrfToken=${csrfToken}`),
   );
   expect(response.status).toBe(302);
   expectFlash(
@@ -95,7 +91,7 @@ describeWithEnv(
           {
             email: "test@example.com",
             name: "Test User",
-            [`quantity_${listing.id}`]: "1",
+            [`quantity${listing.id}`]: "1",
           },
           listing.id,
         );
@@ -115,7 +111,7 @@ describeWithEnv(
         // The story owns the customer-facing claim; this owns the render
         // branch: a fully-closed page carries no booking controls at all.
         assert(!html.includes("Continue"));
-        assert(!html.includes(`name="quantity_${listing1.id}"`));
+        assert(!html.includes(`name="quantity${listing1.id}"`));
       });
 
       test("shows 'Registration Closed' label for individual closed listing in ticket", async () => {
@@ -143,8 +139,8 @@ describeWithEnv(
           {
             email: "test@example.com",
             name: "Test User",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
           listing1.id,
         );

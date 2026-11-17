@@ -24,8 +24,8 @@ type SquareFields = {
 
 export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
   extraFields: (form) => ({
-    locationId: form.getString("square_location_id"),
-    sandbox: form.get("square_sandbox") === "on",
+    locationId: form.getString("squareLocationId"),
+    sandbox: form.get("squareSandbox") === "on",
   }),
   logMessage: "Square credentials updated",
   provider: "square",
@@ -56,7 +56,7 @@ export const squareRoutes = defineProviderCredentialsRoute<SquareFields>({
  * Handle POST /admin/settings/square-webhook - owner only
  */
 export const handleAdminSquareWebhookPost = settingsSecret({
-  field: "square_webhook_signature_key",
+  field: "squareWebhookSignatureKey",
   formId: "settings-square-webhook",
   label: "Square webhook signature key",
   save: (v) => settings.update.square.webhookSignatureKey(v),

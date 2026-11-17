@@ -29,7 +29,7 @@ import {
   runHandler,
 } from "#test-utils/settings-handlers.ts";
 
-const FIELD = "email_api_key";
+const FIELD = "emailApiKey";
 const FORM_ID = "settings-email";
 const LENGTH_ERROR = `API Key must be ${MAX_INPUT_LENGTH} characters or fewer`;
 
@@ -142,7 +142,7 @@ describeWithEnv("settings form helpers", { db: true }, () => {
         "/admin/settings",
         {
           [FIELD]: "x".repeat(MAX_INPUT_LENGTH + 1),
-          csrf_token: await testCsrfToken(),
+          csrfToken: await testCsrfToken(),
         },
         await testCookie(),
       ),

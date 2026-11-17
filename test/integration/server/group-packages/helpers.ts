@@ -6,9 +6,12 @@
 
 import { expect } from "@std/expect";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { getGroupById, getGroupPackagePrices, groups } from "#db/groups.ts";
+import { getGroupById, getGroupPackagePrices } from "#db/groups.ts";
 import { expectFlashRedirect } from "#test-utils/assertions.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  type createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost } from "#test-utils/session.ts";
 import type { Group, ListingWithCount } from "#types";
@@ -16,19 +19,19 @@ import type { Group, ListingWithCount } from "#types";
 /** The fields the group edit form always submits, whatever else a test adds. */
 interface GroupEditFields {
   description: string;
-  max_attendees: string;
+  maxAttendees: string;
   name: string;
   slug: string;
-  terms_and_conditions: string;
+  termsAndConditions: string;
 }
 
 /** Base fields the group edit form always submits. */
 export const editFields = (name: string, slug: string): GroupEditFields => ({
   description: "",
-  max_attendees: "0",
+  maxAttendees: "0",
   name,
   slug,
-  terms_and_conditions: "",
+  termsAndConditions: "",
 });
 
 /** A listing the tests made, as its own record. */
@@ -75,14 +78,13 @@ export const hiddenPackageWithBooking = async (
   memberListing: TestListing;
   token: string;
 }> => {
-  const group = await createTestGroup({ isPackage: true, name, slug });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  const group = await createHiddenPackageGroup(name, { slug });
   const memberListing = await member(group, `${name} Member`);
   const token = await sellPackageTicket(memberListing.id, group.id);
   return { group, memberListing, token };
 };
 
-/** POST the group edit form with is_package ticked, returning the response. */
+/** POST the group edit form with isPackage ticked, returning the response. */
 export const postIsPackage = (group: {
   id: number;
   name: string;
@@ -90,7 +92,7 @@ export const postIsPackage = (group: {
 }): Promise<{ response: Response }> =>
   adminFormPost(`/admin/groups/${group.id}/edit`, {
     ...editFields(group.name, group.slug),
-    is_package: "1",
+    isPackage: "1",
   });
 
 /** Assert a group edit POST was turned away by the package invariant, and hand
@@ -107,7 +109,7 @@ export const expectPackageRefused = async (
   return (await getGroupById(group.id))!;
 };
 
-/** POST the edit form with is_package ticked and assert it was rejected by the
+/** POST the edit form with isPackage ticked and assert it was rejected by the
  * package invariant, leaving the flag clear. */
 export const expectPackageRejected = async (group: {
   id: number;
@@ -116,10 +118,10 @@ export const expectPackageRejected = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   const refused = await expectPackageRefused(group, response);
-  expect(refused.is_package).toBe(false);
+  expect(refused.isPackage).toBe(false);
 };
 
-/** POST the edit form with is_package ticked and assert it saved. */
+/** POST the edit form with isPackage ticked and assert it saved. */
 export const expectPackageAccepted = async (group: {
   id: number;
   name: string;
@@ -127,7 +129,7 @@ export const expectPackageAccepted = async (group: {
 }): Promise<void> => {
   const { response } = await postIsPackage(group);
   expect(response.status).toBe(302);
-  expect((await getGroupById(group.id))!.is_package).toBe(true);
+  expect((await getGroupById(group.id))!.isPackage).toBe(true);
 };
 
 /** POST add-listings with `listingId` to a package group and assert the package
@@ -138,7 +140,7 @@ export const expectAddListingRejected = async (
 ): Promise<void> => {
   const { response } = await adminFormPost(
     `/admin/groups/${group.id}/add-listings`,
-    { listing_ids: String(listingId) },
+    { listingIds: String(listingId) },
   );
   await expectFlashRedirect(
     `/admin/groups/${group.id}`,
@@ -152,7 +154,6 @@ export const expectAddListingRejected = async (
 export const hiddenPackageMember = async (
   name: string,
 ): Promise<TestListing> => {
-  const group = await createTestGroup({ isPackage: true, name });
-  await groups.table.update(group.id, { hidePackageListings: true });
+  const group = await createHiddenPackageGroup(name);
   return member(group, `${name} member`);
 };

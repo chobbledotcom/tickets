@@ -49,7 +49,7 @@ export const enhanced = (
     (options.stylesheet ? `<style>${options.stylesheet}</style>` : "") +
       (options.form
         ? `<form action="/admin/pages/1/edit" method="post">` +
-          `<input type="hidden" name="csrf_token" value="token-1">${textareaHtml}</form>`
+          `<input type="hidden" name="csrfToken" value="token-1">${textareaHtml}</form>`
         : textareaHtml) +
       (options.footer ? FOOTER : ""),
   );

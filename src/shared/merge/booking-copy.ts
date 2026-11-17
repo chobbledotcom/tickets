@@ -4,6 +4,7 @@
 
 import { pick } from "@std/collections";
 import type { ListingAttendeeRow } from "#db/attendee-types.ts";
+import { camelCaseKeys } from "#shared/column-names.ts";
 
 /**
  * The stored columns that the copy keeps. The caller sets the check-in
@@ -38,4 +39,4 @@ const COPIED_COLUMNS = [
 /* jscpd:ignore-end */
 
 export const copiedBookingColumns = (booking: ListingAttendeeRow) =>
-  pick(booking, COPIED_COLUMNS);
+  camelCaseKeys(pick(booking, COPIED_COLUMNS));

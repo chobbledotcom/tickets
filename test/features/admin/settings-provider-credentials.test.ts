@@ -54,8 +54,8 @@ const post = async (
     mockFormRequest(
       "/admin/settings/test-provider",
       {
-        csrf_token: await testCsrfToken(),
-        settings_version: String(settings.version),
+        csrfToken: await testCsrfToken(),
+        settingsVersion: String(settings.version),
         ...fields,
       },
       await testCookie(),

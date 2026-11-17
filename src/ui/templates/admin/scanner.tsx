@@ -364,18 +364,14 @@ export const adminScannerPage = (
           id="manual-checkin"
           method="POST"
         >
-          <input
-            name="csrf_token"
-            type="hidden"
-            value={getCurrentCsrfToken()}
-          />
+          <input name="csrfToken" type="hidden" value={getCurrentCsrfToken()} />
           <label for="manual-checkin-input">
             {t("admin.scanner.search_label")}
           </label>
           <div class="combobox">
             <input
               id="manual-checkin-attendee-id"
-              name="attendee_id"
+              name="attendeeId"
               type="hidden"
             />
             <input

@@ -20,18 +20,18 @@ describe("RenewalTierSummary", () => {
       <RenewalTierSummary
         tiers={[
           testListingWithCount({
-            attendee_count: 7,
+            attendeeCount: 7,
             id: 41,
-            months_per_unit: 3,
+            monthsPerUnit: 3,
             name: "Starter <Tier>",
-            unit_price: 1250,
+            unitPrice: 1250,
           }),
           testListingWithCount({
-            attendee_count: 0,
+            attendeeCount: 0,
             id: 42,
-            months_per_unit: 12,
+            monthsPerUnit: 12,
             name: "Free tier",
-            unit_price: 0,
+            unitPrice: 0,
           }),
         ]}
       />,

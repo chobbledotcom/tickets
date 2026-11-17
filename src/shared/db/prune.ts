@@ -2,12 +2,16 @@
 
 import { decrypt } from "#crypto/encryption.ts";
 import { addressCachePruneStatement } from "#db/address-cache.ts";
-import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
+import { attendeesRemoval } from "#db/attendees/delete.ts";
 import { executeBatchWithResults, queryAll } from "#db/client.ts";
 import { orphanIdsBatch } from "#db/orphan-attendees.ts";
 import { PRUNE_SCAN_OPERATIONS_RETENTION_MS } from "#db/processed-scan-operations.ts";
+import { among, equal, notEqual } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { settings } from "#db/settings.ts";
 import { type SqlStatement, sql, sqlList, sqlName } from "#db/sql.ts";
+import { userRemoval } from "#db/users.ts";
 import {
   refundAuthorityPrunableSql,
   refundAuthorityWorkSql,
@@ -178,13 +182,10 @@ const orphanStatements = (): PruneStatement[] => {
     orphanRetentionCutoffIso(settings.orphanPurgeRetention, nowMs()),
     MAINTENANCE_PRUNE_BATCH,
   );
-  return [
-    ...attendeeRemovalStatements(orphanIds),
-    sql`DELETE FROM attendees WHERE id IN (${orphanIds})`,
-  ];
+  return [...attendeesRemoval(orphanIds)];
 };
 
-type InviteCandidate = Pick<User, "id" | "invite_expiry">;
+type InviteCandidate = Pick<User, "id" | "inviteExpiry">;
 
 type InvitePage = {
   checkpoint: string | null;
@@ -206,7 +207,7 @@ const expiredInvitePage = async (
 ): Promise<InvitePage> => {
   const position = checkpointId(checkpoint);
   const rows = await queryAll<InviteCandidate>(
-    sql`SELECT id, invite_expiry FROM users
+    sql`SELECT id, invite_expiry AS inviteExpiry FROM users
       WHERE wrapped_data_key IS NULL
         AND password_hash = ''
         AND invite_expiry IS NOT NULL
@@ -218,7 +219,7 @@ const expiredInvitePage = async (
   const cutoff = now().getTime();
   const inviteStates = await Promise.all(
     candidates.map(async (row) => ({
-      expired: new Date(await decrypt(row.invite_expiry!)).getTime() < cutoff,
+      expired: new Date(await decrypt(row.inviteExpiry!)).getTime() < cutoff,
       id: row.id,
     })),
   );
@@ -234,21 +235,15 @@ const expiredInvitePage = async (
 
 const inviteStatements = (ids: number[]): PruneStatement[] => {
   if (ids.length === 0) return [];
-  const unactivatedIds = sql`SELECT id FROM users
-    WHERE id IN (${sqlList(ids)})
-      AND wrapped_data_key IS NULL
-      AND password_hash = ''
-      AND invite_expiry IS NOT NULL`;
-  return [
-    { field: "user_id", table: "api_keys" },
-    { field: "user_id", table: "sessions" },
-    { field: "user_id", table: "user_logistics_agents" },
-    { field: "id", table: "users" },
-  ].map(
-    ({ field, table }) =>
-      sql`DELETE FROM ${sqlName(table)} WHERE ${sqlName(
-        field,
-      )} IN (${unactivatedIds})`,
+  return userRemoval(
+    from(tables.users)
+      .where((user) => [
+        among(user.id, ids),
+        equal(user.wrappedDataKey, null),
+        equal(user.passwordHash, ""),
+        notEqual(user.inviteExpiry, null),
+      ])
+      .values((user) => user.id),
   );
 };
 

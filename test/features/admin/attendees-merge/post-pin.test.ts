@@ -59,7 +59,7 @@ describeWithEnv(
       const { response } = await submitMerge(
         target.id,
         sourceToken,
-        opts.keep === "source" ? { pii_address: "source" } : {},
+        opts.keep === "source" ? { piiAddress: "source" } : {},
       );
       expectFlash(response, expect.stringContaining("Merged"), true);
       return piiOfToken(target.ticket_token);

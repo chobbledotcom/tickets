@@ -82,7 +82,7 @@ export const initMarkdownPreview = (): void => {
       const res = await fetch("/admin/markdown-preview", {
         body: new URLSearchParams({
           content: textarea.value,
-          csrf_token: csrfTokenFor(textarea),
+          csrfToken: csrfTokenFor(textarea),
         }).toString(),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         method: "POST",

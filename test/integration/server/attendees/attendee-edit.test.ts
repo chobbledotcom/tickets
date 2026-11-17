@@ -78,13 +78,13 @@ describeWithEnv(
         body: {
           address: "",
           email: "jane@example.com",
-          line_count: "1",
-          line_event_id_0: "1",
-          line_key_0: "",
-          line_quantity_0: "1",
+          lineCount: "1",
+          lineEventId0: "1",
+          lineKey0: "",
+          lineQuantity0: "1",
           name: "Jane Doe",
           phone: "",
-          special_instructions: "",
+          specialInstructions: "",
         },
         method: "POST",
         setup: async () => {
@@ -96,12 +96,12 @@ describeWithEnv(
         const { response } = await adminFormPost("/admin/attendees/999", {
           address: "",
           email: "jane@example.com",
-          line_count: "1",
-          line_event_id_0: "1",
-          line_quantity_0: "1",
+          lineCount: "1",
+          lineEventId0: "1",
+          lineQuantity0: "1",
           name: "Jane Doe",
           phone: "",
-          special_instructions: "",
+          specialInstructions: "",
         });
         expect(response.status).toBe(404);
       });
@@ -113,14 +113,14 @@ describeWithEnv(
             `/admin/attendees/${attendee.id}`,
             {
               address: "",
-              csrf_token: "invalid-token",
+              csrfToken: "invalid-token",
               email: "jane@example.com",
-              line_count: "1",
-              line_event_id_0: String(listing.id),
-              line_quantity_0: "1",
+              lineCount: "1",
+              lineEventId0: String(listing.id),
+              lineQuantity0: "1",
               name: "Jane Doe",
               phone: "",
-              special_instructions: "",
+              specialInstructions: "",
             },
             await testCookie(),
           ),
@@ -171,7 +171,7 @@ describeWithEnv(
             email: "jane@example.com",
             name: "Jane Doe",
             phone: "555-9999",
-            special_instructions: "Wheelchair access",
+            specialInstructions: "Wheelchair access",
           },
           "Jane Doe",
         );
@@ -371,7 +371,7 @@ describeWithEnv(
             email: "jane@example.com",
             name: "Jane Smith",
             phone: "555-9999",
-            special_instructions: "Special access needed",
+            specialInstructions: "Special access needed",
           },
           name: "updates attendee with all non-empty fields",
           newName: "Jane Smith",
@@ -390,7 +390,7 @@ describeWithEnv(
           listing: { maxAttendees: 100, maxQuantity: 5 },
         });
         const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-        await expectHtmlResponse(response, 200, 'name="qty_');
+        await expectHtmlResponse(response, 200, 'name="qty');
       });
 
       test("firstAttendee throws on a failed booking result, surfacing the reason", () => {

@@ -69,7 +69,7 @@ export const attendeeBookingsFromLines = (
     const { existingBooking: booking, listing } = line;
     if (!booking || !listing) return null;
     return {
-      assignBuiltSite: listing.assign_built_site,
+      assignBuiltSite: listing.assignBuiltSite,
       checkedIn: booking.checked_in,
       endAt: booking.end_at,
       listingActive: listing.active,

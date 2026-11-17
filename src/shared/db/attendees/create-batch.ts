@@ -18,7 +18,10 @@ import {
 } from "#db/modifier-usage.ts";
 import { batchFinalizeStatements } from "#db/payment-finalize.ts";
 import { notNullGuardFailureAt } from "#db/query.ts";
+import { type Expr, valued } from "#db/select/expression.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlJoin, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import type { TaggedPaymentReference } from "#payment/provider-reference.ts";
 import type { TransferInput } from "#shared/ledger/types.ts";
 import { namedError } from "#shared/named-error.ts";
@@ -72,8 +75,8 @@ const guardedBookings = (statements: SqlStatement[]): SqlStatement[] =>
   statements.flatMap((statement) => [statement, bookingWriteGuard()]);
 
 /** The id of the newly inserted attendee, as a value inside a statement. */
-export const attendeeByToken = (tokenIndex: string): SqlStatement =>
-  sql`(${attendeeIdOfToken(tokenIndex)})`;
+export const attendeeByToken = (tokenIndex: string): Expr<number> =>
+  valued(sql`(${attendeeIdOfToken(tokenIndex)})`);
 
 const runAtomicBatch = async (
   prepared: PreparedWrite,
@@ -169,9 +172,9 @@ export const writeAsLedgerBatch = async (
   const eventGroup: SqlStatement[] =
     plan.legs.length > 0
       ? [
-          sql`UPDATE listing_attendees SET ledger_event_group = ${plan.bookingGroup}
-          WHERE attendee_id = ${attendeeId}
-          AND ledger_event_group = ''`,
+          update(tables.listing_attendees, {
+            ledgerEventGroup: plan.bookingGroup,
+          }).where({ attendeeId, ledgerEventGroup: "" }),
         ]
       : [];
   const assessment = await initialTaxAssessmentStatement(

@@ -1,6 +1,8 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attributeOptionsTable } from "#db/attributes.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { attributeRecord } from "#shared/records/attributes.ts";
 import { activityMessages } from "#test-utils/activity-log.ts";
 import { createTestAttributeWithOptions } from "#test-utils/db-helpers/attributes.ts";
@@ -33,6 +35,8 @@ describeRecord(attributeRecord, "Attribute", "Attribute name", () => {
     await expectRecordDelete(attributeRecord, attribute.id, [
       "Attribute 'Size' deleted",
     ]);
-    expect(await attributeOptionsTable.read.many({})).toEqual([]);
+    expect(await readRows(from(tables.attribute_options).pick("id"))).toEqual(
+      [],
+    );
   });
 });

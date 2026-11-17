@@ -12,6 +12,7 @@ import {
   getQuestionWithAnswers,
 } from "#db/questions/queries.ts";
 import { t } from "#i18n";
+import { camelCaseKeys } from "#shared/column-names.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
 import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
 import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
@@ -102,7 +103,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
         back: "/admin/questions",
         page: "/admin/questions",
       },
-      data,
+      camelCaseKeys(data),
       data,
       pageMessage,
       apiMessage,
@@ -132,7 +133,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
 
   test("page create stores the posted text and type", async () => {
     const response = await ownerPagePost("/admin/questions", {
-      display_type: "radio",
+      displayType: "radio",
       text: "Pinned page question?",
     });
     const row = await storedQuestion("Pinned page question?");
@@ -140,7 +141,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
       `/admin/questions/${row.id}`,
       "Question created",
     )(response);
-    expect(row.display_type).toBe("radio");
+    expect(row.displayType).toBe("radio");
   });
 
   test("both surfaces refuse a question text past the textarea cap with the same message", async () => {
@@ -164,7 +165,7 @@ describeWithEnv("Question parity pins", { db: true }, () => {
     );
 
     const page = await ownerPagePost("/admin/questions", {
-      display_type: "radio",
+      displayType: "radio",
       text: "z".repeat(MAX_TEXTAREA_LENGTH),
     });
     expect(page.status).toBe(302);
@@ -216,10 +217,8 @@ describeWithEnv("Question parity pins", { db: true }, () => {
         display_type: kept.stored,
         text: kept.text,
       });
-      await editOnPage(id, { display_type: "free_text", text: kept.pageText });
-      expect((await getQuestionWithAnswers(id))!.display_type).toBe(
-        kept.stored,
-      );
+      await editOnPage(id, { displayType: "free_text", text: kept.pageText });
+      expect((await getQuestionWithAnswers(id))!.displayType).toBe(kept.stored);
 
       await expectPutKeeps(
         id,
@@ -239,14 +238,14 @@ describeWithEnv("Question parity pins", { db: true }, () => {
     // The page edit form carries no assign-all switch, so its post is silent
     // about it.
     await editOnPage(id, {
-      display_type: "select",
+      displayType: "select",
       text: "Pinned silent question, changed?",
     });
 
     const pageKept = await getQuestionWithAnswers(id)!;
     expect(pageKept).toMatchObject({
-      assign_all: true,
-      display_type: "select",
+      assignAll: true,
+      displayType: "select",
     });
 
     await expectPutKeeps(

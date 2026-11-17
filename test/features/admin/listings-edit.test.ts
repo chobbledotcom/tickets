@@ -7,7 +7,9 @@
 import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { listingsTable } from "#db/listings/records.ts";
+import { readOneRow } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { adminLandingPath } from "#shared/admin-pages.ts";
 import { expectRedirect } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -63,7 +65,7 @@ describeWithEnv("creating a listing", { db: true }, () => {
         "/admin/listing",
         {
           ...listingForm("Made By Editor", "editor"),
-          csrf_token: await testCsrfToken(),
+          csrfToken: await testCsrfToken(),
         },
         cookie,
       ),
@@ -87,10 +89,11 @@ describeWithEnv("editing a listing", { db: true }, () => {
       expectRedirect(response),
       `/admin/listing/${listing.id}`,
     );
-    const after = await listingsTable.read.pick(["name"]).one({
-      id: listing.id,
-    });
-    expect(after!.name).toBe("After");
+    expect(
+      await readOneRow(
+        from(tables.listings).where({ id: listing.id }).pick("name"),
+      ),
+    ).toEqual({ name: "After" });
   });
 
   test("keeps what was typed when the save is rejected", async () => {

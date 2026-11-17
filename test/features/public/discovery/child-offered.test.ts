@@ -16,7 +16,7 @@ import { useSetting } from "#test-utils/settings.ts";
 /** A standalone (non-daily) child whose stock the caller reads directly. */
 const stockChild = (soldOut: boolean): TicketListing =>
   ({
-    ...resolved(testListingWithCount({ listing_type: "standard" })),
+    ...resolved(testListingWithCount({ listingType: "standard" })),
     isSoldOut: soldOut,
     maxPurchasable: 3,
   }) as TicketListing;
@@ -28,10 +28,10 @@ const dailyChild = (
   ({
     ...resolved(
       testListingWithCount({
-        bookable_days: [...VALID_DAY_NAMES],
-        listing_type: "daily",
-        maximum_days_after: 10,
-        minimum_days_before: 0,
+        bookableDays: [...VALID_DAY_NAMES],
+        listingType: "daily",
+        maximumDaysAfter: 10,
+        minimumDaysBefore: 0,
         ...overrides,
       }),
     ),
@@ -65,9 +65,9 @@ describeWithEnv("childOfferedOnDate", { db: true }, () => {
     // The parent offers two- and three-day spans; the customisable child
     // prices both, and the two-day one books.
     const child = dailyChild({
-      customisable_days: true,
-      day_prices: { 2: 1000, 3: 2000 },
-      duration_days: 3,
+      customisableDays: true,
+      dayPrices: { 2: 1000, 3: 2000 },
+      durationDays: 3,
     });
     expect(childOfferedOnDate(child, [], [2, 3], [today()], today())).toBe(
       true,
@@ -85,7 +85,7 @@ describeWithEnv("childOfferedOnDate", { db: true }, () => {
   });
 
   test("a daily child folds on no span when every offered span leaves the window", () => {
-    const child = dailyChild({ maximum_days_after: 2 });
+    const child = dailyChild({ maximumDaysAfter: 2 });
     expect(childOfferedOnDate(child, [], [5], [today()], today())).toBe(false);
   });
 

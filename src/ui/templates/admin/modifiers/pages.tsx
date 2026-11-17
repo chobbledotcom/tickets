@@ -50,9 +50,10 @@ const ModifierRevenueAdjustSection = ({
   <MoneyAdjustSection
     action={`/admin/modifiers/${modifier.id}/revenue`}
     currentLabel={t("modifiers.adjust_revenue_current")}
-    currentValue={modifier.total_revenue}
+    currentValue={modifier.totalRevenue}
     inputId="total_revenue"
     inputLabel={t("modifiers.adjust_revenue_new_label")}
+    inputName="totalRevenue"
     submitLabel={t("modifiers.adjust_revenue_submit")}
     title={t("modifiers.adjust_revenue")}
     warning={t("modifiers.adjust_revenue_warning")}
@@ -118,19 +119,19 @@ const modifierColumns: readonly TableColumn<Modifier, AdminSession>[] = [
     key: "rule",
   },
   {
-    cell: (modifier) => modifier.total_uses,
+    cell: (modifier) => modifier.totalUses,
     class: "quantity",
     header: () => t("modifiers.uses_column"),
     key: "uses",
   },
   {
-    cell: (modifier) => modifier.usage_count,
+    cell: (modifier) => modifier.usageCount,
     class: "quantity",
     header: () => t("modifiers.orders_column"),
     key: "orders",
   },
   {
-    cell: (modifier) => formatCurrency(modifier.total_revenue),
+    cell: (modifier) => formatCurrency(modifier.totalRevenue),
     class: "amount",
     header: () => t("modifiers.revenue_column"),
     key: "revenue",

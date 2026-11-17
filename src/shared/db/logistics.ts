@@ -6,12 +6,11 @@
  * Run-sheet reads live next door in `logistics-run-sheet.ts`.
  */
 
-import { executeBatch, queryAll, update } from "#db/client.ts";
-import { rowsByIds } from "#db/query.ts";
+import { executeBatch, queryAll } from "#db/client.ts";
+import { readRows } from "#db/read.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
-import { mapBy } from "#fp";
+import { update } from "#db/write.ts";
 
 /** A start/end agent pair (null = unassigned) plus optional start/end times
  * ("" when unset). Times are logistics-only metadata — never used for
@@ -45,16 +44,6 @@ export type AssignmentRow = {
   start_time: string;
   end_time: string;
 };
-
-/** Map a DB row to the assignment shape (shared by the read helpers). */
-const rowToAssignment = (
-  row: Omit<AssignmentRow, "attendee_id" | "listing_id">,
-): LogisticsAssignment => ({
-  endAgentId: row.end_agent_id,
-  endTime: row.end_time,
-  startAgentId: row.start_agent_id,
-  startTime: row.start_time,
-});
 
 /** Map query rows that each carry an `attendee_id`/`listing_id` pair into a
  * result that always begins with those two camelCase fields plus caller-
@@ -90,22 +79,16 @@ export const setLogisticsAssignments = async (
   perListing: Map<number, LogisticsAssignment>,
 ): Promise<void> => {
   const statements = [
-    update(
-      "attendees",
-      { split_logistics_agents: split ? 1 : 0 },
-      { id: attendeeId },
-    ),
+    update(tables.attendees, { splitLogisticsAgents: split ? 1 : 0 }).where({
+      id: attendeeId,
+    }),
     ...Array.from(perListing.entries()).map(([listingId, assignment]) =>
-      update(
-        "listing_attendees",
-        {
-          end_agent_id: assignment.endAgentId,
-          end_time: assignment.endTime,
-          start_agent_id: assignment.startAgentId,
-          start_time: assignment.startTime,
-        },
-        { attendee_id: attendeeId, listing_id: listingId },
-      ),
+      update(tables.listing_attendees, {
+        endAgentId: assignment.endAgentId,
+        endTime: assignment.endTime,
+        startAgentId: assignment.startAgentId,
+        startTime: assignment.startTime,
+      }).where({ attendeeId, listingId }),
     ),
   ];
   await executeBatch(statements);
@@ -115,21 +98,20 @@ export const setLogisticsAssignments = async (
 export const getLogisticsAssignments = async (
   attendeeId: number,
 ): Promise<Map<number, LogisticsAssignment>> =>
-  mapBy<Omit<AssignmentRow, "attendee_id">, "listing_id", LogisticsAssignment>(
-    "listing_id",
-    rowToAssignment,
-  )(
-    await queryAll(
-      from(tables.listing_attendees)
-        .where({ attendee_id: attendeeId })
-        .pick(
-          "listing_id",
-          "start_agent_id",
-          "end_agent_id",
-          "start_time",
-          "end_time",
-        ),
-    ),
+  new Map(
+    (
+      await queryAll(
+        from(tables.listing_attendees)
+          .where({ attendeeId })
+          .pick(
+            "listingId",
+            "startAgentId",
+            "endAgentId",
+            "startTime",
+            "endTime",
+          ),
+      )
+    ).map(({ listingId, ...assignment }) => [listingId, assignment]),
   );
 
 /**
@@ -137,32 +119,32 @@ export const getLogisticsAssignments = async (
  * line. Used by the calendar agent filter, which matches on either the
  * drop-off or the collection agent. Empty input yields no query.
  */
-export const getLogisticsAssignmentsForAttendees = async (
+export const getLogisticsAssignmentsForAttendees = (
   attendeeIds: number[],
-): Promise<BookingLogisticsAssignment[]> => {
-  const rows = await rowsByIds<AssignmentRow>(
-    attendeeIds,
-    (ids) =>
-      sql`SELECT attendee_id, listing_id, start_agent_id, end_agent_id, start_time, end_time
-     FROM listing_attendees WHERE attendee_id IN (${ids})`,
+): Promise<BookingLogisticsAssignment[]> =>
+  readRows(
+    from(tables.listing_attendees)
+      .where({ attendeeId: attendeeIds })
+      .pick(
+        "attendeeId",
+        "listingId",
+        "startAgentId",
+        "endAgentId",
+        "startTime",
+        "endTime",
+      ),
   );
-  return mapBookingRows(rows, rowToAssignment);
-};
 
 /** Clear every booking reference to an agent (used before deleting it). */
 export const clearLogisticsAgentReferences = async (
   agentId: number,
 ): Promise<void> => {
   await executeBatch([
-    update(
-      "listing_attendees",
-      { start_agent_id: null },
-      { start_agent_id: agentId },
-    ),
-    update(
-      "listing_attendees",
-      { end_agent_id: null },
-      { end_agent_id: agentId },
-    ),
+    update(tables.listing_attendees, { startAgentId: null }).where({
+      startAgentId: agentId,
+    }),
+    update(tables.listing_attendees, { endAgentId: null }).where({
+      endAgentId: agentId,
+    }),
   ]);
 };

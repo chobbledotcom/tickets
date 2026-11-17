@@ -35,10 +35,10 @@ export type ChildKind = v.InferOutput<typeof ChildKindSchema>;
  * first: every span rule that follows a day count reads it before the
  * listing type, as the form always has. */
 export const childKindOf = (
-  listing: Pick<Listing, "customisable_days" | "listing_type">,
+  listing: Pick<Listing, "customisableDays" | "listingType">,
 ): ChildKind => {
-  if (listing.customisable_days) return "daily_customisable";
-  return listing.listing_type === "daily" ? "daily_fixed" : "standard";
+  if (listing.customisableDays) return "daily_customisable";
+  return listing.listingType === "daily" ? "daily_fixed" : "standard";
 };
 
 /** One kind's span rules. Each rule reads only the columns it needs. A
@@ -59,7 +59,7 @@ type SpanRule = {
   /** The day count a parent of this kind passes down: the buyer's choice when
    * the buyer picks the span, otherwise the listing's own. */
   readonly parentValue: <T>(
-    listing: Pick<Listing, "duration_days">,
+    listing: Pick<Listing, "durationDays">,
     whenCustomisable: T,
     whenStandard: T,
   ) => T;
@@ -79,9 +79,9 @@ export const SPAN_RULES: Readonly<Record<ChildKind, SpanRule>> = {
   daily_fixed: {
     childDateOk: (listing, date, _durationDays, holidays) =>
       getBookableStartDates(listing, holidays).includes(date),
-    childSpans: (listing) => [clampDurationDays(listing.duration_days)],
-    parentValue: <T>(listing: Pick<Listing, "duration_days">) =>
-      clampDurationDays(listing.duration_days) as T,
+    childSpans: (listing) => [clampDurationDays(listing.durationDays)],
+    parentValue: <T>(listing: Pick<Listing, "durationDays">) =>
+      clampDurationDays(listing.durationDays) as T,
   },
   standard: {
     childSpans: () => null,

@@ -4,7 +4,6 @@ import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { getAttendeeOrderSummary } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
@@ -17,6 +16,7 @@ import { captureCheckoutIntent } from "#test-utils/checkout.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
+  insertModifier,
   modifierUsageAmount,
   modifierUsageCount,
 } from "#test-utils/modifiers.ts";
@@ -135,8 +135,8 @@ describeWithEnv(
           "#test-utils/processed-payments.ts"
         );
         const record = await getProcessedPayment("cs_addon_sold");
-        expect(record?.attendee_id).toBeNull();
-        expect(record?.failure_data).not.toBe("");
+        expect(record?.attendeeId).toBeNull();
+        expect(record?.failureData).not.toBe("");
       } finally {
         session.restore();
         refund.restore();
@@ -194,9 +194,7 @@ describeWithEnv(
     test("reservation discounts reduce the paid deposit and remaining balance", async () => {
       const listing = await setupReservationListing({ bookingFee: "0" });
       const statusId = await setPublicReservation("10%");
-      const modifier = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
+      const modifier = await insertModifier({
         direction: "discount",
         name: "Discount",
       });

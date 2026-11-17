@@ -34,11 +34,11 @@ export const submitListingForm = async (
     ".md-editor .ProseMirror",
     "End-to-end payment test listing",
   );
-  await session.fill("max_attendees", "100");
-  await session.fill("max_quantity", "5");
+  await session.fill("maxAttendees", "100");
+  await session.fill("maxQuantity", "5");
   await session.check("fields", "email");
   // The price field is entered in major units (e.g. "1.00"), not minor.
-  await session.fill("unit_price", (priceMinor / 100).toFixed(2));
+  await session.fill("unitPrice", (priceMinor / 100).toFixed(2));
   if (sitePlanMonths !== undefined || renewalTierMonths !== undefined) {
     // The builder-only fields sit in the collapsed Advanced settings section,
     // so open it the way an owner does before filling them.
@@ -48,13 +48,13 @@ export const submitListingForm = async (
     );
   }
   if (sitePlanMonths !== undefined) {
-    await session.check("assign_built_site", "1");
-    await session.fill("initial_site_months", String(sitePlanMonths));
+    await session.check("assignBuiltSite", "1");
+    await session.fill("initialSiteMonths", String(sitePlanMonths));
   }
   if (renewalTierMonths !== undefined) {
     await session.check("hidden", "1");
-    await session.check("purchase_only", "1");
-    await session.fill("months_per_unit", String(renewalTierMonths));
+    await session.check("purchaseOnly", "1");
+    await session.fill("monthsPerUnit", String(renewalTierMonths));
   }
   await session.clickButton(
     await catalogWords("listings-table", "listings_table.create_listing"),

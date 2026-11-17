@@ -28,7 +28,7 @@ import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
  *  which is what proves the read never reached the DB. */
 const expectCachedAfterRowRemoval = async (token: string, csrf: string) => {
   await executeWithoutCacheInvalidation(sql`DELETE FROM sessions`);
-  expect((await getSession(token))?.csrf_token).toBe(csrf);
+  expect((await getSession(token))?.csrfToken).toBe(csrf);
 };
 
 /** Create a session that expires `ttlMs` from now, with the clock frozen at
@@ -52,7 +52,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
     const session = await getSession("test-token");
     expect(session).not.toBeNull();
-    expect(session?.csrf_token).toBe("test-csrf-token");
+    expect(session?.csrfToken).toBe("test-csrf-token");
     expect(session?.expires).toBe(expires);
   });
 
@@ -94,9 +94,9 @@ describeWithEnv("db > sessions", { db: true }, () => {
     const sessions = await getAllSessions();
 
     expect(sessions.length).toBe(3);
-    expect(sessions[0]?.csrf_token).toBe("csrf2");
-    expect(sessions[1]?.csrf_token).toBe("csrf3");
-    expect(sessions[2]?.csrf_token).toBe("csrf1");
+    expect(sessions[0]?.csrfToken).toBe("csrf2");
+    expect(sessions[1]?.csrfToken).toBe("csrf3");
+    expect(sessions[2]?.csrfToken).toBe("csrf1");
   });
 
   test("getAllSessions returns empty array when no sessions", async () => {
@@ -117,13 +117,13 @@ describeWithEnv("db > sessions", { db: true }, () => {
     expect(calls).toBe(1);
     expect(found).toEqual({
       session: {
-        csrf_token: "csrf-joined",
+        csrfToken: "csrf-joined",
         expires,
         token: await hashSessionToken("joined"),
-        user_id: user.id,
-        wrapped_data_key: null,
+        userId: user.id,
+        wrappedDataKey: null,
       },
-      user: { admin_level: user.admin_level, id: user.id },
+      user: { adminLevel: user.adminLevel, id: user.id },
     });
   });
 
@@ -144,7 +144,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
     // The caller tells this apart from an unknown token: it reports the broken
     // session and clears the row, rather than silently leaving it behind.
-    expect(found?.session.csrf_token).toBe("csrf-orphan");
+    expect(found?.session.csrfToken).toBe("csrf-orphan");
     expect(found?.user).toBeNull();
   });
 
@@ -191,7 +191,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
 
         const afterTtl = await getSession("ttl-test");
         expect(afterTtl).not.toBeNull();
-        expect(afterTtl?.csrf_token).toBe("csrf-ttl");
+        expect(afterTtl?.csrfToken).toBe("csrf-ttl");
       },
     );
   });
@@ -225,7 +225,7 @@ describeWithEnv("db > sessions", { db: true }, () => {
     invalidateCachesForTable("sessions"); // drop the pre-cache; the DB row remains
 
     // The miss reads the DB and caches it; the second read must not.
-    expect((await getSession("dbcache"))?.csrf_token).toBe("csrf-db");
+    expect((await getSession("dbcache"))?.csrfToken).toBe("csrf-db");
     await expectCachedAfterRowRemoval("dbcache", "csrf-db");
   });
 
@@ -239,16 +239,16 @@ describeWithEnv("db > sessions", { db: true }, () => {
         await executeWithoutCacheInvalidation(
           sql`UPDATE sessions SET csrf_token = 'csrf-new'`,
         );
-        expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+        expect((await getSession("ttl-requery"))?.csrfToken).toBe("csrf-old");
 
         // Midway through the window the entry is still served, so the TTL is a
         // real span of time, not just "the same instant".
         clock.now = start + 5000;
-        expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-old");
+        expect((await getSession("ttl-requery"))?.csrfToken).toBe("csrf-old");
 
         // Past the 10s TTL: the cache entry expires and the DB is re-read.
         clock.now = start + 11000;
-        expect((await getSession("ttl-requery"))?.csrf_token).toBe("csrf-new");
+        expect((await getSession("ttl-requery"))?.csrfToken).toBe("csrf-new");
       },
     );
   });

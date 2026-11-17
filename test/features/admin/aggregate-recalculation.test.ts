@@ -17,7 +17,7 @@ describe("selectedRecalculationFields", () => {
   test("returns selected fields in their declared order", () => {
     expect(
       selectedRecalculationFields(
-        new FormParams("recalculate_fields=tickets&recalculate_fields=income"),
+        new FormParams("recalculateFields=tickets&recalculateFields=income"),
         FIELDS,
       ),
     ).toEqual(["income", "tickets"]);
@@ -30,7 +30,7 @@ describe("selectedRecalculationFields", () => {
   test("rejects the first unknown field", () => {
     expect(() =>
       selectedRecalculationFields(
-        new FormParams("recalculate_fields=income&recalculate_fields=bogus"),
+        new FormParams("recalculateFields=income&recalculateFields=bogus"),
         FIELDS,
       ),
     ).toThrow("Invalid recalculation field: bogus");
@@ -101,7 +101,7 @@ describe("runRecalculatePost", () => {
     const response = await withRequestContext(() =>
       runRecalculatePost({
         fields: FIELDS,
-        form: new FormParams("recalculate_fields=tickets"),
+        form: new FormParams("recalculateFields=tickets"),
         log: () => {
           calls.push("log");
           return Promise.resolve();

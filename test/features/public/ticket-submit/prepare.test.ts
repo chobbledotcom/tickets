@@ -103,7 +103,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
         const form = quantityForm({ [member.id]: standaloneQuantity });
         form.set(packageQuantityFieldName(group.id), String(packageQuantity));
         form.set("date", date);
-        form.set("day_count", "2");
+        form.set("dayCount", "2");
         return form;
       };
 
@@ -240,7 +240,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
       const listing = await createTestListing({ maxAttendees: 5 });
       const ctx = await ticketContext([listing.id]);
       const form = quantityForm({ [listing.id]: 1 });
-      form.set("promo_code", "SAVE10");
+      form.set("promoCode", "SAVE10");
 
       const result = await prepareTestOrder(ctx, form);
       expect(result.pricingParams.promoCode).toBe("SAVE10");
@@ -260,7 +260,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
         quantityForm({ [listing.id]: 1 }),
       );
       expect(singleListingThankYouUrl(ctx, result.pricingParams.items)).toBe(
-        (await getListingWithCount(listing.id))!.thank_you_url,
+        (await getListingWithCount(listing.id))!.thankYouUrl,
       );
     });
 
@@ -313,7 +313,7 @@ describeWithEnv("prepareOrder", { db: true }, () => {
             name: member.name,
             quantity: 1,
             slug: member.slug,
-            unitPrice: member.unit_price,
+            unitPrice: member.unitPrice,
           },
         ]),
       ).toBe("https://example.com/separate");

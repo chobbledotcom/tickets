@@ -14,20 +14,20 @@ import type { TargetKey, TargetMap } from "#shared/site-pages/types.ts";
 import { navKey } from "#test-utils/site-pages/nav-fixtures.ts";
 import type { SitePageItem, SitePageItemType, SitePageNavRow } from "#types";
 
-const page = (id: number, sort_order = id): SitePageNavRow => ({
+const page = (id: number, sortOrder = id): SitePageNavRow => ({
   hidden: false,
   id,
   name: `page-${id}`,
   slug: `page-${id}`,
-  sort_order,
+  sortOrder,
 });
 
 const edge = (
-  page_id: number,
-  item_type: SitePageItemType,
-  item_id: number,
-  sort_order: number,
-): SitePageItem => ({ item_id, item_type, page_id, sort_order });
+  pageId: number,
+  itemType: SitePageItemType,
+  itemId: number,
+  sortOrder: number,
+): SitePageItem => ({ itemId, itemType, pageId, sortOrder });
 
 /** A linear chain 1 (root) → 2 → 3, reused across ancestry/cycle tests. */
 const chainForest = () =>
@@ -115,7 +115,7 @@ describe("site-pages core", () => {
       );
       const items = forest.itemsByPage.get(1) ?? [];
       // order 0 rows first (tiebreak item_id: 2 < 4), then order 1.
-      expect(items.map((i) => `${i.item_type}:${i.item_id}`)).toEqual([
+      expect(items.map((i) => `${i.itemType}:${i.itemId}`)).toEqual([
         "listing:2",
         "group:4",
         "listing:9",

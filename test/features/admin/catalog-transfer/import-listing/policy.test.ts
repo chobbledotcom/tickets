@@ -56,8 +56,8 @@ describeWithEnv("catalog import policy", { db: true }, () => {
     settings.setForTest(featureSetting("logistics"));
     const listing = await importPolicyListing("Owner policy", "owner");
 
-    expect(listing.webhook_url).toBe("https://hooks.example.test/orders");
-    expect(listing.use_defaults).toBe(true);
+    expect(listing.webhookUrl).toBe("https://hooks.example.test/orders");
+    expect(listing.useDefaults).toBe(true);
   });
 
   test("a logistics import is refused while the feature is off", async () => {
@@ -72,7 +72,7 @@ describeWithEnv("catalog import policy", { db: true }, () => {
 
   test("logistics remains required when the feature is enabled", async () => {
     settings.setForTest(featureSetting("logistics"));
-    expect((await importPolicyListing("With logistics")).uses_logistics).toBe(
+    expect((await importPolicyListing("With logistics")).usesLogistics).toBe(
       true,
     );
   });

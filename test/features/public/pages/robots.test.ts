@@ -1,11 +1,14 @@
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { groups } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { assertPublicHtml } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   createTestNewsPost,
@@ -71,11 +74,7 @@ describeWithEnv(
 
     test("indexes a visible listing inside a concealing package", async () => {
       await enablePublicSite();
-      const group = await createTestGroup({
-        isPackage: true,
-        name: "Private Kit",
-      });
-      await groups.table.update(group.id, { hidePackageListings: true });
+      const group = await createHiddenPackageGroup("Private Kit");
       const listing = await createTestListing({
         groupId: group.id,
         name: "Separate Unit",
@@ -99,7 +98,7 @@ describeWithEnv(
         isPackage: true,
         name: "Robots Hidden Pkg",
       });
-      await groups.table.update(hiddenPackage.id, {
+      await records.groups.update(hiddenPackage.id, {
         hidePackageListings: true,
       });
       const visiblePackage = await createTestGroup({

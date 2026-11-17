@@ -14,10 +14,10 @@ import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { withEnv } from "#test-utils/env.ts";
 
 const holiday: Holiday = {
-  end_date: "2026-12-26",
+  endDate: "2026-12-26",
   id: 42,
   name: "Christmas",
-  start_date: "2026-12-25",
+  startDate: "2026-12-25",
 };
 
 describe("holiday templates", () => {
@@ -72,8 +72,8 @@ describe("holiday templates", () => {
       expectIncludesAll(html, [
         'action="/admin/holidays"',
         'name="name"',
-        'name="start_date"',
-        'name="end_date"',
+        'name="startDate"',
+        'name="endDate"',
         // Submit button uses the create label and plus icon.
         "Create holiday",
       ]);
@@ -105,9 +105,9 @@ describe("holiday templates", () => {
           error: "Date error",
           holiday,
           values: {
-            end_date: "2027-01-02",
+            endDate: "2027-01-02",
             name: "Winter break",
-            start_date: "2027-01-01",
+            startDate: "2027-01-01",
           },
         }),
       );
@@ -125,7 +125,7 @@ describe("holiday templates", () => {
       const html = getHolidayPages().deletePage(holiday, OWNER_SESSION);
       expectIncludesAll(html, [
         'action="/admin/holidays/42/delete"',
-        'name="confirm_identifier"',
+        'name="confirmIdentifier"',
         // The name to type is shown as the confirm target.
         "Christmas",
         "Delete holiday",

@@ -21,11 +21,11 @@ const readEdit = async (
   const listing = await createTestListing({ name });
   const stored = (await getStoredListingWithCount(listing.id))!;
   const form = testFormParams({
-    max_attendees: "50",
-    max_quantity: "1",
+    maxAttendees: "50",
+    maxQuantity: "1",
     name,
     slug: stored.slug,
-    unit_price: "0",
+    unitPrice: "0",
     ...extra,
   });
   return buildUpdateListingResource(
@@ -38,15 +38,15 @@ describeWithEnv("listing editor field locks", { db: true }, () => {
   test("an editor's form that sends the webhook or the bookable state is refused", async () => {
     const refusal = { error: t("fields.validation.unshown_field"), ok: false };
     expect([
-      await readEdit("editor", { webhook_url: "https://attacker.example" }),
+      await readEdit("editor", { webhookUrl: "https://attacker.example" }),
       await readEdit("editor", { active: "0" }),
-      await readEdit("editor", { use_defaults: "1" }),
+      await readEdit("editor", { useDefaults: "1" }),
     ]).toEqual([refusal, refusal, refusal]);
   });
 
   test("an owner's form sets the webhook, and no form ever reads the bookable state", async () => {
     const webhook = await readEdit("owner", {
-      webhook_url: "https://owner.example/hook",
+      webhookUrl: "https://owner.example/hook",
     });
     const active = await readEdit("owner", { active: "0" });
     expect([

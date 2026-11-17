@@ -11,19 +11,10 @@ import type {
   TokenHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
+import type { DecodedRowOf } from "#db/select/tables.ts";
 import { bindFirst } from "#shared/fp-bind.ts";
-import type {
-  CalcKind,
-  ModifierDirection,
-  ModifierScope,
-  ModifierTrigger,
-} from "#shared/price-modifier.ts";
-import type { GROUP_FIELDS } from "#shared/records/group-fields.ts";
-import type { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
-import type { FieldsStored } from "#shared/rest/field-specs.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { clampInteger, integerAtLeast } from "#shared/validation/number.ts";
-import type { NonEmptyString } from "#shared/validation/string.ts";
 
 /** Type guard: a non-null, non-array object (a Record shape). */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -139,13 +130,13 @@ export type EmailTemplateFormat = "subject" | "html" | "text";
 export const isPaidListing = (
   listing: Pick<
     Listing,
-    "unit_price" | "can_pay_more" | "customisable_days" | "day_prices"
+    "unitPrice" | "canPayMore" | "customisableDays" | "dayPrices"
   >,
 ): boolean =>
-  listing.unit_price > 0 ||
-  listing.can_pay_more ||
-  (listing.customisable_days &&
-    Object.values(listing.day_prices).some((price) => price > 0));
+  listing.unitPrice > 0 ||
+  listing.canPayMore ||
+  (listing.customisableDays &&
+    Object.values(listing.dayPrices).some((price) => price > 0));
 
 /** True when an attendee/booking row is a real ticket (quantity ≥ 1) rather
  * than the no-quantity sentinel (quantity 0) — the one "is this a real
@@ -231,7 +222,7 @@ export const parseDayPrices = (raw: unknown): DayPrices => {
 /** The subset of listing fields needed to reason about day-count pricing. */
 export type DayPricedListing = Pick<
   Listing,
-  "customisable_days" | "day_prices" | "duration_days"
+  "customisableDays" | "dayPrices" | "durationDays"
 >;
 
 /**
@@ -242,9 +233,9 @@ export type DayPricedListing = Pick<
 export const ascending = (a: number, b: number): number => a - b;
 
 export const availableDayCounts = (listing: DayPricedListing): number[] => {
-  if (!listing.customisable_days) return [];
-  const max = clampDurationDays(listing.duration_days);
-  return Object.keys(listing.day_prices)
+  if (!listing.customisableDays) return [];
+  const max = clampDurationDays(listing.durationDays);
+  return Object.keys(listing.dayPrices)
     .map(Number)
     .filter((n) => n >= 1 && n <= max)
     .sort(ascending);
@@ -259,55 +250,36 @@ export const dayPriceFor = (
   listing: DayPricedListing,
   days: number,
 ): number | null => {
-  if (!listing.customisable_days) return null;
-  const max = clampDurationDays(listing.duration_days);
+  if (!listing.customisableDays) return null;
+  const max = clampDurationDays(listing.durationDays);
   if (!Number.isInteger(days) || days < 1 || days > max) return null;
-  return listing.day_prices[days] ?? null;
+  return listing.dayPrices[days] ?? null;
 };
 
 export type ItemImageColumns = {
   /** Projected from the first `image_uses` row for this item. Storage ownership
    * lives in the first-class images tables. */
-  image_url: string;
-  /** Projected thumbnail filename for {@link image_url}. */
-  image_thumb_url: string;
-  /** Projected alt text for {@link image_url}. Empty means decorative. */
-  image_alt_text: string;
+  imageUrl: string;
+  /** Projected thumbnail filename for {@link imageUrl}. */
+  imageThumbUrl: string;
+  /** Projected alt text for {@link imageUrl}. Empty means decorative. */
+  imageAltText: string;
 };
 
-/** A stored listing: the declared fields plus the columns other writes own. */
-export interface Listing
-  extends ItemImageColumns,
-    FieldsStored<typeof LISTING_FIELDS> {
-  attachment_name: string;
-  attachment_url: string;
-  created: string;
-  id: number;
-  slug: string;
-  slug_index: BlindIndex;
-}
+/** A stored listing: its row, its first image, and its per-day-count prices
+ * from `listing_prices`. A read gives the booked quantity as
+ * {@link ListingWithCount.attendeeCount}. */
+export type Listing = Omit<DecodedRowOf<"listings">, "bookedQuantity"> &
+  ItemImageColumns & { dayPrices: DayPrices };
 
-export interface Image {
-  alt_text: string;
-  filename: NonEmptyString;
-  filename_thumb: NonEmptyString;
-  id: number;
-  name: string;
-}
+export type Image = DecodedRowOf<"images">;
 
 /** A logistics agent (typically a van) used for drop-off and collection. */
-export interface LogisticsAgent {
-  id: number;
-  name: string;
-}
+export type LogisticsAgent = DecodedRowOf<"logistics_agents">;
 
 /** A link between an agent user and a logistics agent (van/crew) they drive.
  * Many-to-many: a user may cover several agents and an agent several users. */
-export interface UserLogisticsAgent {
-  agent_id: number;
-  id: number;
-  user_id: number;
-}
+export type UserLogisticsAgent = DecodedRowOf<"user_logistics_agents">;
 
 export interface Attendee extends ContactInfo {
   attachment_downloads: number;
@@ -368,13 +340,14 @@ export interface Settings {
   value: string;
 }
 
-export interface Session {
-  csrf_token: string;
-  expires: number;
+export type Session = Omit<
+  DecodedRowOf<"sessions">,
+  "token" | "userId" | "wrappedDataKey"
+> & {
   token: TokenHash; // Contains the hashed token for DB storage
-  user_id: number;
-  wrapped_data_key: WrappedKey | null;
-}
+  userId: number;
+  wrappedDataKey: WrappedKey | null;
+};
 
 /** Schema for admin role levels.
  * - `owner`/`manager` share full back-office access (gated per-page; managers
@@ -459,41 +432,36 @@ export type AdminSession = {
   readonly settingsNagItems?: readonly NagItem[];
 };
 
-export interface User {
-  admin_level: EnvKeyEncrypted; // encrypted "owner", "manager", "agent", "editor" or "scanner"
-  id: number;
+/** A stored user. `adminLevel` holds an encrypted "owner", "manager",
+ * "agent", "editor" or "scanner". `kekVersion` names the KEK scheme for
+ * `wrappedDataKey`: 1 = legacy (hash-derived), 2 = password-bound. */
+export type User = Omit<
+  DecodedRowOf<"users">,
+  | "inviteCodeHash"
+  | "inviteExpiry"
+  | "inviteWrappedDataKey"
+  | "passwordHash"
+  | "usernameIndex"
+  | "wrappedDataKey"
+> & {
   // Encrypted SHA-256 of the invite token, null once the password is set.
-  invite_code_hash: EnvKeyEncrypted | null;
-  invite_expiry: EnvKeyEncrypted | null; // encrypted ISO 8601, null after password set
+  inviteCodeHash: EnvKeyEncrypted | null;
+  inviteExpiry: EnvKeyEncrypted | null; // encrypted ISO 8601, null after password set
   // DATA_KEY wrapped under the invite code, set at invite time so the user can
-  // self-activate at /join; null once activated (see users.acceptInvite).
-  invite_wrapped_data_key: WrappedKey | null;
-  // KEK scheme for wrapped_data_key: 1 = legacy (hash-derived), 2 = password-
-  // bound. Legacy rows upgrade to 2 on their owner's next login.
-  kek_version: number;
-  // PBKDF2 hash encrypted at rest; "" for an invited user yet to set one.
-  password_hash: EnvKeyEncrypted<PasswordHash> | "";
-  username_hash: EnvKeyEncrypted; // encrypted at rest, decrypted to display
-  username_index: BlindIndex; // HMAC hash for lookups
-  wrapped_data_key: WrappedKey | null; // wrapped with user's KEK
-}
+  // self-activate at /join. Null once activated (see users.acceptInvite).
+  inviteWrappedDataKey: WrappedKey | null;
+  // PBKDF2 hash encrypted at rest. "" for an invited user yet to set one.
+  passwordHash: EnvKeyEncrypted<PasswordHash> | "";
+  usernameIndex: BlindIndex; // HMAC hash for lookups
+  wrappedDataKey: WrappedKey | null; // wrapped with user's KEK
+};
 
-export interface ApiKey {
-  created: string;
-  id: number;
-  key_index: BlindIndex; // HMAC hash for lookup
-  last_used: string; // ISO 8601 or empty string
-  name: EnvKeyEncrypted; // encrypted label
-  user_id: number;
-  wrapped_data_key: WrappedKey; // DATA_KEY wrapped with the API key token
-}
+/** A stored API key. `lastUsed` is ISO 8601 or an empty string, and
+ * `wrappedDataKey` holds DATA_KEY wrapped with the API key token. */
+export type ApiKey = DecodedRowOf<"api_keys">;
 
-/** A stored group: the declared fields plus its id and slug pair. */
-export interface Group extends FieldsStored<typeof GROUP_FIELDS> {
-  id: number;
-  slug: string;
-  slug_index: BlindIndex;
-}
+/** A stored group. */
+export type Group = DecodedRowOf<"groups">;
 
 /** A group paired with the active member listings used to decide and render it. */
 export interface GroupWithMembers {
@@ -501,20 +469,17 @@ export interface GroupWithMembers {
   members: ListingWithCount[];
 }
 
-/** A membership of `listing_id` in `group_id`, hydrated for the package editor
- * and booking flow. A listing may belong to several groups. `package_price`
+/** A membership of `listingId` in `groupId`, hydrated for the package editor
+ * and booking flow. A listing may belong to several groups. `packagePrice`
  * (minor units) is the per-listing override when the group is a package, read
  * from the `group` dimension of `listing_prices` (not a column on the join
  * table): `null` means no override (use the listing's own price), `0` means
  * explicitly free in the package, and a positive value overrides the price.
  * `quantity` (≥1, stored on the join row) is how many of this listing one unit of
  * the package includes. Both are ignored for non-package groups. */
-export interface GroupListing {
-  group_id: number;
-  listing_id: number;
-  package_price: number | null;
-  quantity: number;
-}
+export type GroupListing = DecodedRowOf<"group_listings"> & {
+  packagePrice: number | null;
+};
 
 /** Schema for the kind of item an image can be attached to. */
 export const ImageUseItemTypeSchema = v.picklist([
@@ -528,12 +493,7 @@ export type ImageUseItemType = v.InferOutput<typeof ImageUseItemTypeSchema>;
 
 export const isImageUseItemType = guardFor(ImageUseItemTypeSchema);
 
-export interface ImageUse {
-  image_id: number;
-  item_id: number;
-  item_type: ImageUseItemType;
-  sort_order: number;
-}
+export type ImageUse = DecodedRowOf<"image_uses">;
 
 /** Schema for the kind of thing a {@link SitePageItem} points at. */
 export const SitePageItemTypeSchema = v.picklist(["listing", "group", "page"]);
@@ -545,52 +505,31 @@ export type SitePageItemType = v.InferOutput<typeof SitePageItemTypeSchema>;
 /** Type guard: is this string a valid {@link SitePageItemType}? */
 export const isSitePageItemType = guardFor(SitePageItemTypeSchema);
 
-/** The fields shared by every named, slugged content record whose free-text
- * columns are stored encrypted: the body/meta blobs, the display name, and the
- * `/slug` permalink paired with its plaintext HMAC blind index (`slug_index`).
- * Both site pages and news posts build on this. */
-export interface EncryptedContentRecord {
-  content: string;
-  id: number;
-  meta_description: string;
-  meta_title: string;
-  name: string;
-  slug: string;
-  slug_index: BlindIndex;
-}
-
-/** A user-created content page, ordered by `sort_order`, hidden by `hidden`. */
-export interface SitePage extends EncryptedContentRecord {
-  hidden: boolean;
-  sort_order: number;
-}
+/** A user-created content page, ordered by `sortOrder`, hidden by `hidden`.
+ * The free-text columns are stored encrypted. `slugIndex` is the plaintext
+ * HMAC blind index of the `/slug` permalink. */
+export type SitePage = DecodedRowOf<"site_pages">;
 
 /** The narrow projection used to build the public nav: enough to render a link
  * and order it, without decrypting the large `content`/`meta_*` blobs on every
  * public request (cold-start efficiency). */
 export type SitePageNavRow = Pick<
   SitePage,
-  "hidden" | "id" | "name" | "slug" | "sort_order"
+  "hidden" | "id" | "name" | "slug" | "sortOrder"
 >;
 
-/** One ordered membership edge: `item` (of `item_type`) sits inside `page_id`
- * at `sort_order`. Keyed on the composite `(page_id, item_type, item_id)`. */
-export interface SitePageItem {
-  item_id: number;
-  item_type: SitePageItemType;
-  page_id: number;
-  sort_order: number;
-}
+/** One ordered membership edge: `item` (of `itemType`) sits inside `pageId`
+ * at `sortOrder`. Keyed on the composite `(page_id, item_type, item_id)`. */
+export type SitePageItem = Omit<DecodedRowOf<"site_page_items">, "itemType"> & {
+  itemType: SitePageItemType;
+};
 
 /** A news post shown on the public /news page. All free-text columns are
- * stored encrypted; `created` stays plaintext (like listings) so the
+ * stored encrypted. `created` stays plaintext (like listings) so the
  * newest-first ordering and the RSS pubDate never need a scan-and-decrypt.
  * `slug` is the `/news/:slug` permalink (auto-generated from the created date
- * and the name at creation, then immutable); `slug_index` is its blind index. */
-export interface NewsPost extends EncryptedContentRecord {
-  created: string;
-  snippet: string;
-}
+ * and the name at creation, then immutable). `slugIndex` is its blind index. */
+export type NewsPost = DecodedRowOf<"news_posts">;
 
 /** The narrow list projection — id, created, slug, name, snippet — for readers
  * that render no images (the RSS feed, the admin list). Never the large
@@ -604,43 +543,13 @@ export type NewsPostSummary = Pick<
  * (the shared {@link ItemImageColumns} columns). */
 export type NewsPostCard = NewsPostSummary & ItemImageColumns;
 
-/** An owner-defined price modifier (surcharge / discount / add-on). `calc_value`
+/** An owner-defined price modifier (surcharge / discount / add-on). `calcValue`
  * is the positive magnitude the owner entered (a fixed amount in major currency
- * units, a percentage, or a multiplier); `direction` chooses charge vs discount. */
-export interface Modifier {
-  active: boolean;
-  calc_kind: CalcKind;
-  calc_value: number;
-  /** Promo code (trigger = "code"), shown to the owner; "" for other triggers. */
-  code: string;
-  /** Blind index (HMAC) of the normalised code, for public code lookup; null
-   * when the modifier has no code. */
-  code_index: string | null;
-  direction: ModifierDirection;
-  id: number;
-  /** Cap on how many times this modifier may apply within one order, or null
-   * for no cap. Set to 1 ("charge once per order") so a question-answer
-   * surcharge such as a delivery fee is charged per booking, not per ticket.
-   * Stock for such a modifier then counts orders. Answer triggers only. */
-  max_per_order: number | null;
-  /** Minimum in-scope subtotal (minor units) for the modifier to apply. */
-  min_subtotal: number;
-  /** Minimum prior bookings required for the modifier to apply. */
-  min_visits: number;
-  name: string;
-  scope: ModifierScope;
-  /** Remaining-stock cap, or null for unlimited. Consumed monotonically. */
-  stock: number | null;
-  /** Projected from the transfers ledger as `balanceOf(modifier:M)` — the
-   * modifier account's net effect on revenue (surcharges in, discounts out),
-   * read directly, in minor units. */
-  total_revenue: number;
-  /** Trigger-maintained SUM(quantity) over this modifier's usage rows. */
-  total_uses: number;
-  trigger: ModifierTrigger;
-  /** Trigger-maintained COUNT of this modifier's usage rows. */
-  usage_count: number;
-}
+ * units, a percentage, or a multiplier). `direction` chooses charge vs discount.
+ * `totalRevenue` is projected from the transfers ledger as
+ * `balanceOf(modifier:M)`: the modifier account's net effect on revenue
+ * (surcharges in, discounts out), in minor units. */
+export type Modifier = DecodedRowOf<"modifiers"> & { totalRevenue: number };
 
 /**
  * The listing values needed to place a listing in the shared sort order: which
@@ -651,19 +560,19 @@ export interface Modifier {
  */
 export type SortableListing = Pick<
   Listing,
-  | "bookable_days"
-  | "customisable_days"
+  | "bookableDays"
+  | "customisableDays"
   | "date"
-  | "duration_days"
+  | "durationDays"
   | "id"
-  | "listing_type"
-  | "maximum_days_after"
-  | "minimum_days_before"
+  | "listingType"
+  | "maximumDaysAfter"
+  | "minimumDaysBefore"
   | "name"
 >;
 
-export interface ListingWithCount extends Listing {
-  attendee_count: number;
+export type ListingWithCount = Listing & {
+  attendeeCount: number;
   /** Projected servicing costs posted against this listing, in minor units. */
   cost: number;
   /** Projected recognised income over this listing's ledger rows, in minor units. */
@@ -671,15 +580,15 @@ export interface ListingWithCount extends Listing {
   /** Projected recognised income minus servicing cost, in minor units. */
   profit: number;
   /** Trigger-maintained COUNT of this listing's booking rows. */
-  tickets_count: number;
-}
+  ticketsCount: number;
+};
 
 /**
- * Admin API listing shape — all listing fields except internal indices.
+ * Admin listing shape — all listing fields except internal indices.
  * Used by both admin JSON API and admin templates to ensure consistent
- * field exposure. Snake_case keys match the DB schema.
+ * field exposure.
  */
-export type AdminListing = Omit<ListingWithCount, "slug_index">;
+export type AdminListing = Omit<ListingWithCount, "slugIndex">;
 
 /** One listing shown in an attendee row's Listings cell */
 export type AttendeeRowListing = {

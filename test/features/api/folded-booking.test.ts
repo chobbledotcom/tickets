@@ -16,7 +16,7 @@ import { resolved } from "#test-utils/booking-model-fixtures.ts";
 /** Direct, pure tests of the folded-booking API's child-selection layer —
  * `parseApiChildSelections` (parse the `children` body) and
  * `applyChildSelectionsToForm` (translate resolved selections onto the fold's
- * `child_qty_*` / `child_price_*` form fields, rejecting stranger slugs and
+ * `childQty*` / `childPrice*` form fields, rejecting stranger slugs and
  * conflicting per-child prices). These reach the functions directly with a
  * hand-built ctx, so no database is needed and the suite runs fast. The DB
  * parent-flow tests live in `folded-booking/parent-booking.test.ts`. */
@@ -118,7 +118,7 @@ describe("applyChildSelectionsToForm", () => {
       { quantity: 2, slug: "child-a" },
     ]);
     expect(result).toBe(null);
-    expect(form.get("child_qty_1_10")).toBe("2");
+    expect(form.get("childQty1_10")).toBe("2");
   });
 
   test("sums repeated slug entries into one child quantity", () => {
@@ -127,7 +127,7 @@ describe("applyChildSelectionsToForm", () => {
       { quantity: 2, slug: "child-a" },
     ]);
     expect(result).toBe(null);
-    expect(form.get("child_qty_1_10")).toBe("3");
+    expect(form.get("childQty1_10")).toBe("3");
   });
 
   test("writes a per-child price field when a customPrice is given", () => {
@@ -135,7 +135,7 @@ describe("applyChildSelectionsToForm", () => {
       { customPrice: 30, quantity: 1, slug: "child-a" },
     ]);
     expect(result).toBe(null);
-    expect(form.get("child_price_1_10")).toBe("30");
+    expect(form.get("childPrice1_10")).toBe("30");
   });
 
   test("omits the price field when no customPrice is given", () => {
@@ -143,7 +143,7 @@ describe("applyChildSelectionsToForm", () => {
       { quantity: 1, slug: "child-a" },
     ]);
     expect(result).toBe(null);
-    expect(form.has("child_price_1_10")).toBe(false);
+    expect(form.has("childPrice1_10")).toBe(false);
   });
 
   test("rejects a slug that is not a child of this parent with a 400", async () => {
@@ -167,7 +167,7 @@ describe("applyChildSelectionsToForm", () => {
       { customPrice: 30, quantity: 1, slug: "child-a" },
     ]);
     expect(result).toBe(null);
-    expect(form.get("child_qty_1_10")).toBe("2");
-    expect(form.get("child_price_1_10")).toBe("30");
+    expect(form.get("childQty1_10")).toBe("2");
+    expect(form.get("childPrice1_10")).toBe("30");
   });
 });

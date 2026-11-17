@@ -46,19 +46,19 @@ export const createTestGroup = async (
     "/admin/groups",
     {
       description: input.description,
-      max_attendees: String(input.maxAttendees),
+      maxAttendees: String(input.maxAttendees),
       name: input.name,
-      terms_and_conditions: input.termsAndConditions,
+      termsAndConditions: input.termsAndConditions,
       ...(input.hidden ? { hidden: "1" } : {}),
-      ...(input.isPackage ? { is_package: "1" } : {}),
+      ...(input.isPackage ? { isPackage: "1" } : {}),
       ...(input.scanChecksInAllListings
-        ? { scan_checks_in_all_listings: "1" }
+        ? { scanChecksInAllListings: "1" }
         : {}),
-      ...(input.showHiddenListings ? { show_hidden_listings: "1" } : {}),
+      ...(input.showHiddenListings ? { showHiddenListings: "1" } : {}),
     },
     async () => {
       const { groups } = await import("#db/groups.ts");
-      const all = await groups.cache.getAll();
+      const all = await groups.getAll();
       return all[all.length - 1] as Group;
     },
     "create group",
@@ -68,26 +68,28 @@ export const createTestGroup = async (
     return updateTestGroup(group.id, {
       description: group.description,
       hidden: group.hidden,
-      maxAttendees: group.max_attendees,
+      maxAttendees: group.maxAttendees,
       name: group.name,
-      showHiddenListings: group.show_hidden_listings,
+      showHiddenListings: group.showHiddenListings,
       slug: overrides.slug,
-      termsAndConditions: group.terms_and_conditions,
+      termsAndConditions: group.termsAndConditions,
     });
   }
 
   return group;
 };
 
-/** Create a package that hides member names on its own buyer surfaces. */
+/** Create a package that hides member names on its own buyer surfaces.
+ *  `fields` sets the other group fields, such as the slug. */
 export const createHiddenPackageGroup = async (
   name = "Bundle",
+  fields: Partial<Omit<GroupInput, "slugIndex">> = {},
 ): Promise<Group> => {
-  const group = await createTestGroup({ isPackage: true, name });
-  const { groups } = await import("#db/groups.ts");
+  const group = await createTestGroup({ ...fields, isPackage: true, name });
+  const { records } = await import("#db/record-table.ts");
   // Return the updated row. The object from before the update still says the
   // package shows its members, so a caller reading the flag reads a stale one.
-  return (await groups.table.update(group.id, {
+  return (await records.groups.update(group.id, {
     hidePackageListings: true,
   })) as Group;
 };
@@ -125,31 +127,31 @@ export const updateTestGroup = async (
   groupId: number,
   updates: Partial<Omit<GroupInput, "slugIndex">>,
 ): Promise<Group> => {
-  const { groups } = await import("#db/groups.ts");
-  const existing = (await groups.table.read.one({ id: groupId })) as Group;
+  const { getGroupById } = await import("#db/groups.ts");
+  const existing = (await getGroupById(groupId)) as Group;
 
   const hidden = updates.hidden ?? existing.hidden;
-  const isPackage = updates.isPackage ?? existing.is_package;
+  const isPackage = updates.isPackage ?? existing.isPackage;
   const scanChecksInAllListings =
-    updates.scanChecksInAllListings ?? existing.scan_checks_in_all_listings;
+    updates.scanChecksInAllListings ?? existing.scanChecksInAllListings;
   const showHiddenListings =
-    updates.showHiddenListings ?? existing.show_hidden_listings;
+    updates.showHiddenListings ?? existing.showHiddenListings;
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/edit`,
     {
       description: updates.description ?? existing.description,
-      max_attendees: String(updates.maxAttendees ?? existing.max_attendees),
+      maxAttendees: String(updates.maxAttendees ?? existing.maxAttendees),
       name: updates.name ?? existing.name,
       slug: updates.slug ?? existing.slug,
-      terms_and_conditions:
-        updates.termsAndConditions ?? existing.terms_and_conditions,
+      termsAndConditions:
+        updates.termsAndConditions ?? existing.termsAndConditions,
       ...(hidden ? { hidden: "1" } : {}),
-      ...(isPackage ? { is_package: "1" } : {}),
-      ...(scanChecksInAllListings ? { scan_checks_in_all_listings: "1" } : {}),
-      ...(showHiddenListings ? { show_hidden_listings: "1" } : {}),
+      ...(isPackage ? { isPackage: "1" } : {}),
+      ...(scanChecksInAllListings ? { scanChecksInAllListings: "1" } : {}),
+      ...(showHiddenListings ? { showHiddenListings: "1" } : {}),
     },
     async () => {
-      const updated = await groups.table.read.one({ id: groupId });
+      const updated = await getGroupById(groupId);
       return updated as Group;
     },
     "update group",
@@ -157,12 +159,12 @@ export const updateTestGroup = async (
 };
 
 export const deleteTestGroup = async (groupId: number): Promise<void> => {
-  const { groups } = await import("#db/groups.ts");
-  const existing = (await groups.table.read.one({ id: groupId })) as Group;
+  const { getGroupById } = await import("#db/groups.ts");
+  const existing = (await getGroupById(groupId)) as Group;
 
   return doAuthenticatedFormRequest(
     `/admin/groups/${groupId}/delete`,
-    { confirm_identifier: existing.name },
+    { confirmIdentifier: existing.name },
     async () => {},
     "delete group",
   );
@@ -202,7 +204,7 @@ export const createTwoListingsSharingOnePlace = async (
 export type SoldPackageMember = {
   attendeeId: number;
   group: Group;
-  member: { id: number; max_attendees: number; name: string; slug: string };
+  member: { id: number; maxAttendees: number; name: string; slug: string };
 };
 
 /** Create one sold package member. The flag controls its package-path name. */

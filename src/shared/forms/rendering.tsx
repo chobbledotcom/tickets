@@ -68,12 +68,12 @@ const renderDatetimeInputs = (
 ): string =>
   `<input type="date" name="${escapeHtml(
     name,
-  )}_date" placeholder="Date" aria-label="Date"${
+  )}Date" placeholder="Date" aria-label="Date"${
     date ? ` value="${escapeHtml(date)}"` : ""
   }>` +
   `<input type="time" name="${escapeHtml(
     name,
-  )}_time" placeholder="Time" aria-label="Time"${
+  )}Time" placeholder="Time" aria-label="Time"${
     time ? ` value="${escapeHtml(time)}"` : ""
   }>`;
 

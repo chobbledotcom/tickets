@@ -4,7 +4,7 @@ import { it as test } from "@std/testing/bdd";
 import { executeBatch } from "#db/client.ts";
 import sitePageHidden from "#db/migrations/2026-10-19_site_page_hidden.ts";
 import { initDb, invalidateInitDbCache, SCHEMA_HASH } from "#db/migrations.ts";
-import { getSitePageById } from "#db/site-pages.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
 import { describeColumnMigration } from "#test-utils/migration-column-suite.ts";
@@ -36,7 +36,7 @@ describeColumnMigration({
 
       await initDb();
 
-      expect(await getSitePageById(page.id)).toEqual(page);
+      expect(await records.site_pages.find(page.id)).toEqual(page);
       assertArrayIncludes(await appliedMigrationIds(), [
         "2026-10-19_site_page_hidden",
       ]);

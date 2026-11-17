@@ -16,10 +16,10 @@ export const createListingWithStoredQuantities = async (
   stored: StoredQuantities,
 ): Promise<ListingWithCount> => {
   const listing = await createTestListing(overrides);
-  const minQuantity = stored.minQuantity ?? listing.min_quantity;
-  const maxQuantity = stored.maxQuantity ?? listing.max_quantity;
+  const minQuantity = stored.minQuantity ?? listing.minQuantity;
+  const maxQuantity = stored.maxQuantity ?? listing.maxQuantity;
   await execute(
     sql`UPDATE listings SET min_quantity = ${minQuantity}, max_quantity = ${maxQuantity} WHERE id = ${listing.id}`,
   );
-  return { ...listing, max_quantity: maxQuantity, min_quantity: minQuantity };
+  return { ...listing, maxQuantity: maxQuantity, minQuantity: minQuantity };
 };

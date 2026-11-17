@@ -9,7 +9,7 @@
  * value keeps today's dashboard landing.
  */
 
-/** The name of the return target in a page address and in the login form. */
+/** The name of the return target in a page address. */
 export const RETURN_URL_PARAM = "return_url";
 
 /** The admin prefix a return target must start with and must keep after URL

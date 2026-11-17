@@ -59,13 +59,13 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("shows the minimum order in major units on the edit form", async () => {
       await adminFormPost(
         "/admin/modifiers",
-        createData({ min_subtotal: "50" }),
+        createData({ minSubtotal: "50" }),
       );
       const { id } = await lastModifier();
       const response = await adminGet(`/admin/modifiers/${id}/edit`);
       const html = await expectHtmlResponse(response, 200);
       expect(html).toMatch(
-        /<input(?=[^>]*name="min_subtotal")(?=[^>]*value="50")[^>]*>/,
+        /<input(?=[^>]*name="minSubtotal")(?=[^>]*value="50")[^>]*>/,
       );
     });
 
@@ -95,7 +95,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       expectIncludesAll(html, [
         "Adjust revenue",
         `action="/admin/modifiers/${id}/revenue"`,
-        'name="total_revenue"',
+        'name="totalRevenue"',
         "This adds a correction to Money.",
       ]);
     });

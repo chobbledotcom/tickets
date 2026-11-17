@@ -2,6 +2,8 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
+import { createListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { setBuildTimestampForTest } from "#shared/update.ts";
 import { updateBuildTagMeta } from "#shared/update-guard.ts";
@@ -199,15 +201,13 @@ describeWithEnv(
     });
 
     test("groups on listings page show Registration Closed in read-only mode", async () => {
-      const { groups } = await import("#db/groups.ts");
       const { assignListingsToGroup } = await import(
         "#db/groups/membership/package-writes.ts"
       );
-      const { listingsTable } = await import("#db/listings/records.ts");
       const { hmacHash } = await import("#crypto/hashing.ts");
       await enablePublicSite();
       const slugIndex = await hmacHash("ro-group");
-      const group = await groups.table.insert({
+      const group = await records.groups.insert({
         hidden: false,
         maxAttendees: 0,
         name: "Read Only Group",
@@ -215,7 +215,7 @@ describeWithEnv(
         slugIndex,
         termsAndConditions: "",
       });
-      const roListing = await listingsTable.insert({
+      const roListing = await createListing({
         maxAttendees: 50,
         maxPrice: 0,
         name: "RO Listing",

@@ -134,7 +134,7 @@ export const defineProviderCredentialsRoute = <T>(
           await logActivity(cfg.logMessage);
           return settingsFlash(cfg.successMessage);
         },
-        form.getOptionalInt("settings_version"),
+        form.getOptionalInt("settingsVersion"),
       );
       return task.ok ? task.value : errorPage(task.error, formId);
     }),

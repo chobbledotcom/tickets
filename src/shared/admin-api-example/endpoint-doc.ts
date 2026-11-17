@@ -15,6 +15,7 @@ import {
 import type { EnabledFeatures } from "#shared/admin-features.ts";
 import { withoutKeys } from "#shared/fp-records.ts";
 import {
+  apiClosedFields,
   closedFields,
   featureClosedKeys,
   type WriteAccess,
@@ -198,7 +199,9 @@ export const docKeysOf = (
     );
   }
   return {
-    closed: new Set(closedFields(declared.access, access).keys()),
+    closed: new Set(
+      apiClosedFields(closedFields(declared.access, access)).keys(),
+    ),
     hidden: new Set(featureClosedKeys(declared.access, access.features)),
   };
 };

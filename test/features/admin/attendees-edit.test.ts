@@ -259,9 +259,9 @@ describeWithEnv("server (admin attendee refresh payment)", { db: true }, () => {
       expect(
         pipe(
           filter((entry: ActivityLogEntry) => entry.message === message),
-          map(({ attendee_id, listing_id }) => ({ attendee_id, listing_id })),
+          map(({ attendeeId, listingId }) => ({ attendeeId, listingId })),
         )(await getAttendeeActivityLog(attendee.id)),
-      ).toEqual([{ attendee_id: attendee.id, listing_id: firstReal.id }]);
+      ).toEqual([{ attendeeId: attendee.id, listingId: firstReal.id }]);
     });
 
     test("reuses already-refunded balance charges before recording the refund", async () => {

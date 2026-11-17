@@ -8,6 +8,7 @@ import {
 } from "#db/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -55,8 +56,7 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a default order counts as a public booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Pub" });
-    const { attendeesApi } = await import("#db/attendees/api.ts");
-    await attendeesApi.createAttendeeAtomic({
+    await createAttendeeOrThrow({
       bookings: [{ listingId: listing.id }],
       email: "public-buyer@example.com",
       name: "Buyer",

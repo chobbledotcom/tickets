@@ -42,13 +42,13 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // The parent's quantity selector still offers a bookable quantity (the
       // date-less sold-out child did NOT clamp it to 0).
-      const options = selectOptionsFromHtml(html, `quantity_${parent.id}`);
+      const options = selectOptionsFromHtml(html, `quantity${parent.id}`);
       assertStringIncludes(options, 'value="1"');
       // The sole daily child renders informational (auto-selected), not disabled.
       assertStringIncludes(html, `data-sole-child="${child.id}"`);
       expect(html).not.toMatch(
         new RegExp(
-          `<select name="child_qty_${parent.id}_${child.id}"[^>]*\\sdisabled`,
+          `<select name="childQty${parent.id}_${child.id}"[^>]*\\sdisabled`,
         ),
       );
     });
@@ -216,7 +216,7 @@ describeWithEnv(
       const html = await bookingPageHtml(parent.slug);
       // The parent renders a normal bookable form, not the sold-out message.
       expectIncludesAll(html, [
-        `name="quantity_${parent.id}"`,
+        `name="quantity${parent.id}"`,
         // The daily child is the sole bookable option, rendered
         // informational — never as a disabled control.
         `data-sole-child="${child.id}"`,

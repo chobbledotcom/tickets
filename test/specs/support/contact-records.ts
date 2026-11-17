@@ -102,10 +102,10 @@ export const openRecord: ReadAboutOneThing<TestBrowser> = async (
 
 /** The boxes on the page, by the words this file uses for them. */
 const BOXES = {
-  bookedByHand: "admin_booking_count",
-  bookedThroughTheSite: "public_booking_count",
+  bookedByHand: "adminBookingCount",
+  bookedThroughTheSite: "publicBookingCount",
   messages: "messages",
-  note: "admin_notes",
+  note: "adminNotes",
   visits: "visits",
 } as const;
 

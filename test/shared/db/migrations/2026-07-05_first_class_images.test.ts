@@ -99,12 +99,12 @@ describeWithEnv(
       // fallback); the legacy system had no alt text.
       expect(await getImagesForItem("listing", pictured.id)).toEqual([
         {
-          alt_text: "",
+          altText: "",
           filename: "products/full.webp",
-          filename_thumb: "products/thumb.webp",
+          filenameThumb: "products/thumb.webp",
           id: pictured.id,
           name: "Poster listing",
-          sort_order: 0,
+          sortOrder: 0,
         },
       ]);
       expect(await getImagesForItem("listing", bare.id)).toEqual([]);
@@ -127,7 +127,7 @@ describeWithEnv(
 
       const [image] = await getImagesForItem("listing", listing.id);
       expect(image!.filename).toBe("products/full.webp");
-      expect(image!.filename_thumb).toBe("products/full.webp");
+      expect(image!.filenameThumb).toBe("products/full.webp");
     });
 
     test("backfills a database whose listings never had the thumbnail column", async () => {
@@ -142,7 +142,7 @@ describeWithEnv(
       await expectListingImageColumnsGone();
       const [image] = await getImagesForItem("listing", listing.id);
       expect(image!.filename).toBe("products/old.webp");
-      expect(image!.filename_thumb).toBe("products/old.webp");
+      expect(image!.filenameThumb).toBe("products/old.webp");
     });
 
     test("does not duplicate image records when the rebuild is retried", async () => {

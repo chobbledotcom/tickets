@@ -10,13 +10,13 @@ describe("TextField", () => {
     const html = String(
       TextField({
         label: "Business email",
-        name: "business_email",
+        name: "businessEmail",
         type: "text",
       }),
     );
 
     expect(html).toBe(
-      `<label>Business email<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="business_email" type="text"></label>`,
+      `<label>Business email<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="businessEmail" type="text"></label>`,
     );
   });
 
@@ -24,13 +24,13 @@ describe("TextField", () => {
     const html = String(
       <>
         {TextField({ label: "Your email", name: "email", type: "email" })}
-        {TextField({ label: "Server", name: "server_url", type: "url" })}
+        {TextField({ label: "Server", name: "serverUrl", type: "url" })}
       </>,
     );
 
     expectIncludesAll(html, [
       `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="email" type="email">`,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="server_url" type="url">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="serverUrl" type="url">`,
     ]);
   });
 
@@ -52,7 +52,7 @@ describe("TextField", () => {
     const html = String(
       TextField({
         label: "Display name",
-        name: "display_name",
+        name: "displayName",
         placeholder: "As printed on the ticket",
         required: true,
         type: "text",
@@ -61,7 +61,7 @@ describe("TextField", () => {
     );
 
     expect(html).toBe(
-      `<label>Display name<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="display_name" placeholder="As printed on the ticket" required type="text" value="Robin"></label>`,
+      `<label>Display name<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="displayName" placeholder="As printed on the ticket" required type="text" value="Robin"></label>`,
     );
   });
 
@@ -87,12 +87,12 @@ describe("TextField", () => {
     // The cap is this component's default for every type: short single-line
     // values are its norm, so an unset maxlength never ships uncapped.
     const html = String(
-      TextField({ label: "Secret", name: "the_secret", type: "password" }),
+      TextField({ label: "Secret", name: "theSecret", type: "password" }),
     );
 
     assertStringIncludes(
       html,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="the_secret" type="password">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="theSecret" type="password">`,
     );
   });
 });

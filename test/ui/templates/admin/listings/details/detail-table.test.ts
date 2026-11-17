@@ -19,16 +19,16 @@ const multiQtyPair = () => [
   testAttendee({ checked_in: 0, id: 2, quantity: 3 }),
 ];
 const dailyListingFive = () =>
-  testListingWithCount({ attendee_count: 5, listing_type: "daily" });
+  testListingWithCount({ attendeeCount: 5, listingType: "daily" });
 
 describe("adminListingPage duration display", () => {
   registerListingTemplateHooks();
 
   test("shows booking duration row for daily listings", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      duration_days: 3,
-      listing_type: "daily",
+      attendeeCount: 0,
+      durationDays: 3,
+      listingType: "daily",
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -40,9 +40,9 @@ describe("adminListingPage duration display", () => {
 
   test("omits booking duration row for standard listings", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      duration_days: 1,
-      listing_type: "standard",
+      attendeeCount: 0,
+      durationDays: 1,
+      listingType: "standard",
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -54,10 +54,10 @@ describe("adminListingPage duration display", () => {
 
   test("shows the customisable-days prices on a customisable listing", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
+      attendeeCount: 0,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -69,26 +69,26 @@ describe("adminListingPage duration display", () => {
 
   test("offers a day-count selector when adding to a customisable daily listing", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      customisable_days: true,
-      day_prices: { 1: 1000, 2: 1800 },
-      duration_days: 2,
-      listing_type: "daily",
+      attendeeCount: 0,
+      customisableDays: true,
+      dayPrices: { 1: 1000, 2: 1800 },
+      durationDays: 2,
+      listingType: "daily",
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
       listing,
     });
-    expectIncludesAll(html, ['name="day_count"', "Number of days"]);
+    expectIncludesAll(html, ['name="dayCount"', "Number of days"]);
   });
 
   test("notes when a customisable listing has no day prices set", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      customisable_days: true,
-      day_prices: {},
-      duration_days: 3,
+      attendeeCount: 0,
+      customisableDays: true,
+      dayPrices: {},
+      durationDays: 3,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -100,8 +100,8 @@ describe("adminListingPage duration display", () => {
 
   test("omits the customisable-days row for a fixed-duration listing", () => {
     const listing = testListingWithCount({
-      attendee_count: 0,
-      customisable_days: false,
+      attendeeCount: 0,
+      customisableDays: false,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -115,12 +115,12 @@ describe("adminListingPage duration display", () => {
 describe("adminListingPage details table", () => {
   registerListingTemplateHooks();
 
-  const listing = testListingWithCount({ attendee_count: 2 });
+  const listing = testListingWithCount({ attendeeCount: 2 });
   const renderMismatch = (): string =>
     renderListingDetail({
       aggregateRecalculation: {
-        booked_quantity: { current: 2, recalculated: 1 },
-        tickets_count: { current: 0, recalculated: 0 },
+        bookedQuantity: { current: 2, recalculated: 1 },
+        ticketsCount: { current: 0, recalculated: 0 },
       },
       allowedDomain: "localhost",
       attendees: [],
@@ -137,7 +137,7 @@ describe("adminListingPage details table", () => {
   });
 
   test("shows the listing ticket price in the details table", () => {
-    const paidListing = testListingWithCount({ unit_price: 1250 });
+    const paidListing = testListingWithCount({ unitPrice: 1250 });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -148,9 +148,9 @@ describe("adminListingPage details table", () => {
 
   test("shows pay-more price bounds in the details table", () => {
     const payMoreListing = testListingWithCount({
-      can_pay_more: true,
-      max_price: 2500,
-      unit_price: 1000,
+      canPayMore: true,
+      maxPrice: 2500,
+      unitPrice: 1000,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -162,9 +162,9 @@ describe("adminListingPage details table", () => {
 
   test("shows pay-more enabled when no higher maximum is configured", () => {
     const payMoreListing = testListingWithCount({
-      can_pay_more: true,
-      max_price: 0,
-      unit_price: 0,
+      canPayMore: true,
+      maxPrice: 0,
+      unitPrice: 0,
     });
     const html = renderListingDetail({
       allowedDomain: "localhost",
@@ -175,7 +175,7 @@ describe("adminListingPage details table", () => {
   });
 
   test("shows free when the listing has no ticket price", () => {
-    const freeListing = testListingWithCount({ unit_price: 0 });
+    const freeListing = testListingWithCount({ unitPrice: 0 });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],
@@ -223,7 +223,7 @@ describe("adminListingPage details table", () => {
   test("shows Group Attendees row with count, cap, remaining, and link", () => {
     const group = testGroup({
       id: 7,
-      max_attendees: 50,
+      maxAttendees: 50,
       name: "Summer Festival",
     });
     const html = renderListingDetail({
@@ -243,7 +243,7 @@ describe("adminListingPage details table", () => {
   });
 
   test("Group Attendees row gets danger-text when at or near cap", () => {
-    const group = testGroup({ id: 8, max_attendees: 10 });
+    const group = testGroup({ id: 8, maxAttendees: 10 });
     const html = renderListingDetail({
       allowedDomain: "localhost",
       attendees: [],

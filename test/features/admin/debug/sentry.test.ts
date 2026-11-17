@@ -153,7 +153,7 @@ describeWithEnv("server (admin Sentry test)", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         "/admin/debug/sentry",
-        { csrf_token: "mgr-csrf" },
+        { csrfToken: "mgr-csrf" },
         await createTestManagerSession("mgr-sentry-test"),
       ),
     );

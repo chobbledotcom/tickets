@@ -129,7 +129,7 @@ describeWithEnv("admin role matrix", { db: true }, () => {
     headers["content-type"] = "application/x-www-form-urlencoded";
     const write = new Request(`http://localhost${path}`, {
       body: new URLSearchParams({
-        csrf_token: await signCsrfToken(),
+        csrfToken: await signCsrfToken(),
       }).toString(),
       headers,
       method,

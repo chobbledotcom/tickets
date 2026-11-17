@@ -16,7 +16,7 @@ describeAdminSettings(() => {
   describe("POST /admin/settings/business-email", () => {
     testRequiresAuth("/admin/settings/business-email", {
       body: {
-        business_email: "contact@example.com",
+        businessEmail: "contact@example.com",
       },
       method: "POST",
     });
@@ -26,8 +26,8 @@ describeAdminSettings(() => {
         mockFormRequest(
           "/admin/settings/business-email",
           {
-            business_email: "contact@example.com",
-            csrf_token: "invalid-csrf-token",
+            businessEmail: "contact@example.com",
+            csrfToken: "invalid-csrf-token",
           },
           await testCookie(),
         ),
@@ -38,7 +38,7 @@ describeAdminSettings(() => {
     test("updates business email successfully", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/business-email",
-        { business_email: "contact@example.com" },
+        { businessEmail: "contact@example.com" },
       );
 
       expect(response.status).toBe(302);
@@ -59,7 +59,7 @@ describeAdminSettings(() => {
       // Then clear it
       const { response } = await adminFormPost(
         "/admin/settings/business-email",
-        { business_email: "" },
+        { businessEmail: "" },
       );
 
       expect(response.status).toBe(302);
@@ -71,7 +71,7 @@ describeAdminSettings(() => {
     test("rejects invalid email format", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/business-email",
-        { business_email: "not-an-email" },
+        { businessEmail: "not-an-email" },
       );
 
       expect(response.status).toBe(302);
@@ -85,7 +85,7 @@ describeAdminSettings(() => {
 
   test("logs activity when business email is updated", async () => {
     await adminFormPost("/admin/settings/business-email", {
-      business_email: "audit@example.com",
+      businessEmail: "audit@example.com",
     });
 
     const logs = await getAllActivityLog();
@@ -96,7 +96,7 @@ describeAdminSettings(() => {
 
   test("logs activity when business email is cleared", async () => {
     await adminFormPost("/admin/settings/business-email", {
-      business_email: "",
+      businessEmail: "",
     });
 
     const logs = await getAllActivityLog();

@@ -2,7 +2,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getQuestionWithAnswers } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import {
   adminApiChildCall,
   adminApiChildCreate,
@@ -62,7 +62,7 @@ const answerCall = (
 const createQuestion = (
   text: string,
   displayType: "free_text" | "radio" = "radio",
-) => questionsTable.insert({ displayType, text });
+) => records.questions.insert({ displayType, text });
 
 describeWithEnv("Admin API - Question answers", { db: true }, () => {
   describe("POST /api/admin/questions/:questionId/answers", () => {

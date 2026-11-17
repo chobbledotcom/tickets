@@ -9,9 +9,9 @@ import { createTestListing } from "./listings.ts";
  * recounted totals 1 and 1, and `stored` is what the listing wrongly claims.
  */
 export const createListingWithDriftedTotals = async (
-  stored: { booked_quantity: number; tickets_count: number } = {
-    booked_quantity: 9,
-    tickets_count: 5,
+  stored: { bookedQuantity: number; ticketsCount: number } = {
+    bookedQuantity: 9,
+    ticketsCount: 5,
   },
 ): Promise<Listing> => {
   const listing = await createTestListing({ maxAttendees: 100 });

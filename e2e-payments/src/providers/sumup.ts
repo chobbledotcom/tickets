@@ -136,8 +136,8 @@ export const sumup: PaymentProvider = {
   cleanup: noProviderCleanup,
   configure: configureProvider("sumup", async (session, secrets) => {
     await saveCredentials(session, "sumup", {
-      sumup_api_key: secrets.apiKey,
-      sumup_merchant_code: secrets.merchantCode,
+      sumupApiKey: secrets.apiKey,
+      sumupMerchantCode: secrets.merchantCode,
     });
     await testSumupConnection(session, secrets.merchantCode);
   }),

@@ -5,11 +5,12 @@
  */
 
 /** The box on the edit form. Its value is read off the page, not assumed. */
-const FIELD = "bookable_alone";
+const FIELD = "bookableAlone";
 
 import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
-import { groups, setListingGroups } from "#db/groups.ts";
+import { setListingGroups } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import {
   type OpensASalesPage,
@@ -73,7 +74,7 @@ export const sellHiddenBundle: ChangeOneThing<string> = async (
   part,
 ) => {
   const group = await publicSiteGroup({ isPackage: true, name: bundle });
-  await groups.table.update(group.id, {
+  await records.groups.update(group.id, {
     hidePackageListings: true,
     isPackage: true,
   });
@@ -193,7 +194,7 @@ export const tryTakeOffSale: ActOnOneThing = async (world, name) => {
   await organiserSendsAndIsTold(
     world,
     browser,
-    { confirm_identifier: name },
+    { confirmIdentifier: name },
     t("listings_table.deactivate_listing"),
   );
 };

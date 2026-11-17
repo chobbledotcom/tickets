@@ -3,8 +3,9 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { formatAtomicError } from "#booking/form.ts";
 import { childQuantityFieldName } from "#booking/tree.ts";
-import { getGroupById, groups } from "#db/groups.ts";
+import { getGroupById } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { records } from "#db/record-table.ts";
 import { loadPagePackage } from "#routes/public/ticket-payment.ts";
 import { prepareOrder } from "#routes/public/ticket-submit/prepare.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -159,7 +160,7 @@ describeWithEnv("selected package names", { db: true }, () => {
 
   test("a nonconcealing package keeps its child's name", async () => {
     const { child, group, parent } = await packageParent();
-    await groups.table.update(group.id, { hidePackageListings: false });
+    await records.groups.update(group.id, { hidePackageListings: false });
     const visible = await getGroupById(group.id);
     if (!visible) throw new Error("Package is missing");
     const ctx = await ticketContext([parent.id], visible);

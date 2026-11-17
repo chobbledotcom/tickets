@@ -77,8 +77,8 @@ export type ListingOverviewStats = {
 const hasProviderReference = (attendeeId: Expr<number>): Expr<boolean> =>
   from(tables.processed_payments)
     .where((payment) => [
-      equal(payment.attendee_id, attendeeId),
-      notEqual(payment.payment_reference, literal("")),
+      equal(payment.attendeeId, attendeeId),
+      notEqual(payment.paymentReference, literal("")),
     ])
     .exists();
 
@@ -132,7 +132,7 @@ const incompleteSales = async (listingId: number): Promise<number> => {
       .as("saleLeg")
       .where((sale) => {
         const attendeeId = valued<number>(
-          sql`CAST(${sale.source_id} AS INTEGER)`,
+          sql`CAST(${sale.sourceId} AS INTEGER)`,
         );
         return [
           equal(sale.kind, literal(KIND.sale)),
@@ -141,11 +141,11 @@ const incompleteSales = async (listingId: number): Promise<number> => {
           unpaidButSettled(
             {
               attendeeId,
-              eventGroup: sale.event_group,
-              listingId: valued<number>(sql`CAST(${sale.dest_id} AS INTEGER)`),
+              eventGroup: sale.eventGroup,
+              listingId: valued<number>(sql`CAST(${sale.destId} AS INTEGER)`),
               placeholderWhen: false,
             },
-            paymentLegExists(sale.source_id, sale.event_group),
+            paymentLegExists(sale.sourceId, sale.eventGroup),
           ),
         ];
       })
@@ -163,7 +163,7 @@ const incompleteSales = async (listingId: number): Promise<number> => {
 export const getListingOverviewStats = async (
   listing: Pick<
     Listing,
-    "id" | "unit_price" | "can_pay_more" | "customisable_days" | "day_prices"
+    "id" | "unitPrice" | "canPayMore" | "customisableDays" | "dayPrices"
   >,
 ): Promise<ListingOverviewStats> => {
   const paid = isPaidListing(listing);

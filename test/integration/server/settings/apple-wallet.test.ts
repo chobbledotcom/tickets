@@ -44,12 +44,12 @@ const submitWalletSettingsForm = async (
   overrides: Record<string, string> = {},
 ) => {
   const defaults: Record<string, string> = {
-    apple_wallet_pass_type_id: "pass.com.test",
-    apple_wallet_signing_cert: testCerts.signingCert,
-    apple_wallet_signing_key: testCerts.signingKey,
-    apple_wallet_team_id: "TESTTEAM01",
-    apple_wallet_wwdr_cert: testCerts.wwdrCert,
-    csrf_token: await testCsrfToken(),
+    appleWalletPassTypeId: "pass.com.test",
+    appleWalletSigningCert: testCerts.signingCert,
+    appleWalletSigningKey: testCerts.signingKey,
+    appleWalletTeamId: "TESTTEAM01",
+    appleWalletWwdrCert: testCerts.wwdrCert,
+    csrfToken: await testCsrfToken(),
   };
   return handleRequest(
     mockFormRequest(
@@ -212,14 +212,14 @@ describeWithEnv("ticket view wallet link", { db: true }, () => {
 describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   testRequiresAuth("/admin/settings/apple-wallet", {
     body: {
-      apple_wallet_pass_type_id: "pass.com.test",
+      appleWalletPassTypeId: "pass.com.test",
     },
     method: "POST",
   });
 
   test("requires Pass Type ID", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "",
+      appleWalletPassTypeId: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -230,7 +230,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("requires Team ID", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_team_id: "",
+      appleWalletTeamId: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -243,8 +243,8 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     // The wallet's id fields are short single-line values, so the server
     // carries the single-line cap past any crafted POST.
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "p".repeat(251),
-      apple_wallet_team_id: "TEAM123456",
+      appleWalletPassTypeId: "p".repeat(251),
+      appleWalletTeamId: "TEAM123456",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -257,9 +257,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     // A secret longer than the textarea cap cannot be a real PEM upload, so
     // the wallet refuses it rather than storing the paste error.
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "pass.com.test",
-      apple_wallet_signing_cert: "c".repeat(10_241),
-      apple_wallet_team_id: "TEAM123456",
+      appleWalletPassTypeId: "pass.com.test",
+      appleWalletSigningCert: "c".repeat(10_241),
+      appleWalletTeamId: "TEAM123456",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -271,10 +271,10 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   test("does not clear the config when only Pass Type ID is empty", async () => {
     await configureAppleWallet();
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "",
-      apple_wallet_signing_cert: "",
-      apple_wallet_signing_key: "",
-      apple_wallet_wwdr_cert: "",
+      appleWalletPassTypeId: "",
+      appleWalletSigningCert: "",
+      appleWalletSigningKey: "",
+      appleWalletWwdrCert: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -287,9 +287,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   test("does not clear the config when IDs are still set", async () => {
     await configureAppleWallet();
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: "",
-      apple_wallet_signing_key: "",
-      apple_wallet_wwdr_cert: "",
+      appleWalletSigningCert: "",
+      appleWalletSigningKey: "",
+      appleWalletWwdrCert: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -300,7 +300,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("requires signing certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: "",
+      appleWalletSigningCert: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -311,7 +311,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("requires signing key on initial setup", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_key: "",
+      appleWalletSigningKey: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -322,7 +322,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("requires WWDR certificate on initial setup", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_wwdr_cert: "",
+      appleWalletWwdrCert: "",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -333,7 +333,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("rejects invalid PEM signing certificate", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: "not a valid cert",
+      appleWalletSigningCert: "not a valid cert",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -346,7 +346,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("rejects invalid PEM signing key", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_key: "not a valid key",
+      appleWalletSigningKey: "not a valid key",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -359,7 +359,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("rejects a structurally valid signing key with unusable RSA values", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_key: unusableRsaKey,
+      appleWalletSigningKey: unusableRsaKey,
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -374,9 +374,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     await configureAppleWallet();
     await settings.update.appleWallet.signingKey(unusableRsaKey);
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: MASK_SENTINEL,
-      apple_wallet_signing_key: MASK_SENTINEL,
-      apple_wallet_wwdr_cert: MASK_SENTINEL,
+      appleWalletSigningCert: MASK_SENTINEL,
+      appleWalletSigningKey: MASK_SENTINEL,
+      appleWalletWwdrCert: MASK_SENTINEL,
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -390,7 +390,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("rejects invalid PEM WWDR certificate", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_wwdr_cert: "not a valid cert",
+      appleWalletWwdrCert: "not a valid cert",
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -404,7 +404,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
   test("accepts a non-RSA WWDR intermediate", async () => {
     const wwdrCert = nonRsaCertificatePem();
     const response = await submitWalletSettingsForm({
-      apple_wallet_wwdr_cert: wwdrCert,
+      appleWalletWwdrCert: wwdrCert,
     });
     await expectFlashRedirect(
       "/admin/settings-advanced?form=settings-apple-wallet#settings-apple-wallet",
@@ -417,9 +417,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     await configureAppleWallet();
 
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: MASK_SENTINEL,
-      apple_wallet_signing_key: getMismatchedAppleWalletKey(),
-      apple_wallet_wwdr_cert: MASK_SENTINEL,
+      appleWalletSigningCert: MASK_SENTINEL,
+      appleWalletSigningKey: getMismatchedAppleWalletKey(),
+      appleWalletWwdrCert: MASK_SENTINEL,
     });
 
     await expectFlashRedirect(
@@ -441,9 +441,9 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     ]);
 
     const response = await submitWalletSettingsForm({
-      apple_wallet_signing_cert: testCerts.signingCert,
-      apple_wallet_signing_key: MASK_SENTINEL,
-      apple_wallet_wwdr_cert: MASK_SENTINEL,
+      appleWalletSigningCert: testCerts.signingCert,
+      appleWalletSigningKey: MASK_SENTINEL,
+      appleWalletWwdrCert: MASK_SENTINEL,
     });
 
     await expectFlashRedirect(
@@ -459,7 +459,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
 
   test("saves all settings successfully", async () => {
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "pass.com.test.tickets",
+      appleWalletPassTypeId: "pass.com.test.tickets",
     });
 
     await expectFlashRedirect(
@@ -477,11 +477,11 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     expect(settings.appleWallet.hasConfig).toBe(true);
 
     const response = await submitWalletSettingsForm({
-      apple_wallet_pass_type_id: "",
-      apple_wallet_signing_cert: "",
-      apple_wallet_signing_key: "",
-      apple_wallet_team_id: "",
-      apple_wallet_wwdr_cert: "",
+      appleWalletPassTypeId: "",
+      appleWalletSigningCert: "",
+      appleWalletSigningKey: "",
+      appleWalletTeamId: "",
+      appleWalletWwdrCert: "",
     });
 
     await expectFlashRedirect(
@@ -502,7 +502,7 @@ describeWithEnv("POST /admin/settings/apple-wallet", { db: true }, () => {
     const body = await response.text();
     // Section exists
     assertStringIncludes(body, "Apple Wallet");
-    assertStringIncludes(body, "apple_wallet_pass_type_id");
+    assertStringIncludes(body, "appleWalletPassTypeId");
     // Configured values shown
     assertStringIncludes(body, "pass.com.test.tickets");
     assertStringIncludes(body, "TESTTEAM01");

@@ -6,11 +6,11 @@
 
 import { decryptWithOwnerKey, encryptWithOwnerKey } from "#crypto/hybrid.ts";
 import {
-  deleteEmailTemplate,
   getRawEmailTemplate,
   insertEmailTemplate,
   updateEmailTemplate,
 } from "#db/email-templates.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import {
   defineRecord,
@@ -69,7 +69,7 @@ export const emailTemplateRecord = defineRecord<
     create: (input) => saveTemplate(null, input),
     remove: (id) =>
       deleteIfPresent(id, {
-        destroy: () => deleteEmailTemplate(id),
+        destroy: () => records.email_templates.delete(id),
         load: getRawEmailTemplate,
       }),
     update: (id, input) => saveTemplate(id, input),

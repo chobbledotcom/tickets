@@ -6,8 +6,8 @@
 import { expect } from "@std/expect";
 import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
-import { listingsTable } from "#db/listings/records.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import { updateListing } from "#db/listings/records.ts";
+import { records } from "#db/record-table.ts";
 import { settings } from "#db/settings.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { awaitTestRequest } from "#test-utils/mocks.ts";
@@ -47,8 +47,8 @@ export const deliveredListingSetup = async (
 ) => {
   settings.setForTest(featureSetting("logistics"));
   const listing = await createTestListing({ maxAttendees: 10 });
-  await listingsTable.update(listing.id, { usesLogistics: true });
-  const van = await logisticsAgents.table.insert({ name: agentName });
+  await updateListing(listing.id, { usesLogistics: true });
+  const van = await records.logistics_agents.insert({ name: agentName });
   const id = await makeAttendee(attendeeName, [{ listingId: listing.id }]);
   return { id, listing, van };
 };

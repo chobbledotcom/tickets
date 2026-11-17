@@ -16,7 +16,7 @@ import { testAttendee } from "#test-utils/factories.ts";
 const ALLOWED_DOMAIN = "tickets.example.com";
 
 const presentInvoice: InvoiceSummary = {
-  attendee_id: 1,
+  attendeeId: 1,
   created: "2026-11-04T09:00:00.000Z",
   id: 12,
   status: "new",
@@ -196,10 +196,10 @@ describe("InactiveNote", () => {
 describe("attendee activity section", () => {
   const entries: ActivityLogEntry[] = [
     {
-      attendee_id: 7,
+      attendeeId: 7,
       created: "2026-01-15T10:30:00Z",
       id: 1,
-      listing_id: 2,
+      listingId: 2,
       message: "Attendee 'Jane Doe' updated",
     },
   ];

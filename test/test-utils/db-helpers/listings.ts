@@ -1,4 +1,7 @@
-import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
+import { getListingWithCount } from "#db/listings/records.ts";
+import { readRows } from "#db/read.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { withEnv } from "#test-utils/env.ts";
@@ -120,8 +123,8 @@ export const createTestListing = async (
   }
   return {
     ...listing,
-    max_attendees: input.maxAttendees,
-    use_defaults: listing.use_defaults || writesDefaultsFlag,
+    maxAttendees: input.maxAttendees,
+    useDefaults: listing.useDefaults || writesDefaultsFlag,
   };
 };
 
@@ -137,7 +140,7 @@ export const duplicateTestListing = async (
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
   const listing = await postCreateForm(
-    { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
+    { ...buildCreateListingForm(input), duplicatedFrom: String(sourceId) },
     "duplicate listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
@@ -170,7 +173,7 @@ export const updateTestListing = async (
       : previousGroups;
   const form = buildUpdateListingForm(updates, existing);
   const formWithGroups =
-    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
+    groupIds.length > 0 ? { ...form, groupIds: String(groupIds[0]) } : form;
   const result = await doAuthenticatedMultipartFormRequest(
     `/admin/listing/${listingId}/edit`,
     formWithGroups,
@@ -190,7 +193,7 @@ const changeListingStatus =
     }
     return doAuthenticatedFormRequest(
       `/admin/listing/${listingId}/${action}`,
-      { confirm_identifier: listing.name },
+      { confirmIdentifier: listing.name },
       async () => {},
       `${action} listing`,
     );
@@ -214,7 +217,7 @@ export const deleteTestListing = async (
 ): Promise<void> =>
   doAuthenticatedFormRequest(
     `/admin/listing/${listing.id}/delete`,
-    { confirm_identifier: listing.name },
+    { confirmIdentifier: listing.name },
     async () => {},
     "delete listing",
   );
@@ -249,20 +252,20 @@ export const bookableStartDates = async (
  * the real form always submits, at the listing's stored values. Each ticked
  * day is one field, as a browser sends a checkbox group. */
 export const dailySwitchForm = (
-  listing: Pick<ListingWithCount, "max_attendees" | "name" | "slug">,
+  listing: Pick<ListingWithCount, "maxAttendees" | "name" | "slug">,
   extra: TestFormValues = {},
 ): TestFormValues => ({
-  bookable_days: allDays,
-  duration_days: "1",
-  listing_type: "daily",
-  max_attendees: String(listing.max_attendees),
-  max_quantity: "1",
-  maximum_days_after: "90",
-  minimum_days_before: "1",
+  bookableDays: allDays,
+  durationDays: "1",
+  listingType: "daily",
+  maxAttendees: String(listing.maxAttendees),
+  maximumDaysAfter: "90",
+  maxQuantity: "1",
+  minimumDaysBefore: "1",
   name: listing.name,
   slug: listing.slug,
-  thank_you_url: "https://example.com",
-  unit_price: "0",
+  thankYouUrl: "https://example.com",
+  unitPrice: "0",
   ...extra,
 });
 
@@ -300,6 +303,6 @@ export const listingWithTwoUndatedBookings = async (
 /** The name of every listing now in the database. What a backup or restore test
  * checks to see which listings survived. */
 export const storedListingNames = async (): Promise<string[]> =>
-  (await listingsTable.read.pick(["id", "name"]).many()).map(
+  (await readRows(from(tables.listings).sortedBy("id").pick("name"))).map(
     ({ name }) => name,
   );

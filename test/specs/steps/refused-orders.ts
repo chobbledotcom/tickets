@@ -110,7 +110,7 @@ Given(
         [firstAnswer]: String(asked.answer.id),
         [secondAnswer]: String(second.id),
       },
-      field: `question_${asked.question.id}`,
+      field: `question${asked.question.id}`,
     };
   },
 );
@@ -384,7 +384,7 @@ Then(
 Then(
   "the {int}-day stay the customer picked is still chosen",
   function (this: TicketsWorld, days: number): void {
-    expect(optionChosen(refillPage(this), "day_count")).toBe(String(days));
+    expect(optionChosen(refillPage(this), "dayCount")).toBe(String(days));
   },
 );
 
@@ -399,7 +399,7 @@ Then(
 );
 
 Then("the terms box is still ticked", function (this: TicketsWorld): void {
-  expect(boxOffered(refillPage(this), "agree_terms").ticked).toBe(true);
+  expect(boxOffered(refillPage(this), "agreeTerms").ticked).toBe(true);
 });
 
 Then(

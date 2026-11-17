@@ -26,8 +26,8 @@ describe("content form fields", () => {
     expect(forms.createForm.fields.map((f) => f.name)).toEqual([
       "name",
       "slug",
-      "meta_title",
-      "meta_description",
+      "metaTitle",
+      "metaDescription",
       "extra",
       "content",
     ]);
@@ -46,12 +46,12 @@ describe("content form fields", () => {
 
   test("the SEO Title and SEO Description fields keep their declared caps", () => {
     const byName = new Map(forms.createForm.fields.map((f) => [f.name, f]));
-    expect(byName.get("meta_title")).toMatchObject({
-      maxlength: CONTENT_FIELD_LIMITS.meta_title,
+    expect(byName.get("metaTitle")).toMatchObject({
+      maxlength: CONTENT_FIELD_LIMITS.metaTitle,
       type: "text",
     });
-    expect(byName.get("meta_description")).toMatchObject({
-      maxlength: CONTENT_FIELD_LIMITS.meta_description,
+    expect(byName.get("metaDescription")).toMatchObject({
+      maxlength: CONTENT_FIELD_LIMITS.metaDescription,
       type: "text",
     });
   });
@@ -70,8 +70,8 @@ describe("content form fields", () => {
     // The table is the one place a new content editor imports its limits
     // from, so each shared field's maxlength must read from it.
     // The SEO caps stay at the search-engine display limits.
-    expect(CONTENT_FIELD_LIMITS.meta_description).toBe(160);
-    expect(CONTENT_FIELD_LIMITS.meta_title).toBe(64);
+    expect(CONTENT_FIELD_LIMITS.metaDescription).toBe(160);
+    expect(CONTENT_FIELD_LIMITS.metaTitle).toBe(64);
     expect(CONTENT_FIELD_LIMITS.name).toBe(MAX_INPUT_LENGTH);
     // The body rides the shared textarea limit.
     expect(CONTENT_FIELD_LIMITS.content).toBe(MAX_TEXTAREA_LENGTH);
@@ -84,7 +84,7 @@ describe("content form fields", () => {
     const editSlug = forms.editForm.fields[1] as {
       publicLinkPath?: (slug: string) => string;
     };
-    expect(createSlug.publicLinkPath).toBeUndefined();
+    expect(Object.keys(createSlug)).not.toContain("publicLinkPath");
     expect(editSlug.publicLinkPath?.("abc")).toBe("/thing/abc");
   });
 
@@ -92,26 +92,26 @@ describe("content form fields", () => {
     expect(
       contentFieldValues({
         content: "Body",
-        meta_description: "Desc",
-        meta_title: "Title",
+        metaDescription: "Desc",
+        metaTitle: "Title",
         name: "Name",
         slug: "slug-1",
       }),
     ).toEqual({
       content: "Body",
-      meta_description: "Desc",
-      meta_title: "Title",
+      metaDescription: "Desc",
+      metaTitle: "Title",
       name: "Name",
       slug: "slug-1",
     });
   });
 
-  test("seoContentInput maps snake-case values to the input columns", () => {
+  test("seoContentInput maps the form values to the input columns", () => {
     expect(
       seoContentInput({
         content: "Body",
-        meta_description: "Desc",
-        meta_title: "Title",
+        metaDescription: "Desc",
+        metaTitle: "Title",
         name: "Name",
       }),
     ).toEqual({

@@ -16,6 +16,6 @@ describeWithEnv("Admin API - Attendee status zero amount", { db: true }, () => {
       answered.data as { status: { id: number; reservation_amount: string } }
     ).status;
     expect(created.reservation_amount).toBe("0");
-    expect((await getAttendeeStatus(created.id))?.reservation_amount).toBe("0");
+    expect((await getAttendeeStatus(created.id))?.reservationAmount).toBe("0");
   });
 });

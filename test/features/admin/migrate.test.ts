@@ -26,7 +26,7 @@ const postRebuild = async (fields: Record<string, string>): Promise<Response> =>
   handleRequest(
     mockFormRequest(
       REBUILD_PATH,
-      { csrf_token: await testCsrfToken(), ...fields },
+      { csrfToken: await testCsrfToken(), ...fields },
       await testCookie(),
     ),
   );
@@ -63,10 +63,10 @@ const runFields = async (
   const page = await legacyPaymentReferencePage(await getTestPrivateKey());
   const untagged = page.filter((row) => !row.alreadyTagged);
   return {
-    confirm_identifier: String(untagged.length),
+    confirmIdentifier: String(untagged.length),
     ...Object.fromEntries(
       untagged.map((row) => [
-        `provider_${row.paymentSessionId}`,
+        `provider${row.paymentSessionId}`,
         providers[row.reference] ?? "stripe",
       ]),
     ),
@@ -82,7 +82,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       REBUILD_PATH,
       "There is 1 payment record to rebuild.",
       "pi_route_waiting",
-      'name="provider_sess_route_waiting"',
+      'name="providersess_route_waiting"',
       "Type 1 to confirm how many records this run will rebuild:",
       "Rebuild payment records",
     );
@@ -105,7 +105,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     )(
       await postRebuild({
         ...(await runFields()),
-        provider_sess_route_noprov: "",
+        providersess_route_noprov: "",
       }),
     );
   });
@@ -118,8 +118,8 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
       false,
     )(
       await postRebuild({
-        confirm_identifier: "7",
-        provider_sess_route_mismatch: "stripe",
+        confirmIdentifier: "7",
+        providersess_route_mismatch: "stripe",
       }),
     );
   });
@@ -158,7 +158,7 @@ describeWithEnv("server (admin migrate rebuild)", { db: true }, () => {
     await expectFlashRedirect(
       REBUILD_PATH,
       t("migrate.rebuild.flash_done", { count: 1, unqualifiedAttendees: 0 }),
-    )(await postRebuild({ ...(await runFields()), confirm_identifier: "0" }));
+    )(await postRebuild({ ...(await runFields()), confirmIdentifier: "0" }));
     expect(await countLegacyPaymentReferences()).toBe(0);
   });
 

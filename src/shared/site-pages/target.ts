@@ -20,9 +20,9 @@ export type SitePageItemTarget = RecordTarget<SitePageItemType>;
 
 /** The thing one stored page item points at. */
 export const targetOfPageItem = (item: {
-  item_type: SitePageItemType;
-  item_id: number;
-}): SitePageItemTarget => ({ id: item.item_id, kind: item.item_type });
+  itemType: SitePageItemType;
+  itemId: number;
+}): SitePageItemTarget => ({ id: item.itemId, kind: item.itemType });
 
 /** How to name and ask for the things a page points at. */
 export const sitePageItemTargets: RecordTargets<SitePageItemType> =

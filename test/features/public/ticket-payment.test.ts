@@ -6,7 +6,6 @@ import { accountBalance, allTransfers } from "#accounting/queries.ts";
 import type { TicketListing } from "#booking/model.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { createFreeReservation } from "#routes/public/free-reservation.ts";
 import { parseQuantityValue } from "#routes/public/ticket-form.ts";
 import type { PricedLine, PricedOrder } from "#shared/checkout-pricing.ts";
@@ -16,6 +15,7 @@ import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.t
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { pricedOrder } from "#test-utils/factories-pricing.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { runAndCountRoundTrips } from "#test-utils/query-log.ts";
 import type { ContactInfo } from "#types";
 import { ticketListingFor } from "./ticket-payment/helpers.ts";
@@ -35,7 +35,7 @@ const itemsFor = (
       ...(packageGroupId === undefined ? {} : { packageGroupId }),
       quantity: quantities.get(info.listing.id)!,
       slug: info.listing.slug,
-      unitPrice: info.listing.unit_price,
+      unitPrice: info.listing.unitPrice,
     }));
 
 const contact: ContactInfo = {
@@ -391,11 +391,7 @@ describeWithEnv("routes > public > ticket-payment", { db: true }, () => {
     });
 
     test("rolls back and reports the add-on as sold out when its stock is gone", async () => {
-      const m = await modifiersTable.insert({
-        calcKind: "fixed",
-        calcValue: 5,
-        direction: "charge",
-        name: "Add-on",
+      const m = await insertModifier({
         stock: 0,
       });
 

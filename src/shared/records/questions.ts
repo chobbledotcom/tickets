@@ -14,11 +14,8 @@ import {
   getQuestionWithAnswers,
   getQuestionWithAnswersOnPrimary,
 } from "#db/questions/queries.ts";
-import {
-  type QuestionInput,
-  questionsOrder,
-  questionsTable,
-} from "#db/questions/tables.ts";
+import { type QuestionInput, questionsOrder } from "#db/questions/tables.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
@@ -48,8 +45,8 @@ export const questionRule = (
   if (!capped.ok) return capped;
   if (stored === null) return okResult({ ...input, text: capped.value });
   const displayType =
-    stored.display_type === "free_text" || input.displayType === "free_text"
-      ? stored.display_type
+    stored.displayType === "free_text" || input.displayType === "free_text"
+      ? stored.displayType
       : requireQuestionDisplayType(input.displayType);
   return okResult({ ...input, displayType, text: capped.value });
 };
@@ -73,5 +70,5 @@ export const questionRecord = defineRecord<
   rule: questionRule,
   saveLanding: "question",
   surface: "questions",
-  table: questionsTable,
+  table: tables.questions,
 });

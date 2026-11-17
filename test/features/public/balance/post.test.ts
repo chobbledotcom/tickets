@@ -2,7 +2,7 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { signBalanceToken } from "#shared/balance-link.ts";
 import type { CheckoutIntent } from "#shared/payments.ts";
@@ -21,7 +21,7 @@ import { setupStripe } from "#test-utils/settings.ts";
 describeWithEnv("server (public balance page) > POST", { db: true }, () => {
   test("POST refuses a reservation with no real booking line", async () => {
     await setupStripe();
-    const reservation = await attendeeStatuses.table.insert({
+    const reservation = await records.attendee_statuses.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "10%",
@@ -39,7 +39,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "invalid" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "invalid" }, ""),
     );
     assertStringIncludes(await response.text(), "not valid");
   });
@@ -51,7 +51,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const response = await handleRequest(
       mockFormRequest(
         `/pay/${token}`,
-        { csrf_token: await testCsrfToken() },
+        { csrfToken: await testCsrfToken() },
         "",
       ),
     );
@@ -115,7 +115,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "wrong-token" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "wrong-token" }, ""),
     );
     expect(response.status).toBe(200);
     assertStringIncludes(await response.text(), "not valid");
@@ -133,7 +133,7 @@ describeWithEnv("server (public balance page) > POST", { db: true }, () => {
     const attendeeId = await createReserved(1500);
     const token = await signBalanceToken(attendeeId);
     const response = await handleRequest(
-      mockFormRequest(`/pay/${token}`, { csrf_token: "bad-token" }, ""),
+      mockFormRequest(`/pay/${token}`, { csrfToken: "bad-token" }, ""),
     );
     assertStringIncludes(await response.text(), "not valid");
   });

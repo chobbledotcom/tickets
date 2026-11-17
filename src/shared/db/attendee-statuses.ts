@@ -8,8 +8,6 @@
  * encrypted at rest.
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import type { EnvKeyEncrypted } from "#crypto/sealed.ts";
 import { logActivity } from "#db/activity-log.ts";
 import {
   execute,
@@ -18,20 +16,22 @@ import {
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import type { NamedSortOrderInput } from "#db/common-schema.ts";
-import { deleteById } from "#db/delete-row.ts";
-import { fieldColumnsWithId } from "#db/field-columns.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+
+import { type NewRecord, records, rowValuesOf } from "#db/record-table.ts";
+import { among, equal, notEqual } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import type { CountRow } from "#db/select/shape.ts";
-import { tables } from "#db/select/tables.ts";
-import { type SqlStatement, sql, sqlName } from "#db/sql.ts";
-import { col, defineCachedListTable, writeTableRow } from "#db/table.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
+import { type RowsStatement, type SqlStatement, sql } from "#db/sql.ts";
+import { requestCachedRows } from "#db/table-cache.ts";
+import { deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
+import { columnName } from "#shared/column-names.ts";
+import type { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
-import type { FieldsInput, FieldsRow } from "#shared/rest/field-specs.ts";
+import type { FieldsInput } from "#shared/rest/field-specs.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
 /** Name of the status seeded on first run so there is always at least one. */
@@ -39,9 +39,7 @@ export const DEFAULT_ATTENDEE_STATUS_NAME = "Confirmed";
 
 /** A status an attendee can be in: its declared fields and its place in
  *  the list. */
-export type AttendeeStatus = FieldsRow<typeof STATUS_FIELDS> & {
-  sort_order: number;
-};
+export type AttendeeStatus = DecodedRowOf<"attendee_statuses">;
 
 /** Complete owner form input for creating or editing a status. */
 export type AttendeeStatusWriteInput = FieldsInput<typeof STATUS_FIELDS>;
@@ -99,12 +97,12 @@ export type StatusDeleteBlocker = Exclude<
  *  the delete can proceed (freely, or through a reassign choice). The delete
  *  command refuses in exactly this order. The delete page predicts it. */
 export const statusDeleteBlocker = (
-  status: Pick<AttendeeStatus, "is_paid_default" | "is_public_default">,
+  status: Pick<AttendeeStatus, "isPaidDefault" | "isPublicDefault">,
   anotherStatusExists: boolean,
 ): StatusDeleteBlocker | null => {
   if (!anotherStatusExists) return "last_status";
-  if (status.is_public_default) return "public_default";
-  if (status.is_paid_default) return "paid_default";
+  if (status.isPublicDefault) return "public_default";
+  if (status.isPaidDefault) return "paid_default";
   return null;
 };
 
@@ -129,20 +127,12 @@ export const statusDeleteProspects = async (
   return { blocker: statusDeleteBlocker(status, others.length > 0), others };
 };
 
-/** Cached attendee_statuses table — only `name` is encrypted; writes
- * auto-invalidate the cache. */
-export const attendeeStatuses = defineCachedListTable<
-  AttendeeStatus,
-  NamedSortOrderInput & Partial<AttendeeStatusWriteInput>
->({
-  name: "attendee_statuses",
-  orderBy: sql`sort_order ASC, id ASC`,
-  primaryKey: "id",
-  schema: {
-    ...fieldColumnsWithId("attendee_statuses", STATUS_FIELDS)(encrypt, decrypt),
-    sort_order: col.simple<number>(),
-  },
-});
+/** Every status in its list order, cached for the request. Only `name` is
+ * encrypted, and its codec decrypts it. */
+export const attendeeStatuses = requestCachedRows(
+  tables.attendee_statuses,
+  (rows) => rows.sortedBy("sortOrder", "id").everyColumn(),
+);
 
 export const attendeeStatusOrder = defineOrderedCollection({
   key: "id",
@@ -164,20 +154,20 @@ export const getAttendeeStatus = (id: number): Promise<AttendeeStatus | null> =>
 
 /** Get the status carrying a required default flag. */
 const getFlaggedStatus =
-  (flag: "is_public_default" | "is_paid_default") =>
+  (flag: "isPublicDefault" | "isPaidDefault") =>
   async (): Promise<AttendeeStatus> =>
     requireValue(
       await findStatus((item) => item[flag]),
-      `No attendee status has the required ${flag} flag`,
+      `No attendee status has the required ${columnName(flag)} flag`,
     );
 
 /** The status new public bookings start in. */
 export const requirePublicDefaultStatus: () => Promise<AttendeeStatus> =
-  getFlaggedStatus("is_public_default");
+  getFlaggedStatus("isPublicDefault");
 
 /** The status an attendee moves to once a reservation balance is paid. */
 export const requirePaidDefaultStatus: () => Promise<AttendeeStatus> =
-  getFlaggedStatus("is_paid_default");
+  getFlaggedStatus("isPaidDefault");
 
 /** The id of the public-default status. */
 export const requirePublicStatusId = async (): Promise<number> =>
@@ -193,20 +183,21 @@ export const publicDefaultStatusOf = (
   statuses: readonly AttendeeStatus[],
 ): AttendeeStatus =>
   requireValue(
-    statuses.find((status) => status.is_public_default),
+    statuses.find((status) => status.isPublicDefault),
     "No public default status is configured",
   );
 
-/** The three columns a status write reads back about itself, opened by the
- * table — so the two default flags arrive as the booleans they are declared
- * to be, not as the 1/0 the database stores. */
-const statusDefaults = attendeeStatuses.table.read.pick([
-  "is_paid_default",
-  "is_public_default",
-  "sort_order",
-]);
+/** The three columns a status write reads back about itself. Their codecs
+ * give the two default flags as booleans, not as the 1/0 that is stored. */
+const statusDefaults = (id: number) =>
+  from(tables.attendee_statuses)
+    .where({ id })
+    .pick("isPaidDefault", "isPublicDefault", "sortOrder");
 
-type DefaultRow = NonNullable<Awaited<ReturnType<typeof statusDefaults.one>>>;
+type DefaultRow = Pick<
+  AttendeeStatus,
+  "isPaidDefault" | "isPublicDefault" | "sortOrder"
+>;
 
 const executeStatusWrite = async (
   tx: TxScope,
@@ -219,9 +210,7 @@ const getCurrentDefaults = async (
   tx: TxScope,
   id: number,
 ): Promise<DefaultRow> => {
-  const [current] = await statusDefaults.readAll(
-    resultRows(await tx.execute(statusDefaults.statement({ id }))),
-  );
+  const [current] = resultRows(await tx.execute(statusDefaults(id)));
   if (!current) throw new Error(`Attendee status ${id} does not exist`);
   return current;
 };
@@ -230,10 +219,10 @@ const defaultChangeError = (
   current: DefaultRow,
   input: AttendeeStatusWriteInput,
 ): AttendeeStatusSaveError | null => {
-  if (current.is_public_default && !input.isPublicDefault) {
+  if (current.isPublicDefault && !input.isPublicDefault) {
     return "public_default_required";
   }
-  return current.is_paid_default && !input.isPaidDefault
+  return current.isPaidDefault && !input.isPaidDefault
     ? "paid_default_required"
     : null;
 };
@@ -244,22 +233,33 @@ const clearChosenDefaults = async (
   input: AttendeeStatusWriteInput,
 ): Promise<void> => {
   const clearDefault = async (
-    column: "is_public_default" | "is_paid_default",
+    column: "isPublicDefault" | "isPaidDefault",
   ): Promise<void> => {
     await executeStatusWrite(
       tx,
-      sql`UPDATE attendee_statuses AS status
-               SET ${sqlName(column)} = 0
-             WHERE (${id} IS NULL OR status.id != ${id}) AND ${sqlName(`status.${column}`)} = 1`,
+      update(tables.attendee_statuses, { [column]: 0 }).where((status) => [
+        id === null ? true : notEqual(status.id, id),
+        equal(status[column], 1),
+      ]),
     );
   };
   if (input.isPublicDefault) {
-    await clearDefault("is_public_default");
+    await clearDefault("isPublicDefault");
   }
   if (input.isPaidDefault) {
-    await clearDefault("is_paid_default");
+    await clearDefault("isPaidDefault");
   }
 };
+
+/** The status row that a write gives back. */
+const writtenStatus = async (
+  tx: TxScope,
+  write: RowsStatement<AttendeeStatus>,
+): Promise<AttendeeStatus> =>
+  requireValue(
+    resultRows(await tx.execute(write))[0],
+    "The status write gave back no row",
+  );
 
 const saveStatus = (
   id: number | null,
@@ -271,29 +271,32 @@ const saveStatus = (
       const error = defaultChangeError(current, input);
       if (error !== null) return errorResult(error);
       await clearChosenDefaults(tx, id, input);
-      await writeTableRow(tx, attendeeStatuses.table, {
-        id,
-        input,
-        kind: "update",
-      });
-      return okResult({
-        id,
-        is_paid_default: input.isPaidDefault,
-        is_public_default: input.isPublicDefault,
-        is_reservation: input.isReservation,
-        name: input.name,
-        reservation_amount: input.reservationAmount,
-        sort_order: current.sort_order,
-      });
+      return okResult(
+        await writtenStatus(
+          tx,
+          await records.attendee_statuses.updateStatement(
+            id,
+            rowValuesOf(tables.attendee_statuses, input),
+          ),
+        ),
+      );
     }
 
     await clearChosenDefaults(tx, null, input);
     const sortOrder = await attendeeStatusOrder.next({ transaction: tx });
-    const status = await writeTableRow(tx, attendeeStatuses.table, {
-      input: { ...input, sortOrder },
-      kind: "insert",
-    });
-    return okResult(status);
+    return okResult(
+      await writtenStatus(
+        tx,
+        await records.attendee_statuses.insertStatement({
+          // The status rule checked that the input names every field.
+          ...(rowValuesOf(
+            tables.attendee_statuses,
+            input,
+          ) as NewRecord<"attendee_statuses">),
+          sortOrder,
+        }),
+      ),
+    );
   });
 
 /** Reads the two statuses a reassign touches — the row being emptied and the
@@ -304,18 +307,15 @@ const reassignNameRows = async (
   fromId: number,
   toId: number,
 ): Promise<{ fromName: string; toName: string } | null> => {
-  const rows = await txRows<{ id: number; name: EnvKeyEncrypted }>(
-    tx,
-    sql`SELECT status.id, status.name
-            FROM attendee_statuses AS status
-           WHERE status.id IN (${fromId}, ${toId})`,
-  );
-  if (rows.length !== 2) return null;
-  const named = new Map(
-    await Promise.all(
-      rows.map(async (row) => [row.id, await decrypt(row.name)] as const),
+  const rows = resultRows(
+    await tx.execute(
+      from(tables.attendee_statuses)
+        .where((status) => among(status.id, [fromId, toId]))
+        .pick("id", "name"),
     ),
   );
+  if (rows.length !== 2) return null;
+  const named = new Map(rows.map((row) => [row.id, row.name] as const));
   return {
     fromName: requiredMapValue(
       named,
@@ -334,7 +334,7 @@ const heldCountThrough = async (
   statusId: number,
 ): Promise<number> => {
   const rows = await readRows(
-    from(tables.attendees).where({ status_id: statusId }).count(),
+    from(tables.attendees).where({ statusId }).count(),
   );
   return Number(rows[0]!.count);
 };
@@ -366,7 +366,9 @@ const reassignHeldAttendees = async (
   const names = await reassignNameRows(tx, id, reassignTo);
   if (names === null) return null;
   await tx.execute(
-    sql`UPDATE attendees AS attendee SET status_id = ${reassignTo} WHERE attendee.status_id = ${id}`,
+    update(tables.attendees, { statusId: reassignTo }).where({
+      statusId: id,
+    }),
   );
   await logActivity(
     `${held} attendee(s) moved from status '${names.fromName}' to '${names.toName}'`,
@@ -401,7 +403,7 @@ const deleteStatus = (
       return errorResult("status_in_use");
     }
 
-    await tx.execute(deleteById("attendee_statuses", id));
+    await tx.execute(deleteFrom(tables.attendee_statuses).where({ id }));
     return okResult(undefined);
   });
 
@@ -434,7 +436,7 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     from(tables.attendee_statuses).limit(1).pick("id"),
   );
   if (existing.length > 0) return;
-  const status = await attendeeStatuses.table.insert({
+  const status = await records.attendee_statuses.insert({
     isPaidDefault: true,
     isPublicDefault: true,
     isReservation: false,
@@ -443,6 +445,8 @@ export const ensureDefaultAttendeeStatus = async (): Promise<void> => {
     sortOrder: 0,
   });
   await execute(
-    sql`UPDATE attendees AS attendee SET status_id = ${status.id} WHERE attendee.status_id IS NULL`,
+    update(tables.attendees, { statusId: status.id }).where({
+      statusId: null,
+    }),
   );
 };

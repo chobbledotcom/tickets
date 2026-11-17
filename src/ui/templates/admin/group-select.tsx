@@ -24,7 +24,7 @@ export const ListingGroupSelect = ({
   return (
     <fieldset class="checkboxes">
       <legend>{t("terms.group")}</legend>
-      <ItemCheckboxList checkedIds={selected} items={groups} name="group_ids" />
+      <ItemCheckboxList checkedIds={selected} items={groups} name="groupIds" />
     </fieldset>
   );
 };

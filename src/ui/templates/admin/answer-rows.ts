@@ -105,7 +105,7 @@ const currentAnswer = (
   question: QuestionWithAnswers,
   selected: SelectedQuestionAnswers,
 ): string | null => {
-  if (question.display_type === "free_text") {
+  if (question.displayType === "free_text") {
     // A free-text question the attendee left blank has no entry.
     return selected.selectedTextAnswers.get(question.id) ?? null;
   }

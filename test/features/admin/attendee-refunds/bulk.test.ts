@@ -94,7 +94,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
 
     testRequiresAuth("/admin/listing/1/refund-all", {
       body: {
-        confirm_identifier: "Test Listing",
+        confirmIdentifier: "Test Listing",
       },
       method: "POST",
       setup: async () => {
@@ -106,7 +106,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(999),
-          { confirm_identifier: "Test", csrf_token: await testCsrfToken() },
+          { confirmIdentifier: "Test", csrfToken: await testCsrfToken() },
           await testCookie(),
         ),
       );
@@ -116,7 +116,7 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
     test("rejects mismatched listing name", async () => {
       const ctx = await setupRefundTest("pi_refundall_1");
       const response = await submitRefundAll(ctx, {
-        confirm_identifier: "Wrong Listing Name",
+        confirmIdentifier: "Wrong Listing Name",
       });
       await expectFlashRedirect(
         `/admin/listing/${ctx.listing.id}/refund-all`,
@@ -125,12 +125,12 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
       )(response);
     });
 
-    test("rejects when confirm_identifier is missing", async () => {
+    test("rejects when confirmIdentifier is missing", async () => {
       const ctx = await setupRefundTest("pi_refundall_missing");
       const response = await handleRequest(
         mockFormRequest(
           refundAllUrl(ctx.listing.id),
-          { csrf_token: ctx.csrfToken },
+          { csrfToken: ctx.csrfToken },
           ctx.cookie,
         ),
       );
@@ -147,8 +147,8 @@ describeWithEnv("server (admin refund-all)", { db: true }, () => {
         mockFormRequest(
           refundAllUrl(listing.id),
           {
-            confirm_identifier: listing.name,
-            csrf_token: await testCsrfToken(),
+            confirmIdentifier: listing.name,
+            csrfToken: await testCsrfToken(),
           },
           await testCookie(),
         ),

@@ -45,7 +45,7 @@ describe("childTicketLimit", () => {
   });
 
   test("uses the parent's own limit for a daily child, regardless of the child's own limit", () => {
-    const dailyChild = tl(2, 4, { listing_type: "daily" });
+    const dailyChild = tl(2, 4, { listingType: "daily" });
     expect(childTicketLimit(tl(1, 10), dailyChild, noGroups)).toBe(10);
   });
 
@@ -53,8 +53,8 @@ describe("childTicketLimit", () => {
     // The own-cap counting rules key on listing type alone — customisable
     // days changes the span a buyer books, never which cap applies.
     const dailyChild = tl(2, 4, {
-      customisable_days: true,
-      listing_type: "daily",
+      customisableDays: true,
+      listingType: "daily",
     });
     expect(childTicketLimit(tl(1, 10), dailyChild, noGroups)).toBe(10);
   });

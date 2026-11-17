@@ -3,20 +3,24 @@ import { getDb } from "#db/client.ts";
 import {
   getAllModifiers,
   type ModifierInput,
-  modifiersTable,
   setModifierAnswers,
 } from "#db/modifiers.ts";
+import { newRecordOf, records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlCommas, sqlName } from "#db/sql.ts";
 
 /** Insert a modifier through the production table, defaulting to a £5 charge. */
 export const insertModifier = (overrides: Partial<ModifierInput> = {}) =>
-  modifiersTable.insert({
-    calcKind: "fixed",
-    calcValue: 5,
-    direction: "charge",
-    name: "Add-on",
-    ...overrides,
-  });
+  records.modifiers.insert(
+    // The defaults name every required column.
+    newRecordOf(tables.modifiers)({
+      calcKind: "fixed",
+      calcValue: 5,
+      direction: "charge",
+      name: "Add-on",
+      ...overrides,
+    }),
+  );
 
 /** Set behavioural columns the base create form doesn't expose (trigger,
  * scope, stock, code_index, active, min_visits, …). */
@@ -132,9 +136,9 @@ export const modifierAggregates = async (
 }> => {
   const row = (await getAllModifiers()).find((m) => m.id === modifierId)!;
   return {
-    totalRevenue: row.total_revenue,
-    totalUses: row.total_uses,
-    usageCount: row.usage_count,
+    totalRevenue: row.totalRevenue,
+    totalUses: row.totalUses,
+    usageCount: row.usageCount,
   };
 };
 
@@ -158,16 +162,12 @@ export const setupAnswerTier = async (
   listing: { id: number },
   overrides: Partial<ModifierInput> = {},
 ): Promise<{ answerId: number; modifierId: number; questionId: number }> => {
-  const [{ answersTable, questionsTable }, { listingQuestions }] =
-    await Promise.all([
-      import("#db/questions/tables.ts"),
-      import("#db/questions/queries.ts"),
-    ]);
-  const question = await questionsTable.insert({
+  const { listingQuestions } = await import("#db/questions/queries.ts");
+  const question = await records.questions.insert({
     displayType: "radio",
     text: "T-shirt size?",
   });
-  const answer = await answersTable.insert({
+  const answer = await records.answers.insert({
     questionId: question.id,
     sortOrder: 0,
     text: "Small",

@@ -29,8 +29,8 @@ const handleSeedsPost: TypedRouteHandler<"POST /admin/seeds"> = formPost(
   }
   // The form schema bounds both counts (min/max on the fields), so the
   // parsed values are already inside the seeds limits.
-  const { listing_count, attendees_per_listing } = parsed.values;
-  const result = await createSeeds(listing_count, attendees_per_listing);
+  const { listingCount, attendeesPerListing } = parsed.values;
+  const result = await createSeeds(listingCount, attendeesPerListing);
   const message = t("admin.seeds.created", {
     attendees: result.attendeesCreated,
     listings: result.listingsCreated,

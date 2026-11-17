@@ -4,55 +4,35 @@
  * Subject and body are stored as owner-keypair-encrypted blobs — the same
  * approach used for bulk_email_draft in settings. Encryption and decryption
  * are handled at the route layer. This module only reads and writes the
- * sealed values as-is, so the table declares them as simple OwnerKeyEncrypted
- * columns.
+ * sealed values as-is.
  */
 
 import type { OwnerKeyEncrypted } from "#crypto/sealed.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
-import { sql } from "#db/sql.ts";
-import { col } from "#db/table.ts";
-import { readById } from "#db/table-reader.ts";
 
-export type RawEmailTemplate = {
-  id: number;
-  subject: OwnerKeyEncrypted;
-  body: OwnerKeyEncrypted;
-};
-type RawEmailTemplateInput = {
-  subject: OwnerKeyEncrypted;
-  body: OwnerKeyEncrypted;
-};
+import { allRowsNewestFirst, records } from "#db/record-table.ts";
+import { type DecodedRowOf, tables } from "#db/select/tables.ts";
 
-const emailTemplatesTable = defineIdTable<
-  RawEmailTemplate,
-  RawEmailTemplateInput
->("email_templates", {
-  body: col.simple<OwnerKeyEncrypted>(),
-  id: col.generated<number>(),
-  subject: col.simple<OwnerKeyEncrypted>(),
-});
+export type RawEmailTemplate = DecodedRowOf<"email_templates">;
 
 /** Every template, newest first (the admin templates list). */
-export const getAllRawEmailTemplates = (): Promise<RawEmailTemplate[]> =>
-  emailTemplatesTable.read
-    .pick(["id", "subject", "body"])
-    .many({}, { order: sql`id DESC` });
+export const getAllRawEmailTemplates = allRowsNewestFirst(
+  tables.email_templates,
+);
 
-export const getRawEmailTemplate = readById(emailTemplatesTable);
+export const getRawEmailTemplate = (
+  id: number,
+): Promise<RawEmailTemplate | null> => records.email_templates.find(id);
 
 export const insertEmailTemplate = async (
   subject: OwnerKeyEncrypted,
   body: OwnerKeyEncrypted,
-): Promise<number> => (await emailTemplatesTable.insert({ body, subject })).id;
+): Promise<number> =>
+  (await records.email_templates.insert({ body, subject })).id;
 
 export const updateEmailTemplate = async (
   id: number,
   subject: OwnerKeyEncrypted,
   body: OwnerKeyEncrypted,
 ): Promise<void> => {
-  await emailTemplatesTable.update(id, { body, subject });
+  await records.email_templates.update(id, { body, subject });
 };
-
-export const deleteEmailTemplate = (id: number): Promise<void> =>
-  emailTemplatesTable.deleteById(id);

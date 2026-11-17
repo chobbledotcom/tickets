@@ -1,4 +1,3 @@
-import type { InValue } from "@libsql/client";
 import type {
   BatchAvailabilityItem,
   LineBooking,
@@ -16,14 +15,17 @@ import { queryAll, requireOne } from "#db/client.ts";
 import { listingGroups } from "#db/groups/table.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { runWithPrimaryReads } from "#db/primary-reads.ts";
+import { and, type Expr, type Operand, valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
-  type SqlSlot,
   type SqlStatement,
   sql,
   sqlCommas,
   sqlList,
   sqlName,
 } from "#db/sql.ts";
+import { insertInto, type NewValues } from "#db/write.ts";
 import { identity, map, mapById, requiredMapValue, unique } from "#fp";
 import { capacityDateFor } from "#shared/capacity-rules.ts";
 import { dateToStartEnd } from "./range.ts";
@@ -33,16 +35,16 @@ import type { ListingCapacityRow } from "./types.ts";
  * and keeps the column defaults. */
 const subscriptionPlanColumns = (
   plan: ListingBooking["subscription"],
-): [column: string, value: InValue][] =>
+): Partial<NewValues<"listing_attendees">> =>
   plan === undefined
-    ? []
-    : [
-        ["recurring_price", plan.amount],
-        ["recurring_tax", plan.tax],
-        ["recurring_interval", plan.interval],
-        ["subscription_id", plan.id],
-        ["subscription_status", plan.status],
-      ];
+    ? {}
+    : {
+        recurringInterval: plan.interval,
+        recurringPrice: plan.amount,
+        recurringTax: plan.tax,
+        subscriptionId: plan.id,
+        subscriptionStatus: plan.status,
+      };
 
 /** Build an INSERT into listing_attendees, capacity-checked by default. A
  * zero-quantity booking carries no capacity or active condition: it demands
@@ -53,7 +55,7 @@ const subscriptionPlanColumns = (
  * order-level extra condition still applies. */
 export const buildCapacityCheckedInsert = (
   booking: ListingBooking,
-  attendeeId: SqlSlot = sql`last_insert_rowid()`,
+  attendeeId: Operand<number> = valued(sql`last_insert_rowid()`),
   allowOverbook = false,
   extraCondition?: SqlStatement,
 ): SqlStatement => {
@@ -67,41 +69,56 @@ export const buildCapacityCheckedInsert = (
     packageGroupId = 0,
   } = booking;
   const { startAt, endAt } = dateToStartEnd(date, durationDays);
-  const plan = subscriptionPlanColumns(booking.subscription);
-  /** The SQL that follows the base column list or value list when the row
-   * carries a plan. */
-  const planSuffix = (parts: readonly SqlStatement[]): SqlStatement =>
-    parts.length === 0 ? sql`` : sql`, ${sqlCommas(parts)}`;
-  const planColumns = planSuffix(plan.map(([column]) => sqlName(column)));
-  const planValues = planSuffix(plan.map(([, value]) => sql`${value}`));
-  const insertSelect = sql`INSERT INTO listing_attendees (listing_id, attendee_id, start_at, end_at, quantity, order_token, parent_listing_id, package_group_id${planColumns})
-          SELECT ${listingId}, ${attendeeId}, ${startAt}, ${endAt}, ${quantity}, ${orderToken}, ${parentListingId}, ${packageGroupId}${planValues}`;
-  const guardedBy = (condition: SqlStatement): SqlStatement =>
-    sql`${insertSelect}\n          WHERE ${
-      extraCondition === undefined
-        ? condition
-        : sql`${condition} AND (${extraCondition})`
-    }`;
-  if (allowOverbook) {
-    return extraCondition === undefined
-      ? insertSelect
-      : sql`${insertSelect}\n          WHERE ${extraCondition}`;
-  }
-  if (quantity === 0) {
-    return guardedBy(
-      sql`EXISTS (SELECT 1 FROM listings AS listing WHERE listing.id = ${listingId})`,
-    );
-  }
-  return guardedBy(
-    buildCapacityCondition(listingId, quantity, date, undefined, durationDays),
+  const extra =
+    extraCondition === undefined ? true : valued<boolean>(extraCondition);
+  const conditions = [
+    allowOverbook ? true : roomFor({ date, durationDays, listingId, quantity }),
+    extra,
+  ];
+  return insertInto(
+    tables.listing_attendees,
+    {
+      attendeeId,
+      endAt,
+      listingId,
+      orderToken,
+      packageGroupId,
+      parentListingId,
+      quantity,
+      startAt,
+      ...subscriptionPlanColumns(booking.subscription),
+    },
+    conditions.every((condition) => condition === true)
+      ? {}
+      : { when: and(...conditions) },
   );
 };
 
-/** Check several capacity conditions in one query. */
-export const checkLinesCapacity = async (
+/** What the row of one booking needs before it lands: room on the listing,
+ *  or for a booking of no places a listing that exists. */
+const roomFor = (line: LineBooking): Expr<boolean> =>
+  line.quantity === 0
+    ? from(tables.listings).where({ id: line.listingId }).exists()
+    : buildCapacityCondition(
+        line.listingId,
+        line.quantity,
+        line.date,
+        undefined,
+        line.durationDays,
+      );
+
+/** A capacity check over the lines of one order. `excludeAttendeeId` names the
+ *  attendee whose own lines do not count against the capacity. */
+type LinesCheck<Answer> = (
   bookings: LineBooking[],
   excludeAttendeeId?: number,
-): Promise<boolean[]> => {
+) => Promise<Answer>;
+
+/** Check several capacity conditions in one query. */
+export const checkLinesCapacity: LinesCheck<boolean[]> = async (
+  bookings,
+  excludeAttendeeId,
+) => {
   if (bookings.length === 0) return [];
   const conditions = bookings.map((booking) =>
     capacityConditionFor(booking, excludeAttendeeId),
@@ -117,10 +134,10 @@ export const checkLinesCapacity = async (
 
 /** The listings whose lines do not fit right now, in one query. The
  * attendee-edit preflight names its culprit with this. */
-export const unfitListingIds = async (
-  bookings: LineBooking[],
-  excludeAttendeeId?: number,
-): Promise<number[]> => {
+export const unfitListingIds: LinesCheck<number[]> = async (
+  bookings,
+  excludeAttendeeId,
+) => {
   const fits = await checkLinesCapacity(bookings, excludeAttendeeId);
   return unique(
     bookings.filter((_, index) => !fits[index]!).map((line) => line.listingId),
@@ -136,7 +153,7 @@ export const checkListingAvailability = async (
 ): Promise<boolean> => {
   const listing = await getListingWithCount(listingId);
   if (!listing) throw new Error(`Listing not found: ${listingId}`);
-  const checkDate = capacityDateFor(listing.listing_type, date);
+  const checkDate = capacityDateFor(listing.listingType, date);
   return (
     await checkLinesCapacity([
       { date: checkDate, durationDays, listingId, quantity },
@@ -188,8 +205,9 @@ export const checkBatchAvailabilityImpl = async (
       items,
     );
     const listingRows = await queryAll<ListingCapacityRow>(
-      sql`SELECT listing.id, listing.max_attendees, listing.listing_type,
-            listing.booked_quantity as attendee_count
+      sql`SELECT listing.id, listing.max_attendees AS maxAttendees,
+            listing.listing_type AS listingType,
+            listing.booked_quantity AS attendeeCount
        FROM listings AS listing
       WHERE listing.id IN (${sqlList(listingIds)})`,
     );

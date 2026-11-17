@@ -9,32 +9,42 @@
 import * as v from "valibot";
 import { queryIdColumn, resultRows, type TxScope } from "#db/client.ts";
 import { PRICE_TYPE_BASE } from "#db/price-types.ts";
+import { records } from "#db/record-table.ts";
 import { batchOnScope } from "#db/scope-batch.ts";
+import { type Expr, equal, wholeCondition } from "#db/select/expression.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql } from "#db/sql.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
+import { deleteFrom } from "#db/write.ts";
 import { chunk } from "#fp";
 
 /** A `listings` row projected to the one column the `base` mirror derives
  *  from. `unit_price` may be NULL (mirrored as 0). */
 const ListingPriceSourceRowSchema = v.object({
   id: v.number(),
-  unit_price: v.nullable(v.number()),
+  unitPrice: v.nullable(v.number()),
 });
 
 /** The source check every guarded write shares: only a numeric or NULL
  *  `unit_price` can write a mirror, so a drifted text value leaves the
  *  existing rows standing instead of deleting them for a write that never
  *  lands. */
-const numericUnitPrice = sql`typeof(unit_price) IN ('integer', 'real', 'null')`;
+const numericUnitPrice = (unitPrice: SqlStatement): Expr<boolean> =>
+  wholeCondition(sql`typeof(${unitPrice}) IN ('integer', 'real', 'null')`);
 
 /** Clear one listing's `base` row, but only while its source column can
  *  still write a clean mirror. */
 const guardedBaseDelete = (listingId: number) =>
-  sql`DELETE FROM listing_prices
-       WHERE listing_id = ${listingId} AND price_type = ${PRICE_TYPE_BASE}
-         AND EXISTS (SELECT 1 FROM listings
-                      WHERE id = ${listingId} AND ${numericUnitPrice})`;
+  deleteFrom(tables.listing_prices).where((price) => [
+    equal(price.listingId, listingId),
+    equal(price.priceType, PRICE_TYPE_BASE),
+    from(tables.listings)
+      .where((listing) => [
+        equal(listing.id, listingId),
+        numericUnitPrice(listing.unitPrice),
+      ])
+      .exists(),
+  ]);
 
 /** Mirror the column on the database side — the INSERT reads the very
  *  `unit_price` it mirrors, so no separate read round trip. A missing
@@ -42,7 +52,7 @@ const guardedBaseDelete = (listingId: number) =>
 const guardedBaseInsert = (listingId: number) =>
   sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price)
        SELECT ${listingId}, ${PRICE_TYPE_BASE}, ${""}, COALESCE(unit_price, 0)
-         FROM listings WHERE id = ${listingId} AND ${numericUnitPrice}`;
+         FROM listings WHERE id = ${listingId} AND ${numericUnitPrice(sql`unit_price`)}`;
 
 /** Listings synced per one batch — one validation read plus two guarded
  *  writes each, so a full page is 401 statements, inside the libsql batch
@@ -65,7 +75,7 @@ export const syncListingPricesForIds = async (
   if (ids.length === 0) return;
   for (const page of chunk(SYNC_PAGE)([...ids])) {
     const statements = [
-      from(tables.listings).where({ id: page }).pick("id", "unit_price"),
+      records.listings.byId(page).pick("id", "unitPrice"),
       ...page.flatMap((id) => [guardedBaseDelete(id), guardedBaseInsert(id)]),
     ];
     const results = await batchOnScope(statements, transaction);

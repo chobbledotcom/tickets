@@ -126,9 +126,9 @@ type MechanicalCheck = Omit<CheckEntry, "engine"> & {
 };
 
 /** Files the repository documents as reading whole rows on purpose: the
- * backup and restore family, and the table reader's whole-row reads. */
+ * backup and restore family, and the whole-row reads of the record table. */
 const FULL_ROW_READ_FILE =
-  /(^|\/)db\/(?:backup|restore|table-reader)[^/]*\.ts$/;
+  /(^|\/)db\/(?:backup|restore|record-table)[^/]*\.ts$/;
 
 const MECHANICAL_CHECKS: MechanicalCheck[] = [
   {

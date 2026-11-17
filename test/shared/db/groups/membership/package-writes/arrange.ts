@@ -46,7 +46,7 @@ export const arrangeOrdinaryGroupPackaging = async (
         writePackageMembersTx(
           tx,
           group.id,
-          { hide_package_listings: false, is_package: false },
+          { hidePackageListings: false, isPackage: false },
           { isPackage: true },
           undefined,
         ),
@@ -79,7 +79,7 @@ export const arrangeGroupWrite = async (
         writePackageMembersTx(
           tx,
           group.id,
-          { hide_package_listings: false, is_package: true },
+          { hidePackageListings: false, isPackage: true },
           { isPackage: true },
           [{ listingId: member.id, price: 0, quantity: submitted }],
         ),

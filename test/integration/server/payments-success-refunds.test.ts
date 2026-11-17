@@ -3,14 +3,16 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
-import { groups } from "#db/groups.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { stripeApi } from "#shared/stripe.ts";
-import { createHiddenPackageGroup } from "#test/integration/server/payment-success-helpers.ts";
 import { expectHtmlResponse } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { fillSoleCapacityListing } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createHiddenPackageGroup,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createSoldOutListingPair } from "#test-utils/db-helpers/listing-pairs.ts";
 import {
   createTestListing,
@@ -137,7 +139,7 @@ describeWithEnv("server (payment flow: ticket success)", { db: true }, () => {
         unitPrice: 500,
       });
       await deactivateTestListing(vanished.id);
-      await groups.table.deleteById(group.id);
+      await records.groups.delete(group.id);
 
       const mockRetrieve = stub(stripeApi, "retrieveCheckoutSession", () =>
         Promise.resolve(

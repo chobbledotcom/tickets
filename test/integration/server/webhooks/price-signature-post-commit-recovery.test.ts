@@ -16,13 +16,10 @@ import { execute, queryOne } from "#db/client.ts";
 import { hashEmail, hashPhone } from "#db/contact-preferences.ts";
 import { getRecentBookingTokens } from "#db/contact-tokens.ts";
 import { modifierUsedQuantities } from "#db/modifier-usage.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { decryptSessionTokens } from "#db/processed-payments.ts";
 import { getBookedAnswers } from "#db/questions/attendee-answers/at-booking.ts";
 import { getAttendeeAnswersBatch } from "#db/questions/attendee-answers/reads.ts";
-import { listingQuestions } from "#db/questions/queries.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import {
@@ -35,10 +32,15 @@ import { getAllActivityLog } from "#test-utils/activity-log.ts";
 import { assertJson, expectIncludesAll } from "#test-utils/assertions.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import {
+  freeTextQuestionsOn,
+  seedQuestion,
+} from "#test-utils/db-helpers/question-seeds.ts";
 import { configureTestEmail } from "#test-utils/email.ts";
 import { signMeta, singleItem, webhookMeta } from "#test-utils/factories.ts";
 import { stubFetchEachTest } from "#test-utils/fetch-stub.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import {
   expectProcessedPaymentReference,
   getProcessedPayment,
@@ -123,21 +125,17 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
     const sessionId = "cs_lost_committed_result";
     const email = "recovered@example.com";
     const phone = "+447700900123";
-    const question = await questionsTable.insert({
-      displayType: "radio",
+    const {
+      answers: [answer],
+      question,
+    } = await seedQuestion({
+      answers: ["Recovered"],
+      listingIds: [listing.id],
       text: "Recovery answer?",
     });
-    const answer = await answersTable.insert({
-      questionId: question.id,
-      sortOrder: 1,
-      text: "Recovered",
-    });
-    await listingQuestions.setIds(listing.id, [question.id]);
-    const textQuestion = await questionsTable.insert({
-      displayType: "free_text",
-      text: "Anything else?",
-    });
-    await listingQuestions.setIds(listing.id, [question.id, textQuestion.id]);
+    const [textQuestion] = await freeTextQuestionsOn(listing.id, [
+      "Anything else?",
+    ]);
     // Stage the buyer's typed answer the way the checkout session does, so
     // the completion reads it before the batch opens, and intern the text
     // the way the submit path does, so the answer ref points at the
@@ -150,8 +148,7 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
       { [String(textQuestion.id)]: "Vegetarian, please" },
       null,
     );
-    const modifier = await modifiersTable.insert({
-      calcKind: "fixed",
+    const modifier = await insertModifier({
       calcValue: 1,
       direction: "discount",
       name: "RECOVER",
@@ -242,8 +239,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             ),
           ).toHaveLength(1);
           const processed = await getProcessedPayment(sessionId);
-          expect(processed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(processed!.ticket_tokens)).toBe(
+          expect(processed?.attendeeId).toBe(attendee!.id);
+          expect(await decryptSessionTokens(processed!.ticketTokens)).toBe(
             ticketToken,
           );
           await expectProcessedPaymentReference(
@@ -333,8 +330,8 @@ describeWithEnv("paid booking lost-result recovery", { db: true }, () => {
             expect(json.processed).toBe(true);
           });
           const replayed = await getProcessedPayment(sessionId);
-          expect(replayed?.attendee_id).toBe(attendee!.id);
-          expect(await decryptSessionTokens(replayed!.ticket_tokens)).toBe("");
+          expect(replayed?.attendeeId).toBe(attendee!.id);
+          expect(await decryptSessionTokens(replayed!.ticketTokens)).toBe("");
           expect(await getAttendeesRaw(listing.id)).toEqual([attendee]);
           await expectContactActivity(email, phone, privateKey, ticketToken);
           // The finalized-session replay answers send-free: the recovery

@@ -39,7 +39,7 @@ export type PriceRuleKind = PriceRule["kind"];
  * be priced by the same evaluation the checkout uses. */
 export type PricedListing = DayPricedListing & {
   id: number;
-  unit_price: number;
+  unitPrice: number;
 };
 
 /** The shared "no buyer custom prices" map for callers pricing configured
@@ -81,7 +81,7 @@ type PriceEvalContext = {
  * genuine `0` (a free pay-more booking, or a `0` QR override) is honoured — the
  * map holds `0`, and `0` is not nullish, so `??` keeps it. */
 const submittedOrUnitPrice = (ctx: PriceEvalContext): number =>
-  ctx.customPrices.get(ctx.listing.id) ?? ctx.listing.unit_price;
+  ctx.customPrices.get(ctx.listing.id) ?? ctx.listing.unitPrice;
 
 /** Everything one price tier knows about itself: whether it wins for a listing
  * (`appliesTo`), how to build its concrete rule from the inputs (`build`), and

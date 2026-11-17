@@ -30,7 +30,7 @@ export type ParentDayCounts = (number | null)[];
 export const parentOfferedDayCounts = (
   parent: ListingWithCount,
 ): ParentDayCounts =>
-  parent.listing_type === "daily" && parent.customisable_days
+  parent.listingType === "daily" && parent.customisableDays
     ? availableDayCounts(parent)
     : [fixedParentDays(parent)];
 
@@ -39,9 +39,9 @@ export const parentOfferedDayCounts = (
  *  are always numbers — the buyer's span is the open choice, never a
  *  missing one. */
 export const dailyOfferedDayCounts = (parent: ListingWithCount): number[] =>
-  parent.customisable_days
+  parent.customisableDays
     ? availableDayCounts(parent)
-    : [clampDurationDays(parent.duration_days)];
+    : [clampDurationDays(parent.durationDays)];
 
 /** The child's own bookable start dates, computed once per child: the
  *  per-date gate reads them for every date the parent offers. */
@@ -97,7 +97,7 @@ export const childOfferedOnDate = (
   starts: readonly string[],
   date: string,
 ): boolean => {
-  if (child.listing.listing_type !== "daily") return childInStock(child);
+  if (child.listing.listingType !== "daily") return childInStock(child);
   if (!starts.includes(date)) return false;
   return dayCounts.some(
     (days) =>

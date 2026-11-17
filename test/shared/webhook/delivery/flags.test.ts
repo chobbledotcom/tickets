@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryOne } from "#db/client.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   runWithSubrequestBudget,
@@ -74,7 +74,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     const { attendee } = await bookTestAttendeeWithFlags("Starved Buyer", 1, 1);
     const entries = [
       makeEntry(
-        { id: attendee.listing_id, webhook_url: "" },
+        { id: attendee.listing_id, webhookUrl: "" },
         {
           email: attendee.email,
           id: attendee.id,
@@ -130,7 +130,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
         logAndNotifyRegistration(
           [
             makeEntry(
-              { webhook_url: "https://refused-hook.example.com" },
+              { webhookUrl: "https://refused-hook.example.com" },
               { email: attendee.email, id: attendee.id },
             ),
           ],
@@ -152,7 +152,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
     );
     // The listing carries a question, so the answer-lines read is a real
     // database call the budget can starve.
-    const question = await questionsTable.insert({
+    const question = await records.questions.insert({
       displayType: "radio",
       text: "Meal?",
     });
@@ -169,7 +169,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
               logAndNotifyRegistration(
                 [
                   makeEntry(
-                    { webhook_url: "" },
+                    { webhookUrl: "" },
                     { email: attendee.email, id: attendee.id },
                   ),
                 ],
@@ -200,7 +200,7 @@ describeWithEnv("registration delivery flags", { db: true }, () => {
       logAndNotifyRegistration(
         [
           makeEntry(
-            { webhook_url: "https://owner-only-hook.example.com" },
+            { webhookUrl: "https://owner-only-hook.example.com" },
             { email: "", id: attendee.id },
           ),
         ],

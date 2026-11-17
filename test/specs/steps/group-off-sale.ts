@@ -92,7 +92,7 @@ const organiserSwitchesGroup =
     world.things.remember("browser", ORGANISER, browser);
     await fillInAndSend(
       browser,
-      { confirm_identifier: typed },
+      { confirmIdentifier: typed },
       theSwitch.button(),
     );
     keepsWhatTheOrganiserSaw(world, browser);

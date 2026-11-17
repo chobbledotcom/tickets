@@ -90,7 +90,7 @@
   }
 }
 
-:where(td, th, section aside, .listing-type-card, a.cal-day, [role="option"]) {
+:where(td, th, section aside, .icon-card, a.cal-day, [role="option"]) {
   transition:
     background-color var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) var(--motion-ease),

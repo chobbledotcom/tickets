@@ -28,45 +28,45 @@ describeWithEnv("what a new status may say", { db: true }, () => {
     await create({ name: "Plain" });
 
     expect(await storedByName("Plain")).toMatchObject({
-      is_paid_default: false,
-      is_public_default: false,
-      is_reservation: false,
-      reservation_amount: "0",
+      isPaidDefault: false,
+      isPublicDefault: false,
+      isReservation: false,
+      reservationAmount: "0",
     });
   });
 
   test("stores the two defaults when the operator ticks them", async () => {
     await create({
-      is_paid_default: "1",
-      is_public_default: "1",
+      isPaidDefault: "1",
+      isPublicDefault: "1",
       name: "Both Defaults",
     });
 
     expect(await storedByName("Both Defaults")).toMatchObject({
-      is_paid_default: true,
-      is_public_default: true,
+      isPaidDefault: true,
+      isPublicDefault: true,
     });
   });
 
   test("stores a reservation's deposit", async () => {
     await create({
-      is_reservation: "1",
+      isReservation: "1",
       name: "Deposit",
-      reservation_amount: "10%",
+      reservationAmount: "10%",
     });
 
     expect(await storedByName("Deposit")).toMatchObject({
-      is_reservation: true,
-      reservation_amount: "10%",
+      isReservation: true,
+      reservationAmount: "10%",
     });
   });
 
   test("ignores a deposit typed on a status that takes none", async () => {
-    await create({ name: "Not A Reservation", reservation_amount: "25" });
+    await create({ name: "Not A Reservation", reservationAmount: "25" });
 
     expect(await storedByName("Not A Reservation")).toMatchObject({
-      is_reservation: false,
-      reservation_amount: "0",
+      isReservation: false,
+      reservationAmount: "0",
     });
   });
 });
@@ -88,13 +88,13 @@ describeWithEnv("what a new status may not say", { db: true }, () => {
 
   test("refuses one that is both a reservation and the paid default", () =>
     expectRefused(
-      { is_paid_default: "1", is_reservation: "1", name: "Contradiction" },
+      { isPaidDefault: "1", isReservation: "1", name: "Contradiction" },
       t("statuses.error_paid_default_reservation"),
     ));
 
   test("refuses a deposit it cannot read", () =>
     expectRefused(
-      { is_reservation: "1", name: "Vague", reservation_amount: "some" },
+      { isReservation: "1", name: "Vague", reservationAmount: "some" },
       RESERVATION_AMOUNT_HINT,
     ));
 });
@@ -118,14 +118,14 @@ describeWithEnv("clearing a default", { db: true }, () => {
 
   test("refuses to leave the site with no public default", async () => {
     assertStringIncludes(
-      await dropOneDefault("is_paid_default"),
+      await dropOneDefault("isPaidDefault"),
       "Choose another public default before clearing this one",
     );
   });
 
   test("refuses to leave the site with no paid default", async () => {
     assertStringIncludes(
-      await dropOneDefault("is_public_default"),
+      await dropOneDefault("isPublicDefault"),
       "Choose another paid default before clearing this one",
     );
   });

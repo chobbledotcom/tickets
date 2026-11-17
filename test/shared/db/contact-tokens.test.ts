@@ -28,6 +28,7 @@ import {
   type Token,
 } from "#test-utils/db/contact-token-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -309,20 +310,36 @@ describeWithEnv("contact-tokens", { db: true }, () => {
     ).toBeNull();
   });
 
+  test("syncAttendeeContactTokens adds to an unchanged contact whose last token moved away", async () => {
+    const contact = emailOnly("emptied-token@example.com");
+    const pk = await getTestPrivateKey();
+    await recordLine(contact, "public", "tok-moved");
+    await syncToken(
+      "tok-moved",
+      contact,
+      emailOnly("moved-to@example.com"),
+      pk,
+    );
+    expect(await tokenBlobFor(await contactHash(contact))).toBe("");
+
+    await syncToken("tok-kept", contact, contact, pk);
+
+    expect(await readContact(contact, pk)).toEqual([
+      { source: "admin", token: "tok-kept" },
+    ]);
+  });
+
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
-    const { attendeesApi } = await import("#db/attendees/api.ts");
-    const result = await attendeesApi.createAttendeeAtomic({
+    const attendee = await createAttendeeOrThrow({
       bookings: [{ listingId: listing.id }],
       email: "real-token@example.com",
       name: "Real",
     });
-    expect(result.success).toBe(true);
-    const token = result.success ? result.attendees[0]!.ticket_token : "";
     expect(
       await readAllTokens(await hashEmail("real-token@example.com"), pk),
-    ).toEqual([{ source: "public", token }]);
+    ).toEqual([{ source: "public", token: attendee.ticket_token }]);
   });
 
   test("a no-quantity create does not append a ticket token", async () => {

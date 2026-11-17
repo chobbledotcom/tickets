@@ -55,13 +55,13 @@ export const builtSiteToFieldValues = (
   site?: BuiltSite,
 ): Record<string, string | number | null> => ({
   assignable: booleanToCheckbox(!!site?.assignable),
-  db_provider: site?.dbProvider ?? "bunny",
-  db_token: site?.dbToken ?? "",
-  db_url: site?.dbUrl ?? "",
-  hosting_id: site?.hostingId ?? "",
-  hosting_provider: site?.hostingProvider ?? "bunny",
+  dbProvider: site?.dbProvider ?? "bunny",
+  dbToken: site?.dbToken ?? "",
+  dbUrl: site?.dbUrl ?? "",
+  hostingId: site?.hostingId ?? "",
+  hostingProvider: site?.hostingProvider ?? "bunny",
   name: site?.name ?? "",
-  site_url: site?.siteUrl ?? "",
+  siteUrl: site?.siteUrl ?? "",
   updates: site?.updates ?? DEFAULT_UPDATE_TIER,
 });
 

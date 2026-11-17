@@ -42,8 +42,8 @@ export const organiserCreatesCode = (
     await fillInAndSend(
       browser,
       {
-        calc_kind: "percent",
-        calc_value: String(percentOff),
+        calcKind: "percent",
+        calcValue: String(percentOff),
         code,
         direction: "discount",
         name: code,
@@ -67,7 +67,7 @@ export const organiserCreatesCode = (
 /** Whether a listing's booking page asks for a promo code at all. */
 export const codeBoxOffered: AsksAboutOneThing = async (world, listingName) => {
   const browser = await openBookingPage(listingNamed(world, listingName));
-  return /\sname="promo_code"/.test(browser.currentHtml);
+  return /\sname="promoCode"/.test(browser.currentHtml);
 };
 
 const CUSTOMER = { email: "quoter@example.com", name: "Quote Asker" };
@@ -79,7 +79,7 @@ const sendWithTheCode = (
   code: string,
   button: string,
 ): Promise<void> => {
-  const payload = { ...CUSTOMER, promo_code: code };
+  const payload = { ...CUSTOMER, promoCode: code };
   return fillInAndSend(browser, payload, button);
 };
 

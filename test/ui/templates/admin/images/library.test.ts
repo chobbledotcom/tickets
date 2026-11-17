@@ -78,14 +78,12 @@ describeWithEnv(
         // the rich editor's rendering.
         const options = await (await adminGet("/admin/images/options")).json();
         expect(options).toEqual({
-          images: libraryOrder.map(
-            ({ id, name, filename, filename_thumb }) => ({
-              id,
-              name,
-              thumb: `/image/${filename_thumb}`,
-              url: `/image/${filename}`,
-            }),
-          ),
+          images: libraryOrder.map(({ id, name, filename, filenameThumb }) => ({
+            id,
+            name,
+            thumb: `/image/${filenameThumb}`,
+            url: `/image/${filename}`,
+          })),
         });
       });
 
@@ -164,7 +162,7 @@ describeWithEnv(
         const response = await handleRequest(
           mockMultipartRequest(
             "/admin/images",
-            { alt_text: "", csrf_token: await testCsrfToken(), name: "" },
+            { altText: "", csrfToken: await testCsrfToken(), name: "" },
             await testCookie(),
           ),
         );
@@ -182,8 +180,8 @@ describeWithEnv(
           mockMultipartRequest(
             "/admin/images",
             {
-              alt_text: "Missing file alt",
-              csrf_token: await testCsrfToken(),
+              altText: "Missing file alt",
+              csrfToken: await testCsrfToken(),
               name: "Missing file",
             },
             await testCookie(),
@@ -266,9 +264,9 @@ describeWithEnv(
 
         const [image] = await getAllImages();
         expect(image?.name).toBe("New library image");
-        expect(image?.alt_text).toBe("Alt New library image");
+        expect(image?.altText).toBe("Alt New library image");
         expect(image?.filename).toMatch(/\.webp$/);
-        expect(image?.filename_thumb).toMatch(/\.webp$/);
+        expect(image?.filenameThumb).toMatch(/\.webp$/);
         const messages = (await getAllActivityLog()).map(
           (entry) => entry.message,
         );

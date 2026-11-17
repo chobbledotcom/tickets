@@ -13,10 +13,10 @@ const holidayInput = (name: string, start: string, end: string) => ({
 });
 
 const summerRow = {
-  end_date: "2026-07-02",
+  endDate: "2026-07-02",
   id: 1,
   name: "Summer",
-  start_date: "2026-07-01",
+  startDate: "2026-07-01",
 };
 
 describeRuleCases("the holiday rule", holidayRule, [

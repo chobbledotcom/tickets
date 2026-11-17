@@ -33,7 +33,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
     testRequiresAuth("/admin/users/new");
     testRequiresAuth("/admin/users", {
       body: {
-        admin_level: "manager",
+        adminLevel: "manager",
         username: "newuser",
       },
       method: "POST",
@@ -103,7 +103,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // The rendered form lists the site's own roles, so only a crafted send
       // can carry one that is not among them.
       await expectRefused(
-        { admin_level: "superadmin", username: "newuser" },
+        { adminLevel: "superadmin", username: "newuser" },
         t("error.invalid_role"),
       );
     });
@@ -112,7 +112,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // The username box is required, so a browser blocks this before it is
       // sent.
       await expectRefused(
-        { admin_level: "manager", username: "" },
+        { adminLevel: "manager", username: "" },
         `${t("common.username")} is required`,
       );
     });
@@ -122,7 +122,7 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       // pins that the check runs before anything is written, so an invite that
       // would have reserved the username leaves nothing behind.
       await expectRefused(
-        { admin_level: "manager", username: TEST_ADMIN_USERNAME },
+        { adminLevel: "manager", username: TEST_ADMIN_USERNAME },
         t("error.username_taken"),
       );
     });

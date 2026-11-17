@@ -2,6 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
+import { records } from "#db/record-table.ts";
 import { RESERVATION_AMOUNT_HINT } from "#shared/reservation-amount.ts";
 import {
   expectFlashRedirect,
@@ -58,7 +59,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   });
 
   test("renames a status", async () => {
-    const created = await attendeeStatuses.table.insert({ name: "Old" });
+    const created = await records.attendee_statuses.insert({ name: "Old" });
     const { response } = await adminFormPost(`${PATH}/${created.id}/edit`, {
       name: "Renamed",
     });
@@ -72,7 +73,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   test("refuses to clear the only public default", async () => {
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
-      is_paid_default: "1",
+      isPaidDefault: "1",
       name: "Confirmed",
     });
     const html = await expectHtmlResponse(
@@ -80,18 +81,18 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       400,
       "Choose another public default before clearing this one",
     );
-    assertStringIncludes(inputNamed(html, "is_paid_default"), "checked");
+    assertStringIncludes(inputNamed(html, "isPaidDefault"), "checked");
   });
 
   test("pre-fills a reservation status's fields when editing", async () => {
-    const reserved = await attendeeStatuses.table.insert({
+    const reserved = await records.attendee_statuses.insert({
       isReservation: true,
       name: "Reserved",
       reservationAmount: "25%",
     });
     const html = await (await adminGet(`${PATH}/${reserved.id}/edit`)).text();
     assertStringIncludes(html, 'value="25%"');
-    assertStringIncludes(inputNamed(html, "is_reservation"), "checked");
+    assertStringIncludes(inputNamed(html, "isReservation"), "checked");
   });
 
   test("returns 404 editing a missing status", async () => {
@@ -104,9 +105,9 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   test("rejects an invalid edit with its submitted values", async () => {
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
-      is_reservation: "1",
+      isReservation: "1",
       name: "Submitted name",
-      reservation_amount: "lots",
+      reservationAmount: "lots",
     });
     const html = await expectHtmlResponse(
       response,
@@ -115,7 +116,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       'value="Submitted name"',
       'value="lots"',
     );
-    assertStringIncludes(inputNamed(html, "is_reservation"), "checked");
+    assertStringIncludes(inputNamed(html, "isReservation"), "checked");
     expect((await getAttendeeStatus(seed.id))?.name).toBe(seed.name);
   });
 
@@ -149,7 +150,7 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
   test("refuses to clear the only paid default", async () => {
     const seed = await seedStatus();
     const { response } = await adminFormPost(`${PATH}/${seed.id}/edit`, {
-      is_public_default: "1",
+      isPublicDefault: "1",
       name: "Confirmed",
     });
     const html = await expectHtmlResponse(
@@ -157,6 +158,6 @@ describeWithEnv("server (attendee status entity page)", { db: true }, () => {
       400,
       "Choose another paid default before clearing this one",
     );
-    assertStringIncludes(inputNamed(html, "is_public_default"), "checked");
+    assertStringIncludes(inputNamed(html, "isPublicDefault"), "checked");
   });
 });

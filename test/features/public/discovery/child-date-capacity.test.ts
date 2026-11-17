@@ -27,13 +27,13 @@ describeWithEnv("childDateCapacity", { db: true }, () => {
    *  production passes it from the parent links. */
   const dailyChild = (): ListingWithCount =>
     testListingWithCount({
-      bookable_days: [...VALID_DAY_NAMES],
+      bookableDays: [...VALID_DAY_NAMES],
       id: 1,
-      listing_type: "daily",
-      max_attendees: 5,
-      max_quantity: 5,
-      maximum_days_after: 10,
-      minimum_days_before: 0,
+      listingType: "daily",
+      maxAttendees: 5,
+      maximumDaysAfter: 10,
+      maxQuantity: 5,
+      minimumDaysBefore: 0,
     }) as ListingWithCount;
 
   const ctx = (remaining: number): ChildDateCapacityCtx => ({
@@ -54,7 +54,7 @@ describeWithEnv("childDateCapacity", { db: true }, () => {
   test("a closed child serves none", () => {
     const child = {
       ...dailyChild(),
-      closes_at: "2020-01-01T00:00:00.000Z",
+      closesAt: "2020-01-01T00:00:00.000Z",
     } as ListingWithCount;
     expect(childDateCapacity(child, ctx(9))).toBe(0);
   });

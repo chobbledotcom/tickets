@@ -8,7 +8,6 @@ import {
   resolveModifiers,
 } from "#db/modifier-resolve.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
 import { sql } from "#db/sql.ts";
 import { loadPaidOrderSnapshot } from "#routes/api/payment-processing/snapshot/io.ts";
 import type { BookingIntent, ModifierRef } from "#shared/booking-intent.ts";
@@ -22,6 +21,7 @@ import type {
 } from "#shared/payments.ts";
 import { checkoutItem } from "#test-utils/checkout-items.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { seedQuestion } from "#test-utils/db-helpers/question-seeds.ts";
 import {
   insertModifier,
   linkModifierAnswer,
@@ -57,13 +57,10 @@ const buyer = {
  * a column on the answers row, so the answer must actually exist for the link
  * (and the resolve that reads it back) to take effect. */
 const createAnswer = async (): Promise<number> => {
-  const q = await questionsTable.insert({ displayType: "radio", text: "Q?" });
-  const a = await answersTable.insert({
-    questionId: q.id,
-    sortOrder: 0,
-    text: "A",
-  });
-  return a.id;
+  const {
+    answers: [answer],
+  } = await seedQuestion({ answers: ["A"], text: "Q?" });
+  return answer.id;
 };
 
 const pricingIntent = (

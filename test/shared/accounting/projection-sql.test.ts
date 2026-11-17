@@ -61,7 +61,7 @@ describe("ledgerLegs", () => {
 
 describe("onAccount", () => {
   const sides = [
-    ["source", ATTENDEE, la.attendee_id, "la.attendee_id"],
+    ["source", ATTENDEE, la.attendeeId, "la.attendee_id"],
     ["dest", REVENUE, listing.id, "listing.id"],
     ["dest", WRITEOFF_TYPE, a.id, "a.id"],
   ] as const;
@@ -88,14 +88,14 @@ const saleLegText =
 describe("saleLeg", () => {
   test("scopes a gross sale leg: kind + attendee source + revenue dest + event group", () => {
     expect(
-      saleLeg(la.attendee_id, la.listing_id, la.ledger_event_group)(leg).sql,
+      saleLeg(la.attendeeId, la.listingId, la.ledgerEventGroup)(leg).sql,
     ).toBe(saleLegText);
   });
 });
 
 describe("paymentLegExists", () => {
   test("asks for a payment leg into the attendee in the event group", () => {
-    expect(paymentLegExists(la.attendee_id, la.ledger_event_group).sql).toBe(
+    expect(paymentLegExists(la.attendeeId, la.ledgerEventGroup).sql).toBe(
       `EXISTS (SELECT 1 FROM transfers AS leg WHERE leg.kind = '${KIND.payment}'` +
         ` AND ${side("dest", ATTENDEE, "la.attendee_id")}` +
         " AND leg.event_group = la.ledger_event_group)",
@@ -132,11 +132,8 @@ describe("bookingSaleTotalSubquery", () => {
     const corrected =
       "SELECT assessment.event_group FROM booking_tax_assessments AS assessment WHERE assessment.booking_group = la.ledger_event_group";
     expect(
-      bookingSaleTotalSubquery(
-        la.attendee_id,
-        la.listing_id,
-        la.ledger_event_group,
-      ).sql,
+      bookingSaleTotalSubquery(la.attendeeId, la.listingId, la.ledgerEventGroup)
+        .sql,
     ).toBe(
       `(SELECT ${signed(credit, debit)} FROM transfers AS leg WHERE ((${saleLegText})` +
         ` OR (leg.kind = '${KIND.taxSale}' AND leg.event_group IN (${corrected})` +

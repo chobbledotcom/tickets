@@ -181,7 +181,7 @@ describe("log-error", () => {
       ): Promise<(number | null)[]> =>
         (await getAllActivityLog())
           .filter((entry) => entry.message === message)
-          .map(({ listing_id }) => listing_id);
+          .map(({ listingId }) => listingId);
 
       test("persists error to activity log", async () => {
         await withRequestContext(async () => {

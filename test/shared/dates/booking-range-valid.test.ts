@@ -10,10 +10,10 @@ import { testListing } from "#test-utils/factories.ts";
 
 const dailyAllDays = () =>
   testListing({
-    bookable_days: [...VALID_DAY_NAMES],
-    listing_type: "daily",
-    maximum_days_after: 10,
-    minimum_days_before: 0,
+    bookableDays: [...VALID_DAY_NAMES],
+    listingType: "daily",
+    maximumDaysAfter: 10,
+    minimumDaysBefore: 0,
   });
 
 describe("isBookingRangeValid malformed submitted dates", () => {

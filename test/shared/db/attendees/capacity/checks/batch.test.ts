@@ -358,7 +358,7 @@ describeWithEnv("db > attendees > checkBatchAvailability", { db: true }, () => {
         const bucket = getOrCreateBucket(listingDemand, listingId);
         addDemandToBucket(
           bucket,
-          { listing_type: "daily" },
+          { listingType: "daily" },
           { listingId, quantity: 1 },
           "2026-05-01",
         );

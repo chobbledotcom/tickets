@@ -122,7 +122,7 @@ export const listingStillLists: AsksAboutOneThing = async (world, name) =>
 /** The box on the orphaned-records form that says the site should do the
  * clearing out by itself, and the dropdown beside it for how old a record has
  * to be. */
-const BY_ITSELF = "auto_purge";
+const BY_ITSELF = "autoPurge";
 const AGE_CHOOSER = "retention";
 
 /** The value the page's own dropdown sends for an age the organiser reads on
@@ -216,7 +216,7 @@ const sendsEraseForm = async (
   await organiserSendsAndIsTold(
     world,
     browser,
-    { contact_type: CHANNEL_OF[found.by], identifier: found.typing },
+    { contactType: CHANNEL_OF[found.by], identifier: found.typing },
     t("privacy.erase.button"),
   );
 };

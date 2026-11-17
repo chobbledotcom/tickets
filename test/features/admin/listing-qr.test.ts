@@ -28,7 +28,7 @@ import { adminFormPost, adminGet, testCookie } from "#test-utils/session.ts";
 describe("EMPTY_QR_VALUES", () => {
   test("keeps every blankable field empty with quantity at 1", () => {
     expect(EMPTY_QR_VALUES).toEqual({
-      customer_name: "",
+      customerName: "",
       date: "",
       quantity: "1",
       value: "",
@@ -83,7 +83,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       expect(response.status).toBe(200);
       const body = await response.text();
       expectIncludesAll(body, [
-        'name="customer_name"',
+        'name="customerName"',
         // The customer name input carries the contact-field cap, like every
         // other hand-rendered contact input.
         'maxlength="250"',
@@ -172,7 +172,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           `/admin/listing/${listing.id}/qr`,
-          { csrf_token: "invalid", quantity: "1" },
+          { csrfToken: "invalid", quantity: "1" },
           cookie,
         ),
       );
@@ -219,7 +219,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/qr`,
         {
-          customer_name: "Ada",
+          customerName: "Ada",
           quantity: "1",
           value: "5.00",
         },
@@ -239,7 +239,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/qr`,
-        { customer_name: "A".repeat(251), quantity: "1", value: "5.00" },
+        { customerName: "A".repeat(251), quantity: "1", value: "5.00" },
       );
       expect(response.status).toBe(200);
       const body = await response.text();
@@ -263,7 +263,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       const unservable = parentDates.find((d) => !childDates.has(d))!;
       const { response } = await adminFormPost(
         `/admin/listing/${parent.id}/qr`,
-        { customer_name: "Ada", date: unservable, quantity: "1" },
+        { customerName: "Ada", date: unservable, quantity: "1" },
       );
       const body = await response.text();
       assertStringIncludes(body, "Please select a valid date");
@@ -316,7 +316,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
       // The generator refuses before minting anything, and a signed QR
       // refresh is equally closed.
       const post = await adminFormPost(`/admin/listing/${listing.id}/qr`, {
-        customer_name: "Ada",
+        customerName: "Ada",
         quantity: "1",
         value: "5.00",
       });
@@ -359,7 +359,7 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         unitPrice: 500,
       });
       const response = await adminGet(
-        `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=7.50&quantity=2`,
+        `/admin/listing/${listing.id}/qr.json?customerName=Ada&value=7.50&quantity=2`,
       );
       expect(response.status).toBe(200);
       assertStringIncludes(
@@ -406,11 +406,11 @@ describeWithEnv("admin listing QR routes", { db: true }, () => {
         unitPrice: 500,
       });
       const first = await adminGet(
-        `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
+        `/admin/listing/${listing.id}/qr.json?customerName=Ada&value=5.00&quantity=1`,
       );
       await new Promise((r) => setTimeout(r, 1100));
       const second = await adminGet(
-        `/admin/listing/${listing.id}/qr.json?customer_name=Ada&value=5.00&quantity=1`,
+        `/admin/listing/${listing.id}/qr.json?customerName=Ada&value=5.00&quantity=1`,
       );
       const a = (await first.json()) as { url: string };
       const b = (await second.json()) as { url: string };

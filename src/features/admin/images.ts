@@ -1,3 +1,4 @@
+import { records } from "#db/record-table.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import type { TypedRouteHandler } from "#routes/router.ts";
 
@@ -8,12 +9,11 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { groups } from "#db/groups.ts";
 import {
   getAllImages,
-  getImageById,
   getImageUsesForImage,
   type ImageUseTarget,
   imageUseTargets,
 } from "#db/images.ts";
-import { getAllListingOptions } from "#db/listings/records.ts";
+import { getAllListingOptions } from "#db/listings/catalog.ts";
 import { getNewsPostNames } from "#db/news-posts.ts";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
@@ -74,7 +74,7 @@ const imagePath = (id: number): string => adminPath("imageEdit", { id });
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
 );
-const imageHandler = createIdEntityHandler<Image>(getImageById);
+const imageHandler = createIdEntityHandler<Image>(records.images.find);
 type ImagePost = (
   image: Image,
   form: FormParams,
@@ -138,9 +138,7 @@ const activeOptionsOfType =
 
 const groupImageItemOptions = async (): Promise<ImageItemOption[]> =>
   activeOptionsOfType("group")(
-    (await groups.cache.getAll()).map(
-      (group) => [group.id, group.name] as const,
-    ),
+    (await groups.getAll()).map((group) => [group.id, group.name] as const),
   );
 
 /** News + page options — the Site-gated content types, shown only to a Site
@@ -166,7 +164,7 @@ const imageItemOptions = async (
 const selectedUses = async (imageId: number): Promise<Set<string>> =>
   new Set(
     (await getImageUsesForImage(imageId)).map(
-      (use) => `${use.item_type}:${use.item_id}`,
+      (use) => `${use.itemType}:${use.itemId}`,
     ),
   );
 
@@ -186,7 +184,7 @@ const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> =
 
 const parseImageTargets = (form: FormParams): ImageUseTarget[] =>
   form
-    .getAll("image_items")
+    .getAll("imageItems")
     .map((raw) => {
       const [itemType = "", itemId = ""] = raw.split(":");
       const id = parsePositiveInt(itemId);
@@ -244,7 +242,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     const verdict = await imageRecord.update(image.id, {
       ...metadata.value,
       filename: image.filename,
-      filenameThumb: image.filename_thumb,
+      filenameThumb: image.filenameThumb,
       items: allowedImageTargets(adminLevel, parseImageTargets(form)),
       skipMissingItems: true,
     });
@@ -273,7 +271,7 @@ const handleImageDeleteGet: TypedRouteHandler<"GET /admin/images/:id/delete"> =
   });
 
 const confirmDelete = (form: FormParams, image: Image): string | null =>
-  form.getString("confirm_identifier") === image.name
+  form.getString("confirmIdentifier") === image.name
     ? null
     : t("images.delete.mismatch");
 
@@ -323,10 +321,10 @@ const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
     const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name, filename, filename_thumb }) => ({
+      ({ id, name, filename, filenameThumb }) => ({
         id,
         name,
-        thumb: getImageProxyUrl(filename_thumb),
+        thumb: getImageProxyUrl(filenameThumb),
         url: getImageProxyUrl(filename),
       }),
     );

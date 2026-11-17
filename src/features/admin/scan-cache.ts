@@ -137,7 +137,7 @@ const handleScanCacheGet =
  * answer as an unknown listing. */
 export const handleListingScanCacheGet = handleScanCacheGet(async (id) => {
   const listing = await getListingWithCount(id);
-  return !listing || listing.purchase_only
+  return !listing || listing.purchaseOnly
     ? null
     : { door: doorCacheName("listing", id), scope: listingScope(id) };
 });

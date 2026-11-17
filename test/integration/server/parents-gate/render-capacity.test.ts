@@ -103,7 +103,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       expectIncludesAll(html, [
-        `name="quantity_${parent.id}"`,
+        `name="quantity${parent.id}"`,
         // The sole child is offered informationally (auto-selected), so it appears
         // in the child block but posts no `child_qty_*` field.
         `data-sole-child="${child.id}"`,
@@ -127,7 +127,7 @@ describeWithEnv(
 
       await expectSelectOffers(
         parent.slug,
-        `quantity_${parent.id}`,
+        `quantity${parent.id}`,
         ">1</option>",
         ">2</option>",
       );
@@ -165,7 +165,7 @@ describeWithEnv(
 
       await expectSelectOffers(
         parent.slug,
-        `child_qty_${parent.id}_${sharedChild.id}`,
+        `childQty${parent.id}_${sharedChild.id}`,
         ">1</option>",
         ">2</option>",
       );
@@ -183,7 +183,7 @@ describeWithEnv(
 
       await expectSelectOffers(
         parent.slug,
-        `quantity_${parent.id}`,
+        `quantity${parent.id}`,
         ">2</option>",
         ">3</option>",
       );
@@ -214,7 +214,7 @@ describeWithEnv(
 
       await expectSelectOffers(
         parent.slug,
-        `quantity_${parent.id}`,
+        `quantity${parent.id}`,
         ">2</option>",
         ">3</option>",
       );
@@ -232,7 +232,7 @@ describeWithEnv(
 
       const html = await bookingPageHtml(parent.slug);
       assert(!html.includes("Sorry, this listing is full."));
-      assertStringIncludes(html, `name="quantity_${parent.id}"`);
+      assertStringIncludes(html, `name="quantity${parent.id}"`);
     });
 
     test("two children sharing one capped group but differing OTHER memberships cap by that group", async () => {
@@ -268,7 +268,7 @@ describeWithEnv(
 
       await expectSelectOffers(
         parent.slug,
-        `quantity_${parent.id}`,
+        `quantity${parent.id}`,
         ">1</option>",
         ">2</option>",
       );
@@ -282,7 +282,7 @@ describeWithEnv(
 
       const html = await expectRendersSoldOut(parent.slug, parent.id);
       // No quantity selector / child selector is rendered for the parent.
-      assert(!html.includes(`name="child_qty_${parent.id}_`));
+      assert(!html.includes(`name="childQty${parent.id}_`));
     });
   },
 );

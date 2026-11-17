@@ -176,7 +176,7 @@ const resumeRejectedPlan = async (
     };
   }
   const failure = requireValue(
-    await parseSessionFailure(existing.failure_data),
+    await parseSessionFailure(existing.failureData),
     "Rejected subscription session has no stored failure",
   );
   const refunded =
@@ -256,10 +256,10 @@ const settleOwnedRejection = async (
 export const settleRejectedSubscription: RejectionHandler<MalformedRejection> =
   ownedRejection((rejection) =>
     withRejectedSession(rejection.sessionId, (reservation) => {
-      if (!reservation.reserved && reservation.existing.attendee_id !== null) {
+      if (!reservation.reserved && reservation.existing.attendeeId !== null) {
         return NOTHING_TO_REFUND;
       }
-      if (!reservation.reserved && reservation.existing.failure_data === "") {
+      if (!reservation.reserved && reservation.existing.failureData === "") {
         return { ...NOTHING_TO_REFUND, settled: false };
       }
       return settleOwnedRejection(rejection, reservation);

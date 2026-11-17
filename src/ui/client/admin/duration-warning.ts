@@ -11,7 +11,7 @@ export const initDurationWarning = (): void => {
   const submit = document.getElementById(
     "listing-edit-submit",
   ) as HTMLButtonElement | null;
-  const input = form?.querySelector<HTMLInputElement>('[name="duration_days"]');
+  const input = form?.querySelector<HTMLInputElement>('[name="durationDays"]');
   const original = warn?.dataset.durationOriginal;
   if (!form || !warn || !confirm || !submit || !input || original === undefined)
     return;

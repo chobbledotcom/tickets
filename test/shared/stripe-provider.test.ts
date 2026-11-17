@@ -49,7 +49,7 @@ describeStripe("stripe-provider", () => {
       withMocks(
         () => stub(client.checkout.sessions, "create", createImpl),
         () => {
-          const listing = testListing({ unit_price: 1000 });
+          const listing = testListing({ unitPrice: 1000 });
           return body(
             stripePaymentProvider.createCheckoutSession(
               checkoutIntent({

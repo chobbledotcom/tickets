@@ -14,7 +14,7 @@ import {
 } from "#db/questions/attendee-answers/save.ts";
 import { deleteQuestion } from "#db/questions/delete.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import { answersTable, questionsTable } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   addAnswer,
@@ -212,11 +212,11 @@ describeWithEnv("db > attendee answers > at booking", { db: true }, () => {
   test("keeps the wording at booking when the operator edits it", async () => {
     const { attendee, book, size, small } = await seedBooking();
     await book({ answerIds: [small.id] });
-    await questionsTable.update(size.id, {
+    await records.questions.update(size.id, {
       displayType: "radio",
       text: "Shirt size?",
     });
-    await answersTable.update(small.id, { text: "S" });
+    await records.answers.update(small.id, { text: "S" });
 
     expect((await bookedAnswers(attendee.id))[0]).toMatchObject({
       answer: "S",

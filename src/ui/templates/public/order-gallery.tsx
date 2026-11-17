@@ -133,10 +133,10 @@ const renderOrderCard =
       thumb: true,
     });
     const priceHtml =
-      listing.unit_price > 0
+      listing.unitPrice > 0
         ? `<span class="order-card-price">${
-            listing.can_pay_more ? t("availability.from_prefix") : ""
-          }${escapeHtml(formatCurrency(listing.unit_price))}</span>`
+            listing.canPayMore ? t("availability.from_prefix") : ""
+          }${escapeHtml(formatCurrency(listing.unitPrice))}</span>`
         : "";
     const attributesHtml = listingAttributesHtml(
       attributesByListing,

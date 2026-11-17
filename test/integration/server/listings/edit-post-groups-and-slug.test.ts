@@ -32,7 +32,7 @@ describeWithEnv(
         groupId: number,
       ) =>
         submitOwnListingEdit(listing, {
-          group_ids: String(groupId),
+          groupIds: String(groupId),
         });
 
       const expectListingUpdated = (id: number, response: Response) =>
@@ -88,7 +88,7 @@ describeWithEnv(
             userId: 1,
             wrappedDataKey: null,
           },
-          new FormParams({ group_ids: String(group.id) }),
+          new FormParams({ groupIds: String(group.id) }),
           "Direct rejection",
         );
 
@@ -99,7 +99,7 @@ describeWithEnv(
         );
         assertStringIncludes(
           html,
-          `checked name="group_ids" type="checkbox" value="${group.id}"`,
+          `checked name="groupIds" type="checkbox" value="${group.id}"`,
         );
       });
 
@@ -134,7 +134,7 @@ describeWithEnv(
         // so their selection isn't silently dropped on the next submit.
         assertStringIncludes(
           html,
-          `checked name="group_ids" type="checkbox" value="${group.id}"`,
+          `checked name="groupIds" type="checkbox" value="${group.id}"`,
         );
       });
 

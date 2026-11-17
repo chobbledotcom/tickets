@@ -66,8 +66,8 @@ Given(
   ): Promise<void> {
     await putsPlainThingOnSale(this, name, { unitPrice: minorUnits(price) });
     await organiserSavesFields(this, name, {
-      recurring_interval: interval,
-      recurring_price: recurringPrice,
+      recurringInterval: interval,
+      recurringPrice,
     });
   },
 );
@@ -83,7 +83,7 @@ When(
 When(
   "the organiser changes the {word} recurring price to {word}",
   function (this: TicketsWorld, name: string, price: string): Promise<void> {
-    return organiserSavesFields(this, name, { recurring_price: price });
+    return organiserSavesFields(this, name, { recurringPrice: price });
   },
 );
 
@@ -97,8 +97,8 @@ When(
   ): Promise<void> {
     const browser = await listingPage(this, name, "/edit");
     await savesServedForm(browser, () => ({
-      recurring_interval: interval,
-      recurring_price: recurringPrice,
+      recurringInterval: interval,
+      recurringPrice,
     }));
     keepWhatTheyWereTold(this, ORGANISER, browser.pageText);
   },

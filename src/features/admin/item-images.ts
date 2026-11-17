@@ -61,7 +61,7 @@ export const loadItemImagesPanel = async (
 };
 
 const selectedImageIds = (form: FormParams): number[] =>
-  form.getNumberArray("image_ids");
+  form.getNumberArray("imageIds");
 
 const storageDisabledResponse = <T>(
   config: ItemImageConfig<T>,

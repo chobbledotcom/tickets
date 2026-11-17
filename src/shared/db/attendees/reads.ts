@@ -11,9 +11,9 @@ import { tables } from "#db/select/tables.ts";
 export const attendeeIdOfToken = (tokenIndex: string) =>
   from(tables.attendees)
     .as("tokenHolder")
-    .where({ ticket_token_index: tokenIndex })
+    .where({ ticketTokenIndex: tokenIndex })
     .pick("id");
 
 /** The id and the sealed contact details of each of these attendees. */
 export const sealedContactsOf = (attendeeIds: readonly number[]) =>
-  from(tables.attendees).where({ id: attendeeIds }).pick("id", "pii_blob");
+  from(tables.attendees).where({ id: attendeeIds }).pick("id", "piiBlob");

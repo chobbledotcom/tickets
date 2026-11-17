@@ -3,7 +3,7 @@
 
 import { logActivity } from "#db/activity-log.ts";
 import { getAttendeeNamesByIds } from "#db/attendees/queries.ts";
-import { listingNames } from "#db/listings/records.ts";
+import { listingNamesByIds } from "#db/listings/records.ts";
 import {
   getSubscribedRowOrNull,
   getSubscribedRows,
@@ -38,24 +38,24 @@ const subscriberRows = async (
 ): Promise<SubscriberRow[]> => {
   const [names, tickets] = await Promise.all([
     getAttendeeNamesByIds(
-      idsOf(rows, (row) => row.attendee_id),
+      idsOf(rows, (row) => row.attendeeId),
       await requireRequestPrivateKey(),
     ),
-    listingNames.byIds(idsOf(rows, (row) => row.listing_id)),
+    listingNamesByIds(idsOf(rows, (row) => row.listingId)),
   ]);
   return rows.map((row) => ({
-    attendeeId: row.attendee_id,
+    attendeeId: row.attendeeId,
     bookingId: row.id,
-    interval: row.recurring_interval,
-    name: requiredMapValue(names, row.attendee_id, "Subscriber not found"),
-    price: row.recurring_price,
-    status: row.subscription_status,
-    stripeId: row.subscription_id,
-    tax: row.recurring_tax,
+    interval: row.recurringInterval,
+    name: requiredMapValue(names, row.attendeeId, "Subscriber not found"),
+    price: row.recurringPrice,
+    status: row.subscriptionStatus,
+    stripeId: row.subscriptionId,
+    tax: row.recurringTax,
     ticket:
-      row.quantity === 0 && !tickets.has(row.listing_id)
+      row.quantity === 0 && !tickets.has(row.listingId)
         ? t("subscriptions.ticket_removed")
-        : requiredMapValue(tickets, row.listing_id, "Ticket not found"),
+        : requiredMapValue(tickets, row.listingId, "Ticket not found"),
   }));
 };
 
@@ -91,9 +91,9 @@ const handleSubscriptionCancelPost = createIdEntityHandler(
     return errorRedirect(adminPath("subscriptions", {}), t(answer.message));
   }
   await logActivity(
-    `Subscription ${row.subscription_id} cancelled`,
-    row.listing_id,
-    row.attendee_id,
+    `Subscription ${row.subscriptionId} cancelled`,
+    row.listingId,
+    row.attendeeId,
   );
   return adminRedirect("subscriptions", {}, t(answer.message), true);
 });

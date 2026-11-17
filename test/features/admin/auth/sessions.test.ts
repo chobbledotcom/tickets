@@ -66,7 +66,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
 
   describe("POST /admin/sessions", () => {
     testRequiresAuth("/admin/sessions", {
-      body: { csrf_token: "test" },
+      body: { csrfToken: "test" },
       method: "POST",
     });
 
@@ -76,7 +76,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/sessions",
-          { csrf_token: "invalid-csrf" },
+          { csrfToken: "invalid-csrf" },
           cookie,
         ),
       );
@@ -109,7 +109,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const { cookie, csrfToken } = await loginAsAdmin();
 
       const response = await handleRequest(
-        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/sessions", { csrfToken }, cookie),
       );
       await expectFlashRedirect(
         "/admin/sessions",
@@ -136,7 +136,7 @@ describeWithEnv("server (admin sessions)", { db: true }, () => {
       const sessionToken = sessionMatch![1]!;
 
       await handleRequest(
-        mockFormRequest("/admin/sessions", { csrf_token: csrfToken }, cookie),
+        mockFormRequest("/admin/sessions", { csrfToken }, cookie),
       );
 
       // Verify current session still exists

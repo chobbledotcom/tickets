@@ -106,9 +106,9 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         mockFormRequest(
           "/admin/groups",
           {
-            csrf_token: csrfToken,
+            csrfToken,
             name: "Manager Group",
-            terms_and_conditions: "",
+            termsAndConditions: "",
           },
           cookie,
         ),
@@ -131,7 +131,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         input: { name: "New Group", termsAndConditions: "Group terms" },
         // A generated slug is five random characters.
         slugLength: 5,
-        stored: { name: "New Group", terms_and_conditions: "Group terms" },
+        stored: { name: "New Group", termsAndConditions: "Group terms" },
         title: "creates group with auto-generated slug",
       },
       {
@@ -169,7 +169,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         stored: {
           name: "New Group",
           slug: "custom-slug",
-          terms_and_conditions: "Group terms",
+          termsAndConditions: "Group terms",
         },
         title: "creates group and allows slug to be set via edit",
       },
@@ -210,7 +210,7 @@ describeWithEnv("server (admin groups) — list & create", { db: true }, () => {
         await seed();
         const { response } = await adminFormPost("/admin/groups", {
           name,
-          terms_and_conditions: "",
+          termsAndConditions: "",
         });
         await expectFlashRedirect(
           "/admin/groups/new",

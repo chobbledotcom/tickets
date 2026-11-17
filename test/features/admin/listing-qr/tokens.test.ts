@@ -33,7 +33,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
     const listing = await createDailyTestListing({ unitPrice: 500 });
     const date = (await bookableStartDates(listing.id))[0]!;
     const { response, payload } = await postQr(listing)({
-      customer_name: "Ada",
+      customerName: "Ada",
       date,
       quantity: "1",
       value: "5.00",
@@ -46,7 +46,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
     const listing = await createPricedListing();
     // Way above the listing's unit_price; allowed for the override.
     const { body, response } = await postQr(listing)({
-      customer_name: "Ada",
+      customerName: "Ada",
       quantity: "1",
       value: "200.00",
     });
@@ -58,7 +58,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
     // A fixed-price listing has no minimum, so a free override is valid.
     const listing = await createPricedListing();
     const { response, payload } = await postQr(listing)({
-      customer_name: "Ada",
+      customerName: "Ada",
       quantity: "1",
       value: "0.00",
     });
@@ -69,7 +69,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
   test("signed token embeds submitted values and matches the listing slug", async () => {
     const listing = await createPricedListing({ maxQuantity: 5 });
     const { payload } = await postQr(listing)({
-      customer_name: "Ada Lovelace",
+      customerName: "Ada Lovelace",
       quantity: "3",
       value: "12.50",
     });
@@ -89,7 +89,7 @@ describeWithEnv("admin listing QR tokens", { db: true }, () => {
       unitPrice: 500,
     });
     const { body } = await postQr(a)({
-      customer_name: "Ada",
+      customerName: "Ada",
       quantity: "1",
       value: "5.00",
     });

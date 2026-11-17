@@ -11,7 +11,9 @@ import {
   resultRows,
   type TxScope,
 } from "#db/client.ts";
+import { tables } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { mapNotNullish, requiredMapValue } from "#fp";
 import { mirrorFor } from "#payment/admit-move.ts";
 import { refundAuthorityWorkSql } from "#payment/refund-authority-lifecycle.ts";
@@ -38,7 +40,7 @@ export type PaymentRowRecord = {
   readonly attendeeId: number;
   readonly providerRefundWork: boolean;
   readonly sessionId: string;
-  readonly slot: string;
+  readonly slot: EnvKeyEncrypted | "";
   readonly state: PaymentRowState;
 };
 
@@ -190,9 +192,10 @@ export const paymentRowStateStatement = async (
   state: PaymentRowState,
 ): Promise<SqlStatement> => {
   const stored = await paymentRowStateValues(state);
-  return sql`UPDATE processed_payments
-           SET failure_data = ${stored.failureData}, protected_state = ${stored.protectedState}
-         WHERE payment_session_id = ${row.sessionId} AND failure_data = ${row.slot}`;
+  return update(tables.processed_payments, {
+    failureData: stored.failureData,
+    protectedState: stored.protectedState,
+  }).where({ failureData: row.slot, paymentSessionId: row.sessionId });
 };
 
 /** The exact row transitions made under one durable claim. */

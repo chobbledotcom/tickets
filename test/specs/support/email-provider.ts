@@ -27,9 +27,9 @@ const TEST_PATH = "/admin/settings/email/test";
 
 /** The three boxes the connection form offers. They never reach a story — the
  * owner reads "Email Provider", "API Key" and "From Address". */
-const PROVIDER_FIELD = "email_provider";
-const KEY_FIELD = "email_api_key";
-const FROM_FIELD = "email_from_address";
+const PROVIDER_FIELD = "emailProvider";
+const KEY_FIELD = "emailApiKey";
+const FROM_FIELD = "emailFromAddress";
 
 /** What the site says on the settings pages. */
 export const settingsCopy = copyFrom("settings");

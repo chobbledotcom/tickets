@@ -1,7 +1,11 @@
 /** Booking rows with and without a Stripe subscription plan. */
 
-import { execute } from "#db/client.ts";
+import { eventGroup } from "#accounting/refs.ts";
+import { selectByEventGroup } from "#accounting/rows.ts";
+import { execute, queryBatch, queryOne } from "#db/client.ts";
 import { invalidateListingsCache } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
+import { requireValue } from "#shared/required-value.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
@@ -23,8 +27,6 @@ export const bookOwnListing = async (name: string): Promise<TestBooking> => {
   );
   return { attendeeId: attendee.id, listingId: listing.id };
 };
-
-import { sql } from "#db/sql.ts";
 
 /** The plan a subscribed booking row keeps. */
 export type TestPlan = {
@@ -69,11 +71,37 @@ export const subscribe = async (
 export const withMonthlyPlan = async <Listing extends { id: number }>(
   listing: Listing,
 ): Promise<
-  Listing & { recurring_interval: "month"; recurring_price: number }
+  Listing & { recurringInterval: "month"; recurringPrice: number }
 > => {
   await execute(
     sql`UPDATE listings SET recurring_price = 500, recurring_interval = 'month' WHERE id = ${listing.id}`,
   );
   invalidateListingsCache();
-  return { ...listing, recurring_interval: "month", recurring_price: 500 };
+  return { ...listing, recurringInterval: "month", recurringPrice: 500 };
 };
+
+/** The legs one invoice posted, as kind, from, to, amount and time. */
+export const renewalLegs = async (invoiceId: string) =>
+  (
+    await selectByEventGroup(
+      queryBatch,
+      await eventGroup(["renewal", invoiceId]),
+    )
+  )
+    .map((leg) => ({
+      amount: leg.amount,
+      from: `${leg.source.type}:${leg.source.id}`,
+      kind: leg.kind,
+      occurredAt: leg.occurredAt,
+      to: `${leg.destination.type}:${leg.destination.id}`,
+    }))
+    .sort((a, b) => String(a.kind).localeCompare(String(b.kind)));
+
+/** The status column of one booking. */
+export const statusOf = async (booking: TestBooking): Promise<string> =>
+  requireValue(
+    await queryOne<{ subscription_status: string }>(
+      sql`SELECT subscription_status FROM listing_attendees WHERE attendee_id = ${booking.attendeeId}`,
+    ),
+    `Booking ${booking.attendeeId} has no row`,
+  ).subscription_status;

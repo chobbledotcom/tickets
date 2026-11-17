@@ -13,7 +13,7 @@ import { adminFormPost, testCookie } from "#test-utils/session.ts";
 describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
   describe("POST /admin/settings/external-order", () => {
     testRequiresAuth("/admin/settings/external-order", {
-      body: { external_order_enabled: "true" },
+      body: { externalOrderEnabled: "true" },
       method: "POST",
     });
 
@@ -22,8 +22,8 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/external-order",
           {
-            csrf_token: "invalid-csrf-token",
-            external_order_enabled: "true",
+            csrfToken: "invalid-csrf-token",
+            externalOrderEnabled: "true",
           },
           await testCookie(),
         ),
@@ -34,7 +34,7 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
     test("enables external order buttons", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/external-order",
-        { external_order_enabled: "true" },
+        { externalOrderEnabled: "true" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -46,7 +46,7 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
     test("disables external order buttons", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/external-order",
-        { external_order_enabled: "false" },
+        { externalOrderEnabled: "false" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -60,7 +60,7 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
       expect(settings.externalOrderEnabled).toBe(false);
 
       await adminFormPost("/admin/settings/external-order", {
-        external_order_enabled: "true",
+        externalOrderEnabled: "true",
       });
 
       expect(settings.externalOrderEnabled).toBe(true);
@@ -74,7 +74,7 @@ describeWithEnv("server (admin settings: external-order)", { db: true }, () => {
         response,
         200,
         "Enable external order buttons?",
-        "external_order_enabled",
+        "externalOrderEnabled",
       );
     });
   });

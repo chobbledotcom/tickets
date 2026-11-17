@@ -9,8 +9,12 @@
  */
 
 import { queryOnePrimary } from "#db/client.ts";
-import { mapByIds } from "#db/query.ts";
-import { type SqlSlot, type SqlStatement, sql, sqlJoin } from "#db/sql.ts";
+import { readRows } from "#db/read.ts";
+import { orZero, sum, valued } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type SqlStatement, sql, sqlJoin } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 
 /** One modifier consumed by an order: the modifier, how many, and the amount
@@ -22,16 +26,21 @@ export type ModifierUsage = {
 };
 
 /** Used quantity per modifier id, for remaining-stock checks at resolve time. */
-export const modifierUsedQuantities = (
+export const modifierUsedQuantities = async (
   ids: number[],
 ): Promise<Map<number, number>> =>
-  mapByIds<{ modifier_id: number; used: number }>(
-    ids,
-    (modifierIds) =>
-      sql`SELECT modifier_id, COALESCE(SUM(quantity), 0) AS used
-       FROM modifier_usages WHERE modifier_id IN (${modifierIds})
-       GROUP BY modifier_id`,
-    (row) => [row.modifier_id, row.used],
+  new Map(
+    (
+      await readRows(
+        from(tables.modifier_usages)
+          .where({ modifierId: ids })
+          .groupBy((usage) => [usage.modifierId])
+          .select((usage) => ({
+            modifier_id: usage.modifierId,
+            used: orZero(sum(usage.quantity)),
+          })),
+      )
+    ).map((row) => [row.modifier_id, Number(row.used)]),
   );
 
 /**
@@ -65,22 +74,27 @@ export const allModifiersInStockCondition = (
     : sqlJoin(usages.map(modifierStockCondition), sql` AND `);
 
 /**
- * One guarded `modifier_usages` insert — the single place the usage column list
- * and SELECT shape live. `attendeeId` is the attendee id: a
- * bound value for the direct insert, or a
- * subquery for the single-batch booking path where the
- * attendee row is inserted earlier in the same batch. The row lands only while
- * `guard` holds. The batch writer performs its rollback check immediately
- * before these inserts, so no later compensating check is needed here. */
+ * One guarded `modifier_usages` insert. `attendeeId` is the subquery that
+ * finds the attendee row which the same batch inserts earlier. The row lands
+ * only while `guard` holds. The batch writer performs its rollback check
+ * immediately before these inserts, so no later compensating check is needed
+ * here. */
 export const usageInsert = (
   usage: ModifierUsage,
-  attendeeId: SqlSlot,
+  attendeeId: SqlStatement,
   guard: SqlStatement,
 ): SqlStatement =>
-  sql`INSERT INTO modifier_usages
-          (modifier_id, attendee_id, quantity, amount_applied, created)
-        SELECT ${usage.modifierId}, ${attendeeId}, ${usage.quantity}, ${usage.amountApplied}, ${nowIso()}
-        WHERE ${guard}`;
+  insertInto(
+    tables.modifier_usages,
+    {
+      amountApplied: usage.amountApplied,
+      attendeeId: valued<number>(attendeeId),
+      created: nowIso(),
+      modifierId: usage.modifierId,
+      quantity: usage.quantity,
+    },
+    { when: valued<boolean>(guard) },
+  );
 
 /**
  * Whether any of these modifiers no longer has stock for its quantity — the

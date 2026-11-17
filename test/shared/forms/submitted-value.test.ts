@@ -11,18 +11,18 @@ import {
 
 const dateField = {
   label: "Starts",
-  name: "start_date",
+  name: "startDate",
   required: true,
   type: "date",
 } as const;
 
 /** The value a form that submits `raw` as the start date reads as. */
 const readStartDate = (raw: string) =>
-  readSubmittedFieldValue(new FormParams([["start_date", raw]]), dateField);
+  readSubmittedFieldValue(new FormParams([["startDate", raw]]), dateField);
 
 const datetimeField = {
   label: "Closes",
-  name: "closes_at",
+  name: "closesAt",
   required: true,
   type: "datetime",
 } as const;
@@ -48,7 +48,7 @@ describe("readSubmittedFieldValue date cleanup", () => {
   });
 
   test("a time without a date reads as the partial the message names", () => {
-    const form = new FormParams([["closes_at_time", "18:30"]]);
+    const form = new FormParams([["closesAtTime", "18:30"]]);
     expect(readSubmittedFieldValue(form, datetimeField)).toBe(null);
     expect(DATETIME_PARTIAL_ERROR).toBe(
       "Please enter a date when providing a time, or leave both blank",
@@ -76,8 +76,8 @@ describe("readSubmittedFieldValue date cleanup", () => {
   for (const [name, date, value] of COMPOSED) {
     test(name, () => {
       const form = new FormParams([
-        ["closes_at_date", date],
-        ["closes_at_time", "18:30"],
+        ["closesAtDate", date],
+        ["closesAtTime", "18:30"],
       ]);
       expect(readSubmittedFieldValue(form, datetimeField)).toBe(value);
     });

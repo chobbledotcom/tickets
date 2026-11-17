@@ -83,7 +83,7 @@ describeWithEnv("server bulk email > compose", { db: true }, () => {
       const listing = await seedSingleAttendeeListing();
       await adminFormPost("/admin/emails/preview", {
         body: "Saved body",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         marketing: "1",
         subject: "Saved subject",
       });

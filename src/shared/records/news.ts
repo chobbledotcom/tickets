@@ -6,11 +6,11 @@
 import {
   createNewsPost,
   deleteNewsPostWithImages,
-  getNewsPostById,
   getNewsPostSummaries,
   type NewsPostWriteInput,
   updateNewsPost,
 } from "#db/news-posts.ts";
+import { records } from "#db/record-table.ts";
 import { t } from "#i18n";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import { logNameActivity, type RecordShapeOf } from "#shared/rest/record.ts";
@@ -42,7 +42,7 @@ export const newsRecord = defineNamedRowRecord<
 >()({
   activityName: "News post",
   getAll: getNewsPostSummaries,
-  load: getNewsPostById,
+  load: records.news_posts.find,
   nameLabel: "news.name_label",
   surface: "news",
   write: contentCommands<
@@ -51,7 +51,7 @@ export const newsRecord = defineNamedRowRecord<
     "notFound" | "slugTaken"
   >({
     create: async (input, tx) => okResult(await createNewsPost(input, tx)),
-    load: getNewsPostById,
+    load: records.news_posts.find,
     log: logNews,
     message: () => t("news.error.slug_taken"),
     notFound: "notFound",

@@ -5,7 +5,7 @@
  */
 
 import { expect } from "@std/expect";
-import { getImageFilenamesForItem, imagesTable } from "#db/images.ts";
+import { getImageFilenamesForItem, insertImageRecord } from "#db/images.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
 import { BROKEN_IMAGE_FILENAME } from "#shared/images/broken.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -35,9 +35,9 @@ const listingFieldsOf = async (id: number): Promise<ItemImageColumns> =>
 /** A stored image whose filename or thumbnail decrypts empty projects the
  * marker instead. */
 const BROKEN_IMAGE_FIELDS: ItemImageColumns = {
-  image_alt_text: "",
-  image_thumb_url: "broken-thumb.webp",
-  image_url: BROKEN_IMAGE_FILENAME,
+  imageAltText: "",
+  imageThumbUrl: "broken-thumb.webp",
+  imageUrl: BROKEN_IMAGE_FILENAME,
 };
 
 /** A stored image whose row spells the fields `expected` projects. */
@@ -46,11 +46,11 @@ export const addProjectedImage = async (
   expected: ItemImageColumns,
 ): Promise<number> =>
   (
-    await imagesTable.insert({
-      altText: expected.image_alt_text,
-      filename: nonEmptyString(expected.image_url, "projected image filename"),
+    await insertImageRecord({
+      altText: expected.imageAltText,
+      filename: nonEmptyString(expected.imageUrl, "projected image filename"),
       filenameThumb: nonEmptyString(
-        expected.image_thumb_url,
+        expected.imageThumbUrl,
         "projected image thumbnail filename",
       ),
       name,
@@ -70,8 +70,8 @@ export const projectionCases: readonly {
     broken: true,
     expected: BROKEN_IMAGE_FIELDS,
     read: (listingId) => getImageFilenamesForItem("listing", listingId),
-    report: ({ imageId, listingId }) =>
-      `image ${imageId} (first image of listing ${listingId}) filename decrypted to an empty value`,
+    report: ({ imageId }) =>
+      `image ${imageId} filename decrypted to an empty value`,
     title: "projects the broken-image marker for an item's first image",
   },
   {
@@ -83,18 +83,18 @@ export const projectionCases: readonly {
   },
   {
     expected: {
-      image_alt_text: "Primary image alt",
-      image_thumb_url: "primary-thumb.webp",
-      image_url: "primary.webp",
+      imageAltText: "Primary image alt",
+      imageThumbUrl: "primary-thumb.webp",
+      imageUrl: "primary.webp",
     },
     read: (listingId) => getImageFilenamesForItem("listing", listingId),
     title: "projects the primary image filenames and alt text for an item",
   },
   {
     expected: {
-      image_alt_text: "Projected image alt",
-      image_thumb_url: "projected-thumb.webp",
-      image_url: "projected.webp",
+      imageAltText: "Projected image alt",
+      imageThumbUrl: "projected-thumb.webp",
+      imageUrl: "projected.webp",
     },
     read: listingFieldsOf,
     title: "projects listing images through listing reads",

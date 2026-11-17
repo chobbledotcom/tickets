@@ -28,8 +28,8 @@ const parseTaxRate = (
 };
 
 export const parseTaxSettingsForm = (form: FormParams): TaxFormResult => {
-  const mode = form.getString("tax_mode");
-  const storedExpected = form.getString("expected_tax");
+  const mode = form.getString("taxMode");
+  const storedExpected = form.getString("expectedTax");
   if (
     !storedExpected ||
     !["none", "add_to_total", "calculate_from_total"].includes(mode)
@@ -42,7 +42,7 @@ export const parseTaxSettingsForm = (form: FormParams): TaxFormResult => {
   } catch {
     return { error: t("settings.tax_invalid"), ok: false };
   }
-  const raw = form.get("tax_rate") ?? "";
+  const raw = form.get("taxRate") ?? "";
   if (mode === "none" && raw === "")
     return { expected, ok: true, policy: { mode: "none" } };
   const rate = parseTaxRate(raw);

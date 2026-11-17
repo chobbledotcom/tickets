@@ -83,7 +83,7 @@ describeRecord(externalSourceRecord, "Source", null, () => {
       withTestSession(() =>
         externalSourceRecord.create({ name: "Stripe", urlPattern: PATTERN }),
       ),
-      { id: 1, name: "Stripe", url_pattern: PATTERN },
+      { id: 1, name: "Stripe", urlPattern: PATTERN },
       ["Source 'Stripe' created"],
     );
   });

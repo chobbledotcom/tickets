@@ -52,7 +52,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     ]);
 
     const rows = await getGroupPackagePrices(group.id);
-    expect(rows.map((r) => [r.listing_id, r.package_price]).sort()).toEqual(
+    expect(rows.map((r) => [r.listingId, r.packagePrice]).sort()).toEqual(
       [
         [a.id, 1500],
         [b.id, 0],
@@ -77,9 +77,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
         sql`SELECT unit_price FROM listing_prices WHERE listing_id = ${a.id} AND price_type = 'group'`,
       ),
     ).toEqual([]);
-    expect((await getGroupPackagePrices(group.id))[0]!.package_price).toBe(
-      null,
-    );
+    expect((await getGroupPackagePrices(group.id))[0]!.packagePrice).toBe(null);
   });
 
   test("leaving a package group clears the listing's override row (no resurrection on re-add)", async () => {
@@ -101,7 +99,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setListingGroups(a.id, [group.id]);
     const readded = await getGroupPackagePrices(group.id);
     expect(
-      readded.find((r) => r.listing_id === a.id)?.package_price ?? null,
+      readded.find((r) => r.listingId === a.id)?.packagePrice ?? null,
     ).toBe(null);
   });
 
@@ -115,8 +113,8 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
       { listingId: a.id, price: 900, quantity: 5 },
     ]);
     const rows = await getGroupPackagePrices(group.id);
-    const member = rows.find((r) => r.listing_id === a.id)!;
-    expect(member.package_price).toBe(900);
+    const member = rows.find((r) => r.listingId === a.id)!;
+    expect(member.packagePrice).toBe(900);
     expect(member.quantity).toBe(5);
   });
 
@@ -129,7 +127,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
       { listingId: b.id, price: 200 },
     ]);
     const rows = await getGroupPackagePrices(group.id);
-    const byId = new Map(rows.map((r) => [r.listing_id, r.quantity]));
+    const byId = new Map(rows.map((r) => [r.listingId, r.quantity]));
     expect(byId.get(a.id)).toBe(3);
     expect(byId.get(b.id)).toBe(1);
 
@@ -137,7 +135,7 @@ describeWithEnv("db > group_listings membership", { db: true }, () => {
     await setGroupPackageMembers(group.id, []);
     const cleared = await getGroupPackagePrices(group.id);
     expect(
-      cleared.every((r) => r.quantity === 1 && r.package_price === null),
+      cleared.every((r) => r.quantity === 1 && r.packagePrice === null),
     ).toBe(true);
   });
 

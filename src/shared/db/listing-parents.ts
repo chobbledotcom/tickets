@@ -16,6 +16,7 @@ import { type LinkTableSide, selfLinkTableSides } from "#db/link-table.ts";
 import { guardEdgeWriteTx } from "#db/listing-edge-write.ts";
 import { requireCurrentRelationshipRules } from "#db/listing-relationship-validation.ts";
 import { requireListingsWithCountsByIds } from "#db/listings/records.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql, sqlList } from "#db/sql.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import {
@@ -41,9 +42,9 @@ import type { ListingWithCount } from "#types";
  * so one read answers "who are my children" and "whose child am I" together —
  * the discovery, feed, and listing-save paths ask for both. */
 const listingEdges = selfLinkTableSides(
-  "listing_parents",
-  "parent_listing_id",
-  "child_listing_id",
+  tables.listing_parents,
+  "parentListingId",
+  "childListingId",
 );
 
 /** A parent's chooseable children, keyed by parent id (relationship only):
@@ -195,16 +196,23 @@ export const hydrateListingLinks = async (
   };
 };
 
+/** The child ids by parent and the parent ids by child of these listings, as
+ *  named maps, so a caller cannot swap them. The two sides share one read. */
+export const linkIdsOf = async (keyIds: readonly number[]) => {
+  const [childIdsByParent, parentIdsByChild] = await Promise.all([
+    listingChildren.getIdsByKeys(keyIds),
+    listingParents.getIdsByKeys(keyIds),
+  ]);
+  return { childIdsByParent, parentIdsByChild };
+};
+
 /** Load both directions and return named maps, so a caller cannot swap parent
  * and child results. The two sides share one read (see `selfLinkTableSides`),
  * so this costs one round trip for the edges plus one for the linked rows. */
 export const loadParentAndChildLinks = async (
   keyIds: readonly number[],
 ): Promise<ParentAndChildLinkMaps> => {
-  const [childIdsByParent, parentIdsByChild] = await Promise.all([
-    listingChildren.getIdsByKeys(keyIds),
-    listingParents.getIdsByKeys(keyIds),
-  ]);
+  const { childIdsByParent, parentIdsByChild } = await linkIdsOf(keyIds);
   const byId = await listingsByIdFor([childIdsByParent, parentIdsByChild]);
   return {
     childIdsByParent,

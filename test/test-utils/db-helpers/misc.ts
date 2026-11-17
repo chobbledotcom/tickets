@@ -13,7 +13,7 @@ export const createTestInvite = async (
   const { cookie, csrfToken } = await getTestSession();
   const inviteResponse = await awaitTestRequest("/admin/users", {
     cookie,
-    data: { admin_level: adminLevel, csrf_token: csrfToken, username },
+    data: { adminLevel, csrfToken, username },
   });
   const location = inviteResponse.headers.get("location") ?? "";
   const url = new URL(location, "http://localhost");

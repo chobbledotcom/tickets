@@ -114,9 +114,9 @@ export const postAttendeePayment = async (
     `/admin/ledger/attendee/${attendeeId}/add`,
     {
       amount,
-      entry_type: MANUAL_ATTENDEE_PAYMENT,
-      occurred_at: "2026-06-22T09:30",
-      return_url: returnUrl,
+      entryType: MANUAL_ATTENDEE_PAYMENT,
+      occurredAt: "2026-06-22T09:30",
+      returnUrl,
     },
   );
   await expectFlashRedirect(returnUrl, "Money change added.")(response);

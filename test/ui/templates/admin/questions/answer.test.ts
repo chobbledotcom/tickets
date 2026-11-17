@@ -17,8 +17,8 @@ describe("adminAnswerEditPage", () => {
     { id: 5, name: "Large surcharge" },
     { id: 6, name: "Tiny discount" },
   ];
-  const aligned = { times_selected: { current: 7, recalculated: 7 } };
-  const drifted = { times_selected: { current: 7, recalculated: 5 } };
+  const aligned = { timesSelected: { current: 7, recalculated: 7 } };
+  const drifted = { timesSelected: { current: 7, recalculated: 5 } };
 
   /** The page for an active answer whose stored total matches the attendee
    *  answers — the default most tests below assert against. Rendered once. */
@@ -52,7 +52,7 @@ describe("adminAnswerEditPage", () => {
   test("renders the active box unchecked for a deactivated answer", () => {
     const html = adminAnswerEditPage(
       question,
-      testAnswer({ active: false, id: 12, sort_order: 2, text: "Retired" }),
+      testAnswer({ active: false, id: 12, sortOrder: 2, text: "Retired" }),
       OWNER_SESSION,
       undefined,
       aligned,
@@ -64,7 +64,7 @@ describe("adminAnswerEditPage", () => {
   });
 
   test("renders the editable selection total field with the stored value", () => {
-    expectIncludesAll(html, ['name="times_selected"', 'value="7"']);
+    expectIncludesAll(html, ['name="timesSelected"', 'value="7"']);
   });
 
   test("links back to the question", () => {
@@ -111,7 +111,7 @@ describe("adminAnswerEditPage", () => {
       5,
     );
     expectIncludesAll(html, [
-      '<select id="modifier_id" name="modifier_id">',
+      '<select id="modifier_id" name="modifierId">',
       "Large surcharge",
       "Tiny discount",
       '<option selected value="5">',
@@ -155,12 +155,12 @@ describe("adminAnswerRecalculatePage", () => {
   afterAll(resetFeaturePageTest);
 
   const question = testQuestion({
-    answers: [testAnswer({ id: 11, sort_order: 1, text: "Large" })],
+    answers: [testAnswer({ id: 11, sortOrder: 1, text: "Large" })],
     id: 1,
     text: "T-shirt size?",
   });
   const answer = question.answers[0]!;
-  const snapshot = { times_selected: { current: 7, recalculated: 5 } };
+  const snapshot = { timesSelected: { current: 7, recalculated: 5 } };
 
   test("renders the recalculate form for the answer", () => {
     const html = adminAnswerRecalculatePage(
@@ -176,7 +176,7 @@ describe("adminAnswerRecalculatePage", () => {
       // Current (stored) and recalculated (from attendee answers) columns.
       "<td>7</td>",
       "<td>5</td>",
-      'name="recalculate_fields"',
+      'name="recalculateFields"',
     ]);
   });
 

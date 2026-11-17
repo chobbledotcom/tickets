@@ -1,15 +1,20 @@
 import { encrypt } from "#crypto/encryption.ts";
-import { getDb, insert, queryAll } from "#db/client.ts";
-import { logisticsAgents } from "#db/logistics-agents.ts";
+import type { BlindIndex, WrappedKey } from "#crypto/sealed.ts";
+import { getDb, queryAll } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { createSession } from "#db/sessions.ts";
 import { sql } from "#db/sql.ts";
 import { userAgents } from "#db/user-agents.ts";
+import { insertInto } from "#db/write.ts";
 
 export const addUserOwnedAccessRecords = async (
   userId: number,
   label: string,
 ): Promise<void> => {
-  const agent = await logisticsAgents.table.insert({ name: `${label} agent` });
+  const agent = await records.logistics_agents.insert({
+    name: `${label} agent`,
+  });
   await userAgents.setIds(userId, [agent.id]);
   await createSession(
     `${label}-session`,
@@ -19,13 +24,13 @@ export const addUserOwnedAccessRecords = async (
     userId,
   );
   await getDb().execute(
-    insert("api_keys", {
+    insertInto(tables.api_keys, {
       created: "2026-07-19T00:00:00.000Z",
-      key_index: `${label}-key-index`,
-      last_used: "",
+      keyIndex: `${label}-key-index` as BlindIndex,
+      lastUsed: "",
       name: await encrypt(`${label} key`),
-      user_id: userId,
-      wrapped_data_key: `${label}-wrapped-key`,
+      userId: userId,
+      wrappedDataKey: `${label}-wrapped-key` as WrappedKey,
     }),
   );
 };

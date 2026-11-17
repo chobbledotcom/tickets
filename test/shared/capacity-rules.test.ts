@@ -27,20 +27,20 @@ const UNIVERSAL = [
 describe("capacity rules", () => {
   describe("applicableCapacityRules", () => {
     test("a standard listing counts its own cap as one running total", () => {
-      for (const customisable_days of [false, true]) {
+      for (const customisableDays of [false, true]) {
         expect(
           applicableCapacityRules({
-            customisable_days,
-            listing_type: "standard",
+            customisableDays,
+            listingType: "standard",
           }),
         ).toEqual(new Set(["dateLessCap", ...UNIVERSAL]));
       }
     });
 
     test("a daily listing counts its own cap per occupied date", () => {
-      for (const customisable_days of [false, true]) {
+      for (const customisableDays of [false, true]) {
         expect(
-          applicableCapacityRules({ customisable_days, listing_type: "daily" }),
+          applicableCapacityRules({ customisableDays, listingType: "daily" }),
         ).toEqual(new Set(["perDateCap", ...UNIVERSAL]));
       }
     });
@@ -49,7 +49,7 @@ describe("capacity rules", () => {
   describe("hasDateLessCap", () => {
     test("true exactly for the facets carrying the dateLessCap rule", () => {
       for (const facet of allCapacityFacets()) {
-        expect(hasDateLessCap(facet)).toBe(facet.listing_type === "standard");
+        expect(hasDateLessCap(facet)).toBe(facet.listingType === "standard");
       }
     });
   });
@@ -97,7 +97,7 @@ describe("capacity rules", () => {
 
     test("rejects a rule whose applicability depends on customisable days", () => {
       const rules: CapacityRule[] = [
-        { appliesTo: (facet) => facet.customisable_days, key: "perDateCap" },
+        { appliesTo: (facet) => facet.customisableDays, key: "perDateCap" },
       ];
       expect(() => listingTypesWithRule("perDateCap", rules)).toThrow(
         "cannot be keyed by listing type alone",
@@ -183,10 +183,10 @@ describe("capacity rules", () => {
   describe("allCapacityFacets", () => {
     test("covers every listing type × customisable days combination", () => {
       expect(allCapacityFacets()).toEqual([
-        { customisable_days: false, listing_type: "standard" },
-        { customisable_days: true, listing_type: "standard" },
-        { customisable_days: false, listing_type: "daily" },
-        { customisable_days: true, listing_type: "daily" },
+        { customisableDays: false, listingType: "standard" },
+        { customisableDays: true, listingType: "standard" },
+        { customisableDays: false, listingType: "daily" },
+        { customisableDays: true, listingType: "daily" },
       ]);
     });
   });

@@ -46,7 +46,7 @@ describeWithEnv(
 
       // The rendered page emits no quantity field for the sole child.
       const html = await bookingPageHtml(parent.slug);
-      assert(!html.includes(`name="child_qty_${parent.id}_${child.id}"`));
+      assert(!html.includes(`name="childQty${parent.id}_${child.id}"`));
 
       // Booking the parent at quantity 1 succeeds (no 'too many').
       const res = await bookParent(parent.slug, parentField(parent, "1"));
@@ -90,7 +90,7 @@ describeWithEnv(
       // browser posts no quantity field for the sole child — auto-fill assigns Q.
       const html = await postCalculate(parent.slug, {
         ...parentField(parent, "1"),
-        [`child_price_${parent.id}_${child.id}`]: "30.00",
+        [`childPrice${parent.id}_${child.id}`]: "30.00",
       });
       assertStringIncludes(html, "£30");
     });

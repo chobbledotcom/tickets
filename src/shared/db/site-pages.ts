@@ -9,85 +9,41 @@
  * `/page/:slug` (or admin edit) view.
  */
 
-import { decrypt, encrypt } from "#crypto/encryption.ts";
-import type { StoredRowOf } from "#db/chosen-columns.ts";
 import { resultRows, type TxScope } from "#db/client.ts";
-import { idAndEncryptedSlugSchema } from "#db/common-schema.ts";
-import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
-import { defineIdTable } from "#db/define-id-table.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import { defineOrderedCollection } from "#db/ordered-collection.ts";
+import { records } from "#db/record-table.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   freshSlugIndexWrites,
+  rowBySlugIndex,
   type UnclaimedSlugCondition,
   unclaimedSiteSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
-import { type SqlStatement, sql } from "#db/sql.ts";
-import { cachedTable, col } from "#db/table.ts";
-import { readById, readBySlugIndex } from "#db/table-reader.ts";
+import type { SqlStatement } from "#db/sql.ts";
+import { requestCachedRows } from "#db/table-cache.ts";
 import type { Result } from "#shared/result.ts";
 import type { SitePage } from "#types";
 
-/** Create/update input (camelCase keys → snake_case columns). `sortOrder` is
- * optional only for the update path, which never writes it — create always
- * supplies it. `hidden` is optional on the raw insert path, where the column
- * default (visible) applies. The admin write always names it. */
-export type SitePageInput = SluggedContentInput &
-  Partial<Pick<SitePage, "hidden">> & {
-    sortOrder?: number;
-  };
+/** The nav columns of every page: id, slug, name, sort_order and hidden.
+ * Only slug and name are decrypted. */
+const navRowsRead = from(tables.site_pages)
+  .sortedBy("sortOrder", "id")
+  .pick("hidden", "id", "name", "slug", "sortOrder");
 
-/** The site_pages table with CRUD: all free text is encrypted, and
- *  `slug_index` is the HMAC. The admin JSON API reads it directly for the
- *  list and the read-back after a write. Writes go through the wrappers
- *  below, which own the slug index and the root-order append. */
-export const sitePagesTable = defineIdTable<SitePage, SitePageInput>(
-  "site_pages",
-  {
-    ...encryptedNameAndSeoSchema(encrypt, decrypt),
-    ...idAndEncryptedSlugSchema(encrypt, decrypt),
-    hidden: col.boolean(false),
-    sort_order: col.simple<number>(),
-  },
+// Request-scoped cache over those columns: computed once per request, and
+// cleared on any write to site_pages.
+export const sitePages = requestCachedRows(
+  tables.site_pages,
+  () => navRowsRead,
 );
 
-const sitePageNavColumns = sitePagesTable.read.pick([
-  "hidden",
-  "id",
-  "name",
-  "slug",
-  "sort_order",
-]);
-
-/** Load id, slug, name, sort_order, and hidden. Decrypt only slug and name.
- * Order by sort_order, then id. */
-const NAV_ROW_ORDER = { order: sql`sort_order ASC, id ASC` } as const;
-
-const fetchNavRows = sitePageNavColumns.every(NAV_ROW_ORDER);
-
-// Request-scoped cache over those columns: computed once per request, fresh on
-// the next request (no cross-isolate staleness), and auto-cleared on any write
-// to site_pages (cachedTable registers the dependency on the table name).
-export const sitePages = cachedTable({
-  fetchAll: fetchNavRows,
-  name: "site_pages_nav",
-  table: sitePagesTable,
-});
-
-/** The nav rows as a read the nav can batch with its other small ones. The
- * batch hands back stored rows, so slug and name are still sealed until the
- * same column readers open them. */
+/** The nav rows as a read the nav can batch with its other small ones. */
 export const sitePagesNavRead: FillableRead = {
-  fill: async (result) =>
-    sitePages.prime(
-      await sitePageNavColumns.readAll(
-        resultRows<StoredRowOf<SitePage, typeof sitePageNavColumns.columns>>(
-          result,
-        ),
-      ),
-    ),
-  statement: sitePageNavColumns.statement({}, NAV_ROW_ORDER),
+  fill: (result) => sitePages.prime(resultRows(result)),
+  statement: navRowsRead,
 };
 
 export const sitePageOrder = defineOrderedCollection({
@@ -95,29 +51,24 @@ export const sitePageOrder = defineOrderedCollection({
   table: "site_pages",
 });
 
-const sitePageIdColumn = sitePagesTable.read.pick(["id"]);
-
 /** Which of `ids` name a page that is really there — as a statement, so a
  * caller can ask inside its own write transaction and have the answer hold
  * for the writes it makes next. */
 export const existingSitePageIdsStatement = (
   ids: readonly number[],
-): SqlStatement => sitePageIdColumn.statement({ id: ids });
+): SqlStatement => records.site_pages.byId(ids).pick("id");
 
 /** One full page by blind-index slug lookup (the `/page/:slug` read). */
-export const getSitePageBySlugIndex = readBySlugIndex(sitePagesTable.read);
+export const getSitePageBySlugIndex = rowBySlugIndex(tables.site_pages);
 
 /** One full page by id (the admin edit read). */
-export const getSitePageById = readById(sitePagesTable);
 
 /** A create/update provides every editable column; the blind index is computed
  * HERE from the slug (never caller-supplied), so `slug` and `slug_index` move
  * together by construction — a drifted index would break lookups and the
  * cross-table uniqueness check, both of which key on `slug_index`. */
-export type SitePageWriteInput = Omit<
-  Required<SitePageInput>,
-  "sortOrder" | "slugIndex"
->;
+export type SitePageWriteInput = Required<SluggedContentInput> &
+  Pick<SitePage, "hidden">;
 
 /** Create a page, appending it to the end of the root ordering. A new page is
  * always a root (no edges yet). The trailing `sort_order` (max + 1) is read and
@@ -134,7 +85,11 @@ const unclaimedPageSlug: UnclaimedSlugCondition = (slugIndex, id) =>
     id === undefined ? undefined : { id, table: "site_pages" },
   );
 
-const sitePageWrites = freshSlugIndexWrites(sitePagesTable, unclaimedPageSlug);
+const sitePageWrites = freshSlugIndexWrites(
+  tables.site_pages,
+  unclaimedPageSlug,
+  (input: SitePageWriteInput) => ({ hidden: input.hidden }),
+);
 
 export const createSitePage = (
   input: SitePageWriteInput,
@@ -151,11 +106,6 @@ export const createSitePage = (
 /** Update a page's editable fields (all but id/sort_order) — every field, every
  * time (the edit form posts them all), with the blind index recomputed from the
  * slug here so a renamed slug stays findable/reservable. */
-export const updateSitePage = async (
-  id: number,
-  input: SitePageWriteInput,
-  transaction?: TxScope,
-): Promise<Result<SitePage, "notFound" | "slugTaken">> =>
-  sitePageWrites.update(id, input, transaction);
+export const updateSitePage = sitePageWrites.update;
 
 /** Swap the `sort_order` of two root pages (the move-up/down apply step). */

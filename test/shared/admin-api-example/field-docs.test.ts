@@ -15,6 +15,7 @@ import {
   schemaRows,
   specFieldDocs,
 } from "#shared/admin-api-example/field-docs.ts";
+import { columnName } from "#shared/column-names.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
@@ -44,8 +45,8 @@ const listingUpdate = () => rowsOf("PUT", "/api/admin/listings/:listingId");
 const sorted = (keys: readonly string[]): string[] =>
   [...keys].sort((a, b) => a.localeCompare(b));
 
-const fieldKeys = (fields: readonly { key: string }[]): string[] =>
-  fields.map((field) => field.key);
+const wireKeys = (fields: readonly { key: string }[]): string[] =>
+  fields.map((field) => columnName(field.key));
 
 /** The update route of each record. A child write is not one of them: it
  *  carries the whole child, so it requires what its create does. */
@@ -73,7 +74,7 @@ describe("documented request fields", () => {
   test("a listing create names every listing field and every linked id list", () => {
     expect(keysOf(listingCreate())).toEqual(
       sorted([
-        ...fieldKeys(LISTING_FIELDS),
+        ...wireKeys(LISTING_FIELDS),
         "attribute_option_ids",
         "child_listing_ids",
         "group_ids",

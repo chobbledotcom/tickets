@@ -257,8 +257,8 @@ const markDateAllowed = (session: AuthSession, date: string): boolean => {
  * agent's own logistics agents and to the run-sheet day it was shown on. */
 const handleDeliveriesMark = (request: Request): Promise<Response> =>
   withAuth(request, DELIVERY_FORM, async (session, form) => {
-    const attendeeId = form.getOptionalInt("attendee_id");
-    const listingId = form.getOptionalInt("listing_id");
+    const attendeeId = form.getOptionalInt("attendeeId");
+    const listingId = form.getOptionalInt("listingId");
     const kind = form.getString("kind");
     const date = form.getString("date");
     const done = form.getFlag("done");

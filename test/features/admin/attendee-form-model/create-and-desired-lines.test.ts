@@ -26,12 +26,12 @@ describe("toCreateInput", () => {
         dayCount: 3,
         lines: [
           line({
-            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listing: testListingWithCount({ id: 1, listingType: "daily" }),
             listingId: 1,
             quantity: 2,
           }),
           line({
-            listing: testListingWithCount({ id: 2, listing_type: "standard" }),
+            listing: testListingWithCount({ id: 2, listingType: "standard" }),
             listingId: 2,
             quantity: 1,
           }),
@@ -67,12 +67,12 @@ describe("toDesiredLines", () => {
           line({
             existingBooking: bookingRow({ listing_id: 1 }),
             key: "1|2026-03-01T00:00:00Z",
-            listing: testListingWithCount({ id: 1, listing_type: "daily" }),
+            listing: testListingWithCount({ id: 1, listingType: "daily" }),
             listingId: 1,
             quantity: 1,
           }),
           line({
-            listing: testListingWithCount({ id: 2, listing_type: "daily" }),
+            listing: testListingWithCount({ id: 2, listingType: "daily" }),
             listingId: 2,
             quantity: 1,
           }),
@@ -228,7 +228,7 @@ describe("no-quantity persistence + paid-line guard", () => {
       parsedBase({
         lines: [
           line({
-            listing: testListingWithCount({ id: 1, listing_type: "standard" }),
+            listing: testListingWithCount({ id: 1, listingType: "standard" }),
             listingId: 1,
             noQuantity: true,
             quantity: 0,

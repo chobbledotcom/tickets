@@ -16,7 +16,6 @@ import {
   createExternalSourceLink,
   listExternalSourceLinks,
 } from "#db/external-sources/queries.ts";
-import { externalSourcesTable } from "#db/external-sources/tables.ts";
 import type {
   ExternalLinkKind,
   ExternalSourceLink,
@@ -26,15 +25,10 @@ import { deleteGroup } from "#shared/records/groups.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import { createTestExternalSource } from "#test-utils/db-helpers/external-sources.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withTestSession } from "#test-utils/session.ts";
-
-const createSource = (name: string) =>
-  externalSourcesTable.insert({
-    name,
-    urlPattern: "https://example.com/{external_id}",
-  });
 
 const addLink = async (
   sourceId: number,
@@ -58,15 +52,12 @@ const externalIds = async (sourceId: number): Promise<string[]> =>
       listExternalSourceLinks(sourceId, { kind: "all" }),
     )
   ).map((link) =>
-    requireValue(
-      link.external_id,
-      "A link in this test carries an external id",
-    ),
+    requireValue(link.externalId, "A link in this test carries an external id"),
   );
 
 describeWithEnv("db > external links follow their record", { db: true }, () => {
   test("removes an attendee's links and keeps the other attendee's", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const listing = await createTestListing();
     const gone = (
       await createTestAttendeeDirect(listing.id, "Ann", "ann@example.com")
@@ -84,7 +75,7 @@ describeWithEnv("db > external links follow their record", { db: true }, () => {
   });
 
   test("moves an attendee's links to the surviving attendee", async () => {
-    const source = await createSource("Invoices");
+    const source = await createTestExternalSource("Invoices");
     const listing = await createTestListing();
     const sourceAttendee = (
       await createTestAttendeeDirect(listing.id, "Ann", "ann@example.com")
@@ -105,11 +96,11 @@ describeWithEnv("db > external links follow their record", { db: true }, () => {
         linkType: "attendee",
       }),
     );
-    expect(moved.map((link) => link.external_id)).toEqual(["INV-1"]);
+    expect(moved.map((link) => link.externalId)).toEqual(["INV-1"]);
   });
 
   test("removes a listing's links with the listing", async () => {
-    const source = await createSource("Shipping labels");
+    const source = await createTestExternalSource("Shipping labels");
     const kept = await createTestListing({ name: "Pottery day" });
     const gone = await createTestListing({ name: "Watercolour day" });
     await addLink(source.id, "listing", gone.id, "SHIP-1");
@@ -121,7 +112,7 @@ describeWithEnv("db > external links follow their record", { db: true }, () => {
   });
 
   test("removes a group's links with the group", async () => {
-    const source = await createSource("Imports");
+    const source = await createTestExternalSource("Imports");
     const gone = await createTestGroup({ name: "Watercolour" });
     const kept = await createTestGroup({ name: "Pottery" });
     await addLink(source.id, "group", gone.id, "GROUP-1");

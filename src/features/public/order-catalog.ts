@@ -126,7 +126,7 @@ export const judgeOrderOptions = (
         holidays,
         isPackage: false,
         parents: [info],
-        quantities: new Map([[info.listing.id, info.listing.min_quantity]]),
+        quantities: new Map([[info.listing.id, info.listing.minQuantity]]),
       }),
     ),
   ),

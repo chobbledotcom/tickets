@@ -26,6 +26,7 @@ import { apiErrorResponse } from "#routes/api/cors.ts";
 import { jsonResponse } from "#routes/response.ts";
 import type { RouteHandlerFn, RouteParams } from "#routes/router.ts";
 import type { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { withoutKey } from "#shared/fp-records.ts";
 import {
   performListingDelete,
@@ -106,9 +107,9 @@ const handleToggleActive = (
     return jsonResponse({ listing: await toApiListing(result.updated) });
   });
 
-/** Strip slug_index from listing row, producing the admin API shape */
+/** Strip the slug index from a listing row, producing the admin listing shape */
 export const toAdminListing: (row: ListingWithCount) => AdminListing =
-  withoutKey("slug_index");
+  withoutKey("slugIndex");
 
 /** Batched join-table hydration for a set of listing rows, keyed by listing
  * id. One query per link table covers the whole list rather than one per row.
@@ -137,7 +138,7 @@ const toApiListing = async (
   row: ListingWithCount,
 ): Promise<Record<string, unknown>> =>
   withoutHiddenKeys(LISTING_WRITE_KEYS, {
-    ...toAdminListing(row),
+    ...snakeCaseKeys(toAdminListing(row)),
     ...(await hydrateListingJoins([row])).get(row.id),
   });
 

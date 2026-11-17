@@ -47,14 +47,21 @@ const FIELD_LABELS = {
   meta_title: () => t("fields.meta_title"),
 } as const;
 
+/** The cap of each writable text field, keyed by the JSON field name. */
+const TEXT_LIMITS: Record<keyof typeof FIELD_LABELS, number> = {
+  content: CONTENT_FIELD_LIMITS.content,
+  meta_description: CONTENT_FIELD_LIMITS.metaDescription,
+  meta_title: CONTENT_FIELD_LIMITS.metaTitle,
+};
+
 /** The stored text values the writable text fields keep when the body is
  *  silent, keyed by the JSON field name. */
 const storedText = (
   existing: SitePage | null,
 ): Record<keyof typeof FIELD_LABELS, string> => ({
   content: existing?.content ?? "",
-  meta_description: existing?.meta_description ?? "",
-  meta_title: existing?.meta_title ?? "",
+  meta_description: existing?.metaDescription ?? "",
+  meta_title: existing?.metaTitle ?? "",
 });
 
 /** One writable text field, cleaned the way the form cleans it. A value past
@@ -64,7 +71,7 @@ const cleanedText = (
   key: keyof typeof FIELD_LABELS,
 ): Result<string> => {
   const text = key === "content" ? markdownSource(value) : value.trim();
-  const max = CONTENT_FIELD_LIMITS[key];
+  const max = TEXT_LIMITS[key];
   return text.length > max ? tooLong(FIELD_LABELS[key](), max) : okResult(text);
 };
 
@@ -193,7 +200,7 @@ const dropCurrentEdgeThen =
     next: (tx: TxScope) => Promise<boolean>,
   ) =>
   async (tx: TxScope): Promise<boolean> => {
-    if (edge) await removePageItem(edge.page_id, "page", pageId, tx);
+    if (edge) await removePageItem(edge.pageId, "page", pageId, tx);
     return next(tx);
   };
 
@@ -210,7 +217,7 @@ export const planParentChange = async (
   raw: unknown,
 ): Promise<Result<(tx: TxScope) => Promise<boolean>>> => {
   const currentEdge = (await getAllPageItems()).find(
-    (item) => item.item_type === "page" && item.item_id === page.id,
+    (item) => item.itemType === "page" && item.itemId === page.id,
   );
   if (raw === null) {
     return okResult(

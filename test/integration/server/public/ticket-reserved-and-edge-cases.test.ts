@@ -135,8 +135,8 @@ describeWithEnv(
           mockFormRequest(`/ticket/${listing.slug}?iframe=true`, {
             email: "jane@example.com",
             name: "Jane Doe",
-            [`quantity_${listing.id}`]: "1",
-            csrf_token: csrfToken!,
+            [`quantity${listing.id}`]: "1",
+            csrfToken: csrfToken!,
           }),
         );
         expect(response.status).toBe(302);
@@ -265,8 +265,8 @@ describeWithEnv(
           {
             email: "multifree@example.com",
             name: "Multi Free User",
-            [`quantity_${listing1.id}`]: "2",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "2",
+            [`quantity${listing2.id}`]: "1",
           },
         );
 

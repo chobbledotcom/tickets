@@ -9,7 +9,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { type Stub, spy, stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
-import type { BuiltSiteRow } from "#db/built-sites/types.ts";
+import type { BuiltSite } from "#db/built-sites/types.ts";
 import {
   insertBuiltSite,
   updateBuiltSiteRenewalState,
@@ -33,9 +33,9 @@ const tierEntry = (
       active: true,
       hidden: true,
       id: listingId,
-      months_per_unit: monthsPerUnit,
-      purchase_only: true,
-      unit_price: 100,
+      monthsPerUnit: monthsPerUnit,
+      purchaseOnly: true,
+      unitPrice: 100,
     },
     { quantity },
   );
@@ -44,7 +44,7 @@ const tierEntry = (
 const siteWithToken = async (
   name: string,
   token: string,
-): Promise<{ site: BuiltSiteRow; tokenIndex: string }> => {
+): Promise<{ site: BuiltSite; tokenIndex: string }> => {
   const site = await insertBuiltSite(
     name,
     `${token}.test.net`,
@@ -99,13 +99,16 @@ const renewWithPush = async (
   };
 };
 
-/** The newest renewal line in the activity log. */
-const renewalLogEntry = async (): Promise<
-  { message: string; listing_id: number | null } | undefined
+/** The renewal lines in the activity log. */
+const renewalLogEntries = async (): Promise<
+  { message: string; listingId: number | null }[]
 > =>
-  (await getAllActivityLog()).find((entry) =>
+  (await getAllActivityLog()).filter((entry) =>
     entry.message.startsWith("Renewal of"),
   );
+
+/** The newest renewal line in the activity log. */
+const renewalLogEntry = async () => (await renewalLogEntries())[0];
 
 describeWithEnv(
   "built-site renewals from an order",
@@ -149,7 +152,7 @@ describeWithEnv(
         true,
       );
 
-      expect((await renewalLogEntry())?.listing_id).toBe(111);
+      expect((await renewalLogEntry())?.listingId).toBe(111);
     });
 
     test("refuses an order whose listing is not a renewal tier", async () => {
@@ -159,9 +162,9 @@ describeWithEnv(
           active: true,
           hidden: false,
           id: 55,
-          months_per_unit: 0,
-          purchase_only: false,
-          unit_price: 100,
+          monthsPerUnit: 0,
+          purchaseOnly: false,
+          unitPrice: 100,
         },
         { quantity: 1 },
       );
@@ -171,7 +174,7 @@ describeWithEnv(
         logged,
         "Renewal rejected: listing 55 is not an active hidden purchase-only renewal tier",
       );
-      expect(await renewalLogEntry()).toBeUndefined();
+      expect(await renewalLogEntries()).toEqual([]);
     });
 
     test("names the unknown token by its first eight characters only", async () => {
@@ -204,7 +207,7 @@ describeWithEnv(
         logged,
         "Failed to push READ_ONLY_FROM for renewal of 'Renew Fail': provider refused",
       );
-      expect(await renewalLogEntry()).toBeUndefined();
+      expect(await renewalLogEntries()).toEqual([]);
     });
 
     test("ignores a line that is not a renewal tier at all", async () => {
@@ -213,16 +216,16 @@ describeWithEnv(
         {
           active: true,
           hidden: false,
-          months_per_unit: 0,
-          purchase_only: false,
-          unit_price: 100,
+          monthsPerUnit: 0,
+          purchaseOnly: false,
+          unitPrice: 100,
         },
         { quantity: 1 },
       );
 
       await renewWithPush([notATier], tokenIndex, true);
 
-      expect(await renewalLogEntry()).toBeUndefined();
+      expect(await renewalLogEntries()).toEqual([]);
     });
 
     test("does nothing at all without a renewal token", async () => {
@@ -234,7 +237,7 @@ describeWithEnv(
         true,
       );
       expect(logged).toBe("");
-      expect(await renewalLogEntry()).toBeUndefined();
+      expect(await renewalLogEntries()).toEqual([]);
     });
   },
 );

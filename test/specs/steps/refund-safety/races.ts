@@ -96,7 +96,7 @@ Given(
       throw new Error("Both owner forms have not been rendered");
     }
     for (const form of [forms.first, forms.second]) {
-      expect(form.typedValues).toEqual({ confirm_identifier: who });
+      expect(form.typedValues).toEqual({ confirmIdentifier: who });
       expectCanReallySend(form.formHtml, form.typedValues);
     }
   },

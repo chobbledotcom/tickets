@@ -55,13 +55,6 @@ export const toCanonicalIso = (
   return ms === null ? undefined : new Date(ms).toISOString();
 };
 
-/** Shared shape for a provider credential check in connection-test results. */
-export type CredentialCheck = {
-  valid: boolean;
-  error?: string;
-  mode?: string;
-};
-
 /** Error subclass for user-facing payment validation errors (e.g. invalid phone number).
  * These propagate to the user through the guarded runners. */
 export class PaymentUserError extends namedError("PaymentUserError") {}

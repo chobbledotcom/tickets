@@ -1,5 +1,5 @@
-import { attendeeStatuses } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
+import { records } from "#db/record-table.ts";
 import { bookedAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
@@ -68,10 +68,10 @@ const makeOwingAttendee =
       ...(options.listingName ? { name: options.listingName } : {}),
       thankYouUrl: "https://example.com",
     });
-    const status = await attendeeStatuses.table.insert({
-      isReservation,
+    const status = await records.attendee_statuses.insert({
+      isReservation: isReservation,
       name: statusName,
-      reservationAmount,
+      reservationAmount: reservationAmount,
     });
     const attendeeId = await bookAttendeeOwing(
       listing.id,

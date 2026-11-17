@@ -69,14 +69,14 @@ export const dateOptionsFor = (
   listing: ListingWithCount,
   attendees: Attendee[],
 ): DateOption[] =>
-  listing.listing_type === "daily" ? getUniqueDates(attendees) : [];
+  listing.listingType === "daily" ? getUniqueDates(attendees) : [];
 
 /** The roster's controls: the day filter for a daily listing, the check-in
  *  filter, sort, and its CSV download. The sort is the table's own
  *  date-and-name order unless the address says otherwise. No listing
  *  dropdown, types, or paging. */
 export const rosterListSetup = (
-  listing: { id: number; listing_type: string },
+  listing: { id: number; listingType: string },
   dates: DateOption[],
 ): AttendeeListSetup<null> => ({
   basePath: `/admin/listing/${listing.id}/attendees`,
@@ -86,7 +86,7 @@ export const rosterListSetup = (
   groups: [],
   listings: [],
   withCheckin: true,
-  withDates: listing.listing_type === "daily",
+  withDates: listing.listingType === "daily",
   withPaging: false,
   withTypes: false,
 });
@@ -176,7 +176,7 @@ export const loadGroupContext = async (
   const groupsById = await getGroupsByIds(groupIds);
   const capped = groupIds.flatMap((groupId) => {
     const group = groupsById.get(groupId);
-    return group && group.max_attendees > 0 ? [group] : [];
+    return group && group.maxAttendees > 0 ? [group] : [];
   });
   if (capped.length === 0) return;
   const remainingMap = await getRemaining(
@@ -195,7 +195,7 @@ export const loadGroupContext = async (
     );
     if (tightest === undefined || remaining < tightest.remaining) {
       tightest = {
-        ctx: { attendeeCount: group.max_attendees - remaining, group },
+        ctx: { attendeeCount: group.maxAttendees - remaining, group },
         remaining,
       };
     }

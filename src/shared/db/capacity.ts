@@ -83,14 +83,14 @@ type BookedLine = Node<"listing_attendees">;
 const notBookedBy =
   (excludeAttendeeId: Operand<number> | null) =>
   (line: BookedLine): Condition =>
-    excludeAttendeeId === null || notEqual(line.attendee_id, excludeAttendeeId);
+    excludeAttendeeId === null || notEqual(line.attendeeId, excludeAttendeeId);
 
 /** Keeps the rows that occupy some part of the day window. */
 const overlapping =
   (dayRange: CountingDayRange) =>
   (line: BookedLine): Condition[] => [
-    lessThan(line.start_at, dayRange.end),
-    greaterThan(line.end_at, dayRange.start),
+    lessThan(line.startAt, dayRange.end),
+    greaterThan(line.endAt, dayRange.start),
   ];
 
 /** Keeps the rows of other attendees that occupy some part of the day
@@ -109,7 +109,7 @@ const quantityOf = <Line extends BookedLine>(
 
 /** The booking rows of one listing. */
 const listingLines = (listingId: Operand<number>) =>
-  bookedLines().where((line) => equal(line.listing_id, listingId));
+  bookedLines().where((line) => equal(line.listingId, listingId));
 
 /** The row of the listing itself. */
 const listingRow = (listingId: Operand<number>) =>
@@ -125,20 +125,15 @@ const dailyListingCount = (
   );
   return listingRow(values.listingId).scalar((listing) =>
     when(
-      [
-        [
-          capacityRuleTypeSql("perDateCap", listing.listing_type),
-          bookedThatDay,
-        ],
-      ],
-      listing.booked_quantity,
+      [[capacityRuleTypeSql("perDateCap", listing.listingType), bookedThatDay]],
+      listing.bookedQuantity,
     ),
   );
 };
 
 const undatedListingCount = (values: CountValues): Expr<Counted | null> => {
   const booked = listingRow(values.listingId).scalar(
-    (listing) => listing.booked_quantity,
+    (listing) => listing.bookedQuantity,
   );
   const { excludeAttendeeId } = values;
   if (excludeAttendeeId === null) return booked;
@@ -146,7 +141,7 @@ const undatedListingCount = (values: CountValues): Expr<Counted | null> => {
     booked,
     quantityOf(
       listingLines(values.listingId).where((line) =>
-        equal(line.attendee_id, excludeAttendeeId),
+        equal(line.attendeeId, excludeAttendeeId),
       ),
     ),
   );
@@ -173,32 +168,30 @@ export const groupRunningTotal = (
     from(tables.listings)
       .as("memberListing")
       .join("memberLink", tables.group_listings, (listing) =>
-        equal(listing.memberLink.listing_id, listing.id),
+        equal(listing.memberLink.listingId, listing.id),
       )
       .where((listing) => [
-        equal(listing.memberLink.group_id, groupId),
-        rule === null || capacityRuleTypeSql(rule, listing.listing_type),
+        equal(listing.memberLink.groupId, groupId),
+        rule === null || capacityRuleTypeSql(rule, listing.listingType),
       ])
-      .scalar((listing) => sum(listing.booked_quantity)),
+      .scalar((listing) => sum(listing.bookedQuantity)),
   );
 
 /** The booking rows of the group's member listings. */
 const memberLines = (groupId: Operand<number>) =>
   bookedLines()
     .join("memberLink", tables.group_listings, (line) =>
-      equal(line.memberLink.listing_id, line.listing_id),
+      equal(line.memberLink.listingId, line.listingId),
     )
-    .where((line) => equal(line.memberLink.group_id, groupId));
+    .where((line) => equal(line.memberLink.groupId, groupId));
 
 /** The booking rows of the group's member listings that carry `rule`. */
 const memberLinesWithRule = (groupId: Operand<number>, rule: CapacityRuleKey) =>
   memberLines(groupId)
     .join("memberListing", tables.listings, (line) =>
-      equal(line.memberListing.id, line.listing_id),
+      equal(line.memberListing.id, line.listingId),
     )
-    .where((line) =>
-      capacityRuleTypeSql(rule, line.memberListing.listing_type),
-    );
+    .where((line) => capacityRuleTypeSql(rule, line.memberListing.listingType));
 
 /** What the excluded attendee holds in the running total, so an edit does not
  *  count its own rows. */
@@ -212,7 +205,7 @@ const lessOwnRows = (
     : minus(
         total,
         quantityOf(
-          ownRows.where((line) => equal(line.attendee_id, excludeAttendeeId)),
+          ownRows.where((line) => equal(line.attendeeId, excludeAttendeeId)),
         ),
       );
 
@@ -267,7 +260,7 @@ const listingCap = (count: CountValues, quantity: number): Expr<boolean> =>
     plus(buildListingCountSql(count), quantity),
     listingRow(count.listingId)
       .where((listing) => equal(listing.active, literal(1)))
-      .scalar((listing) => listing.max_attendees),
+      .scalar((listing) => listing.maxAttendees),
   );
 
 /**
@@ -282,14 +275,14 @@ const dayCapacity = (count: CountValues, quantity: number): Expr<boolean> => {
   // listing has no offending group and NOT EXISTS is satisfied.
   const overfullGroup = from(tables.group_listings, { group: {} }).where(
     (membership) => [
-      equal(membership.listing_id, listingId),
-      greaterThan(membership.group.max_attendees, literal(0)),
+      equal(membership.listingId, listingId),
+      greaterThan(membership.group.maxAttendees, literal(0)),
       greaterThan(
         plus(
           buildGroupCountSql(dayRange, excludeAttendeeId, membership.group.id),
           quantity,
         ),
-        membership.group.max_attendees,
+        membership.group.maxAttendees,
       ),
     ],
   );

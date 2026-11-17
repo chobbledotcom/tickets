@@ -167,7 +167,7 @@ const uploadForm = (
   const heading = document.createElement("h3");
   heading.textContent = UPLOAD_LABELS.heading;
   const nameField = uploadField("name", UPLOAD_LABELS.name, "text", true);
-  const altField = uploadField("alt_text", UPLOAD_LABELS.altText, "text");
+  const altField = uploadField("altText", UPLOAD_LABELS.altText, "text");
   const fileField = uploadField("image", UPLOAD_LABELS.file, "file");
   fileField.querySelector<HTMLInputElement>('input[name="image"]')!.accept =
     IMAGE_UPLOAD_ACCEPT;
@@ -185,7 +185,7 @@ const uploadForm = (
 
   const nameInput = form.querySelector<HTMLInputElement>('input[name="name"]')!;
   const altInput = form.querySelector<HTMLInputElement>(
-    'input[name="alt_text"]',
+    'input[name="altText"]',
   )!;
   const fileInput = form.querySelector<HTMLInputElement>(
     'input[name="image"]',
@@ -203,9 +203,9 @@ const uploadForm = (
     // travel as a native Blob so the server sees the upload unchanged.
     void (async () => {
       const body = new FormData();
-      body.append("csrf_token", csrfToken);
+      body.append("csrfToken", csrfToken);
       body.append("name", nameInput.value);
-      body.append("alt_text", altInput.value);
+      body.append("altText", altInput.value);
       const file = fileInput.files?.[0];
       if (file !== undefined && file !== null) {
         body.append(

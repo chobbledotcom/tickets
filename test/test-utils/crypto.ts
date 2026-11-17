@@ -61,7 +61,7 @@ export const getTestDataKey = async (): Promise<CryptoKey> => {
   );
   const token = sessionMatch![1]!;
   const session = await getSession(token);
-  return unwrapKeyWithToken(session!.wrapped_data_key!, token);
+  return unwrapKeyWithToken(session!.wrappedDataKey!, token);
 };
 
 export const getTestPrivateKey = async (): Promise<CryptoKey> => {

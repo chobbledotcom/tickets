@@ -7,10 +7,10 @@ import {
 import { generateSecureToken } from "#crypto/utils.ts";
 import { clearLoginAttempts, loginLimiter } from "#db/login-attempts.ts";
 import { createSession, deleteSession } from "#db/sessions.ts";
+import { migrateUserToV2Kek } from "#db/user-activation.ts";
 import {
   decryptAdminLevel,
   getUserByUsername,
-  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
 import { t } from "#i18n";
@@ -18,7 +18,6 @@ import { loginResponse } from "#routes/admin/dashboard.ts";
 import {
   adminLoginPageHref,
   adminReturnPath,
-  RETURN_URL_PARAM,
 } from "#routes/admin/login-return.ts";
 import { defineAdminRoutes } from "#routes/admin/route-tables.ts";
 import {
@@ -95,10 +94,10 @@ const handleAdminLogin = async (
 
   // Where a successful login sends the user: the page the login form named,
   // or the role's landing page. The validator refuses every off-site shape.
-  const returnPath = adminReturnPath(form.getString(RETURN_URL_PARAM));
+  const returnPath = adminReturnPath(form.getString("returnUrl"));
 
   // Validate login CSRF token (signed token pattern)
-  const csrfForm = form.getString("csrf_token");
+  const csrfForm = form.getString("csrfToken");
   if (!csrfForm || !(await verifySignedCsrfToken(csrfForm))) {
     return fail(adminLoginPageHref(returnPath), t("error.csrf_invalid"));
   }
@@ -143,7 +142,7 @@ const handleAdminLogin = async (
   // other role a missing wrap means the account was never activated. Password
   // verification has already passed, so an editor reaching here has set a
   // password and is genuinely active.
-  if (!user.wrapped_data_key) {
+  if (!user.wrappedDataKey) {
     if (adminLevel === "editor") {
       return createLoginSession(null, user.id, adminLevel, returnPath);
     }
@@ -160,12 +159,12 @@ const handleAdminLogin = async (
   let dataKey: CryptoKey;
   try {
     dataKey =
-      user.kek_version >= 2
+      user.kekVersion >= 2
         ? await unwrapKey(
-            user.wrapped_data_key,
+            user.wrappedDataKey,
             await deriveKEKFromPassword(password, passwordHash),
           )
-        : await unwrapKey(user.wrapped_data_key, await deriveKEK(passwordHash));
+        : await unwrapKey(user.wrappedDataKey, await deriveKEK(passwordHash));
   } catch {
     // KEK mismatch. This cannot happen when password verification passed.
     return failedCredentialsRedirect();
@@ -173,7 +172,7 @@ const handleAdminLogin = async (
 
   // Upgrade a legacy wrap to the password-bound scheme now that we hold the raw
   // password — closes the DB-dump-recoverable path for this user going forward.
-  if (user.kek_version < 2) {
+  if (user.kekVersion < 2) {
     await migrateUserToV2Kek(user.id, dataKey, password, passwordHash);
   }
 

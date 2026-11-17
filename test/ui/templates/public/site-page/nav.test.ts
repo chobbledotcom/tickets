@@ -18,13 +18,13 @@ describe("sitePagePage (nav-model race)", () => {
       content: "Still **here**",
       hidden: false,
       id: 99,
-      meta_description: "",
-      meta_title: "",
+      metaDescription: "",
+      metaTitle: "",
       name: "Racy Page",
       slug: "racy",
       // Hand-crafted fixture stand-in for the blind index — test cast.
-      slug_index: "idx" as BlindIndex,
-      sort_order: 0,
+      slugIndex: "idx" as BlindIndex,
+      sortOrder: 0,
     };
     const model = buildNavModel(
       buildForest([page(1)], []),

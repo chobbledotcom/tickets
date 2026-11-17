@@ -98,7 +98,7 @@ const resumeRejectedTarget = async (
   returned: ReturnedRejectionReceipt,
   existing: ProcessedPayment,
 ): Promise<void> => {
-  if (existing.attendee_id !== null || existing.failure_data === "") return;
+  if (existing.attendeeId !== null || existing.failureData === "") return;
   const reference = taggedPaymentReference(
     rejection.provider,
     rejection.paymentReference,

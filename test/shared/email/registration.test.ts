@@ -173,7 +173,7 @@ describeWithEnv(
     });
 
     test("sends a purchase-only ticket without a QR picture", async () => {
-      await setupAndSendRegistration({}, [makeEntry({ purchase_only: true })]);
+      await setupAndSendRegistration({}, [makeEntry({ purchaseOnly: true })]);
 
       const body = fetch.getFetchJsonBody();
       const parts: SentPart[] = body.attachments;

@@ -8,6 +8,9 @@ import { sql } from "#db/sql.ts";
 import {
   acceptInvite,
   activateKeylessUser,
+  migrateUserToV2Kek,
+} from "#db/user-activation.ts";
+import {
   createInvitedUser,
   createUser,
   decryptAdminLevel,
@@ -23,7 +26,6 @@ import {
   isInviteExpired,
   isInviteValid,
   isUsernameTaken,
-  migrateUserToV2Kek,
   verifyUserPassword,
 } from "#db/users.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
@@ -66,7 +68,7 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     );
 
     expect(await getUserAuthFieldsById(invited.id)).toEqual({
-      admin_level: invited.admin_level,
+      adminLevel: invited.adminLevel,
       id: invited.id,
     });
   });
@@ -118,9 +120,9 @@ describeWithEnv("db > users contracts", { db: true }, () => {
   test("creates activated users with the password-bound KEK version", async () => {
     const user = await createUser("active-user", "", null, "manager");
 
-    expect(user.kek_version).toBe(2);
-    expect(user.invite_code_hash).toBeNull();
-    expect(user.invite_expiry).toBeNull();
+    expect(user.kekVersion).toBe(2);
+    expect(user.inviteCodeHash).toBeNull();
+    expect(user.inviteExpiry).toBeNull();
   });
 
   test("finds taken usernames without marking a missing name as taken", async () => {
@@ -144,13 +146,13 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     );
     const expired = {
       ...current,
-      invite_expiry: await encrypt("2020-01-01T00:00:00.000Z"),
+      inviteExpiry: await encrypt("2020-01-01T00:00:00.000Z"),
     };
     const states = [
-      { ...current, invite_code_hash: null },
-      { ...current, invite_code_hash: await encrypt("") },
-      { ...current, invite_expiry: null },
-      { ...current, invite_expiry: await encrypt("") },
+      { ...current, inviteCodeHash: null },
+      { ...current, inviteCodeHash: await encrypt("") },
+      { ...current, inviteExpiry: null },
+      { ...current, inviteExpiry: await encrypt("") },
       current,
       expired,
     ];
@@ -180,13 +182,13 @@ describeWithEnv("db > users contracts", { db: true }, () => {
       "keyless-invite",
       "2099-01-01T00:00:00.000Z",
     );
-    expect(user.kek_version).toBe(1);
+    expect(user.kekVersion).toBe(1);
 
     expect(await activateKeylessUser(user.id, "keyless-pass")).toBe(true);
     const activated = (await getUserById(user.id))!;
-    expect(activated.kek_version).toBe(2);
-    expect(await decrypt(activated.invite_code_hash!)).toBe("");
-    expect(await decrypt(activated.invite_expiry!)).toBe("");
+    expect(activated.kekVersion).toBe(2);
+    expect(await decrypt(activated.inviteCodeHash!)).toBe("");
+    expect(await decrypt(activated.inviteExpiry!)).toBe("");
     expect(
       (await verifyUserPassword(activated, "keyless-pass"))?.split(":")[0],
     ).toBe("pbkdf2");
@@ -208,11 +210,11 @@ describeWithEnv("db > users contracts", { db: true }, () => {
       await acceptInvite(user.id, handoff, inviteCode, "handoff-pass"),
     ).toBe(true);
     const activated = (await getUserById(user.id))!;
-    expect(activated.kek_version).toBe(2);
-    expect(activated.wrapped_data_key).not.toBeNull();
-    expect(activated.invite_wrapped_data_key).toBeNull();
-    expect(await decrypt(activated.invite_code_hash!)).toBe("");
-    expect(await decrypt(activated.invite_expiry!)).toBe("");
+    expect(activated.kekVersion).toBe(2);
+    expect(activated.wrappedDataKey).not.toBeNull();
+    expect(activated.inviteWrappedDataKey).toBeNull();
+    expect(await decrypt(activated.inviteCodeHash!)).toBe("");
+    expect(await decrypt(activated.inviteExpiry!)).toBe("");
   });
 
   test("migrates a legacy user to the password-bound KEK version", async () => {
@@ -234,8 +236,8 @@ describeWithEnv("db > users contracts", { db: true }, () => {
     );
 
     const migrated = (await getUserById(user.id))!;
-    expect(migrated.kek_version).toBe(2);
-    expect(migrated.wrapped_data_key).not.toBeNull();
+    expect(migrated.kekVersion).toBe(2);
+    expect(migrated.wrappedDataKey).not.toBeNull();
   });
 
   test("deletes the user and every owned access record", async () => {

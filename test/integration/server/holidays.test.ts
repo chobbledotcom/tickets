@@ -41,8 +41,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         mockFormRequest(
           "/admin/users",
           {
-            admin_level: "manager",
-            csrf_token: await testCsrfToken(),
+            adminLevel: "manager",
+            csrfToken: await testCsrfToken(),
             username: "manager1",
           },
           await testCookie(),
@@ -66,9 +66,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
       const joinResponse = await handleRequest(
         mockFormRequest(`/join/${inviteToken}`, {
-          csrf_token: joinCsrf,
+          csrfToken: joinCsrf,
           password: "managerpass123",
-          password_confirm: "managerpass123",
+          passwordConfirm: "managerpass123",
         }),
       );
       expect(joinResponse.status).toBe(302);
@@ -142,9 +142,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
   describe("POST /admin/holidays", () => {
     testRequiresAuth("/admin/holidays", {
       body: {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Test",
-        start_date: "2026-12-25",
+        startDate: "2026-12-25",
       },
       method: "POST",
     });
@@ -156,16 +156,16 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       test(testName, async () => {
         const holiday = await createTestHoliday({ endDate, name, startDate });
         expect(holiday.name).toBe(name);
-        expect(holiday.start_date).toBe(startDate);
-        expect(holiday.end_date).toBe(endDate);
+        expect(holiday.startDate).toBe(startDate);
+        expect(holiday.endDate).toBe(endDate);
       });
     }
 
     test("rejects missing name", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "",
-        start_date: "2026-12-25",
+        startDate: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -177,9 +177,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects missing start_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Test",
-        start_date: "",
+        startDate: "",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -191,9 +191,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects missing end_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
-        end_date: "",
+        endDate: "",
         name: "Test",
-        start_date: "2026-12-25",
+        startDate: "2026-12-25",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -205,9 +205,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects invalid date format", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Test",
-        start_date: "not-a-date",
+        startDate: "not-a-date",
       });
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("valid date"), false);
@@ -215,9 +215,9 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
 
     test("rejects end_date before start_date", async () => {
       const { response } = await adminFormPost("/admin/holidays", {
-        end_date: "2026-12-25",
+        endDate: "2026-12-25",
         name: "Test",
-        start_date: "2026-12-26",
+        startDate: "2026-12-26",
       });
       expect(response.status).toBe(302);
       expectFlash(
@@ -261,8 +261,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       endDate: "2026-12-27",
     });
     expect(updated.name).toBe("Christmas");
-    expect(updated.start_date).toBe(holiday.start_date);
-    expect(updated.end_date).toBe("2026-12-27");
+    expect(updated.startDate).toBe(holiday.startDate);
+    expect(updated.endDate).toBe("2026-12-27");
   });
 
   describe("getActiveHolidays", () => {
@@ -293,8 +293,8 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
       );
       const values = holidayToFieldValues();
       expect(values.name).toBe("");
-      expect(values.start_date).toBe("");
-      expect(values.end_date).toBe("");
+      expect(values.startDate).toBe("");
+      expect(values.endDate).toBe("");
     });
 
     test("returns holiday values when holiday provided", async () => {
@@ -302,14 +302,14 @@ describeWithEnv("server (admin holidays)", { db: true }, () => {
         "#templates/admin/holidays.tsx"
       );
       const holiday = testHoliday({
-        end_date: "2026-01-02",
+        endDate: "2026-01-02",
         name: "Test",
-        start_date: "2026-01-01",
+        startDate: "2026-01-01",
       });
       const values = holidayToFieldValues(holiday);
       expect(values.name).toBe("Test");
-      expect(values.start_date).toBe("2026-01-01");
-      expect(values.end_date).toBe("2026-01-02");
+      expect(values.startDate).toBe("2026-01-01");
+      expect(values.endDate).toBe("2026-01-02");
     });
   });
 });

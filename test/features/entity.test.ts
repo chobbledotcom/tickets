@@ -144,11 +144,7 @@ describeWithEnv("entity route handlers", { db: true }, () => {
     );
 
     const response = await route(
-      mockFormRequest(
-        "/admin/items/12",
-        { csrf_token: csrfToken, value: "saved" },
-        cookie,
-      ),
+      mockFormRequest("/admin/items/12", { csrfToken, value: "saved" }, cookie),
       { id: 12 },
     );
 

@@ -12,10 +12,10 @@ import type { AdminLevel } from "#types";
 
 const STORED = testListingWithCount({
   active: true,
-  max_attendees: 10,
+  maxAttendees: 10,
   name: "Hall",
-  use_defaults: false,
-  webhook_url: "",
+  useDefaults: false,
+  webhookUrl: "",
 });
 
 /** The refusal or the read value of one update body from a writer. */

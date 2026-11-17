@@ -37,14 +37,14 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
         ["page", child.id],
       ] as const) {
         const { response } = await adminFormPost(`${BASE}/${page.id}/items`, {
-          item_id: String(id),
-          item_type: type,
+          itemId: String(id),
+          itemType: type,
         });
         expectRedirect(response);
         expectFlash(response, "Added to page", true);
       }
       const items = await getItemsForPage(page.id);
-      expect(items.map((i) => i.item_type)).toEqual([
+      expect(items.map((i) => i.itemType)).toEqual([
         "listing",
         "group",
         "page",
@@ -75,8 +75,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const listing = await createTestListing({ name: "Once" });
       await addPageItem(page.id, "listing", listing.id);
       const { response } = await adminFormPost(`${BASE}/${page.id}/items`, {
-        item_id: String(listing.id),
-        item_type: "listing",
+        itemId: String(listing.id),
+        itemType: "listing",
       });
       expectErrorFlash(response, "can't be added");
       expect((await getItemsForPage(page.id)).length).toBe(1);
@@ -170,8 +170,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const other = await seedPage("actives-2");
       for (const id of [inactive.id, tier.id, child.id]) {
         const { response } = await adminFormPost(`${BASE}/${other.id}/items`, {
-          item_id: String(id),
-          item_type: "listing",
+          itemId: String(id),
+          itemType: "listing",
         });
         expectErrorFlash(response, "can't be added");
       }
@@ -182,21 +182,21 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       const page = await seedPage("guarded");
       // A real listing id that doesn't exist → ineligible (not "invalid").
       const bad = await adminFormPost(`${BASE}/${page.id}/items`, {
-        item_id: "9999",
-        item_type: "listing",
+        itemId: "9999",
+        itemType: "listing",
       });
       expectErrorFlash(bad.response, "can't be added");
       // A bad item_type with an otherwise-valid id → invalid-item (the type
       // check alone must reject, independent of the id).
       const badType = await adminFormPost(`${BASE}/${page.id}/items`, {
-        item_id: "5",
-        item_type: "nonsense",
+        itemId: "5",
+        itemType: "nonsense",
       });
       expectErrorFlash(badType.response, "Please choose something to add");
       // A missing id with a valid type → invalid-item (the id check alone).
       const noId = await adminFormPost(`${BASE}/${page.id}/items`, {
-        item_id: "",
-        item_type: "listing",
+        itemId: "",
+        itemType: "listing",
       });
       expectErrorFlash(noId.response, "Please choose something to add");
       expect((await getItemsForPage(page.id)).length).toBe(0);
@@ -209,8 +209,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await addPageItem(a.id, "page", child.id);
       // b's picker won't offer child, and the server revalidation rejects it.
       const { response } = await adminFormPost(`${BASE}/${b.id}/items`, {
-        item_id: String(child.id),
-        item_type: "page",
+        itemId: String(child.id),
+        itemType: "page",
       });
       expectRedirect(response);
       expect((await getItemsForPage(b.id)).length).toBe(0);
@@ -225,7 +225,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await addPageItem(page.id, "listing", l2.id);
       await addPageItem(page.id, "listing", l3.id);
       const ids = async (): Promise<number[]> =>
-        (await getItemsForPage(page.id)).map((i) => i.item_id);
+        (await getItemsForPage(page.id)).map((i) => i.itemId);
 
       // Move the middle item up (index 1 → 0): l2, l1, l3.
       const up = await adminFormPost(
@@ -277,8 +277,8 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       expect(
         (
           await adminFormPost(`${BASE}/9999/items`, {
-            item_id: "1",
-            item_type: "listing",
+            itemId: "1",
+            itemType: "listing",
           })
         ).response.status,
       ).toBe(404);

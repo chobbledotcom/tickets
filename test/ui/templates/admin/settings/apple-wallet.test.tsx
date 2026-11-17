@@ -21,8 +21,8 @@ describe("AppleWalletForm", () => {
     );
 
     expectIncludesAll(html, [
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_pass_type_id" placeholder="pass.com.example.tickets" type="text" value="pass.com.example.tickets">`,
-      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="apple_wallet_team_id" placeholder="ABC1234567" type="text" value="ABC1234567">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="appleWalletPassTypeId" placeholder="pass.com.example.tickets" type="text" value="pass.com.example.tickets">`,
+      `<input autocomplete="off" maxlength="${MAX_INPUT_LENGTH}" name="appleWalletTeamId" placeholder="ABC1234567" type="text" value="ABC1234567">`,
       "<label>Pass Type ID<input",
       "<label>Team ID<input",
     ]);
@@ -32,9 +32,9 @@ describe("AppleWalletForm", () => {
     const html = String(AppleWalletForm(advancedDefaultState));
 
     for (const name of [
-      "apple_wallet_signing_cert",
-      "apple_wallet_signing_key",
-      "apple_wallet_wwdr_cert",
+      "appleWalletSigningCert",
+      "appleWalletSigningKey",
+      "appleWalletWwdrCert",
     ]) {
       expectIncludesAll(html, [
         `maxlength="${MAX_TEXTAREA_LENGTH}" name="${name}"`,

@@ -3,39 +3,30 @@
  */
 
 import { decrypt, encrypt } from "#crypto/encryption.ts";
-import {
-  hashPassword,
-  hashSessionToken,
-  hmacHash,
-  verifyPassword,
-} from "#crypto/hashing.ts";
-import { unwrapKeyWithToken, wrapDataKeyForPassword } from "#crypto/keys.ts";
+import { hashSessionToken, hmacHash, verifyPassword } from "#crypto/hashing.ts";
 import type {
   EnvKeyEncrypted,
   PasswordHash,
   WrappedKey,
 } from "#crypto/sealed.ts";
-import {
-  deleteByFieldBatch,
-  execute,
-  insert,
-  insertedRowId,
-  queryAll,
-} from "#db/client.ts";
-import {
-  createKeyedCache,
-  registerCache,
-  registerTableInvalidation,
-} from "#db/common-schema.ts";
-import { executeChangedRow } from "#db/guarded-writes.ts";
+import { inOneBatch, removalWithChildren } from "#db/child-rows.ts";
+import { execute, insertedRowId, queryAll } from "#db/client.ts";
+import { createKeyedCache } from "#db/keyed-cache.ts";
+import { records } from "#db/record-table.ts";
 import { from } from "#db/select/query.ts";
 import { tables } from "#db/select/tables.ts";
-import { sql, sqlList } from "#db/sql.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
+import { tableCache } from "#db/table-cache.ts";
+import { insertInto } from "#db/write.ts";
 import type { CacheInvalidation } from "#shared/cache-registry.ts";
 import { now } from "#shared/now.ts";
 import { type AdminLevel, isAdminLevel, type User } from "#types";
 
-const USER_COLUMNS = sql`id, username_hash, username_index, password_hash, wrapped_data_key, admin_level, invite_code_hash, invite_expiry, kek_version, invite_wrapped_data_key`;
+const USER_COLUMNS = sql`id, username_hash AS usernameHash, username_index AS usernameIndex,
+  password_hash AS passwordHash, wrapped_data_key AS wrappedDataKey,
+  admin_level AS adminLevel, invite_code_hash AS inviteCodeHash,
+  invite_expiry AS inviteExpiry, kek_version AS kekVersion,
+  invite_wrapped_data_key AS inviteWrappedDataKey`;
 
 const USER_SELECT = sql`SELECT ${USER_COLUMNS} FROM users ORDER BY id ASC`;
 
@@ -49,14 +40,14 @@ const fetchUsersByIndex = (keys: string[]): Promise<User[]> =>
 
 export type UserDisplayFields = Pick<
   User,
-  "admin_level" | "id" | "username_hash"
+  "adminLevel" | "id" | "usernameHash"
 >;
 
 const USER_DISPLAY_SELECT = from(tables.users)
   .sortedBy("id")
-  .pick("id", "username_hash", "admin_level");
+  .pick("id", "usernameHash", "adminLevel");
 
-export type UserAuthFields = Pick<User, "admin_level" | "id">;
+export type UserAuthFields = Pick<User, "adminLevel" | "id">;
 
 /**
  * Users change rarely and there are few of them, so the cache loads the whole
@@ -71,7 +62,7 @@ const usersCache = createKeyedCache<User>({
   fetchAll: () => queryAll<User>(USER_SELECT),
   fetchByKeys: fetchUsersByIndex,
   idOf: (u) => u.id,
-  keyOf: (u) => u.username_index,
+  keyOf: (u) => u.usernameIndex,
   ttlMs: USERS_CACHE_TTL_MS,
 });
 /**
@@ -88,8 +79,6 @@ export const onUsersInvalidated = (listener: () => void): void => {
 
 export const getAllUsers = (): Promise<User[]> => usersCache.getAll();
 
-registerCache(() => ({ entries: usersCache.size(), name: "users" }));
-
 /** Invalidate the users cache (for testing or after writes). */
 export const invalidateUsersCache = (
   cause: CacheInvalidation = "manual",
@@ -98,10 +87,13 @@ export const invalidateUsersCache = (
   for (const listener of usersInvalidationListeners) listener();
 };
 
-// Any write to the users table clears the cache automatically (db-client layer).
-// Must call invalidateUsersCache() (not just usersCache.invalidate()) so that
-// onUsersInvalidated listeners such as the superuser account-state cache also fire.
-registerTableInvalidation(["users"], invalidateUsersCache);
+// Any write to the users table clears the cache at the client. The
+// registration calls invalidateUsersCache, so that onUsersInvalidated
+// listeners such as the superuser account-state cache also fire.
+tableCache(tables.users, {
+  invalidate: invalidateUsersCache,
+  size: () => usersCache.size(),
+});
 
 /** Fields needed to build a users row. */
 type InsertUserOpts = {
@@ -124,7 +116,7 @@ type InsertUserOpts = {
 const buildUserInsert = async (
   opts: InsertUserOpts,
 ): Promise<{
-  statement: ReturnType<typeof insert>;
+  statement: SqlStatement;
   values: Omit<User, "id">;
 }> => {
   const usernameIndex = await hmacHash(opts.username.toLowerCase());
@@ -140,17 +132,20 @@ const buildUserInsert = async (
     : null;
 
   const values = {
-    admin_level: encryptedAdminLevel,
-    invite_code_hash: encryptedInviteCode,
-    invite_expiry: encryptedInviteExpiry,
-    invite_wrapped_data_key: opts.inviteWrappedDataKey,
-    kek_version: opts.kekVersion,
-    password_hash: encryptedPasswordHash,
-    username_hash: encryptedUsername,
-    username_index: usernameIndex,
-    wrapped_data_key: opts.wrappedDataKey,
+    adminLevel: encryptedAdminLevel,
+    inviteCodeHash: encryptedInviteCode,
+    inviteExpiry: encryptedInviteExpiry,
+    inviteWrappedDataKey: opts.inviteWrappedDataKey,
+    kekVersion: opts.kekVersion,
+    passwordHash: encryptedPasswordHash,
+    usernameHash: encryptedUsername,
+    usernameIndex,
+    wrappedDataKey: opts.wrappedDataKey,
   };
-  return { statement: insert("users", values, "id"), values };
+  return {
+    statement: insertInto(tables.users, values).returning("id"),
+    values,
+  };
 };
 
 /** A user INSERT statement plus the row values needed to rebuild the User. */
@@ -258,9 +253,7 @@ export const getUserAuthFieldsById = async (
   id: number,
 ): Promise<UserAuthFields | null> =>
   (
-    await queryAll(
-      from(tables.users).where({ id: id }).limit(1).pick("id", "admin_level"),
-    )
+    await queryAll(records.users.byId(id).limit(1).pick("id", "adminLevel"))
   )[0] ?? null;
 
 /**
@@ -283,8 +276,8 @@ export const verifyUserPassword = async (
   user: User,
   password: string,
 ): Promise<PasswordHash | null> => {
-  if (!user.password_hash) return null;
-  const decryptedHash = await decrypt(user.password_hash);
+  if (!user.passwordHash) return null;
+  const decryptedHash = await decrypt(user.passwordHash);
   const isValid = await verifyPassword(password, decryptedHash);
   return isValid ? decryptedHash : null;
 };
@@ -293,9 +286,9 @@ export const verifyUserPassword = async (
  * Decrypt a user's admin level
  */
 export const decryptAdminLevel = async (
-  user: Pick<User, "admin_level">,
+  user: Pick<User, "adminLevel">,
 ): Promise<AdminLevel> => {
-  const level = await decrypt(user.admin_level);
+  const level = await decrypt(user.adminLevel);
   if (!isAdminLevel(level)) {
     throw new Error(`Invalid admin level: ${level}`);
   }
@@ -306,117 +299,21 @@ export const decryptAdminLevel = async (
  * Decrypt a user's username
  */
 export const decryptUsername = (
-  user: Pick<User, "username_hash">,
-): Promise<string> => decrypt(user.username_hash);
+  user: Pick<User, "usernameHash">,
+): Promise<string> => decrypt(user.usernameHash);
 
-/**
- * Complete an invite by self-activating the user: unwrap the DATA_KEY handoff
- * with the single-use invite code, re-wrap it under the new password's v2 KEK,
- * and clear the invite (code, expiry, and the handoff blob). The caller has
- * already verified the invite is valid and carries a handoff, so every current
- * invite reaches here — there is no separate admin activation step.
- *
- * Single-use: the UPDATE is guarded on `invite_wrapped_data_key IS NOT NULL`, so
- * if two submissions for the same code race (or one is replayed), only the first
- * affects a row — the rest no-op and return false rather than overwriting the
- * password/key that the first accept already set.
- */
-/** Hash a new password and pre-encrypt the values both activation paths write:
- * the encrypted hash and an encrypted empty string (used to clear invite
- * fields). Shared by {@link acceptInvite} and {@link activateKeylessUser}. */
-const buildActivationSecrets = async (
-  password: string,
-): Promise<{
-  passwordHash: PasswordHash;
-  encryptedHash: EnvKeyEncrypted<PasswordHash>;
-  encryptedEmpty: EnvKeyEncrypted;
-}> => {
-  const passwordHash = await hashPassword(password);
-  const [encryptedHash, encryptedEmpty] = await Promise.all([
-    encrypt(passwordHash),
-    encrypt(""),
-  ]);
-  return { encryptedEmpty, encryptedHash, passwordHash };
-};
-
-export const acceptInvite = async (
-  userId: number,
-  inviteWrappedDataKey: WrappedKey,
-  inviteCode: string,
-  password: string,
-): Promise<boolean> => {
-  const { passwordHash, encryptedHash, encryptedEmpty } =
-    await buildActivationSecrets(password);
-  const dataKey = await unwrapKeyWithToken(inviteWrappedDataKey, inviteCode);
-  const wrappedDataKey = await wrapDataKeyForPassword(
-    dataKey,
-    password,
-    passwordHash,
-  );
-  return executeChangedRow(
-    sql`UPDATE users SET password_hash = ${encryptedHash}, wrapped_data_key = ${wrappedDataKey}, kek_version = 2, invite_wrapped_data_key = NULL, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND invite_wrapped_data_key IS NOT NULL`,
-  );
-};
-
-/**
- * A **keyless** invite leaves `wrapped_data_key` NULL. An editor holds no
- * DATA_KEY, so unlike {@link acceptInvite} there is no handoff to unwrap or
- * re-wrap. The password only authenticates, and protects no key.
- *
- * Single-use: the UPDATE is guarded on the `password_hash = ''` unactivated
- * marker, which database pruning also uses. A replay or a race therefore no-ops
- * and never overwrites the password the first submit set.
- */
-export const activateKeylessUser = async (
-  userId: number,
-  password: string,
-): Promise<boolean> => {
-  const { encryptedHash, encryptedEmpty } =
-    await buildActivationSecrets(password);
-  return executeChangedRow(
-    sql`UPDATE users SET password_hash = ${encryptedHash}, kek_version = 2, invite_code_hash = ${encryptedEmpty}, invite_expiry = ${encryptedEmpty} WHERE id = ${userId} AND password_hash = ''`,
-  );
-};
-
-/**
- * Re-wrap a user's DATA_KEY under the password-bound (v2) KEK. Called at login —
- * the one place both the raw password and the freshly-unwrapped DATA_KEY are in
- * hand — for users still on the legacy v1 wrap, replacing the DB-recoverable
- * wrap in place without touching any encrypted data.
- */
-export const migrateUserToV2Kek = async (
-  userId: number,
-  dataKey: CryptoKey,
-  password: string,
-  passwordHash: PasswordHash,
-): Promise<void> => {
-  const wrappedDataKey = await wrapDataKeyForPassword(
-    dataKey,
-    password,
-    passwordHash,
-  );
-  // Guard on the row still being v1. A login can reach here off a stale cached
-  // user row whose password was changed in another isolate — that change already
-  // wrote a v2 wrap bound to the *new* password. Overwriting it with a wrap
-  // derived from this (old) password would leave password_hash and
-  // wrapped_data_key bound to different passwords and lock the account out. A
-  // no-op is safe: the login already holds the DATA_KEY for its own session.
-  await execute(
-    sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey}, kek_version = 2 WHERE id = ${userId} AND kek_version < 2`,
-  );
-};
+/** The deletes that remove users with their sessions, API keys, and logistics
+ *  agent links. */
+export const userRemoval = removalWithChildren(tables.users, [
+  [tables.api_keys, "user_id"],
+  [tables.sessions, "user_id"],
+  [tables.user_logistics_agents, "user_id"],
+]);
 
 /**
  * Delete a user and all their sessions and API keys
  */
-export const deleteUser = async (userId: number): Promise<void> => {
-  await deleteByFieldBatch([
-    { field: "user_id", table: "api_keys", value: userId },
-    { field: "user_id", table: "sessions", value: userId },
-    { field: "user_id", table: "user_logistics_agents", value: userId },
-    { field: "id", table: "users", value: userId },
-  ]);
-};
+export const deleteUser = inOneBatch(userRemoval);
 
 /**
  * Find a user by invite code hash
@@ -429,8 +326,8 @@ export const getUserByInviteCode = async (
   const users = await getAllUsers();
 
   for (const user of users) {
-    if (!user.invite_code_hash) continue;
-    const decryptedHash = await decrypt(user.invite_code_hash);
+    if (!user.inviteCodeHash) continue;
+    const decryptedHash = await decrypt(user.inviteCodeHash);
     if (decryptedHash === codeHash) return user;
   }
 
@@ -447,14 +344,14 @@ export const hashInviteCode = (code: string): Promise<string> =>
  * Check if a user's invite is still valid (not expired, has invite code)
  */
 export const isInviteValid = async (user: User): Promise<boolean> => {
-  if (!user.invite_code_hash) return false;
+  if (!user.inviteCodeHash) return false;
 
-  const decryptedHash = await decrypt(user.invite_code_hash);
+  const decryptedHash = await decrypt(user.inviteCodeHash);
   if (!decryptedHash) return false;
 
-  if (!user.invite_expiry) return false;
+  if (!user.inviteExpiry) return false;
 
-  const decryptedExpiry = await decrypt(user.invite_expiry);
+  const decryptedExpiry = await decrypt(user.inviteExpiry);
   if (!decryptedExpiry) return false;
   return new Date(decryptedExpiry) > now();
 };
@@ -464,7 +361,7 @@ export const isInviteValid = async (user: User): Promise<boolean> => {
  * Callers should skip this for users who have already set a password.
  */
 export const isInviteExpired = async (user: User): Promise<boolean> =>
-  user.invite_code_hash !== null && !(await isInviteValid(user));
+  user.inviteCodeHash !== null && !(await isInviteValid(user));
 
 /**
  * Delete invited users whose invite has expired and who never activated. This

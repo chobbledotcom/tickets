@@ -6,8 +6,11 @@ import {
   attendeeStatusWrites,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
-import { getDb, update, withTransaction } from "#db/client.ts";
+import { getDb, withTransaction } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { update } from "#db/write.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
@@ -41,7 +44,7 @@ const seedStatus = async (): Promise<AttendeeStatus> => {
 
 /** Adds a status that carries no default flag. */
 const addStatus = async (name: string): Promise<AttendeeStatus> => {
-  const status = await attendeeStatuses.table.insert({ name });
+  const status = await records.attendee_statuses.insert({ name });
   await clearStatusDefaults();
   return status;
 };
@@ -52,7 +55,7 @@ const setUpAssignmentRace = async (): Promise<{
   spareId: number;
 }> => {
   const seed = (await attendeeStatuses.getAll())[0]!;
-  const spare = await attendeeStatuses.table.insert({ name: "Spare" });
+  const spare = await records.attendee_statuses.insert({ name: "Spare" });
   return {
     attendeeId: await createAttendeeWithStatus(seed.id),
     seedId: seed.id,
@@ -65,7 +68,9 @@ const setUpAssignmentRace = async (): Promise<{
 const assignStatus = (attendeeId: number, statusId: number): Promise<void> =>
   withTransaction(async (tx) => {
     await tx.execute(
-      update("attendees", { status_id: statusId }, { id: attendeeId }),
+      update(tables.attendees, { statusId: statusId }).where({
+        id: attendeeId,
+      }),
     );
   });
 

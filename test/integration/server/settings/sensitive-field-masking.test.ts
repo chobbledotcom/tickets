@@ -20,8 +20,8 @@ const postSettings = async (
     mockFormRequest(
       path,
       {
-        csrf_token: await testCsrfToken(),
-        settings_version: String(await getCurrentSettingsVersion()),
+        csrfToken: await testCsrfToken(),
+        settingsVersion: String(await getCurrentSettingsVersion()),
         ...fields,
       },
       await testCookie(),
@@ -58,7 +58,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_real_secret",
+          stripeSecretKey: "sk_test_real_secret",
         });
         await expectMaskedAt("/admin/settings", "sk_test_real_secret");
       });
@@ -67,8 +67,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("shows mask sentinel for configured Square token", async () => {
       await settings.update.paymentProvider("square");
       await postSettings("/admin/settings/square", {
-        square_access_token: "EAAAl_real_secret",
-        square_location_id: "L_test_loc",
+        squareAccessToken: "EAAAl_real_secret",
+        squareLocationId: "L_test_loc",
       });
       await expectMaskedAt("/admin/settings", "EAAAl_real_secret");
     });
@@ -83,10 +83,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_original",
+          stripeSecretKey: "sk_test_original",
         });
         const response = await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: MASK_SENTINEL,
+          stripeSecretKey: MASK_SENTINEL,
         });
         expectUnchangedFlash(response);
         expect(settings.stripe.secretKey).toBe("sk_test_original");
@@ -96,12 +96,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("submitting sentinel for Square token preserves token but updates location", async () => {
       await settings.update.paymentProvider("square");
       await postSettings("/admin/settings/square", {
-        square_access_token: "EAAAl_original",
-        square_location_id: "L_original",
+        squareAccessToken: "EAAAl_original",
+        squareLocationId: "L_original",
       });
       const response = await postSettings("/admin/settings/square", {
-        square_access_token: MASK_SENTINEL,
-        square_location_id: "L_updated",
+        squareAccessToken: MASK_SENTINEL,
+        squareLocationId: "L_updated",
       });
       expect(response.status).toBe(302);
       expect(settings.square.accessToken).toBe("EAAAl_original");
@@ -110,23 +110,23 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("submitting sentinel for Square webhook key does not overwrite", async () => {
       await postSettings("/admin/settings/square-webhook", {
-        square_webhook_signature_key: "sig_original",
+        squareWebhookSignatureKey: "sig_original",
       });
       const response = await postSettings("/admin/settings/square-webhook", {
-        square_webhook_signature_key: MASK_SENTINEL,
+        squareWebhookSignatureKey: MASK_SENTINEL,
       });
       expectUnchangedFlash(response);
     });
 
     test("submitting sentinel for email API key does not overwrite existing key", async () => {
       await postSettings("/admin/settings/email", {
-        email_api_key: "re_original_key",
-        email_from_address: "from@test.com",
-        email_provider: "resend",
+        emailApiKey: "re_original_key",
+        emailFromAddress: "from@test.com",
+        emailProvider: "resend",
       });
       const response = await postSettings("/admin/settings/email", {
-        email_api_key: MASK_SENTINEL,
-        email_provider: "resend",
+        emailApiKey: MASK_SENTINEL,
+        emailProvider: "resend",
       });
       expect(response.status).toBe(302);
       expect(settings.email.apiKey).toBe("re_original_key");
@@ -136,10 +136,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_old",
+          stripeSecretKey: "sk_test_old",
         });
         await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_new",
+          stripeSecretKey: "sk_test_new",
         });
         expect(settings.stripe.secretKey).toBe("sk_test_new");
       });
@@ -149,10 +149,10 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("stripe");
       await withSuccessfulStripeWebhook(async () => {
         await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "sk_test_keep_me",
+          stripeSecretKey: "sk_test_keep_me",
         });
         const response = await postSettings("/admin/settings/stripe", {
-          stripe_secret_key: "",
+          stripeSecretKey: "",
         });
         expectUnchangedFlash(response);
         expect(settings.stripe.secretKey).toBe("sk_test_keep_me");
@@ -162,7 +162,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("empty Stripe key rejected when no key is configured", async () => {
       await settings.update.paymentProvider("stripe");
       expectRequiredError(
-        await postSettings("/admin/settings/stripe", { stripe_secret_key: "" }),
+        await postSettings("/admin/settings/stripe", { stripeSecretKey: "" }),
       );
     });
 
@@ -170,8 +170,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       await settings.update.paymentProvider("square");
       expectRequiredError(
         await postSettings("/admin/settings/square", {
-          square_access_token: "",
-          square_location_id: "L_test",
+          squareAccessToken: "",
+          squareLocationId: "L_test",
         }),
       );
     });
@@ -179,12 +179,12 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("empty Square token with existing token preserves it", async () => {
       await settings.update.paymentProvider("square");
       await postSettings("/admin/settings/square", {
-        square_access_token: "EAAAl_keep_me",
-        square_location_id: "L_orig",
+        squareAccessToken: "EAAAl_keep_me",
+        squareLocationId: "L_orig",
       });
       const response = await postSettings("/admin/settings/square", {
-        square_access_token: "",
-        square_location_id: "L_new",
+        squareAccessToken: "",
+        squareLocationId: "L_new",
       });
       expect(response.status).toBe(302);
       expect(settings.square.accessToken).toBe("EAAAl_keep_me");
@@ -193,14 +193,14 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("empty email API key with existing key preserves it", async () => {
       await postSettings("/admin/settings/email", {
-        email_api_key: "re_keep_me",
-        email_from_address: "from@test.com",
-        email_provider: "resend",
+        emailApiKey: "re_keep_me",
+        emailFromAddress: "from@test.com",
+        emailProvider: "resend",
       });
       const response = await postSettings("/admin/settings/email", {
-        email_api_key: "",
-        email_from_address: "from@test.com",
-        email_provider: "resend",
+        emailApiKey: "",
+        emailFromAddress: "from@test.com",
+        emailProvider: "resend",
       });
       expect(response.status).toBe(302);
       expect(settings.email.apiKey).toBe("re_keep_me");
@@ -209,7 +209,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("empty Square webhook key rejected", async () => {
       expectRequiredError(
         await postSettings("/admin/settings/square-webhook", {
-          square_webhook_signature_key: "",
+          squareWebhookSignatureKey: "",
         }),
       );
     });

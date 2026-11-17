@@ -179,7 +179,7 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     // …and the assembled view reproduces the attendee-derived reference exactly.
     const view = overviewStatsFromDbStats(
       stats,
-      withCount.attendee_count,
+      withCount.attendeeCount,
       grossSales,
       isPaidListing(withCount),
     );
@@ -206,7 +206,7 @@ describeWithEnv("db > listing-overview-stats", { db: true }, () => {
     const { withCount, reference } = await referenceFor(listing.id);
     const view = overviewStatsFromDbStats(
       stats,
-      withCount.attendee_count,
+      withCount.attendeeCount,
       0,
       isPaidListing(withCount),
     );

@@ -1,7 +1,6 @@
 /**
- * The shared write step behind the admin record's write path: write one row —
- * transactionally when it has join writes that must commit atomically with it,
- * else as a plain single statement — read the committed row back on the
+ * The shared write step behind the admin record's write path: write one row
+ * and its join writes in one transaction, read the committed row back on the
  * primary, then run the post-commit hook.
  */
 
@@ -38,27 +37,20 @@ export interface EntityWrite<Row extends { id: number }, State = never> {
    *  table the transactional statement path would otherwise bypass. Runs after
    *  the read-back. */
   afterCommit?: ((id: number) => Promise<void>) | undefined;
-  /** Build the INSERT/UPDATE statement — only called on the transactional path. */
+  /** Build the INSERT/UPDATE statement. */
   buildStatement: () => Promise<SqlStatement>;
   /** Refusing guard run inside the write transaction before the row statement,
    * so its reads see the committed rows the write is about to change. A refusal
-   * throws (rolling the transaction back). Update only. Its presence forces the
-   * transactional path even with no join writes. */
+   * throws (rolling the transaction back). Update only. */
   checkTx?: ((tx: TxScope, id: number) => Promise<void>) | undefined;
   existingId: number | null;
-  /** Join-table writes that must commit atomically with the row. Any present ⇒
-   *  the row and every join write share one transaction, so a failed join write
-   *  rolls the row write back rather than leaving partial state; an empty list ⇒
-   *  the plain single-statement path. Run in order, inside that transaction. The
-   *  caller no longer decides "am I transactional?" separately from which hooks
-   *  run — the two can't drift. */
+  /** Join-table writes that commit atomically with the row, in order, inside
+   *  its transaction. A failed join write rolls the row write back. */
   joinWrites: readonly JoinWrite<State>[];
-  /** The plain insert/update, used when there are no join writes. */
-  plainWrite: () => Promise<Row | null>;
   /** Read the just-committed row back — this MUST be pinned to the primary. A
    *  "read"-mode lookup can hit a replica that still lags the commit and return
-   *  null for the row just written. Use `table.findByIdPrimary` or a
-   *  primary-pinned join lookup. */
+   *  null for the row just written. Use `findPrimary` or a primary-pinned
+   *  join lookup. */
   readBack: (id: number) => Promise<Row | null>;
   /** Read narrow pre-update state through the open transaction. Creates and
    *  writes without a reader skip this read and pass null to every join write. */
@@ -110,9 +102,8 @@ const writeJoinedOrNull = async <Row extends { id: number }, State>(
 };
 
 /**
- * Write the row — transactionally with its join writes when there are any, else
- * as a plain single statement — read it back on the primary, then run
- * `afterCommit`. Returns the committed row, or null when the read-back finds
+ * Write the row with its join writes in one transaction, read it back on the
+ * primary, then run `afterCommit`. Returns the committed row, or null when the read-back finds
  * nothing — which only an update can legitimately do (its row was deleted before
  * the commit); a create that can't read its own row back throws
  * ({@link readBackWrittenOrNull}).
@@ -129,13 +120,10 @@ export const writeEntity = async <Row extends { id: number }, State = never>(
           if (write.checkTx) await write.checkTx(tx, id);
           return write.readState === undefined ? null : write.readState(tx, id);
         };
-  const row =
-    write.joinWrites.length > 0 || write.checkTx !== undefined
-      ? await readBackWrittenOrNull(
-          write,
-          await writeJoinedOrNull(write, preRead),
-        )
-      : await write.plainWrite();
+  const row = await readBackWrittenOrNull(
+    write,
+    await writeJoinedOrNull(write, preRead),
+  );
   if (row && write.afterCommit) await write.afterCommit(row.id);
   return row;
 };

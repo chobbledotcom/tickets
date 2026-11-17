@@ -18,7 +18,7 @@ import { adminFormPost, getTestSession } from "#test-utils/session.ts";
 
 const linkImages = (groupId: number, imageIds: number[]) =>
   adminFormPost(`/admin/groups/${groupId}/images`, {
-    image_ids: imageIds.map(String),
+    imageIds: imageIds.map(String),
   });
 
 const uploadImage = async (groupId: number) => {

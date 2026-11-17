@@ -45,13 +45,13 @@ describe("booking model — child eligibility", () => {
   describe("childInStock", () => {
     test("true when spots remain", () => {
       expect(
-        childInStock(resolved({ attendee_count: 0, max_attendees: 10 })),
+        childInStock(resolved({ attendeeCount: 0, maxAttendees: 10 })),
       ).toBe(true);
     });
 
     test("false when sold out", () => {
       expect(
-        childInStock(resolved({ attendee_count: 5, max_attendees: 5 })),
+        childInStock(resolved({ attendeeCount: 5, maxAttendees: 5 })),
       ).toBe(false);
     });
   });
@@ -62,18 +62,18 @@ describe("booking model — child eligibility", () => {
       expect(
         check(
           resolved({
-            attendee_count: 1,
-            listing_type: "standard",
-            max_attendees: 1,
+            attendeeCount: 1,
+            listingType: "standard",
+            maxAttendees: 1,
           }),
         ),
       ).toBe(false);
       expect(
         check(
           resolved({
-            attendee_count: 0,
-            listing_type: "standard",
-            max_attendees: 1,
+            attendeeCount: 0,
+            listingType: "standard",
+            maxAttendees: 1,
           }),
         ),
       ).toBe(true);
@@ -81,9 +81,7 @@ describe("booking model — child eligibility", () => {
 
     test("daily listing with no bookable weekday has no date", () => {
       const check = childHasDateOrStockForDays([], 3, null);
-      expect(check(resolved(dailyOverrides({ bookable_days: [] })))).toBe(
-        false,
-      );
+      expect(check(resolved(dailyOverrides({ bookableDays: [] })))).toBe(false);
     });
 
     test("daily listing with every weekday bookable has a date within the window", () => {
@@ -109,8 +107,8 @@ describe("booking model — child eligibility", () => {
       const singleWeekdayChild = () =>
         resolved(
           dailyOverrides({
-            bookable_days: [weekdayOf(today())],
-            maximum_days_after: 30,
+            bookableDays: [weekdayOf(today())],
+            maximumDaysAfter: 30,
           }),
         );
 
@@ -130,16 +128,16 @@ describe("booking model — child eligibility", () => {
 
   describe("childSupportsDays", () => {
     test("a standard child serves any span", () => {
-      expect(childSupportsDays(resolved({ customisable_days: false }), 5)).toBe(
+      expect(childSupportsDays(resolved({ customisableDays: false }), 5)).toBe(
         true,
       );
     });
 
     test("a customisable child serves only a count it prices", () => {
       const child = resolved({
-        customisable_days: true,
-        day_prices: { 3: 500 },
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: { 3: 500 },
+        durationDays: 5,
       });
       expect(childSupportsDays(child, 3)).toBe(true);
       expect(childSupportsDays(child, 4)).toBe(false);
@@ -147,18 +145,18 @@ describe("booking model — child eligibility", () => {
 
     test("a customisable child with no offered count serves nothing", () => {
       const child = resolved({
-        customisable_days: true,
-        day_prices: {},
-        duration_days: 5,
+        customisableDays: true,
+        dayPrices: {},
+        durationDays: 5,
       });
       expect(childSupportsDays(child, 1)).toBe(false);
     });
 
     test("a fixed daily child serves only its own duration", () => {
       const child = resolved({
-        customisable_days: false,
-        duration_days: 3,
-        listing_type: "daily",
+        customisableDays: false,
+        durationDays: 3,
+        listingType: "daily",
       });
       expect(childSupportsDays(child, 3)).toBe(true);
       expect(childSupportsDays(child, 4)).toBe(false);
@@ -168,7 +166,7 @@ describe("booking model — child eligibility", () => {
   describe("childDateOk", () => {
     test("non-daily children are always ok, even with no date", () => {
       const check = childDateOk(null, [], 3);
-      expect(check(resolved({ listing_type: "standard" }))).toBe(true);
+      expect(check(resolved({ listingType: "standard" }))).toBe(true);
     });
 
     test("daily children need a date", () => {
@@ -181,7 +179,7 @@ describe("booking model — child eligibility", () => {
       expect(
         check(
           resolved(
-            dailyOverrides({ customisable_days: true, duration_days: 10 }),
+            dailyOverrides({ customisableDays: true, durationDays: 10 }),
           ),
         ),
       ).toBe(true);
@@ -189,9 +187,9 @@ describe("booking model — child eligibility", () => {
         check(
           resolved(
             dailyOverrides({
-              bookable_days: [],
-              customisable_days: true,
-              duration_days: 10,
+              bookableDays: [],
+              customisableDays: true,
+              durationDays: 10,
             }),
           ),
         ),
@@ -201,9 +199,7 @@ describe("booking model — child eligibility", () => {
     test("fixed daily child checks the date is an offered start date", () => {
       const check = childDateOk(today(), [], 3);
       expect(check(resolved(dailyOverrides()))).toBe(true);
-      expect(check(resolved(dailyOverrides({ bookable_days: [] })))).toBe(
-        false,
-      );
+      expect(check(resolved(dailyOverrides({ bookableDays: [] })))).toBe(false);
     });
 
     test("fixed daily child uses its own start-date list, not the requested duration", () => {
@@ -215,7 +211,7 @@ describe("booking model — child eligibility", () => {
       const date = today();
       const check = childDateOk(date, [], 5);
       expect(
-        check(resolved(dailyOverrides({ bookable_days: [weekdayOf(date)] }))),
+        check(resolved(dailyOverrides({ bookableDays: [weekdayOf(date)] }))),
       ).toBe(true);
     });
   });
@@ -238,7 +234,7 @@ describe("booking model — child eligibility", () => {
     test("true for an active, open, in-stock child", () => {
       expect(
         childCanBeBooked(
-          resolved({ active: true, attendee_count: 0, max_attendees: 10 }),
+          resolved({ active: true, attendeeCount: 0, maxAttendees: 10 }),
         ),
       ).toBe(true);
     });
@@ -253,7 +249,7 @@ describe("booking model — child eligibility", () => {
 
     test("false when sold out", () => {
       expect(
-        childCanBeBooked(resolved({ attendee_count: 1, max_attendees: 1 })),
+        childCanBeBooked(resolved({ attendeeCount: 1, maxAttendees: 1 })),
       ).toBe(false);
     });
   });

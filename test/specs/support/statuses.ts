@@ -43,11 +43,11 @@ type StateJob = "where a paid booking lands" | "where new bookings start";
 const JOBS: Record<StateJob, { badge: string; box: string }> = {
   "where a paid booking lands": {
     badge: "statuses.badge_paid",
-    box: "is_paid_default",
+    box: "isPaidDefault",
   },
   "where new bookings start": {
     badge: "statuses.badge_public_default",
-    box: "is_public_default",
+    box: "isPublicDefault",
   },
 };
 
@@ -90,9 +90,9 @@ export interface NewState {
  * it. A deposit means ticking the reservation box; a job means ticking that
  * job's own box. */
 const boxesToTick = (state: NewState): string[] => [
-  ...(state.deposit === undefined ? [] : ["is_reservation"]),
+  ...(state.deposit === undefined ? [] : ["isReservation"]),
   ...(state.job === undefined ? [] : [theJob(state.job).box]),
-  ...(state.meansTheBalanceIsPaid ? ["is_paid_default"] : []),
+  ...(state.meansTheBalanceIsPaid ? ["isPaidDefault"] : []),
 ];
 
 /** The organiser adds a state, following the Add link on their own list and
@@ -114,7 +114,7 @@ export const organiserAddsState = async (
       name: state.name,
       ...(state.deposit === undefined
         ? {}
-        : { reservation_amount: state.deposit }),
+        : { reservationAmount: state.deposit }),
     },
     t("statuses.form_create_button"),
     ticked,

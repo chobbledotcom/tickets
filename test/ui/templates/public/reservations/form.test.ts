@@ -74,9 +74,9 @@ describe("ticketPage — fields & form", () => {
     const html = renderHeader({
       headerDescription: "First paragraph\n\nSecond paragraph",
       headerImage: {
-        image_alt_text: "People at the listing",
-        image_thumb_url: "listing-thumb.webp",
-        image_url: "listing.webp",
+        imageAltText: "People at the listing",
+        imageThumbUrl: "listing-thumb.webp",
+        imageUrl: "listing.webp",
       },
       pastDays: 2,
       singleListing: testListingWithCount({
@@ -100,17 +100,17 @@ describe("ticketPage — fields & form", () => {
     const html = renderHeader({
       galleryImages: [
         {
-          alt_text: "Gallery view",
+          altText: "Gallery view",
           filename: nonEmptyString("gallery.webp"),
-          filename_thumb: nonEmptyString("gallery-thumb.webp"),
+          filenameThumb: nonEmptyString("gallery-thumb.webp"),
           id: 9,
           name: "Gallery image",
         },
       ],
       headerImage: {
-        image_alt_text: "Fallback view",
-        image_thumb_url: "fallback-thumb.webp",
-        image_url: "fallback.webp",
+        imageAltText: "Fallback view",
+        imageThumbUrl: "fallback-thumb.webp",
+        imageUrl: "fallback.webp",
       },
     });
     expectIncludesAll(html, [
@@ -123,7 +123,7 @@ describe("ticketPage — fields & form", () => {
   test("renders markdown paragraphs in terms and conditions", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         name: "Listing A",
         slug: "ab12c",
@@ -137,14 +137,14 @@ describe("ticketPage — fields & form", () => {
     expectIncludesAll(html, [
       "<p>Rule one</p>",
       "<p>Rule two</p>",
-      'name="agree_terms"',
+      'name="agreeTerms"',
     ]);
   });
 
   test("renders custom questions with listing IDs", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         name: "Listing A",
         slug: "ab12c",
@@ -156,13 +156,13 @@ describe("ticketPage — fields & form", () => {
           {
             active: true,
             id: 51,
-            question_id: 5,
-            sort_order: 0,
+            questionId: 5,
+            sortOrder: 0,
             text: "Small",
           },
         ],
-        assign_all: false,
-        display_type: "radio" as const,
+        assignAll: false,
+        displayType: "radio" as const,
         id: 5,
         text: "Size?",
       },
@@ -176,7 +176,7 @@ describe("ticketPage — fields & form", () => {
     });
     expectIncludesAll(html, [
       "Size?",
-      'name="question_5"',
+      'name="question5"',
       'data-listing-ids="1"',
     ]);
   });
@@ -184,14 +184,14 @@ describe("ticketPage — fields & form", () => {
   test("renders an opt-in add-on selector with its price label", async () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
         name: "Listing A",
         slug: "ab12c",
       }),
     ];
     await withRequestContext(() => {
-      setSavedFormData(new FormParams({ addon_7: "2" }));
+      setSavedFormData(new FormParams({ addon7: "2" }));
       const html = ticketPage({
         addOns: [
           {
@@ -211,7 +211,7 @@ describe("ticketPage — fields & form", () => {
         '<span class="addon-name">T-shirt ',
         '<span class="addon-price">(+£5)</span>',
         'aria-label="T-shirt — Quantity"',
-        'max="5" min="0" name="addon_7" placeholder="0" type="number" value="2"',
+        'max="5" min="0" name="addon7" placeholder="0" type="number" value="2"',
       ]);
     });
   });
@@ -228,7 +228,7 @@ describe("ticketPage — fields & form", () => {
     expect(hasInputWithValue(html, "name", "Ada Lovelace")).toBe(true);
     assertStringIncludes(
       html,
-      'name="qr_token" type="hidden" value="signed-token"',
+      'name="qrToken" type="hidden" value="signed-token"',
     );
   });
 
@@ -244,7 +244,7 @@ describe("ticketPage — fields & form", () => {
       });
       assertStringIncludes(html, '<option value="2026-08-02" selected>');
       assert(!html.includes('<option value="2026-08-01" selected>'));
-      assertStringIncludes(html, 'name="day_count"');
+      assertStringIncludes(html, 'name="dayCount"');
       clearSavedFormData();
       const prefilledHtml = renderForm({
         dates: ["2026-08-01"],
@@ -309,15 +309,15 @@ describe("ticketPage — fields & form", () => {
   test("hides quantity selector for single listing with max quantity 1", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
-        max_quantity: 1,
+        maxQuantity: 1,
         name: "Listing A",
         slug: "ab12c",
       }),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c"] });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes("<select"));
     assert(!html.includes("Select Tickets"));
   });
@@ -325,9 +325,9 @@ describe("ticketPage — fields & form", () => {
   test("shows quantity selector for single listing with max quantity above 1", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
-        max_quantity: 3,
+        maxQuantity: 3,
         name: "Listing A",
         slug: "ab12c",
       }),
@@ -335,26 +335,26 @@ describe("ticketPage — fields & form", () => {
     const html = ticketPage({ listings, slugs: ["ab12c"] });
     expectIncludesAll(html, [
       "<select",
-      'name="quantity_1"',
+      'name="quantity1"',
       "Number of Tickets",
     ]);
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(false);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(false);
     assert(!html.includes("ticket-listings"));
   });
 
   test("shows quantity selector for multiple listings even with max quantity 1", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
-        max_quantity: 1,
+        maxQuantity: 1,
         name: "Listing A",
         slug: "ab12c",
       }),
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 2,
-        max_quantity: 1,
+        maxQuantity: 1,
         name: "Listing B",
         slug: "cd34e",
       }),
@@ -371,16 +371,16 @@ describe("ticketPage — fields & form", () => {
   test("hides quantity selector when one listing available and one sold out", () => {
     const listings = [
       ticketListing({
-        attendee_count: 0,
+        attendeeCount: 0,
         id: 1,
-        max_quantity: 1,
+        maxQuantity: 1,
         name: "Listing A",
         slug: "ab12c",
       }),
       listingB(),
     ];
     const html = ticketPage({ listings, slugs: ["ab12c", "cd34e"] });
-    expect(hasInputWithValue(html, "quantity_1", "1")).toBe(true);
+    expect(hasInputWithValue(html, "quantity1", "1")).toBe(true);
     assert(!html.includes("Select Tickets"));
   });
 

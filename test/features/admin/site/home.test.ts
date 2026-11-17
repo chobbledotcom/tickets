@@ -30,16 +30,16 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         `Displayed as the main heading on all public pages (max ${MAX_INPUT_LENGTH} characters).`,
       ]);
       assertStringIncludes(
-        inputNamed(html, "website_title"),
+        inputNamed(html, "websiteTitle"),
         'autocomplete="off"',
       );
       // The id ties the label to the field; an emptied id breaks that link.
       assertStringIncludes(
-        inputNamed(html, "website_title"),
+        inputNamed(html, "websiteTitle"),
         'id="website_title"',
       );
       assertStringIncludes(html, "Homepage text");
-      const homepage = inputNamed(html, "homepage_text");
+      const homepage = inputNamed(html, "homepageText");
       expectIncludesAll(homepage, [
         'placeholder="Welcome to our site..."',
         // markdown: true wires the preview affordance to the textarea.
@@ -50,7 +50,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("serves the contact form box with its label", async () => {
       const { siteContactForm } = await import("#templates/fields/site.ts");
       const html = siteContactForm.render();
-      inputNamed(html, "contact_page_text");
+      inputNamed(html, "contactPageText");
       assertStringIncludes(html, "Contact page text");
     });
   });
@@ -64,8 +64,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
         response,
         200,
         "Home page",
-        "website_title",
-        "homepage_text",
+        "websiteTitle",
+        "homepageText",
         "Formatting help",
       );
     });
@@ -106,8 +106,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
   describe("POST /admin/site", () => {
     testRequiresAuth("/admin/site", {
       body: {
-        homepage_text: "Hello",
-        website_title: "Test",
+        homepageText: "Hello",
+        websiteTitle: "Test",
       },
       method: "POST",
     });
@@ -116,7 +116,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/site",
-          { csrf_token: "invalid", website_title: "Test" },
+          { csrfToken: "invalid", websiteTitle: "Test" },
           await testCookie(),
         ),
       );
@@ -125,8 +125,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
 
     test("saves website title and homepage text", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        homepage_text: "Welcome!",
-        website_title: "My Site",
+        homepageText: "Welcome!",
+        websiteTitle: "My Site",
       });
       expectRedirectWithFlash("/admin/site", "Homepage updated")(response);
 
@@ -136,8 +136,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
 
     test("saving Site content does not publish Site", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        homepage_text: "Draft",
-        website_title: "Draft site",
+        homepageText: "Draft",
+        websiteTitle: "Draft site",
       });
       response.body?.cancel();
       expect(settings.features.site).toBe(false);
@@ -147,8 +147,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
       await settings.update.websiteTitle("Old Title");
       await settings.update.homepageText("Old Text");
       const { response } = await adminFormPost("/admin/site", {
-        homepage_text: "",
-        website_title: "",
+        homepageText: "",
+        websiteTitle: "",
       });
       expect(response.status).toBe(302);
       expect(settings.websiteTitle).toBe("");
@@ -157,8 +157,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
 
     test("rejects title exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        homepage_text: "",
-        website_title: "x".repeat(MAX_INPUT_LENGTH + 1),
+        homepageText: "",
+        websiteTitle: "x".repeat(MAX_INPUT_LENGTH + 1),
       });
       await expectFlashRedirect(
         "/admin/site",
@@ -169,8 +169,8 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
 
     test("rejects homepage text exceeding max length", async () => {
       const { response } = await adminFormPost("/admin/site", {
-        homepage_text: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
-        website_title: "",
+        homepageText: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+        websiteTitle: "",
       });
       await expectFlashRedirect(
         "/admin/site",
@@ -182,7 +182,7 @@ describeWithEnv("server (admin site home)", { db: true }, () => {
     test("saves the complete website title at the shared limit", async () => {
       const title = "x".repeat(MAX_INPUT_LENGTH);
       const { response } = await adminFormPost("/admin/site", {
-        website_title: title,
+        websiteTitle: title,
       });
       expectRedirectWithFlash("/admin/site", "Homepage updated")(response);
       expect(settings.websiteTitle).toBe(title);

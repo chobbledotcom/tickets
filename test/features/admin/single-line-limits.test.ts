@@ -19,14 +19,14 @@ const content = defineContentForms({
 });
 
 const contentCaps = {
-  meta_description: CONTENT_FIELD_LIMITS.meta_description,
-  meta_title: CONTENT_FIELD_LIMITS.meta_title,
+  metaDescription: CONTENT_FIELD_LIMITS.metaDescription,
+  metaTitle: CONTENT_FIELD_LIMITS.metaTitle,
   name: MAX_INPUT_LENGTH,
 };
 
 describe("single-line form limits", () => {
   for (const [label, form, caps] of [
-    ["Builder", builderForm, { site_name: MAX_INPUT_LENGTH }],
+    ["Builder", builderForm, { siteName: MAX_INPUT_LENGTH }],
     ["Create content", content.createForm, contentCaps],
     ["Edit content", content.editForm, contentCaps],
   ] as const) {

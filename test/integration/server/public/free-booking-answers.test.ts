@@ -46,7 +46,7 @@ describeWithEnv(
         submitTicketForm(listing.slug, {
           email: "atomic@example.com",
           name: "Atomic User",
-          [`question_${questionId}`]: String(answerId),
+          [`question${questionId}`]: String(answerId),
         }),
       ).rejects.toThrow("answers write failed");
       await expectNoAttendeesForListings([listing.id]);
@@ -69,7 +69,7 @@ describeWithEnv(
       const response = await submitTicketForm(listing.slug, {
         email: "choice@example.com",
         name: "Choice User",
-        [`question_${questionId}`]: String(answerId),
+        [`question${questionId}`]: String(answerId),
       });
       expectReservedRedirectWithTokens(response);
 
@@ -97,7 +97,7 @@ describeWithEnv(
       const response = await submitTicketForm(listing.slug, {
         email: "text@example.com",
         name: "Text User",
-        [`question_${questionId}`]: "Arrives by bike",
+        [`question${questionId}`]: "Arrives by bike",
       });
       expectReservedRedirectWithTokens(response);
 

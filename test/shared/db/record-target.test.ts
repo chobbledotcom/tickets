@@ -129,27 +129,6 @@ describe("asking for a record's rows", () => {
   });
 });
 
-describe("deleting a record's rows", () => {
-  test("deletes the rows of one record", () => {
-    expect(
-      targets.deleteFrom("system_notes")({ id: 4, kind: "attendee" }),
-    ).toEqual(
-      sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id = ${4}`,
-    );
-  });
-
-  test("deletes the rows of the records another query names", () => {
-    expect(
-      targets.deleteChosenBy("system_notes")(
-        "attendee",
-        sql`SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12}`,
-      ),
-    ).toEqual(
-      sql`DELETE FROM system_notes WHERE entity_type = ${"attendee"} AND entity_id IN (SELECT attendee_id FROM listing_attendees WHERE listing_id = ${12})`,
-    );
-  });
-});
-
 describe("checking a record is really there", () => {
   test("asks the table that kind of record lives in", () => {
     const statement = targets.existsSql("listing", 4);

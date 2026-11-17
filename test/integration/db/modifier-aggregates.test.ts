@@ -2,7 +2,6 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { loadMigrations } from "#db/migrations/context.ts";
-
 import {
   adjustModifierRevenue,
   getActiveModifiers,
@@ -11,8 +10,8 @@ import {
   getModifierAggregateRecalculation,
   MODIFIER_AGGREGATE_FIELDS,
   modifierAggregates,
-  modifiersTable,
 } from "#db/modifiers.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import {
   type AggregateRows,
@@ -52,7 +51,7 @@ describeWithEnv(
       values: { amount_applied: 0, created: "2026-06-17" },
     };
     const makeModifier = () =>
-      modifiersTable.insert({
+      records.modifiers.insert({
         calcKind: "fixed",
         calcValue: 5,
         direction: "charge",
@@ -76,19 +75,19 @@ describeWithEnv(
 
     /** total_revenue as the table read projects it (from the ledger). */
     const projectedRevenue = async (modifierId: number): Promise<number> =>
-      (await getAllModifiers()).find((m) => m.id === modifierId)!.total_revenue;
+      (await getAllModifiers()).find((m) => m.id === modifierId)!.totalRevenue;
 
     test("a bare create fills the behavioural defaults", async () => {
       // The base create form supplies only the pricing rule; the schema's
       // defaults must make the modifier an active, automatic, whole-order rule
       // with no gates — exactly what the admin docs promise a fresh modifier is.
       const m = await makeModifier();
-      const stored = (await modifiersTable.read.one({ id: m.id }))!;
+      const stored = (await records.modifiers.find(m.id))!;
       expect(stored).toMatchObject({
         active: true,
-        code_index: null,
-        min_subtotal: 0,
-        min_visits: 0,
+        codeIndex: null,
+        minSubtotal: 0,
+        minVisits: 0,
         scope: "all",
         stock: null,
         trigger: "automatic",
@@ -102,7 +101,7 @@ describeWithEnv(
       expect(read).toMatchObject({
         id: m.id,
         name: "Add-on",
-        total_revenue: 1200,
+        totalRevenue: 1200,
       });
       // A missing id reads back as null, never a phantom row.
       expect(await getModifier(m.id + 999)).toBeNull();
@@ -111,10 +110,10 @@ describeWithEnv(
     test("modifiersTable read exposes the trigger-maintained counts", async () => {
       const m = await makeModifier();
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
-      const reread = await modifiersTable.read.one({ id: m.id });
+      const reread = await records.modifiers.find(m.id);
       expect(reread).toMatchObject({
-        total_uses: 3,
-        usage_count: 1,
+        totalUses: 3,
+        usageCount: 1,
       });
     });
 
@@ -134,8 +133,8 @@ describeWithEnv(
       const m = await makeModifier();
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
       await modifierAggregates.update(m.id, {
-        total_uses: 9,
-        usage_count: 9,
+        totalUses: 9,
+        usageCount: 9,
       });
 
       await modifierAggregates.reset(m.id, [...MODIFIER_AGGREGATE_FIELDS]);
@@ -171,7 +170,7 @@ describeWithEnv(
       const m = await makeModifier();
       await postModifierLeg({ delta: 2500, modifierId: m.id });
       const active = await getActiveModifiers();
-      expect(active.find((row) => row.id === m.id)?.total_revenue).toBe(2500);
+      expect(active.find((row) => row.id === m.id)?.totalRevenue).toBe(2500);
     });
 
     test("raising revenue via the correction path moves the projection up by the delta", async () => {
@@ -209,8 +208,8 @@ describeWithEnv(
       await seedAggregateRows(usageRows, m.id, [[1, 3]]);
 
       await modifierAggregates.update(m.id, {
-        total_uses: 8,
-        usage_count: 4,
+        totalUses: 8,
+        usageCount: 4,
       });
 
       expect(await aggregates(m.id)).toEqual({
@@ -226,17 +225,17 @@ describeWithEnv(
         [2, 2],
       ]);
       await modifierAggregates.update(m.id, {
-        total_uses: 8,
-        usage_count: 4,
+        totalUses: 8,
+        usageCount: 4,
       });
 
-      const stale = (await modifiersTable.read.one({ id: m.id }))!;
+      const stale = (await records.modifiers.find(m.id))!;
       expect(await getModifierAggregateRecalculation(stale)).toEqual({
-        total_uses: { current: 8, recalculated: 5 },
-        usage_count: { current: 4, recalculated: 2 },
+        totalUses: { current: 8, recalculated: 5 },
+        usageCount: { current: 4, recalculated: 2 },
       });
 
-      await modifierAggregates.reset(m.id, ["total_uses"]);
+      await modifierAggregates.reset(m.id, ["totalUses"]);
 
       expect(await aggregates(m.id)).toEqual({
         total_uses: 5,

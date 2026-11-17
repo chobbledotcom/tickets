@@ -9,14 +9,15 @@
  */
 
 import {
-  deleteByField,
+  execute,
   executeBatch,
   queryAll,
   resultRows,
   type TxScope,
 } from "#db/client.ts";
-import { deleteFrom } from "#db/delete-row.ts";
+import type { TableHandle, TableName } from "#db/select/tables.ts";
 import { type SqlStatement, sql, sqlList, sqlName, sqlRows } from "#db/sql.ts";
+import { type ColumnName, columnSql, deleteFrom, rowsWith } from "#db/write.ts";
 import { reduce, requiredMapValue, unique } from "#fp";
 import { registerTableInvalidation } from "#shared/cache-registry.ts";
 import { requestBatchCache } from "#shared/request-cache.ts";
@@ -91,8 +92,8 @@ const linkRowsStatement = (
   valueColumn: string,
   condition: SqlStatement,
 ): SqlStatement => {
-  const key = sqlName(keyColumn);
-  const value = sqlName(valueColumn);
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
   return sql`SELECT ${key} AS key_id, ${value} AS value_id
           FROM ${sqlName(table)}
          WHERE ${condition}
@@ -112,7 +113,7 @@ const byKeysStatement = (
     table,
     keyColumn,
     valueColumn,
-    sql`${sqlName(keyColumn)} IN (${sqlList(keyIds)})`,
+    sql`${columnSql(keyColumn)} IN (${sqlList(keyIds)})`,
   );
 
 /** Bucket link rows under their key. Every requested key comes back, including
@@ -143,20 +144,33 @@ type ReadIdsByKeys = (
   tx?: TxScope,
 ) => Promise<LinkedIdsByKey>;
 
+/** A build over a link table, its key column, and its value column. */
+type OverLinkTable<Built, Extra extends unknown[] = []> = <
+  Name extends TableName,
+>(
+  handle: TableHandle<Name>,
+  keyColumn: ColumnName<Name>,
+  valueColumn: ColumnName<Name>,
+  ...extra: Extra
+) => Built;
+
 /** Build the helpers for one direction through a link table. */
-export const linkTableSide = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
-  readIdsByKeys: ReadIdsByKeys = oneDirectionReader(
-    table,
-    keyColumn,
-    valueColumn,
-  ),
-): LinkTableSide => {
+export const linkTableSide: OverLinkTable<
+  LinkTableSide,
+  [readIdsByKeys?: ReadIdsByKeys]
+> = (
+  handle,
+  keyColumn,
+  valueColumn,
+  readIdsByKeys = oneDirectionReader(handle.name, keyColumn, valueColumn),
+) => {
+  const table = handle.name;
   const linkTable = sqlName(table);
-  const key = sqlName(keyColumn);
-  const value = sqlName(valueColumn);
+  const key = columnSql(keyColumn);
+  const value = columnSql(valueColumn);
+
+  const clearStatement = (keyId: number): SqlStatement =>
+    deleteFrom(handle).where(rowsWith(handle, keyColumn, keyId));
 
   // One multi-row INSERT regardless of id count, so a replace is always two
   // statements and a transactional caller stays clear of the round-trip guard.
@@ -178,13 +192,15 @@ export const linkTableSide = (
   ): SqlStatement[] => {
     const deduped = dedupe(ids);
     return [
-      deleteFrom(table, { [keyColumn]: keyId }),
+      clearStatement(keyId),
       ...(deduped.length > 0 ? [insertStatement(keyId, deduped)] : []),
     ];
   };
 
   const linkSide: LinkTableSide = {
-    clear: (keyId) => deleteByField(table, keyColumn, keyId),
+    clear: async (keyId) => {
+      await execute(clearStatement(keyId));
+    },
     copyLinksTx: async (tx, sourceKeyId, newKeyId) => {
       await tx.execute(
         sql`INSERT INTO ${linkTable} (${key}, ${value})
@@ -243,11 +259,12 @@ const emptyBothDirections = (
  * the same records costs one round trip rather than two. Rows come back ordered
  * by key then value, which leaves every list here ascending.
  */
-export const selfLinkTableSides = (
-  table: string,
-  keyColumn: string,
-  valueColumn: string,
-): SelfLinkTableSides => {
+export const selfLinkTableSides: OverLinkTable<SelfLinkTableSides> = (
+  handle,
+  keyColumn,
+  valueColumn,
+) => {
+  const table = handle.name;
   const fetchBothDirections = async (
     ids: number[],
   ): Promise<Map<number, BothDirections>> => {
@@ -259,9 +276,7 @@ export const selfLinkTableSides = (
         table,
         keyColumn,
         valueColumn,
-        sql`${sqlName(keyColumn)} IN (${boundIds}) OR ${sqlName(
-          valueColumn,
-        )} IN (${boundIds})`,
+        sql`${columnSql(keyColumn)} IN (${boundIds}) OR ${columnSql(valueColumn)} IN (${boundIds})`,
       ),
     );
     for (const { key_id, value_id } of rows) {
@@ -288,13 +303,13 @@ export const selfLinkTableSides = (
 
   return {
     pointedAtBy: linkTableSide(
-      table,
+      handle,
       valueColumn,
       keyColumn,
       directionReader("pointedAtBy"),
     ),
     pointsAt: linkTableSide(
-      table,
+      handle,
       keyColumn,
       valueColumn,
       directionReader("pointsAt"),

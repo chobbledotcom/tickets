@@ -87,7 +87,7 @@ describe("external-order", () => {
       const catalog = buildCatalog({
         ...base,
         listings: [
-          testListing({ id: 1, name: "Open", slug: "open", unit_price: 1500 }),
+          testListing({ id: 1, name: "Open", slug: "open", unitPrice: 1500 }),
           testListing({ hidden: true, id: 2, name: "Secret", slug: "secret" }),
           testListing({ active: false, id: 3, name: "Closed", slug: "closed" }),
         ],
@@ -116,9 +116,9 @@ describe("external-order", () => {
       const catalog = buildCatalog({
         ...base,
         listings: [
-          testListing({ id: 1, listing_type: "daily", slug: "daily" }),
-          testListing({ customisable_days: true, id: 2, slug: "days" }),
-          testListing({ can_pay_more: true, id: 3, slug: "pwyw" }),
+          testListing({ id: 1, listingType: "daily", slug: "daily" }),
+          testListing({ customisableDays: true, id: 2, slug: "days" }),
+          testListing({ canPayMore: true, id: 3, slug: "pwyw" }),
           testListing({ id: 4, slug: "fixed" }),
         ],
       });

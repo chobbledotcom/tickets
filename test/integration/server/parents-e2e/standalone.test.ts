@@ -75,7 +75,7 @@ describeWithEnv(
       const res = await postBooking(widget.slug, {
         email: "ada@example.com",
         name: "Ada Lovelace",
-        [`quantity_${widget.id}`]: "1",
+        [`quantity${widget.id}`]: "1",
       });
       expectReserved(res);
 
@@ -96,8 +96,8 @@ describeWithEnv(
       const res = await postBooking(`${parent.slug}+${widget.slug}`, {
         email: "both@example.com",
         name: "Both Paths",
-        [`quantity_${parent.id}`]: "1",
-        [`quantity_${widget.id}`]: "1",
+        [`quantity${parent.id}`]: "1",
+        [`quantity${widget.id}`]: "1",
       });
       expectReserved(res);
 
@@ -154,10 +154,10 @@ describeWithEnv(
       ]);
 
       const submit = await submitPackageBooking(group.slug, {
-        [`child_qty_${picker.id}_${widget.id}`]: "1",
+        [`childQty${picker.id}_${widget.id}`]: "1",
         email: "kit@example.com",
         name: "Kit Buyer",
-        [`package_quantity_${group.id}`]: "1",
+        [`packageQuantity${group.id}`]: "1",
       });
       await expectPackageBookingAccepted(submit);
 
@@ -192,8 +192,8 @@ describeWithEnv(
 
       const html = await bookingPageHtml(`${parent.slug}+${widget.slug}`);
       const select = html.slice(
-        html.indexOf(`name="quantity_${widget.id}"`),
-        html.indexOf("</select>", html.indexOf(`name="quantity_${widget.id}"`)),
+        html.indexOf(`name="quantity${widget.id}"`),
+        html.indexOf("</select>", html.indexOf(`name="quantity${widget.id}"`)),
       );
       const offered = [...select.matchAll(/value="(\d+)"/g)].map((m) =>
         Number(m[1]),

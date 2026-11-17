@@ -51,7 +51,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -69,7 +69,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: "Hello",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Update",
       });
       fetch.restubFetch(() => Promise.resolve(new Response(body, { status })));
@@ -89,7 +89,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const listing = await seedListingWithAttendees();
       await adminFormPost("/admin/emails/preview", {
         body: reference(image.id),
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         subject: "Update",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -299,7 +299,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Monthly"'),
       );
-      expect(entry?.listing_id).toBe(null);
+      expect(entry?.listingId).toBe(null);
     });
 
     /**
@@ -319,7 +319,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       await unsubscribeHash(await hashEmail("alice@example.com"));
       await adminFormPost("/admin/emails/preview", {
         body: "Promo",
-        listing_id: String(listing.id),
+        listingId: String(listing.id),
         marketing: "1",
         subject: "Sale",
       });
@@ -347,7 +347,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const empty = await createTestListing({ maxAttendees: 5, name: "Empty" });
       await adminFormPost("/admin/emails/preview", {
         body: "Body",
-        listing_id: String(empty.id),
+        listingId: String(empty.id),
         subject: "Subject",
       });
       const { response } = await adminFormPost("/admin/emails/send", {});
@@ -465,7 +465,7 @@ describeWithEnv("server bulk email > send", { db: true }, () => {
       const entry = log.find((e) =>
         e.message.includes('Sent bulk email "Just you"'),
       )!;
-      expect(entry.listing_id).toBe(null);
+      expect(entry.listingId).toBe(null);
       // The log names one recipient in the singular, and says so exactly.
       assertStringIncludes(entry.message, "to 1 recipient.");
     });

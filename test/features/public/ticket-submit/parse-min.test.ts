@@ -49,7 +49,7 @@ describeWithEnv("ticket-submit parse — minimum quantity", { db: true }, () => 
           ctx,
           pageBookingTree(ctx),
         ),
-      ).toBe(bookingError.minimum(listing.name, listing.min_quantity));
+      ).toBe(bookingError.minimum(listing.name, listing.minQuantity));
     });
 
     test("accepts a quantity of exactly the minimum", async () => {

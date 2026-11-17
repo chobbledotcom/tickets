@@ -15,8 +15,8 @@ import { adminFormPost } from "#test-utils/session.ts";
  * the page's default, the email. */
 export const resend = (attendeeId: number, name: string, sides?: string) =>
   adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
-    confirm_identifier: name,
-    ...(sides === undefined ? {} : { resend_sides: sides }),
+    confirmIdentifier: name,
+    ...(sides === undefined ? {} : { resendSides: sides }),
   });
 
 export const addWebhook = async (listingId: number): Promise<void> => {

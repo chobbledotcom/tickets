@@ -25,8 +25,8 @@ describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
 
     testRequiresAuth("/admin/settings/calendar-feeds", {
       body: {
-        calendar_feeds_enabled: "true",
-        calendar_feeds_group_by: "attendees",
+        calendarFeedsEnabled: "true",
+        calendarFeedsGroupBy: "attendees",
       },
       method: "POST",
     });
@@ -35,8 +35,8 @@ describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/settings/calendar-feeds",
         {
-          calendar_feeds_enabled: "true",
-          calendar_feeds_group_by: "attendees",
+          calendarFeedsEnabled: "true",
+          calendarFeedsGroupBy: "attendees",
         },
       );
 
@@ -49,8 +49,8 @@ describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
 
     test("enables listing-grouped calendar feeds", async () => {
       await adminFormPost("/admin/settings/calendar-feeds", {
-        calendar_feeds_enabled: "true",
-        calendar_feeds_group_by: "listings",
+        calendarFeedsEnabled: "true",
+        calendarFeedsGroupBy: "listings",
       });
 
       expect(settings.calendarFeedsEnabled).toBe(true);
@@ -61,8 +61,8 @@ describeWithEnv("server (admin settings: calendar feeds)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/settings/calendar-feeds",
         {
-          calendar_feeds_enabled: "false",
-          calendar_feeds_group_by: "attendees",
+          calendarFeedsEnabled: "false",
+          calendarFeedsGroupBy: "attendees",
         },
       );
 

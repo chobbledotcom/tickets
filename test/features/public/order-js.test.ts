@@ -2,7 +2,6 @@ import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { spy } from "@std/testing/mock";
-import { groups } from "#db/groups.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import { getAllListings } from "#db/listings/records.ts";
 import { settings } from "#db/settings.ts";
@@ -89,12 +88,9 @@ describeWithEnv("order.js", { db: true, triggers: true }, () => {
 
   test("a hidden package's bundle is still bookable from the widget", async () => {
     await settings.update.externalOrderEnabled(true);
-    const group = await createTestGroup({
-      isPackage: true,
-      name: "Secret Bundle",
+    const group = await createHiddenPackageGroup("Secret Bundle", {
       slug: "secret-bundle",
     });
-    await groups.table.update(group.id, { hidePackageListings: true });
     const member = await createTestListing({
       groupId: group.id,
       name: "Concealed",

@@ -28,7 +28,7 @@ export type RebuildPaymentsPageData = {
 } & FlashFields;
 
 /** The form field one row's provider choice arrives in. */
-const providerField = encodedAfter("provider_");
+const providerField = encodedAfter("provider");
 
 /** One old record, with a provider choice when the record does not name one. */
 const RecordRow = ({
@@ -88,7 +88,7 @@ const RebuildForm = ({
         <input
           autocomplete="off"
           inputmode="numeric"
-          name="confirm_identifier"
+          name="confirmIdentifier"
           type="text"
         />
       </label>

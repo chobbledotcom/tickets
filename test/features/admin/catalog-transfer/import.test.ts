@@ -85,8 +85,8 @@ describeWithEnv("catalog group import", { db: true }, () => {
     );
     if (!stored) throw new Error("The imported group membership is missing");
     expect({
-      listing_id: stored.listing_id,
-      package_price: stored.package_price,
+      listing_id: stored.listingId,
+      package_price: stored.packagePrice,
       quantity: stored.quantity,
     }).toEqual({
       listing_id: member.id,
@@ -188,7 +188,7 @@ async function expectPlanMemberImportRefused(
     ok: false,
   });
   const { groups } = await import("#db/groups.ts");
-  expect(
-    (await groups.cache.getAll()).find((row) => row.name === group.name),
-  ).toBe(undefined);
+  expect((await groups.getAll()).find((row) => row.name === group.name)).toBe(
+    undefined,
+  );
 }

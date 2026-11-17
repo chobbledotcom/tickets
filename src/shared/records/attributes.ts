@@ -7,13 +7,13 @@ import {
   type Attribute,
   type AttributeWithOptions,
   attributesOrder,
-  attributesTable,
   deleteAttribute,
   getAllAttributesWithOptions,
   getAttributeWithOptions,
   getAttributeWithOptionsOnPrimary,
 } from "#db/attributes.ts";
 import type { NamedSortOrderInput } from "#db/common-schema.ts";
+import { tables } from "#db/select/tables.ts";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
@@ -33,5 +33,5 @@ export const attributeRecord = defineNamedRowRecord<
   },
   saveLanding: "attribute",
   surface: "attributes",
-  table: attributesTable,
+  table: tables.attributes,
 });

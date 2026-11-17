@@ -3,7 +3,6 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
 import { hashPhone } from "#db/contact-preferences.ts";
-import { modifiersTable } from "#db/modifiers.ts";
 import { settings } from "#db/settings.ts";
 import { handleRequest } from "#routes";
 import {
@@ -23,6 +22,7 @@ import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { mockFormRequest, mockRequest } from "#test-utils/mocks.ts";
+import { insertModifier } from "#test-utils/modifiers.ts";
 import { setupStripe } from "#test-utils/settings.ts";
 
 /** Add a one-penny returning-customer charge to a free, phone-only listing. */
@@ -34,10 +34,8 @@ const setupReturningCustomerFeeListing = async () => {
     thankYouUrl: "https://example.com/thanks",
     unitPrice: 0,
   });
-  await modifiersTable.insert({
-    calcKind: "fixed",
+  await insertModifier({
     calcValue: 0.01,
-    direction: "charge",
     minVisits: 1,
     name: "Returning customer fee",
     trigger: "automatic",
@@ -75,8 +73,7 @@ describeWithEnv(
           thankYouUrl: "https://example.com/thanks",
           unitPrice: 1,
         });
-        await modifiersTable.insert({
-          calcKind: "fixed",
+        await insertModifier({
           calcValue: 0.01,
           direction: "discount",
           minVisits: 1,
@@ -104,10 +101,7 @@ describeWithEnv(
           thankYouUrl: "https://example.com/thanks",
           unitPrice: 0,
         });
-        const addOn = await modifiersTable.insert({
-          calcKind: "fixed",
-          calcValue: 5,
-          direction: "charge",
+        const addOn = await insertModifier({
           name: "Workshop kit",
           trigger: "optional",
         });
@@ -119,7 +113,7 @@ describeWithEnv(
         assertStringIncludes(html, 'name="email"');
 
         const response = await submitTicketForm(listing.slug, {
-          [`addon_${addOn.id}`]: "1",
+          [`addon${addOn.id}`]: "1",
           name: "John Doe",
           phone: "555-1234",
         });
@@ -196,7 +190,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "john@example.com",
           name: "John Doe",
-          [`quantity_${listing.id}`]: "abc",
+          [`quantity${listing.id}`]: "abc",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -242,11 +236,11 @@ describeWithEnv(
             {
               email: "john@example.com",
               name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
+              [`quantity${listing1.id}`]: "1",
+              [`quantity${listing2.id}`]: "1",
+              csrfToken,
             },
-            `csrf_token=${csrfToken}`,
+            `csrfToken=${csrfToken}`,
           ),
         );
         expectReservedRedirectWithTokens(response);
@@ -270,8 +264,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "abc",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "abc",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         expectReservedRedirectWithTokens(response);
@@ -312,7 +306,7 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
 

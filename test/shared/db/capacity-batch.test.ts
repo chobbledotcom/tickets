@@ -336,8 +336,8 @@ describe("addDemandToBucket", () => {
     // last undated statement reads is the running total AT that line (3),
     // never an accumulator of earlier snapshots (0 + 1 + 3).
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "standard" }, item(1), undefined);
-    addDemandToBucket(bucket, { listing_type: "standard" }, item(2), undefined);
+    addDemandToBucket(bucket, { listingType: "standard" }, item(1), undefined);
+    addDemandToBucket(bucket, { listingType: "standard" }, item(2), undefined);
     expect(bucket).toEqual({
       everyDay: 3,
       perDay: new Map(),
@@ -349,7 +349,7 @@ describe("addDemandToBucket", () => {
 
   test("a date-less line on a per-date listing pins the same snapshot on its own side", () => {
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(2), null);
     expect(bucket).toEqual({
       everyDay: 0,
       perDay: new Map(),
@@ -361,8 +361,8 @@ describe("addDemandToBucket", () => {
 
   test("a dated line booked after the last date-less line never raises the pinned snapshot", () => {
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), DAY);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(2), DAY);
     expect(bucket.runningTotal).toBe(3);
     expect(bucket.throughLastUndated).toBe(1);
     expect([...bucket.perDay]).toEqual([[DAY, 2]]);
@@ -372,7 +372,7 @@ describe("addDemandToBucket", () => {
     // getOrCreateBucket's fields stay untouched by the zero line — the
     // initializer's zeros are visible to the demand fold's caller.
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "standard" }, item(0), undefined);
+    addDemandToBucket(bucket, { listingType: "standard" }, item(0), undefined);
     expect(bucket).toEqual({
       everyDay: 0,
       perDay: new Map(),
@@ -384,7 +384,7 @@ describe("addDemandToBucket", () => {
 
   test("a multi-day line occupies each of its days once", () => {
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(1, 2), DAY);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(1, 2), DAY);
     expect([...bucket.perDay]).toEqual([
       [DAY, 1],
       ["2026-05-02", 1],
@@ -396,8 +396,8 @@ describe("addDemandToBucket", () => {
     // rule: the write's last undated statement reads the running total AT
     // that line (3), not an accumulator of the earlier snapshot (1 + 3).
     const bucket = freshBucket();
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(1), null);
-    addDemandToBucket(bucket, { listing_type: "daily" }, item(2), null);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(1), null);
+    addDemandToBucket(bucket, { listingType: "daily" }, item(2), null);
     expect(bucket.throughLastUndated).toBe(3);
     expect(bucket.undatedOnly).toBe(3);
   });

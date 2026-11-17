@@ -198,7 +198,7 @@ describeStripe("stripe", () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
       // First create a session using intent-based flow
-      const listing = testListing({ unit_price: 1000 });
+      const listing = testListing({ unitPrice: 1000 });
       const createdSession = await stripeApi.createCheckoutSession(
         checkoutIntent({
           email: "john@example.com",
@@ -220,7 +220,7 @@ describeStripe("stripe", () => {
     test("creates checkout session with intent metadata", async () => {
       await settings.update.stripe.secretKey("sk_test_mock");
 
-      const listing = testListing({ max_quantity: 5, unit_price: 1000 });
+      const listing = testListing({ maxQuantity: 5, unitPrice: 1000 });
       const session = await stripeApi.createCheckoutSession(
         checkoutIntent({
           email: "john@example.com",
@@ -377,7 +377,7 @@ describeStripe("stripe", () => {
           url: "https://checkout.stripe.com/fee",
         }),
         async (getParams) => {
-          const listing = testListing({ unit_price: 1000 });
+          const listing = testListing({ unitPrice: 1000 });
           await stripeApi.createCheckoutSession(
             checkoutIntent({
               email: "jane@example.com",
@@ -418,7 +418,7 @@ describeStripe("stripe", () => {
           url: "https://checkout.stripe.com/dep",
         }),
         async (getParams) => {
-          const listing = testListing({ unit_price: 1000 });
+          const listing = testListing({ unitPrice: 1000 });
           await stripeApi.createCheckoutSession(
             checkoutIntent({
               email: "jane@example.com",

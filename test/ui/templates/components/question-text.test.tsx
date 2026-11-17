@@ -13,8 +13,8 @@ import { testAnswer, testQuestion } from "#test-utils/factories.ts";
 
 const radioQuestion = (text: string): QuestionWithAnswers =>
   testQuestion({
-    answers: [testAnswer({ id: 10, sort_order: 0, text: "Red" })],
-    display_type: "radio",
+    answers: [testAnswer({ id: 10, sortOrder: 0, text: "Red" })],
+    displayType: "radio",
     id: 1,
     text,
   });

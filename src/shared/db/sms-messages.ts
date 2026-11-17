@@ -8,8 +8,11 @@
  * terminal status event and pruned by age as a backstop.
  */
 
-import { deleteByField, execute, insert, queryOne } from "#db/client.ts";
+import { execute, queryOne } from "#db/client.ts";
+import { pruneRowsBefore } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { sql } from "#db/sql.ts";
+import { insertInto } from "#db/write.ts";
 import { nowIso } from "#shared/now.ts";
 
 export interface SmsMessageRow {
@@ -29,11 +32,11 @@ export const recordSmsMessage = async (input: {
   providerId: string;
 }): Promise<void> => {
   await execute(
-    insert("sms_messages", {
-      attendee_id: input.attendeeId,
+    insertInto(tables.sms_messages, {
+      attendeeId: input.attendeeId,
       created: nowIso(),
-      listing_id: input.listingId,
-      provider_id: input.providerId,
+      listingId: input.listingId,
+      providerId: input.providerId,
     }),
   );
 };
@@ -49,12 +52,6 @@ export const getSmsMessageByProviderId = (
       );
 
 /** Delete a row once its message reaches a terminal state. */
-export const deleteSmsMessage = (id: number): Promise<void> =>
-  deleteByField("sms_messages", "id", id);
 
 /** Prune rows older than the given ISO cutoff (backstop for missed webhooks). */
-export const pruneSmsMessagesBefore = async (
-  cutoffIso: string,
-): Promise<void> => {
-  await execute(sql`DELETE FROM sms_messages WHERE created < ${cutoffIso}`);
-};
+export const pruneSmsMessagesBefore = pruneRowsBefore(tables.sms_messages);

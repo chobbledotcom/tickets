@@ -27,7 +27,7 @@ export const SupportMessagePanel = ({
   // A refused save's draft survives here even when the follow-up read also
   // fails. The read error shows above the editor instead of in its place.
   // The operator keeps their text to retry with.
-  const draft = savedFormValueOrNull("support_message");
+  const draft = savedFormValueOrNull("supportMessage");
   const readFailed = !state.ok;
   if (readFailed && draft === null) {
     return (
@@ -51,7 +51,7 @@ export const SupportMessagePanel = ({
         <SiteActionForm action="support-message" siteId={site.id}>
           <label>
             {t("built_sites.support_message_label")}
-            <textarea data-markdown-preview name="support_message">
+            <textarea data-markdown-preview name="supportMessage">
               {textareaBody(editorText ?? "")}
             </textarea>
           </label>

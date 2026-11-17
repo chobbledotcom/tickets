@@ -52,9 +52,9 @@ describeWithEnv("server (setup concurrency)", { db: true }, () => {
         handleRequest(
           mockSetupFormRequest(
             {
-              admin_password: "mypassword123",
-              admin_password_confirm: "mypassword123",
-              admin_username: username,
+              adminPassword: "mypassword123",
+              adminPasswordConfirm: "mypassword123",
+              adminUsername: username,
               country: "GB",
             },
             csrfToken,

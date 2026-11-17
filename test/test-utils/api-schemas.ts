@@ -6,6 +6,7 @@
 
 import * as v from "valibot";
 import { ApiQuantitySchema } from "#routes/api/request-schemas.ts";
+import { snakeCaseKeys } from "#shared/column-names.ts";
 import { mergeListingFields } from "#shared/listing-fields.ts";
 import { GROUP_FIELDS } from "#shared/records/group-fields.ts";
 import { byFieldKey } from "#shared/rest/field-specs.ts";
@@ -329,10 +330,10 @@ export const PackageBookRequestSchema = v.strictObject({
   ),
 });
 
-/** Every group field under its own value rule, so the shape cannot fall
- *  behind the field list. */
+/** Every group field under its own value rule and its wire name, so the
+ *  shape cannot fall behind the field list. */
 const groupEntries = {
-  ...byFieldKey(GROUP_FIELDS, fieldValueSchema),
+  ...snakeCaseKeys(byFieldKey(GROUP_FIELDS, fieldValueSchema)),
   id: AtLeastOne,
   slug: Slug,
 };

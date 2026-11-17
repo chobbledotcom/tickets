@@ -18,7 +18,7 @@ const addListings = async (
 ): Promise<Response> =>
   (
     await adminFormPost(`/admin/groups/${groupId}/add-listings`, {
-      listing_ids: listingIds.map(String),
+      listingIds: listingIds.map(String),
     })
   ).response;
 

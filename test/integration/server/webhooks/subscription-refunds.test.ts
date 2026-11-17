@@ -123,8 +123,8 @@ describeWithEnv("subscription checkout refunds", { db: true }, () => {
             await getProcessedPayment(SESSION_ID),
             "Failed checkout session not found",
           );
-          expect(failed.attendee_id).toBeNull();
-          expect(await parseSessionFailure(failed.failure_data)).toMatchObject({
+          expect(failed.attendeeId).toBeNull();
+          expect(await parseSessionFailure(failed.failureData)).toMatchObject({
             completion: { code: "capacity_full" },
             status: 200,
           });

@@ -34,10 +34,10 @@ describeWithEnv(
 
         const { response, checkoutCalls } = await postExpectingNoCheckout(
           mockFormRequest(`/ticket/${listing.slug}`, {
-            csrf_token: csrf,
+            csrfToken: csrf,
             email: "site@example.com",
             name: "Site Buyer",
-            [`quantity_${listing.id}`]: "1",
+            [`quantity${listing.id}`]: "1",
           }),
         );
 

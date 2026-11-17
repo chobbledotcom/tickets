@@ -1,25 +1,53 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeStatuses, getAttendeeStatus } from "#db/attendee-statuses.ts";
 import { getDb } from "#db/client.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
-import { handleRequest } from "#routes";
 import { expectUnauthorized } from "#test-utils/admin-api-auth.ts";
+import {
+  deleteJson,
+  expectApiErrorIncludes,
+  expectApiRecord,
+  type JsonBody,
+  postJson,
+  putJson,
+  requestAsManager,
+} from "#test-utils/api/admin-json.ts";
 import { assertJson, expectApiError } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  apiRequest,
-  createTestManagerSession,
-  requestAsSession,
-  testCsrfToken,
-} from "#test-utils/session.ts";
+import { apiRequest } from "#test-utils/session.ts";
+
+const STATUSES = "/api/admin/attendee-statuses";
+
+/** The path of one status in the admin API. */
+const statusPath = (id: number): string => `${STATUSES}/${id}`;
+
+/** The status that an admin API answer holds. */
+const expectStatus = expectApiRecord("status");
+
+const RESERVATION_ONLY =
+  "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.";
 
 const createStatus = async (
   name: string,
-  flags: { is_public_default?: boolean; is_paid_default?: boolean } = {},
 ): Promise<{ id: number; name: string }> =>
-  attendeeStatuses.table.insert({ name, ...flags });
+  records.attendee_statuses.insert({ name });
+
+/** A reservation status that holds a quarter of the price. */
+const createQuarterHold = () =>
+  records.attendee_statuses.insert({
+    isReservation: true,
+    name: "Reserved",
+    reservationAmount: "25%",
+  });
+
+/** The status that every new site starts with. */
+const seededStatus = async () => {
+  const [seed] = await attendeeStatuses.getAll();
+  if (seed === undefined) throw new Error("The site holds no status.");
+  return seed;
+};
 
 /** Point one attendee at a status, the way a booking would. */
 const holdStatus = async (statusId: number): Promise<void> => {
@@ -28,57 +56,71 @@ const holdStatus = async (statusId: number): Promise<void> => {
   );
 };
 
+/** Assert that the admin API refuses to create this status with `message`. */
+const expectCreateRefused = (body: JsonBody, message: string) =>
+  expectApiError(postJson(STATUSES, body), 400, message);
+
+/** Assert that the admin API refuses this change to one status with
+ *  `message`. */
+const expectUpdateRefused = (id: number, body: JsonBody, message: string) =>
+  expectApiError(putJson(statusPath(id), body), 400, message);
+
+/** Assert that the admin API refuses to delete one status with `message`,
+ *  and that the status stays. */
+const expectDeleteRefused = async (
+  status: { id: number; name: string },
+  message: string,
+): Promise<void> => {
+  await expectApiError(
+    deleteJson(statusPath(status.id), { confirm_identifier: status.name }),
+    400,
+    message,
+  );
+  expect((await getAttendeeStatus(status.id))?.name).toBe(status.name);
+};
+
 describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
   describe("GET /api/admin/attendee-statuses", () => {
     test("lists every status with its flags and reservation amount", async () => {
       await createStatus("VIP");
       await createStatus("Reserved");
 
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses"),
-        200,
-        (body) => {
-          const names = body["attendee-statuses"].map(
-            (status: { name: string }) => status.name,
-          );
-          expect(names).toEqual(["Confirmed", "VIP", "Reserved"]);
-          const confirmed = body["attendee-statuses"][0];
-          expect(confirmed).toMatchObject({
-            is_paid_default: true,
-            is_public_default: true,
-            is_reservation: false,
-            name: "Confirmed",
-            reservation_amount: "0",
-          });
-          // The answer carries the three default flags and the amount, but not
-          // the dashboard-only sort order.
-          expect(Object.hasOwn(confirmed, "sort_order")).toBe(false);
-        },
-      );
+      await assertJson(apiRequest(STATUSES), 200, (body) => {
+        const names = body["attendee-statuses"].map(
+          (status: { name: string }) => status.name,
+        );
+        expect(names).toEqual(["Confirmed", "VIP", "Reserved"]);
+        const confirmed = body["attendee-statuses"][0];
+        expect(confirmed).toMatchObject({
+          is_paid_default: true,
+          is_public_default: true,
+          is_reservation: false,
+          name: "Confirmed",
+          reservation_amount: "0",
+        });
+        // The answer carries the three default flags and the amount, but not
+        // the dashboard-only sort order.
+        expect(Object.hasOwn(confirmed, "sort_order")).toBe(false);
+      });
     });
 
-    test("returns 401 without auth", () =>
-      expectUnauthorized("/api/admin/attendee-statuses"));
+    test("returns 401 without auth", () => expectUnauthorized(STATUSES));
   });
 
   describe("GET /api/admin/attendee-statuses/:statusId", () => {
     test("returns a single status by ID", async () => {
       const status = await createStatus("Walk-in");
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`),
-        200,
-        (body) => {
-          expect(body.status.name).toBe("Walk-in");
-          expect(body.status.id).toBe(status.id);
-          expect(body.status.is_reservation).toBe(false);
-        },
-      );
+      await expectStatus(apiRequest(statusPath(status.id)), 200, (row) => {
+        expect(row.name).toBe("Walk-in");
+        expect(row.id).toBe(status.id);
+        expect(row.is_reservation).toBe(false);
+      });
     });
 
     test("returns 404 for a non-existent status", async () => {
       await expectApiError(
-        apiRequest("/api/admin/attendee-statuses/99999"),
+        apiRequest(statusPath(99999)),
         404,
         "Status not found",
       );
@@ -87,151 +129,95 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
 
   describe("POST /api/admin/attendee-statuses", () => {
     test("creates a status that the list then shows", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: {
-            is_paid_default: false,
-            is_public_default: false,
-            is_reservation: true,
-            name: "Reserved",
-            reservation_amount: "25%",
-          },
-          method: "POST",
+      await expectStatus(
+        postJson(STATUSES, {
+          is_paid_default: false,
+          is_public_default: false,
+          is_reservation: true,
+          name: "Reserved",
+          reservation_amount: "25%",
         }),
         201,
-        (body) => {
-          expect(body.status.name).toBe("Reserved");
-          expect(body.status.is_reservation).toBe(true);
-          expect(body.status.reservation_amount).toBe("25%");
-          expect(body.status.id).toBeGreaterThan(0);
+        (row) => {
+          expect(row.name).toBe("Reserved");
+          expect(row.is_reservation).toBe(true);
+          expect(row.reservation_amount).toBe("25%");
+          expect(row.id).toBeGreaterThan(0);
         },
       );
 
       // The row is a real status: the admin UI's list reads from the same
       // table and now shows it.
       const all = await attendeeStatuses.getAll();
-      expect(all.some((status) => status.name === "Reserved")).toBe(true);
+      expect(all.map((status) => status.name)).toContain("Reserved");
     });
 
     test("a new public default clears the previous one", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: { is_public_default: true, name: "New default" },
-          method: "POST",
-        }),
+      await expectStatus(
+        postJson(STATUSES, { is_public_default: true, name: "New default" }),
         201,
-        () => {},
       );
 
       const defaults = (await attendeeStatuses.getAll()).filter(
-        (status) => status.is_public_default,
+        (status) => status.isPublicDefault,
       );
       expect(defaults.map((status) => status.name)).toEqual(["New default"]);
     });
 
     test("returns error when name is missing", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: {},
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name is required");
-        },
-      );
+      await expectCreateRefused({}, "name is required");
     });
 
     test("refuses a name past the input length cap", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: { name: "x".repeat(251) },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("Name must be 250 characters or fewer");
-        },
+      await expectCreateRefused(
+        { name: "x".repeat(251) },
+        "Name must be 250 characters or fewer",
       );
     });
 
     test("refuses a flag that is not a boolean", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: { is_public_default: "yes", name: "Flagged" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("is_public_default must be a boolean");
-        },
+      await expectCreateRefused(
+        { is_public_default: "yes", name: "Flagged" },
+        "is_public_default must be a boolean",
       );
     });
 
     test("refuses a reservation amount that is not a string", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: {
-            is_reservation: true,
-            name: "Bad hold",
-            reservation_amount: 25,
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("reservation_amount must be a string");
-        },
+      await expectCreateRefused(
+        { is_reservation: true, name: "Bad hold", reservation_amount: 25 },
+        "reservation_amount must be a string",
       );
     });
 
     test("refuses a paid status that is also a reservation", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: {
-            is_paid_default: true,
-            is_reservation: true,
-            name: "Paid hold",
-            reservation_amount: "10",
-          },
-          method: "POST",
+      await expectApiErrorIncludes(
+        postJson(STATUSES, {
+          is_paid_default: true,
+          is_reservation: true,
+          name: "Paid hold",
+          reservation_amount: "10",
         }),
         400,
-        (body) => {
-          assertStringIncludes(body.error, "A paid status can't also be");
-        },
+        "A paid status can't also be",
       );
     });
 
     test("refuses a reservation amount without the reservation flag", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: { name: "Hold", reservation_amount: "25%" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
-          );
-        },
+      await expectCreateRefused(
+        { name: "Hold", reservation_amount: "25%" },
+        RESERVATION_ONLY,
       );
     });
 
     test("refuses a malformed reservation amount", async () => {
-      await assertJson(
-        apiRequest("/api/admin/attendee-statuses", {
-          body: {
-            is_reservation: true,
-            name: "Bad hold",
-            reservation_amount: "soon",
-          },
-          method: "POST",
+      await expectApiErrorIncludes(
+        postJson(STATUSES, {
+          is_reservation: true,
+          name: "Bad hold",
+          reservation_amount: "soon",
         }),
         400,
-        (body) => {
-          assertStringIncludes(body.error, "Enter an amount like 10");
-        },
+        "Enter an amount like 10",
       );
     });
   });
@@ -240,107 +226,59 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     test("updates the name", async () => {
       const status = await createStatus("Old name");
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { name: "New name" },
-          method: "PUT",
-        }),
+      await expectStatus(
+        putJson(statusPath(status.id), { name: "New name" }),
         200,
-        (body) => {
-          expect(body.status.name).toBe("New name");
-        },
+        (row) => expect(row.name).toBe("New name"),
       );
     });
 
     test("an update keeps a reservation's stored amount", async () => {
-      const status = await attendeeStatuses.table.insert({
-        isReservation: true,
-        name: "Reserved",
-        reservationAmount: "25%",
-      });
+      const status = await createQuarterHold();
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { name: "Reserved seat" },
-          method: "PUT",
-        }),
+      await expectStatus(
+        putJson(statusPath(status.id), { name: "Reserved seat" }),
         200,
-        (body) => {
-          expect(body.status.is_reservation).toBe(true);
-          expect(body.status.reservation_amount).toBe("25%");
+        (row) => {
+          expect(row.is_reservation).toBe(true);
+          expect(row.reservation_amount).toBe("25%");
         },
       );
     });
 
     test("refuses clearing the only public default", async () => {
-      const [seed] = await attendeeStatuses.getAll();
-
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${seed!.id}`, {
-          body: { is_public_default: false },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "Choose another public default before clearing this one",
-          );
-        },
+      await expectUpdateRefused(
+        (await seededStatus()).id,
+        { is_public_default: false },
+        "Choose another public default before clearing this one",
       );
     });
 
     test("refuses clearing the only paid default", async () => {
-      const [seed] = await attendeeStatuses.getAll();
-
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${seed!.id}`, {
-          body: { is_paid_default: false },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "Choose another paid default before clearing this one",
-          );
-        },
+      await expectUpdateRefused(
+        (await seededStatus()).id,
+        { is_paid_default: false },
+        "Choose another paid default before clearing this one",
       );
     });
 
     test("refuses an amount on a status that is not a reservation", async () => {
       const status = await createStatus("Plain");
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { name: "Plain", reservation_amount: "10%" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
-          );
-        },
+      await expectUpdateRefused(
+        status.id,
+        { name: "Plain", reservation_amount: "10%" },
+        RESERVATION_ONLY,
       );
     });
 
     test("refuses an amount when the update turns the reservation off", async () => {
-      const status = await attendeeStatuses.table.insert({
-        isReservation: true,
-        name: "Reserved",
-        reservationAmount: "25%",
-      });
+      const status = await createQuarterHold();
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { is_reservation: false, reservation_amount: "10%" },
-          method: "PUT",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "reservation_amount only applies to a reservation. Set is_reservation to true, or leave reservation_amount out.",
-          );
-        },
+      await expectUpdateRefused(
+        status.id,
+        { is_reservation: false, reservation_amount: "10%" },
+        RESERVATION_ONLY,
       );
     });
   });
@@ -350,14 +288,9 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
       const status = await createStatus("Unused");
 
       await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { confirm_identifier: "Unused" },
-          method: "DELETE",
-        }),
+        deleteJson(statusPath(status.id), { confirm_identifier: "Unused" }),
         200,
-        (body) => {
-          expect(body.status).toBe("ok");
-        },
+        (body) => expect(body.status).toBe("ok"),
       );
       expect(await getAttendeeStatus(status.id)).toBeNull();
     });
@@ -365,70 +298,39 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
     test("rejects a delete with the wrong confirmation", async () => {
       const status = await createStatus("Protected");
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { confirm_identifier: "Wrong" },
-          method: "DELETE",
-        }),
+      await expectApiErrorIncludes(
+        deleteJson(statusPath(status.id), { confirm_identifier: "Wrong" }),
         400,
-        (body) => {
-          assertStringIncludes(body.error, "does not match");
-        },
+        "does not match",
       );
-      expect(await getAttendeeStatus(status.id)).not.toBeNull();
+      expect((await getAttendeeStatus(status.id))?.name).toBe("Protected");
     });
 
     test("refuses deleting the public default", async () => {
-      const [seed] = await attendeeStatuses.getAll();
+      const seed = await seededStatus();
       await createStatus("Spare");
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${seed!.id}`, {
-          body: { confirm_identifier: "Confirmed" },
-          method: "DELETE",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "Choose another public default before deleting this status",
-          );
-        },
+      await expectDeleteRefused(
+        seed,
+        "Choose another public default before deleting this status",
       );
     });
 
     test("refuses deleting the last status", async () => {
-      const [seed] = await attendeeStatuses.getAll();
-
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${seed!.id}`, {
-          body: { confirm_identifier: "Confirmed" },
-          method: "DELETE",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("You must keep at least one status");
-        },
+      await expectDeleteRefused(
+        await seededStatus(),
+        "You must keep at least one status",
       );
-      expect(await getAttendeeStatus(seed!.id)).not.toBeNull();
     });
 
     test("refuses deleting a status attendees hold", async () => {
       const status = await createStatus("In use");
       await holdStatus(status.id);
 
-      await assertJson(
-        apiRequest(`/api/admin/attendee-statuses/${status.id}`, {
-          body: { confirm_identifier: "In use" },
-          method: "DELETE",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "Choose another status for its attendees before deleting",
-          );
-        },
+      await expectDeleteRefused(
+        status,
+        "Choose another status for its attendees before deleting",
       );
-      expect(await getAttendeeStatus(status.id)).not.toBeNull();
     });
   });
 
@@ -436,53 +338,28 @@ describeWithEnv("Admin API - Attendee statuses", { db: true }, () => {
   // reject managers too (a cookie-authenticated manager would otherwise reach
   // owner-gated operations through the API).
   describe("owner-only authorization", () => {
-    const managerSession = async () => ({
-      cookie: await createTestManagerSession(),
-      csrfToken: await testCsrfToken(),
-    });
-
     test("rejects a manager listing statuses with 403", async () => {
-      const res = await handleRequest(
-        requestAsSession(
-          "/api/admin/attendee-statuses",
-          await managerSession(),
-        ),
-      );
-      expect(res.status).toBe(403);
-      expect((await res.json()).error).toBe("Forbidden");
+      await expectApiError(requestAsManager(STATUSES), 403, "Forbidden");
     });
 
     test("rejects a manager creating a status with 403", async () => {
-      const res = await handleRequest(
-        requestAsSession(
-          "/api/admin/attendee-statuses",
-          await managerSession(),
-          {
-            body: JSON.stringify({ name: "Blocked" }),
-            headers: { "content-type": "application/json" },
-            method: "POST",
-          },
-        ),
-      );
+      const res = await requestAsManager(STATUSES, {
+        body: { name: "Blocked" },
+        method: "POST",
+      });
       expect(res.status).toBe(403);
       expect(
-        (await attendeeStatuses.getAll()).some(
-          (status) => status.name === "Blocked",
-        ),
-      ).toBe(false);
+        (await attendeeStatuses.getAll()).map((status) => status.name),
+      ).not.toContain("Blocked");
     });
 
     test("rejects a manager deleting a status with 403", async () => {
       const status = await createStatus("Locked");
-      const res = await handleRequest(
-        requestAsSession(
-          `/api/admin/attendee-statuses/${status.id}`,
-          await managerSession(),
-          { method: "DELETE" },
-        ),
-      );
+      const res = await requestAsManager(statusPath(status.id), {
+        method: "DELETE",
+      });
       expect(res.status).toBe(403);
-      expect(await getAttendeeStatus(status.id)).not.toBeNull();
+      expect((await getAttendeeStatus(status.id))?.name).toBe("Locked");
     });
   });
 });

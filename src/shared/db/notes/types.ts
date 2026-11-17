@@ -35,8 +35,8 @@ export type SystemNoteName = {
 /** A stored note with its `note` field opened up to plain text. */
 export interface SystemNote {
   created: string;
-  entity_id: number;
-  entity_type: NoteEntity;
+  entityId: number;
+  entityType: NoteEntity;
   id: number;
   note: string;
   type: SystemNoteType;
@@ -45,6 +45,6 @@ export interface SystemNote {
 /** The row as stored, its `note` still sealed. The kind of the note says
  *  which key sealed it: the owner key for "owner", the env key for "system". */
 export type SystemNoteRow = Omit<SystemNote, "note"> & {
-  system_name: string | null;
+  systemName: string | null;
   note: OwnerKeyEncrypted | EnvKeyEncrypted;
 };

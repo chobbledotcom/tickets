@@ -146,8 +146,8 @@ describeWithEnv("server listings > show basics", { db: true }, () => {
         2,
       );
       await listingAggregates.update(listing.id, {
-        booked_quantity: 9,
-        tickets_count: 1,
+        bookedQuantity: 9,
+        ticketsCount: 1,
       });
 
       const detail = await adminGet(`/admin/listing/${listing.id}`);

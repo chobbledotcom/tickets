@@ -17,7 +17,8 @@ import {
   listingQuestions,
   questionListings,
 } from "#db/questions/queries.ts";
-import { questionsOrder, questionsTable } from "#db/questions/tables.ts";
+import { questionsOrder } from "#db/questions/tables.ts";
+import { records } from "#db/record-table.ts";
 import { writeRowInTransaction } from "#db/row-write.ts";
 import { fieldById, mapNotNullish } from "#fp";
 import { t } from "#i18n";
@@ -80,8 +81,8 @@ const pages = recordPages(questionRecord, {
   identifier: (question) => questionTextFlat(question.text),
   renderDelete: adminQuestionDeletePage,
   renderList,
-  toInput: ({ display_type, text }) => ({
-    displayType: requireQuestionDisplayType(display_type),
+  toInput: ({ displayType, text }) => ({
+    displayType: requireQuestionDisplayType(displayType),
     text,
   }),
 });
@@ -92,10 +93,10 @@ const handleQuestionListings = entityFormById(
   async (id, _session, form) => {
     const question = await getQuestionWithAnswers(id);
     if (!question) return notFoundResponse();
-    const assignAll = form.get("assign_all") === "on";
-    const listingIds = form.getNumberArray("listing_ids");
+    const assignAll = form.get("assignAll") === "on";
+    const listingIds = form.getNumberArray("listingIds");
     await writeRowInTransaction(
-      await questionsTable.updateStatement(id, { assignAll }),
+      await records.questions.updateStatement(id, { assignAll }),
       id,
       (tx) => questionListings.setIdsTx(tx, id, listingIds),
     );
@@ -127,7 +128,7 @@ const questionOrder = createOrderedCollectionHandlers({
 
 const handleListingQuestionsPost = createListingChoicePost({
   feature: "questions",
-  fieldName: "question_ids",
+  fieldName: "questionIds",
   label: "Questions",
   noun: "question",
   pattern: "/admin/listing/:id/questions",

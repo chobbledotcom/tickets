@@ -3,10 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { attendeeAccount } from "#accounting/accounts.ts";
 import { base64ToBase64Url } from "#crypto/utils.ts";
-import {
-  attendeeStatuses,
-  requirePaidDefaultStatus,
-} from "#db/attendee-statuses.ts";
+import { requirePaidDefaultStatus } from "#db/attendee-statuses.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getAttendeeBalanceState } from "#db/attendees/balance.ts";
 import { getDb } from "#db/client.ts";
@@ -15,6 +12,7 @@ import {
   hashEmail,
   saveContactRecord,
 } from "#db/contact-preferences.ts";
+import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { expectOmitsAll } from "#test-utils/assertions/omissions.ts";
 import {
@@ -72,7 +70,7 @@ describeWithEnv(
       };
 
       const newReservation = () =>
-        attendeeStatuses.table.insert({
+        records.attendee_statuses.insert({
           isReservation: true,
           name: "Reserved",
           reservationAmount: "10%",
@@ -87,7 +85,7 @@ describeWithEnv(
         const reservation = await newReservation();
         const id = await seedAttendee(null, 0);
         const form = await buildAttendeeEditForm(id, {
-          extra: { status_id: String(reservation.id) },
+          extra: { statusId: String(reservation.id) },
           name: "Reserver",
         });
         const { response } = await adminFormPost(
@@ -104,14 +102,14 @@ describeWithEnv(
       });
 
       test("edit coerces a blank status back to the public default, not null", async () => {
-        // The form offers no "no status" choice, so a blank status_id (only
+        // The form offers no "no status" choice, so a blank statusId (only
         // reachable from a hand-crafted POST) must not clear the attendee — it
         // falls back to the public default instead.
         const reservation = await newReservation(); // a second, non-default status
         const publicDefault = await requirePaidDefaultStatus(); // the seed is also public default
         const id = await seedAttendee(reservation.id, 1500);
         const form = await buildAttendeeEditForm(id, {
-          extra: { status_id: "" },
+          extra: { statusId: "" },
           name: "Reserver",
         });
         await adminFormPost(`/admin/attendees/${id}`, form);
@@ -214,7 +212,7 @@ describeWithEnv(
         // itself carries no empty-value option any more.
         expectOmitsAll(html, [
           "No status",
-          '<select id="status_id" name="status_id"><option selected value="">',
+          '<select id="statusId" name="statusId"><option selected value="">',
         ]);
       });
 
@@ -232,11 +230,11 @@ describeWithEnv(
         const html = await getEdit(id);
         // No status dropdown is rendered for a single-status site, and no
         // "No status" choice is offered either.
-        expectOmitsAll(html, ['<select id="status_id"', "No status"]);
+        expectOmitsAll(html, ['<select id="statusId"', "No status"]);
         // ...but the status is still submitted so a save can't clear it.
         assertStringIncludes(
           html,
-          `<input name="status_id" type="hidden" value="${only!.id}">`,
+          `<input name="statusId" type="hidden" value="${only!.id}">`,
         );
       });
     });

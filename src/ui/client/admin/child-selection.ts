@@ -2,16 +2,16 @@
 /// <reference lib="dom.iterable" />
 /** Shared helpers for the parent/child booking gate's client enhancement.
  *
- * A folded child is never an ordinary `quantity_<id>` line — under the per-unit
- * selection model it is chosen via a per-child `child_qty_<parentId>_<childId>`
+ * A folded child is never an ordinary `quantity<id>` line — under the per-unit
+ * selection model it is chosen via a per-child `childQty<parentId>_<childId>`
  * control whose total across a parent's children equals the parent's quantity. So
- * "is this listing active?" has two sources: page listings with `quantity_<id> >
- * 0`, and every child given a positive `child_qty_*` under an in-cart parent.
+ * "is this listing active?" has two sources: page listings with `quantity<id> >
+ * 0`, and every child given a positive `childQty*` under an in-cart parent.
  * These helpers compute that effective set so the visibility/required scripts
  * drive off one definition. */
 
-/** The numeric value of a quantity-style control (`quantity_<id>`,
- * `child_qty_*`), or 0 when absent/blank/invalid. A disabled control counts as 0
+/** The numeric value of a quantity-style control (`quantity<id>`,
+ * `childQty*`), or 0 when absent/blank/invalid. A disabled control counts as 0
  * (a sold-out child can never be selected). */
 export const controlQty = (
   control: HTMLSelectElement | HTMLInputElement | null,
@@ -24,29 +24,35 @@ export const controlQty = (
   return /^(0|[1-9]\d*)$/.test(raw) ? Number.parseInt(raw, 10) : 0;
 };
 
-/** The numeric quantity of a `quantity_<id>` control, or 0 when absent/blank. */
+/** The numeric quantity of a `quantity<id>` control, or 0 when absent/blank. */
 export const quantityValue = (id: string): number =>
   controlQty(
     document.querySelector<HTMLSelectElement | HTMLInputElement>(
-      `[name="quantity_${id}"]`,
+      `[name="quantity${id}"]`,
     ),
   );
 
-/** Every `child_qty_<parentId>_<childId>` control of a parent. */
+/** The listing id of a `quantity<id>` control, or null for a control that
+ *  only shares the prefix. */
+const listingIdOfQuantity = (
+  control: HTMLSelectElement | HTMLInputElement,
+): string | null =>
+  /^quantity(\d+)$/.exec(control.getAttribute("name")!)?.[1] ?? null;
+
+/** Every `childQty<parentId>_<childId>` control of a parent. */
 export const childQtyControls = (
   parentId: string,
 ): (HTMLSelectElement | HTMLInputElement)[] => [
   ...document.querySelectorAll<HTMLSelectElement | HTMLInputElement>(
-    `[name^="child_qty_${parentId}_"]`,
+    `[name^="childQty${parentId}_"]`,
   ),
 ];
 
-/** The child id encoded in a `child_qty_<parentId>_<childId>` control's name. */
+/** The child id encoded in a `childQty<parentId>_<childId>` control's name. */
 export const childIdOf = (
   parentId: string,
   control: HTMLSelectElement | HTMLInputElement,
-): string =>
-  control.getAttribute("name")!.slice(`child_qty_${parentId}_`.length);
+): string => control.getAttribute("name")!.slice(`childQty${parentId}_`.length);
 
 /** The total per-unit quantity chosen across a parent's child controls. */
 export const childQtyTotal = (parentId: string): number =>
@@ -61,9 +67,9 @@ export const chosenChildIds = (parentId: string): Set<string> =>
   );
 
 /** The id of a parent's SOLE auto-selected child, or null when the parent has
- * none (a multi-child parent uses `child_qty_*` controls instead). A parent with
+ * none (a multi-child parent uses `childQty*` controls instead). A parent with
  * a single bookable child emits an informational `data-sole-child` element with
- * NO `child_qty_*` control — the server fold auto-fills the whole parent quantity
+ * NO `childQty*` control — the server fold auto-fills the whole parent quantity
  * to it (see `renderSoleChildOption`) — so the child is active whenever the parent
  * is in the cart even though no quantity control would report it. */
 export const soleChildId = (parentId: string): string | null => {
@@ -84,12 +90,10 @@ export const childSelectorParentIds = (): string[] => {
   return ids;
 };
 
-/** Every package count selector on the page (`package_quantity_<groupId>` —
+/** Every package count selector on the page (`packageQuantity<groupId>` —
  * a page can sell several bundles). */
 const packageQuantitySelectors = (): HTMLSelectElement[] => [
-  ...document.querySelectorAll<HTMLSelectElement>(
-    '[name^="package_quantity_"]',
-  ),
+  ...document.querySelectorAll<HTMLSelectElement>('[name^="packageQuantity"]'),
 ];
 
 /** One selector's members, parsed from its `data-package-members` attribute
@@ -108,13 +112,13 @@ const selectorMembers = (
     });
 
 /** A parent's effective booked units, totalled across EVERY path that books
- * it: its own `quantity_<parentId>` control (when it sells standalone) plus,
+ * it: its own `quantity<parentId>` control (when it sells standalone) plus,
  * per package that includes it, its fixed per-bundle quantity × that package's
  * chosen count — matching the total the submit fold requires the child mix to
  * reach. */
 export const parentUnits = (parentId: string): number => {
   const own = document.querySelector<HTMLSelectElement | HTMLInputElement>(
-    `[name="quantity_${parentId}"]`,
+    `[name="quantity${parentId}"]`,
   );
   let units = own === null ? 0 : controlQty(own);
   for (const selector of packageQuantitySelectors()) {
@@ -143,18 +147,18 @@ export const selectedPackageMemberIds = (): string[] =>
     );
 
 /** The effective set of "active" listing ids: every page listing with quantity
- * > 0, plus every child given a positive `child_qty_*` under an in-cart parent.
+ * > 0, plus every child given a positive `childQty*` under an in-cart parent.
  * Drives the question show/require machinery, so a child-only question is active
  * exactly when its child has a chosen quantity under an in-cart parent. */
 export const selectedListingIds = (): Set<string> => {
   const ids = new Set<string>();
   for (const control of document.querySelectorAll<
     HTMLSelectElement | HTMLInputElement
-  >('[name^="quantity_"]')) {
-    const id = control.getAttribute("name")!.slice("quantity_".length);
-    if (quantityValue(id) > 0) ids.add(id);
+  >('[name^="quantity"]')) {
+    const id = listingIdOfQuantity(control);
+    if (id !== null && quantityValue(id) > 0) ids.add(id);
   }
-  // A package page offers only the `package_quantity` selector (members have no
+  // A package page offers only the `packageQuantity` selector (members have no
   // own quantity control), but the submit path derives a quantity for every
   // member from the package count — so once a package is selected, EVERY member
   // listing is active and its scoped questions must show/require.
@@ -162,7 +166,7 @@ export const selectedListingIds = (): Set<string> => {
   for (const parentId of childSelectorParentIds()) {
     if (!parentInCart(parentId)) continue;
     for (const childId of chosenChildIds(parentId)) ids.add(childId);
-    // A sole auto-selected child has no `child_qty_*` control, so it is active
+    // A sole auto-selected child has no `childQty*` control, so it is active
     // purely by virtue of the parent being in the cart.
     const sole = soleChildId(parentId);
     if (sole !== null) ids.add(sole);
@@ -214,7 +218,7 @@ export const onChangeOf = (selector: string, listener: () => void): void => {
  * count selector (which activates every one of that package's members at once). */
 export const onSelectionChange = (listener: () => void): void =>
   onChangeOf(
-    '[name^="quantity_"], [name^="child_qty_"], [name^="package_quantity_"]',
+    '[name^="quantity"], [name^="childQty"], [name^="packageQuantity"]',
     listener,
   );
 

@@ -4,6 +4,7 @@
  */
 
 import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
+import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import {
@@ -31,5 +32,5 @@ export const holidayRecord = defineNamedRowRecord<
   nameLabel: "holidays.name_label",
   rule: holidayRule,
   surface: "holidays",
-  table: holidays.table,
+  table: tables.holidays,
 });

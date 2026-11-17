@@ -5,7 +5,7 @@ import { adminFormPost } from "#test-utils/session.ts";
 /** Helper: create a question via the admin form */
 export const createQuestion = async (text: string): Promise<number> => {
   const { response } = await adminFormPost("/admin/questions", {
-    display_type: "radio" as const,
+    displayType: "radio" as const,
     text,
   });
   expect(response.status).toBe(302);

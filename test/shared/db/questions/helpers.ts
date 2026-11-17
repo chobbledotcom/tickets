@@ -2,11 +2,9 @@ import { expect } from "@std/expect";
 import type { Answer, Question, TextAnswer } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { listingQuestions } from "#db/questions/queries.ts";
-import {
-  answersTable,
-  questionsOrder,
-  questionsTable,
-} from "#db/questions/tables.ts";
+import { type QuestionInput, questionsOrder } from "#db/questions/tables.ts";
+import { records, rowValuesOf } from "#db/record-table.ts";
+import { tables } from "#db/select/tables.ts";
 import { bookTestAttendee } from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import type { Attendee, Listing } from "#types";
@@ -22,9 +20,13 @@ export const createAttendee = (
  *  or assign-all cases; every other question test wants the plain default. */
 export const createQuestion = (
   text: string,
-  overrides: Partial<Parameters<typeof questionsTable.insert>[0]> = {},
+  overrides: Partial<QuestionInput> = {},
 ): Promise<Question> =>
-  questionsTable.insert({ displayType: "radio", text, ...overrides });
+  records.questions.insert({
+    displayType: "radio",
+    text,
+    ...rowValuesOf(tables.questions, overrides),
+  });
 
 /** Insert one answer at a given sort position — the shared shape behind
  *  every "add an answer option" line across the questions test suite.
@@ -34,8 +36,14 @@ export const addAnswer = (
   questionId: number,
   sortOrder: number,
   text: string,
-  overrides: Partial<Parameters<typeof answersTable.insert>[0]> = {},
-) => answersTable.insert({ questionId, sortOrder, text, ...overrides });
+  overrides: { active?: boolean } = {},
+) =>
+  records.answers.insert({
+    questionId: questionId,
+    sortOrder: sortOrder,
+    text,
+    ...overrides,
+  });
 
 /** Create a question and its answer options in one call, in the order
  *  given (so `sortOrder` matches array position) — the single factory
@@ -44,7 +52,7 @@ export const addAnswer = (
 export const createQuestionWithAnswers = async (
   text: string,
   answerTexts: string[] = [],
-  overrides: Partial<Parameters<typeof questionsTable.insert>[0]> = {},
+  overrides: Partial<QuestionInput> = {},
 ): Promise<Question> => {
   const question = await createQuestion(text, overrides);
   for (const [sortOrder, answerText] of answerTexts.entries()) {

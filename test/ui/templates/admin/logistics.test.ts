@@ -56,7 +56,7 @@ describe("LogisticsAgentEditPanel", () => {
   test("lists every user class as an assignable checkbox", () => {
     const html = renderPanel();
     expectIncludesAll(html, [
-      'name="user_ids"',
+      'name="userIds"',
       "driver (agent)",
       "boss (manager)",
     ]);
@@ -143,7 +143,7 @@ describeWithEnv("adminLogisticsPage", { db: true, encryptionKey: true }, () => {
     const html = adminLogisticsPage([agent], OWNER_SESSION);
 
     assert(!html.includes('action="/admin/logistics/has-logistics"'));
-    assert(!html.includes('name="has_logistics"'));
+    assert(!html.includes('name="hasLogistics"'));
     expectIncludesAll(html, [
       'href="/admin/guide#logistics"',
       "Logistics guide",

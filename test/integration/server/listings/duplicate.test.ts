@@ -114,8 +114,8 @@ describeWithEnv("server listings > duplicate", { db: true }, () => {
               "/admin/listing",
               {
                 ...baseListingForm,
-                csrf_token: csrfToken,
-                duplicated_from: "1",
+                csrfToken,
+                duplicatedFrom: "1",
                 name: "Copy",
               },
               cookie,

@@ -5,7 +5,7 @@ import {
   getAllListings,
   getListingWithCount,
   isSlugTaken,
-  listingsTable,
+  updateListing,
 } from "#db/listings/records.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
@@ -22,11 +22,11 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       expect(listing.id).toBe(1);
       expect(listing.name).toBe("My Test Listing");
-      expect(listing.slug).toBeDefined();
-      expect(listing.max_attendees).toBe(100);
-      expect(listing.thank_you_url).toBe("https://example.com/thanks");
-      expect(listing.created).toBeDefined();
-      expect(listing.unit_price).toBe(0);
+      expect(listing.slug).toMatch(/^[a-z0-9-]+$/);
+      expect(listing.maxAttendees).toBe(100);
+      expect(listing.thankYouUrl).toBe("https://example.com/thanks");
+      expect(Number.isNaN(Date.parse(listing.created))).toBe(false);
+      expect(listing.unitPrice).toBe(0);
     });
 
     test("createListing creates listing with unit_price", async () => {
@@ -36,7 +36,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
 
-      expect(listing.unit_price).toBe(1000);
+      expect(listing.unitPrice).toBe(1000);
     });
 
     test("createListing stores and retrieves description", async () => {
@@ -75,8 +75,8 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
 
       const listings = await getAllListings();
       expect(listings.length).toBe(2);
-      expect(listings[0]?.attendee_count).toBe(0);
-      expect(listings[1]?.attendee_count).toBe(0);
+      expect(listings[0]?.attendeeCount).toBe(0);
+      expect(listings[1]?.attendeeCount).toBe(0);
     });
 
     test("getListingWithCount returns null for missing listing", async () => {
@@ -109,7 +109,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       const fetched = await getListingWithCount(created.id);
 
       expect(fetched).not.toBeNull();
-      expect(fetched?.attendee_count).toBe(0);
+      expect(fetched?.attendeeCount).toBe(0);
     });
 
     test("getListingWithCount reflects added attendees", async () => {
@@ -131,7 +131,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
 
       const fetched = await getListingWithCount(listing.id);
-      expect(fetched?.attendee_count).toBe(2);
+      expect(fetched?.attendeeCount).toBe(2);
     });
 
     test("getAllListings reflects added attendees per listing", async () => {
@@ -158,7 +158,7 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
       );
 
       const listings = await getAllListings();
-      const byId = new Map(listings.map((e) => [e.id, e.attendee_count]));
+      const byId = new Map(listings.map((e) => [e.id, e.attendeeCount]));
       expect(byId.get(listing1.id)).toBe(2);
       expect(byId.get(listing2.id)).toBe(1);
     });
@@ -170,24 +170,24 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         thankYouUrl: "https://example.com/original",
       });
 
-      const updated = await listingsTable.update(created.id, {
+      const updated = await updateListing(created.id, {
         maxAttendees: 100,
         name: "Updated Listing",
         slug: created.slug,
-        slugIndex: created.slug_index,
+        slugIndex: created.slugIndex,
         thankYouUrl: "https://example.com/updated",
         unitPrice: 1500,
       });
 
       expect(updated).not.toBeNull();
       expect(updated?.name).toBe("Updated Listing");
-      expect(updated?.max_attendees).toBe(100);
-      expect(updated?.thank_you_url).toBe("https://example.com/updated");
-      expect(updated?.unit_price).toBe(1500);
+      expect(updated?.maxAttendees).toBe(100);
+      expect(updated?.thankYouUrl).toBe("https://example.com/updated");
+      expect(updated?.unitPrice).toBe(1500);
     });
 
     test("listingsTable.update returns null for non-existent listing", async () => {
-      const result = await listingsTable.update(999, {
+      const result = await updateListing(999, {
         maxAttendees: 50,
         name: "Non Existent",
         slug: "non-existent",
@@ -205,16 +205,16 @@ describeWithEnv("db > listings", { db: true, triggers: true }, () => {
         unitPrice: 1000,
       });
 
-      const updated = await listingsTable.update(created.id, {
+      const updated = await updateListing(created.id, {
         maxAttendees: 50,
         name: created.name,
         slug: created.slug,
-        slugIndex: created.slug_index,
+        slugIndex: created.slugIndex,
         thankYouUrl: "https://example.com",
         unitPrice: 0,
       });
 
-      expect(updated?.unit_price).toBe(0);
+      expect(updated?.unitPrice).toBe(0);
     });
   });
 

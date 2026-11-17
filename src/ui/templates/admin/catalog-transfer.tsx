@@ -28,7 +28,7 @@ export const adminCatalogImportPage = flashFormPage(
           {t("catalog_transfer.file_label")}
           <input
             accept=".json,application/json"
-            name="catalog_file"
+            name="catalogFile"
             required
             type="file"
           />

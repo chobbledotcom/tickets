@@ -2,11 +2,8 @@ import { assertArrayIncludes, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { stub } from "@std/testing/mock";
-import {
-  getImageById,
-  getImageUsesForImage,
-  setImagesForItem,
-} from "#db/images.ts";
+import { getImageUsesForImage, setImagesForItem } from "#db/images.ts";
+import { records } from "#db/record-table.ts";
 import { handleRequest } from "#routes";
 import { imageRecord } from "#shared/records/images.ts";
 import type { DeleteVerdict, WriteVerdict } from "#shared/rest/record.ts";
@@ -45,10 +42,10 @@ describeWithEnv(
     /** POST one image's edit form as the owner: the route's answer and the
      *  session cookie it used. The fields default to the image's own values. */
     const postImageEdit = async (
-      image: { alt_text: string; id: number; name: string },
+      image: { altText: string; id: number; name: string },
       fields: [string, string][] = [
         ["name", image.name],
-        ["alt_text", image.alt_text],
+        ["altText", image.altText],
       ],
     ): Promise<{ cookie: string; response: Response }> => {
       const cookie = await testCookie();
@@ -56,7 +53,7 @@ describeWithEnv(
       const response = await handleRequest(
         formRequest(
           `/admin/images/${image.id}/edit`,
-          [["csrf_token", csrfToken], ...fields],
+          [["csrfToken", csrfToken], ...fields],
           cookie,
         ),
       );
@@ -74,7 +71,7 @@ describeWithEnv(
         cookie,
         request: mockFormRequest(
           `/admin/images/${image.id}/delete`,
-          { confirm_identifier: confirmIdentifier, csrf_token: csrfToken },
+          { confirmIdentifier, csrfToken },
           cookie,
         ),
       };
@@ -167,9 +164,9 @@ describeWithEnv(
           "<strong>Linked items (2):</strong>",
           '<li class="checkboxes"><strong>Listings:</strong>',
           '<li class="checkboxes"><strong>Groups:</strong>',
-          `checked name="image_items" type="checkbox" value="listing:${listing.id}"`,
+          `checked name="imageItems" type="checkbox" value="listing:${listing.id}"`,
           // Groups have no deactivated state, so a group is never muted.
-          `<label><input checked name="image_items" type="checkbox" value="group:${group.id}"`,
+          `<label><input checked name="imageItems" type="checkbox" value="group:${group.id}"`,
         );
       });
 
@@ -186,7 +183,7 @@ describeWithEnv(
         assertStringIncludes(html, "<strong>Linked listings (0):</strong>");
         const liveIndex = html.indexOf(`value="listing:${live.id}"`);
         const retiredIndex = html.indexOf(
-          `<label class="muted"><input name="image_items" type="checkbox" value="listing:${retired.id}"`,
+          `<label class="muted"><input name="imageItems" type="checkbox" value="listing:${retired.id}"`,
         );
         expect(liveIndex).toBeGreaterThan(-1);
         expect(retiredIndex).toBeGreaterThan(liveIndex);
@@ -211,7 +208,7 @@ describeWithEnv(
         const image = await makeImage("Named");
         const { cookie, response } = await postImageEdit(image, [
           ["name", ""],
-          ["alt_text", "Still invalid"],
+          ["altText", "Still invalid"],
         ]);
 
         await expectFlashRedirect(
@@ -231,14 +228,14 @@ describeWithEnv(
         );
         const { cookie, response } = await postImageEdit(image, [
           ["name", "Updated"],
-          ["alt_text", "Updated alt"],
-          ["image_items", `listing:${listing.id}`],
-          ["image_items", `group:${group.id}`],
-          ["image_items", "not-an-item"],
-          ["image_items", "bogus:12"],
-          ["image_items", "listing:0"],
+          ["altText", "Updated alt"],
+          ["imageItems", `listing:${listing.id}`],
+          ["imageItems", `group:${group.id}`],
+          ["imageItems", "not-an-item"],
+          ["imageItems", "bogus:12"],
+          ["imageItems", "listing:0"],
           // A record deleted after the page loaded gets no link.
-          ["image_items", "listing:99999"],
+          ["imageItems", "listing:99999"],
         ]);
 
         await expectFlashRedirect(
@@ -247,8 +244,8 @@ describeWithEnv(
           true,
           cookie,
         )(response);
-        expect(await getImageById(image.id)).toMatchObject({
-          alt_text: "Updated alt",
+        expect(await records.images.find(image.id)).toMatchObject({
+          altText: "Updated alt",
           name: "Updated",
         });
         expect(await imageNamesForItem("listing", listing.id)).toEqual([
@@ -258,7 +255,7 @@ describeWithEnv(
         // The malformed and deleted entries must not create links.
         expect(
           (await getImageUsesForImage(image.id)).map(
-            ({ item_id, item_type }) => `${item_type}:${item_id}`,
+            ({ itemId, itemType }) => `${itemType}:${itemId}`,
           ),
         ).toEqual([`group:${group.id}`, `listing:${listing.id}`]);
         assertArrayIncludes(await activityMessages(), [
@@ -275,8 +272,8 @@ describeWithEnv(
         await setImagesForItem("listing", listing.id, [image.id, trailing.id]);
         const { cookie, response } = await postImageEdit(image, [
           ["name", "Renamed first"],
-          ["alt_text", "Updated alt"],
-          ["image_items", `listing:${listing.id}`],
+          ["altText", "Updated alt"],
+          ["imageItems", `listing:${listing.id}`],
         ]);
 
         await expectFlashRedirect(
@@ -297,7 +294,7 @@ describeWithEnv(
         await withStorageDisabled(async () => {
           const { cookie, response } = await postImageEdit(image, [
             ["name", "Should not save"],
-            ["alt_text", "Should not save"],
+            ["altText", "Should not save"],
           ]);
           await expectFlashRedirect(
             "/admin/images",
@@ -368,7 +365,7 @@ describeWithEnv(
             fetchCalls.some((url) => url.includes("discard-thumb.webp")),
           ).toBe(true);
         });
-        expect(await getImageById(image.id)).toBeNull();
+        expect(await records.images.find(image.id)).toBeNull();
         assertArrayIncludes(await activityMessages(), [
           "Image 'Discard' deleted",
         ]);
