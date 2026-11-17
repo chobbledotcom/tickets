@@ -23,7 +23,7 @@ const quotePackage = (
   group: { id: number; slug: string },
   count: string,
 ): Promise<string> =>
-  quoteTicketHtml(group.slug, { [`package_quantity_${group.id}`]: count });
+  quoteTicketHtml(group.slug, { [`packageQuantity${group.id}`]: count });
 
 describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
   test("a hidden package's quote fragment names the package, never a member", async () => {
@@ -41,7 +41,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     ]);
 
     const response = await postRunningTotal(group.slug, group.slug, {
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     expect(response.status).toBe(200);
     const html = await response.text();
@@ -115,7 +115,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
 
     // "abc" → 0 packages → empty order.
     const response = await postRunningTotal(group.slug, group.slug, {
-      [`package_quantity_${group.id}`]: "abc",
+      [`packageQuantity${group.id}`]: "abc",
     });
     assertStringIncludes(await response.text(), "select at least one");
   });
@@ -216,7 +216,7 @@ describeWithEnv("server (/calculate package quotes)", { db: true }, () => {
     });
 
     const response = await postRunningTotal("festival", "festival", {
-      [`quantity_${listing.id}`]: "1",
+      [`quantity${listing.id}`]: "1",
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");

@@ -137,7 +137,7 @@ describeWithEnv(
       const { listing, race } = await setupSoldOutModifierRace("phone");
 
       const response = await submitTicketForm(listing.slug, {
-        [`quantity_${listing.id}`]: "1",
+        [`quantity${listing.id}`]: "1",
         name: "Buyer",
         phone: "07700900123",
       }).finally(() => race.restore());

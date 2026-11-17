@@ -61,9 +61,9 @@ describeWithEnv(
           {
             email: "mallory@example.com",
             name: "Mallory",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "0",
-            [`quantity_${secret.id}`]: "3",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "0",
+            [`quantity${secret.id}`]: "3",
           },
         );
         expectReservedRedirectWithTokens(response);

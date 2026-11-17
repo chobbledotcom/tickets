@@ -40,10 +40,10 @@ describeWithEnv(
         const res = await postBooking(slugs, {
           email: "stageB@example.com",
           name: "Stage B",
-          [`quantity_${parentA.id}`]: "1",
-          [`quantity_${parentB.id}`]: "1",
-          [`child_qty_${parentA.id}_${child.id}`]: "1",
-          [`child_qty_${parentB.id}_${child.id}`]: "1",
+          [`quantity${parentA.id}`]: "1",
+          [`quantity${parentB.id}`]: "1",
+          [`childQty${parentA.id}_${child.id}`]: "1",
+          [`childQty${parentB.id}_${child.id}`]: "1",
         });
         expectReserved(res);
 

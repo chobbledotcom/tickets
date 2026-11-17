@@ -46,7 +46,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "question@example.com",
           name: "Question User",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(response);
 
@@ -69,7 +69,7 @@ describeWithEnv(
         await submitTicketForm(listing.slug, {
           email: "record@example.com",
           name: "Record User",
-          [`question_${question.id}`]: String(answer2.id),
+          [`question${question.id}`]: String(answer2.id),
         });
 
         const { getAttendeesRaw } = await import("#db/attendees/queries.ts");
@@ -89,7 +89,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "vip@example.com",
           name: "VIP User",
-          [`question_${questionId}`]: String(answerId),
+          [`question${questionId}`]: String(answerId),
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -115,7 +115,7 @@ describeWithEnv(
         const first = await submitTicketForm(listing.slug, {
           email: "first@example.com",
           name: "First",
-          [`question_${questionId}`]: String(answerId),
+          [`question${questionId}`]: String(answerId),
         });
         expectReservedRedirectWithTokens(first);
         // A redirect is not an indexable page: only 2xx answers carry
@@ -137,7 +137,7 @@ describeWithEnv(
         const second = await submitTicketForm(listing.slug, {
           email: "second@example.com",
           name: "Second",
-          [`question_${questionId}`]: String(answerId),
+          [`question${questionId}`]: String(answerId),
         });
         expect(second.status).toBe(302);
         expectFlash(
@@ -167,7 +167,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "question@example.com",
           name: "Question User",
-          [`question_${question.id}`]: "99999",
+          [`question${question.id}`]: "99999",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -190,7 +190,7 @@ describeWithEnv(
           date: validDate,
           email: "dailyq@example.com",
           name: "Daily Q User",
-          [`question_${question.id}`]: String(answer1.id),
+          [`question${question.id}`]: String(answer1.id),
         });
         expectReservedRedirectWithTokens(response);
       });

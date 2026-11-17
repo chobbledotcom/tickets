@@ -25,10 +25,10 @@ describeWithEnv("package child availability", { db: true }, () => {
       await handleRequest(mockRequest(`/ticket/${group.slug}`))
     ).text();
     expectIncludesAll(body, [
-      `name="child_qty_${parent.id}_${child.id}"`,
-      `name="child_qty_${parent.id}_${childB.id}"`,
+      `name="childQty${parent.id}_${child.id}"`,
+      `name="childQty${parent.id}_${childB.id}"`,
       "Kit Addon",
-      `name="package_quantity_${group.id}"`,
+      `name="packageQuantity${group.id}"`,
       `data-parent-id="${parent.id}"`,
     ]);
     expect(body).toMatch(
@@ -63,11 +63,11 @@ describeWithEnv("package child availability", { db: true }, () => {
     );
 
     const submit = await submitPackageBooking(group.slug, {
-      [`child_qty_${parent.id}_${child.id}`]: "2",
-      [`child_qty_${parent.id}_${childB.id}`]: "1",
+      [`childQty${parent.id}_${child.id}`]: "2",
+      [`childQty${parent.id}_${childB.id}`]: "1",
       email: "clamp@test.com",
       name: "Clamp Buyer",
-      [`package_quantity_${group.id}`]: "9",
+      [`packageQuantity${group.id}`]: "9",
     });
     expectFlash(submit, bookingError.packageMaximum("Clamp", 3), false);
 
@@ -113,9 +113,9 @@ describeWithEnv("package child availability", { db: true }, () => {
       "priced-kit-pkg",
     );
     const fragment = await postCalculate(group.slug, {
-      [`child_qty_${parent.id}_${child.id}`]: "1",
-      [`child_qty_${parent.id}_${childB.id}`]: "1",
-      [`package_quantity_${group.id}`]: "2",
+      [`childQty${parent.id}_${child.id}`]: "1",
+      [`childQty${parent.id}_${childB.id}`]: "1",
+      [`packageQuantity${group.id}`]: "2",
     });
     assertStringIncludes(fragment, "£37");
   });

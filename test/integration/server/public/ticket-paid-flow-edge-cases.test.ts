@@ -179,7 +179,7 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing.id}`]: "1",
+            [`quantity${listing.id}`]: "1",
           },
         );
 
@@ -231,8 +231,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
 

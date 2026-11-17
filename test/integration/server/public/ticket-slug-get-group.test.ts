@@ -43,8 +43,8 @@ describeWithEnv(
           "Group Listing 1",
           "Group Listing 2",
           `action="/ticket/${group.slug}"`,
-          `quantity_${listing1.id}`,
-          `quantity_${listing2.id}`,
+          `quantity${listing1.id}`,
+          `quantity${listing2.id}`,
         );
       });
 

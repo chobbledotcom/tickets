@@ -113,7 +113,7 @@ describeWithEnv(
         assertStringIncludes(html, 'name="email"');
 
         const response = await submitTicketForm(listing.slug, {
-          [`addon_${addOn.id}`]: "1",
+          [`addon${addOn.id}`]: "1",
           name: "John Doe",
           phone: "555-1234",
         });
@@ -190,7 +190,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "john@example.com",
           name: "John Doe",
-          [`quantity_${listing.id}`]: "abc",
+          [`quantity${listing.id}`]: "abc",
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -236,11 +236,11 @@ describeWithEnv(
             {
               email: "john@example.com",
               name: "John Doe",
-              [`quantity_${listing1.id}`]: "1",
-              [`quantity_${listing2.id}`]: "1",
-              csrf_token: csrfToken,
+              [`quantity${listing1.id}`]: "1",
+              [`quantity${listing2.id}`]: "1",
+              csrfToken,
             },
-            `csrf_token=${csrfToken}`,
+            `csrfToken=${csrfToken}`,
           ),
         );
         expectReservedRedirectWithTokens(response);
@@ -264,8 +264,8 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing1.id}`]: "abc",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing1.id}`]: "abc",
+            [`quantity${listing2.id}`]: "1",
           },
         );
         expectReservedRedirectWithTokens(response);
@@ -306,7 +306,7 @@ describeWithEnv(
           {
             email: "john@example.com",
             name: "John Doe",
-            [`quantity_${listing2.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
           },
         );
 

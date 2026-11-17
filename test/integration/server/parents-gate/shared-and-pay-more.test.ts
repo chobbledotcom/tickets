@@ -99,7 +99,7 @@ describeWithEnv(
       const html = await postCalculate(parent.slug, {
         ...parentField(parent, "1"),
         ...childField(parent, child, "1"),
-        [`child_price_${parent.id}_${child.id}`]: "30.00",
+        [`childPrice${parent.id}_${child.id}`]: "30.00",
       });
       // Tight match: the folded child adds £30 to the quote, but a regression
       // that doubled it (e.g. £300) must not slip through as a substring hit.
@@ -122,8 +122,8 @@ describeWithEnv(
       const res = await bookParent(`${parentA.slug}+${parentB.slug}`, {
         ...parentField(parentA, "1"),
         ...parentField(parentB, "1"),
-        [`child_price_${parentA.id}_${child.id}`]: "20.00",
-        [`child_price_${parentB.id}_${child.id}`]: "30.00",
+        [`childPrice${parentA.id}_${child.id}`]: "20.00",
+        [`childPrice${parentB.id}_${child.id}`]: "30.00",
       });
       await expectRejectedBooking(res, child.id);
     });
@@ -134,7 +134,7 @@ describeWithEnv(
       const res = await bookParent(parent.slug, {
         ...parentField(parent, "1"),
         ...childField(parent, child, "1"),
-        [`child_price_${parent.id}_${child.id}`]: "1.00",
+        [`childPrice${parent.id}_${child.id}`]: "1.00",
       });
       await expectRejectedBooking(res, parent.id);
     });

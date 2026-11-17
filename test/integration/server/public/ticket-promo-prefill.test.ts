@@ -58,10 +58,10 @@ describeWithEnv(
 
       const html = await assertPublicHtml(
         `/ticket/${listing.slug}?promo=%20Summer25%20`,
-        'name="promo_code"',
+        'name="promoCode"',
       );
 
-      expect(hasInputWithValue(html, "promo_code", "summer25")).toBe(true);
+      expect(hasInputWithValue(html, "promoCode", "summer25")).toBe(true);
     });
 
     test("fills the promo box for an unknown code — matching happens at submit", async () => {
@@ -69,10 +69,10 @@ describeWithEnv(
 
       const html = await assertPublicHtml(
         `/ticket/${listing.slug}?promo=nosuchcode`,
-        'name="promo_code"',
+        'name="promoCode"',
       );
 
-      expect(hasInputWithValue(html, "promo_code", "nosuchcode")).toBe(true);
+      expect(hasInputWithValue(html, "promoCode", "nosuchcode")).toBe(true);
     });
 
     test("fills the one shared promo box on a multi-listing page", async () => {
@@ -84,11 +84,11 @@ describeWithEnv(
 
       const html = await assertPublicHtml(
         `/ticket/${a.slug}+${b.slug}?promo=summer25`,
-        'name="promo_code"',
+        'name="promoCode"',
       );
 
-      expect(html.split('name="promo_code"').length - 1).toBe(1);
-      expect(hasInputWithValue(html, "promo_code", "summer25")).toBe(true);
+      expect(html.split('name="promoCode"').length - 1).toBe(1);
+      expect(hasInputWithValue(html, "promoCode", "summer25")).toBe(true);
     });
 
     test("keeps the typed code after a failed submit, not the URL code", async () => {
@@ -98,7 +98,7 @@ describeWithEnv(
       const failed = await submitTicketForm(`${listing.slug}?promo=Summer25`, {
         email: "john@example.com",
         name: "",
-        promo_code: "typed99",
+        promoCode: "typed99",
       });
       expectFlash(
         failed,
@@ -109,8 +109,8 @@ describeWithEnv(
       const html = await (
         await followRedirectWithFlash(failed, handleRequest)
       ).text();
-      expect(hasInputWithValue(html, "promo_code", "typed99")).toBe(true);
-      expect(hasInputWithValue(html, "promo_code", "summer25")).toBe(false);
+      expect(hasInputWithValue(html, "promoCode", "typed99")).toBe(true);
+      expect(hasInputWithValue(html, "promoCode", "summer25")).toBe(false);
     });
 
     test("applies the prefilled code's discount through the submit path", async () => {
@@ -127,9 +127,9 @@ describeWithEnv(
       // holds, so both legs below price the prefilled value itself.
       const html = await assertPublicHtml(
         `/ticket/${listing.slug}?promo=Summer25`,
-        'name="promo_code"',
+        'name="promoCode"',
       );
-      const sent = extractInputValue(html, "promo_code");
+      const sent = extractInputValue(html, "promoCode");
       expect(sent).toBe("summer25");
 
       // The running total (the same pricing pass submit runs) shows 10% off a
@@ -137,9 +137,9 @@ describeWithEnv(
       const quoteHtml = await (
         await handleRequest(
           mockFormRequest(`/calculate/${listing.slug}`, {
-            [`quantity_${listing.id}`]: "1",
-            csrf_token: extractCsrfToken(html) ?? "",
-            promo_code: sent ?? "",
+            [`quantity${listing.id}`]: "1",
+            csrfToken: extractCsrfToken(html) ?? "",
+            promoCode: sent ?? "",
           }),
         )
       ).text();
@@ -151,7 +151,7 @@ describeWithEnv(
         const response = await submitTicketForm(listing.slug, {
           email: "john@example.com",
           name: "John Doe",
-          promo_code: sent ?? "",
+          promoCode: sent ?? "",
         });
         expect(response.status).toBe(302);
         expect(capturedModifierQuantity(getCaptured(), promo.id)).toBe(1);

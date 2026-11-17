@@ -28,10 +28,10 @@ describeWithEnv("package child bookings", { db: true }, () => {
     await makePackageFree(group.id, [parent.id, other.id], [child.id]);
 
     const submit = await submitPackageBooking(group.slug, {
-      [`child_qty_${parent.id}_${child.id}`]: "1",
+      [`childQty${parent.id}_${child.id}`]: "1",
       email: "kids@test.com",
       name: "Kit Buyer",
-      [`package_quantity_${group.id}`]: "1",
+      [`packageQuantity${group.id}`]: "1",
     });
     await expectPackageBookingAccepted(submit);
 

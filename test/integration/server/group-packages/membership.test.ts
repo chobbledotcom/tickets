@@ -41,7 +41,7 @@ const postChildrenForm = async (
 ): Promise<Response> =>
   (
     await adminFormPost(`/admin/listing/${parentId}/children`, {
-      child_listing_ids: String(childId),
+      childListingIds: String(childId),
     })
   ).response;
 
@@ -97,8 +97,8 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields(group.name, group.slug),
-          hide_package_listings: "1",
-          is_package: "1",
+          hidePackageListings: "1",
+          isPackage: "1",
         },
       );
       const refused = await expectPackageRefused(group, response);
@@ -308,7 +308,7 @@ describeWithEnv(
       });
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/add-listings`,
-        { listing_ids: String(flexible.id) },
+        { listingIds: String(flexible.id) },
       );
       expect(response.status).toBe(302);
       const prices = await getGroupPackagePrices(group.id);
@@ -324,7 +324,7 @@ describeWithEnv(
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/add-listings`,
-        { listing_ids: String(fixed.id) },
+        { listingIds: String(fixed.id) },
       );
       expect(response.status).toBe(302);
       const rows = await getGroupPackagePrices(group.id);

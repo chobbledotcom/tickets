@@ -31,10 +31,10 @@ describeWithEnv(
   () => {
     test("create POST persists the is_package flag", async () => {
       const { response } = await adminFormPost("/admin/groups", {
-        is_package: "1",
-        max_attendees: "0",
+        isPackage: "1",
+        maxAttendees: "0",
         name: "Bundle",
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
       expect(response.status).toBe(302);
       const allGroups = await groups.getAll();
@@ -50,10 +50,10 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields("Pkg", "pkg"),
-          is_package: "1",
-          [`package_price_${a.id}`]: "12.50",
-          [`package_price_${b.id}`]: "",
-          [`package_qty_${a.id}`]: "2",
+          isPackage: "1",
+          [`packagePrice${a.id}`]: "12.50",
+          [`packagePrice${b.id}`]: "",
+          [`packageQty${a.id}`]: "2",
           // b omits package_qty → defaults to 1.
         },
       );
@@ -89,12 +89,12 @@ describeWithEnv(
 
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("DayPkg", "day-pkg"),
-        is_package: "1",
+        isPackage: "1",
         // 2-day span repriced; 1-day left blank ("use the listing's own price").
-        [`package_day_price_${flex.id}_1`]: "",
-        [`package_day_price_${flex.id}_2`]: "15.00",
-        [`package_price_${flex.id}`]: "",
-        [`package_price_${plain.id}`]: "",
+        [`packageDayPrice${flex.id}Days1`]: "",
+        [`packageDayPrice${flex.id}Days2`]: "15.00",
+        [`packagePrice${flex.id}`]: "",
+        [`packagePrice${plain.id}`]: "",
       });
 
       const saved = await getGroupDayPrices(group.id);
@@ -109,18 +109,18 @@ describeWithEnv(
         200,
       );
       expectIncludesAll(html, [
-        `name="package_day_price_${flex.id}_1"`,
-        `name="package_day_price_${flex.id}_2"`,
+        `name="packageDayPrice${flex.id}Days1"`,
+        `name="packageDayPrice${flex.id}Days2"`,
         'value="15.00"',
       ]);
-      assert(!html.includes(`package_day_price_${plain.id}_`));
+      assert(!html.includes(`packageDayPrice${plain.id}Days`));
 
       // Re-saving without the day inputs clears the overrides (full replace).
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("DayPkg", "day-pkg"),
-        is_package: "1",
-        [`package_price_${flex.id}`]: "",
-        [`package_price_${plain.id}`]: "",
+        isPackage: "1",
+        [`packagePrice${flex.id}`]: "",
+        [`packagePrice${plain.id}`]: "",
       });
       expect((await getGroupDayPrices(group.id)).size).toBe(0);
     });
@@ -133,15 +133,15 @@ describeWithEnv(
 
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("BadQty", "bad-qty"),
-        is_package: "1",
-        [`package_price_${prefix.id}`]: "1.00",
-        [`package_price_${zero.id}`]: "1.00",
-        [`package_price_${huge.id}`]: "1.00",
+        isPackage: "1",
+        [`packagePrice${prefix.id}`]: "1.00",
+        [`packagePrice${zero.id}`]: "1.00",
+        [`packagePrice${huge.id}`]: "1.00",
         // parseInt would read 2 from "2abc"; 0 is below the minimum; the 20-digit
         // value overflows the safe-integer range — each defaults to 1.
-        [`package_qty_${prefix.id}`]: "2abc",
-        [`package_qty_${zero.id}`]: "0",
-        [`package_qty_${huge.id}`]: "99999999999999999999",
+        [`packageQty${prefix.id}`]: "2abc",
+        [`packageQty${zero.id}`]: "0",
+        [`packageQty${huge.id}`]: "99999999999999999999",
       });
 
       const rows = await getGroupPackagePrices(group.id);
@@ -157,8 +157,8 @@ describeWithEnv(
 
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("HideG", "hide-g"),
-        hide_package_listings: "1",
-        is_package: "1",
+        hidePackageListings: "1",
+        isPackage: "1",
       });
       expect((await records.groups.find(group.id))!.hidePackageListings).toBe(
         true,
@@ -174,9 +174,9 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields("Bad", "bad"),
-          is_package: "1",
-          [`package_price_${a.id}`]: "-5",
-          [`package_price_${b.id}`]: "abc",
+          isPackage: "1",
+          [`packagePrice${a.id}`]: "-5",
+          [`packagePrice${b.id}`]: "abc",
         },
       );
       expect(response.status).toBe(302);
@@ -193,11 +193,11 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields("Typo", "typo"),
-          is_package: "1",
+          isPackage: "1",
           // parseFloat would turn these into a real 12 / 1 override; the strict
           // parser treats the whole non-numeric string as "no override" (0).
-          [`package_price_${a.id}`]: "12abc",
-          [`package_price_${b.id}`]: "1,50",
+          [`packagePrice${a.id}`]: "12abc",
+          [`packagePrice${b.id}`]: "1,50",
         },
       );
       expect(response.status).toBe(302);
@@ -212,10 +212,10 @@ describeWithEnv(
         `/admin/groups/${group.id}/edit`,
         {
           ...editFields("Huge", "huge"),
-          is_package: "1",
+          isPackage: "1",
           // 14 nines scales past Number.MAX_SAFE_INTEGER in minor units, so it would
           // store a lossy amount — rejected to 0 (no override) instead.
-          [`package_price_${a.id}`]: "99999999999999",
+          [`packagePrice${a.id}`]: "99999999999999",
         },
       );
       expect(response.status).toBe(302);
@@ -228,15 +228,15 @@ describeWithEnv(
 
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Clr", "clr"),
-        is_package: "1",
-        [`package_price_${a.id}`]: "9.00",
+        isPackage: "1",
+        [`packagePrice${a.id}`]: "9.00",
       });
       expect((await records.groups.find(group.id))!.isPackage).toBe(true);
 
       // Re-submit without the checkbox: flag clears and overrides reset to 0.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Clr", "clr"),
-        [`package_price_${a.id}`]: "9.00",
+        [`packagePrice${a.id}`]: "9.00",
       });
       const saved = (await records.groups.find(group.id))!;
       expect(saved.isPackage).toBe(false);
@@ -250,10 +250,10 @@ describeWithEnv(
       const b = await member(group, "Shown B");
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         ...editFields("Show", "show"),
-        is_package: "1",
-        [`package_price_${a.id}`]: "7.00",
-        [`package_price_${b.id}`]: "",
-        [`package_qty_${a.id}`]: "5",
+        isPackage: "1",
+        [`packagePrice${a.id}`]: "7.00",
+        [`packagePrice${b.id}`]: "",
+        [`packageQty${a.id}`]: "5",
       });
 
       const html = await expectHtmlResponse(
@@ -263,12 +263,12 @@ describeWithEnv(
         "Shown A",
       );
       expectIncludesAll(html, [
-        `name="package_price_${a.id}"`,
+        `name="packagePrice${a.id}"`,
         'value="7.00"',
         // The override-free member renders an empty value, falling back to base price.
-        `name="package_price_${b.id}"`,
+        `name="packagePrice${b.id}"`,
         // Per-package quantity inputs render, pre-filled with the saved quantity.
-        `name="package_qty_${a.id}"`,
+        `name="packageQty${a.id}"`,
         'value="5"',
       ]);
     });

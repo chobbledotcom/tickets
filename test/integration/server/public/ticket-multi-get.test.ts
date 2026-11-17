@@ -114,10 +114,10 @@ describeWithEnv(
         // The active listing should have a quantity selector
         const html = await assertPublicHtml(
           `/ticket/${listing1.slug}+${listing2.slug}`,
-          `quantity_${listing1.id}`,
+          `quantity${listing1.id}`,
         );
         // The inactive listing should not have a quantity selector
-        assert(!html.includes(`quantity_${listing2.id}`));
+        assert(!html.includes(`quantity${listing2.id}`));
       });
 
       test("returns 404 when all listings are inactive", async () => {
@@ -191,7 +191,7 @@ describeWithEnv(
 
       test("ticket GET returns signed CSRF token in form", async () => {
         const { html } = await getMultiTicketIframePage();
-        expect(extractInputValue(html, "csrf_token")).toMatch(/^s1\./);
+        expect(extractInputValue(html, "csrfToken")).toMatch(/^s1\./);
       });
 
       test("ticket POST succeeds with signed token and no cookie", async () => {
@@ -204,15 +204,15 @@ describeWithEnv(
           mockRequest(`${path}?iframe=true`),
         );
         const html = await getResponse.text();
-        const signedToken = extractInputValue(html, "csrf_token") ?? "";
+        const signedToken = extractInputValue(html, "csrfToken") ?? "";
 
         const response = await handleRequest(
           mockFormRequest(`${path}?iframe=true`, {
             email: "test@example.com",
             name: "Test User",
-            [`quantity_${listing1.id}`]: "1",
-            [`quantity_${listing2.id}`]: "1",
-            csrf_token: signedToken,
+            [`quantity${listing1.id}`]: "1",
+            [`quantity${listing2.id}`]: "1",
+            csrfToken: signedToken,
           }),
         );
         expect(response.status).toBe(302);

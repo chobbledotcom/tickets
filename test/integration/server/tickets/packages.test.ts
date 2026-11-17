@@ -276,7 +276,7 @@ describeWithEnv("ticket view package grouping", { db: true }, () => {
       submitPackageBooking(group.slug, {
         email: `${who}@test.com`,
         name: who,
-        [`package_quantity_${group.id}`]: "1",
+        [`packageQuantity${group.id}`]: "1",
       });
 
     test("stamps the package id onto the booking row", async () => {

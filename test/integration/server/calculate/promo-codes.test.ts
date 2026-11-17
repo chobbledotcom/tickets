@@ -41,14 +41,14 @@ const quotePromoListing = async (
 ): Promise<string> => {
   const listing = await setupPromoListing();
   return quoteTicketHtml(listing.slug, {
-    [`quantity_${listing.id}`]: "1",
+    [`quantity${listing.id}`]: "1",
     ...extra,
   });
 };
 
 describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
   test("applies a promo code discount when the correct code is submitted", async () => {
-    const html = await quotePromoListing({ promo_code: "SAVE10" });
+    const html = await quotePromoListing({ promoCode: "SAVE10" });
 
     // Discount line shown with modifier name and negative amount.
     expectIncludesAll(html, [
@@ -61,7 +61,7 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
   });
 
   test("shows the listing price before modifiers, not the discounted line price", async () => {
-    const html = await quotePromoListing({ promo_code: "SAVE10" });
+    const html = await quotePromoListing({ promoCode: "SAVE10" });
 
     // The ticket line is the full £10.00 list price, so the discount isn't
     // baked into it — the modifier is itemised separately on its own row...
@@ -84,7 +84,7 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
   });
 
   test("does not apply a promo code discount when a wrong code is submitted", async () => {
-    const html = await quotePromoListing({ promo_code: "WRONGCODE" });
+    const html = await quotePromoListing({ promoCode: "WRONGCODE" });
 
     // Full price — wrong promo code, no discount line.
     assertStringIncludes(html, formatCurrency(1000));
@@ -93,7 +93,7 @@ describeWithEnv("server (/calculate promo-code quotes)", { db: true }, () => {
   });
 
   test("applies a promo code discount case-insensitively", async () => {
-    const html = await quotePromoListing({ promo_code: "save10" });
+    const html = await quotePromoListing({ promoCode: "save10" });
 
     // Lowercase variant of the code should still match.
     expectIncludesAll(html, [

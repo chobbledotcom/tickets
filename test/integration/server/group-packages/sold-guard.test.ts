@@ -126,7 +126,7 @@ describeWithEnv(
       await member(group, "Empty Member");
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/delete`,
-        { confirm_identifier: "Empty Kit" },
+        { confirmIdentifier: "Empty Kit" },
       );
       expect(response.status).toBe(302);
       expect(await records.groups.find(group.id)).toBeNull();
