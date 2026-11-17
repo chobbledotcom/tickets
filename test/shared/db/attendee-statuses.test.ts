@@ -119,7 +119,7 @@ describeWithEnv("db > attendee statuses", { db: true }, () => {
     );
     attendeeStatuses.invalidate();
     await expect(requirePublicStatusId()).rejects.toThrow(
-      "No attendee status has the required isPublicDefault flag",
+      "No attendee status has the required is_public_default flag",
     );
   });
 
