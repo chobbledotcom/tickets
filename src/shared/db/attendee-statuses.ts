@@ -28,6 +28,7 @@ import { requestCachedRows } from "#db/table-cache.ts";
 import { deleteFrom, update } from "#db/write.ts";
 import { requiredMapValue } from "#fp";
 import { t } from "#i18n";
+import { columnName } from "#shared/column-names.ts";
 import type { STATUS_FIELDS } from "#shared/records/status-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 import type { FieldsInput } from "#shared/rest/field-specs.ts";
@@ -157,7 +158,7 @@ const getFlaggedStatus =
   async (): Promise<AttendeeStatus> =>
     requireValue(
       await findStatus((item) => item[flag]),
-      `No attendee status has the required ${flag} flag`,
+      `No attendee status has the required ${columnName(flag)} flag`,
     );
 
 /** The status new public bookings start in. */
