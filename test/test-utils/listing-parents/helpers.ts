@@ -166,7 +166,7 @@ export const postListingEdit = async (
   );
   const existing = (await getListingWithCount(listingId))!;
   const form = buildUpdateListingForm(updates, existing);
-  // The edit form carries group membership as `group_ids` checkboxes. Translate
+  // The edit form carries group membership as `groupIds` checkboxes. Translate
   // the test's group intent (legacy groupId / groupIds) into that field; a
   // single id covers these tests (the form helper is single-value).
   const groupIds =
@@ -175,7 +175,7 @@ export const postListingEdit = async (
       ? [updates.groupId]
       : []);
   const formWithGroups =
-    groupIds.length > 0 ? { ...form, group_ids: String(groupIds[0]) } : form;
+    groupIds.length > 0 ? { ...form, groupIds: String(groupIds[0]) } : form;
   const session = await getTestSession();
   return handleRequest(
     mockMultipartRequest(
