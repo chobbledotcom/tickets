@@ -12,8 +12,8 @@ describe("site page forms", () => {
     expect(sitePageForm.fields.map((f) => f.name)).toEqual([
       "name",
       "slug",
-      "meta_title",
-      "meta_description",
+      "metaTitle",
+      "metaDescription",
       "hidden",
       "content",
     ]);

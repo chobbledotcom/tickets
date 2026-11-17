@@ -41,7 +41,7 @@ describeWithEnv("checking an attendee in", { db: true }, () => {
     const afterIn = await isCheckedIn(listing.id, attendee.id);
     // The roster's Check Out button names its direction, so a bare POST is
     // always a check-in now.
-    await checkIn(listing.id, attendee.id, { check_in: "false" });
+    await checkIn(listing.id, attendee.id, { checkIn: "false" });
     const afterOut = await isCheckedIn(listing.id, attendee.id);
 
     expect(afterIn).toBe(true);
@@ -56,7 +56,7 @@ describeWithEnv("checking an attendee in", { db: true }, () => {
     });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      return_filter: "out",
+      returnFilter: "out",
     });
 
     expectRedirectWithFlash(
@@ -71,7 +71,7 @@ describeWithEnv("checking an attendee in", { db: true }, () => {
     });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      return_url: `/admin/listing/${listing.id}/scanner`,
+      returnUrl: `/admin/listing/${listing.id}/scanner`,
     });
 
     expectRedirectWithFlash(

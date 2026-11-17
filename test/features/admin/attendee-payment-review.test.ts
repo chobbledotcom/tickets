@@ -105,9 +105,9 @@ const submitReview = async (
     mockFormRequest(
       reviewUrl(context.attendeeId),
       {
-        confirm_identifier: NAME,
-        csrf_token: context.csrfToken,
-        review_identity: reviewIdentity,
+        confirmIdentifier: NAME,
+        csrfToken: context.csrfToken,
+        reviewIdentity,
         ...values,
       },
       cookie,
@@ -135,8 +135,8 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         "type their name",
         "The safety hold stays in place",
         "does not contact the provider or change money.",
-        'name="review_identity"',
-        'name="return_url"',
+        'name="reviewIdentity"',
+        'name="returnUrl"',
         returnUrl,
       );
     });
@@ -192,7 +192,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
       const before = await storedRecordOf(context.sessionId);
 
       expect(
-        (await submitReview(context, { csrf_token: "not-valid" })).status,
+        (await submitReview(context, { csrfToken: "not-valid" })).status,
       ).toBe(403);
       expect(await storedRecordOf(context.sessionId)).toBe(before);
     });
@@ -207,7 +207,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         false,
       )(
         await submitReview(context, {
-          confirm_identifier: "Somebody Else",
+          confirmIdentifier: "Somebody Else",
         }),
       );
       expect(await storedRecordOf(context.sessionId)).toBe(before);
@@ -222,9 +222,9 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         SUCCESS,
       )(
         await submitReview(context, {
-          attendee_id: "999999",
-          listing_id: "999999",
-          return_url: returnUrl,
+          attendeeId: "999999",
+          listingId: "999999",
+          returnUrl,
         }),
       );
 
@@ -294,7 +294,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         reviewUrl(context.attendeeId),
         "The payment review changed. Check the current details and confirm again.",
         false,
-      )(await submitReview(context, { review_identity: first.identity }));
+      )(await submitReview(context, { reviewIdentity: first.identity }));
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });
 
@@ -330,7 +330,7 @@ describeWithEnv("admin payment review action", { db: true }, () => {
         )}`,
         CLAIMED,
         false,
-      )(await submitReview(context, { return_url: returnUrl }));
+      )(await submitReview(context, { returnUrl }));
       expect(await protectedStateOf(context.sessionId)).toBe(CLAIM_MIRROR);
       expect(await paymentReviewActivity(context.attendeeId)).toEqual([]);
     });

@@ -11,8 +11,8 @@ describe("news post forms", () => {
   test("a new post has no slug box — its permalink is auto-generated", () => {
     expect(newsPostForm.fields.map((f) => f.name)).toEqual([
       "name",
-      "meta_title",
-      "meta_description",
+      "metaTitle",
+      "metaDescription",
       "snippet",
       "content",
     ]);
@@ -22,8 +22,8 @@ describe("news post forms", () => {
     expect(newsPostEditForm.fields.map((f) => f.name)).toEqual([
       "name",
       "slug",
-      "meta_title",
-      "meta_description",
+      "metaTitle",
+      "metaDescription",
       "snippet",
       "content",
     ]);
@@ -53,8 +53,8 @@ describe("news post forms", () => {
     });
     expect(values).toEqual({
       content: "Body",
-      meta_description: "Desc",
-      meta_title: "Title",
+      metaDescription: "Desc",
+      metaTitle: "Title",
       name: "Post",
       slug: "post-1",
       snippet: "Short",

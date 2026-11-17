@@ -39,7 +39,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await postModifierLeg({ delta: 1500, modifierId: id });
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/revenue`,
-        { total_revenue: "25.00" },
+        { totalRevenue: "25.00" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -54,7 +54,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       await postModifierLeg({ delta: 4000, modifierId: id });
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/revenue`,
-        { total_revenue: "10.00" },
+        { totalRevenue: "10.00" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -68,7 +68,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const id = await seedModifier();
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/revenue`,
-        { total_revenue: "-5.00" },
+        { totalRevenue: "-5.00" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -81,7 +81,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
     test("logs a neutral activity message without the raw figure", async () => {
       const id = await seedModifier("Promo");
       await adminFormPost(`/admin/modifiers/${id}/revenue`, {
-        total_revenue: "12.34",
+        totalRevenue: "12.34",
       });
       const log = await getAllActivityLog(10);
       const entry = log.find((e) => e.message.includes("revenue adjusted"));
@@ -93,7 +93,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const id = await seedModifier();
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/revenue`,
-        { total_revenue: "" },
+        { totalRevenue: "" },
       );
       await expectFlashRedirect(
         `/admin/modifiers/${id}/edit`,
@@ -106,7 +106,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/modifiers/9999/revenue",
         {
-          total_revenue: "10",
+          totalRevenue: "10",
         },
       );
       expectStatus(404)(response);
@@ -119,7 +119,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/edit`,
-        createData({ calc_value: "20", name: "After" }),
+        createData({ calcValue: "20", name: "After" }),
       );
       await expectFlashRedirect(
         "/admin/modifiers",
@@ -143,7 +143,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
         withFeatureWriteFailure(async () => {
           await adminFormPost(
             `/admin/modifiers/${id}/edit`,
-            createData({ calc_value: "20", name: "After" }),
+            createData({ calcValue: "20", name: "After" }),
           );
         }),
       ).rejects.toThrow("feature enable failed");
@@ -208,7 +208,7 @@ describeWithEnv("server (admin modifiers)", { db: true }, () => {
       const { id } = await lastModifier();
       const { response } = await adminFormPost(
         `/admin/modifiers/${id}/edit`,
-        createData({ calc_value: "150", name: "Rejected name" }),
+        createData({ calcValue: "150", name: "Rejected name" }),
       );
       await expectHtmlResponse(
         response,

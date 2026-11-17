@@ -91,7 +91,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       await create("storage-off");
       const page = await findPage("storage-off");
       const { response } = await adminFormPost(`${BASE}/${page.id}/images`, {
-        image_ids: "1",
+        imageIds: "1",
       });
       expectRedirect(response, new RegExp(`^${BASE}/${page.id}/edit`));
       expectFlash(response, "File storage is not configured.", false);
@@ -196,7 +196,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
     test("a rejected update keeps every submitted box", async () => {
       const html = await refusedEdit("restore-me", {
         content: "Changed body",
-        meta_title: "Changed title",
+        metaTitle: "Changed title",
         name: "Changed name",
         slug: "contact",
       });

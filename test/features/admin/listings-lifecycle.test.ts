@@ -14,11 +14,11 @@ describeWithEnv("listing page toggle refusals", { db: true }, () => {
   test("deactivate refuses an already deactivated listing", async () => {
     const listing = await createTestListing({ name: "Already Off" });
     await ownerPagePost(`/admin/listing/${listing.id}/deactivate`, {
-      confirm_identifier: "Already Off",
+      confirmIdentifier: "Already Off",
     });
     const repeat = await ownerPagePost(
       `/admin/listing/${listing.id}/deactivate`,
-      { confirm_identifier: "Already Off" },
+      { confirmIdentifier: "Already Off" },
     );
     await expectFlashRedirect(
       `/admin/listing/${listing.id}/deactivate`,
@@ -32,7 +32,7 @@ describeWithEnv("listing page toggle refusals", { db: true }, () => {
     const listing = await createTestListing({ name: "Already On" });
     const repeat = await ownerPagePost(
       `/admin/listing/${listing.id}/reactivate`,
-      { confirm_identifier: "Already On" },
+      { confirmIdentifier: "Already On" },
     );
     await expectFlashRedirect(
       `/admin/listing/${listing.id}/reactivate`,

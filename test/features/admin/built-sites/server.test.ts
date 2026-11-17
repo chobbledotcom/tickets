@@ -168,7 +168,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     testRequiresAuth("/admin/built-sites", {
       body: {
         name: "Test",
-        site_url: "https://test.b-cdn.net",
+        siteUrl: "https://test.b-cdn.net",
       },
       method: "POST",
     });
@@ -185,7 +185,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("creates built site without db credentials", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         name: "No DB Site",
-        site_url: "https://nodb.b-cdn.net",
+        siteUrl: "https://nodb.b-cdn.net",
       });
       await expectFlashRedirect(
         "/admin/built-sites/1",
@@ -201,12 +201,12 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     ][] = [
       [
         "rejects missing name",
-        { name: "", site_url: "https://test.b-cdn.net" },
+        { name: "", siteUrl: "https://test.b-cdn.net" },
         "Site name is required",
       ],
       [
-        "rejects missing site_url",
-        { name: "Test", site_url: "" },
+        "rejects missing siteUrl",
+        { name: "Test", siteUrl: "" },
         "Site URL is required",
       ],
     ];
@@ -228,7 +228,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       ]) {
         const { response } = await adminFormPost("/admin/built-sites", {
           name: "Test",
-          site_url: siteUrl,
+          siteUrl,
         });
         expect(response.status).toBe(302);
         expectFlash(
@@ -251,7 +251,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           siteUrl: "https://app.deno.dev",
         },
         stored: { hostingProvider: "deno" },
-        title: "stores deno hosting_provider when submitted",
+        title: "stores deno hostingProvider when submitted",
       },
       {
         input: {
@@ -260,7 +260,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
           siteUrl: "https://turso-site.b-cdn.net",
         },
         stored: { dbProvider: "turso" },
-        title: "stores turso db_provider when submitted",
+        title: "stores turso dbProvider when submitted",
       },
     ];
 
@@ -355,7 +355,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       // the channel to the default — the route only carries a recognised value.
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/edit`,
-        { name: "Keep Beta Renamed", site_url: site.siteUrl },
+        { name: "Keep Beta Renamed", siteUrl: site.siteUrl },
       );
       expect(response.status).toBe(302);
       expect(await findBuiltSiteById(site.id)).toMatchObject({
@@ -367,7 +367,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("rejects an unknown channel value", async () => {
       const { response } = await adminFormPost("/admin/built-sites", {
         name: "Bad Channel",
-        site_url: "https://chan.b-cdn.net",
+        siteUrl: "https://chan.b-cdn.net",
         updates: "stable",
       });
       expect(response.status).toBe(302);
@@ -392,7 +392,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
     test("returns 404 when built site not found during edit error", async () => {
       const { response } = await adminFormPost("/admin/built-sites/999/edit", {
         name: "",
-        site_url: "https://test.b-cdn.net",
+        siteUrl: "https://test.b-cdn.net",
       });
       expectStatus(404)(response);
     });
@@ -401,7 +401,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         "/admin/built-sites/999/delete",
         {
-          confirm_identifier: "Wrong",
+          confirmIdentifier: "Wrong",
         },
       );
       expectStatus(404)(response);
@@ -432,7 +432,7 @@ describeWithEnv(
       // A POST action (create and a per-site action) is gated too.
       const { response: created } = await adminFormPost("/admin/built-sites", {
         name: "Nope",
-        site_url: "https://nope.b-cdn.net",
+        siteUrl: "https://nope.b-cdn.net",
       });
       expectStatus(404)(created);
       const { response: updated } = await adminFormPost(

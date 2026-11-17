@@ -156,7 +156,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         response,
         200,
         "Delete this answer",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
   });
@@ -164,7 +164,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
   describe("POST /admin/questions/:id/answers/:answerId/delete", () => {
     testRequiresAuth("/admin/questions/1/answers/1/delete", {
       body: {
-        confirm_identifier: "Post auth answer",
+        confirmIdentifier: "Post auth answer",
       },
       method: "POST",
       setup: async () => {
@@ -176,7 +176,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("returns 404 for non-existent question", async () => {
       const { response } = await adminFormPost(
         "/admin/questions/999/answers/1/delete",
-        { confirm_identifier: "Anything" },
+        { confirmIdentifier: "Anything" },
       );
       expectStatus(404)(response);
     });
@@ -185,7 +185,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Missing answer post");
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/999/delete`,
-        { confirm_identifier: "Anything" },
+        { confirmIdentifier: "Anything" },
       );
       expectStatus(404)(response);
     });
@@ -195,7 +195,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const aId = await addAnswer(qId, "Goodbye Answer");
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/delete`,
-        { confirm_identifier: "Goodbye Answer" },
+        { confirmIdentifier: "Goodbye Answer" },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}`,
@@ -218,7 +218,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const aId = await addAnswer(qId, "Correct Text");
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/delete`,
-        { confirm_identifier: "Wrong Text" },
+        { confirmIdentifier: "Wrong Text" },
       );
       expect(response.status).toBe(302);
       // The mismatch prompt names the identifier's label ("Answer text"), so an
@@ -237,7 +237,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(question!.answers.map((a) => a.id)).toContain(aId);
     });
 
-    test("rejects deletion when confirm_identifier is missing", async () => {
+    test("rejects deletion when confirmIdentifier is missing", async () => {
       const qId = await createQuestion("Missing confirm answer");
       const aId = await addAnswer(qId, "Still here");
       const { response } = await adminFormPost(

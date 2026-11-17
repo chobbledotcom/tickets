@@ -54,7 +54,7 @@ const editAs = async (
   return await handleRequest(
     mockMultipartRequest(
       `/admin/listing/${id}/edit`,
-      { ...values, csrf_token: await testCsrfToken() },
+      { ...values, csrfToken: await testCsrfToken() },
       cookie,
     ),
   );
@@ -177,7 +177,7 @@ describeWithEnv("what a saved edit says afterwards", { db: true }, () => {
       `/admin/listing/${rescuer.id}/edit`,
       {
         ...buildUpdateListingForm({}, rescuer),
-        group_ids: "",
+        groupIds: "",
       },
     );
 
@@ -279,7 +279,7 @@ describeWithEnv("changing how long a daily stay runs", { db: true }, () => {
       `/admin/listing/${stretched.id}/edit`,
       {
         ...buildUpdateListingForm({ durationDays: 3 }, stretched),
-        group_ids: String(group.id),
+        groupIds: String(group.id),
       },
     );
 

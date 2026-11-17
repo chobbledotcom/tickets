@@ -65,7 +65,7 @@ describeWithEnv(
       test("POST for a missing site returns 404 once the form passes the gate", async () => {
         const { csrfToken } = await getTestSession();
         const response = await postDeadlineBump(999999, {
-          csrf_token: csrfToken,
+          csrfToken,
         });
         expect(response.status).toBe(404);
       });
@@ -262,7 +262,7 @@ describeWithEnv(
       try {
         const { response } = await adminFormPost(
           `/admin/built-sites/${site.id}/add-secrets`,
-          { confirm_pair_secrets: "1" },
+          { confirmPairSecrets: "1" },
         );
         await expectFlashRedirect(
           `/admin/built-sites/${site.id}/secrets`,

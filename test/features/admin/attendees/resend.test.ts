@@ -44,7 +44,7 @@ import { adminFormPost, adminGet } from "#test-utils/session.ts";
 const resend = async (attendeeId: number, name: string) => {
   await markNotificationSendsOwed(attendeeId);
   return adminFormPost(`/admin/attendees/${attendeeId}/resend-notification`, {
-    confirm_identifier: name,
+    confirmIdentifier: name,
   });
 };
 
@@ -339,7 +339,7 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
     // hidden, and no radio offers a webhook that does not exist.
     assertStringIncludes(
       html,
-      'name="resend_sides" type="hidden" value="email"',
+      'name="resendSides" type="hidden" value="email"',
     );
     assert(!html.includes('type="radio" value="webhooks"'));
     assert(!html.includes('type="radio" value="both"'));
@@ -354,12 +354,12 @@ describeWithEnv("the re-send page's send choice", { db: true }, () => {
     const html = await pageHtml(attendee.id);
 
     expectIncludesAll(html, [
-      'checked name="resend_sides" type="radio" value="email"',
-      'name="resend_sides" type="radio" value="webhooks"',
-      'name="resend_sides" type="radio" value="both"',
+      'checked name="resendSides" type="radio" value="email"',
+      'name="resendSides" type="radio" value="webhooks"',
+      'name="resendSides" type="radio" value="both"',
     ]);
     // The choice is a visible form field, not a hidden default.
-    assert(!html.includes('name="resend_sides" type="hidden"'));
+    assert(!html.includes('name="resendSides" type="hidden"'));
   });
 });
 
@@ -445,11 +445,11 @@ describeWithEnv(
         "wording@example.com",
         1,
         "",
-        { [`question_${questionId}`]: "Coming by bus" },
+        { [`question${questionId}`]: "Coming by bus" },
       );
       const edited = await submitAttendeeEdit(attendee.id, {
         email: "wording@example.com",
-        extra: { [`question_${questionId}`]: "Coming by train" },
+        extra: { [`question${questionId}`]: "Coming by train" },
         name: "Current Wording",
       });
       expect(edited.status).toBe(302);

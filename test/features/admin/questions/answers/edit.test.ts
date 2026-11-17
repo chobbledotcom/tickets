@@ -47,7 +47,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     ) => {
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: modifierId, text: "Pick" },
+        { modifierId, text: "Pick" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, expect.stringContaining("Invalid modifier"), false);
@@ -85,7 +85,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
         200,
         "Editable",
         "Surcharge tier",
-        'name="modifier_id"',
+        'name="modifierId"',
       );
       // The shared child-edit frame: a back link to the question and a small
       // context line naming it.
@@ -101,7 +101,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "After" },
+        { modifierId: "", text: "After" },
       );
       await expectFlashRedirect(
         `/admin/questions/${qId}`,
@@ -119,7 +119,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       // An unchecked checkbox is simply absent from the POST body.
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
-        modifier_id: "",
+        modifierId: "",
         text: "Retired option",
       });
       expect((await findAnswer(qId, aId)).active).toBe(false);
@@ -127,7 +127,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // Re-checking it reactivates the answer.
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
         active: "on",
-        modifier_id: "",
+        modifierId: "",
         text: "Retired option",
       });
       expect((await findAnswer(qId, aId)).active).toBe(true);
@@ -140,7 +140,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: String(modifierId), text: "Large" },
+        { modifierId: String(modifierId), text: "Large" },
       );
       expect(response.status).toBe(302);
 
@@ -162,7 +162,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       expect(await getAnswerModifierId(aId)).toBe(modifierId);
 
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
-        modifier_id: "",
+        modifierId: "",
         text: "Plain",
       });
       expect(await getAnswerModifierId(aId)).toBeNull();
@@ -204,7 +204,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "" },
+        { modifierId: "", text: "" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -218,7 +218,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       const qId = await createQuestion("Edit log question");
       const aId = await addAnswer(qId, "Logged before");
       await adminFormPost(`/admin/questions/${qId}/answers/${aId}/edit`, {
-        modifier_id: "",
+        modifierId: "",
         text: "Logged after",
       });
 
@@ -233,7 +233,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "Tally", timesSelected: "15" },
+        { modifierId: "", text: "Tally", timesSelected: "15" },
       );
       expect(response.status).toBe(302);
 
@@ -249,7 +249,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/questions/${qId}/answers/${aId}/edit`,
-        { modifier_id: "", text: "After", timesSelected: "-3" },
+        { modifierId: "", text: "After", timesSelected: "-3" },
       );
       expect(response.status).toBe(302);
 

@@ -16,9 +16,9 @@ import {
 } from "#test-utils/settings.ts";
 
 const MONTHLY = {
-  recurring_interval: "month",
-  recurring_price: "5.00",
-  unit_price: "10.00",
+  recurringInterval: "month",
+  recurringPrice: "5.00",
+  unitPrice: "10.00",
 };
 
 /** Run `body` while the site offers subscriptions: the feature is on and
@@ -42,9 +42,9 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
       const cleared = await updateListing(row.id, {
-        recurring_interval: "",
-        recurring_price: "",
-        unit_price: "10.00",
+        recurringInterval: "",
+        recurringPrice: "",
+        unitPrice: "10.00",
       });
       expect([cleared.recurringPrice, cleared.recurringInterval]).toEqual([
         0,
@@ -71,7 +71,7 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     await whileOffered(async () => {
       id = (await createListing(MONTHLY)).id;
     });
-    const saved = await updateListing(id, { unit_price: "12.00" });
+    const saved = await updateListing(id, { unitPrice: "12.00" });
     expect(saved.unitPrice).toBe(1200);
     expect([saved.recurringPrice, saved.recurringInterval]).toEqual([
       500,
@@ -84,12 +84,12 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
       const row = await createListing(MONTHLY);
       await settings.update.setPaymentProviderNone();
       expect(
-        await saveListingEdit(row.id, { ...MONTHLY, unit_price: "12.00" }),
+        await saveListingEdit(row.id, { ...MONTHLY, unitPrice: "12.00" }),
       ).toEqual({ error: t("error.recurring_needs_stripe"), ok: false });
       const cleared = await updateListing(row.id, {
-        recurring_interval: "",
-        recurring_price: "",
-        unit_price: "0",
+        recurringInterval: "",
+        recurringPrice: "",
+        unitPrice: "0",
       });
       expect([
         cleared.unitPrice,
@@ -101,7 +101,7 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
   test("refuses a new listing with a recurring price and no frequency", () =>
     whileOffered(async () => {
       await expect(
-        createListing({ ...MONTHLY, recurring_interval: "" }),
+        createListing({ ...MONTHLY, recurringInterval: "" }),
       ).rejects.toThrow(
         `create failed: ${t("error.recurring_interval_required")}`,
       );
@@ -111,7 +111,7 @@ describeWithEnv("listings form subscriptions", { db: true }, () => {
     whileOffered(async () => {
       const row = await createListing(MONTHLY);
       expect(
-        await saveListingEdit(row.id, { ...MONTHLY, recurring_interval: "" }),
+        await saveListingEdit(row.id, { ...MONTHLY, recurringInterval: "" }),
       ).toEqual({ error: t("error.recurring_interval_required"), ok: false });
     }));
 });

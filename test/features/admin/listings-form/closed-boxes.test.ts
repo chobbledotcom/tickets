@@ -15,11 +15,11 @@ import { createListing, listingForm, updateListing } from "./helpers.ts";
 describeWithEnv("listings form closed boxes", { db: true }, () => {
   test("the use-defaults tick is saved while the site holds defaults, and refused while its box is hidden", async () => {
     const hidden = await buildCreateListingResource(
-      listingForm({ use_defaults: "1" }),
+      listingForm({ useDefaults: "1" }),
       listingFormView("owner"),
-    ).create(listingForm({ use_defaults: "1" }));
+    ).create(listingForm({ useDefaults: "1" }));
     await settings.update.listingDefaults({ hidden: true });
-    const on = await createListing({ use_defaults: "1" });
+    const on = await createListing({ useDefaults: "1" });
     const off = await createListing({ name: "Own values" });
     expect([hidden, on.useDefaults, off.useDefaults]).toEqual([
       { error: t("fields.validation.unshown_field"), ok: false },
@@ -30,13 +30,13 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
 
   test("demo mode refuses a webhook address, normal mode keeps it", async () => {
     const hook = "https://example.com/hook";
-    const real = await createListing({ webhook_url: hook });
+    const real = await createListing({ webhookUrl: hook });
     expect(real.webhookUrl).toBe(hook);
 
     setDemoModeForTest(true);
     try {
       await expect(
-        createListing({ name: "Demo listing", webhook_url: hook }),
+        createListing({ name: "Demo listing", webhookUrl: hook }),
       ).rejects.toThrow(t("fields.validation.unshown_field"));
     } finally {
       setDemoModeForTest(false);
@@ -45,17 +45,15 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
 
   test("a builder or logistics box is refused while its feature is off", async () => {
     const refusal = t("fields.validation.unshown_field");
-    await expect(createListing({ assign_built_site: "1" })).rejects.toThrow(
+    await expect(createListing({ assignBuiltSite: "1" })).rejects.toThrow(
       refusal,
     );
-    await expect(createListing({ uses_logistics: "" })).rejects.toThrow(
-      refusal,
-    );
+    await expect(createListing({ usesLogistics: "" })).rejects.toThrow(refusal);
   });
 
   test("a logistics choice is kept when the feature is on", () =>
     withSetting(featureSetting("logistics"), async () => {
-      const on = await createListing({ uses_logistics: "1" });
+      const on = await createListing({ usesLogistics: "1" });
       expect(on.usesLogistics).toBe(true);
       // An unticked checkbox never reaches the form at all.
       const off = await createListing({ name: "No logistics" });
@@ -64,7 +62,7 @@ describeWithEnv("listings form closed boxes", { db: true }, () => {
 
   test("an edit saved while logistics is off keeps the stored logistics choice", async () => {
     const row = await withSetting(featureSetting("logistics"), () =>
-      createListing({ uses_logistics: "1" }),
+      createListing({ usesLogistics: "1" }),
     );
     const saved = await updateListing(row.id, { name: "Renamed" });
     expect([saved.name, saved.usesLogistics]).toEqual(["Renamed", true]);

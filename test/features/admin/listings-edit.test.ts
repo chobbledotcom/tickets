@@ -65,7 +65,7 @@ describeWithEnv("creating a listing", { db: true }, () => {
         "/admin/listing",
         {
           ...listingForm("Made By Editor", "editor"),
-          csrf_token: await testCsrfToken(),
+          csrfToken: await testCsrfToken(),
         },
         cookie,
       ),

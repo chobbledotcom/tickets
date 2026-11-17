@@ -62,7 +62,7 @@ describeWithEnv("admin group pages", { db: true }, () => {
     const { response } = await adminFormPost(
       `/admin/groups/${group.id}/delete`,
       {
-        confirm_identifier: group.name,
+        confirmIdentifier: group.name,
       },
     );
     expect(response.headers.get("location")).toMatch(/^\/admin\/groups(\?|$)/);

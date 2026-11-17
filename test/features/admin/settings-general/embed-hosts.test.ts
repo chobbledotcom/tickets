@@ -26,7 +26,7 @@ async function expectInvalidEmbedHostsRefused(
   expectedError: string,
 ): Promise<void> {
   const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-    embed_hosts: hosts,
+    embedHosts: hosts,
   });
   await expectFlashRedirect(
     "/admin/settings?form=settings-embed-hosts#settings-embed-hosts",
@@ -81,7 +81,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
         response,
         200,
         "External sites allowed to use embeds and order buttons",
-        "embed_hosts",
+        "embedHosts",
       );
     });
 
@@ -100,29 +100,29 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
   describe("POST /admin/settings/embed-hosts", () => {
     testRequiresAuth("/admin/settings/embed-hosts", {
       body: {
-        embed_hosts: "example.com",
+        embedHosts: "example.com",
       },
       method: "POST",
     });
 
     test("rejects invalid CSRF token", async () => {
       const { response } = await adminFormPost("/admin/settings/embed-hosts", {
-        csrf_token: "invalid-csrf-token",
-        embed_hosts: "example.com",
+        csrfToken: "invalid-csrf-token",
+        embedHosts: "example.com",
       });
       await expectHtmlResponse(response, 403, "Invalid CSRF token");
     });
 
     test("saves valid embed hosts", async () => {
       await expectEmbedHostsRedirect(
-        { embed_hosts: "example.com, *.mysite.org" },
+        { embedHosts: "example.com, *.mysite.org" },
         "Allowed embed hosts updated",
       );
     });
 
     test("normalizes hosts to lowercase", async () => {
       const { cookie } = await adminFormPost("/admin/settings/embed-hosts", {
-        embed_hosts: "Example.COM, *.MySite.ORG",
+        embedHosts: "Example.COM, *.MySite.ORG",
       });
 
       // Verify by checking the settings page
@@ -138,7 +138,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       const { cookie, csrfToken } = await adminFormPost(
         "/admin/settings/embed-hosts",
         {
-          embed_hosts: "example.com",
+          embedHosts: "example.com",
         },
       );
 
@@ -146,7 +146,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
       const response = await handleRequest(
         mockFormRequest(
           "/admin/settings/embed-hosts",
-          { csrf_token: csrfToken, embed_hosts: "" },
+          { csrfToken, embedHosts: "" },
           cookie,
         ),
       );
@@ -184,7 +184,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
     test("clears embed hosts to empty string when only whitespace", async () => {
       await expectEmbedHostsStored(
-        { embed_hosts: "   " },
+        { embedHosts: "   " },
         { message: "Embed host restrictions removed", stored: "" },
       );
     });
@@ -192,7 +192,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
     test("rejects bare wildcard embed host pattern", async () => {
       await expectFormValueRefused(
         {
-          fields: { embed_hosts: "*" },
+          fields: { embedHosts: "*" },
           flash: "Bare wildcard",
           path: "/admin/settings/embed-hosts",
           stored: () => settings.embedHosts,
@@ -203,7 +203,7 @@ describeWithEnv("server (embed hosts)", { db: true }, () => {
 
     test("normalizes and persists embed hosts to the database", async () => {
       await expectEmbedHostsStored(
-        { embed_hosts: "Example.com, *.Sub.Example.com" },
+        { embedHosts: "Example.com, *.Sub.Example.com" },
         {
           message: "Allowed embed hosts updated",
           stored: "example.com, *.sub.example.com",

@@ -44,9 +44,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          name_find: "Priced",
-          name_replace: "Cloned",
-          new_name: "Priced Copy",
+          nameFind: "Priced",
+          nameReplace: "Cloned",
+          newName: "Priced Copy",
         },
       );
       expect(response.status).toBe(302);
@@ -82,9 +82,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       });
 
       await adminFormPost(`/admin/groups/${group.id}/duplicate`, {
-        name_find: "Inheriting",
-        name_replace: "Cloned",
-        new_name: "Inherits copy",
+        nameFind: "Inheriting",
+        nameReplace: "Cloned",
+        newName: "Inherits copy",
       });
 
       const newGroup = (await groups.getAll()).find(
@@ -116,11 +116,11 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          date_find: "",
-          date_replace: "",
-          name_find: "Untouched",
-          name_replace: "Renamed",
-          new_name: "Verbatim Copy",
+          dateFind: "",
+          dateReplace: "",
+          nameFind: "Untouched",
+          nameReplace: "Renamed",
+          newName: "Verbatim Copy",
         },
       );
 
@@ -135,7 +135,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       // The Cucumber story `catalogue.copy-creates-independent-group` proves the
       // actor-facing claim through the rendered form, but Cucumber runs do not
       // feed the deterministic coverage gate. This direct test pins the
-      // non-empty `date_find`/`date_replace` branch of
+      // non-empty `dateFind`/`dateReplace` branch of
       // `handleDuplicateGroupPost` — `computeDayOffset` → `shiftUtcIsoByDays`
       // — so a regression that ignored the submitted date shift would fail here.
       const group = await createTestGroup({ name: "Shift Src" });
@@ -148,11 +148,11 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          date_find: "2026-04-16",
-          date_replace: "2026-04-23",
-          name_find: "Shift",
-          name_replace: "Moved",
-          new_name: "Shift Copy",
+          dateFind: "2026-04-16",
+          dateReplace: "2026-04-23",
+          nameFind: "Shift",
+          nameReplace: "Moved",
+          newName: "Shift Copy",
         },
       );
 
@@ -178,12 +178,12 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          date_find: "",
-          date_replace: "",
+          dateFind: "",
+          dateReplace: "",
           // "Listing N" → "Clone N" keeps every clone name unique.
-          name_find: "Listing",
-          name_replace: "Clone",
-          new_name: "Big Copy",
+          nameFind: "Listing",
+          nameReplace: "Clone",
+          newName: "Big Copy",
         },
       );
 
@@ -214,23 +214,23 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       // on the source group.
       await adminFormPost(`/admin/groups/${group.id}/edit`, {
         description: "",
-        hide_package_listings: "1",
-        is_package: "1",
-        max_attendees: "0",
+        hidePackageListings: "1",
+        isPackage: "1",
+        maxAttendees: "0",
         name: "Pkg Source",
-        [`package_day_price_${listing.id}_2`]: "9.00",
-        [`package_price_${listing.id}`]: "30.00",
-        [`package_qty_${listing.id}`]: "4",
+        [`packageDayPrice${listing.id}Days2`]: "9.00",
+        [`packagePrice${listing.id}`]: "30.00",
+        [`packageQty${listing.id}`]: "4",
         slug: group.slug,
-        terms_and_conditions: "",
+        termsAndConditions: "",
       });
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          name_find: "Member",
-          name_replace: "Cloned Member",
-          new_name: "Pkg Copy",
+          nameFind: "Member",
+          nameReplace: "Cloned Member",
+          newName: "Pkg Copy",
         },
       );
       expect(response.status).toBe(302);

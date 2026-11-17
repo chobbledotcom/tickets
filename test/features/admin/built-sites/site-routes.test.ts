@@ -239,7 +239,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
         200,
         "Delete Built Site",
         "Delete Me",
-        "confirm_identifier",
+        "confirmIdentifier",
       );
     });
 
@@ -252,7 +252,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
   describe("POST /admin/built-sites/:id/delete", () => {
     testRequiresAuth("/admin/built-sites/1/delete", {
       body: {
-        confirm_identifier: "Test Site",
+        confirmIdentifier: "Test Site",
       },
       method: "POST",
       setup: async () => {
@@ -272,7 +272,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/delete`,
         {
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         },
       );
       expect(response.status).toBe(302);
@@ -293,7 +293,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         `/admin/built-sites/${site.id}/delete`,
         {
-          confirm_identifier: "case test",
+          confirmIdentifier: "case test",
         },
       );
       await expectFlashRedirect(
@@ -306,7 +306,7 @@ describeWithEnv("server (admin built sites)", builtSitesTestEnv, () => {
       const { response } = await adminFormPost(
         "/admin/built-sites/999/delete",
         {
-          confirm_identifier: "Test",
+          confirmIdentifier: "Test",
         },
       );
       expectStatus(404)(response);

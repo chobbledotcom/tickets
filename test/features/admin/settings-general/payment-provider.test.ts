@@ -21,7 +21,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("sets provider to square", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "square" },
+        { paymentProvider: "square" },
       );
 
       expect(response.status).toBe(302);
@@ -32,7 +32,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   describe("POST /admin/settings/payment-provider", () => {
     testRequiresAuth("/admin/settings/payment-provider", {
       body: {
-        payment_provider: "stripe",
+        paymentProvider: "stripe",
       },
       method: "POST",
     });
@@ -40,7 +40,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("sets payment provider to stripe", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "stripe" },
+        { paymentProvider: "stripe" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Payment provider set to stripe");
@@ -50,11 +50,11 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     test("disables payment provider with none", async () => {
       await adminFormPost("/admin/settings/payment-provider", {
-        payment_provider: "stripe",
+        paymentProvider: "stripe",
       });
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "none" },
+        { paymentProvider: "none" },
       );
       expect(response.status).toBe(302);
       expectFlash(response, "Payment provider disabled");
@@ -68,7 +68,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       try {
         const { response } = await adminFormPost(
           "/admin/settings/payment-provider",
-          { payment_provider: "sumup" },
+          { paymentProvider: "sumup" },
         );
         expect(response.status).toBe(302);
         expectFlash(
@@ -85,7 +85,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("rejects invalid payment provider", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "invalid-provider" },
+        { paymentProvider: "invalid-provider" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -114,7 +114,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "stripe" },
+        { paymentProvider: "stripe" },
       );
 
       expectFlash(
@@ -130,7 +130,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       try {
         const { response } = await adminFormPost(
           "/admin/settings/payment-provider",
-          { payment_provider: "stripe" },
+          { paymentProvider: "stripe" },
         );
 
         expectFlash(response, "Another task is already in progress", false);
@@ -147,8 +147,8 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
         {
-          payment_provider: "stripe",
-          settings_version: String(staleVersion),
+          paymentProvider: "stripe",
+          settingsVersion: String(staleVersion),
         },
       );
 
@@ -163,7 +163,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("rejects a malformed settings revision", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider",
-        { payment_provider: "stripe", settings_version: "not-a-number" },
+        { paymentProvider: "stripe", settingsVersion: "not-a-number" },
       );
 
       expectFlash(
@@ -181,7 +181,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider-recovery",
-        { existing_payment_provider: "stripe" },
+        { existingPaymentProvider: "stripe" },
       );
 
       expect(response.status).toBe(302);
@@ -198,7 +198,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       );
 
       await adminFormPost("/admin/settings/payment-provider", {
-        payment_provider: "stripe",
+        paymentProvider: "stripe",
       });
       expect(settings.paymentProvider).toBe("stripe");
     });
@@ -216,7 +216,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       try {
         const { response } = await adminFormPost(
           "/admin/settings/payment-provider-recovery",
-          { existing_payment_provider: "stripe" },
+          { existingPaymentProvider: "stripe" },
         );
 
         expect(response.status).toBe(302);
@@ -235,7 +235,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       try {
         const { response } = await adminFormPost(
           "/admin/settings/payment-provider-recovery",
-          { existing_payment_provider: "stripe" },
+          { existingPaymentProvider: "stripe" },
         );
 
         expectFlash(response, "Another task is already in progress", false);
@@ -251,7 +251,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider-recovery",
-        { existing_payment_provider: "square" },
+        { existingPaymentProvider: "square" },
       );
 
       expectFlash(response, "Choose a provider with saved credentials.", false);
@@ -266,7 +266,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
       const { response } = await adminFormPost(
         "/admin/settings/payment-provider-recovery",
-        { existing_payment_provider: "square" },
+        { existingPaymentProvider: "square" },
       );
 
       expectFlash(
@@ -281,7 +281,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   test("logs activity when payment provider is set", async () => {
     await adminFormPost("/admin/settings/payment-provider", {
-      payment_provider: "stripe",
+      paymentProvider: "stripe",
     });
 
     const logs = await getAllActivityLog();
@@ -292,7 +292,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
   test("logs activity when payment provider is disabled", async () => {
     await adminFormPost("/admin/settings/payment-provider", {
-      payment_provider: "none",
+      paymentProvider: "none",
     });
 
     const logs = await getAllActivityLog();

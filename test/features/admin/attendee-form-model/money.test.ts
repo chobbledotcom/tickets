@@ -13,9 +13,9 @@ describe("parseAttendeeForm money slots", () => {
   test("reads submitted slots blank-aligned, so values never shift", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        adjustment_amount_0: "-500",
-        adjustment_description_0: "Delivery",
-        payment_amount_1: "2000",
+        adjustmentAmount0: "-500",
+        adjustmentDescription0: "Delivery",
+        paymentAmount1: "2000",
       }),
       new Map(),
     );
@@ -30,7 +30,7 @@ describe("parseAttendeeForm money slots", () => {
   test("keeps a half-filled adjustment slot for its error to show", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        adjustment_description_2: "Delivery",
+        adjustmentDescription2: "Delivery",
         name: "X",
       }),
       new Map(),
@@ -45,10 +45,10 @@ describe("parseAttendeeForm money slots", () => {
   test("reads a line's agreed price raw", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "3",
+        lineListing0: "3",
         name: "X",
-        price_0: "1200",
-        qty_0: "2",
+        price0: "1200",
+        qty0: "2",
       }),
       new Map(),
     );

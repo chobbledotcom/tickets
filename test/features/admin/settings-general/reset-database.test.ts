@@ -36,7 +36,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
   });
 
   describe("POST /admin/settings/reset-database", () => {
-    test("reset database POST without confirm_phrase field uses empty fallback", async () => {
+    test("reset database POST without confirmPhrase field uses empty fallback", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/reset-database",
       );
@@ -64,7 +64,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         await assertFormRedirect(
           "/admin/settings/reset-database",
           {
-            confirm_phrase:
+            confirmPhrase:
               "The site will be fully reset and all data will be lost.",
           },
           "/setup/",
@@ -86,7 +86,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
 
     testRequiresAuth("/admin/settings/reset-database", {
       body: {
-        confirm_phrase:
+        confirmPhrase:
           "The site will be fully reset and all data will be lost.",
       },
       method: "POST",
@@ -97,9 +97,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/reset-database",
           {
-            confirm_phrase:
+            confirmPhrase:
               "The site will be fully reset and all data will be lost.",
-            csrf_token: "invalid-csrf-token",
+            csrfToken: "invalid-csrf-token",
           },
           await testCookie(),
         ),
@@ -110,7 +110,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("rejects wrong confirmation phrase", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/reset-database",
-        { confirm_phrase: "wrong phrase" },
+        { confirmPhrase: "wrong phrase" },
       );
       expect(response.status).toBe(302);
       expectFlash(
@@ -133,9 +133,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/reset-database",
           {
-            confirm_phrase:
+            confirmPhrase:
               "The site will be fully reset and all data will be lost.",
-            csrf_token: csrfToken,
+            csrfToken,
           },
           cookie,
         ),
@@ -161,9 +161,9 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings/reset-database",
           {
-            confirm_phrase:
+            confirmPhrase:
               "The site will be fully reset and all data will be lost.",
-            csrf_token: csrfToken,
+            csrfToken,
           },
           cookie,
         ),
@@ -185,7 +185,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
       const html = await expectHtmlResponse(response, 200, "Reset Database");
       expectIncludesAll(html, [
         "The site will be fully reset and all data will be lost.",
-        "confirm_phrase",
+        "confirmPhrase",
       ]);
     });
   });
@@ -194,7 +194,7 @@ describeWithEnv("server (admin settings)", { db: true }, () => {
     test("rejects empty confirm phrase", async () => {
       const { response } = await adminFormPost(
         "/admin/settings/reset-database",
-        { confirm_phrase: "" },
+        { confirmPhrase: "" },
       );
       expect(response.status).toBe(302);
       expectFlash(

@@ -31,7 +31,7 @@ const oneOffForm = (name: string, date: string) => ({
   ...buildCreateListingForm(
     testListingInput({ date, listingType: "standard", name }),
   ),
-  template_id: "one-off-event",
+  templateId: "one-off-event",
 });
 
 const storedListing = async (name: string) =>
@@ -66,7 +66,7 @@ describeWithEnv("creating a one-off event", { db: true }, () => {
       ...buildCreateListingForm(
         testListingInput({ listingType: "daily", name: "Every Week" }),
       ),
-      template_id: "one-off-event",
+      templateId: "one-off-event",
     });
 
     expectRedirect(response);
@@ -79,7 +79,7 @@ describeWithEnv("a rejected create", { db: true }, () => {
     const { response } = await adminMultipartPost("/admin/listing", {
       ...buildCreateListingForm(testListingInput({ name: "" })),
       customise: "1",
-      template_id: "weekly-event",
+      templateId: "weekly-event",
     });
 
     expect(response.status).toBe(400);
@@ -92,7 +92,7 @@ describeWithEnv("a rejected create", { db: true }, () => {
   test("leaves the Customise box shut when it was not ticked", async () => {
     const { response } = await adminMultipartPost("/admin/listing", {
       ...buildCreateListingForm(testListingInput({ name: "" })),
-      template_id: "weekly-event",
+      templateId: "weekly-event",
     });
 
     assertStringIncludes(
@@ -125,7 +125,7 @@ describeWithEnv("an editor creating a listing", { db: true }, () => {
     return await handleRequest(
       mockMultipartRequest(
         "/admin/listing",
-        { ...values, csrf_token: await testCsrfToken() },
+        { ...values, csrfToken: await testCsrfToken() },
         cookie,
       ),
     );
@@ -136,12 +136,12 @@ describeWithEnv("an editor creating a listing", { db: true }, () => {
     [
       "sends the webhook URL that attendee details are posted to",
       "Editor Webhook",
-      { webhook_url: "https://attacker.example.com/steal" },
+      { webhookUrl: "https://attacker.example.com/steal" },
     ],
     [
       "switches the new listing on to the site defaults",
       "Editor Defaults",
-      { use_defaults: "1" },
+      { useDefaults: "1" },
     ],
   ] as const) {
     test(`is refused when the form ${sends}`, async () => {

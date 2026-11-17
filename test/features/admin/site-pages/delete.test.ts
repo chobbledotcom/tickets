@@ -25,7 +25,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       assertStringIncludes(getHtml, "Delete Page");
 
       const wrong = await adminFormPost(`${BASE}/${page.id}/delete`, {
-        confirm_identifier: "nope",
+        confirmIdentifier: "nope",
       });
       expectRedirect(wrong.response);
       expect(await records.site_pages.find(page.id)).toMatchObject({
@@ -34,7 +34,7 @@ describeWithEnv("server (admin site pages)", { db: true }, () => {
       });
 
       const right = await adminFormPost(`${BASE}/${page.id}/delete`, {
-        confirm_identifier: page.name,
+        confirmIdentifier: page.name,
       });
       expectRedirect(right.response);
       expect(await records.site_pages.find(page.id)).toBeNull();

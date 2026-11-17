@@ -100,7 +100,7 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       session: testSession(),
     });
 
-    assert(!body.includes('name="target_listing_id"'));
+    assert(!body.includes('name="targetListingId"'));
     assert(!body.includes("Record service event cost"));
   });
 
@@ -153,10 +153,10 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       'id="servicing-form"',
       "Create service event",
       '<input autocomplete="off" maxlength="250" name="name" required type="text">',
-      '<input name="start_date" type="date">',
-      '<input min="1" name="day_count" type="number" value="1">',
+      '<input name="startDate" type="date">',
+      '<input min="1" name="dayCount" type="number" value="1">',
       '<use href="/icons.svg#plus">',
-      '<input min="0" name="quantity_3" type="number" value="0">',
+      '<input min="0" name="quantity3" type="number" value="0">',
     ]);
     // No stored event yet, so none of the event-only sections render.
     assert(!body.includes('class="warning"'));
@@ -202,11 +202,11 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       'action="/admin/servicing/7"',
       '<p class="warning">1 held listing no longer exists.',
       'name="name" required type="text" value="Annual service"',
-      'name="start_date" type="date" value="2026-07-01"',
+      'name="startDate" type="date" value="2026-07-01"',
       '<use href="/icons.svg#save">',
       "<td>Main hall</td>",
       "<td>Storage room<em> (inactive)</em></td>",
-      '<input min="0" name="quantity_3" type="number" value="2">',
+      '<input min="0" name="quantity3" type="number" value="2">',
       "Save service event",
     ]);
     assert(!body.includes("Create service event"));
@@ -214,10 +214,10 @@ describeWithEnv("servicing cost page", { db: true }, () => {
       'action="/admin/servicing/7/duplicate"',
       'action="/admin/servicing/7/delete"',
       "Record service event cost",
-      'name="cost_idempotency_key" type="hidden"',
+      'name="costIdempotencyKey" type="hidden"',
       'name="amount"',
       'name="memo"',
-      'name="target_listing_id"',
+      'name="targetListingId"',
       "Service event costs",
       "Boiler part",
     ]);

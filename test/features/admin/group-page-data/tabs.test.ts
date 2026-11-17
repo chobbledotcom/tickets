@@ -118,7 +118,7 @@ describeWithEnv(
 
     describe("POST /admin/groups/:id/add-listings", () => {
       testRequiresAuth("/admin/groups/1/add-listings", {
-        body: { listing_ids: "1" },
+        body: { listingIds: "1" },
         method: "POST",
       });
 
@@ -133,7 +133,7 @@ describeWithEnv(
           mockFormRequest(
             `/admin/groups/${group.id}/add-listings`,
             {
-              csrf_token: csrfToken,
+              csrfToken,
             },
             cookie,
           ),
@@ -145,7 +145,7 @@ describeWithEnv(
         const { response } = await adminFormPost(
           "/admin/groups/999/add-listings",
           {
-            listing_ids: "1",
+            listingIds: "1",
           },
         );
         expectStatus(404)(response);
@@ -168,8 +168,8 @@ describeWithEnv(
           mockFormRequest(
             `/admin/groups/${group.id}/add-listings`,
             {
-              csrf_token: csrfToken,
-              listing_ids: String(listing1.id),
+              csrfToken,
+              listingIds: String(listing1.id),
             },
             cookie,
           ),
@@ -200,9 +200,9 @@ describeWithEnv(
           slug: "stale-selection-group",
         });
         const listing = await createTestListing({ name: "Existing selection" });
-        const body = new URLSearchParams({ csrf_token: await testCsrfToken() });
-        body.append("listing_ids", String(listing.id));
-        body.append("listing_ids", "999999");
+        const body = new URLSearchParams({ csrfToken: await testCsrfToken() });
+        body.append("listingIds", String(listing.id));
+        body.append("listingIds", "999999");
         const response = await handleRequest(
           mockRequest(`/admin/groups/${group.id}/add-listings`, {
             body,
@@ -233,7 +233,7 @@ describeWithEnv(
         try {
           ({ response } = await adminFormPost(
             `/admin/groups/${group.id}/add-listings`,
-            { listing_ids: String(listing.id) },
+            { listingIds: String(listing.id) },
           ));
         } finally {
           restore();
@@ -258,7 +258,7 @@ describeWithEnv(
           mockFormRequest(
             `/admin/groups/${group.id}/add-listings`,
             {
-              csrf_token: csrfToken,
+              csrfToken,
             },
             cookie,
           ),
@@ -291,8 +291,8 @@ describeWithEnv(
           mockFormRequest(
             `/admin/groups/${group.id}/add-listings`,
             {
-              csrf_token: csrfToken,
-              listing_ids: String(dailyListing.id),
+              csrfToken,
+              listingIds: String(dailyListing.id),
             },
             cookie,
           ),

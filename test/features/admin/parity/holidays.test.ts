@@ -27,9 +27,9 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
 
   test("page create stores the posted dates and name", async () => {
     const response = await ownerPagePost("/admin/holidays", {
-      end_date: "2027-01-02",
+      endDate: "2027-01-02",
       name: "Pinned Page Holiday",
-      start_date: "2027-01-01",
+      startDate: "2027-01-01",
     });
     expect(response.status).toBe(302);
 
@@ -41,9 +41,9 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
 
   test("page create refuses end before start with the shared message", async () => {
     const response = await ownerPagePost("/admin/holidays", {
-      end_date: "2027-01-01",
+      endDate: "2027-01-01",
       name: "Backwards Page Holiday",
-      start_date: "2027-01-02",
+      startDate: "2027-01-02",
     });
     // A failed page create redirects back to the new page with the error in
     // the flash; it does not write the row.
@@ -130,9 +130,9 @@ describeWithEnv("Holiday parity pins", { db: true }, () => {
     const page = await pagePostAs(
       "/admin/holidays",
       {
-        end_date: "2027-05-02",
+        endDate: "2027-05-02",
         name: "Manager Page Holiday",
-        start_date: "2027-05-01",
+        startDate: "2027-05-01",
       },
       managerCookie,
     );

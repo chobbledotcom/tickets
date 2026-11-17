@@ -77,8 +77,8 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
         200,
       );
       expectIncludesAll(html, [
-        '<input name="return_filter" type="hidden" value="out">',
-        '<input name="return_url" type="hidden" value="/admin/calendar">',
+        '<input name="returnFilter" type="hidden" value="out">',
+        '<input name="returnUrl" type="hidden" value="/admin/calendar">',
       ]);
     });
 
@@ -86,7 +86,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "1" },
+        { checkIn: "true", quantity: "1" },
       );
 
       const response = await adminGet(
@@ -141,7 +141,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "2" },
+        { checkIn: "true", quantity: "2" },
       );
       expectFlash(
         response,
@@ -158,12 +158,12 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "3" },
+        { checkIn: "true", quantity: "3" },
       );
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "false", quantity: "2" },
+        { checkIn: "false", quantity: "2" },
       );
       expectFlash(
         response,
@@ -176,7 +176,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       const { attendee, listing } = await threePlaceAttendee();
       await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "3" },
+        { checkIn: "true", quantity: "3" },
       );
 
       const response = await adminGet(
@@ -196,7 +196,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true", quantity: "two" },
+        { checkIn: "true", quantity: "two" },
       );
       expectFlash(response, "Invalid ticket count", false);
       expect(await storedCount(listing.id, attendee.id)).toBe(0);
@@ -208,7 +208,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
       for (const quantity of ["2tickets", "1.5", "1e2"]) {
         const { response } = await adminFormPost(
           `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-          { check_in: "true", quantity },
+          { checkIn: "true", quantity },
         );
         expectFlash(response, "Invalid ticket count", false);
       }
@@ -220,7 +220,7 @@ describeWithEnv("server (admin attendees) > checkin", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/listing/${listing.id}/attendee/${attendee.id}/checkin`,
-        { check_in: "true" },
+        { checkIn: "true" },
       );
       expectFlash(response, "Invalid ticket count", false);
       expect(await storedCount(listing.id, attendee.id)).toBe(0);

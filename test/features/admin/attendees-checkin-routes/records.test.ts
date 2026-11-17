@@ -22,8 +22,8 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
       name: "Ada Lovelace",
     });
 
-    await checkIn(listing.id, attendee.id, { check_in: "true" });
-    await checkIn(listing.id, attendee.id, { check_in: "false" });
+    await checkIn(listing.id, attendee.id, { checkIn: "true" });
+    await checkIn(listing.id, attendee.id, { checkIn: "false" });
 
     const history = await activityMessages();
     assertArrayIncludes(history, [
@@ -40,10 +40,10 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     });
 
     const { response: went } = await checkIn(listing.id, attendee.id, {
-      check_in: "true",
+      checkIn: "true",
     });
     const { response: came } = await checkIn(listing.id, attendee.id, {
-      check_in: "false",
+      checkIn: "false",
     });
 
     expectRedirectWithFlash(
@@ -62,7 +62,7 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
     });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      check_in: "sideways",
+      checkIn: "sideways",
     });
 
     expectRedirectWithFlash(
@@ -81,10 +81,10 @@ describeWithEnv("what a check-in writes down", { db: true }, () => {
       listing: { name: "Quiet Door" },
       name: "Twice Told",
     });
-    await checkIn(listing.id, attendee.id, { check_in: "true" });
+    await checkIn(listing.id, attendee.id, { checkIn: "true" });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      check_in: "true",
+      checkIn: "true",
     });
 
     expectRedirectWithFlash(
@@ -106,7 +106,7 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
     });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      return_filter: "in",
+      returnFilter: "in",
     });
 
     assertStringIncludes(
@@ -121,7 +121,7 @@ describeWithEnv("where a check-in lands", { db: true }, () => {
     });
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      return_filter: "sideways",
+      returnFilter: "sideways",
     });
 
     const location = response.headers.get("location")!;
@@ -153,7 +153,7 @@ describeWithEnv("a roster row with no places on it", { db: true }, () => {
     await emptyBookingLine(listing.id, attendee.id);
 
     const { response } = await checkIn(listing.id, attendee.id, {
-      return_url: `/admin/listing/${listing.id}/scanner`,
+      returnUrl: `/admin/listing/${listing.id}/scanner`,
     });
 
     expectRedirectWithFlash(

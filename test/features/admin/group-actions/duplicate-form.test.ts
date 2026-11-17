@@ -68,9 +68,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const overLongGroup = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          name_find: "Lengthy",
-          name_replace: "Long",
-          new_name: "N".repeat(251),
+          nameFind: "Lengthy",
+          nameReplace: "Long",
+          newName: "N".repeat(251),
         },
       );
       expectFlash(
@@ -82,9 +82,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const overLongClone = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          name_find: "Lengthy",
-          name_replace: "L".repeat(251),
-          new_name: "Short Copy",
+          nameFind: "Lengthy",
+          nameReplace: "L".repeat(251),
+          newName: "Short Copy",
         },
       );
       expectFlash(
@@ -100,7 +100,7 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
     test("returns 404 when the source group does not exist", async () => {
       const { response } = await adminFormPost(
         "/admin/groups/999999/duplicate",
-        { new_name: "Orphan" },
+        { newName: "Orphan" },
       );
       expect(response.status).toBe(404);
     });
@@ -119,9 +119,9 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/duplicate`,
         {
-          name_find: "Duplicated",
-          name_replace: "Cloned",
-          new_name: "Plan Copy",
+          nameFind: "Duplicated",
+          nameReplace: "Cloned",
+          newName: "Plan Copy",
         },
       );
 
@@ -155,11 +155,11 @@ describeWithEnv("Group actions — duplicate", { db: true }, () => {
     };
 
     const FAILED_DUPLICATE_VALUES: TestFormValues = {
-      date_find: "2026-03-02",
-      date_replace: "2026-03-09",
-      name_find: "First",
-      name_replace: "Second",
-      new_name: "Summer Tour",
+      dateFind: "2026-03-02",
+      dateReplace: "2026-03-09",
+      nameFind: "First",
+      nameReplace: "Second",
+      newName: "Summer Tour",
     };
 
     test("keeps the submitted values when the duplicate fails", async () => {

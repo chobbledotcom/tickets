@@ -136,9 +136,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       await expectFlashRedirect(
         "/admin/settings?form=settings-password#settings-password",
@@ -154,9 +154,9 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
       invalidateUsersCache();
 
       const { response } = await adminFormPost("/admin/settings", {
-        current_password: TEST_ADMIN_PASSWORD,
-        new_password: "newpassword123",
-        new_password_confirm: "newpassword123",
+        currentPassword: TEST_ADMIN_PASSWORD,
+        newPassword: "newpassword123",
+        newPasswordConfirm: "newpassword123",
       });
       // If the user is deleted during the request, the password change
       // redirects to the login page at /admin. A POST is not navigable after
@@ -194,10 +194,10 @@ describeWithEnv("server (multi-user admin)", { db: true }, () => {
         mockFormRequest(
           "/admin/settings",
           {
-            csrf_token: signedCsrf,
-            current_password: "test",
-            new_password: "newpassword123",
-            new_password_confirm: "newpassword123",
+            csrfToken: signedCsrf,
+            currentPassword: "test",
+            newPassword: "newpassword123",
+            newPasswordConfirm: "newpassword123",
           },
           `${getSessionCookieName()}=mgr-form-session`,
         ),

@@ -35,7 +35,7 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
       await expectHtml(await adminGet(`/admin/groups/${group.id}/reactivate`), {
         contains: [
           "Reactivate Group",
-          'name="confirm_identifier"',
+          'name="confirmIdentifier"',
           "reactivate 1 listing",
         ],
         notContains: ["reactivate 1 listings"],
@@ -71,7 +71,7 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/reactivate`,
-        { confirm_identifier: "Bring Back" },
+        { confirmIdentifier: "Bring Back" },
       );
 
       expect(response.status).toBe(302);
@@ -100,7 +100,7 @@ describeWithEnv("Group actions — reactivate", { db: true }, () => {
 
       const { response } = await adminFormPost(
         `/admin/groups/${group.id}/reactivate`,
-        { confirm_identifier: "Different" },
+        { confirmIdentifier: "Different" },
       );
 
       expect(response.status).toBe(302);

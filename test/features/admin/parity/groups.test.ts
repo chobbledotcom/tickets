@@ -25,7 +25,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
   test("page create stores the posted fields, absent checkboxes off", async () => {
     const response = await ownerPagePost("/admin/groups", {
       description: "Pinned page group",
-      max_attendees: "0",
+      maxAttendees: "0",
       name: "Pinned Page Group",
     });
     expect(response.status).toBe(302);
@@ -126,7 +126,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
 
   test("both surfaces refuse a delete whose confirmation does not match", async () => {
     await ownerPagePost("/admin/groups", {
-      max_attendees: "0",
+      maxAttendees: "0",
       name: "Pinned Delete Group",
     });
     const row = await storedGroup("Pinned Delete Group");
@@ -135,7 +135,7 @@ describeWithEnv("Group parity pins", { db: true }, () => {
     // the flash; the API answers 400 in JSON with the same refusal. Both keep
     // the row.
     const page = await ownerPagePost(`/admin/groups/${row.id}/delete`, {
-      confirm_identifier: "Wrong Name",
+      confirmIdentifier: "Wrong Name",
     });
     expectRedirectWithFlash(
       `/admin/groups/${row.id}/delete`,

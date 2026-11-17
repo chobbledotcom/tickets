@@ -24,7 +24,7 @@ import { mockMultipartRequest } from "#test-utils/mocks.ts";
 import { getTestSession } from "#test-utils/session.ts";
 
 /** Copy a listing through the real create route, the way the duplicate form
- * posts it: a valid create body carrying the hidden `duplicated_from` field. */
+ * posts it: a valid create body carrying the hidden `duplicatedFrom` field. */
 const duplicate = async (
   sourceId: number | null,
   name: string,
@@ -37,9 +37,9 @@ const duplicate = async (
       "/admin/listing",
       {
         ...baseListingForm,
-        csrf_token: csrfToken,
-        ...(sourceId === null ? {} : { duplicated_from: String(sourceId) }),
-        ...(groupId === undefined ? {} : { group_ids: String(groupId) }),
+        csrfToken,
+        ...(sourceId === null ? {} : { duplicatedFrom: String(sourceId) }),
+        ...(groupId === undefined ? {} : { groupIds: String(groupId) }),
         name,
       },
       cookie,

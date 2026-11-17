@@ -120,16 +120,16 @@ describe("parseAttendeeForm", () => {
     const parsed = parseAttendeeForm(
       makeForm({
         address: "1 St",
-        day_count: "3",
+        dayCount: "3",
         email: "a@b.com",
-        line_key_0: "5|||0",
-        line_listing_0: "5",
+        lineKey0: "5|||0",
+        lineListing0: "5",
         name: "Jane",
         phone: "555",
-        qty_0: "2",
-        return_url: "/admin/attendees?tab=overview",
-        special_instructions: "VIP",
-        start_date: "2026-03-02",
+        qty0: "2",
+        returnUrl: "/admin/attendees?tab=overview",
+        specialInstructions: "VIP",
+        startDate: "2026-03-02",
       }),
       new Map(),
     );
@@ -147,10 +147,10 @@ describe("parseAttendeeForm", () => {
     expect(parsed.lines[0]!.key).toBe("5|||0");
   });
 
-  test("reads one line per line_listing_<i>, de-duplicated by index", () => {
+  test("reads one line per lineListing<i>, de-duplicated by index", () => {
     const parsed = parseAttendeeForm(
       new FormParams(
-        "name=X&line_listing_0=3&qty_0=1&line_listing_1=7&qty_1=0&line_listing_1=9",
+        "name=X&lineListing0=3&qty0=1&lineListing1=7&qty1=0&lineListing1=9",
       ),
       new Map(),
     );
@@ -161,7 +161,7 @@ describe("parseAttendeeForm", () => {
   test("ignores line fields whose indexes are invalid", () => {
     const parsed = parseAttendeeForm(
       new FormParams(
-        "name=X&line_listing_bad=3&qty_bad=1&line_listing_-1=4&qty_-1=1&line_listing_2=5&qty_2=1",
+        "name=X&lineListingBad=3&qtyBad=1&lineListing-1=4&qty-1=1&lineListing2=5&qty2=1",
       ),
       new Map(),
     );
@@ -171,12 +171,12 @@ describe("parseAttendeeForm", () => {
   test("two lines may target the SAME listing — one per booking path", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "3",
-        line_listing_1: "3",
-        line_package_1: "7",
+        lineListing0: "3",
+        lineListing1: "3",
+        linePackage1: "7",
         name: "X",
-        qty_0: "1",
-        qty_1: "2",
+        qty0: "1",
+        qty1: "2",
       }),
       new Map(),
       new Map(),
@@ -193,7 +193,7 @@ describe("parseAttendeeForm", () => {
   test("resolves listing references against the provided map", () => {
     const listing = testListingWithCount({ id: 7, name: "Resolved" });
     const parsed = parseAttendeeForm(
-      makeForm({ line_listing_0: "7", name: "X", qty_0: "1" }),
+      makeForm({ lineListing0: "7", name: "X", qty0: "1" }),
       new Map([[7, listing]]),
     );
     expect(parsed.lines[0]!.listing?.name).toBe("Resolved");
@@ -202,15 +202,15 @@ describe("parseAttendeeForm", () => {
   test("ignores lines whose listing value is not a positive id", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "0",
-        line_listing_1: "4",
-        line_listing_2: "5abc",
-        line_listing_3: "abc",
+        lineListing0: "0",
+        lineListing1: "4",
+        lineListing2: "5abc",
+        lineListing3: "abc",
         name: "X",
-        qty_0: "1",
-        qty_1: "1",
-        qty_2: "1",
-        qty_3: "1",
+        qty0: "1",
+        qty1: "1",
+        qty2: "1",
+        qty3: "1",
       }),
       new Map(),
     );
@@ -221,13 +221,13 @@ describe("parseAttendeeForm", () => {
     const memberships = new Map([[4, new Map([[7, 250]])]]);
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "4",
-        line_listing_1: "4",
-        line_package_0: "7",
-        line_package_1: "8",
+        lineListing0: "4",
+        lineListing1: "4",
+        linePackage0: "7",
+        linePackage1: "8",
         name: "X",
-        qty_0: "1",
-        qty_1: "1",
+        qty0: "1",
+        qty1: "1",
       }),
       new Map(),
       new Map(),
@@ -244,15 +244,15 @@ describe("parseAttendeeForm", () => {
     );
   });
 
-  test("an existing row's path comes from the row, never line_package", () => {
+  test("an existing row's path comes from the row, never linePackage", () => {
     const row = bookingRow({ listing_id: 4, package_group_id: 7 });
     const parsed = parseAttendeeForm(
       makeForm({
-        line_key_0: "4|||7",
-        line_listing_0: "4",
-        line_package_0: "9",
+        lineKey0: "4|||7",
+        lineListing0: "4",
+        linePackage0: "9",
         name: "X",
-        qty_0: "1",
+        qty0: "1",
       }),
       new Map(),
       new Map([["4|||7", row]]),
@@ -264,11 +264,11 @@ describe("parseAttendeeForm", () => {
   test("treats empty and non-numeric quantity as null", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "1",
-        line_listing_1: "2",
+        lineListing0: "1",
+        lineListing1: "2",
         name: "X",
-        qty_0: "",
-        qty_1: "abc",
+        qty0: "",
+        qty1: "abc",
       }),
       new Map(),
     );
@@ -279,9 +279,9 @@ describe("parseAttendeeForm", () => {
   test("rejects malformed quantity values instead of parsing their prefix", () => {
     const parsed = parseAttendeeForm(
       makeForm({
-        line_listing_0: "1",
+        lineListing0: "1",
         name: "X",
-        qty_0: "2x",
+        qty0: "2x",
       }),
       new Map(),
     );
@@ -290,11 +290,11 @@ describe("parseAttendeeForm", () => {
 
   test("clamps the day count to the valid range", () => {
     expect(
-      parseAttendeeForm(makeForm({ day_count: "0", name: "X" }), new Map())
+      parseAttendeeForm(makeForm({ dayCount: "0", name: "X" }), new Map())
         .dayCount,
     ).toBe(1);
     expect(
-      parseAttendeeForm(makeForm({ day_count: "9999", name: "X" }), new Map())
+      parseAttendeeForm(makeForm({ dayCount: "9999", name: "X" }), new Map())
         .dayCount,
     ).toBe(90);
     expect(parseAttendeeForm(makeForm({ name: "X" }), new Map()).dayCount).toBe(
@@ -302,29 +302,27 @@ describe("parseAttendeeForm", () => {
     );
     // A non-numeric value parses to no count and clamps to 1.
     expect(
-      parseAttendeeForm(
-        makeForm({ day_count: "garbage", name: "X" }),
-        new Map(),
-      ).dayCount,
+      parseAttendeeForm(makeForm({ dayCount: "garbage", name: "X" }), new Map())
+        .dayCount,
     ).toBe(1);
   });
 
   test("reads a selected status id, blank and non-positive as none", () => {
     expect(
-      parseAttendeeForm(makeForm({ name: "X", status_id: "4" }), new Map())
+      parseAttendeeForm(makeForm({ name: "X", statusId: "4" }), new Map())
         .statusId,
     ).toBe(4);
     // The lowest real id must still count as a choice, not as "none".
     expect(
-      parseAttendeeForm(makeForm({ name: "X", status_id: "1" }), new Map())
+      parseAttendeeForm(makeForm({ name: "X", statusId: "1" }), new Map())
         .statusId,
     ).toBe(1);
     expect(
-      parseAttendeeForm(makeForm({ name: "X", status_id: "" }), new Map())
+      parseAttendeeForm(makeForm({ name: "X", statusId: "" }), new Map())
         .statusId,
     ).toBeNull();
     expect(
-      parseAttendeeForm(makeForm({ name: "X", status_id: "0" }), new Map())
+      parseAttendeeForm(makeForm({ name: "X", statusId: "0" }), new Map())
         .statusId,
     ).toBeNull();
   });
@@ -333,10 +331,10 @@ describe("parseAttendeeForm", () => {
     const booking = bookingRow({ listing_id: 5, quantity: 3 });
     const parsed = parseAttendeeForm(
       makeForm({
-        line_key_0: "5|||0",
-        line_listing_0: "5",
+        lineKey0: "5|||0",
+        lineListing0: "5",
         name: "X",
-        qty_0: "3",
+        qty0: "3",
       }),
       new Map(),
       new Map([["5|||0", booking]]),
@@ -348,7 +346,7 @@ describe("parseAttendeeForm", () => {
     const parsed = parseAttendeeForm(
       // The qty input is CSS-hidden but a stale value can still be submitted;
       // it must be ignored in favour of the sentinel 0.
-      makeForm({ line_listing_0: "5", name: "X", noqty_0: "1", qty_0: "9" }),
+      makeForm({ lineListing0: "5", name: "X", noqty0: "1", qty0: "9" }),
       new Map(),
     );
     expect(parsed.lines[0]!.noQuantity).toBe(true);
@@ -357,7 +355,7 @@ describe("parseAttendeeForm", () => {
 
   test("an unticked no-quantity box keeps the entered quantity", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ line_listing_0: "5", name: "X", qty_0: "2" }),
+      makeForm({ lineListing0: "5", name: "X", qty0: "2" }),
       new Map(),
     );
     expect(parsed.lines[0]!.noQuantity).toBe(false);

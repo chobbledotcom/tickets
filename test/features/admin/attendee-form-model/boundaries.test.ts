@@ -22,7 +22,7 @@ describe("attendee form model > boundaries", () => {
 
   test("reads the return link and a status id of 1", () => {
     const parsed = parseAttendeeForm(
-      makeForm({ name: "X", return_url: "/admin/calendar", status_id: "1" }),
+      makeForm({ name: "X", returnUrl: "/admin/calendar", statusId: "1" }),
       new Map(),
     );
     expect(parsed.returnUrl).toBe("/admin/calendar");

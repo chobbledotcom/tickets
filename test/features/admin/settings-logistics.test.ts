@@ -60,7 +60,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/edit`, {
       name: "Unknown Id Van",
-      user_ids: "99999",
+      userIds: "99999",
     });
     await expectFlashRedirect(
       "/admin/logistics",
@@ -104,7 +104,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     assertStringIncludes(html, `/admin/logistics/${id}/delete`);
 
     const { response } = await adminFormPost(`/admin/logistics/${id}/delete`, {
-      confirm_identifier: "Delete Me",
+      confirmIdentifier: "Delete Me",
     });
 
     await expectFlashRedirect(
@@ -120,7 +120,7 @@ describeWithEnv("settings-logistics", { db: true }, () => {
     expect(await agentUsers.getIds(id)).toEqual([userId]);
 
     await adminFormPost(`/admin/logistics/${id}/delete`, {
-      confirm_identifier: "Clear Users Agent",
+      confirmIdentifier: "Clear Users Agent",
     });
 
     expect(await agentUsers.getIds(id)).toEqual([]);

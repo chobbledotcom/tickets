@@ -25,7 +25,7 @@ const uploadForm = (): FormData => {
 /** The parser's input the way the routes build it: name, alt text, nothing
  *  else imageMetadataFromForm reads. */
 const metadataForm = (name: string, altText: string): FormParams =>
-  new FormParams({ alt_text: altText, name });
+  new FormParams({ altText, name });
 
 describe("admin image upload helper", () => {
   beforeAll(() => ensureMessageGroups(["images", "validation"]));

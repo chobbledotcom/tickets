@@ -25,9 +25,9 @@ import { testStatus } from "#test-utils/status-tests.ts";
 
 const inviteAgent = (username: string, agentId?: string) =>
   adminFormPost("/admin/users", {
-    admin_level: "agent",
+    adminLevel: "agent",
     username,
-    ...(agentId ? { agent_ids: agentId } : {}),
+    ...(agentId ? { agentIds: agentId } : {}),
   });
 
 const enableLogisticsWithVan = async () => {
@@ -128,7 +128,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     const { userId } = await vanWithAssignedAgent("ua1", "driveredit");
 
     await expectHtml(await adminGet(`/admin/users/${userId}/agents`), {
-      contains: ["Assigned agents for driveredit", 'name="agent_ids"'],
+      contains: ["Assigned agents for driveredit", 'name="agentIds"'],
       status: 200,
     });
   });
@@ -141,7 +141,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     });
 
     const { response } = await adminFormPost(`/admin/users/${userId}/agents`, {
-      agent_ids: String(van.id),
+      agentIds: String(van.id),
     });
     expectRedirect(response, "/admin/users");
     expect(await userAgents.getIds(userId)).toEqual([van.id]);
@@ -154,7 +154,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
     "editing agents for a non-agent user is rejected": () =>
       adminGet("/admin/users/1/agents"),
     "posting agents for a missing user is a 404": async () =>
-      (await adminFormPost("/admin/users/99999/agents", { agent_ids: "1" }))
+      (await adminFormPost("/admin/users/99999/agents", { agentIds: "1" }))
         .response,
   });
 
@@ -169,7 +169,7 @@ describeWithEnv("server (agent user management)", { db: true }, () => {
 
   test("posting agents for a non-agent user is rejected", async () => {
     const { response } = await adminFormPost("/admin/users/1/agents", {
-      agent_ids: "1",
+      agentIds: "1",
     });
     expect(response.status).toBe(400);
   });

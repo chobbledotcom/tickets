@@ -92,7 +92,7 @@ describeWithEnv("the listing page", { db: true }, () => {
 
     const live = await actions();
     await adminFormPost(`/admin/listing/${listing.id}/deactivate`, {
-      confirm_identifier: listing.name,
+      confirmIdentifier: listing.name,
     });
     const dead = await actions();
 

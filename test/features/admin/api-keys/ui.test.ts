@@ -148,7 +148,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const csrfToken = extractCsrfToken(pageHtml);
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken!,
+        csrfToken: csrfToken!,
         name: "My Test Key",
       });
       const response = await handleRequest(
@@ -246,7 +246,7 @@ describeWithEnv("API keys admin UI", { db: true }, () => {
       const cookie = buildSessionCookie(token);
 
       const body = new URLSearchParams({
-        csrf_token: csrfToken,
+        csrfToken,
         name: "No Key Session",
       });
       const response = await handleRequest(

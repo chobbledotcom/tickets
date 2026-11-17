@@ -26,7 +26,7 @@ const postDeactivate = async (group: {
 }): Promise<Response> => {
   const { response } = await adminFormPost(
     `/admin/groups/${group.id}/deactivate`,
-    { confirm_identifier: group.name },
+    { confirmIdentifier: group.name },
   );
   expectStatus(302)(response);
   return response;

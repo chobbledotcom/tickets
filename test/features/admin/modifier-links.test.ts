@@ -26,13 +26,7 @@ describeWithEnv("db > admin modifier links", { db: true }, () => {
 
     const { response } = await adminFormPost(`/admin/modifiers/${id}/links`, {
       // A checkbox group submits one entry per checked id; holes never write.
-      listing_ids: [
-        String(linked.id),
-        String(alsoLinked.id),
-        "0",
-        "-3",
-        "oops",
-      ],
+      listingIds: [String(linked.id), String(alsoLinked.id), "0", "-3", "oops"],
     });
     await expectFlashRedirect(
       `/admin/modifiers/${id}/edit`,
@@ -51,7 +45,7 @@ describeWithEnv("db > admin modifier links", { db: true }, () => {
     await optInAddOnForListings("Link extra", [child.id]);
 
     const { response } = await adminFormPost(`/admin/modifiers/${id}/links`, {
-      listing_ids: String(child.id),
+      listingIds: String(child.id),
     });
     await expectFlashRedirect(
       `/admin/modifiers/${id}/edit`,

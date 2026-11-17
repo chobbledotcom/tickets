@@ -90,7 +90,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       const { handler, saveFn } = makeCreate({ taskName: "settings-test" });
       const res = await runHandler(
         handler,
-        { settings_version: String(settings.version), value: "hello" },
+        { settingsVersion: String(settings.version), value: "hello" },
         mockErrorPage,
       );
 
@@ -104,7 +104,7 @@ describeWithEnv("createSettingsHandler", { db: true }, () => {
       const { handler, saveFn } = makeCreate({ taskName: "settings-test" });
       await runHandler(
         handler,
-        { settings_version: String(settings.version + 1), value: "hello" },
+        { settingsVersion: String(settings.version + 1), value: "hello" },
         mockErrorPage,
       );
 

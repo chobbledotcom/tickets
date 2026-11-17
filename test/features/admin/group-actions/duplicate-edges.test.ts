@@ -24,11 +24,11 @@ const duplicate = (
   nameReplace: string,
 ): Promise<{ response: Response }> =>
   adminFormPost(`/admin/groups/${groupId}/duplicate`, {
-    date_find: "",
-    date_replace: "",
-    name_find: nameFind,
-    name_replace: nameReplace,
-    new_name: newName,
+    dateFind: "",
+    dateReplace: "",
+    nameFind,
+    nameReplace,
+    newName,
   });
 
 /** A group member requiring an external child that itself has children: the

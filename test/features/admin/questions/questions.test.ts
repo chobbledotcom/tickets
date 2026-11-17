@@ -63,7 +63,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions", () => {
     testRequiresAuth("/admin/questions", {
-      body: { display_type: "radio" as const, text: "Test?" },
+      body: { displayType: "radio" as const, text: "Test?" },
       method: "POST",
     });
 
@@ -80,7 +80,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("does not enable Questions for an invalid create", async () => {
       await setAdminFeatureEnabled("questions", false);
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio",
+        displayType: "radio",
         text: "",
       });
       response.body?.cancel();
@@ -92,7 +92,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost("/admin/questions", {
-            display_type: "radio",
+            displayType: "radio",
             text: "Hidden?",
           });
         }),
@@ -105,7 +105,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("redirects to the new question's detail page", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "Redirect target?",
       });
       const { getAllQuestionsWithAnswers } = await import(
@@ -121,7 +121,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects empty text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       // Invalid create bounces back to the questions list with the error flash;
@@ -149,7 +149,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("creates select questions", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "select" as const,
+        displayType: "select" as const,
         text: "Choose one?",
       });
       const { getAllQuestionsWithAnswers } = await import(
@@ -167,7 +167,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects unsupported display types", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "dropdown",
+        displayType: "dropdown",
         text: "Choose one?",
       });
       expect(response.status).toBe(302);
@@ -182,7 +182,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("rejects whitespace-only text", async () => {
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "   ",
       });
       expect(response.status).toBe(302);
@@ -199,7 +199,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       // rendered on public booking pages).
       const { MAX_TEXTAREA_LENGTH } = await import("#shared/limits.ts");
       const { response } = await adminFormPost("/admin/questions", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "a".repeat(MAX_TEXTAREA_LENGTH + 1),
       });
       expect(response.status).toBe(302);
@@ -271,7 +271,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
   describe("POST /admin/questions/:id/edit", () => {
     testRequiresAuth("/admin/questions/1/edit", {
-      body: { display_type: "radio" as const, text: "Edited" },
+      body: { displayType: "radio" as const, text: "Edited" },
       method: "POST",
       setup: async () => {
         await createQuestion("Edit me");
@@ -281,7 +281,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("updates question text", async () => {
       const id = await createQuestion("Before edit");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "After edit",
       });
       await expectFlashRedirect(
@@ -299,7 +299,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await createQuestion("Second question?");
 
       await adminFormPost(`/admin/questions/${firstId}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "First renamed?",
       });
 
@@ -320,7 +320,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       await expect(
         withFeatureWriteFailure(async () => {
           await adminFormPost(`/admin/questions/${question.id}/edit`, {
-            display_type: "radio",
+            displayType: "radio",
             text: "After?",
           });
         }),
@@ -331,7 +331,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects empty text with error page", async () => {
       const id = await createQuestion("Keep me");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);
@@ -345,7 +345,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("rejects unsupported display types on edit", async () => {
       const id = await createQuestion("Keep me");
       const { response } = await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "dropdown",
+        displayType: "dropdown",
         text: "Still here",
       });
       expect(response.status).toBe(302);
@@ -365,7 +365,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
       });
       const { response } = await adminFormPost(
         `/admin/questions/${q.id}/edit`,
-        { display_type: "radio" as const, text: "Notes updated" },
+        { displayType: "radio" as const, text: "Notes updated" },
       );
       await expectFlashRedirect(
         `/admin/questions/${q.id}`,
@@ -379,7 +379,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("does not let a choice question be converted to free-text", async () => {
       const id = await createQuestion("Colour?");
       await adminFormPost(`/admin/questions/${id}/edit`, {
-        display_type: "free_text",
+        displayType: "free_text",
         text: "Colour?",
       });
       const updated = await records.questions.find(id);
@@ -388,7 +388,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
 
     test("returns 404 for non-existent question on edit", async () => {
       const { response } = await adminFormPost("/admin/questions/999/edit", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "Updated",
       });
       expectStatus(404)(response);
@@ -397,7 +397,7 @@ describeWithEnv("server (admin questions)", { db: true }, () => {
     test("redirects with error when question disappears during empty text validation", async () => {
       // Edit with empty text on a non-existent question triggers the requireTextOrError redirect
       const { response } = await adminFormPost("/admin/questions/999/edit", {
-        display_type: "radio" as const,
+        displayType: "radio" as const,
         text: "",
       });
       expect(response.status).toBe(302);

@@ -20,9 +20,16 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
   // definition, so a changed default or bound fails this test instead of
   // moving the expectation along with it.
   const expectedBoxes = [
-    { from: "1", name: "listingCount", starts: "5", upTo: MAX_SEED_LISTINGS },
+    {
+      from: "1",
+      id: "listing_count",
+      name: "listingCount",
+      starts: "5",
+      upTo: MAX_SEED_LISTINGS,
+    },
     {
       from: "0",
+      id: "attendees_per_listing",
       name: "attendeesPerListing",
       starts: "10",
       upTo: SEED_MAX_ATTENDEES,
@@ -32,7 +39,7 @@ describeWithEnv("admin seeds handler", { db: true }, () => {
   for (const box of expectedBoxes) {
     test(`serves the ${box.name} box with its bounds and default`, () => {
       expectIncludesAll(inputNamed(seedsForm.render(), box.name), [
-        `id="${box.name}"`,
+        `id="${box.id}"`,
         `min="${box.from}"`,
         `max="${box.upTo}"`,
         `value="${box.starts}"`,

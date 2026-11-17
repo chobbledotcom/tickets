@@ -21,7 +21,7 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
         "/admin/markdown-preview",
         {
           content: `![Hero](img#${image.id})`,
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
         },
         editor.cookie,
       ),
@@ -41,7 +41,7 @@ describeWithEnv("the admin markdown preview", { db: true }, () => {
         "/admin/markdown-preview",
         {
           content: "![Ghost](img#424242)",
-          csrf_token: await signCsrfToken(),
+          csrfToken: await signCsrfToken(),
         },
         editor.cookie,
       ),

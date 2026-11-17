@@ -60,7 +60,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
           recalculatePath(listing.id),
           {
             [RECALCULATE_FIELD_NAME]: "bookedQuantity",
-            csrf_token: csrfToken,
+            csrfToken,
           },
           cookie,
         ),
@@ -92,7 +92,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
           recalculatePath(listing.id),
           {
             [RECALCULATE_FIELD_NAME]: "bookedQuantity",
-            csrf_token: csrfToken,
+            csrfToken,
           },
           cookie,
         ),
@@ -111,11 +111,7 @@ describeWithEnv("admin listing recalculate routes", { db: true }, () => {
       const { cookie, csrfToken } = await getTestSession();
 
       const response = await handleListingRecalculatePost(
-        mockFormRequest(
-          recalculatePath(listing.id),
-          { csrf_token: csrfToken },
-          cookie,
-        ),
+        mockFormRequest(recalculatePath(listing.id), { csrfToken }, cookie),
         { listingId: listing.id },
       );
 

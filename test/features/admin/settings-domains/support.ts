@@ -74,7 +74,7 @@ export const postSubdomain = async (subdomain: string): Promise<Response> =>
   handleRequest(
     mockFormRequest(
       "/admin/settings/host-subdomain",
-      { csrf_token: await testCsrfToken(), subdomain },
+      { csrfToken: await testCsrfToken(), subdomain },
       await testCookie(),
     ),
   );

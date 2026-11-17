@@ -20,8 +20,8 @@ import {
 
 const listingForm = (extra: TestFormValues = {}) =>
   testFormParams({
-    max_attendees: "50",
-    max_quantity: "5",
+    maxAttendees: "50",
+    maxQuantity: "5",
     name: "Parsed listing",
     ...extra,
   });
@@ -38,14 +38,14 @@ const FRACTIONAL_CASES: readonly {
     apiBody: { max_attendees: 10, max_quantity: 1.5, name: "Test" },
     apiError: "max_quantity has an invalid value",
     formError: "Max tickets per purchase must be a whole number",
-    formExtra: { max_quantity: "1.5" },
+    formExtra: { maxQuantity: "1.5" },
   },
   {
     apiBody: { max_attendees: 10, minimum_days_before: 1.5, name: "Test" },
     apiError: "minimum_days_before has an invalid value",
     formError:
       "Minimum days notice (for daily listings) must be a whole number",
-    formExtra: { minimum_days_before: "1.5" },
+    formExtra: { minimumDaysBefore: "1.5" },
   },
 ];
 
