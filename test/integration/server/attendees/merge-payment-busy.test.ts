@@ -63,7 +63,7 @@ describeWithEnv(
       );
       const { response } = await adminFormPost(
         `/admin/attendees/${target.id}/merge`,
-        { merge_version: mergeVersion, source_token: sourceToken },
+        { mergeVersion: mergeVersion, sourceToken: sourceToken },
       );
       return { response, source };
     };

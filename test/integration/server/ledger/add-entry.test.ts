@@ -112,9 +112,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       `/admin/ledger/revenue/${listing.id}/add`,
       {
         amount: "45.00",
-        entry_type: MANUAL_LISTING_COST,
-        occurred_at: "2026-06-22T11:00",
-        return_url: `/admin/listing/${listing.id}`,
+        entryType: MANUAL_LISTING_COST,
+        occurredAt: "2026-06-22T11:00",
+        returnUrl: `/admin/listing/${listing.id}`,
       },
     );
     expect(redirectTargetWithoutFlash(response)).toBe(
@@ -168,9 +168,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     for (const entry of cases) {
       const { response } = await adminFormPost(entry.path, {
         amount: "3.21",
-        entry_type: entry.type,
-        occurred_at: "2026-06-22T12:00",
-        return_url: "/admin/ledger",
+        entryType: entry.type,
+        occurredAt: "2026-06-22T12:00",
+        returnUrl: "/admin/ledger",
       });
       expect(response.status).toBe(302);
     }
@@ -196,9 +196,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       `/admin/ledger/modifier/${modifier.id}/add`,
       {
         amount: "8.00",
-        entry_type: MANUAL_MODIFIER_INCOME,
-        occurred_at: "2026-06-22T11:30",
-        return_url: `/admin/modifiers/${modifier.id}/edit`,
+        entryType: MANUAL_MODIFIER_INCOME,
+        occurredAt: "2026-06-22T11:30",
+        returnUrl: `/admin/modifiers/${modifier.id}/edit`,
       },
     );
     expect(redirectTargetWithoutFlash(response)).toBe(
@@ -217,9 +217,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       `/admin/ledger/attendee/${attendeeId}/add`,
       {
         amount: "12.34",
-        entry_type: MANUAL_LISTING_COST,
-        occurred_at: "2026-06-22T09:30",
-        return_url: `/admin/attendees/${attendeeId}`,
+        entryType: MANUAL_LISTING_COST,
+        occurredAt: "2026-06-22T09:30",
+        returnUrl: `/admin/attendees/${attendeeId}`,
       },
     );
     expect(response.status).toBe(302);
@@ -235,9 +235,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const path = `/admin/ledger/attendee/${attendeeId}/add`;
     const valid = {
       amount: "12.34",
-      entry_type: MANUAL_ATTENDEE_PAYMENT,
-      occurred_at: "2026-06-22T09:30",
-      return_url: `/admin/attendees/${attendeeId}`,
+      entryType: MANUAL_ATTENDEE_PAYMENT,
+      occurredAt: "2026-06-22T09:30",
+      returnUrl: `/admin/attendees/${attendeeId}`,
     };
     const invalidCases = [
       { amount: "" },
@@ -247,8 +247,8 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
       { amount: "1,000" },
       { amount: "1e2" },
       { amount: "12.345" },
-      { occurred_at: "" },
-      { occurred_at: "not-a-date" },
+      { occurredAt: "" },
+      { occurredAt: "not-a-date" },
     ];
 
     for (const override of invalidCases) {
@@ -267,9 +267,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
     const path = `/admin/ledger/attendee/${attendeeId}/add`;
     const valid = {
       amount: "1234",
-      entry_type: MANUAL_ATTENDEE_PAYMENT,
-      occurred_at: "2026-06-22T09:30",
-      return_url: "/admin/ledger",
+      entryType: MANUAL_ATTENDEE_PAYMENT,
+      occurredAt: "2026-06-22T09:30",
+      returnUrl: "/admin/ledger",
     };
 
     await withSetting({ currency: "JPY" }, async () => {
@@ -309,9 +309,9 @@ describeWithEnv("server (admin ledger add entry)", { db: true }, () => {
 
     const { response } = await adminFormPost("/admin/ledger/nonsense/1/add", {
       amount: "1.00",
-      entry_type: MANUAL_ATTENDEE_PAYMENT,
-      occurred_at: "2026-06-22T09:30",
-      return_url: "/admin/ledger",
+      entryType: MANUAL_ATTENDEE_PAYMENT,
+      occurredAt: "2026-06-22T09:30",
+      returnUrl: "/admin/ledger",
     });
     expect(response.status).toBe(404);
   });

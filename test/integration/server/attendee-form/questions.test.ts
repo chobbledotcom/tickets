@@ -82,8 +82,8 @@ describeWithEnv(
       ): Promise<Set<number>> => {
         const form = await buildAttendeeEditForm(ids.attendeeId, {
           extra: {
-            [`question_${ids.qA.id}`]: String(ids.aA.id),
-            [`question_${ids.qB.id}`]: qbAnswer,
+            [`question${ids.qA.id}`]: String(ids.aA.id),
+            [`question${ids.qB.id}`]: qbAnswer,
           },
           name,
         });
@@ -162,7 +162,7 @@ describeWithEnv(
 
         // Edit Alice's answer; her save must not touch Bob's row.
         const form = await buildAttendeeEditForm(alice, {
-          extra: { [`question_${q.id}`]: String(a2.id) },
+          extra: { [`question${q.id}`]: String(a2.id) },
           name: "Alice",
         });
         const { response } = await adminFormPost(
@@ -196,7 +196,7 @@ describeWithEnv(
       const form = await buildAttendeeEditForm(attendeeId, {
         email: "free-text@example.com",
         extra: {
-          [`question_${question.id}`]: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
+          [`question${question.id}`]: "x".repeat(MAX_TEXTAREA_LENGTH + 1),
         },
         name: "Free Text",
       });

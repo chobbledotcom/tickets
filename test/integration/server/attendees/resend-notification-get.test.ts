@@ -61,7 +61,7 @@ describeWithEnv(
         await expectHtmlResponse(
           response,
           200,
-          'name="return_url"',
+          'name="returnUrl"',
           "/admin/calendar#attendees",
         );
       });

@@ -6,8 +6,8 @@
  * booking grid + (locked) hidden-from-public indicator. The submit core is a
  * thin specialisation of the attendee submit core that:
  *
- *   • parses the same booking grid (`qty_<id>`, `line_key_<id>`,
- *     `noqty_<id>`, `day_count`, `start_date`) and the same `name`;
+ *   • parses the same booking grid (`qty<id>`, `lineKey<id>`,
+ *     `noqty<id>`, `dayCount`, `startDate`) and the same `name`;
  *   • normalises by `kind='servicing'` — contact / status / balance fields
  *     are coerced empty / null / zero server-side regardless of what the POST
  *     body carried (§3 / §19 contract guard);
@@ -46,9 +46,9 @@ const EXCLUDED_FIELD_NAMES = [
   "email",
   "phone",
   "address",
-  "special_instructions",
-  "status_id",
-  "remaining_balance",
+  "specialInstructions",
+  "statusId",
+  "remainingBalance",
 ] as const;
 
 const fieldNames = (fields: readonly Field[]): Set<string> =>
@@ -107,11 +107,11 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     ],
   ]);
 
-  test("parsing a name + quantity_1 submission yields a kind='servicing' input with the booked line and empty contact fields", () => {
+  test("parsing a name + quantity1 submission yields a kind='servicing' input with the booked line and empty contact fields", () => {
     const form = new FormParams({
-      day_count: "1",
+      dayCount: "1",
       name: "Boiler Service",
-      quantity_1: "2",
+      quantity1: "2",
       [START_DATE_BOX]: "2026-06-24",
     });
     const parsed = parseServicingForm(form, listingsById);
@@ -137,15 +137,15 @@ describe("servicing §0 — parse servicing form maps to a kind='servicing' crea
     // in the POST body must not survive into the create input.
     const form = new FormParams({
       address: "12 Sneaky Street",
-      day_count: "1",
+      dayCount: "1",
       email: "smuggler@example.com",
       name: "Boiler Service",
       phone: "+44 7700 900000",
-      quantity_1: "1",
-      remaining_balance: "9000",
-      special_instructions: "be quiet",
+      quantity1: "1",
+      remainingBalance: "9000",
+      specialInstructions: "be quiet",
       [START_DATE_BOX]: "2026-06-24",
-      status_id: "3",
+      statusId: "3",
     });
     const parsed = parseServicingForm(form, listingsById);
     const normalised = normalizeServicingForSave(parsed);
@@ -167,7 +167,7 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
     const blank = parseAttendeeForm(
       new FormParams({
         name: "",
-        quantity_1: "1",
+        quantity1: "1",
         [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),
@@ -182,7 +182,7 @@ describe("servicing §0 — servicing form validation requires a name (reuses va
     const nameOnly = parseAttendeeForm(
       new FormParams({
         name: "Boiler Service",
-        quantity_1: "1",
+        quantity1: "1",
         [START_DATE_BOX]: "2026-06-24",
       }),
       new Map(),

@@ -84,7 +84,7 @@ describeWithEnv(
         using webhookFetch = stubFetch(new Response());
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
-          { confirm_identifier: name, resend_sides: "webhooks" },
+          { confirmIdentifier: name, resendSides: "webhooks" },
         );
         expect(response.status).toBe(302);
         expect(webhookFetch.calls.length).toBe(1);
@@ -100,7 +100,7 @@ describeWithEnv(
 
       testRequiresAuth("/admin/attendees/1/resend-notification", {
         body: {
-          confirm_identifier: "John Doe",
+          confirmIdentifier: "John Doe",
         },
         method: "POST",
         setup: async () => {
@@ -111,7 +111,7 @@ describeWithEnv(
       test("returns 404 for non-existent listing", async () => {
         const { response } = await adminFormPost(
           "/admin/attendees/1/resend-notification",
-          { confirm_identifier: "John Doe" },
+          { confirmIdentifier: "John Doe" },
         );
         expect(response.status).toBe(404);
       });
@@ -121,22 +121,22 @@ describeWithEnv(
 
         const { response } = await adminFormPost(
           "/admin/attendees/999/resend-notification",
-          { confirm_identifier: "John Doe" },
+          { confirmIdentifier: "John Doe" },
         );
         expect(response.status).toBe(404);
       });
 
       test("rejects invalid CSRF token", async () => {
         const { response } = await resendNotificationAction({
-          confirm_identifier: "John Doe",
-          csrf_token: "invalid-token",
+          confirmIdentifier: "John Doe",
+          csrfToken: "invalid-token",
         })();
         await expectHtmlResponse(response, 403, "Invalid CSRF token");
       });
 
       test("rejects mismatched attendee name", async () => {
         const { response } = await resendNotificationAction({
-          confirm_identifier: "Wrong Name",
+          confirmIdentifier: "Wrong Name",
         })();
         expect(response.status).toBe(302);
         expectFlash(response, expect.stringContaining("does not match"), false);
@@ -147,7 +147,7 @@ describeWithEnv(
         const postResponse = await handleRequest(
           mockFormRequest(
             `/admin/attendees/${attendee.id}/resend-notification`,
-            { confirm_identifier: "Wrong Name", csrf_token: csrfToken },
+            { confirmIdentifier: "Wrong Name", csrfToken },
             cookie,
           ),
         );
@@ -170,9 +170,9 @@ describeWithEnv(
           mockFormRequest(
             `/admin/attendees/${ctx.attendee.id}/resend-notification`,
             {
-              confirm_identifier: "John Doe",
-              csrf_token: ctx.csrfToken,
-              resend_sides: "webhooks",
+              confirmIdentifier: "John Doe",
+              csrfToken: ctx.csrfToken,
+              resendSides: "webhooks",
             },
             ctx.cookie,
           ),
@@ -399,7 +399,7 @@ describeWithEnv(
         );
         const { response } = await adminFormPost(
           `/admin/attendees/${attendee.id}/resend-notification`,
-          { confirm_identifier: "Later Buyer" },
+          { confirmIdentifier: "Later Buyer" },
         );
         expect(response.status).toBe(302);
 
