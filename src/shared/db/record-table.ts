@@ -345,9 +345,6 @@ type RecordsByTable = { readonly [Name in TableWithId]: Records<Name> };
 const hasId = (table: TableHandle): table is TableHandle<TableWithId> =>
   table.columns.some(([column]) => column === "id");
 
-/** The handles of every table. */
-const everyTable: readonly TableHandle[] = Object.values(tables);
-
 /** Some of the one-row reads and writes, by the name of their table. */
 type SomeRecords<Names extends TableWithId> = {
   -readonly [Name in Names]?: Records<Name>;
@@ -365,6 +362,6 @@ const addRecordsOf = <Name extends TableWithId>(
 /** The one-row reads and writes of each table with an `id`. The test that
  *  `hasId` makes at run time is the test that `TableWithId` makes on the
  *  types, so each name has its entry. */
-export const records = everyTable
+export const records = Object.values<TableHandle>(tables)
   .filter(hasId)
   .reduce<SomeRecords<TableWithId>>(addRecordsOf, {}) as RecordsByTable;
