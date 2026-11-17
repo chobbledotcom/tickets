@@ -1,8 +1,8 @@
 import { assert, assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { t } from "#i18n";
 import { settings } from "#db/settings.ts";
+import { t } from "#i18n";
 import { adminListingNewPage } from "#templates/admin/listings/form-pages.tsx";
 import {
   editPanelHtml,
