@@ -3,6 +3,7 @@
 
 /* jscpd:ignore-start */
 import { EXTERNAL_LINK_KINDS } from "#db/external-sources/types.ts";
+import { sql } from "#db/sql.ts";
 import { datedRowColumns } from "./columns.ts";
 import {
   checked,
@@ -11,14 +12,14 @@ import {
   textOrNull,
   wholeNumber,
 } from "./scalar-columns.ts";
-import type { Table } from "./types.ts";
+import { declaredTables } from "./types.ts";
 
 /* jscpd:ignore-end */
 
 /** The record kinds a link can point at, as a CHECK the database enforces. */
 const linkKind = oneOf("link_type", EXTERNAL_LINK_KINDS)(text);
 
-export const externalSourceTables: [name: string, table: Table][] = [
+export const externalSourceTables = declaredTables([
   [
     // A place this site's records also appear elsewhere, such as an invoice
     // system or a carrier. `name` and `url_pattern` hold owner-key ciphertext,
@@ -45,7 +46,7 @@ export const externalSourceTables: [name: string, table: Table][] = [
         ["external_id", textOrNull],
         [
           "external_id_index",
-          checked("(external_id_index IS NULL) = (external_id IS NULL)")(
+          checked(sql`(external_id_index IS NULL) = (external_id IS NULL)`)(
             textOrNull,
           ),
         ],
@@ -70,4 +71,4 @@ export const externalSourceTables: [name: string, table: Table][] = [
       ],
     },
   ],
-];
+]);

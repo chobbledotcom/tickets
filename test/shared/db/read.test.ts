@@ -1,103 +1,136 @@
 /**
- * Unit tests for `src/shared/db/read.ts` — the one place a said read becomes
- * SQL. These are pure string-and-args assertions with no database, so they pin
- * the exact shape every reader now inherits: the order of the parts, and the
- * order of the values that fill them.
+ * Tests for `src/shared/db/read.ts`: the runners of a read from the builder.
  */
 
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
-import { defineReader, readStatement } from "#db/read.ts";
-import { equals, inList } from "#db/where-clauses.ts";
+import {
+  readBatch,
+  readBatchPrimary,
+  readExists,
+  readOneRow,
+  readRows,
+} from "#db/read.ts";
+import { among } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { type RowsStatement, sql, typedSql } from "#db/sql.ts";
+import { describeWithEnv } from "#test-utils/db.ts";
+import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
-describe("readStatement", () => {
-  test("says the plainest read with nothing but columns and a table", () => {
-    expect(readStatement({ columns: "id, name", from: "listings" })).toEqual({
-      args: [],
-      sql: "SELECT id, name FROM listings",
-    });
+const listingIds = (ids: readonly number[]) =>
+  from(tables.listings)
+    .where((listing) => among(listing.id, ids))
+    .orderBy((listing) => [listing.id])
+    .select((listing) => ({ id: listing.id }));
+
+/** The ids of two stored listings, in the order of the database. */
+const twoListingIds = async (): Promise<[number, number]> => {
+  const first = await createTestListing({ name: "First" });
+  const second = await createTestListing({ name: "Second" });
+  return [first.id, second.id];
+};
+
+describeWithEnv("readRows", { db: true }, () => {
+  test("returns every row that the read keeps", async () => {
+    const [first, second] = await twoListingIds();
+
+    expect(await readRows(listingIds([second, first]))).toEqual([
+      { id: first },
+      { id: second },
+    ]);
   });
 
-  test("assembles the parts in SQL order", () => {
-    expect(
-      readStatement({
-        columns: "listing.id",
-        from: "listings AS listing",
-        groupBy: "listing.id",
-        limit: 5,
-        order: "listing.created DESC",
-        where: equals("listing.active", 1),
-      }),
-    ).toEqual({
-      args: [1, 5],
-      sql:
-        "SELECT listing.id FROM listings AS listing WHERE listing.active = ?" +
-        " GROUP BY listing.id ORDER BY listing.created DESC LIMIT ?",
-    });
-  });
+  test("returns no row when the read keeps none", async () => {
+    await createTestListing({ name: "Other" });
 
-  test("binds a join's own values before the filter's, then the cap", () => {
-    expect(
-      readStatement({
-        columns: "question.id",
-        from: {
-          args: ["joined"],
-          sql: "questions AS question LEFT JOIN listing_questions AS listingQuestion ON listingQuestion.listing_id = ?",
-        },
-        limit: 2,
-        where: equals("question.active", "filtered"),
-      }).args,
-    ).toEqual(["joined", "filtered", 2]);
-  });
-
-  test("omits every part the read does not ask for", () => {
-    const { sql } = readStatement({ columns: "id", from: "listings" });
-
-    assert(!sql.includes("WHERE"));
-    assert(!sql.includes("GROUP BY"));
-    assert(!sql.includes("ORDER BY"));
-    assert(!sql.includes("LIMIT"));
-  });
-
-  test("an empty filter list adds no WHERE", () => {
-    expect(
-      readStatement({ columns: "id", from: "listings", where: [] }).sql,
-    ).toBe("SELECT id FROM listings");
-  });
-
-  test("a filter matching nothing still says so in SQL", () => {
-    // readRows skips the round trip, but a caller embedding this in a batch
-    // must still get valid SQL rather than an invalid `IN ()`.
-    expect(
-      readStatement({
-        columns: "id",
-        from: "listings",
-        where: inList("id", []),
-      }).sql,
-    ).toBe("SELECT id FROM listings WHERE id IN (NULL)");
+    expect(await readRows(listingIds([-1]))).toEqual([]);
   });
 });
 
-describe("defineReader", () => {
-  const reader = defineReader<
-    "newest" | "oldest",
-    { order?: "newest" | "oldest" }
-  >({ newest: "created DESC", oldest: "created ASC" }, () => ({
-    columns: "id",
-    from: "listings",
-  }));
-
-  test("each named order becomes its own ORDER BY", () => {
-    expect(reader.statement({ order: "newest" }).sql).toBe(
-      "SELECT id FROM listings ORDER BY created DESC",
-    );
-    expect(reader.statement({ order: "oldest" }).sql).toBe(
-      "SELECT id FROM listings ORDER BY created ASC",
-    );
+describe("a read that no row can pass", () => {
+  // No database exists here, so a round trip would throw.
+  test("is answered with no rows and no round trip", async () => {
+    expect(await readRows(listingIds([]))).toEqual([]);
   });
 
-  test("omitting the order omits the clause", () => {
-    expect(reader.statement({}).sql).toBe("SELECT id FROM listings");
+  test("is answered with null for one row", async () => {
+    expect(await readOneRow(listingIds([]))).toBe(null);
   });
 });
+
+describeWithEnv("readOneRow", { db: true }, () => {
+  test("returns the first row that the read keeps", async () => {
+    const [first, second] = await twoListingIds();
+
+    expect(await readOneRow(listingIds([first, second]))).toEqual({
+      id: first,
+    });
+  });
+
+  test("returns null when the read keeps no row", async () => {
+    expect(await readOneRow(listingIds([-1]))).toBe(null);
+  });
+});
+
+describeWithEnv("readExists", { db: true }, () => {
+  test("is true when the read has a row", async () => {
+    const [first] = await twoListingIds();
+
+    expect(await readExists(from(tables.listings).where({ id: first }))).toBe(
+      true,
+    );
+  });
+
+  test("is false when the read has no row", async () => {
+    await createTestListing({ name: "Other" });
+
+    expect(await readExists(from(tables.listings).where({ id: -1 }))).toBe(
+      false,
+    );
+  });
+});
+
+describe("readExists of a read that no row can pass", () => {
+  // No database exists here, so a round trip would throw.
+  test("is false with no round trip", async () => {
+    expect(await readExists(from(tables.listings).where({ id: [] }))).toBe(
+      false,
+    );
+  });
+});
+
+for (const [name, run] of Object.entries({ readBatch, readBatchPrimary })) {
+  describeWithEnv(name, { db: true }, () => {
+    test("gives the rows of each read in the order of the reads", async () => {
+      const [first, second] = await twoListingIds();
+
+      const [none, ids, [counted], plain] = await run([
+        listingIds([]),
+        listingIds([second, first]),
+        typedSql<RowsStatement<{ total: number }>>(
+          sql`SELECT COUNT(*) AS total FROM listings`,
+        ),
+        sql`SELECT 7 AS seven`,
+      ]);
+      const firstId: number = ids[0]!.id;
+      const total: number = counted!.total;
+      // @ts-expect-error a statement that names no row gives rows of no type
+      const seven: number = plain[0];
+
+      expect({ firstId, ids, none, seven, total }).toEqual({
+        firstId: first,
+        ids: [{ id: first }, { id: second }],
+        none: [],
+        seven: { seven: 7 },
+        total: 2,
+      });
+    });
+
+    test("refuses a statement that writes", async () => {
+      await expect(run([sql`DELETE FROM listings`])).rejects.toThrow(
+        "Read-only batch executors accept only SELECT statements: DELETE FROM listings",
+      );
+    });
+  });
+}

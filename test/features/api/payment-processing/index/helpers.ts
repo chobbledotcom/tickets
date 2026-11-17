@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { getAttendeesRaw } from "#db/attendees/queries.ts";
 import { execute } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import type { CreatedEntry } from "#routes/api/payment-processing/create.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type {
@@ -120,9 +121,9 @@ export const ledgeredPaymentWithoutReservation = async (
   const payment = await singleListingPayment(id, unitPrice);
   const first = await processPaymentSession(id, payment.data);
   assert(first.success, "Expected first payment to succeed");
-  await execute("DELETE FROM processed_payments WHERE payment_session_id = ?", [
-    id,
-  ]);
+  await execute(
+    sql`DELETE FROM processed_payments WHERE payment_session_id = ${id}`,
+  );
   return { ...payment, attendeeId: first.attendee.id };
 };
 

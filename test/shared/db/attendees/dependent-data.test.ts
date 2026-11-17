@@ -5,6 +5,7 @@ import { attendeeRemovalStatements } from "#db/attendees/delete.ts";
 import { ATTENDEE_DATA_RULES } from "#db/attendees/dependent-data.ts";
 import { APP_SCHEMA } from "#db/migrations/schema/index.ts";
 import { paymentTables } from "#db/migrations/schema/payments/index.ts";
+import { sql } from "#db/sql.ts";
 
 const tableColumns = new Map(
   APP_SCHEMA.map(([name, table]) => [
@@ -38,7 +39,9 @@ describe("attendee dependent data", () => {
   });
 
   test("classifies every durable payment table, including indirect children", () => {
-    const paymentTableNames = paymentTables.map(([name]) => name).sort();
+    const paymentTableNames: string[] = paymentTables
+      .map(([name]) => name)
+      .sort();
     const paymentNames = new Set(paymentTableNames);
     const classified = ATTENDEE_DATA_RULES.filter((rule) =>
       paymentNames.has(rule.table),
@@ -93,7 +96,7 @@ describe("attendee dependent data", () => {
   });
 
   test("builds one production change for every non-retained rule", () => {
-    const attendeeIds = { args: [12, 13], sql: "SELECT id FROM chosen" };
+    const attendeeIds = sql`SELECT id FROM chosen WHERE id IN (${12}, ${13})`;
     const statements = attendeeRemovalStatements(attendeeIds);
     const removalRules = ATTENDEE_DATA_RULES.filter(
       (rule) => rule.action !== "retain",

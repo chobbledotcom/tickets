@@ -10,6 +10,7 @@ import {
   listingMoneyLegs,
   seededSale,
 } from "#test/integration/server/ledger/helpers.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
@@ -176,10 +177,7 @@ describeWithEnv("server (admin ledger filters and stats)", { db: true }, () => {
       "Net after refunds and costs",
       "£8",
     ]);
-    assert(!html.includes("£11"));
-    assert(!html.includes("£18"));
-    assert(!html.includes("+£70"));
-    assert(!html.includes("−£32"));
+    expectExcludesAll(html, ["£11", "£18", "+£70", "−£32"]);
   });
 
   test("an empty group scope never falls back to the whole ledger", async () => {

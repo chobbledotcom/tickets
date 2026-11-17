@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { paymentReferenceIndex } from "#db/payment-reference-store.ts";
 import { loadRefundAuthorityByReference } from "#db/provider-refund-authority.ts";
+import { sql } from "#db/sql.ts";
 import {
   type RefundRequestGeneration,
   writeRefundAuthorityState,
@@ -29,10 +30,9 @@ const replaceStoredRequest = async (
   if (row === null) throw new Error("Expected a stored refund authority");
   const state = { ...row.state, request: change(row.state.request) };
   await execute(
-    `UPDATE payment_charges
-        SET capability = ?, refund_state = ?
-      WHERE id = ?`,
-    [state.request.capability, writeRefundAuthorityState(state), row.id],
+    sql`UPDATE payment_charges
+        SET capability = ${state.request.capability}, refund_state = ${writeRefundAuthorityState(state)}
+      WHERE id = ${row.id}`,
   );
 };
 

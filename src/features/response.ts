@@ -13,6 +13,7 @@ import { buildFlashCookie, type FlashLevel } from "#shared/cookies.ts";
 import { stashForm } from "#shared/form-stash.ts";
 import { getSavedFormData } from "#shared/forms/saved-data.ts";
 import { appendIframeParam, getRequestId } from "#shared/request-context.ts";
+import type { ResponseHandler } from "#shared/response-steps.ts";
 import {
   databaseBusyPage,
   MIGRATION_IN_PROGRESS_REFRESH_SECONDS,
@@ -53,7 +54,7 @@ const encodedResponse =
  */
 export const orResponse = async <T>(
   loaded: T | Response,
-  use: (value: T) => Response | Promise<Response>,
+  use: ResponseHandler<[value: T]>,
 ): Promise<Response> => (loaded instanceof Response ? loaded : use(loaded));
 
 /** Create HTML response */

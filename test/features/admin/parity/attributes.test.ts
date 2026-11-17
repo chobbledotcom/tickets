@@ -5,7 +5,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getAllAttributesWithOptions } from "#db/attributes.ts";
 import { assertJson, expectRedirectWithFlash } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithAttributes as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { createTestManagerSession } from "#test-utils/session.ts";
 import {
   apiPostAs,

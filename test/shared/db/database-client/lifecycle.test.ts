@@ -3,6 +3,7 @@ import { assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { FakeTime } from "@std/testing/time";
+import { sql } from "#db/sql.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { hranaTestDatabase } from "#test-utils/hrana.ts";
 
@@ -44,7 +45,7 @@ describe("database client delegation", () => {
 
   test("delegates migration batches through the shared limit", async () => {
     using remote = hranaTestDatabase();
-    expect(await remote.client.migrate(["SELECT 2"])).toHaveLength(1);
+    expect(await remote.client.migrate([sql`SELECT 2`])).toHaveLength(1);
     expect(remote.requests).toEqual([["batch", "close"]]);
     assertArrayIncludes(
       remote.envelopes[0]!.requests[0]!.batch!.steps.map(
@@ -57,7 +58,7 @@ describe("database client delegation", () => {
   test("delegates interactive transactions through the shared limit", async () => {
     using remote = hranaTestDatabase();
     const transaction = await remote.client.transaction("write");
-    expect((await transaction.execute("SELECT 3")).rows).toEqual([]);
+    expect((await transaction.execute(sql`SELECT 3`)).rows).toEqual([]);
     await transaction.commit();
     expect(transaction.closed).toBe(true);
     expect(remote.requests).toEqual([
@@ -69,11 +70,11 @@ describe("database client delegation", () => {
   test("shares the configured concurrency limit between pipeline and native reads", async () => {
     using db = blockingConcurrencyDatabase();
     const { firstStarted, release, remote, time } = db;
-    const first = remote.client.batch(["SELECT 1"], "write");
+    const first = remote.client.batch([sql`SELECT 1`], "write");
     await firstStarted.promise;
     const rest = Promise.all([
-      remote.client.batch(["SELECT 2"], "write"),
-      remote.client.execute("SELECT 3"),
+      remote.client.batch([sql`SELECT 2`], "write"),
+      remote.client.execute(sql`SELECT 3`),
     ]);
     try {
       await time.tickAsync(0);
@@ -94,7 +95,10 @@ describe("database client delegation", () => {
           return Promise.resolve(emptyResultSet());
         },
       });
-      const results = await remote.client.batch(["SELECT 1", "SELECT 2"], mode);
+      const results = await remote.client.batch(
+        [sql`SELECT 1`, sql`SELECT 2`],
+        mode,
+      );
       expect(results).toHaveLength(2);
       expect(primaries).toEqual([false, false]);
       expect(remote.requests).toEqual([
@@ -145,7 +149,7 @@ describe("database client delegation", () => {
     using db = blockingConcurrencyDatabase();
     const { firstStarted, release, remote, time } = db;
     const transaction = await remote.client.transaction("write");
-    const first = remote.client.execute("SELECT 1");
+    const first = remote.client.execute(sql`SELECT 1`);
     await firstStarted.promise;
     const waiting = queued(transaction);
     try {
@@ -163,7 +167,8 @@ describe("database client delegation", () => {
 
   test("keeps interactive transaction statements inside the shared limit", async () => {
     const { closed, requests } = await queueBehindHeldSlot(
-      (tx) => Promise.all([tx.execute("SELECT 2"), tx.batch(["SELECT 3"])]),
+      (tx) =>
+        Promise.all([tx.execute(sql`SELECT 2`), tx.batch([sql`SELECT 3`])]),
       "commit",
     );
     expect(requests).toHaveLength(4);
@@ -185,8 +190,8 @@ describe("database client delegation", () => {
       using db = blockingConcurrencyDatabase();
       const { firstStarted, release, remote, time } = db;
       const transaction = await remote.client.transaction("write");
-      await transaction.execute("SELECT 2");
-      const first = remote.client.execute("SELECT 1");
+      await transaction.execute(sql`SELECT 2`);
+      const first = remote.client.execute(sql`SELECT 1`);
       await firstStarted.promise;
       const closing = transaction[close]();
       try {
@@ -215,16 +220,16 @@ describe("database client delegation", () => {
     expect(local.client.protocol).toBe("file");
     const results = await local.client.batch(
       [
-        "CREATE TABLE listings (id INTEGER)",
-        "INSERT INTO listings VALUES (2)",
-        "SELECT id FROM listings",
+        sql`CREATE TABLE listings (id INTEGER)`,
+        sql`INSERT INTO listings VALUES (2)`,
+        sql`SELECT id FROM listings`,
       ],
       "write",
     );
     expect(results[1]!.rowsAffected).toBe(1);
     expect(results[2]!.rows[0]!.id).toBe(2);
     expect(
-      (await local.client.batch(["SELECT id FROM listings"], "write"))[0]!
+      (await local.client.batch([sql`SELECT id FROM listings`], "write"))[0]!
         .rows[0]!.id,
     ).toBe(2);
     expect(local.requests).toEqual([]);
@@ -235,7 +240,7 @@ describe("database client delegation", () => {
   test("delegates execute with its native receiver", async () => {
     using remote = hranaTestDatabase();
     const execute = remote.client.execute;
-    expect((await execute("SELECT 1")).toJSON().rows).toEqual([]);
+    expect((await execute(sql`SELECT 1`)).toJSON().rows).toEqual([]);
     expect(remote.requests).toEqual([["SELECT 1", "close"]]);
     expect(remote.client.protocol).toBe("http");
     expect(remote.client.closed).toBe(false);
@@ -276,16 +281,16 @@ describe("primary read stream lifecycle", () => {
   for (const opened of [false, true]) {
     test(`close refuses new work with ${opened ? "an active" : "no"} pipeline client`, async () => {
       using remote = hranaTestDatabase();
-      if (opened) await remote.client.batch(["SELECT 1"], "write");
+      if (opened) await remote.client.batch([sql`SELECT 1`], "write");
       remote.client.close();
       remote.client.close();
       await expect(
-        remote.client.batch(["SELECT 2"], "write"),
+        remote.client.batch([sql`SELECT 2`], "write"),
       ).rejects.toMatchObject({
         code: "CLIENT_CLOSED",
         message: expect.stringContaining("The database client is closed"),
       });
-      await expect(remote.client.execute("SELECT 3")).rejects.toMatchObject({
+      await expect(remote.client.execute(sql`SELECT 3`)).rejects.toMatchObject({
         code: "UNKNOWN",
         message: expect.stringContaining("Client is closed"),
       });
@@ -297,12 +302,12 @@ describe("primary read stream lifecycle", () => {
   test("reconnect creates a usable pipeline after close", async () => {
     using remote = hranaTestDatabase();
     remote.client.reconnect();
-    await remote.client.batch(["SELECT 1"], "write");
+    await remote.client.batch([sql`SELECT 1`], "write");
     remote.client.reconnect();
-    await remote.client.batch(["SELECT 2"], "write");
+    await remote.client.batch([sql`SELECT 2`], "write");
     remote.client.close();
     remote.client.reconnect();
-    expect(await remote.client.batch(["SELECT 3"], "write")).toHaveLength(1);
+    expect(await remote.client.batch([sql`SELECT 3`], "write")).toHaveLength(1);
     expect(remote.requests).toEqual(
       Array.from({ length: 3 }, () => [
         "BEGIN IMMEDIATE",
@@ -334,10 +339,10 @@ describe("primary read stream lifecycle", () => {
           };
         },
       });
-      const first = remote.client.batch(["SELECT 1"], "write");
+      const first = remote.client.batch([sql`SELECT 1`], "write");
       try {
         await firstStarted.promise;
-        const second = remote.client.batch(["SELECT 2"], "write");
+        const second = remote.client.batch([sql`SELECT 2`], "write");
         if (secondFails) {
           await expect(second).rejects.toMatchObject({
             code: "SQLITE_ERROR",

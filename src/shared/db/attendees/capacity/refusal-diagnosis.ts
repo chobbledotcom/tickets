@@ -15,12 +15,10 @@ import {
   type CartDemand,
   getOrCreateBucket,
 } from "#db/capacity-batch.ts";
-import {
-  inPlaceholders,
-  queryBatchPrimary,
-  resultRows,
-  type SqlStatement,
-} from "#db/client.ts";
+import { queryBatchPrimary, resultRows } from "#db/client.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { requiredMapValue, unique } from "#fp";
 import { MAX_FORM_LINES } from "#shared/limits.ts";
 import type { ListingCapacityRow } from "./types.ts";
@@ -113,18 +111,10 @@ const batchProbePrefixes = (
 const buildFactsStatements = (
   listingIds: readonly number[],
 ): SqlStatement[] => [
-  {
-    args: [...listingIds],
-    sql: `SELECT listing.id, listing.listing_type
-            FROM listings AS listing
-           WHERE listing.id IN (${inPlaceholders(listingIds)})`,
-  },
-  {
-    args: [...listingIds],
-    sql: `SELECT groupListing.listing_id, groupListing.group_id
-            FROM group_listings AS groupListing
-           WHERE groupListing.listing_id IN (${inPlaceholders(listingIds)})`,
-  },
+  from(tables.listings).where({ id: listingIds }).pick("id", "listing_type"),
+  from(tables.group_listings)
+    .where({ listing_id: listingIds })
+    .pick("listing_id", "group_id"),
 ];
 
 /** Fold two facts result sets into the model the probes build their demands

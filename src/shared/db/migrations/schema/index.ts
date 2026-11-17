@@ -1,5 +1,6 @@
 /** Assembles the ordered schema and computes its identity hash. */
 
+import { isSqlStatement } from "#db/sql.ts";
 import { paymentTables } from "./payments/index.ts";
 import { attendeeTables } from "./tables-attendees.ts";
 import { catalogTables } from "./tables-catalog.ts";
@@ -10,13 +11,13 @@ import { invoiceTables } from "./tables-invoices.ts";
 import { questionTables } from "./tables-questions.ts";
 import { taxTables } from "./tables-tax.ts";
 import { TRIGGERS } from "./triggers.ts";
-import type { Table } from "./types.ts";
+import { declaredTables, type Schema } from "./types.ts";
 import { SCHEMA_MIGRATIONS_TABLE } from "./version.ts";
 
 // Schema (ordered: tables with no FK deps first). Concatenating the groups in
 // this order reproduces the original FK-dependency sequence exactly, so the
 // schema hash is unchanged from the single-file declaration.
-export const SCHEMA: [name: string, table: Table][] = [
+export const TYPED_SCHEMA = declaredTables([
   ...coreTables,
   ...attendeeTables,
   ...catalogTables,
@@ -26,10 +27,15 @@ export const SCHEMA: [name: string, table: Table][] = [
   ...invoiceTables,
   ...taxTables,
   ...externalSourceTables,
-];
+]);
+
+/** Every declared table, as the migrations read it. */
+export const SCHEMA: Schema = TYPED_SCHEMA;
 
 /** Ordered table names — matches FK dependency order (parents before children) */
-export const SCHEMA_TABLE_NAMES: string[] = SCHEMA.map(([name]) => name);
+export const SCHEMA_TABLE_NAMES: readonly string[] = SCHEMA.map(
+  ([name]) => name,
+);
 
 // ─── Schema hash (auto-detects changes even when LATEST_UPDATE is not bumped) ──
 
@@ -48,4 +54,10 @@ export const APP_SCHEMA = SCHEMA.filter(
 
 // Triggers join the hash input so changing a trigger's SQL re-runs migrations
 // even if no column/index changed (the same safety net columns already have).
-export const SCHEMA_HASH = djb2(JSON.stringify([APP_SCHEMA, TRIGGERS]));
+/** The hash input holds each statement as its SQL text alone. */
+const statementAsText = (_key: string, value: unknown): unknown =>
+  isSqlStatement(value) ? value.sql : value;
+
+export const SCHEMA_HASH = djb2(
+  JSON.stringify([APP_SCHEMA, TRIGGERS], statementAsText),
+);

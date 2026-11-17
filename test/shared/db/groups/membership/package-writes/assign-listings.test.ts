@@ -11,7 +11,6 @@ import { it as test } from "@std/testing/bdd";
 import { withTransaction } from "#db/client.ts";
 import { assignListingsToGroup } from "#db/groups/membership/package-writes.ts";
 import { setListingGroupsTx } from "#db/groups.ts";
-import { listingChildren } from "#db/listing-parents.ts";
 import { TransactionValidationError } from "#db/transaction.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -21,6 +20,11 @@ import {
   listingGroupIdsOf,
 } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { makeParent } from "#test-utils/parents.ts";
+
+/** A priced-by-day listing, which a fixed-length group refuses. */
+const createCustomisableMember = (name: string) =>
+  createTestListing({ customisableDays: true, dayPrices: { 1: 100 }, name });
 
 describeWithEnv("db > groups > membership writes", { db: true }, () => {
   test("adding several listings at once records every one of them", async () => {
@@ -92,9 +96,10 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
       maxPrice: 200,
       name: "Fresh Pay More",
     });
-    const parent = await createTestListing({ name: "Fresh Parent" });
-    const addOn = await createTestListing({ name: "Fresh Add On" });
-    await listingChildren.setIds(parent.id, [addOn.id]);
+    const { child: addOn } = await makeParent({
+      children: [{ name: "Fresh Add On" }],
+      parent: { name: "Fresh Parent" },
+    });
 
     await expect(
       withTransaction((tx) =>
@@ -116,9 +121,10 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
 
   test("a hidden package refuses a member that offers add-ons", async () => {
     const group = await createHiddenPackageGroup("Hidden Package Rules");
-    const parent = await createTestListing({ name: "Hidden Package Parent" });
-    const child = await createTestListing({ name: "Hidden Package Child" });
-    await listingChildren.setIds(parent.id, [child.id]);
+    const { parent } = await makeParent({
+      children: [{ name: "Hidden Package Child" }],
+      parent: { name: "Hidden Package Parent" },
+    });
 
     expect(await assignListingsToGroup([parent.id], group.id)).toBe(
       t("error.package_member_gates_children_hidden", { name: parent.name }),
@@ -128,11 +134,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
 
   test("a customisable-days group refuses a fixed-length listing", async () => {
     const group = await createTestGroup({ name: "Customisable Length Group" });
-    const customisable = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 100 },
-      name: "Customisable Member",
-    });
+    const customisable = await createCustomisableMember("Customisable Member");
     const fixed = await createTestListing({ name: "Fixed Member" });
 
     expect(await assignListingsToGroup([customisable.id], group.id)).toBeNull();
@@ -145,11 +147,7 @@ describeWithEnv("db > groups > membership writes", { db: true }, () => {
   test("a fixed-length group refuses a customisable-days listing", async () => {
     const group = await createTestGroup({ name: "Fixed Length Group" });
     const fixed = await createTestListing({ name: "Fixed Member" });
-    const customisable = await createTestListing({
-      customisableDays: true,
-      dayPrices: { 1: 100 },
-      name: "Customisable Member",
-    });
+    const customisable = await createCustomisableMember("Customisable Member");
 
     expect(await assignListingsToGroup([fixed.id], group.id)).toBeNull();
     expect(await assignListingsToGroup([customisable.id], group.id)).toBe(

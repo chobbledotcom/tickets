@@ -12,10 +12,12 @@ import {
   expectIncludesAll,
   testRequiresAuth,
 } from "#test-utils/assertions.ts";
+import { expectEditPageRegistrations } from "#test-utils/attendees/edit-page.ts";
 import { setupListingAndAttendee } from "#test-utils/attendees/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendee } from "#test-utils/db-helpers/attendees.ts";
+import { createAttendeeOn } from "#test-utils/db-helpers/attendees.ts";
+import { listingWithAttendee } from "#test-utils/db-helpers/listing-attendee.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withEnv } from "#test-utils/env.ts";
 import { adminGet } from "#test-utils/session.ts";
@@ -153,51 +155,30 @@ describeWithEnv(
         const { attendee } = await setupListingAndAttendee({
           listing: { maxAttendees: 100, name: "Current Listing" },
         });
-        const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-        await expectHtmlResponse(
-          response,
-          200,
-          "Current Listing",
-          "Listing Registrations",
-        );
+        await expectEditPageRegistrations(attendee.id, "Current Listing");
       });
 
       test("edit page shows listing registrations and add-to-listing sections", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          name: "Edit Page Listing",
-        });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee } = await listingWithAttendee(
+          100,
           "Edit User",
           "edit@example.com",
+          { name: "Edit Page Listing" },
         );
-        const response = await adminGet(`/admin/attendees/${attendee.id}/edit`);
-        const html = await expectHtmlResponse(
-          response,
-          200,
-          "Listing Registrations",
-          "Save Attendee",
-        );
-        // Listing link table shows the listing
-        expectIncludesAll(html, [
+        const html = await expectEditPageRegistrations(
+          attendee.id,
           "Edit Page Listing",
-          // The editor renders a quantity box per listing
-          "qty_",
-        ]);
+        );
+        // The editor renders a quantity box per listing.
+        expectIncludesAll(html, ["Save Attendee", "qty_"]);
       });
 
       test("edit page shows checked-in badge for checked-in attendee", async () => {
-        const listing = await createTestListing({
-          maxAttendees: 100,
-          name: "Checkin Badge Listing",
-        });
-        const attendee = await createTestAttendee(
-          listing.id,
-          listing.slug,
+        const { attendee, listing } = await listingWithAttendee(
+          100,
           "Badge User",
           "badge@example.com",
+          { name: "Checkin Badge Listing" },
         );
         await moveTickets("admit", [
           { attendeeId: attendee.id, count: 1, listingId: listing.id },
@@ -240,9 +221,8 @@ describeWithEnv(
           maxAttendees: 100,
           name: "Listing 2",
         });
-        const attendee = await createTestAttendee(
-          listing1.id,
-          listing1.slug,
+        const attendee = await createAttendeeOn(
+          listing1,
           "John Doe",
           "john@example.com",
         );

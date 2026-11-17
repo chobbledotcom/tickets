@@ -1,23 +1,22 @@
 import { fullSchemaCreateStatements } from "#db/migrations/schema-sync.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { compact } from "#fp";
 import { TRIGGERS } from "./triggers.ts";
 import type { Trigger } from "./types.ts";
 
 export interface RestoreDeferredIndex {
   name: string;
-  sql: string;
+  sql: SqlStatement;
 }
 
-const NON_UNIQUE_INDEX_PREFIX = "CREATE INDEX IF NOT EXISTS ";
+const NON_UNIQUE_INDEX = /^CREATE INDEX IF NOT EXISTS (.+?) ON /;
+
+/** A unique index stays in place for restore, so it gives null here. */
 const restoreDeferredIndexOrNull = (
-  sql: string,
+  statement: SqlStatement,
 ): RestoreDeferredIndex | null => {
-  if (!sql.startsWith(NON_UNIQUE_INDEX_PREFIX)) return null;
-  const nameEnd = sql.indexOf(" ON ", NON_UNIQUE_INDEX_PREFIX.length);
-  return {
-    name: sql.slice(NON_UNIQUE_INDEX_PREFIX.length, nameEnd),
-    sql,
-  };
+  const found = NON_UNIQUE_INDEX.exec(statement.sql);
+  return found === null ? null : { name: found[1]!, sql: statement };
 };
 
 /** Non-unique indexes rebuilt after bulk restore rows are loaded. */

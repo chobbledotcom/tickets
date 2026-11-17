@@ -13,6 +13,7 @@
 
 import * as v from "valibot";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import type { ClosedFields } from "#shared/rest/field-specs.ts";
 import { integerAtLeast } from "#shared/validation/number.ts";
 import { defineStoredJson } from "#shared/validation/stored-json.ts";
 import type { Listing } from "#types";
@@ -66,6 +67,16 @@ export type ListingDefaultField = {
   gateReads?: readonly (keyof Listing)[];
 };
 
+/* jscpd:ignore-start -- a list of strings, not code */
+const UNGATED_FIELDS: readonly ListingDefaultField[] = [
+  { field: "bookable_days", key: "bookableDays", kind: "days" },
+  { field: "minimum_days_before", key: "minimumDaysBefore", kind: "number" },
+  { field: "maximum_days_after", key: "maximumDaysAfter", kind: "number" },
+  { field: "webhook_url", key: "webhookUrl", kind: "url" },
+  { field: "thank_you_url", key: "thankYouUrl", kind: "url" },
+];
+/* jscpd:ignore-end */
+
 /**
  * Two fields carry an `appliesTo` gate, so the overlay never produces a listing
  * the save path would reject. `duration_days` and `customisable_days` are
@@ -75,7 +86,7 @@ export type ListingDefaultField = {
  * - `uses_logistics` is inert while logistics is off, so a listing created in a
  *   logistics-off window cannot silently become one if the feature returns.
  * - `hidden` never applies to a renewal tier, which must stay hidden and
- *   purchase-only or renewal extension breaks. {@link catalogVisibleSql}
+ *   purchase-only or renewal extension breaks. {@link catalogVisible}
  *   mirrors this gate in SQL.
  */
 export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
@@ -85,11 +96,7 @@ export const LISTING_DEFAULT_FIELDS: readonly ListingDefaultField[] = [
     key: "usesLogistics",
     kind: "bool",
   },
-  { field: "bookable_days", key: "bookableDays", kind: "days" },
-  { field: "minimum_days_before", key: "minimumDaysBefore", kind: "number" },
-  { field: "maximum_days_after", key: "maximumDaysAfter", kind: "number" },
-  { field: "webhook_url", key: "webhookUrl", kind: "url" },
-  { field: "thank_you_url", key: "thankYouUrl", kind: "url" },
+  ...UNGATED_FIELDS,
   {
     appliesTo: (listing) => listing.months_per_unit === 0,
     field: "hidden",
@@ -203,3 +210,10 @@ export const parseListingDefaults = (
  * (`undefined`) key, so only configured defaults are persisted. */
 export const serializeListingDefaults = (defaults: ListingDefaults): string =>
   listingDefaultsJson.write(defaults, "settings.listing_defaults");
+
+/** True when the listing page shows the "use listing defaults" switch: some
+ *  default is set, and the writer can set the switch. */
+export const showUseDefaultsToggle = (
+  closed: ClosedFields,
+  defaults: ListingDefaults,
+): boolean => hasAnyListingDefault(defaults) && !closed.has("use_defaults");

@@ -4,8 +4,8 @@
  * database.
  *
  * A read that joins, or selects something SQL invents, has no table to infer
- * from. Those use `readRows` instead, and open their rows with the same chosen
- * set via `table.read.pick([...])`.
+ * from. Those use the builder in `#db/select/query.ts` instead, and open their
+ * rows with the same chosen set via `table.read.pick([...])`.
  */
 
 import type { InValue } from "@libsql/client";
@@ -18,10 +18,12 @@ import {
   type ReadableTable,
   type StoredRowOf,
 } from "#db/chosen-columns.ts";
-import type { SqlStatement } from "#db/client.ts";
-import { type Read, readOneRow, readRows, readStatement } from "#db/read.ts";
+
+import { readOneRow, readRows } from "#db/read.ts";
+import { type Condition, matching, named } from "#db/select/expression.ts";
+import { fromNamed } from "#db/select/query.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import type { TableSchema } from "#db/table.ts";
-import { equals, inList, type WhereClause } from "#db/where-clauses.ts";
 import { once } from "#fp";
 
 /**
@@ -43,20 +45,41 @@ export type RowFilter<Row> = {
 export type RowOptions = {
   /**
    * Filters the row shape cannot say — a subquery, a comparison, a condition
-   * built from settings. Written with the shared clause helpers in
-   * `#shared/db/where-clauses.ts`, and combined with the row filter by AND.
+   * built from settings. Written with the conditions in
+   * `#db/select/expression.ts`, and combined with the row filter by AND.
    */
-  where?: WhereClause[];
+  where?: readonly Condition[];
   /** Table alias, when the clauses or the order qualify their columns. */
   alias?: string;
   /** An `ORDER BY` body without the keyword. Omit for no ordering. */
-  order?: string;
+  order?: SqlStatement;
   /** A row cap. Omit for no limit. */
   limit?: number;
 };
 
+type Filtered<Row> = {
+  columns: readonly string[];
+  name: string;
+  schema: TableSchema<Row>;
+};
+
+/** Refuse a filter column that the table cannot compare. */
+const refuseUnstored = <Row>(table: Filtered<Row>, column: string): void => {
+  if (!table.columns.includes(column)) {
+    throw new Error(
+      `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
+    );
+  }
+  if (table.schema[column as keyof Row]?.write !== undefined) {
+    throw new Error(
+      `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
+    );
+  }
+};
+
 /**
- * Turn a filter written as a row into the shared clause vocabulary.
+ * Turn a filter written as a row into conditions. A list keeps the rows that
+ * hold one of its values. A null keeps the rows that hold nothing.
  *
  * Two kinds of column are refused rather than answered wrongly. One the table
  * does not store — a value worked out from another table — is not there to be
@@ -66,27 +89,20 @@ export type RowOptions = {
  * nothing; such a value is found by the column carrying its one-way code,
  * which is stored as it is written.
  */
-const filterClauses = <Row>(
-  table: { columns: readonly string[]; name: string; schema: TableSchema<Row> },
+const filterConditions = <Row>(
+  table: Filtered<Row>,
   filter: RowFilter<Row>,
   alias: string | undefined,
-): WhereClause[] =>
-  Object.entries(filter).flatMap(([column, value]) => {
-    if (!table.columns.includes(column)) {
-      throw new Error(
-        `Cannot filter ${table.name} by ${column}: it is not one of its columns. A value worked out from another table cannot be compared against.`,
-      );
-    }
-    if (table.schema[column as keyof Row]?.write !== undefined) {
-      throw new Error(
-        `Cannot filter ${table.name} by ${column}: it is stored in a different form from the value you have. Filter on the column holding its one-way code instead.`,
-      );
-    }
-    const named = alias ? `${alias}.${column}` : column;
-    return Array.isArray(value)
-      ? inList(named, value as readonly InValue[])
-      : equals(named, value as Exclude<InValue, null>);
-  });
+): Condition[] =>
+  matching(
+    (column) => named(alias ? `${alias}.${column}` : column),
+    Object.fromEntries(
+      Object.entries(filter).filter(([column, value]) => {
+        refuseUnstored(table, column);
+        return value !== undefined;
+      }),
+    ),
+  );
 
 /**
  * Reading some rows of one table, or one of them. The filter covers the whole
@@ -94,6 +110,8 @@ const filterClauses = <Row>(
  * about — while `Selected` is what comes back.
  */
 export type Rows<Row, Selected = Row> = {
+  /** A read of every row of the table, for a caller to run later. */
+  every: (options?: RowOptions) => () => Promise<Selected[]>;
   /** Every row the filter keeps. */
   many: (filter?: RowFilter<Row>, options?: RowOptions) => Promise<Selected[]>;
   /** The first row the filter keeps, or null when it keeps none. */
@@ -158,35 +176,50 @@ const selectionOf = <Row, Columns extends ColumnNames<Row>>(
   table: ReadableTable<Row>,
   chosen: ChosenColumns<Row, Columns>,
 ): Selection<Row, Columns> => {
-  /** The chosen set supplies the columns and the table; the caller supplies
-   * the rest of the read. */
+  /** The chosen set supplies the columns and the table. The caller supplies
+   * the rest of the read. A read with no alias calls the table by its name. */
   const readFor = (
     filter: RowFilter<Row>,
     { alias, limit, order, where = [] }: RowOptions,
-  ): Read => ({
-    columns: chosen.readColumnsSql(alias),
-    from: alias ? `${table.name} AS ${alias}` : table.name,
-    limit,
-    order,
-    where: [...filterClauses(table, filter, alias), ...where],
-  });
+  ): SqlStatement => {
+    const kept = fromNamed(table.name)
+      .as(alias ?? table.name)
+      .where(() => [...filterConditions(table, filter, alias), ...where]);
+    const ordered = order === undefined ? kept : kept.orderBy(() => [order]);
+    const capped = limit === undefined ? ordered : ordered.limit(limit);
+    return capped.columns(() => chosen.readColumnsSql(alias));
+  };
 
-  const rowsOf = async (read: Read): Promise<ChosenRow<Row, Columns>[]> =>
+  const rowsOf = async (
+    read: SqlStatement,
+  ): Promise<ChosenRow<Row, Columns>[]> =>
     chosen.readAll(await readRows<StoredRowOf<Row, Columns>>(read));
 
-  const rowOf = async (read: Read): Promise<ChosenRow<Row, Columns> | null> => {
+  const rowOf = async (
+    read: SqlStatement,
+  ): Promise<ChosenRow<Row, Columns> | null> => {
     const row = await readOneRow<StoredRowOf<Row, Columns>>(read);
     return row === null ? null : chosen.read(row);
   };
 
   // The read is built before anything is awaited, so a filter the table refuses
   // fails at the call rather than in a rejected promise later.
+  const withRead =
+    <Result>(use: (read: SqlStatement) => Result, cap?: number) =>
+    (filter: RowFilter<Row> = {}, options: RowOptions = {}): Result =>
+      use(
+        readFor(
+          filter,
+          cap === undefined ? options : { ...options, limit: cap },
+        ),
+      );
+
   return {
     ...chosen,
-    many: (filter = {}, options = {}) => rowsOf(readFor(filter, options)),
-    one: (filter = {}, options = {}) => rowOf(readFor(filter, options)),
-    statement: (filter = {}, options = {}) =>
-      readStatement(readFor(filter, options)),
+    every: (options) => () => rowsOf(readFor({}, options ?? {})),
+    many: withRead(rowsOf),
+    one: withRead(rowOf, 1),
+    statement: withRead((read) => read),
   };
 };
 
@@ -224,6 +257,7 @@ export const readerFor = <Row>(table: ReadableTable<Row>): TableReader<Row> => {
   const key = once(() => pick([table.primaryKey] as const));
 
   return {
+    every: (options) => whole().every(options),
     // Reading one row already caps the read at one, so this asks for nothing
     // beyond the key column itself.
     exists: async (filter, options) =>

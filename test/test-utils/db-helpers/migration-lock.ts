@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 /**
  * Serve requests while a database migration lock is held — the state the
  * migration-in-progress page answers.
@@ -19,21 +20,19 @@ export const withMigrationLock = async (
   const db = getDb();
   try {
     await db.execute(
-      "UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'",
+      sql`UPDATE settings SET value = 'stale' WHERE key = 'db_schema_hash'`,
     );
-    await db.execute({
-      args: ["migration_lock", new Date().toISOString()],
-      sql: "INSERT INTO settings (key, value) VALUES (?, ?)",
-    });
+    await db.execute(
+      sql`INSERT INTO settings (key, value) VALUES (${"migration_lock"}, ${new Date().toISOString()})`,
+    );
     invalidateInitDbCache();
 
     await run();
   } finally {
-    await db.execute("DELETE FROM settings WHERE key = 'migration_lock'");
-    await db.execute({
-      args: [SCHEMA_HASH],
-      sql: "UPDATE settings SET value = ? WHERE key = 'db_schema_hash'",
-    });
+    await db.execute(sql`DELETE FROM settings WHERE key = 'migration_lock'`);
+    await db.execute(
+      sql`UPDATE settings SET value = ${SCHEMA_HASH} WHERE key = 'db_schema_hash'`,
+    );
     invalidateInitDbCache();
   }
 };

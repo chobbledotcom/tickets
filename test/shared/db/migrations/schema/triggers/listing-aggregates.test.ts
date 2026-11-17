@@ -2,7 +2,7 @@ import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { allTransfers } from "#accounting/queries.ts";
-import { ATTENDEE_LISTING_CONTRIBUTIONS_SQL } from "#db/attendees/delete.ts";
+import { attendeeListingContributionsSql } from "#db/attendees/delete.ts";
 import { getDb } from "#db/client.ts";
 import {
   adjustListingIncome,
@@ -20,8 +20,15 @@ import {
 } from "#db/migrations/schema/listing-aggregates.ts";
 import { TRIGGERS } from "#db/migrations/schema/triggers.ts";
 import { BACKFILL_LISTING_AGGREGATES_SQL } from "#db/migrations/schema-sync.ts";
-
+import { sql } from "#db/sql.ts";
 import { recordAttendeeRefund } from "#shared/refund-ledger/record.ts";
+import {
+  type AggregateRows,
+  type AggregateStepsCase,
+  describeAggregateTriggerCases,
+  seedAggregateRows,
+  sharedAggregateTriggerCases,
+} from "#test-utils/db/aggregate-trigger-cases.ts";
 import { readListingAggregates as aggregates } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -40,6 +47,55 @@ const refundPostedSale = async (
   ]);
 };
 
+/** The rows the listing_attendees triggers count. */
+const ATTENDEE_ROWS: AggregateRows = {
+  parent: "listing_id",
+  table: "listing_attendees",
+};
+
+/** A no-quantity sentinel line must bump neither tickets_count nor
+ * booked_quantity (income is ledger-projected and tested separately). */
+const QUANTITY_ZERO_INSERT: AggregateStepsCase = {
+  name: "inserting a quantity-0 line counts toward neither ticket count nor capacity",
+  seed: [
+    [1, 2],
+    [2, 0],
+  ],
+  steps: [{ expected: { booked_quantity: 2, tickets_count: 1 } }],
+};
+
+/** The UPDATE trigger adds and removes a ticket as the quantity crosses zero. */
+const ZERO_TOGGLE: AggregateStepsCase = {
+  name: "toggling a line 0->n and n->0 moves tickets_count and capacity together",
+  seed: [[1, 0]],
+  steps: [
+    { expected: { booked_quantity: 0, tickets_count: 0 } },
+    {
+      expected: { booked_quantity: 4, tickets_count: 1 },
+      write: (writes, parentId) => writes.set(parentId, 1, "quantity", 4),
+    },
+    {
+      expected: { booked_quantity: 0, tickets_count: 0 },
+      write: (writes, parentId) => writes.set(parentId, 1, "quantity", 0),
+    },
+  ],
+};
+
+/** A ghost line contributes no ticket, so deleting it moves no count. */
+const QUANTITY_ZERO_DELETE: AggregateStepsCase = {
+  name: "deleting a quantity-0 line leaves tickets_count unchanged",
+  seed: [
+    [1, 2],
+    [2, 0],
+  ],
+  steps: [
+    {
+      expected: { booked_quantity: 2, tickets_count: 1 },
+      write: (writes, parentId) => writes.remove(parentId, 2),
+    },
+  ],
+};
+
 describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
   test("the UPDATE trigger fires on exactly the columns in LISTING_AGGREGATE_WRITE_COLUMNS", () => {
     const updateTrigger = TRIGGERS.find(
@@ -47,7 +103,7 @@ describe("LISTING_AGGREGATE_WRITE_COLUMNS matches the trigger SQL", () => {
     );
     const expectedCols = [...LISTING_AGGREGATE_WRITE_COLUMNS].join(", ");
     assertStringIncludes(
-      updateTrigger!.sql,
+      updateTrigger!.sql.sql,
       `AFTER UPDATE OF ${expectedCols} ON listing_attendees`,
     );
   });
@@ -59,17 +115,17 @@ describe("tickets_count shared predicate guard", () => {
   // reference it, or the recalculate/repair flow would fight the triggers. This
   // asserts the shared predicate appears in the exported schema SQL. Listing
   // recalculation and reset behavior are covered through their public methods.
-  const ticketCountSites: [name: string, sql: string][] = [
+  const ticketCountSites: [name: string, text: string][] = [
     ...TRIGGERS.filter((t) =>
       t.name.startsWith("trg_listing_attendees_aggregates_"),
-    ).map((t): [string, string] => [t.name, t.sql]),
-    ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL],
-    ["attendeeListingContributions", ATTENDEE_LISTING_CONTRIBUTIONS_SQL],
+    ).map((t): [string, string] => [t.name, t.sql.sql]),
+    ["backfillListingAggregates", BACKFILL_LISTING_AGGREGATES_SQL.sql],
+    ["attendeeListingContributions", attendeeListingContributionsSql(1).sql],
   ];
 
-  for (const [name, sql] of ticketCountSites) {
+  for (const [name, text] of ticketCountSites) {
     test(`${name} references the shared quantity predicate`, () => {
-      assertStringIncludes(sql, TICKET_COUNTS_PREDICATE);
+      assertStringIncludes(text, TICKET_COUNTS_PREDICATE.sql);
     });
   }
 });
@@ -93,32 +149,24 @@ describeWithEnv(
     triggers: true,
   },
   () => {
-    const insertAttendee = (
-      listingId: number,
-      attendeeId: number,
-      quantity: number,
-    ): Promise<unknown> =>
-      getDb().execute({
-        args: [listingId, attendeeId, quantity],
-        sql: "INSERT INTO listing_attendees (listing_id, attendee_id, quantity) VALUES (?, ?, ?)",
-      });
-
     const incomeOf = async (listingId: number): Promise<number> => {
       invalidateListingsCache();
       return (await getListingWithCount(listingId))!.income;
     };
-
-    test("a new listing starts with zeroed aggregates", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 0,
-        tickets_count: 0,
-      });
+    const shared = sharedAggregateTriggerCases({
+      counts: (quantity, rows) => ({
+        booked_quantity: quantity,
+        tickets_count: rows,
+      }),
+      insert: "insert increments quantity and ticket count",
+      parent: "listing",
+      // checked_in is not in the trigger's UPDATE OF list.
+      unrelatedColumn: "checked_in",
     });
 
     test("listingsTable read exposes the trigger-maintained counts", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [[1, 3]]);
       invalidateListingsCache();
       const reread = await getListingWithCount(listing.id);
       expect(reread).toMatchObject({
@@ -127,58 +175,31 @@ describeWithEnv(
       });
     });
 
-    test("insert increments quantity and ticket count", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await insertAttendee(listing.id, 2, 2);
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 5,
-        tickets_count: 2,
-      });
-    });
-
-    test("inserting a quantity-0 line counts toward neither ticket count nor capacity", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 2);
-      // A no-quantity sentinel line must not bump tickets_count or
-      // booked_quantity (income is ledger-projected and tested separately).
-      await insertAttendee(listing.id, 2, 0);
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 2,
-        tickets_count: 1,
-      });
-    });
-
-    test("toggling a line 0->n and n->0 moves tickets_count and capacity together", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 0);
-      expect(await aggregates(listing.id)).toMatchObject({ tickets_count: 0 });
-
-      // 0 -> n: the UPDATE trigger adds the ticket and the quantity.
-      await getDb().execute({
-        args: [listing.id, 1],
-        sql: "UPDATE listing_attendees SET quantity = 4 WHERE listing_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 4,
-        tickets_count: 1,
-      });
-
-      // n -> 0: and removes them again.
-      await getDb().execute({
-        args: [listing.id, 1],
-        sql: "UPDATE listing_attendees SET quantity = 0 WHERE listing_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 0,
-        tickets_count: 0,
-      });
-    });
+    describeAggregateTriggerCases(
+      {
+        createParent: () => createTestListing({ maxAttendees: 50 }),
+        readCounts: aggregates,
+        rows: ATTENDEE_ROWS,
+      },
+      [
+        shared.zeroStart,
+        shared.insert,
+        QUANTITY_ZERO_INSERT,
+        ZERO_TOGGLE,
+        QUANTITY_ZERO_DELETE,
+        shared.delete,
+        shared.updateQuantity,
+        shared.moveToOtherParent,
+        shared.unrelatedColumn,
+      ],
+    );
 
     test("a quantity-0 line shows no recalculation drift", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await insertAttendee(listing.id, 2, 0);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [
+        [1, 3],
+        [2, 0],
+      ]);
 
       // Raw INSERTs bypass the wrapped client's cache invalidation, so refresh
       // the cache before reading the stored (current) aggregates.
@@ -200,85 +221,10 @@ describeWithEnv(
       });
     });
 
-    test("deleting a quantity-0 line leaves tickets_count unchanged", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 2);
-      await insertAttendee(listing.id, 2, 0);
-      await getDb().execute({
-        args: [listing.id, 2],
-        sql: "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 2,
-        tickets_count: 1,
-      });
-    });
-
-    test("delete decrements the row's contribution", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await insertAttendee(listing.id, 2, 2);
-      await getDb().execute({
-        args: [listing.id, 1],
-        sql: "DELETE FROM listing_attendees WHERE listing_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 2,
-        tickets_count: 1,
-      });
-    });
-
-    test("updating quantity applies the delta", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await getDb().execute({
-        args: [listing.id, 1],
-        sql: "UPDATE listing_attendees SET quantity = 5 WHERE listing_id = ? AND attendee_id = ?",
-      });
-      expect(await aggregates(listing.id)).toEqual({
-        booked_quantity: 5,
-        tickets_count: 1,
-      });
-    });
-
-    test("moving a row to another listing shifts its aggregates", async () => {
-      const from = await createTestListing({ maxAttendees: 50 });
-      const to = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(from.id, 1, 4);
-
-      await getDb().execute({
-        args: [to.id, from.id, 1],
-        sql: "UPDATE listing_attendees SET listing_id = ? WHERE listing_id = ? AND attendee_id = ?",
-      });
-
-      expect(await aggregates(from.id)).toEqual({
-        booked_quantity: 0,
-        tickets_count: 0,
-      });
-      expect(await aggregates(to.id)).toEqual({
-        booked_quantity: 4,
-        tickets_count: 1,
-      });
-    });
-
-    test("updating an unrelated column leaves aggregates unchanged", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      const before = await aggregates(listing.id);
-
-      // checked_in is not in the trigger's UPDATE OF list, so this must not fire.
-      await getDb().execute({
-        args: [listing.id, 1],
-        sql: "UPDATE listing_attendees SET checked_in = 1 WHERE listing_id = ? AND attendee_id = ?",
-      });
-
-      expect(await aggregates(listing.id)).toEqual(before);
-    });
-
     test("income is projected from the ledger's gross revenue credits", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
       // A raw attendee row with no ledger legs contributes nothing to income.
-      await insertAttendee(listing.id, 1, 1);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [[1, 1]]);
       expect(await incomeOf(listing.id)).toBe(0);
 
       // A posted booking credits revenue:<listingId>, which the income subquery
@@ -375,7 +321,7 @@ describeWithEnv(
 
     test("manual aggregate edits override the trigger-maintained values", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [[1, 3]]);
 
       await listingAggregates.update(listing.id, {
         booked_quantity: 8,
@@ -390,8 +336,10 @@ describeWithEnv(
 
     test("selected aggregate reset fields are rebuilt from attendee rows", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await insertAttendee(listing.id, 2, 2);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [
+        [1, 3],
+        [2, 2],
+      ]);
       await listingAggregates.update(listing.id, {
         booked_quantity: 8,
         tickets_count: 4,
@@ -413,8 +361,10 @@ describeWithEnv(
 
     test("the migration's backfill recomputes stale aggregates from scratch", async () => {
       const listing = await createTestListing({ maxAttendees: 50 });
-      await insertAttendee(listing.id, 1, 3);
-      await insertAttendee(listing.id, 2, 2);
+      await seedAggregateRows(ATTENDEE_ROWS, listing.id, [
+        [1, 3],
+        [2, 2],
+      ]);
 
       // Reproduce a pre-trigger state: drop the triggers, then corrupt the
       // columns directly (no trigger fires to correct them).
@@ -423,14 +373,14 @@ describeWithEnv(
       )!;
       await getDb().batch(
         [
-          "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert",
-          "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete",
-          "DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_update",
+          sql`DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_insert`,
+          sql`DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_delete`,
+          sql`DROP TRIGGER IF EXISTS trg_listing_attendees_aggregates_update`,
         ],
         "write",
       );
       await getDb().execute(
-        "UPDATE listings SET booked_quantity = 999, tickets_count = 999",
+        sql`UPDATE listings SET booked_quantity = 999, tickets_count = 999`,
       );
 
       // Re-running up() recreates the triggers and recomputes the absolute totals.

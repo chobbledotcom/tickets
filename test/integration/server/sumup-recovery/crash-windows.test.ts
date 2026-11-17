@@ -1,5 +1,6 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import { sql, sqlName } from "#db/sql.ts";
 import { runSumupRecovery } from "#shared/sumup/recovery-run.ts";
 import { tableRowCount } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -20,7 +21,7 @@ const STATE_FAULT = "test_sumup_recovery_state_fault";
  * committed and the row has not been moved. */
 const withStateWriteFault = <T>(body: () => Promise<T>): Promise<T> =>
   withDbFault(
-    `CREATE TRIGGER ${STATE_FAULT}
+    sql`CREATE TRIGGER ${sqlName(STATE_FAULT)}
       BEFORE UPDATE ON sumup_checkouts
       WHEN NEW.recovery_state = 'finished'
       BEGIN

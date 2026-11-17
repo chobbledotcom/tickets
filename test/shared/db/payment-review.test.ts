@@ -10,6 +10,7 @@ import {
   acknowledgeCurrentPaymentReview,
   getPaymentReviewState,
 } from "#db/payment-review.ts";
+import { sql } from "#db/sql.ts";
 import type { PaymentReviewCase } from "#payment/review.ts";
 import type { PaymentRowState } from "#payment/row-state.ts";
 import { nowIso } from "#shared/now.ts";
@@ -306,7 +307,7 @@ describeWithEnv(
       await putReview("sess-cas-first");
       await putReview("sess-cas-lost");
       await execute(
-        `CREATE TRIGGER ignore_payment_review
+        sql`CREATE TRIGGER ignore_payment_review
           BEFORE UPDATE ON processed_payments
           WHEN OLD.payment_session_id = 'sess-cas-lost'
           BEGIN SELECT RAISE(IGNORE); END`,
@@ -317,10 +318,10 @@ describeWithEnv(
       );
       expect(
         (await reviewOf(attendeeId, "sess-cas-first")).acknowledgedAt,
-      ).toBeUndefined();
-      expect(
-        (await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt,
-      ).toBeUndefined();
+      ).toBe(undefined);
+      expect((await reviewOf(attendeeId, "sess-cas-lost")).acknowledgedAt).toBe(
+        undefined,
+      );
       expect(await getAttendeeActivityLog(attendeeId)).toEqual([]);
     });
 
@@ -328,7 +329,7 @@ describeWithEnv(
       const attendeeId = await bookedWithPayment("sess-log", "pi-log");
       await putReview("sess-log");
       await execute(
-        `CREATE TRIGGER refuse_payment_review_activity
+        sql`CREATE TRIGGER refuse_payment_review_activity
           BEFORE INSERT ON activity_log
           BEGIN SELECT RAISE(ABORT, 'activity unavailable'); END`,
       );
@@ -336,9 +337,9 @@ describeWithEnv(
       await expect(acknowledge(attendeeId)).rejects.toThrow(
         "activity unavailable",
       );
-      expect(
-        (await reviewOf(attendeeId, "sess-log")).acknowledgedAt,
-      ).toBeUndefined();
+      expect((await reviewOf(attendeeId, "sess-log")).acknowledgedAt).toBe(
+        undefined,
+      );
     });
 
     test("changes only the named attendee's exact review", async () => {
@@ -351,9 +352,9 @@ describeWithEnv(
       expect((await reviewOf(named, "sess-named")).acknowledgedAt).toEqual(
         expect.any(String),
       );
-      expect(
-        (await reviewOf(other, "sess-other")).acknowledgedAt,
-      ).toBeUndefined();
+      expect((await reviewOf(other, "sess-other")).acknowledgedAt).toBe(
+        undefined,
+      );
       expect(await getAttendeeActivityLog(other)).toEqual([]);
     });
   },

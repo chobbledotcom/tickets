@@ -10,6 +10,7 @@ import {
   decryptSessionTokens,
   reserveSession,
 } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
@@ -38,7 +39,6 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     await executeBatch(
       await batchFinalizeStatements(
         "free-finalize",
-        "?",
         attendeeId,
         null,
         "free-token",
@@ -53,8 +53,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const { payment_reference_index } = await requireOne<{
       payment_reference_index: string;
     }>(
-      "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
-      ["free-finalize"],
+      sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"free-finalize"}`,
     );
     expect(payment_reference_index).toBe("");
     expect(await decryptSessionTokens(finalized!.ticket_tokens)).toBe(
@@ -72,7 +71,7 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     const update = statements[0];
     if (!update) throw new Error("Expected the balance finalize update");
 
-    assertStringIncludes(update.sql, "SET attendee_id = ?,");
+    assertStringIncludes(update.sql, "SET attendee_id = ?1,");
     expect(update.args[0]).toBe(7);
   });
 
@@ -81,7 +80,6 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
       executeBatch(
         await batchFinalizeStatements(
           "missing-finalize",
-          "?",
           10,
           taggedPaymentReference("pi_missing"),
           "stable-token",
@@ -95,7 +93,6 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
     await executeBatch(
       await batchFinalizeStatements(
         "already-finalized",
-        "?",
         attendeeId,
         taggedPaymentReference("pi_first"),
         "first-token",
@@ -117,7 +114,6 @@ describeWithEnv("db > processed payment finalize guard", { db: true }, () => {
       executeBatch(
         await batchFinalizeStatements(
           "already-finalized",
-          "?",
           attendeeId + 1,
           taggedPaymentReference("pi_second"),
           "second-token",

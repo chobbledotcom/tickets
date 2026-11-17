@@ -5,6 +5,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getDb } from "#db/client.ts";
 import { groups } from "#db/groups.ts";
+import { sql, sqlLiteral } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { signCsrfToken } from "#shared/csrf.ts";
 import { assertJson, expectRejectsEmptyName } from "#test-utils/assertions.ts";
@@ -239,9 +240,9 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
     test("returns 404 when the group vanishes during update", async () => {
       const group = await createTestGroup({ name: "Vanishing group" });
       await getDb().execute(
-        `CREATE TRIGGER delete_group_during_update
+        sql`CREATE TRIGGER delete_group_during_update
          AFTER UPDATE ON groups
-         WHEN NEW.id = ${group.id}
+         WHEN NEW.id = ${sqlLiteral(group.id)}
          BEGIN
            DELETE FROM groups WHERE id = NEW.id;
          END`,
@@ -260,7 +261,7 @@ describeWithEnv("Admin API - Groups", { db: true }, () => {
         );
       } finally {
         await getDb().execute(
-          "DROP TRIGGER IF EXISTS delete_group_during_update",
+          sql`DROP TRIGGER IF EXISTS delete_group_during_update`,
         );
       }
     });

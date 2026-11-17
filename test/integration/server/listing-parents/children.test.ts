@@ -3,12 +3,16 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
 import { listingChildren } from "#db/listing-parents.ts";
+import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import { expectFlash, expectIncludesAll } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { linkedParentChild } from "#test-utils/listing-parents/helpers.ts";
+import {
+  linkedParentChild,
+  parentAndChild,
+} from "#test-utils/listing-parents/helpers.ts";
 import {
   listingEditPageHtml,
   listingRosterPageHtml,
@@ -27,8 +31,7 @@ const attendeeEditHtml = async (result: unknown): Promise<string> => {
 
 describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("saves the chosen children and redirects", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { parent, child } = await parentAndChild();
     const res = await postChildren(parent.id, [child.id]);
     assertStringIncludes(
       res.headers.get("location") ?? "",
@@ -49,10 +52,9 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("shows a validation error when a child vanishes before the write", async () => {
-    const parent = await createTestListing({ name: "Race parent" });
-    const child = await createTestListing({ name: "Race child" });
+    const { parent, child } = await parentAndChild();
     const restore = beforeNextTransaction(async () => {
-      await execute("DELETE FROM listings WHERE id = ?", [child.id]);
+      await execute(sql`DELETE FROM listings WHERE id = ${child.id}`);
     });
 
     let response: Response;
@@ -71,8 +73,7 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
   });
 
   test("drops self-edges and unknown ids", async () => {
-    const parent = await createTestListing({ name: "Base unit" });
-    const child = await createTestListing({ name: "Add-on" });
+    const { parent, child } = await parentAndChild();
     await postChildren(parent.id, [parent.id, child.id, parent.id + 9999]);
     expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });

@@ -8,13 +8,9 @@ import {
   rebuildLegacyPaymentReferences,
 } from "#db/payment-reference-rebuild.ts";
 import { getRefundPaymentReferences } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import {
-  bookAttendee,
-  bookedAttendee,
-} from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import {
   bookLegacyPaidAttendee,
   provenancePointerOf,
@@ -24,9 +20,9 @@ import {
 } from "#test-utils/historical-payment-references.ts";
 import {
   expectProcessedPaymentReference,
-  finalizeProcessedPayment,
   taggedPaymentReference,
 } from "#test-utils/processed-payments.ts";
+import { bookTaggedWithBlankIndex } from "#test-utils/tagged-payment-rows.ts";
 
 describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   test("a legacy payment is refused before the rebuild and refundable after", async () => {
@@ -81,8 +77,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     );
     await rebuildStatingProviderForEveryRow("stripe");
     const storedIndex = await queryOne<{ payment_reference_index: string }>(
-      "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
-      ["sess_replay"],
+      sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`,
     );
 
     expect(await rebuildStatingProviderForEveryRow("stripe")).toEqual({
@@ -93,51 +88,25 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
     expect(await countLegacyPaymentReferences()).toBe(0);
     expect(
       await queryOne<{ payment_reference_index: string }>(
-        "SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ?",
-        ["sess_replay"],
+        sql`SELECT payment_reference_index FROM processed_payments WHERE payment_session_id = ${"sess_replay"}`,
       ),
     ).toEqual(storedIndex);
     expect(await provenancePointerOf(attendee.id)).toBe("sess_replay");
   });
 
   test("a kept provider tag and a kept provenance pointer survive the rebuild", async () => {
-    const listing = await createTestListing();
-    const tagged = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "tagged-blank@example.com",
-        name: "Tagged Blank",
-        paymentId: "pi_tagged_blank",
-      }),
-    );
-    await finalizeProcessedPayment("sess_tagged_blank", tagged.id, "", {
-      kind: "tagged",
-      provider: "square",
-      reference: "pi_tagged_blank",
+    const tagged = await bookTaggedWithBlankIndex("sess_tagged_blank", {
+      email: "tagged-blank@example.com",
+      name: "Tagged Blank",
+      paymentId: "pi_tagged_blank",
     });
-    await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_tagged_blank"],
-    );
 
-    const pointed = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "pointed@example.com",
-        name: "Pointed",
-        paymentId: "pi_pointed",
-      }),
-    );
-    await seedHistoricalProcessedPayment(
+    const { attendee: pointed } = await bookLegacyPaidAttendee(
       "sess_pointed",
-      pointed.id,
       "pi_pointed",
     );
     await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_pointed"],
-    );
-    await execute(
-      "UPDATE attendees SET pii_payment_session_id = 'sess_pointed' WHERE id = ?",
-      [pointed.id],
+      sql`UPDATE attendees SET pii_payment_session_id = 'sess_pointed' WHERE id = ${pointed.id}`,
     );
 
     const privateKey = await getTestPrivateKey();
@@ -210,23 +179,11 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
   });
 
   test("a row that already names its provider needs no stated choice", async () => {
-    const listing = await createTestListing();
-    const tagged = bookedAttendee(
-      await bookAttendee(listing, {
-        email: "kept-tag@example.com",
-        name: "Kept Tag",
-        paymentId: "pi_kept_tag",
-      }),
-    );
-    await finalizeProcessedPayment("sess_kept_tag", tagged.id, "", {
-      kind: "tagged",
-      provider: "square",
-      reference: "pi_kept_tag",
+    const tagged = await bookTaggedWithBlankIndex("sess_kept_tag", {
+      email: "kept-tag@example.com",
+      name: "Kept Tag",
+      paymentId: "pi_kept_tag",
     });
-    await execute(
-      "UPDATE processed_payments SET payment_reference_index = '' WHERE payment_session_id = ?",
-      ["sess_kept_tag"],
-    );
     const privateKey = await getTestPrivateKey();
     expect(await legacyPaymentReferencePage(privateKey)).toEqual([
       expect.objectContaining({
@@ -253,8 +210,7 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       "pi_broken_row",
     );
     await execute(
-      "UPDATE processed_payments SET payment_reference = ? WHERE payment_session_id = ?",
-      [await encrypt("stored under the wrong key"), "sess_broken_row"],
+      sql`UPDATE processed_payments SET payment_reference = ${await encrypt("stored under the wrong key")} WHERE payment_session_id = ${"sess_broken_row"}`,
     );
 
     await expect(
@@ -283,12 +239,10 @@ describeWithEnv("db > legacy payment reference rebuild", { db: true }, () => {
       "pi_unresolved",
     );
     await execute(
-      "UPDATE processed_payments SET attendee_id = NULL WHERE payment_session_id = ?",
-      ["sess_unresolved"],
+      sql`UPDATE processed_payments SET attendee_id = NULL WHERE payment_session_id = ${"sess_unresolved"}`,
     );
     await execute(
-      "UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ?",
-      ["sess_unresolved"],
+      sql`UPDATE processed_payments SET payment_reference = '' WHERE payment_session_id = ${"sess_unresolved"}`,
     );
 
     expect(await countLegacyPaymentReferences()).toBe(1);

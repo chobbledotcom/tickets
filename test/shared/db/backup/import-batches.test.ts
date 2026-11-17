@@ -1,4 +1,4 @@
-import type { InStatement, TransactionMode } from "@libsql/client";
+import type { TransactionMode } from "@libsql/client";
 import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
@@ -6,11 +6,12 @@ import { stub } from "@std/testing/mock";
 import { PostResetError, restoreFromSql } from "#db/backup.ts";
 import { getDb, queryAll } from "#db/client.ts";
 import { verifyCurrentAppSchema } from "#db/migrations/schema-sync.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 describeWithEnv("backup import batches", { db: true }, () => {
   const restoreAndInspectImport = async (
-    sql: string,
+    dump: string,
   ): Promise<{ schemaObjects: string[] | null; sizes: number[] }> => {
     const client = getDb();
     const originalBatch = client.batch.bind(client);
@@ -18,16 +19,14 @@ describeWithEnv("backup import batches", { db: true }, () => {
     let schemaObjects: string[] | null = null;
     let importing = false;
     const batchStub = stub(client, "batch", (async (
-      statements: InStatement[],
+      statements: SqlStatement[],
       mode?: TransactionMode,
     ) => {
-      const sqls = statements.map((statement) =>
-        typeof statement === "string" ? statement : statement.sql,
-      );
+      const sqls = statements.map((statement) => statement.sql);
       if (sqls.includes("DELETE FROM settings")) {
         importing = true;
         const result = await client.execute(
-          "SELECT name FROM sqlite_master WHERE name LIKE 'idx_%' OR name LIKE 'trg_%'",
+          sql`SELECT name FROM sqlite_master WHERE name LIKE 'idx_%' OR name LIKE 'trg_%'`,
         );
         schemaObjects = result.rows.map(({ name }) => String(name));
         sizes.push(statements.length);
@@ -40,7 +39,7 @@ describeWithEnv("backup import batches", { db: true }, () => {
     }) as never);
 
     try {
-      await restoreFromSql(sql);
+      await restoreFromSql(dump);
     } finally {
       batchStub.restore();
     }
@@ -63,7 +62,7 @@ describeWithEnv("backup import batches", { db: true }, () => {
     expect(sizes).toEqual([50, 4]);
     expect(
       await queryAll<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+        sql`SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'`,
       ),
     ).toEqual([{ count: 51 }]);
   });
@@ -107,7 +106,7 @@ describeWithEnv("backup import batches", { db: true }, () => {
 
     expect(
       await queryAll<{ count: number }>(
-        "SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'",
+        sql`SELECT COUNT(*) AS count FROM settings WHERE key LIKE 'large_%'`,
       ),
     ).toEqual([{ count: 0 }]);
     await verifyCurrentAppSchema();

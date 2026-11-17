@@ -19,8 +19,7 @@ import { SERVICING_KIND } from "#db/attendees/kind.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import {
   buildDuplicateServicingInput,
-  createAnnualInspectionEvent,
-  createDailyListingPair,
+  createAnnualInspectionPair,
   createServicingHold,
   decryptFirstServicingAttendee,
   deleteServicingEvent,
@@ -62,8 +61,7 @@ describeWithEnv(
   { db: true },
   () => {
     test("the duplicate copies name and all listing bookings", async () => {
-      const [a, b] = await createDailyListingPair("A", "B");
-      const original = await createAnnualInspectionEvent(a, b);
+      const { a, b, event: original } = await createAnnualInspectionPair();
       const copy = await duplicateServicingEvent(original.id);
       expect(copy.id).not.toBe(original.id);
       expect(copy.name).toBe("Annual Inspection");
@@ -97,9 +95,10 @@ describeWithEnv(
         await tokenIndexOf(original.id),
       );
       expect(await kindOf(copy.id)).toBe(SERVICING_KIND);
-      const decrypted = await decryptFirstServicingAttendee(listing.id);
-      expect(decrypted?.email).toBe("");
-      expect(decrypted?.phone).toBe("");
+      expect(await decryptFirstServicingAttendee(listing.id)).toMatchObject({
+        email: "",
+        phone: "",
+      });
     });
 
     test("duplicate-then-edit is independent of the original", async () => {

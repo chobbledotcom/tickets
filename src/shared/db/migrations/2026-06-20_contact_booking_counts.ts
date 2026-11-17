@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { schemaMigration } from "./define.ts";
 
 export default schemaMigration(
@@ -19,7 +20,7 @@ export default schemaMigration(
     // The guard means new rows, which only become non-zero after a booking,
     // are never re-touched once this has run.
     await getDb().execute(
-      "UPDATE contact_preferences SET public_booking_count = visits WHERE public_booking_count = 0",
+      sql`UPDATE contact_preferences SET public_booking_count = visits WHERE public_booking_count = 0`,
     );
   },
 );

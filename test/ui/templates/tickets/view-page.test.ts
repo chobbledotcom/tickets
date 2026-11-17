@@ -6,6 +6,7 @@ import { formatCurrency, formatSignedCurrency } from "#shared/currency.ts";
 import { ticketViewPage } from "#templates/tickets.tsx";
 import { registerPublicTemplateHooks } from "#test/ui/templates/helpers.ts";
 import { setupAdminPageTest } from "#test-utils/admin-page-test.ts";
+import { expectExcludesAll } from "#test-utils/assertions/absent.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { testTokenEntry } from "#test-utils/factories.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
@@ -141,9 +142,7 @@ describe("ticketViewPage ticket cards", () => {
 
   test("hides QR code and token for purchase_only listings", () => {
     const html = purchaseOnlyViewHtml();
-    assert(!html.includes("ticket-card-qr"));
-    assert(!html.includes("ticket-card-token"));
-    assert(!html.includes("/svg"));
+    expectExcludesAll(html, ["ticket-card-qr", "ticket-card-token", "/svg"]);
   });
 
   test("hides wallet links for purchase_only listings", () => {
@@ -154,9 +153,7 @@ describe("ticketViewPage ticket cards", () => {
       },
     ];
     const html = ticketViewPage(cards, true, true);
-    assert(!html.includes("wallet-link"));
-    assert(!html.includes("Apple Wallet"));
-    assert(!html.includes("Google Wallet"));
+    expectExcludesAll(html, ["wallet-link", "Apple Wallet", "Google Wallet"]);
   });
 
   test("hides non-transferable notice for purchase_only listings", () => {

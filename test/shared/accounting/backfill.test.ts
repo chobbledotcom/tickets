@@ -17,6 +17,7 @@ import type { ListingBooking } from "#db/attendee-types.ts";
 import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import type { AccountRef, Transfer } from "#shared/ledger/types.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
@@ -33,10 +34,9 @@ const flagRefunded = (
   attendeeId: number,
   listingId: number,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [attendeeId, listingId],
-    sql: "UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ? AND listing_id = ?",
-  });
+  getDb().execute(
+    sql`UPDATE listing_attendees SET refunded = 1 WHERE attendee_id = ${attendeeId} AND listing_id = ${listingId}`,
+  );
 
 /** Create a historical paid booking with NO ledger legs (pre-dual-write). The
  *  email is overridable so a test can seed many distinct historical attendees. */
@@ -141,10 +141,9 @@ const expectRowStampedWithSaleEventGroup = async (
   sale: Transfer,
 ): Promise<void> => {
   const row = (
-    await getDb().execute({
-      args: [attendeeId],
-      sql: "SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ?",
-    })
+    await getDb().execute(
+      sql`SELECT ledger_event_group FROM listing_attendees WHERE attendee_id = ${attendeeId}`,
+    )
   ).rows[0]!;
   expect(String(row.ledger_event_group)).toBe(sale.eventGroup);
 };
@@ -344,10 +343,9 @@ describeWithEnv("accounting > backfill", { db: true }, () => {
 
   test("throws on an unparseable booking time rather than guessing", async () => {
     const { attendee } = await seedBooking();
-    await getDb().execute({
-      args: [attendee.id],
-      sql: "UPDATE attendees SET created = 'not a date' WHERE id = ?",
-    });
+    await getDb().execute(
+      sql`UPDATE attendees SET created = 'not a date' WHERE id = ${attendee.id}`,
+    );
 
     await expect(backfillTransfers()).rejects.toThrow(
       "unparseable created time",

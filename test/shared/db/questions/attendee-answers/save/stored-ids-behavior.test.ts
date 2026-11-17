@@ -1,8 +1,10 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { execute, queryAll } from "#db/client.ts";
+import type { Answer, Question } from "#db/question-types.ts";
 import { saveAttendeeAnswers } from "#db/questions/attendee-answers/save.ts";
 import { getOrCreateStringIds } from "#db/questions/strings.ts";
+import { sql } from "#db/sql.ts";
 import {
   addAnswer,
   createAttendee,
@@ -10,49 +12,66 @@ import {
 } from "#test/shared/db/questions/helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { expectQueryRows } from "#test-utils/query-rows.ts";
 import { expectRejects } from "#test-utils/servicing.ts";
 import { countDatabaseCalls } from "#test-utils/subrequest-budget.ts";
+import type { Attendee } from "#types";
 
 const storedRowsFor = (attendeeId: number) =>
   queryAll<{ answer_id: number | null; string_id: number | null }>(
-    "SELECT answer_id, string_id FROM attendee_answers WHERE attendee_id = ? ORDER BY id",
-    [attendeeId],
+    sql`SELECT answer_id, string_id FROM attendee_answers WHERE attendee_id = ${attendeeId} ORDER BY id`,
   );
 
-const seedStoredIdAnswers = async () => {
-  const choiceQuestion = await createQuestion("Choice");
-  const answer = await addAnswer(choiceQuestion.id, 0, "Stored choice");
-  const textQuestion = await createQuestion("Text", {
+/** A choice question with one answer, a free-text question, and an attendee
+ * ready to store answers for both. */
+const seedAnswerTargets = async (
+  choiceText: string,
+  textText: string,
+): Promise<{
+  answer: Answer;
+  attendee: Attendee;
+  choiceQuestion: Question;
+  textQuestion: Question;
+}> => {
+  const choiceQuestion = await createQuestion(choiceText);
+  const answer = await addAnswer(choiceQuestion.id, 0, choiceText);
+  const textQuestion = await createQuestion(textText, {
     displayType: "free_text",
   });
-  const stringId = (await getOrCreateStringIds(["Stored"])).get("Stored")!;
   const attendee = await createAttendee((await createTestListing()).id);
-  return { answer, attendee, stringId, textQuestion };
+  return { answer, attendee, choiceQuestion, textQuestion };
 };
 
+/** The stored-id answer and text id for one attendee, saved after `before`
+ * has changed the stored rows. */
 const saveSeed = async (
-  before?: (
-    seed: Awaited<ReturnType<typeof seedStoredIdAnswers>>,
-  ) => Promise<void>,
+  before?: (seed: {
+    answer: Answer;
+    attendee: Attendee;
+    stringId: number;
+    textQuestion: Question;
+  }) => Promise<void>,
 ) => {
-  const seed = await seedStoredIdAnswers();
-  if (before) await before(seed);
+  const { answer, attendee, textQuestion } = await seedAnswerTargets(
+    "Choice",
+    "Text",
+  );
+  const stringId = (await getOrCreateStringIds(["Stored"])).get("Stored")!;
+  if (before) await before({ answer, attendee, stringId, textQuestion });
   const calls = await countDatabaseCalls(1, () =>
     saveAttendeeAnswers(
       new Map([
         [
-          seed.attendee.id,
+          attendee.id,
           {
-            answerIds: [seed.answer.id],
-            textAnswerIds: [
-              { questionId: seed.textQuestion.id, stringId: seed.stringId },
-            ],
+            answerIds: [answer.id],
+            textAnswerIds: [{ questionId: textQuestion.id, stringId }],
           },
         ],
       ]),
     ),
   );
-  return { calls, ...seed };
+  return { answer, attendee, calls, stringId };
 };
 
 describeWithEnv(
@@ -61,10 +80,10 @@ describeWithEnv(
   () => {
     test("omits deleted choices and text questions", async () => {
       const { attendee, calls } = await saveSeed(async (seed) => {
-        await execute("DELETE FROM answers WHERE id = ?", [seed.answer.id]);
-        await execute("DELETE FROM questions WHERE id = ?", [
-          seed.textQuestion.id,
-        ]);
+        await execute(sql`DELETE FROM answers WHERE id = ${seed.answer.id}`);
+        await execute(
+          sql`DELETE FROM questions WHERE id = ${seed.textQuestion.id}`,
+        );
       });
       expect(calls).toBe(1);
       expect(await storedRowsFor(attendee.id)).toEqual([]);
@@ -80,18 +99,17 @@ describeWithEnv(
     });
 
     test("saves stored and plain text answers together", async () => {
-      const choiceQuestion = await createQuestion("Choice");
-      const choice = await addAnswer(choiceQuestion.id, 0, "Chosen");
-      const storedQuestion = await createQuestion("Stored", {
-        displayType: "free_text",
-      });
+      const {
+        answer: choice,
+        attendee,
+        textQuestion: storedQuestion,
+      } = await seedAnswerTargets("Choice", "Stored");
       const plainQuestion = await createQuestion("Plain", {
         displayType: "free_text",
       });
       const storedStringId = (
         await getOrCreateStringIds(["Stored answer"])
       ).get("Stored answer")!;
-      const attendee = await createAttendee((await createTestListing()).id);
       await saveAttendeeAnswers(
         new Map([
           [
@@ -116,13 +134,12 @@ describeWithEnv(
     });
 
     test("omits a deleted choice while saving plain text", async () => {
-      const choiceQuestion = await createQuestion("Removed choice");
-      const choice = await addAnswer(choiceQuestion.id, 0, "Removed");
-      const plainQuestion = await createQuestion("Plain", {
-        displayType: "free_text",
-      });
-      const attendee = await createAttendee((await createTestListing()).id);
-      await execute("DELETE FROM answers WHERE id = ?", [choice.id]);
+      const {
+        answer: choice,
+        attendee,
+        textQuestion: plainQuestion,
+      } = await seedAnswerTargets("Removed choice", "Plain");
+      await execute(sql`DELETE FROM answers WHERE id = ${choice.id}`);
 
       await saveAttendeeAnswers(
         new Map([
@@ -144,13 +161,13 @@ describeWithEnv(
     });
 
     test("rolls back the stored id batch when an insert fails", async () => {
-      const question = await createQuestion("Choice");
-      const oldAnswer = await addAnswer(question.id, 0, "Old");
-      const newAnswer = await addAnswer(question.id, 1, "New");
-      const textQuestion = await createQuestion("Text", {
-        displayType: "free_text",
-      });
-      const attendee = await createAttendee((await createTestListing()).id);
+      const {
+        answer: oldAnswer,
+        attendee,
+        choiceQuestion,
+        textQuestion,
+      } = await seedAnswerTargets("Choice", "Text");
+      const newAnswer = await addAnswer(choiceQuestion.id, 1, "New");
       await saveAttendeeAnswers(
         new Map([[attendee.id, { answerIds: [oldAnswer.id] }]]),
       );
@@ -173,21 +190,17 @@ describeWithEnv(
       expect(await storedRowsFor(attendee.id)).toEqual([
         { answer_id: oldAnswer.id, string_id: null },
       ]);
-      expect(
-        await queryAll(
-          "SELECT id, times_selected FROM answers WHERE id IN (?, ?) ORDER BY id",
-          [oldAnswer.id, newAnswer.id],
-        ),
-      ).toEqual([
-        { id: oldAnswer.id, times_selected: 1 },
-        { id: newAnswer.id, times_selected: 0 },
-      ]);
+      await expectQueryRows(
+        sql`SELECT id, times_selected FROM answers WHERE id IN (${oldAnswer.id}, ${newAnswer.id}) ORDER BY id`,
+        [
+          { id: oldAnswer.id, times_selected: 1 },
+          { id: newAnswer.id, times_selected: 0 },
+        ],
+      );
     });
 
     test("clears stored answers in one database call", async () => {
-      const question = await createQuestion("Choice");
-      const answer = await addAnswer(question.id, 0, "Old");
-      const attendee = await createAttendee((await createTestListing()).id);
+      const { answer, attendee } = await seedAnswerTargets("Choice", "Text");
       await saveAttendeeAnswers(
         new Map([[attendee.id, { answerIds: [answer.id] }]]),
       );

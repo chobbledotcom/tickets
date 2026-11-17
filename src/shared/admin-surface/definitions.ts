@@ -9,6 +9,7 @@
  */
 
 import type { EnabledFeatures } from "#shared/admin-features.ts";
+import { bindFirst } from "#shared/fp-bind.ts";
 import type { AdminLevel } from "#types";
 
 export interface AdminSurfaceContext {
@@ -32,6 +33,37 @@ export type ReadOnlyWrite = "always" | "read-only";
 
 export const OWNER_AUDIENCE = ["owner"] as const;
 
+/** Areas that each serve one page, keyed by the page id they share. */
+type OnePageAreas<
+  Audience extends AdminAudience,
+  Pages extends Readonly<Record<string, string>>,
+> = {
+  readonly [Id in keyof Pages]: {
+    readonly audience: Audience;
+    readonly view: { readonly [Page in Id]: Pages[Id] };
+  };
+};
+
+const onePageArea = (
+  audience: AdminAudience,
+  [id, pattern]: [string, string],
+): [string, { audience: AdminAudience; view: Record<string, string> }] => {
+  const view = { [id]: pattern };
+  return [id, { audience, view }];
+};
+
+/** Declare one area per page for pages that share an audience. */
+export const onePageAreas = <
+  const Audience extends AdminAudience,
+  const Pages extends Readonly<Record<string, string>>,
+>(
+  audience: Audience,
+  pages: Pages,
+): OnePageAreas<Audience, Pages> => {
+  const areas = Object.entries(pages).map(bindFirst(onePageArea)(audience));
+  return Object.fromEntries(areas) as OnePageAreas<Audience, Pages>;
+};
+
 export const featureVisible =
   (feature: keyof EnabledFeatures): ((ctx: AdminSurfaceContext) => boolean) =>
   (ctx: AdminSurfaceContext): boolean =>
@@ -54,10 +86,14 @@ export type AdminDestinationSpec =
 
 type AdminRouteGroup = Readonly<Record<string, AdminDestinationSpec>>;
 
-/** An area serving pages. Declaring a route requires declaring who reaches it. */
-type AdminAreaWithRoutes = {
+/** The audience and extra segments every area with routes declares. */
+export type AdminAreaBase = {
   readonly audience: AdminAudience;
   readonly segments?: readonly string[];
+};
+
+/** An area serving pages. Declaring a route requires declaring who reaches it. */
+type AdminAreaWithRoutes = AdminAreaBase & {
   readonly view?: AdminRouteGroup;
   readonly write?: AdminRouteGroup;
 };

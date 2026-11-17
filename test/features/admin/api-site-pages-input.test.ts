@@ -7,9 +7,9 @@ import { it as test } from "@std/testing/bdd";
 import { sitePages } from "#db/site-pages.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
+import { describeWithSitePages as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { apiRequest } from "#test-utils/session.ts";
 
 describeWithEnv("Admin API - Site page input refusals", { db: true }, () => {

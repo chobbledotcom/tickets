@@ -12,7 +12,7 @@
  */
 
 import { buildListingCapCondition } from "#db/capacity.ts";
-import { resultRows, type SqlStatement, withTransaction } from "#db/client.ts";
+import { resultRows, withTransaction } from "#db/client.ts";
 import { holidays } from "#db/holidays.ts";
 import {
   type AssignPlan,
@@ -20,13 +20,14 @@ import {
   wouldBeStaySpanDays,
 } from "#db/listings/daily-switch.ts";
 import { listingsTable } from "#db/listings/records.ts";
-import { numberedStatement } from "#db/numbered-statement.ts";
+import { type SqlStatement, sql, sqlCommas, sqlName } from "#db/sql.ts";
 import { t } from "#i18n";
 import type { AuthSession } from "#routes/auth.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
 import { getBookableStartDates } from "#shared/dates.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { ASSIGN_UNDATED_FIELD } from "#templates/admin/listings/assign-day-card.tsx";
+import type { ListingFormView } from "#templates/fields/listing.ts";
 import type { ListingWithCount } from "#types";
 import { listingPage } from "./listing-page.ts";
 import { loadListingEditPanel } from "./listing-page-management-panels.ts";
@@ -102,20 +103,17 @@ const dateVerdictsStatement = (
   dates: readonly string[],
   durationDays: number,
 ): SqlStatement =>
-  numberedStatement((bind) => {
-    const columns = dates
-      .map((date, index) => {
-        const fits = buildListingCapCondition({
+  sql`SELECT ${sqlCommas(
+    dates.map(
+      (date, index) =>
+        sql`(${buildListingCapCondition({
           date,
           durationDays,
           listingId,
           quantity,
-        })(bind);
-        return `(${fits}) AS ok${index}`;
-      })
-      .join(", ");
-    return `SELECT ${columns}`;
-  });
+        })}) AS ${sqlName(`ok${index}`)}`,
+    ),
+  )}`;
 
 /** Judge each offered date against the listing row the save writes, with
  * the production per-day cap SQL. The row write runs inside a transaction
@@ -130,7 +128,7 @@ export const probeAssignDates = async (
   try {
     return await withTransaction(async (tx) => {
       // `updateStatement` is optional only on the façade type. The REST layer
-      // calls it the same way (see `parseWriteAndCommit` in resource.ts).
+      // calls it the same way (see the record's write path).
       await tx.execute(
         await listingsTable.updateStatement!(stored.id, wouldBe),
       );
@@ -152,6 +150,7 @@ export const probeAssignDates = async (
 export const planListingTypeSwitch = async (
   stored: ListingWithCount,
   form: FormParams,
+  view: ListingFormView,
 ): Promise<SwitchStep> => {
   if (form.getString("listing_type") !== "daily") return { kind: "none" };
   if (stored.listing_type === "daily") return { kind: "none" };
@@ -164,7 +163,7 @@ export const planListingTypeSwitch = async (
   const places = rows.reduce((total, row) => total + row.quantity, 0);
   const chosen = form.getString(ASSIGN_UNDATED_FIELD);
 
-  const parsed = await buildUpdateListingResource(form, stored).parseInput(
+  const parsed = await buildUpdateListingResource(stored, view).parseInput(
     form,
   );
   if (!parsed.ok) return { error: parsed.error, kind: "invalid" };

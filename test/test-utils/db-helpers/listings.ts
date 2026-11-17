@@ -1,14 +1,19 @@
 import { getListingWithCount, listingsTable } from "#db/listings/records.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import { sql } from "#db/sql.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
+import { withEnv } from "#test-utils/env.ts";
 import {
   resolveTestGroupIds,
   type TestListingOverrides,
   testListingInput,
 } from "#test-utils/factories.ts";
+import type { TestFormValues } from "#test-utils/form-values.ts";
+import type { BookAttendeeOpts } from "#test-utils/internal.ts";
 import type { Listing, ListingWithCount } from "#types";
 import {
   buildCreateListingForm,
   buildUpdateListingForm,
+  defaultsSwitchShown,
 } from "./listing-forms.ts";
 import {
   doAuthenticatedFormRequest,
@@ -48,35 +53,76 @@ const applyTestListingGroups = async (
   await setListingGroups(listingId, groupIds);
 };
 
-export const createTestListing = async (
-  overrides: TestListingOverrides = {},
-): Promise<ListingWithCount> => {
-  const input = testListingInput(overrides);
-  // The create form refuses a capacity below the field's declared minimum of
-  // 1. A fixture that needs a stored zero-capacity listing — the capacity
-  // suites do — submits the form with a bookable capacity and then writes the
-  // requested column value directly.
-  const formCapacity = Math.max(input.maxAttendees, 1);
-  const listing = await doAuthenticatedMultipartFormRequest(
+/** True when the listing holds a site plan: only a site that builds sites
+ *  can hold one, so its fixture is created with site building on. */
+const holdsSitePlan = (
+  input: Pick<
+    ListingInput,
+    "assignBuiltSite" | "initialSiteMonths" | "monthsPerUnit"
+  >,
+): boolean =>
+  input.assignBuiltSite === true ||
+  (input.monthsPerUnit ?? 0) > 0 ||
+  (input.initialSiteMonths ?? 0) > 0;
+
+/** Post one create form as the owner, and read back the listing it made. */
+const postCreateForm = (
+  form: TestFormValues,
+  errorContext: string,
+): Promise<ListingWithCount> =>
+  doAuthenticatedMultipartFormRequest(
     "/admin/listing",
-    buildCreateListingForm({ ...input, maxAttendees: formCapacity }),
+    form,
     async () => {
       const { getAllListings } = await import("#db/listings/records.ts");
       const listings = await getAllListings();
       return listings[0] as ListingWithCount;
     },
+    errorContext,
+  );
+
+export const createTestListing = async (
+  overrides: TestListingOverrides = {},
+): Promise<ListingWithCount> => {
+  const input = testListingInput(overrides);
+  using _builder = holdsSitePlan(input)
+    ? withEnv({ CAN_BUILD_SITES: "true" })
+    : undefined;
+  // The create form refuses a capacity below the field's declared minimum of
+  // 1. A fixture that needs a stored zero-capacity listing — the capacity
+  // suites do — submits the form with a bookable capacity and then writes the
+  // requested column value directly.
+  const formCapacity = Math.max(input.maxAttendees, 1);
+  // The page shows the "use defaults" switch only while the site holds a
+  // default. A fixture that inherits before any default exists writes the
+  // flag directly, the same way.
+  const writesDefaultsFlag =
+    input.useDefaults === true && !defaultsSwitchShown("owner");
+  const listing = await postCreateForm(
+    buildCreateListingForm({
+      ...input,
+      maxAttendees: formCapacity,
+      useDefaults: input.useDefaults && !writesDefaultsFlag,
+    }),
     "create listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
-  if (formCapacity !== input.maxAttendees) {
-    const { execute } = await import("#db/client.ts");
-    await execute("UPDATE listings SET max_attendees = ? WHERE id = ?", [
-      input.maxAttendees,
-      listing.id,
-    ]);
-    return { ...listing, max_attendees: input.maxAttendees };
+  const { execute } = await import("#db/client.ts");
+  if (writesDefaultsFlag) {
+    await execute(
+      sql`UPDATE listings SET use_defaults = 1 WHERE id = ${listing.id}`,
+    );
   }
-  return listing;
+  if (formCapacity !== input.maxAttendees) {
+    await execute(
+      sql`UPDATE listings SET max_attendees = ${input.maxAttendees} WHERE id = ${listing.id}`,
+    );
+  }
+  return {
+    ...listing,
+    max_attendees: input.maxAttendees,
+    use_defaults: listing.use_defaults || writesDefaultsFlag,
+  };
 };
 
 /**
@@ -90,14 +136,8 @@ export const duplicateTestListing = async (
   overrides: TestListingOverrides = {},
 ): Promise<ListingWithCount> => {
   const input = testListingInput(overrides);
-  const listing = await doAuthenticatedMultipartFormRequest(
-    "/admin/listing",
+  const listing = await postCreateForm(
     { ...buildCreateListingForm(input), duplicated_from: String(sourceId) },
-    async () => {
-      const { getAllListings } = await import("#db/listings/records.ts");
-      const listings = await getAllListings();
-      return listings[0] as ListingWithCount;
-    },
     "duplicate listing",
   );
   await applyTestListingGroups(listing.id, resolveTestGroupIds(overrides));
@@ -159,6 +199,15 @@ const changeListingStatus =
 export const deactivateTestListing = changeListingStatus("deactivate");
 export const reactivateTestListing = changeListingStatus("reactivate");
 
+/** Create a listing, then deactivate it through the admin form. */
+export const createDeactivatedTestListing = async (
+  overrides: TestListingOverrides,
+): Promise<Pick<ListingWithCount, "id" | "name">> => {
+  const { id, name } = await createTestListing(overrides);
+  await deactivateTestListing(id);
+  return { id, name };
+};
+
 /** Delete a listing the way the admin's confirmed delete form does. */
 export const deleteTestListing = async (
   listing: Pick<ListingWithCount, "id" | "name">,
@@ -194,6 +243,40 @@ export const bookableStartDates = async (
     (await getListingWithCount(listingId))!,
     await getActiveHolidays(),
   );
+};
+
+/** The minimal valid edit form for a switch to booked by the day: the fields
+ * the real form always submits, at the listing's stored values. Each ticked
+ * day is one field, as a browser sends a checkbox group. */
+export const dailySwitchForm = (
+  listing: Pick<ListingWithCount, "max_attendees" | "name" | "slug">,
+  extra: TestFormValues = {},
+): TestFormValues => ({
+  bookable_days: allDays,
+  duration_days: "1",
+  listing_type: "daily",
+  max_attendees: String(listing.max_attendees),
+  max_quantity: "1",
+  maximum_days_after: "90",
+  minimum_days_before: "1",
+  name: listing.name,
+  slug: listing.slug,
+  thank_you_url: "https://example.com",
+  unit_price: "0",
+  ...extra,
+});
+
+/** A listing holding one booking. */
+export const listingWithOneBooking = async (
+  overrides: TestListingOverrides,
+  booking: BookAttendeeOpts,
+): Promise<ListingWithCount> => {
+  const { bookAttendee } = await import(
+    "#test-utils/db-helpers/attendee-payments.ts"
+  );
+  const listing = await createTestListing(overrides);
+  await bookAttendee(listing, booking);
+  return listing;
 };
 
 /** A listing holding two undated bookings: one row of 2 places, one row of 3.

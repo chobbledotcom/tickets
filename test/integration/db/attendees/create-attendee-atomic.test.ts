@@ -1,36 +1,45 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
+import type {
+  CreateAttendeeResult,
+  ListingBooking,
+} from "#db/attendee-types.ts";
 import { createAttendeeAtomicImpl as createAttendeeAtomic } from "#db/attendees/create.ts";
 import { decryptAttendees } from "#db/attendees/pii.ts";
 import { getAttendeeRaw, getAttendeesRaw } from "#db/attendees/queries.ts";
 import { dateToRange } from "#db/capacity.ts";
 import { getDb } from "#db/client.ts";
 import { listingAggregates } from "#db/listings/aggregates.ts";
+import { sql } from "#db/sql.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { expectNoAttendeesForListings } from "#test-utils/db-helpers/attendees.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createPackageWithMember,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import {
   createDailyTestListing,
   createTestListing,
 } from "#test-utils/db-helpers/listings.ts";
+import { expectWriteRefused } from "#test-utils/db-helpers/refused-booking.ts";
+import type { TestListingOverrides } from "#test-utils/factories.ts";
 import { postListingSale } from "#test-utils/ledger.ts";
 
 /** Fetch raw start_at/end_at for an listing (getAttendeesRaw drops them). */
 const getRange = async (
   listingId: number,
 ): Promise<{ start_at: string; end_at: string }> => {
-  const res = await getDb().execute({
-    args: [listingId],
-    sql: "SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ?",
-  });
+  const res = await getDb().execute(
+    sql`SELECT start_at, end_at FROM listing_attendees WHERE listing_id = ${listingId}`,
+  );
   return res.rows[0] as unknown as { start_at: string; end_at: string };
 };
 
 /** Assert the cart succeeded with one attendee per `[listingId, quantity]` pair,
  * each listing's first row holding that quantity. */
 const expectCartRows = async (
-  result: Awaited<ReturnType<typeof createAttendeeAtomic>>,
+  result: CreateAttendeeResult,
   rows: [number, number][],
 ): Promise<void> => {
   expect(result.success).toBe(true);
@@ -39,6 +48,59 @@ const expectCartRows = async (
     expect((await getAttendeesRaw(listingId))[0]!.quantity).toBe(quantity);
   }
 };
+
+/** One dated cart line on `listing`, holding one place unless `overrides` say
+ *  otherwise about the days booked, the quantity, or the parent. */
+const datedLine = (
+  listing: { id: number },
+  date: string,
+  overrides: Partial<ListingBooking> = {},
+): ListingBooking => ({
+  date,
+  listingId: listing.id,
+  quantity: 1,
+  ...overrides,
+});
+
+/** A daily listing open for thirty days, with room for `maxAttendees` and any
+ *  `overrides` a case adds. */
+const openDailyListing = (
+  maxAttendees: number,
+  overrides: TestListingOverrides = {},
+) =>
+  createDailyTestListing({
+    maxAttendees,
+    maximumDaysAfter: 30,
+    ...overrides,
+  });
+
+/** Book one dated slot on a fresh daily listing and read back the raw
+ *  start_at/end_at it stored. The contact stays fixed: only the range matters
+ *  to the caller. */
+const bookRange = async (slot: {
+  date: string;
+  durationDays: number;
+  maxAttendees: number;
+  maximumDaysAfter: number;
+}): Promise<{ start_at: string; end_at: string }> => {
+  const listing = await openDailyListing(slot.maxAttendees, {
+    durationDays: slot.durationDays,
+    maximumDaysAfter: slot.maximumDaysAfter,
+  });
+  await createAttendeeAtomic({
+    bookings: [
+      datedLine(listing, slot.date, { durationDays: slot.durationDays }),
+    ],
+    email: "range@example.com",
+    name: "Range",
+  });
+  return getRange(listing.id);
+};
+
+/** A shared group capped at three places — the pool the intra-cart cases fill,
+ *  named so its two listings read as one cart. */
+const cartGroup = (name: string) =>
+  createTestGroup({ maxAttendees: 3, name, slug: name });
 
 const setupBookedOutListing = async () => {
   const listing = await createTestListing({ maxAttendees: 1 });
@@ -74,8 +136,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // selects must hydrate it too — otherwise a re-sent notification for a
     // hidden package booking treats the row as a standalone member and can leak
     // the hidden listing or its base price.
-    const group = await createTestGroup({ isPackage: true, name: "Pkg" });
-    const listing = await createTestListing({ groupId: group.id });
+    const { group, member: listing } = await createPackageWithMember("Pkg");
     const result = await createAttendeeAtomic({
       bookings: [
         { listingId: listing.id, packageGroupId: group.id, quantity: 1 },
@@ -166,16 +227,11 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "First",
     });
 
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "second@example.com",
-      name: "Second",
-    });
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.reason).toBe("capacity_exceeded");
-    }
+    const refused = await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "second@example.com", name: "Second" },
+    );
+    expect(refused.reason).toBe("capacity_exceeded");
   });
 
   test("fails with empty bookings", async () => {
@@ -185,10 +241,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
       name: "Nobody",
     });
 
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.reason).toBe("capacity_exceeded");
-    }
+    expect(result).toMatchObject({
+      reason: "capacity_exceeded",
+      success: false,
+    });
   });
 
   test("stores and returns price_paid when provided", async () => {
@@ -225,47 +281,23 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("stores end_at = start_at + duration days for daily multi-day bookings", async () => {
-    const listing = await createDailyTestListing({
+    const { start_at, end_at } = await bookRange({
+      date: "2026-05-01",
       durationDays: 3,
       maxAttendees: 5,
       maximumDaysAfter: 30,
     });
-    await createAttendeeAtomic({
-      bookings: [
-        {
-          date: "2026-05-01",
-          durationDays: 3,
-          listingId: listing.id,
-          quantity: 1,
-        },
-      ],
-      email: "range@example.com",
-      name: "Range",
-    });
-    const { start_at, end_at } = await getRange(listing.id);
     expect(start_at).toBe("2026-05-01T00:00:00Z");
     expect(end_at).toBe("2026-05-04T00:00:00.000Z");
   });
 
   test("year-boundary range stores end_at correctly", async () => {
-    const listing = await createDailyTestListing({
+    const { start_at, end_at } = await bookRange({
+      date: "2026-12-30",
       durationDays: 7,
       maxAttendees: 2,
       maximumDaysAfter: 400,
     });
-    await createAttendeeAtomic({
-      bookings: [
-        {
-          date: "2026-12-30",
-          durationDays: 7,
-          listingId: listing.id,
-          quantity: 1,
-        },
-      ],
-      email: "ny@example.com",
-      name: "NewYear",
-    });
-    const { start_at, end_at } = await getRange(listing.id);
     expect(start_at).toBe("2026-12-30T00:00:00Z");
     expect(end_at).toBe("2027-01-06T00:00:00.000Z");
   });
@@ -273,77 +305,55 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   test("boundary: day-N end does not overlap another booking starting on day N", async () => {
     // Two 1-day bookings back-to-back at cap=1. start_at strict <, end_at
     // strict > — the second must fit.
-    const listing = await createDailyTestListing({
-      maxAttendees: 1,
-      maximumDaysAfter: 30,
-    });
-    const a = await createAttendeeAtomic({
-      bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
-      email: "a@example.com",
-      name: "A",
-    });
+    const listing = await openDailyListing(1);
+    const book = (date: string, email: string) =>
+      createAttendeeAtomic({
+        bookings: [datedLine(listing, date)],
+        email,
+        name: "Boundary",
+      });
+    const a = await book("2026-05-01", "a@example.com");
     expect(a.success).toBe(true);
-    const b = await createAttendeeAtomic({
-      bookings: [{ date: "2026-05-02", listingId: listing.id, quantity: 1 }],
-      email: "b@example.com",
-      name: "B",
-    });
+    const b = await book("2026-05-02", "b@example.com");
     expect(b.success).toBe(true);
   });
 
   test("atomic SQL rejects a multi-day booking spanning a full day (no preflight)", async () => {
     // Bypass checkBatchAvailability and stress the inline capacity check in
     // the INSERT: day 2 at cap, 3-day booking starting day 1 must reject.
-    const listing = await createDailyTestListing({
-      durationDays: 3,
-      maxAttendees: 2,
-      maximumDaysAfter: 30,
-    });
+    const listing = await openDailyListing(2, { durationDays: 3 });
     await createAttendeeAtomic({
       bookings: [
-        {
-          date: "2026-05-02",
-          durationDays: 1,
-          listingId: listing.id,
-          quantity: 2,
-        },
+        datedLine(listing, "2026-05-02", { durationDays: 1, quantity: 2 }),
       ],
       email: "mid@example.com",
       name: "Mid",
     });
-    const result = await createAttendeeAtomic({
-      bookings: [
-        {
-          date: "2026-05-01",
-          durationDays: 3,
-          listingId: listing.id,
-          quantity: 1,
-        },
-      ],
-      email: "span@example.com",
-      name: "Span",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      {
+        date: "2026-05-01",
+        durationDays: 3,
+        listingId: listing.id,
+        quantity: 1,
+      },
+      { email: "span@example.com", name: "Span" },
+    );
   });
 
   test("atomic SQL uses editable booked quantity for date-less capacity", async () => {
     const listing = await setupBookedOutListing();
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "manual-full@example.com",
-      name: "Manual Full",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "manual-full@example.com", name: "Manual Full" },
+    );
   });
 
   test("atomic SQL uses editable booked quantity for dated standard listings", async () => {
     const listing = await setupBookedOutListing();
-    const result = await createAttendeeAtomic({
-      bookings: [{ date: "2026-05-01", listingId: listing.id, quantity: 1 }],
-      email: "dated-standard-full@example.com",
-      name: "Dated Standard Full",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { date: "2026-05-01", listingId: listing.id, quantity: 1 },
+      { email: "dated-standard-full@example.com", name: "Dated Standard Full" },
+    );
   });
 
   test("concurrent at-capacity inserts: only one wins", async () => {
@@ -370,9 +380,6 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     groupMax: number,
     memberMax: number,
   ) => {
-    const { createTestGroup } = await import(
-      "#test-utils/db-helpers/groups.ts"
-    );
     const group = await createTestGroup({
       isPackage: true,
       maxAttendees: groupMax,
@@ -417,8 +424,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     const { queryAll } = await import("#db/client.ts");
     for (const member of [memberA, memberB]) {
       const rows = await queryAll<{ quantity: number }>(
-        "SELECT quantity FROM listing_attendees WHERE listing_id = ?",
-        [member.id],
+        sql`SELECT quantity FROM listing_attendees WHERE listing_id = ${member.id}`,
       );
       expect(rows).toHaveLength(1);
       expect(rows[0]!.quantity).toBe(1);
@@ -435,26 +441,21 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
 
   test("rejects negative quantities (defensive guard at library boundary)", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
-    const result = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: -1 }],
-      email: "neg@example.com",
-      name: "Neg",
-    });
-    expect(result.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: -1 },
+      { email: "neg@example.com", name: "Neg" },
+    );
   });
 
   test("rejects duplicate (listing, date) rows in one cart", async () => {
     // The listing_attendees unique index is (listing_id, attendee_id, start_at)
     // — two rows with the same tuple would violate it and silently deliver
     // a half-fulfilled booking. Reject upfront so the caller merges qty.
-    const listing = await createDailyTestListing({
-      maxAttendees: 10,
-      maximumDaysAfter: 30,
-    });
+    const listing = await openDailyListing(10);
     const dup = await createAttendeeAtomic({
       bookings: [
-        { date: "2026-05-01", listingId: listing.id, quantity: 1 },
-        { date: "2026-05-01", listingId: listing.id, quantity: 1 },
+        datedLine(listing, "2026-05-01"),
+        datedLine(listing, "2026-05-01"),
       ],
       email: "dup@example.com",
       name: "Dup",
@@ -463,8 +464,8 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // Different dates on the same listing are fine.
     const ok = await createAttendeeAtomic({
       bookings: [
-        { date: "2026-05-01", listingId: listing.id, quantity: 1 },
-        { date: "2026-05-02", listingId: listing.id, quantity: 1 },
+        datedLine(listing, "2026-05-01"),
+        datedLine(listing, "2026-05-02"),
       ],
       email: "ok@example.com",
       name: "Ok",
@@ -474,18 +475,8 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // the same child under two parents — are distinct slots and are accepted.
     const same = await createAttendeeAtomic({
       bookings: [
-        {
-          date: "2026-05-01",
-          listingId: listing.id,
-          parentListingId: 10,
-          quantity: 1,
-        },
-        {
-          date: "2026-05-01",
-          listingId: listing.id,
-          parentListingId: 20,
-          quantity: 1,
-        },
+        datedLine(listing, "2026-05-01", { parentListingId: 10 }),
+        datedLine(listing, "2026-05-01", { parentListingId: 20 }),
       ],
       email: "same@example.com",
       name: "Same",
@@ -497,11 +488,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     // Two listings share a group capped at 3. A single cart asks for 2 + 2 = 4.
     // The second INSERT's capacity check must see the first INSERT from the
     // same atomic batch, so it is refused and the first line rolls back too.
-    const group = await createTestGroup({
-      maxAttendees: 3,
-      name: "cart-accum",
-      slug: "cart-accum",
-    });
+    const group = await cartGroup("cart-accum");
     const e1 = await createTestListing({
       groupId: group.id,
       maxAttendees: 10,
@@ -525,11 +512,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("intra-cart group cap: a cart that exactly fills the group across listings succeeds", async () => {
-    const group = await createTestGroup({
-      maxAttendees: 3,
-      name: "cart-fill",
-      slug: "cart-fill",
-    });
+    const group = await cartGroup("cart-fill");
     const e1 = await createTestListing({
       groupId: group.id,
       maxAttendees: 10,
@@ -555,11 +538,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("intra-cart group cap is per-date for daily listings booked on the same day", async () => {
-    const group = await createTestGroup({
-      maxAttendees: 3,
-      name: "cart-daily",
-      slug: "cart-daily",
-    });
+    const group = await cartGroup("cart-daily");
     const e1 = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 10,
@@ -584,11 +563,7 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
   });
 
   test("intra-cart daily group cap is independent across different dates", async () => {
-    const group = await createTestGroup({
-      maxAttendees: 3,
-      name: "cart-daily-dates",
-      slug: "cart-daily-dates",
-    });
+    const group = await cartGroup("cart-daily-dates");
     const e1 = await createDailyTestListing({
       groupId: group.id,
       maxAttendees: 10,
@@ -635,12 +610,10 @@ describeWithEnv("db > attendees > createAttendeeAtomic", { db: true }, () => {
     expect(fill.success).toBe(true);
 
     // Default (public/webhook): the capacity guard blocks the second booking.
-    const blocked = await createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "",
-      name: "Blocked",
-    });
-    expect(blocked.success).toBe(false);
+    await expectWriteRefused(
+      { listingId: listing.id, quantity: 1 },
+      { email: "", name: "Blocked" },
+    );
 
     // allowOverbook (admin manual add): the row is inserted anyway.
     const over = await createAttendeeAtomic({

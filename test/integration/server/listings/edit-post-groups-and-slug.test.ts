@@ -13,7 +13,11 @@ import {
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
-import { adminFormPost, setupListingAndLogin } from "#test-utils/session.ts";
+import {
+  submitListingEdit,
+  submitOwnListingEdit,
+} from "#test-utils/listing-submits.ts";
+import { setupListingAndLogin } from "#test-utils/session.ts";
 
 describeWithEnv(
   "server listings > edit post groups and slug",
@@ -27,45 +31,36 @@ describeWithEnv(
         listing: { id: number; name: string; slug: string },
         groupId: number,
       ) =>
-        adminFormPost(`/admin/listing/${listing.id}/edit`, {
+        submitOwnListingEdit(listing, {
           group_ids: String(groupId),
-          max_attendees: "50",
-          max_quantity: "1",
-          name: listing.name,
-          slug: listing.slug,
         });
 
-      test("updates listing group_id", async () => {
-        const group1 = await createTestGroup({
-          name: "Group One",
-          slug: "group-one",
-        });
-        const group2 = await createTestGroup({
-          name: "Group Two",
-          slug: "group-two",
-        });
-        const { listing } = await setupListingAndLogin({
-          groupId: group1.id,
-          maxAttendees: 50,
-          name: "Group Switch Listing",
-        });
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            group_ids: String(group2.id),
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-        );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
+      const expectListingUpdated = (id: number, response: Response) =>
+        expectFlashRedirect(
+          `/admin/listing/${id}`,
           "Listing updated",
         )(response);
 
+      /** Move the listing into the group, and expect the save to land with
+       *  the group as its only membership. */
+      const expectMovedInto = async (
+        listing: { id: number; name: string; slug: string },
+        groupId: number,
+      ): Promise<void> => {
+        const { response } = await postEditWithGroupId(listing, groupId);
+        await expectListingUpdated(listing.id, response);
+        expect(await listingGroups.getIds(listing.id)).toEqual([groupId]);
+      };
+
+      test("updates listing group_id", async () => {
+        const group1 = await createTestGroup({ name: "Group One" });
+        const group2 = await createTestGroup({ name: "Group Two" });
+        const { listing } = await setupListingAndLogin({
+          groupId: group1.id,
+          name: "Group Switch Listing",
+        });
         // The group checkboxes replace membership: group1 → group2.
-        expect(await listingGroups.getIds(listing.id)).toEqual([group2.id]);
+        await expectMovedInto(listing, group2.id);
       });
 
       test("rejects non-existent group_id on edit", async () => {
@@ -74,16 +69,7 @@ describeWithEnv(
           name: "Edit Bad Group",
         });
 
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            group_ids: "999",
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: listing.slug,
-          },
-        );
+        const { response } = await postEditWithGroupId(listing, 999);
         await expectHtmlResponse(
           response,
           400,
@@ -117,22 +103,26 @@ describeWithEnv(
         );
       });
 
-      test("rejects listing type mismatch with group on edit", async () => {
-        const group = await createTestGroup({
-          name: "Daily Group",
-          slug: "daily-group",
-        });
+      /** A group that holds one listing of the given type, and a standard
+       *  listing to move into it. */
+      const standardListingBesideGroupOf = async (
+        listingType: "daily" | "standard",
+      ) => {
+        const group = await createTestGroup({ name: `${listingType} group` });
         await createTestListing({
           groupId: group.id,
-          listingType: "daily",
-          maxAttendees: 50,
-          name: "Daily Listing",
+          listingType,
+          name: `${listingType} member`,
         });
         const { listing } = await setupListingAndLogin({
           listingType: "standard",
-          maxAttendees: 50,
           name: "Standard Listing",
         });
+        return { group, listing };
+      };
+
+      test("rejects listing type mismatch with group on edit", async () => {
+        const { group, listing } = await standardListingBesideGroupOf("daily");
 
         const { response } = await postEditWithGroupId(listing, group.id);
         const html = await expectHtmlResponse(
@@ -149,174 +139,78 @@ describeWithEnv(
       });
 
       test("allows same listing type in group on edit", async () => {
-        const group = await createTestGroup({
-          name: "Same Type Group",
-          slug: "same-type-group",
-        });
-        await createTestListing({
-          groupId: group.id,
-          listingType: "standard",
-          maxAttendees: 50,
-          name: "Standard A",
-        });
-        const { listing } = await setupListingAndLogin({
-          listingType: "standard",
-          maxAttendees: 50,
-          name: "Standard B",
-        });
+        const { group, listing } =
+          await standardListingBesideGroupOf("standard");
 
-        const { response } = await postEditWithGroupId(listing, group.id);
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
-          "Listing updated",
-        )(response);
+        await expectMovedInto(listing, group.id);
       });
 
-      test("updates listing slug", async () => {
+      /** Save the listing's own name with the given slug, and expect the save
+       *  to land. Returns the slug the listing then stores. */
+      const saveSlug = async (
+        listing: { id: number; name: string },
+        slug: string,
+      ): Promise<string | undefined> => {
+        const { response } = await submitListingEdit(listing.id, {
+          name: listing.name,
+          slug,
+        });
+        await expectListingUpdated(listing.id, response);
+        return (await getListingWithCount(listing.id))?.slug;
+      };
+
+      test("updates, normalizes, and keeps the slug on update", async () => {
         const { listing } = await setupListingAndLogin({
-          maxAttendees: 100,
           name: "Slug Update Test",
-          thankYouUrl: "https://example.com",
         });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "Slug Update Test",
-            slug: "new-custom-slug",
-            thank_you_url: "https://example.com",
-          },
-        );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
-          "Listing updated",
-        )(response);
-
-        const updated = await getListingWithCount(listing.id);
-        expect(updated?.slug).toBe("new-custom-slug");
+        expect([
+          await saveSlug(listing, "new-custom-slug"),
+          await saveSlug(listing, "  My Custom Slug  "),
+          await saveSlug(listing, "my-custom-slug"),
+        ]).toEqual(["new-custom-slug", "my-custom-slug", "my-custom-slug"]);
       });
 
-      test("normalizes slug on update (spaces, uppercase)", async () => {
-        const { listing } = await setupListingAndLogin({
-          maxAttendees: 50,
-          name: "Normalize Test",
+      /** Save the listing's own name with the given slug, and expect the
+       *  refusal message. */
+      const expectSlugRefused = async (
+        listing: { id: number; name: string },
+        slug: string,
+        message: string,
+      ): Promise<void> => {
+        const { response } = await submitListingEdit(listing.id, {
+          name: listing.name,
+          slug,
         });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Normalize Test",
-            slug: "  My Custom Slug  ",
-          },
-        );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
-          "Listing updated",
-        )(response);
-
-        const updated = await getListingWithCount(listing.id);
-        expect(updated?.slug).toBe("my-custom-slug");
-      });
+        await expectHtmlResponse(response, 400, message);
+      };
 
       test("rejects invalid slug characters", async () => {
-        await setupListingAndLogin({
-          maxAttendees: 50,
+        const { listing } = await setupListingAndLogin({
           name: "Invalid Slug Test",
         });
-
-        const { response } = await adminFormPost("/admin/listing/1/edit", {
-          max_attendees: "50",
-          max_quantity: "1",
-          name: "Invalid Slug Test",
-          slug: "invalid_slug!@#",
-        });
-        await expectHtmlResponse(
-          response,
-          400,
+        await expectSlugRefused(
+          listing,
+          "invalid_slug!@#",
           "Slug must be lowercase letters and numbers separated by single hyphens or underscores",
         );
       });
 
-      test("rejects duplicate slug used by another listing", async () => {
-        const listing1 = await createTestListing({
-          maxAttendees: 50,
-          name: "Listing One",
-        });
-        const listing2 = await createTestListing({
-          maxAttendees: 50,
-          name: "Listing Two",
-        });
-
-        // Try to change listing2's slug to listing1's slug
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing2.id}/edit`,
-          {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: "Listing Two",
-            slug: listing1.slug,
-          },
-        );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Slug is already in use by another listing",
-        );
-      });
-
-      test("rejects slug used by a group", async () => {
+      test("rejects a slug used by another listing or by a group", async () => {
+        const other = await createTestListing({ name: "Listing One" });
         const group = await createTestGroup({
           name: "Slug Group",
           slug: "slug-group",
         });
         const { listing } = await setupListingAndLogin({
-          maxAttendees: 50,
-          name: "Listing Slug Collision",
+          name: "Listing Two",
         });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            max_attendees: "50",
-            max_quantity: "1",
-            name: listing.name,
-            slug: group.slug,
-          },
-        );
-        await expectHtmlResponse(
-          response,
-          400,
-          "Slug is already in use by another listing",
-        );
-      });
-
-      test("allows keeping the same slug on update", async () => {
-        const { listing } = await setupListingAndLogin({
-          maxAttendees: 50,
-          name: "Same Slug Test",
-        });
-
-        const { response } = await adminFormPost(
-          `/admin/listing/${listing.id}/edit`,
-          {
-            max_attendees: "100",
-            max_quantity: "1",
-            name: "Same Slug Test",
-            slug: listing.slug,
-          },
-        );
-        await expectFlashRedirect(
-          `/admin/listing/${listing.id}`,
-          "Listing updated",
-        )(response);
-
-        const updated = await getListingWithCount(listing.id);
-        expect(updated?.slug).toBe(listing.slug);
-        expect(updated?.max_attendees).toBe(100);
+        for (const slug of [other.slug, group.slug]) {
+          await expectSlugRefused(
+            listing,
+            slug,
+            "Slug is already in use by another listing",
+          );
+        }
       });
     });
   },

@@ -18,13 +18,13 @@ import {
   insertedRowId,
   queryAll,
   resultRows,
-  type SqlStatement,
   type TxScope,
   useTransaction,
 } from "#db/client.ts";
 import { encryptedSlugSchema, idAndCreatedSchema } from "#db/common-schema.ts";
 import { encryptedNameAndSeoSchema } from "#db/content-columns.ts";
 import { defineIdTable } from "#db/define-id-table.ts";
+import { deleteById } from "#db/delete-row.ts";
 import { decryptTextOrEmpty } from "#db/encrypted-text.ts";
 import type { FillableRead } from "#db/fill-together.ts";
 import {
@@ -33,11 +33,15 @@ import {
   imageUseTargets,
 } from "#db/images.ts";
 import { readRows } from "#db/read.ts";
+import { desc } from "#db/select/expression.ts";
+import { from } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
 import {
   freshSlugIndexWrites,
   unclaimedSlugCondition,
 } from "#db/slug-registry.ts";
 import type { SluggedContentInput } from "#db/slugged-content-input.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { col } from "#db/table.ts";
 import { readById, readBySlugIndex } from "#db/table-reader.ts";
 import { fieldById, mapParallel } from "#fp";
@@ -48,12 +52,7 @@ import { requestCache } from "#shared/request-cache.ts";
 import type { Result } from "#shared/result.ts";
 import { slugify, uniqueSlugFromBase } from "#shared/slug.ts";
 import { isInstant } from "#shared/validation/timestamp.ts";
-import type {
-  ItemImageColumns,
-  NewsPost,
-  NewsPostCard,
-  NewsPostSummary,
-} from "#types";
+import type { ItemImageColumns, NewsPost, NewsPostCard } from "#types";
 
 /** Create/update input (camelCase keys → snake_case columns). `created`, `slug`,
  * and `slugIndex` are computed in {@link createNewsPost}, never posted by the
@@ -111,12 +110,9 @@ export const newsSlugBase = (created: string, name: string): string =>
 
 // The existence probe every public page's nav runs: one indexed LIMIT 1 read,
 // nothing decrypted. Request-scoped and auto-cleared on any news_posts write.
-const existenceStatement: SqlStatement = {
-  args: [],
-  sql: "SELECT id FROM news_posts LIMIT 1",
-};
+const existenceStatement: SqlStatement = sql`SELECT id FROM news_posts LIMIT 1`;
 const existenceCache = requestCache(() =>
-  queryAll<{ id: number }>(existenceStatement.sql),
+  queryAll<{ id: number }>(existenceStatement),
 );
 registerTableInvalidation(["news_posts"], existenceCache.invalidate);
 
@@ -141,18 +137,23 @@ type SealedCardRow = StoredRowOf<
 /** Load the summary projection for every post, newest first: id, created,
  * slug, name, snippet — no image reads or decrypts. Feeds the RSS feed and the
  * admin list, which render no images. */
-export const getNewsPostSummaries = (): Promise<NewsPostSummary[]> =>
-  newsSummaryColumns.many({}, { order: "created DESC, id DESC" });
+export const getNewsPostSummaries = newsSummaryColumns.every({
+  order: sql`created DESC, id DESC`,
+});
 
 /** Load the card projection for every post, newest first: the summary plus
  * the post's first linked image — for the public /news list, the one reader
  * that shows pictures. */
 export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
-  const rows = await readRows<SealedCardRow>({
-    columns: `${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", "news_post.id")}`,
-    from: "news_posts AS news_post",
-    order: "news_post.created DESC, news_post.id DESC",
-  });
+  const rows = await readRows<SealedCardRow>(
+    from(tables.news_posts)
+      .as("news_post")
+      .orderBy((post) => [desc(post.created), desc(post.id)])
+      .columns(
+        (post) =>
+          sql`${newsSummaryColumns.columnsSql("news_post")}, ${imageFilenameSubqueries("news", post.id)}`,
+      ),
+  );
   return mapParallel(async (row: SealedCardRow) => ({
     ...(await newsSummaryColumns.read(row)),
     image_alt_text: await decryptTextOrEmpty(row.image_alt_text),
@@ -172,7 +173,7 @@ export const getNewsPostCards = async (): Promise<NewsPostCard[]> => {
 export const getNewsPostNames = async (): Promise<Map<number, string>> => {
   const rows = await newsNameColumns.many(
     {},
-    { order: "created DESC, id DESC" },
+    { order: sql`created DESC, id DESC` },
   );
   return fieldById("name")(rows);
 };
@@ -205,12 +206,8 @@ export const createNewsPost = async (
       isTaken: async (slug) => {
         const condition = unclaimedNewsSlugCondition(await hmacHash(slug));
         return (
-          resultRows(
-            await tx.execute({
-              args: condition.args,
-              sql: `SELECT 1 WHERE NOT (${condition.sql})`,
-            }),
-          ).length > 0
+          resultRows(await tx.execute(sql`SELECT 1 WHERE NOT (${condition})`))
+            .length > 0
         );
       },
     });
@@ -257,5 +254,5 @@ export const updateNewsPost = async (
 export const deleteNewsPostWithImages = (id: number): Promise<void> =>
   executeBatch([
     clearImageUsesForItemStatement(imageUseTargets.of("news")(id)),
-    { args: [id], sql: "DELETE FROM news_posts WHERE id = ?" },
+    deleteById("news_posts", id),
   ]);

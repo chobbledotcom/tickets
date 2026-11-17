@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { queryOne } from "#db/client.ts";
 import { getListingWithCount } from "#db/listings/records.ts";
+import { sql } from "#db/sql.ts";
 import { committedEntries } from "#routes/api/payment-processing/committed-entries.ts";
 import { processPaymentSession } from "#routes/api/payment-processing/index.ts";
 import type { ValidatedItem } from "#routes/api/payment-processing/package-pricing.ts";
@@ -29,8 +30,7 @@ const storedLineOf = async (
     ticket_token_index: string;
     webhooks_pending: number;
   }>(
-    "SELECT line.checked_in, line.end_at, line.start_at, attendee.status_id, attendee.ticket_token_index, attendee.webhooks_pending FROM listing_attendees AS line JOIN attendees AS attendee ON attendee.id = line.attendee_id WHERE line.attendee_id = ?",
-    [attendeeId],
+    sql`SELECT line.checked_in, line.end_at, line.start_at, attendee.status_id, attendee.ticket_token_index, attendee.webhooks_pending FROM listing_attendees AS line JOIN attendees AS attendee ON attendee.id = line.attendee_id WHERE line.attendee_id = ${attendeeId}`,
   );
   assert(row !== null, "Expected the booking to hold one line");
   return row;

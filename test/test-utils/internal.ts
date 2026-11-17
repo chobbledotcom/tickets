@@ -111,9 +111,7 @@ export type PaymentProviderType =
 export type SessionMetadata = import("#shared/payments.ts").SessionMetadata;
 
 export type { HolidayInput } from "#db/holidays.ts";
-export type {
-  GroupInput,
-  ListingInput,
-} from "#shared/catalog-fields/fields.ts";
 export type { EmailEntry, EmailListing } from "#shared/email.ts";
+export type { GroupInput } from "#shared/records/group-fields.ts";
+export type { ListingInput } from "#shared/records/listing-fields.ts";
 export type { WebhookAttendee } from "#shared/webhook.ts";

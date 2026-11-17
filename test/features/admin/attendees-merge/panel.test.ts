@@ -15,7 +15,10 @@ import {
 } from "#test-utils/attendees/merge.ts";
 import { extractInputValue } from "#test-utils/csrf.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
+import {
+  bookAttendee,
+  bookedAttendee,
+} from "#test-utils/db-helpers/attendee-payments.ts";
 import {
   bookTestAttendee,
   createTestAttendeeDirect,
@@ -188,13 +191,13 @@ describeWithEnv("server (admin attendees) > merge panel", { db: true }, () => {
         maxAttendees: 50,
         name: "Daily E",
       });
-      const result = await bookAttendee(dailyListing, {
-        date: "2026-05-01",
-        email: "john@example.com",
-        name: "John Smith",
-      });
-      if (!result.success) throw new Error("createAttendeeAtomic failed");
-      const sourceToken = result.attendees[0]!.ticket_token;
+      const sourceToken = bookedAttendee(
+        await bookAttendee(dailyListing, {
+          date: "2026-05-01",
+          email: "john@example.com",
+          name: "John Smith",
+        }),
+      ).ticket_token;
 
       const response = await mergeActionsPage(target.id, sourceToken);
       // start_at is set for daily listings — exercises the b.start_at ? `— date` : "" branch

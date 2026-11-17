@@ -10,21 +10,47 @@ import { it as test } from "@std/testing/bdd";
 import { getDb, resultRows } from "#db/client.ts";
 import { listingOptionColumns, rawListingsTable } from "#db/listings/table.ts";
 import { enableQueryLog, getQueryLog } from "#db/query-log.ts";
+import { equal } from "#db/select/expression.ts";
+import { tableNode } from "#db/select/query.ts";
+import { tables } from "#db/select/tables.ts";
+import { sql } from "#db/sql.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { withRequestContext } from "#test-utils/request-context.ts";
 
+/** Writes one listing under each of the two names, so a read sees two rows. */
+async function writeTwoListings(firstName: string, secondName: string) {
+  const first = await createTestListing({ name: firstName });
+  const second = await createTestListing({ name: secondName });
+  return { first, second };
+}
+
+const LISTING = tableNode(tables.listings, "listing");
+
 describeWithEnv("db > table reader > reads", { db: true }, () => {
   test("reads every row when nothing is asked of it", async () => {
-    const first = await createTestListing({ name: "Alpha" });
-    const second = await createTestListing({ name: "Beta" });
+    const { first, second } = await writeTwoListings("Alpha", "Beta");
 
     const rows = await listingOptionColumns.many({}, { alias: "listing" });
 
     expect(rows.map(({ id }) => id).toSorted()).toEqual(
       [first.id, second.id].toSorted(),
     );
+  });
+
+  test("every reads all rows when called, in the order it was given", async () => {
+    const readAll = listingOptionColumns.every({
+      alias: "listing",
+      order: sql`listing.id DESC`,
+    });
+    const { first, second } = await writeTwoListings("Alpha", "Beta");
+
+    // The read runs at the call, so rows written after it was built appear.
+    expect((await readAll()).map(({ id }) => id)).toEqual([
+      second.id,
+      first.id,
+    ]);
   });
 
   test("keeps only the rows the clauses select", async () => {
@@ -40,12 +66,11 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
   });
 
   test("orders and caps the rows", async () => {
-    const first = await createTestListing({ name: "First" });
-    const second = await createTestListing({ name: "Second" });
+    const { first, second } = await writeTwoListings("First", "Second");
 
     const rows = await listingOptionColumns.many(
       {},
-      { alias: "listing", limit: 1, order: "listing.id DESC" },
+      { alias: "listing", limit: 1, order: sql`listing.id DESC` },
     );
 
     expect(rows.map(({ id }) => id)).toEqual([Math.max(first.id, second.id)]);
@@ -125,16 +150,16 @@ describeWithEnv("db > table reader > reads", { db: true }, () => {
       { id: [wanted.id, other.id] },
       {
         alias: "listing",
-        where: [{ args: [wanted.id], clause: "listing.id = ?" }],
+        where: [equal(LISTING.id, wanted.id)],
       },
     );
     const clauseRulesOutEveryRow = await listingOptionColumns.many(
       { id: [wanted.id, other.id] },
-      { alias: "listing", where: [{ args: [], clause: "listing.active = 0" }] },
+      { alias: "listing", where: [equal(LISTING.active, 0)] },
     );
     const filterRulesOutTheRest = await listingOptionColumns.many(
       { id: [wanted.id] },
-      { alias: "listing", where: [{ args: [], clause: "listing.active = 1" }] },
+      { alias: "listing", where: [equal(LISTING.active, 1)] },
     );
 
     expect(bothHold.map(({ id }) => id)).toEqual([wanted.id]);

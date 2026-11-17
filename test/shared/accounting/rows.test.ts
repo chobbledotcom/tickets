@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
   bookingLegBatchInsert,
+  byColumnIn,
   insertStatement,
   selectByEventGroup,
   selectById,
@@ -14,15 +15,15 @@ import {
   executeBatch,
   queryBatch,
   queryOne,
-  type SqlStatement,
   type TxScope,
   withTransaction,
 } from "#db/client.ts";
-import { inList } from "#db/where-clauses.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { account } from "#shared/ledger/account.ts";
-import type { TransferInput } from "#shared/ledger/types.ts";
+import type { Transfer, TransferInput } from "#shared/ledger/types.ts";
 import { emptyResultSet } from "#test-utils/db-helpers/result-set.ts";
 import { useTransactionalDb } from "#test-utils/ledger.ts";
+import { placed } from "#test-utils/sql-text.ts";
 
 /** The value bound to `column` in a built INSERT, by pairing the SQL's leading
  *  column list with its positional args. */
@@ -34,18 +35,41 @@ const boundValue = (
     .slice(statement.sql.indexOf("(") + 1, statement.sql.indexOf(")"))
     .split(",")
     .map((name) => name.trim());
-  return statement.args[columns.indexOf(column)];
+  return placed(statement).args[columns.indexOf(column)];
 };
 
+/** A transfer for the stored-row cases. `overrides` carries the fields a case
+ *  varies: a distinct id pair makes a swapped source and destination visible,
+ *  and the reference and event group name the leg. */
+const transferLeg = (
+  overrides: Partial<TransferInput> = {},
+): TransferInput => ({
+  amount: 5000,
+  destination: account("revenue", 7),
+  eventGroup: "evt",
+  occurredAt: "2026-06-21T00:00:00.000Z",
+  reference: "ref",
+  source: account("attendee", 3),
+  ...overrides,
+});
+
+/** A leg whose event group and reference both carry `name`, so a reader that
+ *  returns the wrong leg is visible. */
+const namedLeg = (
+  name: string,
+  overrides: Partial<TransferInput> = {},
+): TransferInput =>
+  transferLeg({
+    eventGroup: `evt-${name}`,
+    reference: `ref-${name}`,
+    ...overrides,
+  });
+
 describe("accounting > rows > insertStatement", () => {
-  const base: TransferInput = {
-    amount: 5000,
+  const base = transferLeg({
     destination: account("revenue", 1),
-    eventGroup: "evt",
-    occurredAt: "2026-06-21T00:00:00.000Z",
-    reference: "ref",
     source: account("attendee", 1),
-  };
+  });
   const recordedAt = "2026-06-21T12:00:00.000Z";
 
   test("defaults posted_by and reverses_id only when absent, preserving explicit edge values", () => {
@@ -70,31 +94,32 @@ describe("accounting > rows > bookingLegBatchInsert", () => {
   // Distinct attendee (3) and revenue (9) ids, so a swapped side is visible:
   // the attendee literal must vanish (replaced by the subquery) while the
   // revenue literal stays bound.
-  const leg: TransferInput = {
-    amount: 5000,
+  const leg = transferLeg({
     destination: account("revenue", 9),
-    eventGroup: "evt",
     kind: "sale",
-    occurredAt: "2026-06-21T00:00:00.000Z",
-    reference: "ref",
-    source: account("attendee", 3),
-  };
-  const guard = { args: ["g"], sql: "? = 'g'" };
+  });
+  const guard = sql`${"g"} = 'g'`;
 
   test("renders ONLY the attendee side via the in-batch id subquery", () => {
-    const built = bookingLegBatchInsert(leg, recordedAt, "MAX(id)", 7, guard);
+    const built = bookingLegBatchInsert(
+      leg,
+      recordedAt,
+      sql`MAX(id) + ${7}`,
+      guard,
+    );
     // source is the attendee account -> subquery; destination (revenue) stays a
     // bound literal. Swapping the two would post the sale to a phantom account.
-    assertStringIncludes(built.sql, "CAST(MAX(id) AS TEXT)");
-    expect(built.sql.indexOf("CAST(MAX(id) AS TEXT)")).toBe(
-      built.sql.lastIndexOf("CAST(MAX(id) AS TEXT)"),
+    const text = placed(built).sql;
+    assertStringIncludes(text, "CAST(MAX(id) + ?");
+    expect(text.indexOf("CAST(MAX(id) + ?")).toBe(
+      text.lastIndexOf("CAST(MAX(id) + ?"),
     );
     assertArrayIncludes(built.args, [7]); // the subquery's bound arg
     assertArrayIncludes(built.args, ["9"]); // revenue id still a bound literal
     assert(!built.args.includes("3")); // attendee id replaced by subquery
     expect(built.args.at(-1)).toBe("g"); // guard args come last
     expect(built.sql).toMatch(/^INSERT OR IGNORE INTO transfers /);
-    assertStringIncludes(built.sql, "WHERE ? = 'g'");
+    expect(built.sql).toMatch(/WHERE \?\d+ = 'g'$/);
   });
 });
 
@@ -113,29 +138,19 @@ const recordingReader = (): {
 
 const STORED_AT = "2026-06-21T12:00:00.000Z";
 
-const leg = (reference: string, eventGroup: string): TransferInput => ({
-  amount: 5000,
-  destination: account("revenue", 7),
-  eventGroup,
-  occurredAt: "2026-06-21T00:00:00.000Z",
-  reference,
-  source: account("attendee", 3),
-});
-
 /** Two legs under different events, so a reader that ignores its filter and
  *  returns everything is visible. */
 const storeTwoLegs = (): Promise<void> =>
   executeBatch([
-    insertStatement(leg("ref-a", "evt-a"), STORED_AT),
-    insertStatement(leg("ref-b", "evt-b"), STORED_AT),
+    insertStatement(namedLeg("a"), STORED_AT),
+    insertStatement(namedLeg("b"), STORED_AT),
   ]);
 
 /** The id a reference was stored under, read straight from the table: a test of
  *  one reader must not lean on another to set itself up. */
 const storedIdFor = async (reference: string): Promise<number> => {
   const row = await queryOne<{ id: number | bigint }>(
-    "SELECT id FROM transfers WHERE reference = ?",
-    [reference],
+    sql`SELECT id FROM transfers WHERE reference = ${reference}`,
   );
   if (row === null) throw new Error(`Nothing was stored for ${reference}`);
   return Number(row.id);
@@ -148,8 +163,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     await storeTwoLegs();
 
     const [byGroup, byReference] = await selectTransfersMany(queryBatch, [
-      { where: inList("event_group", ["evt-b"]) },
-      { where: inList("reference", ["ref-a"]) },
+      byColumnIn("event_group", ["evt-b"]),
+      byColumnIn("reference", ["ref-a"]),
     ]);
 
     // Swapped answers would read as a stored collision that is not there.
@@ -161,8 +176,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const [none, some] = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", ["ref-a"]) },
+      byColumnIn("id", []),
+      byColumnIn("reference", ["ref-a"]),
     ]);
 
     expect(none).toEqual([]);
@@ -175,8 +190,8 @@ describe("accounting > rows > selectTransfersMany", () => {
     const { asked, reader } = recordingReader();
 
     const rows = await selectTransfersMany(reader, [
-      { where: inList("id", []) },
-      { where: inList("reference", []) },
+      byColumnIn("id", []),
+      byColumnIn("reference", []),
     ]);
 
     expect(rows).toEqual([[], []]);
@@ -200,8 +215,8 @@ describe("accounting > rows > selectTransfersMany", () => {
         },
       };
       return selectTransfersMany(counted.batch, [
-        { where: inList("event_group", ["evt-a"]) },
-        { where: inList("reference", ["ref-b"]) },
+        byColumnIn("event_group", ["evt-a"]),
+        byColumnIn("reference", ["ref-b"]),
       ]);
     });
 
@@ -246,17 +261,32 @@ describe("accounting > rows > stored-row round-trip", () => {
   useTransactionalDb();
   const recordedAt = "2026-06-21T12:00:00.000Z";
 
+  /** Store one leg and read it straight back — the round trip each single-field
+   *  reader case checks. */
+  const roundTripLeg = async (
+    name: string,
+    overrides: Partial<TransferInput> = {},
+  ): Promise<Transfer> => {
+    await executeBatch([
+      insertStatement(namedLeg(name, overrides), recordedAt),
+    ]);
+    const [stored] = await selectTransfers(queryBatch);
+    if (stored === undefined) throw new Error(`the ${name} leg did not store`);
+    return stored;
+  };
+
+  /** Store the legs, then read the ledger back in the order of storage. */
+  const storedInOrder = async (
+    legs: readonly TransferInput[],
+  ): Promise<Transfer[]> => {
+    await executeBatch(legs.map((leg) => insertStatement(leg, recordedAt)));
+    return selectTransfers(queryBatch, (ledger) =>
+      ledger.orderBy((leg) => [leg.id]),
+    );
+  };
+
   test("selectTransfers reads every column back, reversesId present and absent", async () => {
-    const plain: TransferInput = {
-      amount: 5000,
-      destination: account("revenue", 7),
-      eventGroup: "evt-plain",
-      kind: "sale",
-      memo: "first",
-      occurredAt: "2026-06-21T00:00:00.000Z",
-      reference: "ref-plain",
-      source: account("attendee", 3),
-    };
+    const plain = namedLeg("plain", { kind: "sale", memo: "first" });
     // A void leg carrying a (non-FK) reverses_id, so the NULL vs real-id branch of
     // the row→Transfer mapping is exercised both ways.
     const voiding: TransferInput = {
@@ -266,96 +296,53 @@ describe("accounting > rows > stored-row round-trip", () => {
       reference: "ref-void",
       reversesId: 999,
     };
-    await executeBatch([
-      insertStatement(plain, recordedAt),
-      insertStatement(voiding, recordedAt),
-    ]);
-
-    const all = await selectTransfers(queryBatch, { order: "id" });
+    const all = await storedInOrder([plain, voiding]);
     expect(all.length).toBe(2);
     const [first, second] = all;
 
     // Full-fidelity round-trip — a corrupted SELECT column list loses these.
-    expect(first!.amount).toBe(5000);
-    expect(first!.source).toEqual(account("attendee", 3));
-    expect(first!.destination).toEqual(account("revenue", 7));
-    expect(first!.reference).toBe("ref-plain");
-    expect(first!.eventGroup).toBe("evt-plain");
-    expect(first!.kind).toBe("sale");
-    expect(first!.memo).toBe("first");
-    expect(first!.occurredAt).toBe("2026-06-21T00:00:00.000Z");
+    expect(first).toMatchObject({
+      amount: 5000,
+      destination: account("revenue", 7),
+      eventGroup: "evt-plain",
+      kind: "sale",
+      memo: "first",
+      occurredAt: "2026-06-21T00:00:00.000Z",
+      reference: "ref-plain",
+      source: account("attendee", 3),
+    });
 
     // NULL reverses_id maps to undefined; a real id maps to the Number.
-    expect(first!.reversesId).toBeUndefined();
+    expect(first!.reversesId).toBe(undefined);
     expect(second!.reversesId).toBe(999);
   });
 
   test("a kindless leg stores as '' and reads back with kind omitted", async () => {
-    const kindless: TransferInput = {
-      amount: 100,
-      destination: account("revenue", 7),
-      eventGroup: "evt-kindless",
-      occurredAt: "2026-06-21T00:00:00.000Z",
-      reference: "ref-kindless",
-      source: account("attendee", 3),
-    };
-    await executeBatch([insertStatement(kindless, recordedAt)]);
-    const [stored] = await selectTransfers(queryBatch);
+    const stored = await roundTripLeg("kindless", { amount: 100 });
     // Omitted, not "": a stored transfer and a never-stored input must agree
     // on what "no kind" looks like (mirroring reverses_id).
-    expect(stored!.kind).toBeUndefined();
-    expect("kind" in stored!).toBe(false);
+    expect("kind" in stored).toBe(false);
   });
 
   test("a leg with no memo stores an empty one, not a stand-in", async () => {
-    const memoless: TransferInput = {
-      amount: 100,
-      destination: account("revenue", 7),
-      eventGroup: "evt-memoless",
-      occurredAt: "2026-06-21T00:00:00.000Z",
-      reference: "ref-memoless",
-      source: account("attendee", 3),
-    };
-    await executeBatch([insertStatement(memoless, recordedAt)]);
-
-    const [stored] = await selectTransfers(queryBatch);
-
+    const stored = await roundTripLeg("memoless", { amount: 100 });
     // Unlike kind, memo keeps its "" — so the absence must be stored as empty
     // rather than as any filler a reader would later show to an operator.
-    expect(stored!.memo).toBe("");
+    expect(stored.memo).toBe("");
   });
 
   test("a reversal leg reads back naming its order; a plain leg carries no mark", async () => {
     // A refund leg and a plain leg of the same order: the round-trip must
     // return the reversed order's group on the refund leg and omit the field
     // for a leg with none, mirroring `reverses_id`'s NULL-vs-id mapping.
-    const refund: TransferInput = {
-      amount: 5000,
+    const refund = namedLeg("refund", {
       destination: account("attendee", 3),
-      eventGroup: "evt-refund",
       kind: "refund_sale",
-      occurredAt: "2026-06-21T00:00:00.000Z",
-      reference: "ref-refund",
       reversesGroup: "evt-order",
       source: account("revenue", 7),
-    };
-    const plain: TransferInput = {
-      amount: 5000,
-      destination: account("revenue", 7),
-      eventGroup: "evt-order",
-      kind: "sale",
-      occurredAt: "2026-06-21T00:00:00.000Z",
-      reference: "ref-sale",
-      source: account("attendee", 3),
-    };
-    await executeBatch([
-      insertStatement(plain, recordedAt),
-      insertStatement(refund, recordedAt),
-    ]);
-
-    const all = await selectTransfers(queryBatch, { order: "id" });
-    const [sale, reversal] = all;
-    expect(sale!.reversesGroup).toBeUndefined();
+    });
+    const plain = namedLeg("sale", { eventGroup: "evt-order", kind: "sale" });
+    const [sale, reversal] = await storedInOrder([plain, refund]);
     expect("reversesGroup" in sale!).toBe(false);
     expect(reversal!.reversesGroup).toBe("evt-order");
   });

@@ -1,9 +1,10 @@
-import { assert } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { getDb, queryAll } from "#db/client.ts";
 import groupFlatPricesMigration from "#db/migrations/2026-07-02_group_flat_prices.ts";
 import { recreateTable } from "#db/migrations/schema-sync.ts";
+import { sql } from "#db/sql.ts";
+import { expectColumnDroppedKeeping } from "#test-utils/db/migration-column-drop.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { buildMigrationContext } from "#test-utils/migrations.ts";
 
@@ -17,7 +18,7 @@ const runMigration = () => groupFlatPricesMigration(context).up();
  * A test DB is built from the current SCHEMA, which no longer has the column. */
 const addLegacyColumn = (): Promise<unknown> =>
   getDb().execute(
-    "ALTER TABLE group_listings ADD COLUMN package_price INTEGER",
+    sql`ALTER TABLE group_listings ADD COLUMN package_price INTEGER`,
   );
 
 /** Insert a legacy membership row carrying a `package_price` value. */
@@ -27,24 +28,18 @@ const seedMember = (
   quantity: number,
   packagePrice: number | null,
 ): Promise<unknown> =>
-  getDb().execute({
-    args: [groupId, listingId, quantity, packagePrice],
-    sql: "INSERT INTO group_listings (group_id, listing_id, quantity, package_price) VALUES (?, ?, ?, ?)",
-  });
+  getDb().execute(
+    sql`INSERT INTO group_listings (group_id, listing_id, quantity, package_price) VALUES (${groupId}, ${listingId}, ${quantity}, ${packagePrice})`,
+  );
 
 /** The migrated `group` price rows, ordered for stable assertions. */
 const groupPriceRows = (): Promise<
   { listing_id: number; price_id: string; unit_price: number }[]
 > =>
   queryAll(
-    `SELECT listing_id, price_id, unit_price FROM listing_prices
+    sql`SELECT listing_id, price_id, unit_price FROM listing_prices
       WHERE price_type = 'group' ORDER BY price_id, listing_id`,
   );
-
-const groupListingsColumns = async (): Promise<string[]> => {
-  const info = await getDb().execute("PRAGMA table_info(group_listings)");
-  return info.rows.map((row) => String(row.name));
-};
 
 describeWithEnv(
   "db > migrations > 2026-07-02_group_flat_prices",
@@ -68,15 +63,16 @@ describeWithEnv(
         { listing_id: 10, price_id: "2", unit_price: 750 },
       ]);
       // The column is gone but membership + quantity survive the rebuild.
-      assert(!(await groupListingsColumns()).includes("package_price"));
-      const rows = await queryAll<{ listing_id: number; quantity: number }>(
-        "SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id",
+      await expectColumnDroppedKeeping(
+        "group_listings",
+        "package_price",
+        sql`SELECT listing_id, quantity FROM group_listings WHERE group_id = 1 ORDER BY listing_id`,
+        [
+          { listing_id: 10, quantity: 2 },
+          { listing_id: 11, quantity: 1 },
+          { listing_id: 12, quantity: 1 },
+        ],
       );
-      expect(rows).toEqual([
-        { listing_id: 10, quantity: 2 },
-        { listing_id: 11, quantity: 1 },
-        { listing_id: 12, quantity: 1 },
-      ]);
     });
 
     test("is a no-op when the legacy column is already gone (idempotent re-run)", async () => {

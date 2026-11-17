@@ -1,0 +1,23 @@
+{
+  "threshold": 0,
+  "noTips": true,
+  "reporters": [
+    "console",
+    "json"
+  ],
+  "output": ".jscpd-report-css",
+  "ignore": [
+    "**/node_modules/**"
+  ],
+  "format": [
+    "scss"
+  ],
+  "path": [
+    "../src/ui/static"
+  ],
+  "absolute": true,
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 1,
+  "minTokens": 50
+}

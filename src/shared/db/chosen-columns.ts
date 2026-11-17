@@ -9,6 +9,7 @@
  * join), and both of them open their rows with this.
  */
 
+import { type SqlStatement, sqlNames } from "#db/sql.ts";
 import type { ReadColumn, TableSchema } from "#db/table.ts";
 import { mapParallel } from "#fp";
 
@@ -49,7 +50,7 @@ export interface ChosenColumns<Row, Columns extends ColumnNames<Row>> {
   readonly columns: Columns;
   /** The chosen columns as a SELECT list — what a join must select for this set
    * to open its rows. */
-  columnsSql: (alias?: string) => string;
+  columnsSql: (alias?: string) => SqlStatement;
   read: (
     row: StoredRowOf<Row, Columns>,
     rowId?: unknown,
@@ -61,7 +62,7 @@ export interface ChosenColumns<Row, Columns extends ColumnNames<Row>> {
    * columns, plus the row's own key when it was not chosen. A column's read
    * transform may name the row a bad value came from, and it can only do that
    * if the key came back too. */
-  readColumnsSql: (alias?: string) => string;
+  readColumnsSql: (alias?: string) => SqlStatement;
 }
 
 /** Choose an explicit set of a table's own columns and reuse its read
@@ -114,13 +115,15 @@ export const chooseColumns = <Row, const Columns extends ColumnNames<Row>>(
   const qualified = (column: string, alias?: string): string =>
     alias ? `${alias}.${column}` : column;
 
-  const columnsSql = (alias?: string): string =>
-    columns.map((column) => qualified(column, alias)).join(", ");
+  const namesSql = (names: readonly string[], alias?: string): SqlStatement =>
+    sqlNames(names.map((column) => qualified(column, alias)));
 
-  const readColumnsSql = (alias?: string): string =>
+  const columnsSql = (alias?: string): SqlStatement => namesSql(columns, alias);
+
+  const readColumnsSql = (alias?: string): SqlStatement =>
     columns.some((column) => column === table.primaryKey)
       ? columnsSql(alias)
-      : `${columnsSql(alias)}, ${qualified(table.primaryKey, alias)}`;
+      : namesSql([...columns, table.primaryKey], alias);
 
   return { columns, columnsSql, read, readAll, readColumnsSql };
 };

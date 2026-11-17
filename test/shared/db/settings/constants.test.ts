@@ -7,10 +7,15 @@ import {
   keyModeOf,
   MAX_EMAIL_TEMPLATE_LENGTH,
 } from "#db/settings/constants.ts";
+import { expectConstantValue } from "#test-utils/assertions/constant.ts";
 
 describe("MAX_EMAIL_TEMPLATE_LENGTH", () => {
   test("allows a 50 KB template body", () => {
-    expect(MAX_EMAIL_TEMPLATE_LENGTH).toBe(51_200);
+    expectConstantValue(
+      "MAX_EMAIL_TEMPLATE_LENGTH",
+      MAX_EMAIL_TEMPLATE_LENGTH,
+      51_200,
+    );
   });
 });
 

@@ -294,8 +294,8 @@ The checker is in `scripts/check-comments/`, wired into `precommit`, and the
 tree is green at **12 lines and 100 columns**. Both numbers ratchet: lower one
 in `run.ts`, bring the tree to it, repeat. Directives, the `deno doc` barrels,
 and shipped dated migrations are exempt — the last because they are append-only
-history the repo already declines to edit, the same reason `.jscpd.json` ignores
-that glob.
+history the repo already declines to edit, the same reason `cfg/jscpd.json`
+ignores that glob.
 
 Two things the analysis got wrong, found by building it:
 

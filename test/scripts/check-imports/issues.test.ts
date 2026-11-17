@@ -37,30 +37,41 @@ describe("findImportIssues", () => {
     expect(messages(source)).toEqual([]);
   });
 
-  test("accepts one module imported once", () => {
-    expect(messages('import { a, type B } from "#types";\n')).toEqual([]);
-  });
-
-  test("flags a module spelled longer than its alias allows", () => {
-    expect(messages('import { a } from "#shared/db/client.ts";\n')).toEqual([
-      'imports "#shared/db/client.ts" — write "#db/client.ts" instead',
-    ]);
-  });
-
-  test("flags a whole-module alias spelled out as a path", () => {
-    expect(messages('import { a } from "#shared/types.ts";\n')).toEqual([
-      'imports "#shared/types.ts" — write "#types" instead',
-    ]);
-  });
-
-  test("accepts a module already spelled its shortest way", () => {
-    expect(messages('import { a } from "#db/client.ts";\n')).toEqual([]);
-  });
+  for (const [name, source, expected] of [
+    [
+      "accepts one module imported once",
+      'import { a, type B } from "#types";\n',
+      [],
+    ],
+    [
+      "flags a module spelled longer than its alias allows",
+      'import { a } from "#shared/db/client.ts";\n',
+      ['imports "#shared/db/client.ts" — write "#db/client.ts" instead'],
+    ],
+    [
+      "flags a whole-module alias spelled out as a path",
+      'import { a } from "#shared/types.ts";\n',
+      ['imports "#shared/types.ts" — write "#types" instead'],
+    ],
+    [
+      "accepts a module already spelled its shortest way",
+      'import { a } from "#db/client.ts";\n',
+      [],
+    ],
+  ] as const) {
+    test(name, () => {
+      expect(messages(source)).toEqual([...expected]);
+    });
+  }
 
   test("leaves package, relative, and unknown specifiers alone", () => {
-    expect(messages('import { expect } from "@std/expect";\n')).toEqual([]);
-    expect(messages('import { a } from "./sibling.ts";\n')).toEqual([]);
-    expect(messages('import { a } from "#unknown/x.ts";\n')).toEqual([]);
+    for (const source of [
+      'import { expect } from "@std/expect";\n',
+      'import { a } from "./sibling.ts";\n',
+      'import { a } from "#unknown/x.ts";\n',
+    ]) {
+      expect(messages(source)).toEqual([]);
+    }
   });
 
   test("reports both kinds of issue in line order", () => {

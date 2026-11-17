@@ -1,7 +1,6 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { execute } from "#db/client.ts";
-import { prepareClaimedAttendeePaymentAnchor } from "#db/payment-anchor/attendee.ts";
 import { storePaymentReference } from "#db/payment-reference-store.ts";
 import {
   attendeeIdsWithIndexedPaymentReferences,
@@ -13,11 +12,12 @@ import {
   underRefundClaim,
 } from "#db/payment-references.ts";
 import { reserveSession } from "#db/processed-payments.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundState } from "#payment/refund-state.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { bookAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestListing } from "#test-utils/db-helpers/listings.ts";
+import { bookAnchoredAttendee } from "#test-utils/db-helpers/attendee-anchor.ts";
+import { bookedAttendeeId } from "#test-utils/db-helpers/booked-attendee.ts";
 import {
   markProviderRefundsReturned,
   requireCompleteRefundReferences,
@@ -47,13 +47,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("canonical refund completion marks processed-payment references", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "returned@example.com",
       name: "Returned",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     await finalizeProcessedPayment(
       "sess_returned",
       attendeeId,
@@ -87,17 +84,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("marks a returned anchor by its index without a checkout session", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const { attendeeId } = await bookAnchoredAttendee("pi_index_marker", {
       email: "index-marker@example.com",
       name: "Index Marker",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
-    const payment = taggedPaymentReference("pi_index_marker");
-    const prepared = await prepareClaimedAttendeePaymentAnchor(payment);
-    const anchor = await prepared.forAttendee(attendeeId);
-    await execute(anchor.statement.sql, anchor.statement.args);
     const [reference] = await refundReferencesFor(
       attendeeId,
       await getTestPrivateKey(),
@@ -120,13 +110,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
       new Set(),
     );
 
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "hasref@example.com",
       name: "Has Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     await finalizeProcessedPayment(
       "sess_has_ref",
       attendeeId,
@@ -150,43 +137,18 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("merges tagged rows in stable processing order", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "shared-ref@example.com",
       name: "Shared Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     const payment = taggedPaymentReference("pi_shared", "square");
     const stored = await storePaymentReference(payment);
     await execute(
-      `INSERT INTO processed_payments
+      sql`INSERT INTO processed_payments
           (payment_session_id, attendee_id, processed_at, payment_reference,
            payment_reference_index)
-        VALUES (?, ?, ?, ?, ?), (?, ?, ?, ?, ?),
-               (?, ?, ?, ?, ?), (?, ?, ?, ?, ?)`,
-      [
-        "sess_shared_a_middle",
-        attendeeId,
-        "2026-06-22T00:00:00.000Z",
-        stored.encrypted,
-        stored.index,
-        "sess_shared_d_earlier",
-        attendeeId,
-        "2026-06-21T00:00:00.000Z",
-        stored.encrypted,
-        stored.index,
-        "sess_shared_b_earlier",
-        attendeeId,
-        "2026-06-21T00:00:00.000Z",
-        stored.encrypted,
-        stored.index,
-        "sess_shared_c_later",
-        attendeeId,
-        "2026-06-23T00:00:00.000Z",
-        stored.encrypted,
-        stored.index,
-      ],
+        VALUES (${"sess_shared_a_middle"}, ${attendeeId}, ${"2026-06-22T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}), (${"sess_shared_d_earlier"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}),
+               (${"sess_shared_b_earlier"}, ${attendeeId}, ${"2026-06-21T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index}), (${"sess_shared_c_later"}, ${attendeeId}, ${"2026-06-23T00:00:00.000Z"}, ${stored.encrypted}, ${stored.index})`,
     );
 
     const inProcessedOrder: [string, ...string[]] = [
@@ -207,13 +169,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("merges tagged rows keeping an earlier row's refund flag", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "shared-refunded@example.com",
       name: "Shared Refunded",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
     const payment = taggedPaymentReference("pi_shared_refunded");
     await finalizeProcessedPayment("sess_refunded_a", attendeeId, "", payment);
     await finalizeProcessedPayment("sess_refunded_b", attendeeId, "", payment);
@@ -236,13 +195,10 @@ describeWithEnv("db > payment references", { db: true }, () => {
   });
 
   test("finds no reference when neither storage path has one", async () => {
-    const listing = await createTestListing({ maxAttendees: 50 });
-    const created = await bookAttendee(listing, {
+    const attendeeId = await bookedAttendeeId({
       email: "norref@example.com",
       name: "No Ref",
     });
-    if (!created.success) throw new Error("setup failed");
-    const attendeeId = created.attendees[0]!.id;
 
     expect(
       await hasAnyPaymentReference({ id: attendeeId, payment_id: "" }),
@@ -261,20 +217,16 @@ describeWithEnv(
   { db: true },
   () => {
     test("passes over a row holding no reference", async () => {
-      const listing = await createTestListing({ maxAttendees: 50 });
-      const created = await bookAttendee(listing, {
+      const attendeeId = await bookedAttendeeId({
         email: "no-reference@example.com",
         name: "No Reference",
       });
-      if (!created.success) throw new Error("setup failed");
-      const attendeeId = created.attendees[0]!.id;
 
       await reserveSession("sess_no_reference");
       await execute(
-        `UPDATE processed_payments
-          SET attendee_id = ?, payment_reference = '', processed_at = ?
-        WHERE payment_session_id = ?`,
-        [attendeeId, "2026-06-21T00:00:00.000Z", "sess_no_reference"],
+        sql`UPDATE processed_payments
+          SET attendee_id = ${attendeeId}, payment_reference = '', processed_at = ${"2026-06-21T00:00:00.000Z"}
+        WHERE payment_session_id = ${"sess_no_reference"}`,
       );
 
       const references = await getRefundPaymentReferences(

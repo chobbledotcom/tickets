@@ -10,12 +10,16 @@ import { adminApiRoutes } from "#routes/admin/api.ts";
 import { apiRoutes } from "#routes/api/index.ts";
 import type { EndpointDoc } from "#shared/admin-api-example/endpoint-doc.ts";
 import { PUBLIC_API_ENDPOINTS } from "#shared/admin-api-example/public.ts";
-import { ADMIN_API_ENDPOINTS } from "#shared/admin-api-example.ts";
 import {
   PublicListingDetailSchema,
   PublicListingSchema,
 } from "#test-utils/api-schemas.ts";
-import { documented, isBlank, jsonLeaves } from "./helpers.ts";
+import {
+  ADMIN_API_ENDPOINTS,
+  documented,
+  isBlank,
+  jsonLeaves,
+} from "./helpers.ts";
 
 describe("every documented endpoint", () => {
   const allEndpoints = [...PUBLIC_API_ENDPOINTS, ...ADMIN_API_ENDPOINTS];

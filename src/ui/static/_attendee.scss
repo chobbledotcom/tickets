@@ -1,0 +1,167 @@
+/** Attendee pages: the status heading, the notes, the danger actions, the
+ * check-in feedback and the iframe embeds. */
+
+.danger,
+a.danger,
+button.danger,
+input[type="submit"].danger {
+  --color-danger: #cc0000;
+  --color-danger-hover: #990000;
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-bg);
+}
+
+a.danger {
+  color: var(--color-danger);
+  background: transparent;
+  border: none;
+}
+
+button.danger:hover,
+input[type="submit"].danger:hover,
+.btn.danger:hover {
+  background-color: var(--color-danger-hover);
+  border-color: var(--color-danger-hover);
+}
+
+[data-theme="dark"] .danger,
+[data-theme="dark"] a.danger {
+  --color-danger: #ff5555;
+  --color-danger-hover: #cc3333;
+}
+
+.password-warning {
+  color: #cc0000;
+  font-weight: bold;
+}
+
+.danger-text {
+  color: #cc0000;
+  font-weight: bold;
+}
+
+.expected-actual-notice {
+  margin: var(--space-s) 0;
+}
+
+.expected-actual-notice summary {
+  cursor: pointer;
+}
+
+.expected-actual-notice p,
+.expected-actual-notice ul {
+  margin-bottom: var(--space-s);
+  margin-top: var(--space-s);
+}
+
+.success-text {
+  color: #006600;
+  font-weight: bold;
+}
+
+[data-theme="dark"] .password-warning {
+  color: #ff5555;
+}
+[data-theme="dark"] .danger-text {
+  color: #ff5555;
+}
+[data-theme="dark"] .success-text {
+  color: #50fa7b;
+}
+
+/* Bulk check-in / check-out button */
+button.bulk-checkin,
+button.bulk-checkout {
+  display: block;
+  width: 100%;
+  padding: 0.75rem var(--space-m);
+  border: none;
+  border-radius: var(--border-radius);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button.bulk-checkin {
+  background: #22863a;
+}
+
+button.bulk-checkin:hover {
+  background: #1a6e2e;
+}
+
+button.bulk-checkout {
+  background: #d73a49;
+}
+
+button.bulk-checkout:hover {
+  background: #b52a37;
+}
+
+/* Check-in success/failure messages */
+.checkin-message-in {
+  color: green;
+}
+
+.checkin-message-out {
+  color: red;
+}
+
+.inline {
+  display: inline;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.inline button {
+  background-color: transparent;
+  color: var(--color-link);
+  text-decoration: underline;
+  padding: 0 !important;
+  border: none !important;
+  margin: 0;
+  box-shadow: none !important;
+}
+
+button.link-button, a.link-button {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+button.link-button:hover, a.link-button:hover {
+  filter: none;
+  text-decoration: none;
+}
+
+.link-button.checkin {
+  color: #22863a;
+}
+
+.link-button.checkout {
+  color: #cc0000;
+}
+
+/* Iframe embed mode */
+body.iframe {
+  padding: 0.5rem;
+}
+
+body.iframe main {
+  padding: 0;
+}
+
+body.iframe form {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+

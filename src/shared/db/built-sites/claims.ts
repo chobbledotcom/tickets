@@ -7,47 +7,43 @@
 
 import type { BuiltSite } from "#db/built-sites/types.ts";
 import { builtSites, requireBuiltSiteByIdPrimary } from "#db/built-sites.ts";
-import {
-  execute,
-  inPlaceholders,
-  type SqlStatement,
-  withTransaction,
-} from "#db/client.ts";
+import { execute, withTransaction } from "#db/client.ts";
+import { type SqlStatement, sql, sqlList } from "#db/sql.ts";
 
 /** One statement over a buyer's site assignments: the select list and the
  * trailing clause vary, the attendee and the listing filter do not. */
 export const buyerAssignmentStatement = (
-  { select, tail = "" }: { select: string; tail?: string },
+  { select, tail = sql`` }: { select: SqlStatement; tail?: SqlStatement },
   attendeeId: number,
   listingIds: readonly number[],
-): SqlStatement => ({
-  args: [attendeeId, ...listingIds],
-  sql: `SELECT ${select} FROM built_sites
-     WHERE assigned_attendee_id = ?
-       AND assigned_listing_id IN (${inPlaceholders(listingIds)})${tail}`,
-});
+): SqlStatement => sql`SELECT ${select} FROM built_sites
+     WHERE assigned_attendee_id = ${attendeeId}
+       AND assigned_listing_id IN (${sqlList(listingIds)})${tail}`;
+
+/** A read scoped to one buyer's plan listings. */
+type BuyerPlanRead<Result> = (
+  attendeeId: number,
+  listingIds: readonly number[],
+) => Result;
 
 /** A statement scoped to one buyer's plan listings. */
-export type BuyerPlanStatement = (
-  attendeeId: number,
-  listingIds: readonly number[],
-) => SqlStatement;
+export type BuyerPlanStatement = BuyerPlanRead<SqlStatement>;
 
 /** Curry the buyer-assignment statement over its select list and tail. */
 export const buyerAssignmentStatementFor =
-  (parts: { select: string; tail?: string }): BuyerPlanStatement =>
+  (parts: { select: SqlStatement; tail?: SqlStatement }): BuyerPlanStatement =>
   (attendeeId, listingIds) =>
     buyerAssignmentStatement(parts, attendeeId, listingIds);
 
 export const assignedBuiltSiteExistsStatement: BuyerPlanStatement =
-  buyerAssignmentStatementFor({ select: "1", tail: " LIMIT 1" });
+  buyerAssignmentStatementFor({ select: sql`1`, tail: sql` LIMIT 1` });
 
-export const hasAssignedBuiltSite = async (
-  attendeeId: number,
-  listingIds: number[],
-): Promise<boolean> => {
+export const hasAssignedBuiltSite: BuyerPlanRead<Promise<boolean>> = async (
+  attendeeId,
+  listingIds,
+) => {
   const exists = assignedBuiltSiteExistsStatement(attendeeId, listingIds);
-  return (await execute(exists.sql, exists.args)).rows.length > 0;
+  return (await execute(exists)).rows.length > 0;
 };
 
 /** The claim as one statement: it takes the first still-assignable candidate,
@@ -59,30 +55,27 @@ export const claimBuiltSiteStatement = (
   candidateIds: readonly number[],
   attendeeId: number,
   listingId: number,
-): SqlStatement => ({
-  args: [attendeeId, listingId, JSON.stringify(candidateIds)],
-  sql: `UPDATE built_sites
+): SqlStatement => sql`UPDATE built_sites
            SET assignable = 0,
-               assigned_attendee_id = ?,
-               assigned_listing_id = ?,
+               assigned_attendee_id = ${attendeeId},
+               assigned_listing_id = ${listingId},
                site_data_revision = site_data_revision + 1
          WHERE assignable = 1
            AND id = (
              SELECT candidate.id
-               FROM json_each(?) AS poolOrder
+               FROM json_each(${JSON.stringify(candidateIds)}) AS poolOrder
                JOIN built_sites AS candidate ON candidate.id = poolOrder.value
               WHERE candidate.assignable = 1
               ORDER BY poolOrder.key
               LIMIT 1
-           )`,
-});
+           )`;
 
 /** The site a claim just won for this attendee: the row the claim statement
  * above now carries, found on any of the plan listings the buyer booked — a
  * combined purchase records only its first. Reads the plain assignment
  * columns, not the blob. */
 export const claimedSiteIdStatement: BuyerPlanStatement =
-  buyerAssignmentStatementFor({ select: "id" });
+  buyerAssignmentStatementFor({ select: sql`id` });
 
 /** One buyer's take from the pool: a claimed site, a read that the buyer was
  * already served (with the site their earlier claim gave them), or an empty

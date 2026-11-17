@@ -3,6 +3,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { getAttendeeRaw } from "#db/attendees/queries.ts";
 import { queryAll } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { getListingActivityLog } from "#test-utils/activity-log.ts";
 import {
   expectFlash,
@@ -18,7 +19,11 @@ import {
 } from "#test-utils/attendees/merge.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPaidTestAttendee } from "#test-utils/db-helpers/attendee-payments.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  createMultiBookingAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
+import { createNamedListingPair } from "#test-utils/db-helpers/listing-pair-named.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { adminFormPost, adminGet } from "#test-utils/session.ts";
 
@@ -172,14 +177,10 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
     });
 
     test("merges source listings into target and deletes source", async () => {
-      const listing1 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing One",
-      });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "Listing Two",
-      });
+      const [listing1, listing2] = await createNamedListingPair(
+        ["Listing One", "Listing Two"],
+        { maxAttendees: 10 },
+      );
 
       const { attendee: target } = await createTestAttendeeDirect(
         listing1.id,
@@ -221,8 +222,7 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target should now have both listing links
       const targetListingLinks = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       const listingIds = targetListingLinks.map((r) => r.listing_id).sort();
       expect(listingIds).toEqual([listing1.id, listing2.id].sort());
@@ -299,65 +299,51 @@ describeWithEnv("server (admin attendees) > merge post", { db: true }, () => {
 
       // Target still has exactly one link to the listing (conflict was skipped)
       const links = await queryAll<{ listing_id: number }>(
-        "SELECT listing_id FROM listing_attendees WHERE attendee_id = ?",
-        [target.id],
+        sql`SELECT listing_id FROM listing_attendees WHERE attendee_id = ${target.id}`,
       );
       expect(links.length).toBe(1);
       expect(links[0]!.listing_id).toBe(listing1.id);
     });
 
-    test("POST merge credits a discarded paid conflict's money", async () => {
-      await expectMoneyDecisionMerge(
+    for (const [name, money, paymentId, flash, log] of [
+      [
+        "POST merge credits a discarded paid conflict's money",
         "credit",
         "pi_merge_credit",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) credited",
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) kept as credit",
-      );
-    });
-
-    test("POST merge writes off a discarded paid conflict's money", async () => {
-      await expectMoneyDecisionMerge(
+      ],
+      [
+        "POST merge writes off a discarded paid conflict's money",
         "writeoff",
         "pi_merge_writeoff",
         "Merged John Smith into Jane Doe. 1 booking(s) skipped. 1 payment(s) written off",
         "Attendee 'John Smith' merged into 'Jane Doe'. 1 booking(s) skipped. 1 payment(s) written off",
-      );
-    });
+      ],
+    ] as const) {
+      test(name, async () => {
+        await expectMoneyDecisionMerge(money, paymentId, flash, log);
+      });
+    }
 
     test('POST merge joins multiple validation errors with "; "', async () => {
-      const listing1 = await createTestListing({
+      const [listing1, listing2] = await createNamedListingPair(["L1", "L2"], {
         maxAttendees: 10,
-        name: "L1",
         unitPrice: 500,
       });
-      const listing2 = await createTestListing({
-        maxAttendees: 10,
-        name: "L2",
-        unitPrice: 500,
-      });
-      const { attendeesApi } = await import("#db/attendees/api.ts");
-      const targetResult = await attendeesApi.createAttendeeAtomic({
-        bookings: [
-          { listingId: listing1.id, quantity: 1 },
-          { listingId: listing2.id, quantity: 1 },
-        ],
-        email: "jane@example.com",
-        name: "Jane Doe",
-      });
-      const target = (
-        targetResult as Extract<typeof targetResult, { success: true }>
-      ).attendees[0]!;
-      const sourceResult = await attendeesApi.createAttendeeAtomic({
-        bookings: [
+      const target = await createMultiBookingAttendee(
+        "Jane Doe",
+        "jane@example.com",
+        [{ listingId: listing1.id }, { listingId: listing2.id }],
+      );
+      const source = await createMultiBookingAttendee(
+        "John Smith",
+        "john@example.com",
+        [
           { listingId: listing1.id, quantity: 3 },
           { listingId: listing2.id, quantity: 3 },
         ],
-        email: "john@example.com",
-        name: "John Smith",
-      });
-      const source = (
-        sourceResult as Extract<typeof sourceResult, { success: true }>
-      ).attendees[0]!;
+      );
       const { postListingSale } = await import("#test-utils/ledger.ts");
       await postListingSale({
         attendeeId: source.id,

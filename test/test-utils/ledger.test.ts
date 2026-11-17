@@ -1,8 +1,9 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
-import { attendeesApi } from "#db/attendees/api.ts";
 import { getDb } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
+import { bookTestAttendeeId } from "#test-utils/db-helpers/attendee-booking.ts";
 import {
   createDailyTestListing,
   createTestListing,
@@ -16,19 +17,13 @@ const attendeeHoldingTwoOrdersOnOneListing = async (): Promise<{
   listingId: number;
 }> => {
   const listing = await createDailyTestListing();
-  const made = await attendeesApi.createAttendeeAtomic({
-    bookings: [{ date: "2026-09-20", listingId: listing.id, pricePaid: 500 }],
-    email: "ambiguous@example.com",
-    name: "Ambiguous",
-  });
-  if (!made.success) throw new Error("booking setup failed");
-  const attendeeId = made.attendees[0]!.id;
-  await getDb().execute({
-    args: [attendeeId, listing.id],
-    sql:
-      "INSERT INTO listing_attendees (attendee_id, listing_id, start_at)" +
-      " VALUES (?, ?, '2026-09-21T00:00:00Z')",
-  });
+  const attendeeId = await bookTestAttendeeId(
+    [{ date: "2026-09-20", listingId: listing.id, pricePaid: 500 }],
+    "Ambiguous",
+  );
+  await getDb().execute(
+    sql`INSERT INTO listing_attendees (attendee_id, listing_id, start_at) VALUES (${attendeeId}, ${listing.id}, '2026-09-21T00:00:00Z')`,
+  );
   await postListingSale({
     attendeeId,
     eventId: "ambiguous-one",
@@ -49,13 +44,10 @@ const attendeeHoldingTwoOrdersOnOneListing = async (): Promise<{
 describeWithEnv("test-utils ledger helpers", { db: true }, () => {
   test("refundBookedOrder names the missing order when the row carries none", async () => {
     const listing = await createTestListing({ maxAttendees: 5 });
-    const made = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id, quantity: 1 }],
-      email: "no-order@example.com",
-      name: "No Order",
-    });
-    if (!made.success) throw new Error("booking setup failed");
-    const attendeeId = made.attendees[0]!.id;
+    const attendeeId = await bookTestAttendeeId(
+      [{ listingId: listing.id, quantity: 1 }],
+      "No Order",
+    );
 
     await expect(refundBookedOrder(attendeeId, listing.id)).rejects.toThrow(
       `Attendee ${attendeeId} has no booked order on listing ${listing.id} to refund`,

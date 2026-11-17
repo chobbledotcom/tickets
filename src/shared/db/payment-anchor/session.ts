@@ -5,6 +5,8 @@
  * neither should have to import the other to do it.
  */
 
+import { type SqlStatement, sql, sqlJoin, sqlLiteral } from "#db/sql.ts";
+
 const ANCHOR_SESSION_PREFIX = "legacy:";
 
 /** The older spelling, from before anchors were minted for legacy charges
@@ -31,7 +33,12 @@ export const isAnchorSession = (sessionId: string): boolean =>
 
 /** SQL condition matching the same stored anchor spellings as
  * {@link isAnchorSession}. The column expression comes from our own query. */
-export const paymentAnchorSessionCondition = (column: string): string =>
-  `(${ANCHOR_SESSION_PREFIXES.map(
-    (prefix) => `${column} LIKE '${prefix}%'`,
-  ).join(" OR ")})`;
+export const paymentAnchorSessionCondition = (
+  column: SqlStatement,
+): SqlStatement =>
+  sql`(${sqlJoin(
+    ANCHOR_SESSION_PREFIXES.map(
+      (prefix) => sql`${column} LIKE ${sqlLiteral(`${prefix}%`)}`,
+    ),
+    sql` OR `,
+  )})`;

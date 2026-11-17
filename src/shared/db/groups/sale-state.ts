@@ -5,6 +5,7 @@
  */
 
 import { requireOne } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 
 export type GroupSaleState = {
   readonly activeCount: number;
@@ -21,12 +22,11 @@ export const getGroupSaleState = async (
     active_count: number;
     listing_count: number;
   }>(
-    `SELECT COUNT(listing.id) AS listing_count,
+    sql`SELECT COUNT(listing.id) AS listing_count,
             COALESCE(SUM(listing.active), 0) AS active_count
        FROM group_listings AS groupListing
        JOIN listings AS listing ON listing.id = groupListing.listing_id
-      WHERE groupListing.group_id = ?`,
-    [groupId],
+      WHERE groupListing.group_id = ${groupId}`,
   );
   return { activeCount: row.active_count, listingCount: row.listing_count };
 };

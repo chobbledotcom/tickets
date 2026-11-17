@@ -10,7 +10,10 @@ import {
 import { getListingsByGroupId } from "#db/groups.ts";
 import { t } from "#i18n";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
+import {
+  createGroupWithListings,
+  createTestGroup,
+} from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 describeWithEnv("db > group listing homogeneity", { db: true }, () => {
@@ -38,9 +41,10 @@ describeWithEnv("db > group listing homogeneity", { db: true }, () => {
   });
 
   test("a customisable candidate is rejected by a fixed group", async () => {
-    const fixedGroup = await createTestGroup({ name: "Fixed Group" });
-    await createTestListing({ groupId: fixedGroup.id, name: "Fixed Member" });
-    const fixedMembers = await getListingsByGroupId(fixedGroup.id);
+    const { group } = await createGroupWithListings("Fixed Group", [
+      "Fixed Member",
+    ]);
+    const fixedMembers = await getListingsByGroupId(group.id);
     expect(
       checkGroupListingSettings(fixedMembers, (members) => members, {
         customisable_days: true,

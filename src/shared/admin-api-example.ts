@@ -9,17 +9,9 @@
 import { toAdminListing } from "#routes/admin/api.ts";
 import type { AdminApiAttendee } from "#routes/admin/api-attendees.ts";
 import type {
-  CreateAttributeBody,
-  UpdateAttributeBody,
-} from "#routes/admin/api-attributes.ts";
-import type {
   CreateGroupBody,
   UpdateGroupBody,
 } from "#routes/admin/api-groups.ts";
-import type {
-  CreateHolidayBody,
-  UpdateHolidayBody,
-} from "#routes/admin/api-holidays.ts";
 import type {
   CreateListingBody,
   UpdateListingBody,
@@ -28,19 +20,30 @@ import {
   ADMIN_API_RESOURCES,
   type AdminApiAttendeeStatus,
   type AdminApiCreateAttendeeStatusBody,
-  type AdminApiOptionBody,
+  type AdminApiHoliday,
 } from "#shared/admin-api-resources.ts";
 import { API_EXAMPLE_LISTING } from "#shared/api-example.ts";
-import { listingCatalogFields } from "#shared/catalog-fields/fields.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
+import { withoutKeys } from "#shared/fp-records.ts";
+import { ATTENDEE_FEATURE_KEYS } from "#shared/records/attendee-answer-keys.ts";
+import { LISTING_FIELDS } from "#shared/records/listing-fields.ts";
+import type { ApiBody } from "#shared/rest/api-body-fields.ts";
 import type { DeleteBody } from "#shared/rest/crud-parsers.ts";
-import type { AdminListing } from "#types";
 import {
-  childDocBase,
-  crudDocs,
+  featureClosedKeys,
+  fieldOfKey,
+  type WriteAccess,
+} from "#shared/rest/field-specs.ts";
+import type { AdminListing, Group } from "#types";
+import { attributeDocs } from "./admin-api-example/attributes.ts";
+import {
+  crudDocsFor,
+  type DocsView,
+  docKeysOf,
   type EndpointDoc,
   json,
-  renameOneText,
+  recordDocsFor,
+  shownFor,
 } from "./admin-api-example/endpoint-doc.ts";
 import { EXTERNAL_SOURCE_ENDPOINTS } from "./admin-api-example/external-sources.ts";
 import { IMAGE_ENDPOINTS } from "./admin-api-example/images.ts";
@@ -72,6 +75,7 @@ export const ADMIN_API_EXAMPLE_ADMIN_LISTING: AdminListing & {
 /** Example create request body */
 const ADMIN_API_CREATE_BODY = {
   can_pay_more: true,
+  closes_at: "2025-08-19T17:00:00.000Z",
   // Written in the form storage reads back, so the create answer below can
   // show the same string the caller sent.
   date: "2025-08-20T10:00:00.000Z",
@@ -117,10 +121,11 @@ const ADMIN_API_EXAMPLE_GROUP = {
   is_package: false,
   max_attendees: 50,
   name: "Summer Series",
+  scan_checks_in_all_listings: false,
   show_hidden_listings: true,
   slug: "summer-series",
   terms_and_conditions: "",
-};
+} satisfies Omit<Group, "slug_index">;
 
 const ADMIN_API_GROUP_CREATE_BODY = {
   description: "Workshops running through the summer.",
@@ -137,6 +142,13 @@ const ADMIN_API_GROUP_DELETE_BODY = {
   confirm_identifier: "Summer Series",
 } satisfies DeleteBody;
 
+const GROUP_DOCS = {
+  createBody: ADMIN_API_GROUP_CREATE_BODY,
+  deleteBody: ADMIN_API_GROUP_DELETE_BODY,
+  example: ADMIN_API_EXAMPLE_GROUP,
+  updateBody: ADMIN_API_GROUP_UPDATE_BODY,
+};
+
 // =============================================================================
 // Holiday examples (owner only)
 // =============================================================================
@@ -147,21 +159,28 @@ const ADMIN_API_EXAMPLE_HOLIDAY = {
   id: 5,
   name: "Christmas",
   start_date: "2025-12-25",
-};
+} satisfies AdminApiHoliday;
 
 const ADMIN_API_HOLIDAY_CREATE_BODY = {
   end_date: "2025-12-26",
   name: "Christmas",
   start_date: "2025-12-25",
-} satisfies CreateHolidayBody;
+} satisfies ApiBody<typeof ADMIN_API_RESOURCES.holidays.createBodySchema>;
 
 const ADMIN_API_HOLIDAY_UPDATE_BODY = {
   name: "Christmas Break",
-} satisfies UpdateHolidayBody;
+} satisfies ApiBody<typeof ADMIN_API_RESOURCES.holidays.updateBodySchema>;
 
 const ADMIN_API_HOLIDAY_DELETE_BODY = {
   confirm_identifier: "Christmas",
 } satisfies DeleteBody;
+
+const HOLIDAY_DOCS = {
+  createBody: ADMIN_API_HOLIDAY_CREATE_BODY,
+  deleteBody: ADMIN_API_HOLIDAY_DELETE_BODY,
+  example: ADMIN_API_EXAMPLE_HOLIDAY,
+  updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
+};
 
 // =============================================================================
 // Attendee-status examples (owner only)
@@ -195,6 +214,13 @@ const ADMIN_API_ATTENDEE_STATUS_DELETE_BODY = {
   confirm_identifier: "Reserved",
 } satisfies DeleteBody;
 
+const ATTENDEE_STATUS_DOCS = {
+  createBody: ADMIN_API_ATTENDEE_STATUS_CREATE_BODY,
+  deleteBody: ADMIN_API_ATTENDEE_STATUS_DELETE_BODY,
+  example: ADMIN_API_EXAMPLE_ATTENDEE_STATUS,
+  updateBody: ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY,
+};
+
 /** The create body a caller copies: one booking line on a standard listing,
  * with the attendee's contact fields and the status by name. The line carries
  * an agreed per-unit `price` (minor units), the body records a `payment`
@@ -219,65 +245,6 @@ const ADMIN_API_ATTENDEE_CREATE_BODY = {
   phone: "+1 555 0123",
   special_instructions: "Vegetarian",
   status: "Confirmed",
-};
-
-// =============================================================================
-// Attribute examples (owner only)
-// =============================================================================
-
-/** Example attribute response: the attribute and its options in display
- * order. */
-const ADMIN_API_EXAMPLE_ATTRIBUTE = {
-  id: 6,
-  name: "Difficulty",
-  options: [
-    { attribute_id: 6, id: 11, sort_order: 0, text: "Easy" },
-    { attribute_id: 6, id: 12, sort_order: 1, text: "Hard" },
-  ],
-  sort_order: 2,
-};
-
-const ADMIN_API_ATTRIBUTE_CREATE_BODY = {
-  name: "Difficulty",
-} satisfies CreateAttributeBody;
-
-const ADMIN_API_ATTRIBUTE_UPDATE_BODY = {
-  name: "Difficulty (Updated)",
-} satisfies UpdateAttributeBody;
-
-const ADMIN_API_ATTRIBUTE_DELETE_BODY = {
-  confirm_identifier: "Difficulty",
-} satisfies DeleteBody;
-
-const ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY = {
-  text: "Medium",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY = {
-  text: "Very hard",
-} satisfies AdminApiOptionBody;
-
-const ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY = {
-  confirm_identifier: "Hard",
-} satisfies DeleteBody;
-
-const ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM = {
-  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
-  options: [
-    ...ADMIN_API_EXAMPLE_ATTRIBUTE.options,
-    { attribute_id: 6, id: 13, sort_order: 2, text: "Medium" },
-  ],
-};
-
-/** The answer to an option rename: the attribute's own name is untouched, so
- * the example must not read like the request also renames the attribute. */
-const ADMIN_API_EXAMPLE_OPTION_RENAMED = {
-  ...ADMIN_API_EXAMPLE_ATTRIBUTE,
-  options: renameOneText(
-    ADMIN_API_EXAMPLE_ATTRIBUTE.options,
-    "Hard",
-    "Very hard",
-  ),
 };
 
 /** Example attendee booking row, exactly as the attendees endpoint answers
@@ -316,12 +283,10 @@ const ADMIN_API_EXAMPLE_ATTENDEE = {
 } satisfies AdminApiAttendee;
 
 /** The booking window a listing gets when its create body says nothing. */
-const LISTING_DEFAULT_DAYS_AFTER =
-  listingCatalogFields.maximumDaysAfter[1].default!();
-
-/** The documented base path of the option routes: the attribute's id param and
- *  the `options` segment both come from the resource table. */
-const OPTIONS_BASE = childDocBase(ADMIN_API_RESOURCES.attributes, "options");
+const LISTING_DEFAULT_DAYS_AFTER = fieldOfKey(
+  LISTING_FIELDS,
+  "maximum_days_after",
+).default;
 
 /** The documented path of one listing custom route. */
 const listingCustom = (
@@ -331,154 +296,101 @@ const listingCustom = (
   return `/api/admin/${ADMIN_API_RESOURCES.listings.path}/${custom.subpath}`;
 };
 
-export const ADMIN_API_ENDPOINTS: EndpointDoc[] = [
-  ...crudDocs({
-    createBody: ADMIN_API_ATTRIBUTE_CREATE_BODY,
-    deleteBody: ADMIN_API_ATTRIBUTE_DELETE_BODY,
-    desc: [
-      "List all attributes with their options (owner only)",
-      "Get a single attribute by ID (owner only)",
-      "Create an attribute (owner only)",
-      "Update an attribute (owner only, all fields optional)",
-      "Delete an attribute (owner only, requires name confirmation)",
-    ],
-    entry: ADMIN_API_RESOURCES.attributes,
-    example: ADMIN_API_EXAMPLE_ATTRIBUTE,
-    // A brand-new attribute has no options yet, whatever the example record
-    // shows for the get/list answers.
-    newRecordDefaults: { options: [] },
-    updateBody: ADMIN_API_ATTRIBUTE_UPDATE_BODY,
-  }),
-  {
-    description:
-      "Add an option to an attribute (owner only). The answer shows the attribute with its full option list, new option last.",
-    method: "POST",
-    path: OPTIONS_BASE,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_CREATE_BODY),
-    response: json({
-      attribute: ADMIN_API_EXAMPLE_ATTRIBUTE_WITH_MEDIUM,
+/** The example attendee as one site answers with it: without each key whose
+ *  feature is off. */
+const attendeeExample = (access: WriteAccess): Record<string, unknown> =>
+  withoutKeys(
+    new Set(featureClosedKeys(ATTENDEE_FEATURE_KEYS, access.features)),
+  )(ADMIN_API_EXAMPLE_ATTENDEE);
+
+/** The documented listing routes. Each listing answer leaves out the keys
+ *  whose feature is off, as the server does. */
+const listingDocs = (access: WriteAccess): EndpointDoc[] => {
+  const crudDocs = crudDocsFor(access);
+  const { hidden } = docKeysOf(ADMIN_API_RESOURCES.listings, access);
+  const listing = withoutKeys(hidden)(ADMIN_API_EXAMPLE_ADMIN_LISTING);
+  return [
+    ...crudDocs({
+      createBody: ADMIN_API_CREATE_BODY,
+      deleteBody: ADMIN_API_DELETE_BODY,
+      desc: [
+        "List all listings with attendee counts",
+        "Get a single listing by ID",
+        "Create a new listing",
+        "Update a listing (all fields optional)",
+        "Delete a listing (requires name confirmation)",
+      ],
+      entry: ADMIN_API_RESOURCES.listings,
+      example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
+      freshRecord: Object.fromEntries(
+        BOOKING_TOTAL_FIELDS.map((field) => [field, 0]),
+      ),
+      listExtras: { admin_level: "owner", features: access.features },
+      // What a listing gets when the create body does not say. Both come from
+      // the stored column defaults, so the documentation cannot drift from them.
+      newRecordDefaults: {
+        bookable_days: [...VALID_DAY_NAMES],
+        maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
+      },
+      updateBody: ADMIN_API_UPDATE_BODY,
     }),
-  },
-  {
-    description:
-      "Rename an attribute option (owner only). The answer shows the attribute with its full option list.",
-    method: "PUT",
-    path: `${OPTIONS_BASE}/:optionId`,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_UPDATE_BODY),
-    response: json({
-      attribute: ADMIN_API_EXAMPLE_OPTION_RENAMED,
-    }),
-  },
-  {
-    description:
-      "Delete an attribute option (owner only, requires the option text as confirmation).",
-    method: "DELETE",
-    path: `${OPTIONS_BASE}/:optionId`,
-    request: json(ADMIN_API_ATTRIBUTE_OPTION_DELETE_BODY),
-    response: json({ status: "ok" }),
-  },
-  ...crudDocs({
-    createBody: ADMIN_API_CREATE_BODY,
-    deleteBody: ADMIN_API_DELETE_BODY,
-    desc: [
-      "List all listings with attendee counts",
-      "Get a single listing by ID",
-      "Create a new listing",
-      "Update a listing (all fields optional)",
-      "Delete a listing (requires name confirmation)",
-    ],
-    entry: ADMIN_API_RESOURCES.listings,
-    example: ADMIN_API_EXAMPLE_ADMIN_LISTING,
-    freshRecord: Object.fromEntries(
-      BOOKING_TOTAL_FIELDS.map((field) => [field, 0]),
+    {
+      description: "Deactivate a listing",
+      method: "POST",
+      path: listingCustom("deactivate"),
+      response: json({
+        listing: { ...listing, active: false },
+      }),
+    },
+    {
+      description: "Reactivate a deactivated listing",
+      method: "POST",
+      path: listingCustom("reactivate"),
+      response: json({
+        listing: { ...listing, active: true },
+      }),
+    },
+    {
+      description:
+        "List the attendees booked on a listing. checked_in counts the tickets on each line that the doors admitted, from 0 up to quantity.",
+      method: "GET",
+      path: listingCustom("attendees"),
+      response: json({ attendees: [attendeeExample(access)] }),
+    },
+  ];
+};
+
+/** Every documented admin route, as one viewer of one site sees the docs.
+ *  A resource whose feature is off has no routes here. */
+export const adminApiEndpoints = (view: DocsView): EndpointDoc[] => {
+  const { access } = view;
+  const shown = shownFor(view);
+  const recordDocs = recordDocsFor(access);
+  return [
+    ...shown(ADMIN_API_RESOURCES.attributes, attributeDocs(access)),
+    ...listingDocs(access),
+    ...recordDocs("groups", "a group", GROUP_DOCS),
+    ...recordDocs("holidays", "a holiday", HOLIDAY_DOCS, "owner"),
+    ...recordDocs(
+      "attendee-statuses",
+      "an attendee status",
+      ATTENDEE_STATUS_DOCS,
+      "owner",
     ),
-    listResponse: {
-      admin_level: "owner",
-      listings: [ADMIN_API_EXAMPLE_ADMIN_LISTING],
+    {
+      description:
+        "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
+      method: "POST",
+      path: "/api/admin/attendees",
+      request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
+      response: json({ attendee: attendeeExample(access) }),
     },
-    // What a listing gets when the create body does not say. Both come from
-    // the stored column defaults, so the documentation cannot drift from them.
-    newRecordDefaults: {
-      bookable_days: [...VALID_DAY_NAMES],
-      maximum_days_after: LISTING_DEFAULT_DAYS_AFTER,
-    },
-    updateBody: ADMIN_API_UPDATE_BODY,
-  }),
-  {
-    description: "Deactivate a listing",
-    method: "POST",
-    path: listingCustom("deactivate"),
-    response: json({
-      listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: false },
-    }),
-  },
-  {
-    description: "Reactivate a deactivated listing",
-    method: "POST",
-    path: listingCustom("reactivate"),
-    response: json({
-      listing: { ...ADMIN_API_EXAMPLE_ADMIN_LISTING, active: true },
-    }),
-  },
-  {
-    description:
-      "List the attendees booked on a listing. checked_in counts the tickets on each line that the doors admitted, from 0 up to quantity.",
-    method: "GET",
-    path: listingCustom("attendees"),
-    response: json({ attendees: [ADMIN_API_EXAMPLE_ATTENDEE] }),
-  },
-  ...crudDocs({
-    createBody: ADMIN_API_GROUP_CREATE_BODY,
-    deleteBody: ADMIN_API_GROUP_DELETE_BODY,
-    desc: [
-      "List all groups",
-      "Get a single group by ID",
-      "Create a new group",
-      "Update a group (all fields optional)",
-      "Delete a group (requires name confirmation)",
-    ],
-    entry: ADMIN_API_RESOURCES.groups,
-    example: ADMIN_API_EXAMPLE_GROUP,
-    updateBody: ADMIN_API_GROUP_UPDATE_BODY,
-  }),
-  ...crudDocs({
-    createBody: ADMIN_API_HOLIDAY_CREATE_BODY,
-    deleteBody: ADMIN_API_HOLIDAY_DELETE_BODY,
-    desc: [
-      "List all holidays (owner only)",
-      "Get a single holiday by ID (owner only)",
-      "Create a holiday (owner only)",
-      "Update a holiday (owner only, all fields optional)",
-      "Delete a holiday (owner only, requires name confirmation)",
-    ],
-    entry: ADMIN_API_RESOURCES.holidays,
-    example: ADMIN_API_EXAMPLE_HOLIDAY,
-    updateBody: ADMIN_API_HOLIDAY_UPDATE_BODY,
-  }),
-  ...crudDocs({
-    createBody: ADMIN_API_ATTENDEE_STATUS_CREATE_BODY,
-    deleteBody: ADMIN_API_ATTENDEE_STATUS_DELETE_BODY,
-    desc: [
-      "List all attendee statuses (owner only)",
-      "Get one attendee status by ID (owner only)",
-      "Create an attendee status (owner only)",
-      "Update an attendee status (owner only, all fields optional)",
-      "Delete an attendee status (owner only, requires name confirmation)",
-    ],
-    entry: ADMIN_API_RESOURCES["attendee-statuses"],
-    example: ADMIN_API_EXAMPLE_ATTENDEE_STATUS,
-    updateBody: ADMIN_API_ATTENDEE_STATUS_UPDATE_BODY,
-  }),
-  {
-    description:
-      "Create a booking. The answer is the stored attendee row. The body can carry the buyer's answers to the booking's questions: { questionId, answerId } for a choice, or { questionId, freeText } for free text. The create never emails the buyer; a caller-chosen ticketToken makes a retry a no-op. An optional created stamps the business time the booking happened.",
-    method: "POST",
-    path: "/api/admin/attendees",
-    request: json(ADMIN_API_ATTENDEE_CREATE_BODY),
-    response: json({ attendee: ADMIN_API_EXAMPLE_ATTENDEE }),
-  },
-  ...QUESTION_ENDPOINTS,
-  ...SITE_PAGE_ENDPOINTS,
-  ...EXTERNAL_SOURCE_ENDPOINTS,
-  ...IMAGE_ENDPOINTS,
-];
+    ...shown(ADMIN_API_RESOURCES.questions, QUESTION_ENDPOINTS),
+    ...shown(ADMIN_API_RESOURCES["site-pages"], SITE_PAGE_ENDPOINTS),
+    ...shown(
+      ADMIN_API_RESOURCES["external-sources"],
+      EXTERNAL_SOURCE_ENDPOINTS,
+    ),
+    ...IMAGE_ENDPOINTS,
+  ];
+};

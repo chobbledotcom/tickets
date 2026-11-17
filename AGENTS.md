@@ -211,6 +211,12 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   through a local wrapper. `src/features/admin/built-site-form.ts`,
   `src/features/admin/images.ts` and `src/ui/templates/fields/modifier.ts` are
   the shapes to copy.
+- **Adopt a new pattern everywhere it fits**: When you write a helper or a
+  pattern that improves on the current way, apply it to every other site it
+  fits in the same change. One shape for one job keeps the codebase standard.
+  If a site does not fit, say why in the pull request. A clone that this
+  migration reshapes is not a reason to leave a site behind. Record the
+  baseline change and say so in the pull request.
 - **No alias exports**: Never export a name that only renames an imported
   method. Expose the underlying helper and let callers use it. A thin wrapper
   that adds a default, a transformation, or a guard is fine.
@@ -439,6 +445,11 @@ instead.
 `deno task check:copy` enforces the mechanical rules. The judgement is yours on
 every copy change.
 
+A catalog key must have a reader. `test/scripts/i18n-coverage.test.ts` fails on
+a key that no source file references. When you delete the code that reads a
+key, delete the key in the same change. `scripts/check-i18n/unused.ts` says
+what counts as a reference.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
@@ -508,8 +519,14 @@ for why.
 
 `deno task cpd` runs jscpd, and every scan fails on a clone that its committed
 baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. A flagged
-pair is one merge:
+annotations, so a renamed copy is a clone. The baselines only shrink. The scan
+configs and the committed baselines live in `cfg/`. A tool or a platform that
+must read its config from the repository root keeps the file there, as
+`biome.json`, `deno.json`, `devenv.nix`, `fly.toml` and `render.yaml` do. Biome
+refuses a second root configuration in a subdirectory, and the platforms look
+for their file at the root.
+
+A flagged pair is one merge:
 
 - Write the helper, or give the shared tail its parameter. Two functions that
   differ only in a value, a path, a field name, a message, or a callback are one
@@ -519,25 +536,44 @@ pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan holds accepted matches in `.jscpd.renamed-baseline.json`. Add
-  a pair only after you try the curry, with `deno task cpd:renamed --update`.
-- The strict scans hold the clones that existed when they started to count
-  renamed copies, in `.jscpd.baseline.json`, `.jscpd.test-baseline.json`,
-  `.jscpd.helpers-baseline.json`, and `.jscpd.support-baseline.json`. After a
-  merge, remove the fixed clones with
-  `deno run -A scripts/cpd.ts --config <config> --baseline <baseline> --update`.
-  Never add a clone to these baselines.
+- The renamed scan holds accepted matches in
+  `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
+  with `deno task cpd:renamed --update`.
+- The strict scans hold the cloned code that existed when they started to count
+  renamed copies, in `cfg/.jscpd.baseline.json`,
+  `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
+  `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
+  with `deno task cpd:update`. Never add a clone to these baselines.
+- A baseline holds one count for each duplicated snippet. The fingerprint of a
+  snippet covers its text with every run of whitespace removed. A line that
+  moves, a blank line, a file rename, and a new partner for a recorded place
+  therefore keep the count. jscpd's own `--baseline` file hashes the raw text
+  of a clone pair, so this repository writes its own baseline over the scan
+  report, in `scripts/jscpd/baseline.ts`. `deno task cpd:update` rewrites every
+  baseline, and `deno task cpd` checks each scan against it.
 - A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
   a clone that the merge base on `origin/main` does not hold, and on a count
   above the base's, so precommit and CI catch both. It reads every
-  `.jscpd.*baseline.json` in the repository root, and fails on a scan task
-  that names another path, so a new scan's baseline is compared too. Run it on
-  its own with `deno task check:jscpd-baselines`.
+  `.jscpd.*baseline.json` in `cfg/`, and matches each one to the merge base by
+  file name, so a baseline that moves between directories does not count as
+  new. It fails on a scan task that names another path, so a new scan's
+  baseline is compared too. Run it on its own with
+  `deno task check:jscpd-baselines`.
+- A baseline names its fingerprint version. The ratchet cannot compare counts
+  of two versions, so it passes a merge base copy that holds an older version.
+  A baseline whose own version is old fails, and the fix is
+  `deno task cpd:update`.
+- A rewrite re-keys the recorded places it changes. The ratchet accepts those
+  places while the baseline's total falls. A baseline whose total rises, or one
+  that adds more places than it gives up, still fails. A count above the
+  base's for a snippet that the base holds still fails.
 - After each scan, `deno task cpd` names the worst duplication: the code in the
   most places, then the code with the most tokens. Merge that one first.
-- Import and re-export statements are a sanctioned repeat. The
+- Import and re-export statements are a sanctioned repeat. This includes a
+  destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
-  around imports.
+  around imports. The scans of the tests and of their helpers skip no dynamic
+  import: that pattern gives their recorded clones new fingerprints.
 - A declared list of strings is the other sanctioned repeat. The strict scans
   ignore literals, so two long word lists match. Wrap the whole declaration in
   `/* jscpd:ignore-start -- a list of strings, not code */` and
@@ -557,6 +593,25 @@ to do.
   single-record reads (`getAllListings`), full-table backup and restore, and
   `table.read.one` / `read.many` in `table-reader.ts`. Outside these, a caller
   that needs many columns lists them explicitly.
+
+### The `sql` Tag
+
+Write all SQL in a `sql` template from `#db/sql.ts`. The runners refuse a
+plain string.
+
+- A value in a slot is a bound argument. It never enters the SQL text.
+- A statement in a slot brings its own values with it.
+- Use `sqlName` and `sqlNames` for a table name or a column name.
+- Use `sqlLiteral` for a constant that the SQL text must hold: schema text,
+  trigger text, and a constant that a partial index names.
+- Use `sqlList` for the values of an `IN (...)`, and `sqlRows` for VALUES rows.
+- Bind an id as text when the SQL compares it with a TEXT column. libsql binds
+  a JavaScript number as a float, and `CAST(5.0 AS TEXT)` gives `'5.0'`.
+- Do not write a slot inside a quoted SQL literal. The tag refuses it.
+- `sqlFromDump` is for backup restore only.
+
+The SQL tag check in `test/integration/code-quality.test.ts` fails on SQL text
+or a placeholder outside a `sql` template in `src/`.
 
 ### Transactions and Batches
 

@@ -5,7 +5,7 @@ import { getAllQuestionsWithAnswers } from "#db/questions/queries.ts";
 import { handleRequest } from "#routes";
 import { adminApiTestTransport } from "#test-utils/admin-api-transport.ts";
 import { assertApiDeleteOk, assertJson } from "#test-utils/assertions.ts";
-import { describeWithEnv } from "#test-utils/db.ts";
+import { describeWithQuestions as describeWithEnv } from "#test-utils/feature-suites.ts";
 import { mockRequest } from "#test-utils/mocks.ts";
 import {
   apiRequest,

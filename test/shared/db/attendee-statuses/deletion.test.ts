@@ -1,27 +1,49 @@
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import {
+  type AttendeeStatus,
   attendeeStatuses,
   attendeeStatusWrites,
   getAttendeeStatus,
 } from "#db/attendee-statuses.ts";
 import { getDb, update, withTransaction } from "#db/client.ts";
+import { sql } from "#db/sql.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 
 const createAttendeeWithStatus = async (statusId: number): Promise<number> => {
-  const attendee = await getDb().execute({
-    args: [new Date().toISOString(), statusId],
-    sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-  });
+  const attendee = await getDb().execute(
+    sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${statusId})`,
+  );
   return Number(attendee.lastInsertRowid);
 };
 
 const storedAttendeeStatus = async (attendeeId: number): Promise<number> => {
-  const stored = await getDb().execute({
-    args: [attendeeId],
-    sql: "SELECT attendee.status_id FROM attendees AS attendee WHERE attendee.id = ?",
-  });
+  const stored = await getDb().execute(
+    sql`SELECT attendee.status_id FROM attendees AS attendee WHERE attendee.id = ${attendeeId}`,
+  );
   return Number(stored.rows[0]!.status_id);
+};
+
+/** Clears every default flag, so a deletion falls back to a status only when a
+ * test names one. */
+const clearStatusDefaults = async (): Promise<void> => {
+  await getDb().execute(
+    sql`UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0`,
+  );
+};
+
+/** The first seeded status, kept flagless as a bystander. */
+const seedStatus = async (): Promise<AttendeeStatus> => {
+  const seed = (await attendeeStatuses.getAll())[0]!;
+  await clearStatusDefaults();
+  return seed;
+};
+
+/** Adds a status that carries no default flag. */
+const addStatus = async (name: string): Promise<AttendeeStatus> => {
+  const status = await attendeeStatuses.table.insert({ name });
+  await clearStatusDefaults();
+  return status;
 };
 
 const setUpAssignmentRace = async (): Promise<{
@@ -65,19 +87,15 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
 
   test("attendee creation rejects a missing status", async () => {
     await expect(
-      getDb().execute({
-        args: [new Date().toISOString(), 99_999],
-        sql: "INSERT INTO attendees (created, pii_blob, status_id) VALUES (?, '', ?)",
-      }),
+      getDb().execute(
+        sql`INSERT INTO attendees (created, pii_blob, status_id) VALUES (${new Date().toISOString()}, '', ${99_999})`,
+      ),
     ).rejects.toThrow("attendee status does not exist");
   });
 
   test("concurrent deletion attempts keep the last status", async () => {
-    const seed = (await attendeeStatuses.getAll())[0]!;
-    const spare = await attendeeStatuses.table.insert({ name: "Spare" });
-    await getDb().execute(
-      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
-    );
+    const seed = await seedStatus();
+    const spare = await addStatus("Spare");
 
     const results = await Promise.all([
       attendeeStatusWrites.delete(seed.id),
@@ -89,7 +107,7 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
       { error: "last_status", ok: false },
     ]);
     const remaining = await getDb().execute(
-      "SELECT status.id FROM attendee_statuses AS status",
+      sql`SELECT status.id FROM attendee_statuses AS status`,
     );
     expect(remaining.rows).toEqual([{ id: spare.id }]);
   });
@@ -117,11 +135,8 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
   });
 
   test("deleting a status nobody holds removes it outright", async () => {
-    const seed = (await attendeeStatuses.getAll())[0]!;
-    const spare = await attendeeStatuses.table.insert({ name: "Free To Go" });
-    await getDb().execute(
-      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
-    );
+    const seed = await seedStatus();
+    const spare = await addStatus("Free To Go");
 
     expect(await attendeeStatusWrites.delete(spare.id)).toEqual({
       ok: true,
@@ -132,11 +147,8 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
   });
 
   test("deleting a held status moves its attendees and logs the move", async () => {
-    const busy = await attendeeStatuses.table.insert({ name: "Busy" });
-    const other = await attendeeStatuses.table.insert({ name: "Landing" });
-    await getDb().execute(
-      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
-    );
+    const busy = await addStatus("Busy");
+    const other = await addStatus("Landing");
     const attendeeId = await createAttendeeWithStatus(busy.id);
 
     expect(await attendeeStatusWrites.delete(busy.id, other.id)).toEqual({
@@ -148,11 +160,8 @@ describeWithEnv("db > attendee status deletion", { db: true }, () => {
   });
 
   test("deleting a held status without a reachable target keeps everything", async () => {
-    const seed = (await attendeeStatuses.getAll())[0]!;
-    const busy = await attendeeStatuses.table.insert({ name: "Stuck" });
-    await getDb().execute(
-      "UPDATE attendee_statuses AS status SET is_public_default = 0, is_paid_default = 0",
-    );
+    const seed = await seedStatus();
+    const busy = await addStatus("Stuck");
     const attendeeId = await createAttendeeWithStatus(busy.id);
 
     expect(await attendeeStatusWrites.delete(busy.id, 999_999)).toEqual({

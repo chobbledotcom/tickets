@@ -8,7 +8,6 @@ import {
   executeBatchWithoutCacheInvalidation,
   queryBatch,
   queryBatchPrimary,
-  type SqlStatement,
   setDb,
 } from "#db/client.ts";
 import { MIGRATION_IDS } from "#db/migrations/registry.ts";
@@ -18,6 +17,7 @@ import {
   LATEST_UPDATE,
   SCHEMA_HASH,
 } from "#db/migrations.ts";
+import { type SqlStatement, sql } from "#db/sql.ts";
 import { expectFullBackoffWalk } from "#test-utils/backoff-walk.ts";
 import {
   emptyResultSet,
@@ -46,44 +46,78 @@ describe("db > client transient upstream retry", () => {
   const clientWithBatch = (run: () => Promise<ResultSet[]>): Client =>
     stubClient({ batch: run });
 
+  /** Asserts `execute(statement)` fails with `status` once, waits the first
+   * 50ms backoff step, and succeeds on the second attempt. */
+  const expectReadRetry = async (
+    status: number,
+    statement: SqlStatement,
+  ): Promise<void> => {
+    using time = new FakeTime();
+    let attempts = 0;
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return attempts === 1
+          ? Promise.reject(upstreamError(status))
+          : Promise.resolve(emptyResultSet());
+      }),
+    );
+    const promise = execute(statement);
+    await time.tickAsync(50);
+    const result = await promise;
+    expect(result.rowsAffected).toBe(0);
+    expect(attempts).toBe(2);
+  };
+
+  /** Asserts `execute(statement)` surfaces `failure` after exactly one attempt:
+   * only positively recognized reads take the upstream retry. */
+  const expectExecuteAttemptOnce = async (
+    failure: Error,
+    statement: SqlStatement,
+  ): Promise<void> => {
+    let attempts = 0;
+    setDb(
+      clientWith(() => {
+        attempts++;
+        return Promise.reject(failure);
+      }),
+    );
+    await expect(execute(statement)).rejects.toThrow(failure.message);
+    expect(attempts).toBe(1);
+  };
+
+  /** Asserts `operation` over a batch client surfacing `failure` runs exactly
+   * once: a batch holding a write is never replayed. */
+  const expectBatchAttemptOnce = async (
+    failure: Error,
+    operation: () => Promise<unknown>,
+  ): Promise<void> => {
+    let attempts = 0;
+    setDb(
+      clientWithBatch(() => {
+        attempts++;
+        return Promise.reject(failure);
+      }),
+    );
+    await expect(operation()).rejects.toThrow(failure.message);
+    expect(attempts).toBe(1);
+  };
+
   afterEach(() => {
     invalidateInitDbCache();
     setDb(null);
   });
 
   for (const status of [421, 502, 503, 504]) {
-    test(`a fleeting upstream ${status} retries and succeeds`, async () => {
-      using time = new FakeTime();
-      let attempts = 0;
-      setDb(
-        clientWith(() => {
-          attempts++;
-          return attempts === 1
-            ? Promise.reject(upstreamError(status))
-            : Promise.resolve(emptyResultSet());
-        }),
-      );
-      const promise = execute("SELECT 1");
-      await time.tickAsync(50);
-      const result = await promise;
-      expect(result.rowsAffected).toBe(0);
-      expect(attempts).toBe(2);
-    });
+    test(`a fleeting upstream ${status} retries and succeeds`, () =>
+      expectReadRetry(status, sql`SELECT 1`));
   }
 
-  test("a fleeting upstream 421 on a write is not retried", async () => {
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(upstreamError(421));
-      }),
-    );
-    await expect(execute("INSERT INTO t (x) VALUES (1)")).rejects.toThrow(
-      "SERVER_ERROR: Server returned HTTP status 421",
-    );
-    expect(attempts).toBe(1);
-  });
+  test("a fleeting upstream 421 on a write is not retried", () =>
+    expectExecuteAttemptOnce(
+      upstreamError(421),
+      sql`INSERT INTO t (x) VALUES (1)`,
+    ));
 
   test("initDb retries a fleeting 421 on its initial schema probe", async () => {
     using time = new FakeTime();
@@ -112,172 +146,102 @@ describe("db > client transient upstream retry", () => {
     expect(attempts).toBe(2);
   });
 
-  test("a remote database exhausts its retries and rethrows the original error", () => {
+  /** Exhaust the retry ladder for `dbUrl` and assert the original error is
+   *  rethrown once the waits run out. */
+  const expectExhaustedRetries = (
+    dbUrl: string,
+    waits: readonly number[],
+  ): Promise<void> => {
     const failure = upstreamError(504);
     // Identity: the original error propagates unswapped — a sustained outage
     // is reported as itself, not disguised as write-lock contention.
     return expectFullBackoffWalk({
-      dbUrl: "libsql://upstream-ladder.example.turso.io",
+      dbUrl,
       failsWith: () => failure,
       outcome: (operation) => expect(operation).rejects.toBe(failure),
-      sql: "SELECT 1",
-      waits: [50, 150, 350],
+      sql: sql`SELECT 1`,
+      waits,
     });
-  });
+  };
 
-  test("a file database exhausts its longer ladder and rethrows the original error", () => {
-    const failure = upstreamError(504);
-    return expectFullBackoffWalk({
-      dbUrl: "file:/tmp/upstream-ladder.db",
-      failsWith: () => failure,
-      outcome: (operation) => expect(operation).rejects.toBe(failure),
-      sql: "SELECT 1",
-      waits: [50, 150, 350, 700, 1400],
-    });
-  });
+  test("a remote database exhausts its retries and rethrows the original error", () =>
+    expectExhaustedRetries(
+      "libsql://upstream-ladder.example.turso.io",
+      [50, 150, 350],
+    ));
 
-  test("a non-transient upstream status is not retried", async () => {
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(upstreamError(500));
-      }),
-    );
-    await expect(execute("SELECT 1")).rejects.toThrow(
-      "SERVER_ERROR: Server returned HTTP status 500",
-    );
-    expect(attempts).toBe(1);
-  });
+  test("a file database exhausts its longer ladder and rethrows the original error", () =>
+    expectExhaustedRetries(
+      "file:/tmp/upstream-ladder.db",
+      [50, 150, 350, 700, 1400],
+    ));
 
-  test("a SERVER_ERROR-shaped message on a plain Error is not retried", async () => {
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(
-          new Error("SERVER_ERROR: Server returned HTTP status 504"),
-        );
-      }),
-    );
-    await expect(execute("SELECT 1")).rejects.toThrow(
-      "SERVER_ERROR: Server returned HTTP status 504",
-    );
-    expect(attempts).toBe(1);
-  });
+  test("a non-transient upstream status is not retried", () =>
+    expectExecuteAttemptOnce(upstreamError(500), sql`SELECT 1`));
 
-  test("a non-SERVER_ERROR libsql failure is not retried", async () => {
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return Promise.reject(
-          new LibsqlError("bad pipeline", "HRANA_PROTO_ERROR"),
-        );
-      }),
-    );
-    await expect(execute("SELECT 1")).rejects.toThrow(
-      "HRANA_PROTO_ERROR: bad pipeline",
-    );
-    expect(attempts).toBe(1);
-  });
+  test("a SERVER_ERROR-shaped message on a plain Error is not retried", () =>
+    expectExecuteAttemptOnce(
+      new Error("SERVER_ERROR: Server returned HTTP status 504"),
+      sql`SELECT 1`,
+    ));
 
-  for (const [label, sql] of [
-    ["a write statement", "INSERT INTO t (x) VALUES (1)"],
-    ["a CTE-led INSERT", "WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x"],
-    ["a CTE-led UPDATE", "WITH x AS (SELECT 1) UPDATE t SET a = ?"],
-    ["a CTE-led DELETE", "WITH x AS (SELECT 1) DELETE FROM t USING x"],
+  test("a non-SERVER_ERROR libsql failure is not retried", () =>
+    expectExecuteAttemptOnce(
+      new LibsqlError("bad pipeline", "HRANA_PROTO_ERROR"),
+      sql`SELECT 1`,
+    ));
+
+  for (const [label, statement] of [
+    ["a write statement", sql`INSERT INTO t (x) VALUES (1)`],
+    [
+      "a CTE-led INSERT",
+      sql`WITH x AS (SELECT 1) INSERT INTO t SELECT * FROM x`,
+    ],
+    ["a CTE-led UPDATE", sql`WITH x AS (SELECT 1) UPDATE t SET a = 1`],
+    ["a CTE-led DELETE", sql`WITH x AS (SELECT 1) DELETE FROM t USING x`],
     [
       "a CTE-led REPLACE",
-      "WITH x AS (SELECT 1) REPLACE INTO t SELECT * FROM x",
+      sql`WITH x AS (SELECT 1) REPLACE INTO t SELECT * FROM x`,
     ],
-    ["a CREATE TABLE", "CREATE TABLE t (id INTEGER)"],
-    ["an ALTER TABLE", "ALTER TABLE t ADD COLUMN x INTEGER"],
-    ["a DROP TABLE", "DROP TABLE t"],
-    ["a PRAGMA", "PRAGMA table_info(t)"],
+    ["a CREATE TABLE", sql`CREATE TABLE t (id INTEGER)`],
+    ["an ALTER TABLE", sql`ALTER TABLE t ADD COLUMN x INTEGER`],
+    ["a DROP TABLE", sql`DROP TABLE t`],
+    ["a PRAGMA", sql`PRAGMA table_info(t)`],
   ] as const) {
-    test(`a fleeting upstream 504 on ${label} is not retried`, async () => {
-      // An upstream HTTP failure on anything but a read may arrive after its
-      // side effects committed; replaying it could double-apply, so
-      // only positively recognized SELECTs retry upstream errors. Every
-      // CTE-led write — INSERT, UPDATE, DELETE, or REPLACE — is a write: the
-      // CTE prefix must not trip the read-only retry gate. DDL and PRAGMA
-      // statements are no more reads than writes are, so they fail closed the
-      // same way.
-      let attempts = 0;
-      setDb(
-        clientWith(() => {
-          attempts++;
-          return Promise.reject(upstreamError(504));
-        }),
-      );
-      await expect(execute(sql)).rejects.toThrow(
-        "SERVER_ERROR: Server returned HTTP status 504",
-      );
-      expect(attempts).toBe(1);
-    });
+    // An upstream HTTP failure on anything but a read may arrive after its
+    // side effects committed; replaying it could double-apply, so only
+    // positively recognized SELECTs retry upstream errors. Every CTE-led
+    // write — INSERT, UPDATE, DELETE, or REPLACE — is a write: the CTE prefix
+    // must not trip the read-only retry gate. DDL and PRAGMA statements are no
+    // more reads than writes are, so they fail closed the same way.
+    test(`a fleeting upstream 504 on ${label} is not retried`, () =>
+      expectExecuteAttemptOnce(upstreamError(504), statement));
   }
 
-  test("a fleeting upstream 504 on a CTE-led SELECT retries and succeeds", async () => {
+  test("a fleeting upstream 504 on a CTE-led SELECT retries and succeeds", () =>
     // The CTE prefix must not hide a read either: a WITH ... SELECT is a
     // side-effect-free read, so it takes the upstream retry like a bare one.
-    using time = new FakeTime();
-    let attempts = 0;
-    setDb(
-      clientWith(() => {
-        attempts++;
-        return attempts === 1
-          ? Promise.reject(upstreamError(504))
-          : Promise.resolve(emptyResultSet());
-      }),
-    );
-    const promise = execute("WITH x AS (SELECT 1) SELECT * FROM x");
-    await time.tickAsync(50);
-    const result = await promise;
-    expect(result.rowsAffected).toBe(0);
-    expect(attempts).toBe(2);
-  });
+    expectReadRetry(504, sql`WITH x AS (SELECT 1) SELECT * FROM x`));
 
   for (const [label, statements] of [
-    ["a write batch", [{ args: [], sql: "INSERT INTO t (x) VALUES (1)" }]],
+    ["a write batch", [sql`INSERT INTO t (x) VALUES (1)`]],
     [
       "a mixed read/write batch",
-      [
-        { args: [], sql: "SELECT 1" },
-        { args: [], sql: "INSERT INTO t (x) VALUES (1)" },
-      ],
+      [sql`SELECT 1`, sql`INSERT INTO t (x) VALUES (1)`],
     ],
   ] as [string, SqlStatement[]][]) {
-    test(`a fleeting upstream 504 on ${label} is not retried`, async () => {
-      let attempts = 0;
-      setDb(
-        clientWithBatch(() => {
-          attempts++;
-          return Promise.reject(upstreamError(504));
-        }),
-      );
-      await expect(executeBatch(statements)).rejects.toThrow(
-        "SERVER_ERROR: Server returned HTTP status 504",
-      );
-      expect(attempts).toBe(1);
-    });
+    test(`a fleeting upstream 504 on ${label} is not retried`, () =>
+      expectBatchAttemptOnce(upstreamError(504), () =>
+        executeBatch(statements),
+      ));
   }
 
-  test("a write batch without cache invalidation is not retried on a 504", async () => {
-    let attempts = 0;
-    setDb(
-      clientWithBatch(() => {
-        attempts++;
-        return Promise.reject(upstreamError(504));
-      }),
-    );
-    await expect(
+  test("a write batch without cache invalidation is not retried on a 504", () =>
+    expectBatchAttemptOnce(upstreamError(504), () =>
       executeBatchWithoutCacheInvalidation([
-        { args: [], sql: "INSERT INTO settings (key) VALUES ('marker')" },
+        sql`INSERT INTO settings (key) VALUES ('marker')`,
       ]),
-    ).rejects.toThrow("SERVER_ERROR: Server returned HTTP status 504");
-    expect(attempts).toBe(1);
-  });
+    ));
 
   for (const [label, batch] of [
     ["queryBatch", queryBatch],
@@ -294,7 +258,7 @@ describe("db > client transient upstream retry", () => {
             : Promise.resolve([emptyResultSet()]);
         }),
       );
-      const promise = batch([{ args: [], sql: "SELECT 1" }]);
+      const promise = batch([sql`SELECT 1`]);
       await time.tickAsync(50);
       const result = await promise;
       expect(result).toHaveLength(1);
@@ -313,9 +277,7 @@ describe("db > client transient upstream retry", () => {
           return Promise.resolve([emptyResultSet()]);
         }),
       );
-      await expect(
-        batch([{ args: [], sql: "INSERT INTO t (x) VALUES (1)" }]),
-      ).rejects.toThrow(
+      await expect(batch([sql`INSERT INTO t (x) VALUES (1)`])).rejects.toThrow(
         "Read-only batch executors accept only SELECT statements",
       );
       expect(attempts).toBe(0);

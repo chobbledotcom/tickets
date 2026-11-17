@@ -1,3 +1,4 @@
+import { sql } from "#db/sql.ts";
 import { backfillDropColumnMigration } from "./define.ts";
 
 /**
@@ -22,12 +23,10 @@ export default backfillDropColumnMigration(
     // Authoritative rebuild of the day_count rows from the column: replace the
     // whole dimension, then repopulate one row per (listing, day count) entry.
     await getDb().execute(
-      "DELETE FROM listing_prices WHERE price_type = 'day_count'",
+      sql`DELETE FROM listing_prices WHERE price_type = 'day_count'`,
     );
     await getDb().execute(
-      "INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) " +
-        "SELECT listing.id, 'day_count', dayPrice.key, dayPrice.value " +
-        "FROM listings AS listing, json_each(listing.day_prices) AS dayPrice",
+      sql`INSERT INTO listing_prices (listing_id, price_type, price_id, unit_price) SELECT listing.id, 'day_count', dayPrice.key, dayPrice.value FROM listings AS listing, json_each(listing.day_prices) AS dayPrice`,
     );
   },
 );

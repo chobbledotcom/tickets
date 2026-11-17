@@ -30,11 +30,9 @@ const page = defineSiteContentPage<Leaflet>({
       Promise.resolve(Raw({ html: "<p>Items</p>" })),
     ),
   ],
-  guideAnchor: "public-site",
   itemType: "page",
   load: (id) => Promise.resolve(id === 404 ? null : LEAFLET),
   navActive: "/admin/site/pages",
-  titleOf: (leaflet) => leaflet.name,
 });
 
 describeWithEnv("a site content page", { db: true }, () => {

@@ -5,6 +5,7 @@
 
 import { expect } from "@std/expect";
 import { sitePages } from "#db/site-pages.ts";
+import { occurrencesIn } from "#fp-strings";
 import { t } from "#i18n";
 import { leaveEvidencePage } from "#scripts/specs/evidence/pages.ts";
 import {
@@ -27,10 +28,8 @@ import {
   fillInAndSend,
   sendOneBox,
 } from "#test/specs/support/form-controls.ts";
-import { movingRowsOn } from "#test/specs/support/reordering.ts";
+import { upArrowOn } from "#test/specs/support/reordering.ts";
 import {
-  type ActOnOneThing,
-  type AsksAboutOneThing,
   keepsAnswerAs,
   keepWhatTheyWereTold,
   type ReadAboutOneThing,
@@ -138,8 +137,8 @@ const openList = opensListAtRow(
  * lost its way in is a page the owner cannot reach. */
 const linkIntoPage = findsTheWayInFrom(openList);
 
-/** The arrows the owner's own list offers for moving one page. */
-const pageArrows = movingRowsOn(PAGES_LIST, openList);
+/** The up arrow on each page of the owner's own list. */
+const pageUpArrow = upArrowOn(PAGES_LIST, openList);
 
 /** The names of the site's pages in the order the owner is offered them, read
  * off their own list. Reading the stored rows instead would pass even if the
@@ -149,25 +148,22 @@ export const pagesInOrder = async (world: TicketsWorld): Promise<string[]> => {
   const browser = await openAdminPage(world, PAGES_LIST);
   const named = await sitePages.getAll();
   const shown = browser.pageText;
-  return named
-    .map(({ name }) => ({ at: shown.indexOf(name), name }))
-    .filter(({ at }) => at >= 0)
-    .sort((left, right) => left.at - right.at)
-    .map(({ name }) => name);
+  return occurrencesIn(
+    shown,
+    ({ name }: { name: string }) => name,
+  )(named).map(({ item }) => item.name);
 };
 
 /** The owner moves one page a step up the list. The arrows are pictures rather
  * than words, and every row has its own, so the story checks the list really
  * offers this page's arrow before pressing it. A page already at the top has no
  * up arrow at all, which is how the site says "no further". */
-export const ownerMovesPageUp: ActOnOneThing = (world, name) =>
-  pageArrows.move(world, name, "up");
+export const ownerMovesPageUp = pageUpArrow.movesUp;
 
 /** Whether the owner's list offers to move one page up at all. A page already
  * at the top has no up arrow, which is how the site says "no further" — so
  * there is no request to send rather than one that quietly does nothing. */
-export const pageIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
-  pageArrows.canMove(world, name, "up");
+export const pageIsOfferedAMoveUp = pageUpArrow.offersMoveUp;
 
 /** The owner takes a page down, typing a name to confirm. Keeps what they were
  * told, because typing it wrongly is meant to change nothing. */

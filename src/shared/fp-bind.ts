@@ -14,3 +14,10 @@ export const constant =
   <T>(value: T) =>
   (_unused: unknown): T =>
     value;
+
+/** Read one item's flag from a table keyed by its kind. The table is a full
+ *  `Record`, so a forgotten kind fails to compile. */
+export const flagOfKind =
+  <Kind extends string>(flags: Record<Kind, boolean>) =>
+  (item: { readonly kind: Kind }): boolean =>
+    flags[item.kind];

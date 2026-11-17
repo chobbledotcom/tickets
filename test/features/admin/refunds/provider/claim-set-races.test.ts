@@ -4,6 +4,7 @@ import { getAttendeeOrNull } from "#db/attendees/queries.ts";
 import { updateAttendeePII } from "#db/attendees/update.ts";
 import { execute, requireOne } from "#db/client.ts";
 import { getRefundPaymentReferencesForAttendee } from "#db/payment-references.ts";
+import { sql } from "#db/sql.ts";
 import type { RefundCandidate } from "#routes/admin/refunds/candidates.ts";
 import { processRefundBatch } from "#routes/admin/refunds/provider.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
@@ -25,8 +26,7 @@ const withStoredRevision = async (
     ...attendee,
     pii_blob: (
       await requireOne<{ pii_blob: Attendee["pii_blob"] }>(
-        "SELECT pii_blob FROM attendees WHERE id = ?",
-        [attendee.id],
+        sql`SELECT pii_blob FROM attendees WHERE id = ${attendee.id}`,
       )
     ).pii_blob,
   } as Attendee,
@@ -37,6 +37,22 @@ const withStoredRevision = async (
     ),
   ),
 });
+
+/** The paid attendee and the refund candidate built from its stored rows. */
+type LoadedCandidate = { attendeeId: number; candidate: RefundCandidate };
+
+/** Book a paid attendee and build the refund candidate from the rows as stored,
+ *  before a test changes them. */
+const loadCandidate = async (
+  sessionId: string,
+  paymentIntentId: string,
+): Promise<LoadedCandidate> => {
+  const attendeeId = await bookedWithPayment(sessionId, paymentIntentId);
+  return {
+    attendeeId,
+    candidate: await withStoredRevision({ id: attendeeId, payment_id: "" }),
+  };
+};
 
 const resave = (attendee: Attendee, name = attendee.name): Promise<void> =>
   updateAttendeePII(attendee.id, {
@@ -71,6 +87,19 @@ const expectRunStandsDown = async (
   expect(prepared).toBe(false);
 };
 
+/** Load the candidate from the stored rows under `sessionId` and
+ *  `paymentIntentId`, change those rows through `changeRows`, then assert the
+ *  run refuses because the loaded set no longer matches. */
+const expectRefusedAfterChange = async (
+  sessionId: string,
+  paymentIntentId: string,
+  changeRows: (loaded: LoadedCandidate) => Promise<void>,
+): Promise<void> => {
+  const loaded = await loadCandidate(sessionId, paymentIntentId);
+  await changeRows(loaded);
+  await expectRunStandsDown(loaded.candidate, 7);
+};
+
 describeWithEnv(
   "admin refund provider > the loaded payment set",
   { db: true, encryptionKey: true },
@@ -79,86 +108,76 @@ describeWithEnv(
 
     setupErrorSpy();
 
-    test("does not refund a payment row deleted after it was loaded", async () => {
-      const attendeeId = await bookedWithPayment(
+    /** Each case changes the stored payment rows after the candidate loaded, so
+     *  the run must refuse. */
+    const changedSetCases: [
+      name: string,
+      sessionId: string,
+      paymentIntentId: string,
+      change: (loaded: LoadedCandidate) => Promise<void>,
+    ][] = [
+      [
+        "does not refund a payment row deleted after it was loaded",
         "sess_deleted_before_claim",
         "pi_deleted_before_claim",
-      );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
-      await execute(
-        "DELETE FROM processed_payments WHERE payment_session_id = ?",
-        ["sess_deleted_before_claim"],
-      );
-      await expectRunStandsDown(candidate, 7);
-    });
-
-    test("does not refund a payment row moved after it was loaded", async () => {
-      const attendeeId = await bookedWithPayment(
+        async () => {
+          await execute(
+            sql`DELETE FROM processed_payments WHERE payment_session_id = ${"sess_deleted_before_claim"}`,
+          );
+        },
+      ],
+      [
+        "does not refund a payment row moved after it was loaded",
         "sess_moved_before_claim",
         "pi_moved_before_claim",
-      );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
-      const destinationId = await bookedWithPayment(
-        "sess_move_destination",
-        "pi_move_destination",
-      );
-      await execute(
-        "UPDATE processed_payments SET attendee_id = ? WHERE payment_session_id = ?",
-        [destinationId, "sess_moved_before_claim"],
-      );
-
-      await expectRunStandsDown(candidate, 7);
-    });
-
-    test("does not refund when a payment row is added after loading", async () => {
-      const attendeeId = await bookedWithPayment(
+        async () => {
+          const destinationId = await bookedWithPayment(
+            "sess_move_destination",
+            "pi_move_destination",
+          );
+          await execute(
+            sql`UPDATE processed_payments SET attendee_id = ${destinationId} WHERE payment_session_id = ${"sess_moved_before_claim"}`,
+          );
+        },
+      ],
+      [
+        "does not refund when a payment row is added after loading",
         "sess_original_before_claim",
         "pi_original_before_claim",
-      );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
-      await finalizeProcessedPayment(
-        "sess_added_before_claim",
-        attendeeId,
-        "tok-added",
-        taggedPaymentReference("pi_added_before_claim"),
-      );
-
-      await expectRunStandsDown(candidate, 7);
-    });
-
-    test("does not refund when unindexed history appears after loading", async () => {
-      const attendeeId = await bookedWithPayment(
+        async ({ attendeeId }) => {
+          await finalizeProcessedPayment(
+            "sess_added_before_claim",
+            attendeeId,
+            "tok-added",
+            taggedPaymentReference("pi_added_before_claim"),
+          );
+        },
+      ],
+      [
+        "does not refund when unindexed history appears after loading",
         "sess_indexed_before_history",
         "pi_indexed_before_history",
-      );
-      const candidate = await withStoredRevision({
-        id: attendeeId,
-        payment_id: "",
-      });
-      await finalizeProcessedPayment(
-        "sess_unindexed_after_load",
-        attendeeId,
-        "tok-unindexed",
-        taggedPaymentReference("pi_unindexed_after_load"),
-      );
-      await execute(
-        `UPDATE processed_payments
-            SET payment_reference_index = ''
-          WHERE payment_session_id = ?`,
-        ["sess_unindexed_after_load"],
-      );
+        async ({ attendeeId }) => {
+          await finalizeProcessedPayment(
+            "sess_unindexed_after_load",
+            attendeeId,
+            "tok-unindexed",
+            taggedPaymentReference("pi_unindexed_after_load"),
+          );
+          await execute(
+            sql`UPDATE processed_payments
+                SET payment_reference_index = ''
+              WHERE payment_session_id = ${"sess_unindexed_after_load"}`,
+          );
+        },
+      ],
+    ];
 
-      await expectRunStandsDown(candidate, 7);
-    });
+    for (const [name, sessionId, paymentIntentId, change] of changedSetCases) {
+      test(name, async () => {
+        await expectRefusedAfterChange(sessionId, paymentIntentId, change);
+      });
+    }
 
     test("does not refund after the attendee PII revision changes", async () => {
       const attendeeId = await bookedWithPayment(

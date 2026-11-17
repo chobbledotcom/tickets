@@ -2,9 +2,11 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
+import type { ClosedReason } from "#shared/rest/field-specs.ts";
 import {
   getListingEditForm,
   getListingForm,
+  type ListingFormView,
   logisticsAgentForm,
 } from "#templates/fields/listing.ts";
 import {
@@ -17,37 +19,80 @@ import { fieldShape as shape } from "#test-utils/field-shape.ts";
 // place before any field list is read — as the admin shell guarantees.
 await ensureMessageGroups(MESSAGE_GROUPS);
 
-/** The declared fields with just the named boxes made visible — what a view
- * flag is expected to change, and nothing else. */
-const revealing = (names: string[]): Record<string, unknown>[] =>
-  LISTING_FIELDS.map((field) =>
-    names.includes(field.name) ? { ...field, visible: true } : field,
-  );
+/** The declared fields with just the named boxes shown or hidden — what a
+ * view is expected to change, and nothing else. */
+const withVisibility =
+  (visible: boolean) =>
+  (names: string[]): Record<string, unknown>[] =>
+    LISTING_FIELDS.map((field) =>
+      names.includes(field.name) ? { ...field, visible } : field,
+    );
+const revealing = withVisibility(true);
+const hiding = withVisibility(false);
+
+const BUILT_SITE_BOXES = [
+  "months_per_unit",
+  "initial_site_months",
+  "assign_built_site",
+];
+
+const RECURRING_BOXES = ["recurring_price", "recurring_interval"];
+
+const boxesOf = (names: string[], reason: ClosedReason) =>
+  names.map((name): [string, ClosedReason] => [name, reason]);
+
+/** The boxes a site closes for each feature it turns off. */
+const FEATURE_BOXES: [string, ClosedReason][] = [
+  ...boxesOf(BUILT_SITE_BOXES, "builder"),
+  ["uses_logistics", "logistics"],
+  ...boxesOf(RECURRING_BOXES, "subscriptions"),
+];
+
+/** The served fields of a form with the given features off and the given
+ * extra boxes closed. */
+const servedWith = (
+  off: ClosedReason[],
+  view: Omit<Partial<ListingFormView>, "closed"> = {},
+  ...extra: [string, ClosedReason][]
+) =>
+  getListingForm({
+    closed: new Map([
+      ...FEATURE_BOXES.filter(([, reason]) => off.includes(reason)),
+      ...extra,
+    ]),
+    ...view,
+  }).fields.map(shape);
+
+const FEATURES_OFF: ClosedReason[] = ["builder", "logistics", "subscriptions"];
 
 describe("listing field schemas", () => {
-  test("the listing form serves exactly its declared fields", () => {
-    expect(getListingForm().fields.map(shape)).toEqual(LISTING_FIELDS);
+  test("with site building, logistics and subscriptions off, the listing form serves exactly its declared fields", () => {
+    expect(servedWith(FEATURES_OFF)).toEqual(LISTING_FIELDS);
   });
 
-  test("the logistics view only reveals the agent assignment box", () => {
-    expect(getListingForm({ logistics: true }).fields.map(shape)).toEqual(
+  test("each feature turned on reveals only its own boxes", () => {
+    expect([
+      servedWith([]),
+      servedWith(["builder", "subscriptions"]),
+      servedWith(["logistics", "subscriptions"]),
+      servedWith(["builder", "logistics"]),
+    ]).toEqual([
+      revealing([...BUILT_SITE_BOXES, "uses_logistics", ...RECURRING_BOXES]),
       revealing(["uses_logistics"]),
-    );
+      revealing(BUILT_SITE_BOXES),
+      revealing(RECURRING_BOXES),
+    ]);
   });
 
   test("the storage view only reveals the image box", () => {
-    expect(getListingForm({ storage: true }).fields.map(shape)).toEqual(
+    expect(servedWith(FEATURES_OFF, { storage: true })).toEqual(
       revealing(["attachment"]),
     );
   });
 
-  test("the builder view only reveals the built-site boxes", () => {
-    expect(getListingForm({ builder: true }).fields.map(shape)).toEqual(
-      revealing([
-        "months_per_unit",
-        "initial_site_months",
-        "assign_built_site",
-      ]),
+  test("closing the webhook hides only the webhook box", () => {
+    expect(servedWith(FEATURES_OFF, {}, ["webhook_url", "editor"])).toEqual(
+      hiding(["webhook_url"]),
     );
   });
 
@@ -55,16 +100,15 @@ describe("listing field schemas", () => {
     const focused = LISTING_FIELDS.map((field) =>
       field.name === "name" ? { autofocus: true, ...field } : field,
     );
-    expect(getListingForm({ nameAutofocus: true }).fields.map(shape)).toEqual(
-      focused,
-    );
+    expect(servedWith(FEATURES_OFF, { nameAutofocus: true })).toEqual(focused);
   });
 
   test("the edit form is the listing form plus the slug box", () => {
-    expect(getListingEditForm().fields.map(shape)).toEqual([
-      ...LISTING_FIELDS,
-      SLUG_FIELD,
-    ]);
+    expect(
+      getListingEditForm({
+        closed: new Map(FEATURE_BOXES),
+      }).fields.map(shape),
+    ).toEqual([...LISTING_FIELDS, SLUG_FIELD]);
   });
 
   test("the logistics agent form serves exactly its declared field", () => {

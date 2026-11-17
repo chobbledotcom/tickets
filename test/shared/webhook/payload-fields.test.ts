@@ -20,6 +20,17 @@ import {
 } from "#test-utils/factories.ts";
 import type { EmailEntry } from "#test-utils/internal.ts";
 
+/** Assert each field a record reports, so a record's whole report reads as one
+ *  table. */
+const expectFields = <T extends object>(
+  subject: T,
+  fields: Partial<Record<keyof T, unknown>>,
+): void => {
+  for (const field of Object.keys(fields) as (keyof T)[]) {
+    expect(subject[field]).toBe(fields[field]);
+  }
+};
+
 describeWithEnv("buildWebhookPayload", { db: true }, () => {
   const packagePricing = (
     prices: ReadonlyMap<number, number> = new Map(),
@@ -44,24 +55,28 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
       "public",
     );
 
-    expect(payload.notification_type).toBe("registration.completed");
-    expect(payload.source).toBe("public");
-    expect(payload.name).toBe("Jane Doe");
-    expect(payload.email).toBe("jane@example.com");
-    expect(payload.phone).toBe("555-1234");
-    expect(payload.price_paid).toBeNull();
-    expect(payload.currency).toBe("GBP");
-    expect(payload.payment_id).toBeNull();
-    expect(payload.ticket_url).toBe("https://localhost/t/AABB001122");
+    expectFields(payload, {
+      business_email: "",
+      currency: "GBP",
+      email: "jane@example.com",
+      name: "Jane Doe",
+      notification_type: "registration.completed",
+      payment_id: null,
+      phone: "555-1234",
+      price_paid: null,
+      source: "public",
+      ticket_url: "https://localhost/t/AABB001122",
+    });
     expect(payload.tickets).toHaveLength(1);
-    expect(payload.tickets[0]!.listing_name).toBe("Test Listing");
-    expect(payload.tickets[0]!.listing_slug).toBe("test-listing");
-    expect(payload.tickets[0]!.unit_price).toBe(0);
-    expect(payload.tickets[0]!.quantity).toBe(1);
-    expect(payload.tickets[0]!.date).toBeNull();
-    expect(payload.tickets[0]!.ticket_token).toBe("AABB001122");
-    expect(payload.timestamp).toBeDefined();
-    expect(payload.business_email).toBe("");
+    expectFields(payload.tickets[0]!, {
+      date: null,
+      listing_name: "Test Listing",
+      listing_slug: "test-listing",
+      quantity: 1,
+      ticket_token: "AABB001122",
+      unit_price: 0,
+    });
+    expect(payload.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/u);
   });
 
   test("builds payload for a single paid listing with price_paid on attendee", async () => {
@@ -251,20 +266,24 @@ describeWithEnv("buildWebhookPayload", { db: true }, () => {
 
     const payload = await buildWebhookPayload(entries, "EUR", "public");
 
-    expect(payload.name).toBe("Jane Doe");
-    expect(payload.price_paid).toBe(1700);
-    expect(payload.payment_id).toBe("pi_multi");
-    expect(payload.ticket_url).toBe(
-      "https://localhost/t/AA00BB11CC+DD22EE33FF",
-    );
+    expectFields(payload, {
+      name: "Jane Doe",
+      payment_id: "pi_multi",
+      price_paid: 1700,
+      ticket_url: "https://localhost/t/AA00BB11CC+DD22EE33FF",
+    });
     expect(payload.tickets).toHaveLength(2);
-    expect(payload.tickets[0]!.listing_name).toBe("Listing A");
-    expect(payload.tickets[0]!.unit_price).toBe(300);
-    expect(payload.tickets[0]!.ticket_token).toBe("AA00BB11CC");
-    expect(payload.tickets[1]!.listing_name).toBe("Listing B");
-    expect(payload.tickets[1]!.unit_price).toBe(700);
-    expect(payload.tickets[1]!.quantity).toBe(2);
-    expect(payload.tickets[1]!.ticket_token).toBe("DD22EE33FF");
+    expectFields(payload.tickets[0]!, {
+      listing_name: "Listing A",
+      ticket_token: "AA00BB11CC",
+      unit_price: 300,
+    });
+    expectFields(payload.tickets[1]!, {
+      listing_name: "Listing B",
+      quantity: 2,
+      ticket_token: "DD22EE33FF",
+      unit_price: 700,
+    });
   });
 
   test("includes price_paid for free can_pay_more listing where attendee paid", async () => {

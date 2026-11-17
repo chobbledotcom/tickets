@@ -8,7 +8,7 @@ import {
   packageMemberRefusals,
   sameMembership,
 } from "#routes/admin/catalog-transfer/bundle-plan.ts";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { testListingWithCount } from "#test-utils/factories.ts";
 
 /** The minimal ListingInput a plan needs for the pure helpers. */

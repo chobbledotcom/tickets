@@ -23,10 +23,9 @@ import {
   rowsOnList,
 } from "#test/specs/support/form-controls/reading.ts";
 import { fillInAndSend } from "#test/specs/support/form-controls.ts";
-import { movingRowsOn } from "#test/specs/support/reordering.ts";
+import { upArrowOn } from "#test/specs/support/reordering.ts";
 import type {
   ActOnOneThing,
-  AsksAboutOneThing,
   ReadAboutOneThing,
   TicketsWorld,
 } from "#test/specs/support/world.ts";
@@ -183,17 +182,15 @@ export const organiserTakesStateAway = async (
   keepsWhatTheOrganiserSaw(world, await takesStateAway(world, name, typed));
 };
 
-/** The arrows the organiser's list offers for moving one state. */
-const stateArrows = movingRowsOn(THE_LIST, openAtState);
+/** The up arrow on each state of the organiser's list. */
+const stateUpArrow = upArrowOn(THE_LIST, openAtState);
 
 /** The organiser moves one state a step up their list. */
-export const organiserMovesStateUp: ActOnOneThing = (world, name) =>
-  stateArrows.move(world, name, "up");
+export const organiserMovesStateUp = stateUpArrow.movesUp;
 
 /** Whether the list offers to move one state up at all. Its absence is how the
  * site says a state is already at the top. */
-export const stateIsOfferedAMoveUp: AsksAboutOneThing = (world, name) =>
-  stateArrows.canMove(world, name, "up");
+export const stateIsOfferedAMoveUp = stateUpArrow.offersMoveUp;
 
 /** A state the story needs to exist before the rule it is about. The add has
  * to have worked, or the rule it feeds proves nothing. */

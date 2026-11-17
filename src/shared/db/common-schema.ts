@@ -5,6 +5,7 @@ import {
   type KeyedCache,
   type KeyedCacheConfig,
 } from "#db/keyed-cache.ts";
+import type { SqlStatement } from "#db/sql.ts";
 import { type ColumnDef, col, type Table } from "#db/table.ts";
 import {
   type DependsOnEntry,
@@ -64,23 +65,23 @@ export type AggregateRepairs<F extends string> = {
 };
 
 /**
- * Both repairs for one table's aggregate columns, given the SQL that recounts
- * each one. Every aggregate family declares its table and its per-column
- * recount here rather than writing the same two wrappers again.
+ * Both repairs for one table's aggregate columns, given the expression that
+ * recounts each one for the row `<table>.id`. Every family declares its table
+ * and per-column recount here rather than writing the same two wrappers again.
  */
 export const aggregateRepairs = <F extends string>(
   table: string,
-  resetSql: Record<F, string>,
+  recount: Record<F, SqlStatement>,
 ): AggregateRepairs<F> => ({
   reset: (entityId, fields) =>
-    resetAggregates(table, entityId, fields, resetSql),
+    resetAggregates(table, entityId, fields, recount),
   update: async (entityId, values) => {
     await executeUpdate(table, { ...values }, { id: entityId });
   },
 });
 
-type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
-type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
+export type EncryptFn = (v: string) => Promise<EnvKeyEncrypted>;
+export type DecryptFn = (v: EnvKeyEncrypted) => Promise<string>;
 
 /** Encrypted `slug` + its plaintext blind-index `slug_index` (the permalink
  * pair shared by pages and news posts). */

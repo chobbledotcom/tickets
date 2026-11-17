@@ -17,26 +17,31 @@ const navEntries = ADMIN_SECTIONS.flatMap((section) =>
   section.nav.map((entry) => ({ entry, section })),
 );
 
+/* jscpd:ignore-start -- a list of strings, not code */
+const SECTION_ORDER = [
+  "home",
+  "doors",
+  "listings",
+  "calendar",
+  "servicing",
+  "attendees",
+  "invoices",
+  "subscriptions",
+  "users",
+  "groups",
+  "images",
+  "modifiers",
+  "ledger",
+  "site",
+  "builtSites",
+  "settings",
+  "guide",
+];
+/* jscpd:ignore-end */
+
 describe("the admin sections table", () => {
   test("keeps the complete top-level section order", () => {
-    expect(ADMIN_SECTIONS.map((section) => section.id)).toEqual([
-      "home",
-      "doors",
-      "listings",
-      "calendar",
-      "servicing",
-      "attendees",
-      "invoices",
-      "users",
-      "groups",
-      "images",
-      "modifiers",
-      "ledger",
-      "site",
-      "builtSites",
-      "settings",
-      "guide",
-    ]);
+    expect(ADMIN_SECTIONS.map((section) => section.id)).toEqual(SECTION_ORDER);
   });
 
   test("keeps each section's sub-navigation in its declared order", () => {

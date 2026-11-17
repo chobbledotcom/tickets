@@ -16,6 +16,7 @@ import { stub } from "@std/testing/mock";
 import { hmacHash } from "#crypto/hashing.ts";
 import { queryAll } from "#db/client.ts";
 import { N_PLUS_ONE_THRESHOLD, trackSql } from "#db/query-log.ts";
+import { sql } from "#db/sql.ts";
 import { getEffectiveDomain } from "#shared/config.ts";
 import { MAX_LOGIN_ATTEMPTS } from "#shared/limits.ts";
 import { setSuppressDebugLogs } from "#shared/log-settings.ts";
@@ -229,7 +230,7 @@ describeWithEnv("serve-app", { db: true }, () => {
         assertStringIncludes(flashOf(other), "Username or password was wrong");
         assertStringIncludes(flashOf(locked), "Too many login attempts");
         const rows = await queryAll<{ attempts: number; ip: string }>(
-          "SELECT ip, attempts FROM login_attempts ORDER BY attempts",
+          sql`SELECT ip, attempts FROM login_attempts ORDER BY attempts`,
         );
         expect(rows).toEqual([
           { attempts: 1, ip: await hmacHash("192.0.2.2") },

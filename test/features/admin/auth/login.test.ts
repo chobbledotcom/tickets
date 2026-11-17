@@ -2,6 +2,7 @@ import { assert, assertArrayIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { afterEach, describe, it as test } from "@std/testing/bdd";
 import { spy, stub } from "@std/testing/mock";
+import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { clearSessionCookie } from "#shared/cookies.ts";
 import { signCsrfToken } from "#shared/csrf.ts";
@@ -61,10 +62,9 @@ const expectLoginRejectedWithWrappedKey = async (
   message: string,
 ): Promise<void> => {
   const { getDb } = await import("#db/client.ts");
-  await getDb().execute({
-    args: [wrappedDataKey],
-    sql: "UPDATE users SET wrapped_data_key = ? WHERE id = 1",
-  });
+  await getDb().execute(
+    sql`UPDATE users SET wrapped_data_key = ${wrappedDataKey} WHERE id = 1`,
+  );
   const response = await handleRequest(
     await mockAdminLoginRequest({
       password: TEST_ADMIN_PASSWORD,

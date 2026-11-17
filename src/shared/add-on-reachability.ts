@@ -27,7 +27,7 @@ import {
 import { modifierGroups } from "#db/modifiers.ts";
 import { once, requiredMapValue } from "#fp";
 import { t } from "#i18n";
-import type { ListingInput } from "#shared/catalog-fields/fields.ts";
+import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** The user-facing refusal a reachability guard returns, or null when the

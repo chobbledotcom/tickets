@@ -2,6 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { executeBatch, getDb, setDb } from "#db/client.ts";
 import { runDatabasePruning } from "#db/prune.ts";
+import { sql } from "#db/sql.ts";
 import { createInvitedUser, getAllUsers } from "#db/users.ts";
 import { getAllCacheStats } from "#shared/cache-registry.ts";
 import { MAINTENANCE_PRUNE_BATCH } from "#shared/limits.ts";
@@ -21,18 +22,18 @@ const cloneInvites = (
   count: number,
 ): Promise<void> =>
   executeBatch(
-    Array.from({ length: count }, (_, index) => ({
-      args: [`${prefix}-${index}`, sourceId],
-      sql: `INSERT INTO users (
+    Array.from(
+      { length: count },
+      (_, index) => sql`INSERT INTO users (
               username_hash, username_index, password_hash, wrapped_data_key,
               admin_level, invite_code_hash, invite_expiry, kek_version,
               invite_wrapped_data_key
             )
-            SELECT username_hash, ?, password_hash, wrapped_data_key,
+            SELECT username_hash, ${`${prefix}-${index}`}, password_hash, wrapped_data_key,
                    admin_level, invite_code_hash, invite_expiry, kek_version,
                    invite_wrapped_data_key
-              FROM users WHERE id = ?`,
-    })),
+              FROM users WHERE id = ${sourceId}`,
+    ),
   );
 
 describeWithEnv("db > expired invite pruning", { db: true }, () => {
@@ -129,12 +130,9 @@ describeWithEnv("db > expired invite pruning", { db: true }, () => {
         batch: async (...args: Parameters<typeof real.batch>) => {
           if (!accepted) {
             accepted = true;
-            await real.execute({
-              args: ["password-hash", "wrapped-key", invite.id],
-              sql: `UPDATE users
-                       SET password_hash = ?, wrapped_data_key = ?
-                     WHERE id = ?`,
-            });
+            await real.execute(sql`UPDATE users
+                       SET password_hash = ${"password-hash"}, wrapped_data_key = ${"wrapped-key"}
+                     WHERE id = ${invite.id}`);
           }
           return real.batch(...args);
         },
