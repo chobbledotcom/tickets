@@ -28,7 +28,10 @@ import {
   type Token,
 } from "#test-utils/db/contact-token-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The hash of the channel a contact names: the email when it has one. */
@@ -331,17 +334,14 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
-    const { attendeesApi } = await import("#db/attendees/api.ts");
-    const result = await attendeesApi.createAttendeeAtomic({
-      bookings: [{ listingId: listing.id }],
-      email: "real-token@example.com",
-      name: "Real",
-    });
-    expect(result.success).toBe(true);
-    const token = result.success ? result.attendees[0]!.ticket_token : "";
+    const attendee = await bookTestAttendee(
+      [{ listingId: listing.id }],
+      "Real",
+      "real-token@example.com",
+    );
     expect(
       await readAllTokens(await hashEmail("real-token@example.com"), pk),
-    ).toEqual([{ source: "public", token }]);
+    ).toEqual([{ source: "public", token: attendee.ticket_token }]);
   });
 
   test("a no-quantity create does not append a ticket token", async () => {
