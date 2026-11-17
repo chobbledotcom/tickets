@@ -1,6 +1,5 @@
 /**
- * A listing's "type" is inferred from five stored dimensions, with no DB column
- * of its own:
+ * Five stored dimensions determine a listing's type. It has no type column:
  *
  *   daily        listing_type === "daily"
  *   dated        date field non-empty
