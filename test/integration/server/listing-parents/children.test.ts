@@ -29,6 +29,18 @@ const attendeeEditHtml = async (result: unknown): Promise<string> => {
   return response.text();
 };
 
+/** Save a child list through the form and read its refusal. A refused save
+ *  stores no edge. */
+const expectChildrenRefused = async (
+  parent: { id: number },
+  ids: readonly number[],
+  message: string,
+): Promise<void> => {
+  const response = await postChildren(parent.id, ids);
+  expectFlash(response, message, false);
+  expect(await listingChildren.getIds(parent.id)).toEqual([]);
+};
+
 describeWithEnv("server > listing parents > children", { db: true }, () => {
   test("saves the chosen children and redirects", async () => {
     const { parent, child } = await parentAndChild();
@@ -74,36 +86,31 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
 
   test("refuses a required child that names the listing itself", async () => {
     const { parent, child } = await parentAndChild();
-    const response = await postChildren(parent.id, [parent.id, child.id]);
-    expectFlash(
-      response,
+    await expectChildrenRefused(
+      parent,
+      [parent.id, child.id],
       t("listings_table.children_err_self", { name: parent.name }),
-      false,
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("refuses a required child id that names no listing", async () => {
     const { parent, child } = await parentAndChild();
-    const response = await postChildren(parent.id, [
-      child.id,
-      parent.id + 9999,
-    ]);
-    expectFlash(response, t("listings_table.children_err_missing"), false);
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+    await expectChildrenRefused(
+      parent,
+      [child.id, parent.id + 9999],
+      t("listings_table.children_err_missing"),
+    );
   });
 
   test("refuses a child box that holds no listing id", async () => {
     const { parent, child } = await parentAndChild();
-    const response = await postChildren(parent.id, [child.id, 0]);
-    expectFlash(
-      response,
+    await expectChildrenRefused(
+      parent,
+      [child.id, 0],
       t("fields.validation.pick_from_list", {
         label: t("listings_table.children_legend"),
       }),
-      false,
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("saves one edge for a child id the form repeats", async () => {

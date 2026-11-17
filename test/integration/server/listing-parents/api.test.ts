@@ -26,6 +26,26 @@ const standardParentDailyChild = async () => ({
   parent: await createTestListing({ name: "Base unit" }),
 });
 
+/** Save a child list through the admin API and read its refusal. A refused
+ *  save stores no edge. */
+const expectApiRefusesChildIds = async (
+  parent: { id: number },
+  ids: readonly (number | string)[],
+  error: string,
+): Promise<void> => {
+  await assertJson(
+    apiRequest(`/api/admin/listings/${parent.id}`, {
+      body: { child_listing_ids: ids },
+      method: "PUT",
+    }),
+    400,
+    (json) => {
+      expect(json.error).toBe(error);
+    },
+  );
+  expect(await listingChildren.getIds(parent.id)).toEqual([]);
+};
+
 describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API create writes child edges", async () => {
     const child = await createTestListing({ name: "Add-on" });
@@ -100,34 +120,20 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     // The edge check then refuses it: dropping it would store a smaller child
     // set than the client sent.
     const { parent, child } = await parentAndChild();
-    await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [child.id, parent.id + 9999] },
-        method: "PUT",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toBe(t("listings_table.children_err_missing"));
-      },
+    await expectApiRefusesChildIds(
+      parent,
+      [child.id, parent.id + 9999],
+      t("listings_table.children_err_missing"),
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API refuses a child id that names the listing itself", async () => {
     const { parent, child } = await parentAndChild();
-    await assertJson(
-      apiRequest(`/api/admin/listings/${parent.id}`, {
-        body: { child_listing_ids: [parent.id, child.id] },
-        method: "PUT",
-      }),
-      400,
-      (json) => {
-        expect(json.error).toBe(
-          t("listings_table.children_err_self", { name: parent.name }),
-        );
-      },
+    await expectApiRefusesChildIds(
+      parent,
+      [parent.id, child.id],
+      t("listings_table.children_err_self", { name: parent.name }),
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API rejects a string child_listing_ids without clearing edges", async () => {

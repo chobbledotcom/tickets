@@ -12,11 +12,14 @@ const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
   ...overrides,
 });
 
+/** The boxes the owner's page draws, as the form checks them. */
+const ownerFields = () => getListingForm(listingFormView("owner")).fields;
+
 describe("listing form required fields", () => {
   test("rejects missing listing name", () => {
     const { name: _, ...withoutName } = baseListingForm;
     expectInvalid("Listing name is required")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       withoutName,
     );
   });
@@ -27,18 +30,18 @@ describe("listing form description", () => {
     expectInvalid(
       `Description must be ${MAX_TEXTAREA_LENGTH} characters or fewer`,
     )(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH + 1) }),
     );
   });
 
   test("accepts description at and below max length", () => {
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ description: "a".repeat(MAX_TEXTAREA_LENGTH) }),
     );
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ description: "" }),
     );
   });
@@ -47,29 +50,29 @@ describe("listing form description", () => {
 describe("listing form thank_you_url", () => {
   test("accepts public https URLs", () => {
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ thankYouUrl: "https://example.com/thank-you" }),
     );
   });
 
   test("rejects http, IPs and javascript protocols", () => {
     expectInvalid("URL must use https://")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ thankYouUrl: "http://example.com" }),
     );
     expectInvalid("URL must use https://")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ thankYouUrl: "https://1.1.1.1/thank-you" }),
     );
     expectInvalid("URL must use https://")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ thankYouUrl: "javascript:alert(1)" }),
     );
   });
 
   test("rejects malformed URLs", () => {
     expectInvalid("URL must use https://")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ thankYouUrl: "not-a-valid-url" }),
     );
   });
@@ -78,7 +81,7 @@ describe("listing form thank_you_url", () => {
 describe("listing form webhook_url", () => {
   test("accepts valid https URLs", () => {
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ webhookUrl: "https://example.com/webhook" }),
     );
   });
@@ -204,7 +207,7 @@ describe("listing form webhook_url", () => {
   for (const { expected, url, label } of rejected) {
     test(`rejects ${label} webhook URL`, () => {
       expectInvalid(expected)(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ webhookUrl: url }),
       );
     });
@@ -212,18 +215,18 @@ describe("listing form webhook_url", () => {
 
   test("accepts public domains", () => {
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ webhookUrl: "https://app.example.net/webhook" }),
     );
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ webhookUrl: "https://hooks.example.org/webhook" }),
     );
   });
 
   test("rejects URLs without a proper domain", () => {
     expectInvalid("URL must use https://")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ webhookUrl: "https://example/webhook" }),
     );
   });
@@ -232,7 +235,7 @@ describe("listing form webhook_url", () => {
 describe("listing form contact fields setting", () => {
   test("rejects unknown contact field name", () => {
     expectInvalid("Invalid contact field: invalid")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ fields: ["invalid"] }),
     );
   });
@@ -242,18 +245,18 @@ describe("listing form contact fields setting", () => {
     // moment it is added — no hand-maintained list to forget to update.
     for (const value of CONTACT_FIELDS) {
       expectValid(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ fields: [value] }),
       );
     }
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ fields: ["email", "phone"] }),
     );
   });
 
   test("warns that attendees won't be emailed their ticket without email collection", () => {
-    const fieldsField = getListingForm(listingFormView("owner")).fields.find(
+    const fieldsField = ownerFields().find(
       (f) => f.name === "fields",
     )!;
     expectIncludesAll(fieldsField.hintHtml, [
@@ -268,18 +271,18 @@ describe("listing form listing_type", () => {
     // Every declared listing type is accepted; the schema is the source of truth.
     for (const value of ListingTypeSchema.options) {
       expectValid(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ listingType: value }),
       );
     }
     expectInvalid("Listing type must be standard or daily.")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ listingType: "weekly" }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(getListingForm(listingFormView("owner")).fields, listingForm());
+    expectValid(ownerFields(), listingForm());
   });
 });
 
@@ -287,7 +290,7 @@ describe("listing form duration_days", () => {
   for (const value of ["1", String(MAX_DURATION_DAYS)]) {
     test(`accepts ${JSON.stringify(value)}`, () => {
       expectValid(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ durationDays: value }),
       );
     });
@@ -305,7 +308,7 @@ describe("listing form duration_days", () => {
   for (const [value, error] of invalid) {
     test(`rejects ${JSON.stringify(value)}`, () => {
       expectInvalid(error)(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ durationDays: value }),
       );
     });
@@ -315,11 +318,11 @@ describe("listing form duration_days", () => {
 describe("listing form bookable_days", () => {
   test("accepts valid day names", () => {
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ bookableDays: ["Monday", "Wednesday", "Friday"] }),
     );
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({
         bookableDays: [
           "Monday",
@@ -338,19 +341,19 @@ describe("listing form bookable_days", () => {
     expectInvalid(
       "Invalid day: Funday. Use: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday",
     )(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ bookableDays: ["Monday", "Funday"] }),
     );
   });
 
   test("rejects empty-after-trimming value", () => {
     expectInvalid("At least one day is required")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ bookableDays: "," }),
     );
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(getListingForm(listingFormView("owner")).fields, listingForm());
+    expectValid(ownerFields(), listingForm());
   });
 });

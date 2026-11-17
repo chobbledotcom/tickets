@@ -9,28 +9,31 @@ const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
   ...overrides,
 });
 
+/** The boxes the owner's page draws, as the form checks them. */
+const ownerFields = () => getListingForm(listingFormView("owner")).fields;
+
 describe("listing form pricing", () => {
   test("rejects negative unit_price", () => {
     expectInvalid("Price must be 0 or greater")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ unitPrice: "-100" }),
     );
   });
 
   test("rejects negative max_price and accepts valid values", () => {
     expectInvalid("Price must be 0 or greater")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ maxPrice: "-50" }),
     );
     expectValid(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ maxPrice: "100.00" }),
     );
   });
 
   test("rejects a blank max_price box instead of reading it as a default", () => {
     expectInvalid("Enter a maximum price. Type 0 for no maximum.")(
-      getListingForm(listingFormView("owner")).fields,
+      ownerFields(),
       listingForm({ maxPrice: "" }),
     );
   });
@@ -46,7 +49,7 @@ describe("listing form count boxes", () => {
       ["maxQuantity", "Max tickets per purchase"],
     ] as const) {
       expectInvalid(`${label} is required`)(
-        getListingForm(listingFormView("owner")).fields,
+        ownerFields(),
         listingForm({ [box]: "" }),
       );
     }
