@@ -96,8 +96,11 @@ describePublicApi(() => {
       await setupStripe();
       const { parent } = await freeParentWithChild();
       const body = await bookForToken(parent.slug);
-      expect(body.booking?.checkoutUrl).toStrictEqual(undefined);
-      expect(body.booking?.amountOwed).toBe(0);
+      expect(body.booking).toStrictEqual({
+        amountOwed: 0,
+        ticketToken: expect.any(String),
+        ticketUrl: expect.stringMatching(/^\/t\//),
+      });
     });
 
     test("a free parent+child booking records the child under its parent", async () => {
@@ -263,7 +266,7 @@ describePublicApi(() => {
       await setupStripe();
       const parent = await parentWithPaidChild();
       const intent = await captureBookingIntent(parent.slug);
-      expect(intent?.thankYouUrl).toStrictEqual(undefined);
+      expect(intent).not.toHaveProperty("thankYouUrl");
     });
   });
 });

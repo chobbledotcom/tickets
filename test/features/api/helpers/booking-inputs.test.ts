@@ -118,8 +118,11 @@ describeWithEnv("API booking helper inputs", { db: true }, () => {
     });
     const form = new FormParams({ customPrice: "15.00" });
 
-    expect(resolveCustomPrice(fixed, form)).toStrictEqual(undefined);
-    expect(resolveCustomPrice(flexible, form)).toBe(1500);
+    // A fixed-price listing ignores the posted price; only a pay-more listing reads it.
+    expect([
+      resolveCustomPrice(fixed, form),
+      resolveCustomPrice(flexible, form),
+    ]).toEqual([undefined, 1500]);
   });
 
   test("returns the custom-price validation message", async () => {

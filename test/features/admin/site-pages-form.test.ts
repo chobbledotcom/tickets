@@ -20,7 +20,7 @@ describe("site page forms", () => {
     const slug = sitePageForm.fields[1] as {
       publicLinkPath?: (slug: string) => string;
     };
-    expect(slug.publicLinkPath).toStrictEqual(undefined);
+    expect(Object.hasOwn(slug, "publicLinkPath")).toBe(false);
   });
 
   test("the edit form's slug links to the saved page", () => {
