@@ -36,7 +36,6 @@ import {
 import { type SqlStatement, sql, sqlLiteral, sqlName } from "#db/sql.ts";
 import { seedPreDropLedgerColumns } from "#test-utils/db/migration-test-helpers.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { listingRowStatement } from "#test-utils/db-helpers/listing-row.ts";
 import { indexExists } from "#test-utils/migrations.ts";
 
 const MIGRATIONS = await loadMigrations();
@@ -144,8 +143,12 @@ export const dropOwnedObjects = async (
   return droppedTriggers;
 };
 
-export const seedSentinelListing = async (): Promise<unknown> =>
-  getDb().execute(await listingRowStatement("sentinel-listing"));
+// The name stays plain text so that sentinelListingExists can find the row.
+export const seedSentinelListing = (): Promise<unknown> =>
+  getDb().execute(
+    sql`INSERT INTO listings (created, max_attendees, name)
+        VALUES ('2024-01-01T00:00:00Z', 10, 'sentinel-listing')`,
+  );
 
 export const scalar = async (statement: SqlStatement): Promise<unknown> => {
   const result = await getDb().execute(statement);

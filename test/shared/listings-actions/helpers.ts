@@ -20,11 +20,10 @@ export const inputFor = (overrides: Partial<ListingInput>): ListingInput => ({
 const inputOfStored = (listing: ListingWithCount): ListingInput => {
   const stored: Readonly<Record<string, unknown>> = { ...listing };
   const columns: Partial<ListingInput> = Object.fromEntries(
-    tables.listings.columns.flatMap(([column]) =>
-      column === "id" || column === "created"
-        ? []
-        : [[toCamelCase(column), stored[column]]],
-    ),
+    tables.listings.columns
+      .map(([column]) => toCamelCase(column))
+      .filter((key) => key !== "id" && key !== "created")
+      .map((key) => [key, stored[key]]),
   );
   return {
     ...columns,
