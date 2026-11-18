@@ -131,6 +131,8 @@ export const toPageWrite = (
   const stored = storedText(existing);
   const name = writeEntityName(write.name, existing?.name ?? null);
   if (!name.ok) return name;
+  // These routes write through the page module rather than the record, so
+  // they run the page's own name length rule here.
   if (name.value.length > MAX_INPUT_LENGTH) {
     return tooLong(t("site.pages.field.name"), MAX_INPUT_LENGTH);
   }

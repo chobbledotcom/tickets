@@ -22,6 +22,20 @@ import {
 import { apiRequest } from "#test-utils/session.ts";
 import { featureSetting, useSetting } from "#test-utils/settings.ts";
 
+/** POST one source body and assert the refusal message it answers. */
+const expectSourceRefused = async (
+  body: Record<string, unknown>,
+  message: string,
+): Promise<void> => {
+  await assertJson(
+    apiRequest("/api/admin/external-sources", { body, method: "POST" }),
+    400,
+    (response) => {
+      expect(response.error).toBe(message);
+    },
+  );
+};
+
 describeWithEnv("Admin API - External sources", { db: true }, () => {
   useSetting(featureSetting("externalSources"));
 
@@ -91,116 +105,53 @@ describeWithEnv("Admin API - External sources", { db: true }, () => {
   });
 
   describe("POST /api/admin/external-sources", () => {
-    test("refuses a source with no URL pattern", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: { name: "Invoices" },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("url_pattern is required");
-        },
-      );
-    });
+    test("refuses a source with no URL pattern", () =>
+      expectSourceRefused({ name: "Invoices" }, "url_pattern is required"));
 
-    test("refuses a blank name", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: {
-            name: "  ",
-            url_pattern: "https://example.com/{external_id}",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name is required");
-        },
-      );
-    });
+    test("refuses a blank name", () =>
+      expectSourceRefused(
+        { name: "  ", url_pattern: SOURCE_BODY.url_pattern },
+        "name is required",
+      ));
 
-    test("refuses a name longer than a short input", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: {
-            name: "n".repeat(251),
-            url_pattern: "https://example.com/{external_id}",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("name must be 250 characters or fewer");
-        },
-      );
-    });
+    test("refuses a name longer than a short input", () =>
+      expectSourceRefused(
+        { name: "n".repeat(251), url_pattern: SOURCE_BODY.url_pattern },
+        "Name must be 250 characters or fewer",
+      ));
 
-    test("refuses a URL pattern that is not a string", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: { name: "Invoices", url_pattern: 7 },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("url_pattern must be a string");
-        },
-      );
-    });
+    test("refuses a URL pattern that is not a string", () =>
+      expectSourceRefused(
+        { name: "Invoices", url_pattern: 7 },
+        "url_pattern must be a string",
+      ));
 
-    test("refuses a URL pattern that is not a web address", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: {
-            name: "Invoices",
-            url_pattern: "dashboard.stripe.com/{external_id}",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "url_pattern must start with http:// or https://",
-          );
+    test("refuses a URL pattern that is not a web address", () =>
+      expectSourceRefused(
+        {
+          name: "Invoices",
+          url_pattern: "dashboard.stripe.com/{external_id}",
         },
-      );
-    });
+        "url_pattern must start with http:// or https://",
+      ));
 
-    test("refuses a URL pattern with a placeholder it cannot fill", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: {
-            name: "Diary",
-            url_pattern: "https://diary.example/events/{event_id}",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe("url_pattern can fill only {external_id}");
+    test("refuses a URL pattern with a placeholder it cannot fill", () =>
+      expectSourceRefused(
+        {
+          name: "Diary",
+          url_pattern: "https://diary.example/events/{event_id}",
         },
-      );
-    });
+        "url_pattern can fill only {external_id}",
+      ));
 
-    test("refuses a URL pattern that holds a placeholder twice", async () => {
-      await assertJson(
-        apiRequest("/api/admin/external-sources", {
-          body: {
-            name: "Diary",
-            url_pattern:
-              "https://diary.example/{external_id}/copy/{external_id}",
-          },
-          method: "POST",
-        }),
-        400,
-        (body) => {
-          expect(body.error).toBe(
-            "url_pattern must hold each placeholder once",
-          );
+    test("refuses a URL pattern that holds a placeholder twice", () =>
+      expectSourceRefused(
+        {
+          name: "Diary",
+          url_pattern: "https://diary.example/{external_id}/copy/{external_id}",
         },
-      );
-    });
+        "url_pattern must hold each placeholder once",
+      ));
 
     test("stores a destination address that needs no external id", async () => {
       await assertJson(

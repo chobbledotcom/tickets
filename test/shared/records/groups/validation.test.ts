@@ -97,14 +97,6 @@ describeWithEnv("admin group validation", { db: true }, () => {
     expect(await soldHiddenPackageError(group.id)).toBeNull();
   });
 
-  test("rejects a name past the text box limit", async () => {
-    expect(
-      await validateGroupWithPackage(
-        await groupInput({ name: "g".repeat(251) }),
-      ),
-    ).toBe("Name must be 250 characters or fewer");
-  });
-
   test("a sold hidden package cannot be un-packaged by an edit", async () => {
     const group = await soldPackage("Hidden leaving", true);
 

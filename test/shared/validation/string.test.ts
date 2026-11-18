@@ -7,6 +7,7 @@ import {
   NonEmptyTextSchema,
   nonEmptyString,
   parseNonEmptyString,
+  requiredTrimmedText,
 } from "#shared/validation/string.ts";
 
 const acceptNonEmpty = (value: NonEmptyString): string => value;
@@ -32,8 +33,23 @@ describe("validation/string", () => {
     );
   });
 
+  test("names the value when a caller supplies no field name", () => {
+    const empty: string = "";
+    expect(() => nonEmptyString(empty)).toThrow("value must be non-empty");
+  });
+
   test("validates non-empty text without changing its string type", () => {
     expect(v.parse(NonEmptyTextSchema, "ticket-token")).toBe("ticket-token");
     expect(() => v.parse(NonEmptyTextSchema, "")).toThrow();
+  });
+
+  test("trims required text and refuses text that is only spaces", () => {
+    expect(
+      requiredTrimmedText("  ticket-token  ", "ticket-token is required"),
+    ).toEqual({ ok: true, value: "ticket-token" });
+    expect(requiredTrimmedText("   ", "ticket-token is required")).toEqual({
+      error: "ticket-token is required",
+      ok: false,
+    });
   });
 });

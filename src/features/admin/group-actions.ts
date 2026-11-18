@@ -33,10 +33,7 @@ import {
   getStoredListingsWithCountsByIds,
   newListingValues,
 } from "#db/listings/records.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
 import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { t } from "#i18n";
@@ -57,6 +54,7 @@ import { xCount } from "#shared/count-text.ts";
 import { getFlash } from "#shared/flash-context.ts";
 import { matchKey } from "#shared/keys.ts";
 import { buildDuplicateListingInput } from "#shared/listings-actions.ts";
+import { nameLengthError } from "#shared/name-limit.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
 import type { ListingInput } from "#shared/records/listing-fields.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -194,7 +192,7 @@ const firstDuplicateNameError = async (
     // The length rule is re-checked for the same reason as the uniqueness
     // rule: the batch insert bypasses the validators the form and API run.
     // One over-long clone name breaks Square checkouts like any other.
-    const lengthError = catalogNameLengthError(name);
+    const lengthError = nameLengthError(name);
     if (lengthError) return lengthError;
     const key = matchKey(name);
     if (seen.has(key)) {

@@ -12,6 +12,7 @@
   "logistics.agent_details": "Agent details",
   "logistics.delete_agent": "Delete agent",
   "logistics.agent_name": "Agent name",
+  "logistics.agent_name_placeholder": "Van 1",
   "logistics.delete_confirm": "Are you sure you want to delete the logistics agent <strong>{name}</strong>? Any attendees assigned to this agent will have that assignment cleared.",
   "logistics.type_name_to_confirm": "Type the agent name \"{name}\" to confirm:",
   "logistics.add_logistics_agent": "Add logistics agent",

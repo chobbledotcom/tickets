@@ -73,7 +73,8 @@ export const expectNoAttendeesForListings = async (
 
 /** Book a test attendee onto the given listing(s) directly via the DB,
  *  bypassing the booking routes. Shared by unit tests that just need an
- *  attendee to hang bookings or answers off. */
+ *  attendee to hang bookings or answers off. The create's default source
+ *  applies. */
 /** One booking to make: a listing id on its own, or a listing with the units
  * and the day it is booked for. */
 export type TestBooking = {
@@ -93,7 +94,6 @@ export const bookTestAttendee = async (
     ),
     email: email ?? `${name.toLowerCase()}@test.com`,
     name,
-    source: "public",
   });
   if (!result.success) {
     throw new Error(`Failed to create attendee: ${result.reason}`);
