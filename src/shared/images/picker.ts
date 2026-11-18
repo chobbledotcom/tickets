@@ -29,12 +29,7 @@ export type ImageOption = v.InferOutput<typeof ImageOptionSchema>;
 export const IMAGE_PICKER_ID = "md-image-picker";
 
 /** The notes that the picker's grid can show in place of thumbnails. */
-export const PICKER_NOTES = [
-  "empty",
-  "loading",
-  "unavailable",
-  "uploadFailed",
-] as const;
+export const PICKER_NOTES = ["empty", "loading", "uploadFailed"] as const;
 
 export type PickerNote = (typeof PICKER_NOTES)[number];
 

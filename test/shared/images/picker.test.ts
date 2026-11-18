@@ -28,12 +28,23 @@ describe("the image picker contract", () => {
     });
   });
 
-  test("refuses an image without its full address", () => {
+  test("refuses each image that breaks the entry shape", () => {
     const { full: _full, ...withoutFull } = ALPHA;
+    const { name: _name, ...withoutName } = ALPHA;
+    const { thumb: _thumb, ...withoutThumb } = ALPHA;
+    const malformed = [
+      "nope",
+      { ...ALPHA, id: "2" },
+      withoutName,
+      withoutThumb,
+      withoutFull,
+    ];
 
-    expect(() =>
-      v.parse(ImageOptionsReplySchema, { images: [withoutFull] }),
-    ).toThrow(v.ValiError);
+    expect(
+      malformed.filter((image) =>
+        v.is(ImageOptionsReplySchema, { images: [image] }),
+      ),
+    ).toEqual([]);
   });
 
   test("names the template with an id that a selector can reach", () => {

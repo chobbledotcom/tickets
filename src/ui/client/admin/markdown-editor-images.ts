@@ -31,7 +31,7 @@ import { createButton, requiredChild } from "#src/ui/client/dom.ts";
 type ImageChoice = Pick<ImageOption, "id" | "name">;
 
 /** The grid's states, as `data-state` names them. */
-type GridState = "error" | "loading" | "ready";
+type GridState = "loading" | "ready";
 
 /** One editor's picker: the cloned dialog's parts, the template its notes
  * come from, and the library its grid shows. */
@@ -77,16 +77,6 @@ const fillGrid = (picker: Picker, state: GridState, content: Node[]): void => {
   picker.grid.replaceChildren(...content);
 };
 
-/** The library's answer fills the grid only while the dialog is open. A
- * dialog closed before the answer stays as it is. */
-const settleGrid = (
-  picker: Picker,
-  state: GridState,
-  content: Node[],
-): void => {
-  if (picker.dialog.open) fillGrid(picker, state, content);
-};
-
 /** The dialog's close gives the caret back to the editor. */
 const chooseImage = (picker: Picker, choice: ImageChoice): void => {
   insertImageRef(picker.editor(), choice);
@@ -117,22 +107,19 @@ const optionNodes = (picker: Picker, options: ImageOption[]): Node[] => {
   return options.map((option, index) => optionButton(picker, option, index));
 };
 
-/** A failed load is never cached, so the next open retries. */
-const showUnavailable = (picker: Picker): void => {
-  picker.library.forget();
-  settleGrid(picker, "error", [noteFrom(picker, "unavailable")]);
-};
-
-const openPicker = (picker: Picker): void => {
+/** The page renders the picker only with image storage, so a library that
+ * cannot load means the server is down. The failure is not caught. */
+const openPicker = async (picker: Picker): Promise<void> => {
   // A destroyed editor's view cannot dispatch, and the teardown leaves the
   // button mounted: the control stays inert.
   if (picker.editor().isDestroyed) return;
   fillGrid(picker, "loading", [noteFrom(picker, "loading")]);
   picker.dialog.showModal();
-  void picker.library.load().then(
-    (options) => settleGrid(picker, "ready", optionNodes(picker, options)),
-    () => showUnavailable(picker),
-  );
+  const options = await picker.library.load();
+  // A dialog closed before the answer stays as it is.
+  if (picker.dialog.open) {
+    fillGrid(picker, "ready", optionNodes(picker, options));
+  }
 };
 
 /** The upload answers with a redirect to the new image's edit page. The
@@ -185,9 +172,22 @@ const finishUpload = (picker: Picker, choice: ImageChoice): void => {
   chooseImage(picker, choice);
 };
 
+/** The new image's id. Null when the upload fails. */
+const uploadedIdOrNull = async (
+  form: HTMLFormElement,
+): Promise<number | null> => {
+  try {
+    return await uploadImage(form);
+  } catch {
+    // A refused file or a lost connection is an everyday failure. The
+    // picker shows its note, and the operator can try again.
+    return null;
+  }
+};
+
 /** The submit is intercepted, so the unsaved description edits stay on the
  * page. A native POST navigates away and loses them. */
-const submitUpload = (picker: Picker, event: Event): void => {
+const submitUpload = async (picker: Picker, event: Event): Promise<void> => {
   // The dialog nests inside the page's own form: without this stop the
   // submit bubbles up and submits the page too.
   event.stopPropagation();
@@ -195,14 +195,13 @@ const submitUpload = (picker: Picker, event: Event): void => {
   if (picker.submit.disabled) return;
   picker.submit.disabled = true;
   const name = picker.name.value;
-  void uploadImage(picker.form)
-    .then(
-      (id) => finishUpload(picker, { id, name }),
-      () => picker.grid.replaceChildren(noteFrom(picker, "uploadFailed")),
-    )
-    .finally(() => {
-      picker.submit.disabled = false;
-    });
+  const id = await uploadedIdOrNull(picker.form);
+  picker.submit.disabled = false;
+  if (id === null) {
+    picker.grid.replaceChildren(noteFrom(picker, "uploadFailed"));
+    return;
+  }
+  finishUpload(picker, { id, name });
 };
 
 /** Clones the template's dialog and names the parts the picker drives. */
@@ -240,12 +239,13 @@ const wirePicker = (picker: Picker, button: HTMLButtonElement): void => {
     if (event.target === dialog) dialog.close();
   });
   dialog.addEventListener("close", () => picker.editor().focus());
-  picker.form.addEventListener("submit", (event) =>
-    submitUpload(picker, event),
+  picker.form.addEventListener(
+    "submit",
+    (event) => void submitUpload(picker, event),
   );
   // While the modal dialog is open its backdrop swallows clicks, so the
   // button only ever opens.
-  button.addEventListener("click", () => openPicker(picker));
+  button.addEventListener("click", () => void openPicker(picker));
 };
 
 /** The image control: the element for the toolbar row and the plugin that

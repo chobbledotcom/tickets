@@ -96,7 +96,6 @@ export const ImagePickerTemplate = (): JSX.Element => (
     <PickerNotes
       empty={t("images.empty")}
       loading={t("images.picker.loading")}
-      unavailable={t("images.picker.unavailable")}
       uploadFailed={t("images.picker.upload_failed")}
     />
   </template>

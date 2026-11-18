@@ -80,7 +80,6 @@ describe("the image picker template", () => {
     expect(notes).toEqual([
       ["empty", "No images yet."],
       ["loading", "Loading…"],
-      ["unavailable", "Images are unavailable right now."],
       ["uploadFailed", "The image could not be uploaded. Please try again."],
     ]);
   });

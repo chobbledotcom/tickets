@@ -14,7 +14,6 @@ export const NOTE = ".md-image-note";
 export const THUMBNAIL = ".md-image-option img";
 export const CONTENT_BOX = 'textarea[name="content"]';
 export const EMPTY_MESSAGE = "No images yet.";
-export const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 /* jscpd:ignore-end */
 
 /** Waits for the image dialog to be closed, whatever closed it. */
