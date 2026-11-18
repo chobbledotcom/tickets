@@ -12,6 +12,7 @@ import { assert } from "@std/assert";
 import { Lexer, Marked, type Token, type Tokens } from "marked";
 import { once } from "#fp";
 import { escapeHtml } from "#jsx/escape-html.ts";
+import { shortFormImageId } from "#shared/images/short-form.ts";
 import { getPageImageUrls } from "#shared/request-context.ts";
 
 /** URL schemes permitted in links and images. */
@@ -36,14 +37,6 @@ export const isSafeUrl = (url: string): boolean => {
 const hasHref = (token: Token): token is Token & { href: string } =>
   (token.type === "link" || token.type === "image") &&
   typeof (token as { href?: unknown }).href === "string";
-
-/** The id one short-form image address (`img#7`) names, or undefined for any
- * other address. The editor's image dropdown writes the short form. The HTML
- * render and the plain-text rewrite both resolve it. */
-export const shortFormImageId = (href: string): number | undefined => {
-  const id = href.match(/^img#(\d+)$/)?.[1];
-  return id === undefined ? undefined : Number(id);
-};
 
 /** One image token's address: the editor's short form (`img#N`) resolves to
  * the image's uid URL in the render's table. Any other address stays as

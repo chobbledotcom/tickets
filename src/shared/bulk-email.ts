@@ -38,11 +38,9 @@ import {
   type BulkRecipient,
 } from "#shared/email/bulk.ts";
 import { cappedReply } from "#shared/email.ts";
+import { shortFormImageId } from "#shared/images/short-form.ts";
 import { MAX_INPUT_LENGTH, MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import {
-  rewriteImageDestinations,
-  shortFormImageId,
-} from "#shared/markdown.ts";
+import { rewriteImageDestinations } from "#shared/markdown.ts";
 import { markdownSource } from "#shared/markdown-source.ts";
 import { nowMs } from "#shared/now.ts";
 import { parseEmail } from "#shared/validation/email.ts";
