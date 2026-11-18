@@ -17,17 +17,19 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { adminPath, adminPattern } from "#shared/admin-surface.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import { entityToFieldValues } from "#shared/forms/values.ts";
+import { LOGISTICS_AGENT_FIELDS } from "#shared/records/logistics-agent-fields.ts";
 import { logisticsAgentRecord } from "#shared/records/logistics-agents.ts";
-import type { TableColumn } from "#shared/tables/column.ts";
 import {
   recordEditPanel,
   successListPage,
 } from "#templates/admin/admin-page.tsx";
+import { fieldTableColumns } from "#templates/admin/field-columns.tsx";
 import {
   confirmByName,
   defineRecordPages,
+  pageLabels,
 } from "#templates/admin/resource-pages.tsx";
-import { WritableLink, WritableOnly } from "#templates/admin/writable-only.tsx";
+import { WritableOnly } from "#templates/admin/writable-only.tsx";
 import { guideFooterFor } from "#templates/components/actions.tsx";
 import {
   CheckboxFieldset,
@@ -36,18 +38,8 @@ import {
 } from "#templates/components/aggregate-sections.tsx";
 import { ProseArticle } from "#templates/components/prose-article.tsx";
 import { SaveForm } from "#templates/components/save-form.tsx";
-import { translatedTableColumn } from "#templates/components/translated-table-column.ts";
-import { logisticsAgentForm } from "#templates/fields/listing.ts";
+import { getLogisticsAgentForm } from "#templates/fields/admin.ts";
 import type { AdminLevel, LogisticsAgent } from "#types";
-
-/** Single-column table of logistics agents (name linking to edit). */
-const agentColumns: TableColumn<LogisticsAgent>[] = [
-  translatedTableColumn("name", "common.name", (agent) => (
-    <WritableLink href={adminPath("logisticsAgent", { id: agent.id })}>
-      {agent.name}
-    </WritableLink>
-  )),
-];
 
 /**
  * Admin logistics settings page with logistics-agent management: the agents
@@ -57,7 +49,9 @@ export const adminLogisticsPage = successListPage<LogisticsAgent>(
   "logistics.title",
   adminPattern("logistics"),
   (agents) => ({
-    columns: agentColumns,
+    columns: fieldTableColumns(LOGISTICS_AGENT_FIELDS, (agent) =>
+      adminPath("logisticsAgent", { id: agent.id }),
+    ),
     empty: <p>{t("logistics.no_agents_yet")}</p>,
     frame: (section) => (
       <ProseArticle
@@ -75,7 +69,7 @@ export const adminLogisticsPage = successListPage<LogisticsAgent>(
               className="listing-section"
               legend={t("logistics.add_agent")}
             >
-              <Raw html={logisticsAgentForm.render()} />
+              <Raw html={getLogisticsAgentForm().render()} />
             </SectionFieldset>
           </SaveForm>
         </WritableOnly>
@@ -93,7 +87,7 @@ export const adminLogisticsPage = successListPage<LogisticsAgent>(
 export const logisticsAgentToFieldValues = (
   agent?: LogisticsAgent,
 ): Record<string, string | number | null> =>
-  entityToFieldValues(agent, logisticsAgentForm.fields, {});
+  entityToFieldValues(agent, getLogisticsAgentForm().fields, {});
 
 /** A user that can be assigned to drive a logistics agent. */
 export interface AgentUserOption {
@@ -136,6 +130,18 @@ const AgentUsersSelector = ({
   </CheckboxFieldset>
 );
 
+/* jscpd:ignore-start -- a list of strings, not code */
+/** The catalog keys that name the logistics-agent pages. */
+const LOGISTICS_AGENT_PAGE_LABELS = {
+  addHeading: "logistics.add_logistics_agent",
+  addSubmit: "logistics.create_agent",
+  addTitle: "logistics.add_logistics_agent",
+  deleteButton: "logistics.delete_agent",
+  deleteTitle: "logistics.delete_logistics_agent",
+  listTitle: "logistics.title",
+};
+/* jscpd:ignore-end */
+
 export const logisticsAgentPages = defineRecordPages(logisticsAgentRecord, {
   delete: {
     confirm: (agent) => ({
@@ -146,19 +152,12 @@ export const logisticsAgentPages = defineRecordPages(logisticsAgentRecord, {
     heading: t("logistics.delete_logistics_agent"),
     ...confirmByName("logistics.agent_name", "logistics.type_name_to_confirm"),
   },
-  labels: {
-    addHeading: t("logistics.add_logistics_agent"),
-    addSubmit: t("logistics.create_agent"),
-    addTitle: t("logistics.add_logistics_agent"),
-    deleteButton: t("logistics.delete_agent"),
-    deleteTitle: t("logistics.delete_logistics_agent"),
-    listTitle: t("logistics.title"),
-  },
-  renderFields: () => <Raw html={logisticsAgentForm.render()} />,
+  labels: pageLabels(LOGISTICS_AGENT_PAGE_LABELS),
+  renderFields: () => <Raw html={getLogisticsAgentForm().render()} />,
 });
 
 type LogisticsAgentRenderValues = FormRenderValuesFor<
-  typeof logisticsAgentForm.fields
+  ReturnType<typeof getLogisticsAgentForm>["fields"]
 >;
 
 /** The entity page's Edit tab, including the users assigned to drive it. */
@@ -182,7 +181,7 @@ export const LogisticsAgentEditPanel = ({
       <fieldset class="listing-section">
         <legend>{t("logistics.agent_details")}</legend>
         <Raw
-          html={logisticsAgentForm.render(
+          html={getLogisticsAgentForm().render(
             values ?? logisticsAgentToFieldValues(agent),
           )}
         />
