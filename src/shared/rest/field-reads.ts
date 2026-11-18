@@ -91,9 +91,8 @@ const checkedRead: BodyRead = (field, body, stored) => {
   }
   if (field.markdown === true) {
     const markdown = v.safeParse(markdownValueSchema, value);
-    return markdown.success
-      ? okResult(markdown.output)
-      : errorResult(apiRefusal(field));
+    if (!markdown.success) return errorResult(apiRefusal(field));
+    return okResult(markdown.output);
   }
   return v.is(fieldValueSchema(field), value)
     ? okResult(value)

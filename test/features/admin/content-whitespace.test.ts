@@ -36,6 +36,39 @@ const groupNamed = async (name: string) =>
     `No group named ${name}`,
   );
 
+/** The id of the group that one JSON create made, ready for an update. */
+const createApiGroup = async (name: string): Promise<number> => {
+  const created = await assertJson<{ group: { id: number } }>(
+    apiRequest("/api/admin/groups", {
+      body: { description: "Group", name, terms_and_conditions: "Terms" },
+      method: "POST",
+    }),
+    201,
+  );
+  return created.group.id;
+};
+
+/** Update one group through the JSON API and check the answer's status. */
+const putGroup = <Answer>(
+  id: number,
+  body: Record<string, unknown>,
+  status: number,
+) =>
+  assertJson<Answer>(
+    apiRequest(`/api/admin/groups/${id}`, { body, method: "PUT" }),
+    status,
+  );
+
+/** Check that the stored group keeps the indentation of both of its Markdown
+ *  boxes. */
+const expectGroupMarkdown = async (name: string) => {
+  const group = await groupNamed(name);
+  expect([group.description, group.termsAndConditions]).toEqual([
+    MARKDOWN_CODE,
+    MARKDOWN_CODE,
+  ]);
+};
+
 /** The news post with this name, read from the stored rows. */
 const newsPostNamed = async (name: string) =>
   requireValue(
@@ -123,40 +156,27 @@ describeWithEnv("Markdown content whitespace", { db: true }, () => {
       name: "Code group",
       termsAndConditions: MARKDOWN_BOX,
     });
-    const group = await groupNamed("Code group");
-    expect([group.description, group.termsAndConditions]).toEqual([
-      MARKDOWN_CODE,
-      MARKDOWN_CODE,
-    ]);
+    await expectGroupMarkdown("Code group");
   });
 
   test("the group API keeps the indentation of a code block", async () => {
-    const created = await assertJson<{ group: { id: number } }>(
-      apiRequest("/api/admin/groups", {
-        body: {
-          description: "Group",
-          name: "Code API group",
-          terms_and_conditions: "Terms",
-        },
-        method: "POST",
-      }),
-      201,
-    );
-    await assertJson(
-      apiRequest(`/api/admin/groups/${created.group.id}`, {
-        body: {
-          description: MARKDOWN_BOX,
-          terms_and_conditions: MARKDOWN_BOX,
-        },
-        method: "PUT",
-      }),
+    const id = await createApiGroup("Code API group");
+    await putGroup(
+      id,
+      { description: MARKDOWN_BOX, terms_and_conditions: MARKDOWN_BOX },
       200,
     );
-    const group = await groupNamed("Code API group");
-    expect([group.description, group.termsAndConditions]).toEqual([
-      MARKDOWN_CODE,
-      MARKDOWN_CODE,
-    ]);
+    await expectGroupMarkdown("Code API group");
+  });
+
+  test("the group API refuses a description that is not text", async () => {
+    const id = await createApiGroup("Refused group");
+    const refused = await putGroup<{ error: string }>(
+      id,
+      { description: 7 },
+      400,
+    );
+    expect(refused.error).toBe("description has an invalid value");
   });
 
   test("the question form keeps the indentation of a code block", async () => {
