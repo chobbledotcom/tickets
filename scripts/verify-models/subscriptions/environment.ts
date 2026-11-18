@@ -23,6 +23,7 @@ import type {
   SubscriptionStart,
 } from "#shared/subscriptions/plan.ts";
 import { createTestDbClient } from "#test-utils/db-client.ts";
+import { maybeReclaimLeakedFds } from "#test-utils/reclaim-fds.ts";
 
 export const MODEL_TIME = "2026-03-01T00:00:00.000Z";
 
@@ -34,10 +35,28 @@ const [schemaImageOrNull, setSchemaImage] = lazyRef<Uint8Array | null>(
   () => null,
 );
 
+/** One model database at a time, so two producers never share env or a lock. */
+const [modelDbTail, setModelDbTail] = lazyRef<Promise<unknown>>(() =>
+  Promise.resolve(),
+);
+
 /** Producers run serially. No fixture opens the configured application database. */
-export const withSubscriptionDb = async <Result>(
+export const withSubscriptionDb = <Result>(
   run: () => Promise<Result>,
 ): Promise<Result> => {
+  const queued = (async () => {
+    await modelDbTail().catch(() => undefined);
+    return withSubscriptionDbOnce(run);
+  })();
+  setModelDbTail(queued);
+  return queued;
+};
+
+/** Open one isolated model database and run one producer against it. */
+const withSubscriptionDbOnce = async <Result>(
+  run: () => Promise<Result>,
+): Promise<Result> => {
+  maybeReclaimLeakedFds();
   await ensureMessageGroups(MESSAGE_GROUPS);
   const directory = await makeScratchDir("subscription-model-");
   const path = join(directory, "model.db");
