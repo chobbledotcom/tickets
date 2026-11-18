@@ -8,10 +8,6 @@ import { sql } from "#db/sql.ts";
 import { lazyRef } from "#fp";
 import { ensureMessageGroups } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
-import {
-  denoEnvironment,
-  setEnvironmentValue,
-} from "#scripts/environment-values.ts";
 import { makeScratchDir } from "#scripts/scratch.ts";
 import { resetAllCaches } from "#shared/cache-registry.ts";
 import type {
@@ -52,9 +48,9 @@ export const withSubscriptionDb = <Result>(
     const path = join(directory, "model.db");
     const image = schemaImageOrNull();
     if (image !== null) await Deno.writeFile(path, image);
-    const url = `file:${path}`;
-    const previousUrl = Deno.env.get("DB_URL");
-    Deno.env.set("DB_URL", url);
+    // The model client is explicit. Do not publish its URL through Deno.env:
+    // test workers share the process environment, and a parallel suite would
+    // connect to this file and contend for its write lock.
     const client = await createTestDbClient(path);
     setEncryptionKeyForTest(MODEL_KEY);
     setDb(client);
@@ -70,7 +66,6 @@ export const withSubscriptionDb = <Result>(
       setDb(null);
       setEncryptionKeyForTest(null);
       client.close();
-      setEnvironmentValue(denoEnvironment, "DB_URL", previousUrl);
       await Deno.remove(directory, { recursive: true });
     }
   })();
