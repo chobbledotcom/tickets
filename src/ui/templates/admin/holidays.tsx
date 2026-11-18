@@ -78,18 +78,6 @@ export const HolidayEditPanel = ({
     />,
   );
 
-/* jscpd:ignore-start -- a list of strings, not code */
-/** The catalog keys that name the holiday pages. */
-const HOLIDAY_PAGE_LABELS = {
-  addHeading: "holidays.add.heading",
-  addSubmit: "holidays.add.submit",
-  addTitle: "holidays.add.title",
-  deleteButton: "holidays.delete.submit",
-  deleteTitle: "holidays.delete.heading",
-  listTitle: "terms.holidays",
-};
-/* jscpd:ignore-end */
-
 export const getHolidayPages = (): AdminResourcePages<Holiday> =>
   defineRecordPages(holidayRecord, {
     delete: {
@@ -102,13 +90,12 @@ export const getHolidayPages = (): AdminResourcePages<Holiday> =>
         key: "holidays.delete.confirm",
       }),
       danger: false,
-      heading: t("holidays.delete.heading"),
       ...confirmByName(
         "holidays.delete.confirm_label",
         "holidays.delete.confirm_prompt",
       ),
     },
-    labels: pageLabels(HOLIDAY_PAGE_LABELS),
+    labels: pageLabels("holidays"),
     list: {
       actions: (
         <ActionButton href={adminPattern("holidayNew")} icon="plus">

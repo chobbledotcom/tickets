@@ -202,7 +202,7 @@ export const UserAgentsPanel = ({
       <p>
         <em>
           {t("users.agents.none_exist")}{" "}
-          <a href="/admin/logistics">{t("nav.logistics")}</a>.
+          <a href="/admin/logistics">{t("terms.logistics")}</a>.
         </em>
       </p>
     ) : (

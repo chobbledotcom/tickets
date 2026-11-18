@@ -6,22 +6,23 @@
  * into any client entry point.
  */
 
-/** Create an element of the given tag with the given class, ready to fill in. */
-export const createElementWithClass = (
-  tag: string,
-  className: string,
-): HTMLElement => {
-  const element = document.createElement(tag);
-  element.className = className;
-  return element;
-};
-
 /** Create a `<button type="button">` with the given class, ready to fill in. */
 export const createButton = (className: string): HTMLButtonElement => {
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
   return button;
+};
+
+/** The one element under `root` that `selector` names. A missing element
+ *  throws and names the selector, so a markup change fails where it starts. */
+export const requiredChild = <TElement extends Element>(
+  root: ParentNode,
+  selector: string,
+): TElement => {
+  const element = root.querySelector<TElement>(selector);
+  if (element === null) throw new Error(`Missing element: ${selector}`);
+  return element;
 };
 
 /** Run `setUp` for every element in the document that matches `selector`.

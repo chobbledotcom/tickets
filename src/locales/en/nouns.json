@@ -13,6 +13,8 @@
   "terms.questions": "Questions",
   "terms.answers": "Answers",
   "terms.holidays": "Holidays",
+  "terms.logistics": "Logistics",
+  "terms.statuses": "Attendee statuses",
   "terms.users": "Users",
   "terms.bookings": "Bookings"
 }

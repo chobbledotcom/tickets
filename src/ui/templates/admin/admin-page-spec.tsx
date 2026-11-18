@@ -8,11 +8,13 @@ import type { Child } from "#jsx/jsx-runtime.ts";
 import type { FlashFields } from "#shared/flash-fields.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash, flashNotice } from "#shared/forms/flash.tsx";
+import { isStorageEnabled } from "#shared/storage.ts";
 import type {
   ReorderColumnOptions,
   TableColumn,
 } from "#shared/tables/column.ts";
 import { AgentHeader } from "#templates/admin/agent-header.tsx";
+import { ImagePickerTemplate } from "#templates/admin/image-picker.tsx";
 import {
   AdminNav,
   type NavActive,
@@ -76,6 +78,9 @@ export const AdminPage = ({
     {flash}
     {actions !== undefined && <p class="actions">{actions}</p>}
     {children}
+    {/* The markdown editor hides its image control on a page without the
+        picker, so a page without storage offers no picker. */}
+    {isStorageEnabled() && <ImagePickerTemplate />}
   </Layout>
 );
 
