@@ -16,6 +16,7 @@ import {
 import { projectionFacts } from "#scripts/verify-models/subscriptions/records-projection.ts";
 import { requireValue } from "#shared/required-value.ts";
 import { registeredModel } from "#test/scripts/verify-models/registered-model.ts";
+import { withEnv } from "#test-utils/env.ts";
 import { records } from "#test-utils/tla-data.ts";
 
 const scenario = (operation: string, status = "active", quantity = 0) => {
@@ -387,5 +388,12 @@ describe("subscription record production facts", () => {
           break;
       }
     }
+  });
+
+  test("leaves the process database URL alone", async () => {
+    using _env = withEnv({ DB_URL: "file:/tmp/models-keep-db-url.db" });
+    await withSubscriptionDb(async () => {
+      expect(Deno.env.get("DB_URL")).toBe("file:/tmp/models-keep-db-url.db");
+    });
   });
 });
