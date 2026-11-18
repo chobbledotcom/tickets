@@ -54,9 +54,11 @@ describeWithEnv(
           maxAttendees: 50,
           thankYouUrl: "https://example.com",
         });
-        await setImagesForItem("listing", listing.id, [
-          await insertBrokenImage(),
-        ]);
+        await setImagesForItem({
+          imageIds: [await insertBrokenImage()],
+          itemId: listing.id,
+          itemType: "listing",
+        });
 
         // The page renders (no 503) and shows the red-pixel marker in place
         // of the unreadable image.

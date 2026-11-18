@@ -8,10 +8,10 @@ import type { Locator, Page } from "playwright";
 
 /* jscpd:ignore-start -- a list of strings, not code */
 export const EDITOR_BUTTON = ".md-toolbar-image";
-export const DIALOG = ".md-image-dialog";
-export const OPTION = ".md-image-option";
-export const NOTE = ".md-image-note";
-export const THUMBNAIL = ".md-image-option img";
+export const DIALOG = ".image-picker-dialog";
+export const OPTION = ".image-picker-option";
+export const NOTE = ".image-picker-note";
+export const THUMBNAIL = ".image-picker-option img";
 export const CONTENT_BOX = 'textarea[name="content"]';
 export const EMPTY_MESSAGE = "No images uploaded yet.";
 export const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
@@ -21,7 +21,7 @@ export const UNAVAILABLE_MESSAGE = "Images are unavailable right now.";
 export const waitForDialogClosed = async (page: Page): Promise<void> => {
   await page.waitForFunction(
     () =>
-      (document.querySelector(".md-image-dialog") as HTMLDialogElement)
+      (document.querySelector(".image-picker-dialog") as HTMLDialogElement)
         ?.open === false,
   );
 };

@@ -72,7 +72,9 @@ describe("the image picker dialog", () => {
   test("ignores a second submit press while an upload is in flight", async () => {
     await withUploadFlow(
       async ({ dialog, handle, textarea }, flushSelection) => {
-        const form = dialog.querySelector<HTMLFormElement>(".md-image-upload")!;
+        const form = dialog.querySelector<HTMLFormElement>(
+          ".image-picker-upload",
+        )!;
         form.querySelector<HTMLInputElement>('input[name="name"]')!.value =
           "Harbour";
         const submit = form.querySelector<HTMLButtonElement>(
@@ -114,7 +116,9 @@ describe("the image picker dialog", () => {
         await finishUpload(handle, textarea, dialog, flushSelection);
 
         // The next open offers a clean form, ready for another upload.
-        const form = dialog.querySelector<HTMLFormElement>(".md-image-upload")!;
+        const form = dialog.querySelector<HTMLFormElement>(
+          ".image-picker-upload",
+        )!;
         expect(
           form.querySelector<HTMLInputElement>('input[name="name"]')!.value,
         ).toBe("");

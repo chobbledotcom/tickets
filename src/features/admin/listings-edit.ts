@@ -8,6 +8,7 @@
 
 import { listingGroups } from "#db/groups/table.ts";
 import { anyHiddenPackageGroup, groups } from "#db/groups.ts";
+import { getImagesByIds } from "#db/images.ts";
 import { listingChildren } from "#db/listing-parents.ts";
 import {
   adjustListingIncome,
@@ -32,15 +33,21 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
+import {
+  type ImagePickerOption,
+  imagePickerOptions,
+} from "#shared/images/picker.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   dimensionsOf,
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
+  newListingCollectsImages,
   submissionRequiresDate,
 } from "#shared/listing-templates.ts";
 import { operationResponse } from "#shared/rest/operation-response.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import {
   adminDuplicateListingPage,
   adminListingNewPage,
@@ -183,6 +190,18 @@ const copyEdgesFromDuplicateSource = async (
     : null;
 };
 
+/** The pictures a rejected physical-product or custom form carried, so its
+ *  re-render shows the same pictures under the same ids. */
+const formImages = async (
+  form: FormParams,
+  templateId: string | null,
+): Promise<readonly ImagePickerOption[]> => {
+  if (!newListingCollectsImages(templateId) || !isStorageEnabled()) return [];
+  return imagePickerOptions(
+    await getImagesByIds(form.getNumberArray("imageIds")),
+  );
+};
+
 const renderCreateListingError = async (
   session: AdminSession,
   form: FormParams,
@@ -194,6 +213,7 @@ const renderCreateListingError = async (
     {
       customiseOpen: form.getFlag("customise"),
       error,
+      images: await formImages(form, templateId),
       // The group checkboxes the operator submitted, so a rejected create
       // re-renders their selection rather than dropping every group.
       selectedGroupIds: form.getNumberArray("groupIds"),
@@ -228,9 +248,26 @@ export const handleCreateListing: TypedRouteHandler<"POST /admin/listing"> =
       );
     }
 
+    // Only the physical product and custom forms show the picture field. A
+    // create that carries picture ids from any other form is refused. The
+    // listing page refuses any other field box it did not show in the same
+    // way.
+    const collectsImages =
+      newListingCollectsImages(chosenTemplateId) && isStorageEnabled();
+    const imageIds = form.getNumberArray("imageIds");
+    if (imageIds.length > 0 && !collectsImages) {
+      return renderCreateListingError(
+        session,
+        form,
+        t("fields.validation.unshown_field"),
+        chosenTemplateId,
+      );
+    }
+
     const result = await buildCreateListingResource(
       form,
       listingFormView(session.adminLevel),
+      collectsImages ? imageIds : [],
     ).create(form);
     if (!result.ok) {
       return renderCreateListingError(

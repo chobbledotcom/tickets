@@ -30,6 +30,36 @@ export const csrfTokenFor = (element: Element): string =>
     .closest("form")
     ?.querySelector<HTMLInputElement>('input[name="csrfToken"]')?.value ?? "";
 
+/** Create a hidden form input carrying its name and value. */
+export const createHiddenInput = (
+  name: string,
+  value: string,
+): HTMLInputElement => {
+  const input = document.createElement("input");
+  input.type = "hidden";
+  input.name = name;
+  input.value = value;
+  return input;
+};
+
+/** Set an element's text and give the element back, for one-expression trees. */
+export const setText = (element: HTMLElement, text: string): HTMLElement => {
+  element.textContent = text;
+  return element;
+};
+
+/** Create a thumbnail picture, with its loading hint and no alt text. */
+export const createThumbnail = (
+  src: string,
+  loading: "eager" | "lazy",
+): HTMLImageElement => {
+  const image = document.createElement("img");
+  image.alt = "";
+  image.loading = loading;
+  image.src = src;
+  return image;
+};
+
 /** Run `setUp` for every element in the document that matches `selector`.
  *  Every widget on a page starts this way: find the marked elements, then
  *  enhance each one. */

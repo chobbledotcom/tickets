@@ -147,7 +147,7 @@ describeWithBrowser(
       await withPage(async (page) => {
         await openPageEditor(page);
         await openDialog(page);
-        const grid = page.locator(".md-image-grid");
+        const grid = page.locator(".image-picker-grid");
         await page.locator(OPTION).first().waitFor();
 
         // The grid is a scroller of its own: the library is taller than the

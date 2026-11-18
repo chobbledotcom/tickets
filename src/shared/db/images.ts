@@ -146,6 +146,25 @@ const imageFileColumns = columnsNamed([
   "id",
 ]);
 
+/** The stored images with these ids, in the given order. An id the library
+ *  lacks is left out, so a deleted image cannot come back from a stale form. */
+export const getImagesByIds = async (
+  ids: readonly number[],
+): Promise<Image[]> => {
+  const wanted = unique([...ids]);
+  if (wanted.length === 0) return [];
+  const rows = await readRows(
+    from(tables.images)
+      .where((image) => among(image.id, wanted))
+      .everyColumn(),
+  );
+  const byId = new Map(rows.map((image) => [image.id, image]));
+  return wanted.flatMap((id) => {
+    const image = byId.get(id);
+    return image === undefined ? [] : [image];
+  });
+};
+
 /** The images attached to one item, in the order the operator arranged them.
  * Both image reads below want the same rows and differ only in which columns
  * they open, so they say it once here. */
@@ -283,19 +302,33 @@ export const clearImageUsesForItemStatement = targetRowsRemoval(
   imageUseTargets,
 );
 
-export const setImagesForItem = (
-  itemType: ImageUseItemType,
-  itemId: number,
-  imageIds: readonly number[],
-): Promise<void> => {
+/** One record's full image selection, and the transaction to write it in. */
+export type ImageItemWrite = {
+  imageIds: readonly number[];
+  itemId: number;
+  itemType: ImageUseItemType;
+  transaction?: TxScope;
+};
+
+/** Set one record's images to exactly the given ids. A link lands only while
+ *  its image and record still exist. Pass an open transaction so the links
+ *  commit with the write that owns the record. */
+export const setImagesForItem = async ({
+  imageIds,
+  itemId,
+  itemType,
+  transaction,
+}: ImageItemWrite): Promise<void> => {
   const target = imageUseTargets.of(itemType)(itemId);
-  const uniqueIds = [...new Set(imageIds)];
-  return executeBatch([
-    clearImageUsesForItemStatement(target),
-    ...uniqueIds.map((imageId, index) =>
-      linkImageStatement(imageId, target, index),
-    ),
-  ]);
+  const uniqueIds = unique([...imageIds]);
+  await useTransaction(transaction, (tx) =>
+    tx.batch([
+      clearImageUsesForItemStatement(target),
+      ...uniqueIds.map((imageId, index) =>
+        linkImageStatement(imageId, target, index),
+      ),
+    ]),
+  );
 };
 
 export const appendImageToItem = (

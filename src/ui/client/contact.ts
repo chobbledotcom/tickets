@@ -10,6 +10,7 @@
  */
 
 import BotpoisonDefault from "@botpoison/browser";
+import { createHiddenInput } from "#src/ui/client/dom.ts";
 
 const FIELD = "_botpoison";
 
@@ -40,16 +41,14 @@ export const initContactForm = (): void => {
   const solveAndSubmit = async (): Promise<void> => {
     try {
       const { solution } = await botpoison.challenge();
-      let input = form.querySelector<HTMLInputElement>(
+      const input = form.querySelector<HTMLInputElement>(
         `input[name="${FIELD}"]`,
       );
-      if (!input) {
-        input = document.createElement("input");
-        input.type = "hidden";
-        input.name = FIELD;
-        form.appendChild(input);
+      if (input) {
+        input.value = solution;
+      } else {
+        form.appendChild(createHiddenInput(FIELD, solution));
       }
-      input.value = solution;
     } catch {
       // Leave the solution unset; the server rejects unverified submissions.
     } finally {

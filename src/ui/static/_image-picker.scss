@@ -1,0 +1,156 @@
+/* The shared image picker dialog: a thumbnail grid over an upload form,
+ * styled on the preview dialog's shell, and the listing form's chosen-image
+ * list. */
+
+@use "mixins" as *;
+
+.image-picker-dialog {
+  width: min(100% - 2 * var(--space-lg), 60rem);
+  max-width: min(100% - 2 * var(--space-lg), 60rem);
+  max-height: calc(100dvh - 2 * var(--space-lg));
+  padding: var(--space-m);
+}
+
+.image-picker-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.image-picker-dialog h2 {
+  margin-top: 0;
+}
+
+.image-picker-columns {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-m);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+}
+
+.image-picker-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  min-height: 0;
+}
+
+.image-picker-grid {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-s);
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  max-height: 50dvh;
+  min-height: 0;
+  overflow-y: scroll;
+}
+
+.image-picker-option {
+  @include stack-tight;
+  padding: var(--space-s);
+  @include panel-border;
+  background: none;
+  /* The unified button rule sets text to var(--color-bg): invisible here. */
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  /* A name can be 250 characters with no spaces. The cell caps its width,
+   * so without wrapping here the name overflows the viewport. */
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.image-picker-option:hover,
+.image-picker-option[aria-pressed="true"] {
+  background: var(--color-bg-secondary);
+}
+
+.image-picker-option[aria-pressed="true"] {
+  border-color: var(--color-link);
+}
+
+.image-picker-option img {
+  aspect-ratio: 1;
+  border-radius: var(--border-radius);
+  object-fit: cover;
+  width: 100%;
+}
+
+.image-picker-note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+/* The upload form mirrors the images area's stacked label-over-input fields. */
+.image-picker-upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-s);
+  max-width: none;
+  min-width: 0;
+  padding: 0 7px;
+}
+
+.image-picker-upload h3 {
+  margin: 0;
+}
+
+.image-picker-upload label {
+  width: 100%;
+}
+
+.image-picker-upload textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  width: 100%;
+}
+
+@media (max-width: 36rem) {
+  .image-picker-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .image-picker-dialog[open] {
+    overflow-y: auto;
+  }
+}
+
+/* The new physical-product listing's chosen pictures. */
+.listing-images-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-s);
+  list-style: none;
+  margin: 0;
+  padding: 10px 0;
+}
+
+.listing-images-item {
+  @include panel-border;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-s);
+  padding: var(--space-s);
+}
+
+.listing-images-item img {
+  width: 8rem;
+  aspect-ratio: 1;
+  border-radius: var(--border-radius);
+  object-fit: cover;
+}
+
+.listing-images-remove {
+  width: auto;
+  padding: 0.2rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.listing-images [data-listing-images-trigger] {
+  margin-top: var(--space-m);
+}

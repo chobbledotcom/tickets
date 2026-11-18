@@ -6,14 +6,17 @@ import { isBuilderEnabled } from "#shared/config.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import { Flash } from "#shared/forms/flash.tsx";
 import type { FieldValues } from "#shared/forms/values.ts";
+import type { ImagePickerOption } from "#shared/images/picker.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   inferTemplate,
   LISTING_TEMPLATES,
   type ListingTemplate,
+  newListingCollectsImages,
   type TemplateId,
   type TemplateRequirement,
 } from "#shared/listing-templates.ts";
+import { isStorageEnabled } from "#shared/storage.ts";
 import { renderAdminPage } from "#templates/admin/admin-page.tsx";
 import {
   Icon,
@@ -221,12 +224,24 @@ export const adminListingPickerPage = (session: AdminSession): string => {
   );
 };
 
+/** The physical product and custom templates collect pictures while the
+ * listing is still new. The chosen images travel with the create and attach
+ * in the same write. */
+const newPageImages = (
+  templateId: string | null | undefined,
+  images: readonly ImagePickerOption[] | undefined,
+): readonly ImagePickerOption[] | undefined =>
+  newListingCollectsImages(templateId) && isStorageEnabled()
+    ? (images ?? [])
+    : undefined;
+
 export const adminListingNewPage = (
   groups: Group[],
   session: AdminSession,
   opts?: {
     customiseOpen?: boolean;
     error?: string;
+    images?: readonly ImagePickerOption[];
     templateId?: string | null;
     values?: FieldValues;
     selectedGroupIds?: number[];
@@ -236,6 +251,7 @@ export const adminListingNewPage = (
     error,
     templateId,
     customiseOpen = false,
+    images: submittedImages,
     values: submitted,
     selectedGroupIds = [],
   } = opts ?? {};
@@ -256,6 +272,7 @@ export const adminListingNewPage = (
     : template
       ? seeds
       : { ...seeds, ...defaultsToFieldValues(form.defaults) };
+  const images = newPageImages(templateId, submittedImages);
   return createListingPageFromForm(
     form,
     session,
@@ -279,6 +296,7 @@ export const adminListingNewPage = (
           advancedOpen: !!error,
           customiseOpen,
           durationWarning: "",
+          ...(images === undefined ? {} : { images }),
           useDefaultsChecked,
           values: newValues,
         })}

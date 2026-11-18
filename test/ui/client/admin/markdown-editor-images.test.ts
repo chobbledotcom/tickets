@@ -286,8 +286,9 @@ describe("the image picker dialog", () => {
       { stylesheet },
     );
 
-    const option =
-      imageGrid(window).querySelector<HTMLElement>(".md-image-option")!;
+    const option = imageGrid(window).querySelector<HTMLElement>(
+      ".image-picker-option",
+    )!;
     expect(option.textContent).toBe(unbrokenName);
     // The compiled stylesheet is what the browser downloads. Its wrap rule
     // must reach the option through the real cascade, not just exist in the

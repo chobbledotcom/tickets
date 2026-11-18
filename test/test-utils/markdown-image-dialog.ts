@@ -73,9 +73,11 @@ const partReader =
 export const toolbarImageButton =
   partReader<HTMLButtonElement>(".md-toolbar-image");
 
-export const imageDialog = partReader<HTMLDialogElement>(".md-image-dialog");
+export const imageDialog = partReader<HTMLDialogElement>(
+  ".image-picker-dialog",
+);
 
-export const imageGrid = partReader<HTMLElement>(".md-image-grid");
+export const imageGrid = partReader<HTMLElement>(".image-picker-grid");
 
 export interface OpenDialogResult {
   dialog: HTMLDialogElement;
@@ -220,7 +222,7 @@ export const submitUpload = async (
   name: string,
   file?: { bytes: number[]; name: string; type: string },
 ): Promise<void> => {
-  const form = dialog.querySelector<HTMLFormElement>(".md-image-upload")!;
+  const form = dialog.querySelector<HTMLFormElement>(".image-picker-upload")!;
   form.querySelector<HTMLInputElement>('input[name="name"]')!.value = name;
   if (file) {
     const input = form.querySelector<HTMLInputElement>('input[name="image"]')!;
