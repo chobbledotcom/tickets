@@ -43,15 +43,11 @@ export type MembershipOverrides = {
 };
 
 /** The fields a non-package membership supplies above the neutral value. */
-const overrideFieldsSupplied = ({
-  dayPrices,
-  packagePrice,
-  quantity,
-}: MembershipOverrides): string[] =>
+const overrideFieldsSupplied = (overrides: MembershipOverrides): string[] =>
   compact([
-    (packagePrice ?? null) === null ? null : "packagePrice",
-    (quantity ?? 1) === 1 ? null : "quantity",
-    Object.keys(dayPrices ?? {}).length === 0 ? null : "dayPrices",
+    (overrides.packagePrice ?? null) === null ? null : "packagePrice",
+    (overrides.quantity ?? 1) === 1 ? null : "quantity",
+    Object.keys(overrides.dayPrices ?? {}).length === 0 ? null : "dayPrices",
   ]);
 
 /** The membership one side declares. A package holds the overrides. A group

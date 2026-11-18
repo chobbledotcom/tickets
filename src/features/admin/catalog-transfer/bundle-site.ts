@@ -363,7 +363,11 @@ export const collectPairs = (
       (membership: ListingMembership) => membership.group,
     )) {
       mergeDeclaredPair(pairs, fail, {
-        entry,
+        entry: {
+          dayPrices: entry.dayPrices,
+          packagePrice: entry.packagePrice,
+          quantity: entry.quantity,
+        },
         group: entry.group,
         groupRef: resolved,
         isPackage: groupViewOf(resolved, context).isPackage,
@@ -381,7 +385,11 @@ export const collectPairs = (
       (membership: GroupMember) => membership.listing,
     )) {
       mergeDeclaredPair(pairs, fail, {
-        entry: member,
+        entry: {
+          dayPrices: member.dayPrices,
+          packagePrice: member.packagePrice,
+          quantity: member.quantity,
+        },
         group: body.group.name,
         groupRef: { bundleKey: nameKey(body.group.name) },
         isPackage: body.group.isPackage ?? false,
