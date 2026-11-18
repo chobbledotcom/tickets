@@ -9,7 +9,7 @@ import { recordEditPage } from "./record-edit-page.ts";
 
 export const attendeeStatusPage: EditEntityPage<AttendeeStatus> =
   recordEditPage(statusRecord, {
-    deleteLabelKey: "statuses.delete_button",
+    deleteLabelKey: "statuses.delete.submit",
     edit: (status, _ctx, rejected) =>
       Promise.resolve(
         AttendeeStatusEditPanel({
