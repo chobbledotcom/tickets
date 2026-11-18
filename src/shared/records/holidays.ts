@@ -7,21 +7,16 @@ import { type Holiday, type HolidayInput, holidays } from "#db/holidays.ts";
 import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
-import {
-  defineNamedRowRecord,
-  withNameLimit,
-} from "#shared/rest/named-record.ts";
+import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import type { RecordShapeOf } from "#shared/rest/record.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
-/** The one holiday rule: a name the form can save again, and an end on or
- * after the day the holiday starts. Both doors answer these messages. */
-export const holidayRule = withNameLimit(
-  (input: HolidayInput): Result<HolidayInput> =>
-    input.endDate < input.startDate
-      ? errorResult(t("error.end_date_before_start"))
-      : okResult(input),
-);
+/** The one holiday rule: an end on or after the day the holiday starts. Both
+ * doors answer this message. */
+export const holidayRule = (input: HolidayInput): Result<HolidayInput> =>
+  input.endDate < input.startDate
+    ? errorResult(t("error.end_date_before_start"))
+    : okResult(input);
 
 export const holidayRecord = defineNamedRowRecord<
   RecordShapeOf<Holiday, HolidayInput>

@@ -6,12 +6,12 @@
 
 import {
   type CatalogNameIndex,
-  catalogNameLengthError,
   isNameTakenAnywhere,
   loadCatalogNameIndex,
 } from "#db/name-registry.ts";
 import { t } from "#i18n";
 import { matchKey as nameKey } from "#shared/keys.ts";
+import { nameLengthError } from "#shared/name-limit.ts";
 import type { BundleFailure } from "./bundle-plan.ts";
 import { nameTakenError } from "./import-listing.ts";
 import type { CatalogBundle } from "./schema.ts";
@@ -81,11 +81,11 @@ export const checkItemNames = async (
   }
 
   const siteIndex = await loadCatalogNameIndex();
-  // The single imports take the name before its length (the listing form's
-  // validator does the same), so the shared phase reports in that order.
+  // The bundle inserts its rows directly, so the record's input check never
+  // runs. The name phase reports a taken name before its length.
   const nameProblem = async (name: string): Promise<string | null> =>
     ((await isNameTakenAnywhere(name)) ? nameTakenError(name) : null) ??
-    catalogNameLengthError(name);
+    nameLengthError(name);
   for (const body of bundle.listings) {
     // A built-site plan never imports, whatever its name — the same refusal
     // the single import raises before its name checks.
