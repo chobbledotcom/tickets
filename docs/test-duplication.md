@@ -11,10 +11,10 @@ tokens** alongside `src/`, and at **40 tokens** on their own by
 count for `specs`, the way the renamed-clone gate does. See
 [What is left](#what-is-left) for the remaining steps.
 
-All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
-the setting every config in this repository uses. A count is the number of clone
-pairs the scan reports, not the number of places to edit: one merge usually
-clears several pairs.
+The clone tables in this document come from commit `ebc7c12` and from jscpd
+5.0.12 with `minLines: 1`, the setting every config in this repository uses.
+Their numbers count clone pairs, not places to edit. One merge usually clears
+several pairs.
 
 The scan configs and the counts file live in `cfg/`. The ratchet in
 `deno task cpd` reads `cfg/cpd-counts.json`. `deno task cpd:update` writes each
@@ -99,8 +99,8 @@ The first pass merged the pairs that were real duplicated logic:
   parameter slice `SessionPaymentReference`, so the two charge-reference
   readers no longer repeat the type.
 
-The remaining 217 pairs are accepted in the count. They are import-block and
-signature matches, one-line field and schema builders, and the support test
+The count accepts the places of the remaining 217 pairs. They are import-block
+and signature matches, one-line field and schema builders, and the support test
 bodies. Each is a separate merge when its band is classified.
 
 Read a whole band before you lower a limit. A small sample can call a band

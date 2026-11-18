@@ -556,8 +556,9 @@ A flagged pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan counts its accepted matches under `renamed`. Add a pair
-  only after you try the curry, with `deno task cpd:renamed --update`.
+- The renamed scan counts its accepted matches under `renamed`. A new pair
+  raises the count, and `deno task cpd:renamed --update` refuses it. Merge the
+  pair instead. The command writes only a lower count.
 - The counts for `main`, `test`, `helpers` and `support` hold the cloned code
   that existed when the strict scans started to count renamed copies. After a
   merge, remove the fixed clones with `deno task cpd:update`. Never raise a

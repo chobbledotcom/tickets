@@ -69,9 +69,9 @@ jobs:
       - name: Typecheck
         run: deno task typecheck
 
-      # The cpd step runs the jscpd baseline ratchet, and the coverage
-      # exclusion ratchet below diffs its list. Both read the merge base on
-      # origin/main, so the checkout needs that one ref.
+      # The cpd step runs the cpd counts ratchet, and the coverage exclusion
+      # ratchet below diffs its list. Both read the merge base on origin/main,
+      # so the checkout needs that one ref.
       - name: Fetch main for the merge-base ratchets
         run: git fetch origin main
 

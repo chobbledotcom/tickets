@@ -1,8 +1,9 @@
 /**
  * The arguments one cpd scan reads: the flags this repository's wrapper owns,
- * and the rest, which jscpd reads. The wrapper owns `--counts`, `--scan`,
- * `--update` and `--fail-on-new-clones`, because the committed counts are the
- * wrapper's record and jscpd knows nothing of them (see ./counts.ts).
+ * and the rest, which jscpd reads. The wrapper owns its flags because the
+ * committed counts are the wrapper's record and jscpd knows nothing of them
+ * (see ./counts.ts). WRAPPER_FLAGS names them, and the counts ratchet reads
+ * the same names from the scan tasks.
  */
 
 import { requireValue } from "#shared/required-value.ts";
@@ -23,6 +24,20 @@ export interface ScanOptions {
   update: boolean;
 }
 
+/** The names of the flags that the wrapper owns. A scan task writes them, and
+ * the counts ratchet reads them from the task, so one declaration names them
+ * for both. */
+export const WRAPPER_FLAGS = {
+  /** Fails a scan that reports more places than the committed count. */
+  check: "--fail-on-new-clones",
+  /** The committed counts file that the scan reads and writes. */
+  counts: "--counts",
+  /** The scan's name in the counts file. */
+  scan: "--scan",
+  /** Writes the committed count from the working tree. */
+  update: "--update",
+} as const;
+
 /** One wrapper flag that names a value, and the noun the value must be. */
 interface FlagSpec {
   name: string;
@@ -31,8 +46,8 @@ interface FlagSpec {
 
 /** The wrapper's flags that name a value for the counts file. */
 const VALUE_FLAGS: readonly FlagSpec[] = [
-  { name: "--counts", noun: "path" },
-  { name: "--scan", noun: "name" },
+  { name: WRAPPER_FLAGS.counts, noun: "path" },
+  { name: WRAPPER_FLAGS.scan, noun: "name" },
 ];
 
 /** The wrapper's flag that names the config, which jscpd reads too. */
@@ -101,12 +116,12 @@ const ownFlags = (input: readonly string[]): OwnFlags => {
   let index = 0;
   while (index < input.length) {
     const arg = requireValue(input[index], "A cpd argument is missing.");
-    if (arg === "--update") {
+    if (arg === WRAPPER_FLAGS.update) {
       flags.update = true;
       index += 1;
       continue;
     }
-    if (arg === "--fail-on-new-clones") {
+    if (arg === WRAPPER_FLAGS.check) {
       flags.check = true;
       index += 1;
       continue;
@@ -128,8 +143,8 @@ const ownFlags = (input: readonly string[]): OwnFlags => {
     flags.args.push(CONFIG_FLAG.name, config.value);
     index += config.consumed;
   }
-  flags.counts = named.get("--counts");
-  flags.scan = named.get("--scan");
+  flags.counts = named.get(WRAPPER_FLAGS.counts);
+  flags.scan = named.get(WRAPPER_FLAGS.scan);
   return flags;
 };
 
@@ -144,9 +159,9 @@ const configOf = (args: readonly string[]): string | undefined => {
 
 /** The options of one scan. The run fails loudly when a flag that names a
  * value has none, and when `--config` is absent. A scan that checks or updates
- * a count needs both `--counts` and `--scan`. `--update` and
- * `--fail-on-new-clones` together update: the scan rewrites the count, so
- * there is nothing to check against it. */
+ * a count needs both the counts file and the scan name. An update with a check
+ * updates: the scan rewrites the count, so there is nothing to check against
+ * it. */
 export const scanOptions = (input: readonly string[]): ScanOptions => {
   const { args, check, counts, scan, update } = ownFlags(input);
   const config = configOf(args);
@@ -155,8 +170,8 @@ export const scanOptions = (input: readonly string[]): ScanOptions => {
   }
   if ((counts === undefined || scan === undefined) && (check || update)) {
     throw new Error(
-      "scripts/cpd.ts: --update and --fail-on-new-clones need " +
-        "--counts <file> and --scan <name>",
+      `scripts/cpd.ts: ${WRAPPER_FLAGS.update} and ${WRAPPER_FLAGS.check} ` +
+        `need ${WRAPPER_FLAGS.counts} <file> and ${WRAPPER_FLAGS.scan} <name>`,
     );
   }
   return { args, check: check && !update, config, counts, scan, update };

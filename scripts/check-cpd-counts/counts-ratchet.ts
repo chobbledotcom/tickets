@@ -19,6 +19,7 @@ import {
   rises,
   type ScanCounts,
 } from "#scripts/jscpd/counts.ts";
+import { WRAPPER_FLAGS } from "#scripts/jscpd/options.ts";
 import { requireValue } from "#shared/required-value.ts";
 
 /** Where a reader finds the rule and the way out. */
@@ -27,14 +28,20 @@ export const RATCHET_GUIDE = '"Code Duplication" in AGENTS.md';
 /** The script a task runs when that task compares a scan with its count. */
 const CPD_SCRIPT = "scripts/cpd.ts";
 
-/** The flags that make a scan read a count. A scan with either one names one. */
-const COUNT_FLAGS = ["--fail-on-new-clones", "--update"];
+/** The flags that make a scan read a count. A scan with either one names one.
+ * The scan reads the same names, so one declaration names them for both. */
+const COUNT_FLAGS = [WRAPPER_FLAGS.check, WRAPPER_FLAGS.update];
 
 /** The separator between two commands in one task. */
 const COMMAND_SEPARATOR = "&&";
 
-const COUNTS_FLAG = /--counts(?:=|\s+)(\S+)/;
-const SCAN_FLAG = /--scan(?:=|\s+)(\S+)/;
+/** The pattern that finds the value of `flag` in a task command, in the
+ * `--flag <value>` and the `--flag=<value>` form. */
+const valuePattern = (flag: string): RegExp =>
+  new RegExp(`${flag}(?:=|\\s+)(\\S+)`);
+
+const COUNTS_PATTERN = valuePattern(WRAPPER_FLAGS.counts);
+const SCAN_PATTERN = valuePattern(WRAPPER_FLAGS.scan);
 
 /** One scan that a task checks or updates, and the counts file and scan name
  * that the task gives it. */
@@ -68,8 +75,8 @@ export const checkedScans = (
     )
       .filter((command) => COUNT_FLAGS.some((flag) => command.includes(flag)))
       .map((command) => ({
-        counts: flagValue(command, COUNTS_FLAG),
-        scan: flagValue(command, SCAN_FLAG),
+        counts: flagValue(command, COUNTS_PATTERN),
+        scan: flagValue(command, SCAN_PATTERN),
         task,
       })),
   )(sortStrings(Object.keys(tasks)));
