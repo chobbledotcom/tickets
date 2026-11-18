@@ -18,10 +18,7 @@ import { tables } from "#db/select/tables.ts";
 import { t } from "#i18n";
 import { ADMIN_API_RESOURCES } from "#shared/admin-api-resources.ts";
 import { validateReservationAmount } from "#shared/reservation-amount.ts";
-import {
-  defineNamedRowRecord,
-  withNameLimit,
-} from "#shared/rest/named-record.ts";
+import { defineNamedRowRecord } from "#shared/rest/named-record.ts";
 import {
   logNameActivity,
   type RecordShapeOf,
@@ -30,19 +27,19 @@ import {
 import { commitCommand, updateIfPresent } from "#shared/rest/record-command.ts";
 import { errorResult, okResult, type Result } from "#shared/result.ts";
 
-/** The one status rule: a name the catalog accepts, a paid default that is
- * never a reservation, and a valid reservation amount. */
-export const statusRule = withNameLimit(
-  (input: AttendeeStatusWriteInput): Result<AttendeeStatusWriteInput> => {
-    if (input.isReservation && input.isPaidDefault) {
-      return errorResult(t("statuses.error_paid_default_reservation"));
-    }
-    const amountError = input.isReservation
-      ? validateReservationAmount(input.reservationAmount)
-      : null;
-    return amountError === null ? okResult(input) : errorResult(amountError);
-  },
-);
+/** The one status rule: a paid default that is never a reservation, and a
+ * valid reservation amount. */
+export const statusRule = (
+  input: AttendeeStatusWriteInput,
+): Result<AttendeeStatusWriteInput> => {
+  if (input.isReservation && input.isPaidDefault) {
+    return errorResult(t("statuses.error_paid_default_reservation"));
+  }
+  const amountError = input.isReservation
+    ? validateReservationAmount(input.reservationAmount)
+    : null;
+  return amountError === null ? okResult(input) : errorResult(amountError);
+};
 
 const logStatus = logNameActivity("Attendee status");
 

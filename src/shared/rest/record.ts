@@ -26,6 +26,7 @@ import {
   type RecordSpec,
   type RecordTableOf,
   type RecordWrites,
+  type Refused,
   type RowOf,
   recordSurfaceOf,
   type StateOf,
@@ -239,6 +240,19 @@ const buildRecord = <Shape extends RecordShape>(
     verb: string;
   };
 
+  /** Run the record's own input check, then the write command it guards. Both
+   * write paths and both doors run this one check. Not async: a write that is
+   * missing its table still throws where the caller can catch it. */
+  const checked = <Answer>(
+    input: Input,
+    run: () => Promise<Answer>,
+  ): Promise<Answer | Refused> => {
+    const message = spec.inputCheck?.(input) ?? null;
+    return message === null
+      ? run()
+      : Promise.resolve<Refused>({ kind: "refused", message });
+  };
+
   /** Run the one rule, prepare the plan, then write the row with its joins,
    * order, and log in one transaction. */
   const runWrite = async <Prepared>(
@@ -379,11 +393,19 @@ const buildRecord = <Shape extends RecordShape>(
     AdminRecord<Shape>,
     "create" | "remove" | "update"
   > = write === undefined
-    ? { create, remove, update }
+    ? {
+        create: (input, plan, actor) =>
+          checked(input, () => create(input, plan, actor)),
+        remove,
+        update: (id, input, plan, actor) =>
+          checked(input, () => update(id, input, plan, actor)),
+      }
     : {
-        create: (input, _plan, actor) => write.create(input, actor),
+        create: (input, _plan, actor) =>
+          checked(input, () => write.create(input, actor)),
         remove: (id, input, actor) => write.remove(id, input, actor),
-        update: (id, input, _plan, actor) => write.update(id, input, actor),
+        update: (id, input, _plan, actor) =>
+          checked(input, () => write.update(id, input, actor)),
       };
 
   return {

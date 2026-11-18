@@ -21,10 +21,7 @@ import { syncListingPrices } from "#db/listing-price-sync.ts";
 import { refuseUndatedSwitchTx } from "#db/listings/daily-switch.ts";
 import { deleteListing } from "#db/listings/delete.ts";
 import { getListingWithCount, isSlugTaken } from "#db/listings/records.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
 import { records } from "#db/record-table.ts";
 import { type ListingCheck, liveListingRefusal } from "#db/subscriptions.ts";
 import { firstProblem, requiredMapValue } from "#fp";
@@ -245,21 +242,19 @@ const validateListingEdges: ListingUpdateCheck = async (input, existingId) => {
   return edgeIncompatibilityAfterChange(listingInputToEdge(input, existingId));
 };
 
-/** The listing name's own checks. It must be unique across BOTH listings and
+/** The listing name's own check. It must be unique across BOTH listings and
  *  groups (create and edit alike), so the catalog can be referenced by name
- *  for import/export. Its length is capped by the shared catalog-name rule —
- *  see {@link catalogNameLengthError}. */
+ *  for import/export. The named record caps its length at both doors. */
 const listingNameError = async (
   name: string,
   existingId?: number,
-): Promise<string | null> => {
-  const nameTaken = await isNameTakenAnywhere(
+): Promise<string | null> =>
+  (await isNameTakenAnywhere(
     name,
     existingId === undefined ? undefined : { id: existingId, kind: "listing" },
-  );
-  if (nameTaken) return t("error.name_in_use");
-  return catalogNameLengthError(name);
-};
+  ))
+    ? t("error.name_in_use")
+    : null;
 
 /** Validate a listing's minimum quantity. It must hold with the per-order
  *  maximum: a whole number of at least 1, and at most that maximum. An absent
