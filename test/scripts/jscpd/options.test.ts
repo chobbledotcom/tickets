@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { scanOptions } from "#scripts/jscpd/options.ts";
 
-const BASELINE = "cfg/.jscpd.baseline.json";
+const COUNTS = "cfg/cpd-counts.json";
 
 describe("scanOptions", () => {
   test("forwards every other argument to jscpd and reads the config", () => {
@@ -24,9 +24,10 @@ describe("scanOptions", () => {
         "--output",
         ".jscpd-report",
       ],
-      baseline: undefined,
       check: false,
       config: "cfg/jscpd.json",
+      counts: undefined,
+      scan: undefined,
       update: false,
     });
   });
@@ -38,34 +39,57 @@ describe("scanOptions", () => {
     ]);
   });
 
-  test("reads and drops the baseline in either form", () => {
-    expect(
-      scanOptions(["--config", "cfg/jscpd.json", "--baseline", BASELINE]),
-    ).toMatchObject({
-      args: ["--config", "cfg/jscpd.json"],
-      baseline: BASELINE,
-    });
-    expect(
-      scanOptions(["--config", "cfg/jscpd.json", `--baseline=${BASELINE}`]),
-    ).toMatchObject({
-      args: ["--config", "cfg/jscpd.json"],
-      baseline: BASELINE,
-    });
-  });
-
-  test("keeps the path after a baseline flag out of the jscpd arguments", () => {
-    expect(
-      scanOptions(["--baseline", BASELINE, "--config", "cfg/jscpd.json"]).args,
-    ).toEqual(["--config", "cfg/jscpd.json"]);
-  });
-
-  test("checks against the baseline on --fail-on-new-clones", () => {
+  test("reads and drops the counts file and the scan name in either form", () => {
     expect(
       scanOptions([
         "--config",
         "cfg/jscpd.json",
-        "--baseline",
-        BASELINE,
+        "--counts",
+        COUNTS,
+        "--scan",
+        "main",
+      ]),
+    ).toMatchObject({
+      args: ["--config", "cfg/jscpd.json"],
+      counts: COUNTS,
+      scan: "main",
+    });
+    expect(
+      scanOptions([
+        "--config",
+        "cfg/jscpd.json",
+        `--counts=${COUNTS}`,
+        "--scan=main",
+      ]),
+    ).toMatchObject({
+      args: ["--config", "cfg/jscpd.json"],
+      counts: COUNTS,
+      scan: "main",
+    });
+  });
+
+  test("keeps the values of the wrapper flags out of the jscpd arguments", () => {
+    expect(
+      scanOptions([
+        "--counts",
+        COUNTS,
+        "--scan",
+        "main",
+        "--config",
+        "cfg/jscpd.json",
+      ]).args,
+    ).toEqual(["--config", "cfg/jscpd.json"]);
+  });
+
+  test("checks against the count on --fail-on-new-clones", () => {
+    expect(
+      scanOptions([
+        "--config",
+        "cfg/jscpd.json",
+        "--counts",
+        COUNTS,
+        "--scan",
+        "main",
         "--fail-on-new-clones",
       ]),
     ).toMatchObject({ args: ["--config", "cfg/jscpd.json"], check: true });
@@ -76,8 +100,10 @@ describe("scanOptions", () => {
       scanOptions([
         "--config",
         "cfg/jscpd.json",
-        "--baseline",
-        BASELINE,
+        "--counts",
+        COUNTS,
+        "--scan",
+        "main",
         "--update",
         "--fail-on-new-clones",
       ]),
@@ -90,15 +116,21 @@ describe("scanOptions", () => {
     );
   });
 
-  test("refuses every flag that names no path", () => {
+  test("refuses every flag that names no value", () => {
     const refusals: [args: string[], message: string][] = [
       [["--config"], "--config needs a path."],
       [["--config", "--update"], "--config needs a path."],
-      [["--config", "jscpd.json", "--baseline"], "--baseline needs a path."],
-      [["--config", "jscpd.json", "--baseline="], "--baseline needs a path."],
+      [["--config", "jscpd.json", "--counts"], "--counts needs a path."],
+      [["--config", "jscpd.json", "--counts="], "--counts needs a path."],
       [
-        ["--config", "jscpd.json", "--baseline", "--update"],
-        "--baseline needs a path.",
+        ["--config", "jscpd.json", "--counts", "--scan", "main"],
+        "--counts needs a path.",
+      ],
+      [["--config", "jscpd.json", "--scan"], "--scan needs a name."],
+      [["--config", "jscpd.json", "--scan="], "--scan needs a name."],
+      [
+        ["--config", "jscpd.json", "--scan", "--update"],
+        "--scan needs a name.",
       ],
     ];
     for (const [args, message] of refusals) {
@@ -106,19 +138,27 @@ describe("scanOptions", () => {
     }
   });
 
-  test("refuses a check with no baseline", () => {
+  test("refuses a check with no count", () => {
     expect(() =>
       scanOptions(["--config", "cfg/jscpd.json", "--fail-on-new-clones"]),
     ).toThrow(
-      "scripts/cpd.ts: --update and --fail-on-new-clones need --baseline <file>",
+      "scripts/cpd.ts: --update and --fail-on-new-clones need " +
+        "--counts <file> and --scan <name>",
     );
   });
 
-  test("refuses an update with no baseline", () => {
+  test("refuses an update with no scan name", () => {
     expect(() =>
-      scanOptions(["--config", "cfg/jscpd.json", "--update"]),
+      scanOptions([
+        "--config",
+        "cfg/jscpd.json",
+        "--counts",
+        COUNTS,
+        "--update",
+      ]),
     ).toThrow(
-      "scripts/cpd.ts: --update and --fail-on-new-clones need --baseline <file>",
+      "scripts/cpd.ts: --update and --fail-on-new-clones need " +
+        "--counts <file> and --scan <name>",
     );
   });
 });
