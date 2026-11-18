@@ -1,16 +1,9 @@
 import { describe, it as test } from "@std/testing/bdd";
-import { getListingForm, listingFormView } from "#templates/fields/listing.ts";
-import { baseListingForm } from "#test-utils/factories.ts";
-import type { TestFormValues } from "#test-utils/form-values.ts";
+import {
+  listingForm,
+  ownerFields,
+} from "#test/ui/templates/fields/listing/owner-form.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
-
-const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
-  ...baseListingForm,
-  ...overrides,
-});
-
-/** The boxes the owner's page draws, as the form checks them. */
-const ownerFields = () => getListingForm(listingFormView("owner")).fields;
 
 describe("listing form pricing", () => {
   test("rejects negative unit_price", () => {

@@ -84,33 +84,24 @@ describeWithEnv("server > listing parents > children", { db: true }, () => {
     expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
-  test("refuses a required child that names the listing itself", async () => {
+  test("refuses a child list the form cannot save", async () => {
     const { parent, child } = await parentAndChild();
-    await expectChildrenRefused(
-      parent,
-      [parent.id, child.id],
-      t("listings_table.children_err_self", { name: parent.name }),
-    );
-  });
-
-  test("refuses a required child id that names no listing", async () => {
-    const { parent, child } = await parentAndChild();
-    await expectChildrenRefused(
-      parent,
-      [child.id, parent.id + 9999],
-      t("listings_table.children_err_missing"),
-    );
-  });
-
-  test("refuses a child box that holds no listing id", async () => {
-    const { parent, child } = await parentAndChild();
-    await expectChildrenRefused(
-      parent,
-      [child.id, 0],
-      t("fields.validation.pick_from_list", {
-        label: t("listings_table.children_legend"),
-      }),
-    );
+    const cases: readonly (readonly [number[], string])[] = [
+      [
+        [parent.id, child.id],
+        t("listings_table.children_err_self", { name: parent.name }),
+      ],
+      [[child.id, parent.id + 9999], t("listings_table.children_err_missing")],
+      [
+        [child.id, 0],
+        t("fields.validation.pick_from_list", {
+          label: t("listings_table.children_legend"),
+        }),
+      ],
+    ];
+    for (const [ids, message] of cases) {
+      await expectChildrenRefused(parent, ids, message);
+    }
   });
 
   test("saves one edge for a child id the form repeats", async () => {

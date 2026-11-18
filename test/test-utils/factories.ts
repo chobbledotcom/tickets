@@ -304,6 +304,7 @@ export const testListingInput = (
 /** The smallest form the create and edit pages accept: every box the page
  *  draws carries a value, and the count and price boxes carry the declared
  *  column defaults. */
+/* jscpd:ignore-start -- static data, not code */
 export const baseListingForm: Record<string, string> = {
   durationDays: "1",
   maxAttendees: "100",
@@ -316,6 +317,7 @@ export const baseListingForm: Record<string, string> = {
   thankYouUrl: "https://example.com",
   unitPrice: "0",
 };
+/* jscpd:ignore-end */
 
 export const webhookMeta = (
   metadata: Partial<SessionMetadata> & { name: string },

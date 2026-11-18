@@ -2,7 +2,7 @@ import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { listingGroups } from "#db/groups/table.ts";
 import { listingChildren } from "#db/listing-parents.ts";
-import { getListingWithCount } from "#db/listings/records.ts";
+import { getAllListings, getListingWithCount } from "#db/listings/records.ts";
 import { t } from "#i18n";
 import { assertJson } from "#test-utils/assertions.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
@@ -30,22 +30,44 @@ const standardParentDailyChild = async () => ({
 const putListing = (id: number, body: Record<string, unknown>) =>
   apiRequest(`/api/admin/listings/${id}`, { body, method: "PUT" });
 
+/** Save one listing write through the admin API and read the edges it stores. */
+const expectApiStoresChildren = async (
+  parent: { id: number },
+  body: Record<string, unknown>,
+  children: readonly number[],
+): Promise<void> => {
+  await assertJson(putListing(parent.id, body), 200);
+  expect(await listingChildren.getIds(parent.id)).toEqual([...children]);
+};
+
+/** Save one listing write through the admin API and read its refusal and the
+ *  edges the parent keeps. */
+const expectApiRefusesChildren = async (
+  parent: { id: number },
+  body: Record<string, unknown>,
+  children: readonly number[],
+  error?: string,
+): Promise<void> => {
+  await assertJson(
+    putListing(parent.id, body),
+    400,
+    error === undefined
+      ? undefined
+      : (json) => {
+          expect(json.error).toBe(error);
+        },
+  );
+  expect(await listingChildren.getIds(parent.id)).toEqual([...children]);
+};
+
 /** Save a child list through the admin API and read its refusal. A refused
  *  save stores no edge. */
-const expectApiRefusesChildIds = async (
+const expectApiRefusesChildIds = (
   parent: { id: number },
   ids: readonly (number | string)[],
   error: string,
-): Promise<void> => {
-  await assertJson(
-    putListing(parent.id, { child_listing_ids: ids }),
-    400,
-    (json) => {
-      expect(json.error).toBe(error);
-    },
-  );
-  expect(await listingChildren.getIds(parent.id)).toEqual([]);
-};
+): Promise<void> =>
+  expectApiRefusesChildren(parent, { child_listing_ids: ids }, [], error);
 
 describeWithEnv("server > listing parents > admin API", { db: true }, () => {
   test("admin API create writes child edges", async () => {
@@ -63,11 +85,9 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     const first = await createTestListing({ name: "Add-on A" });
     const second = await createTestListing({ name: "Add-on B" });
     await postChildren(parent.id, [first.id]);
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: [second.id] }),
-      200,
-    );
-    expect(await listingChildren.getIds(parent.id)).toEqual([second.id]);
+    await expectApiStoresChildren(parent, { child_listing_ids: [second.id] }, [
+      second.id,
+    ]);
   });
 
   test("admin API can leave a hidden package while adding children", async () => {
@@ -82,15 +102,12 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     });
     const child = await createTestListing({ name: "New child" });
 
-    await assertJson(
-      putListing(parent.id, {
-        child_listing_ids: [child.id],
-        group_ids: [],
-      }),
-      200,
+    await expectApiStoresChildren(
+      parent,
+      { child_listing_ids: [child.id], group_ids: [] },
+      [child.id],
     );
     expect(await listingGroups.getIds(parent.id)).toEqual([]);
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects a non-numeric child id entry without clearing edges", async () => {
@@ -98,16 +115,12 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     // closed with a 400 — never be silently filtered out, which could shrink the
     // array to empty and turn a gated parent into a standalone listing.
     const { parent, child } = await linkedParentChild();
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: [child.id, "oops"] }),
-      400,
-      (json) => {
-        expect(json.error).toBe(
-          "child_listing_ids must contain only positive integer listing ids",
-        );
-      },
+    await expectApiRefusesChildren(
+      parent,
+      { child_listing_ids: [child.id, "oops"] },
+      [child.id],
+      "child_listing_ids must contain only positive integer listing ids",
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API refuses an unknown NUMERIC child id", async () => {
@@ -133,49 +146,40 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
 
   test("admin API rejects a string child_listing_ids without clearing edges", async () => {
     const { parent, child } = await linkedParentChild();
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: "not-an-array" }),
-      400,
-      (json) => {
-        expect(json.error).toBe(
-          "child_listing_ids must be an array of listing ids",
-        );
-      },
+    await expectApiRefusesChildren(
+      parent,
+      { child_listing_ids: "not-an-array" },
+      [child.id],
+      "child_listing_ids must be an array of listing ids",
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API rejects an object child_listing_ids without clearing edges", async () => {
     const { parent, child } = await linkedParentChild();
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: { [child.id]: true } }),
-      400,
+    await expectApiRefusesChildren(
+      parent,
+      { child_listing_ids: { [child.id]: true } },
+      [child.id],
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 
   test("admin API leaves edges untouched when child_listing_ids is omitted", async () => {
     const { parent, child } = await linkedParentChild();
-    await assertJson(putListing(parent.id, { name: "Renamed base" }), 200);
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
+    await expectApiStoresChildren(parent, { name: "Renamed base" }, [child.id]);
   });
 
   test("admin API clears edges when child_listing_ids is an empty array", async () => {
     const { parent } = await linkedParentChild();
-    await assertJson(putListing(parent.id, { child_listing_ids: [] }), 200);
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
+    await expectApiStoresChildren(parent, { child_listing_ids: [] }, []);
   });
 
   test("admin API rejects an invalid edge with no write", async () => {
     const { parent, child } = await standardParentDailyChild();
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: [child.id] }),
-      400,
-      (json) => {
-        expect(typeof json.error).toBe("string");
-      },
+    await expectApiRefusesChildIds(
+      parent,
+      [child.id],
+      t("listings_table.children_err_child_daily", { name: "Daily add-on" }),
     );
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
   });
 
   test("admin API PUT rejecting an invalid child does NOT persist the rename", async () => {
@@ -183,22 +187,18 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     // leaves no partial change: the rename in the same PUT must not stick.
     // A daily child under a standard parent is an invalid edge.
     const { parent, child } = await standardParentDailyChild();
-    await assertJson(
-      putListing(parent.id, {
-        child_listing_ids: [child.id],
-        name: "Renamed base",
-      }),
-      400,
+    await expectApiRefusesChildren(
+      parent,
+      { child_listing_ids: [child.id], name: "Renamed base" },
+      [],
     );
     // Neither the edge nor the rename persisted.
-    expect(await listingChildren.getIds(parent.id)).toEqual([]);
     expect((await getListingWithCount(parent.id))?.name).toBe("Base unit");
   });
 
   test("admin API POST rejecting an invalid child creates NO listing row", async () => {
     // On create the child-edge validation runs before the insert, so a rejected
     // edge must leave no orphan listing row behind.
-    const { getAllListings } = await import("#db/listings/records.ts");
     const child = await createTestListing({
       listingType: "daily",
       name: "Daily add-on",
@@ -226,11 +226,10 @@ describeWithEnv("server > listing parents > admin API", { db: true }, () => {
     // unique index — and on the API side-effect path that happens after the row
     // write (a partial change). The cleaned set must be unique.
     const { parent, child } = await parentAndChild();
-    await assertJson(
-      putListing(parent.id, { child_listing_ids: [child.id, child.id] }),
-      200,
+    await expectApiStoresChildren(
+      parent,
+      { child_listing_ids: [child.id, child.id] },
+      [child.id],
     );
-    // Exactly one edge, no error, no partial write.
-    expect(await listingChildren.getIds(parent.id)).toEqual([child.id]);
   });
 });

@@ -17,6 +17,7 @@ import {
   exportListing,
 } from "#routes/admin/catalog-transfer/export.ts";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import {
   importedListing,
   requireEntityImport,
@@ -297,30 +298,38 @@ describeWithEnv(
 
     test("refuses package overrides for a non-package group membership", async () => {
       await createTestGroup({ name: "Regular Group" });
-      const result = await importCatalog({
-        groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
-        kind: "listing",
-        listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
-        version: 1,
-      });
-      if (result.ok) throw new Error("the import was accepted");
+      const message = importRefusal(
+        await importCatalog({
+          groups: [{ group: "Regular Group", packagePrice: 500, quantity: 3 }],
+          kind: "listing",
+          listing: { maxAttendees: 1, name: "Joiner", unitPrice: 900 },
+          version: 1,
+        }),
+      );
       // The overrides are refused, not cleared: only a package holds them.
-      assertStringIncludes(result.error, "Only a package group can hold");
-      assertStringIncludes(result.error, "packagePrice");
-      assertStringIncludes(result.error, "quantity");
+      expectIncludesAll(message, [
+        "Only a package group can hold",
+        "packagePrice",
+        "quantity",
+      ]);
     });
 
     test("refuses member overrides when importing a non-package group", async () => {
       await createTestListing({ name: "Plain Member", unitPrice: 800 });
-      const result = await importCatalog({
-        group: { name: "Plain Group" },
-        kind: "group",
-        members: [{ listing: "Plain Member", packagePrice: 200, quantity: 5 }],
-        version: 1,
-      });
-      if (result.ok) throw new Error("the import was accepted");
-      assertStringIncludes(result.error, "Only a package group can hold");
-      assertStringIncludes(result.error, "packagePrice");
+      const message = importRefusal(
+        await importCatalog({
+          group: { name: "Plain Group" },
+          kind: "group",
+          members: [
+            { listing: "Plain Member", packagePrice: 200, quantity: 5 },
+          ],
+          version: 1,
+        }),
+      );
+      expectIncludesAll(message, [
+        "Only a package group can hold",
+        "packagePrice",
+      ]);
     });
 
     test("refuses to export a stored day price above the listing duration", async () => {

@@ -7,7 +7,9 @@ import { sql, sqlLiteral } from "#db/sql.ts";
 import { t } from "#i18n";
 import { importCatalog } from "#routes/admin/catalog-transfer/import.ts";
 import { sitePlanMemberError } from "#shared/package-membership.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createPlanListing } from "#test-utils/db-helpers/catalog-import-fixtures.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -71,18 +73,18 @@ describeWithEnv("catalog group import", { db: true }, () => {
       canPayMore: true,
       name: "Ordinary group member",
     });
-    const result = await importCatalog({
-      group: { name: "Ordinary imported group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 500, quantity: 2 }],
-      version: 1,
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      assertStringIncludes(result.error, "Only a package group can hold");
-      assertStringIncludes(result.error, "packagePrice");
-    }
+    const message = importRefusal(
+      await importCatalog({
+        group: { name: "Ordinary imported group" },
+        kind: "group",
+        members: [{ listing: member.name, packagePrice: 500, quantity: 2 }],
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
+    ]);
   });
 
   test("rejects a package day override the member cannot offer", async () => {

@@ -1,4 +1,3 @@
-import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import { countRows, execute } from "#db/client.ts";
@@ -20,7 +19,9 @@ import {
   generateUniqueListingSlug,
   validateListingInput,
 } from "#shared/listings-actions.ts";
+import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { requireEntityImport } from "#test-utils/catalog-import.ts";
+import { importRefusal } from "#test-utils/catalog-import-refusal.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
@@ -70,25 +71,25 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
   test("refuses package-only values when a listing joins a regular group", async () => {
     const group = await createTestGroup({ name: "Ordinary group" });
-    const result = await importCatalog({
-      groups: [
-        {
-          dayPrices: { 1: 200 },
-          group: group.name,
-          packagePrice: 300,
-          quantity: 4,
-        },
-      ],
-      kind: "listing",
-      listing: customListing("Ordinary joiner"),
-      version: 1,
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      assertStringIncludes(result.error, "Only a package group can hold");
-      assertStringIncludes(result.error, "packagePrice");
-    }
+    const message = importRefusal(
+      await importCatalog({
+        groups: [
+          {
+            dayPrices: { 1: 200 },
+            group: group.name,
+            packagePrice: 300,
+            quantity: 4,
+          },
+        ],
+        kind: "listing",
+        listing: customListing("Ordinary joiner"),
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
+    ]);
     expect(await getGroupPackagePrices(group.id)).toEqual([]);
   });
 
@@ -118,18 +119,18 @@ describeWithEnv("catalog import persistence", { db: true }, () => {
 
   test("refuses package values for a group whose package flag is omitted", async () => {
     const member = await createTestListing({ name: "Ordinary member" });
-    const result = await importCatalog({
-      group: { name: "Imported ordinary group" },
-      kind: "group",
-      members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
-      version: 1,
-    });
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      assertStringIncludes(result.error, "Only a package group can hold");
-      assertStringIncludes(result.error, "packagePrice");
-    }
+    const message = importRefusal(
+      await importCatalog({
+        group: { name: "Imported ordinary group" },
+        kind: "group",
+        members: [{ listing: member.name, packagePrice: 400, quantity: 3 }],
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold",
+      "packagePrice",
+    ]);
   });
 
   test("keeps a concurrent listing import from mixing group types", async () => {

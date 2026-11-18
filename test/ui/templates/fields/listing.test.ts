@@ -1,19 +1,14 @@
+import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
-import { getListingForm, listingFormView } from "#templates/fields/listing.ts";
+import {
+  listingForm,
+  ownerFields,
+} from "#test/ui/templates/fields/listing/owner-form.ts";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 import { baseListingForm } from "#test-utils/factories.ts";
-import type { TestFormValues } from "#test-utils/form-values.ts";
 import { expectInvalid, expectValid } from "#test-utils/validation.ts";
 import { CONTACT_FIELDS, ListingTypeSchema, MAX_DURATION_DAYS } from "#types";
-
-const listingForm = (overrides: TestFormValues = {}): TestFormValues => ({
-  ...baseListingForm,
-  ...overrides,
-});
-
-/** The boxes the owner's page draws, as the form checks them. */
-const ownerFields = () => getListingForm(listingFormView("owner")).fields;
 
 describe("listing form required fields", () => {
   test("rejects missing listing name", () => {
@@ -41,185 +36,87 @@ describe("listing form description", () => {
   });
 });
 
-describe("listing form thank_you_url", () => {
+describe("listing form URL fields", () => {
+  /** The two URL boxes the page draws. Both take a public https address. */
+  const URL_BOXES = ["thankYouUrl", "webhookUrl"] as const;
+
   test("accepts public https URLs", () => {
-    expectValid(
-      ownerFields(),
-      listingForm({ thankYouUrl: "https://example.com/thank-you" }),
-    );
+    for (const field of URL_BOXES) {
+      expectValid(
+        ownerFields(),
+        listingForm({ [field]: "https://example.com/page" }),
+      );
+    }
   });
 
   test("rejects http, IPs and javascript protocols", () => {
-    expectInvalid("URL must use https://")(
-      ownerFields(),
-      listingForm({ thankYouUrl: "http://example.com" }),
-    );
-    expectInvalid("URL must use https://")(
-      ownerFields(),
-      listingForm({ thankYouUrl: "https://1.1.1.1/thank-you" }),
-    );
-    expectInvalid("URL must use https://")(
-      ownerFields(),
-      listingForm({ thankYouUrl: "javascript:alert(1)" }),
-    );
+    for (const field of URL_BOXES) {
+      for (const url of [
+        "http://example.com",
+        "https://1.1.1.1/page",
+        "javascript:alert(1)",
+      ]) {
+        expectInvalid("URL must use https://")(
+          ownerFields(),
+          listingForm({ [field]: url }),
+        );
+      }
+    }
   });
 
   test("rejects malformed URLs", () => {
-    expectInvalid("URL must use https://")(
-      ownerFields(),
-      listingForm({ thankYouUrl: "not-a-valid-url" }),
-    );
-  });
-});
-
-describe("listing form webhook_url", () => {
-  test("accepts valid https URLs", () => {
-    expectValid(
-      ownerFields(),
-      listingForm({ webhookUrl: "https://example.com/webhook" }),
-    );
+    for (const field of URL_BOXES) {
+      expectInvalid("URL must use https://")(
+        ownerFields(),
+        listingForm({ [field]: "not-a-valid-url" }),
+      );
+    }
   });
 
-  const rejected: Array<{ expected: string; url: string; label: string }> = [
-    {
-      expected: "URL must use https://",
-      label: "http",
-      url: "http://example.com/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "javascript",
-      url: "javascript:alert(1)",
-    },
-    {
-      expected: "URL must use https://",
-      label: "single-label",
-      url: "https://example/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "localhost",
-      url: "https://localhost/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "loopback",
-      url: "https://127.0.0.1/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "public IPv4",
-      url: "https://8.8.8.8/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv6 loopback",
-      url: "https://[::1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "10.x",
-      url: "https://10.0.0.1/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "172.16.x",
-      url: "https://172.16.0.1/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "192.168.x",
-      url: "https://192.168.1.1/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "link-local",
-      url: "https://169.254.169.254/latest",
-    },
-    {
-      expected: "URL must use https://",
-      label: "0.0.0.0",
-      url: "https://0.0.0.0/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "broadcast",
-      url: "https://255.255.255.255/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv6 unspecified",
-      url: "https://[::]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv4-mapped loopback",
-      url: "https://[::ffff:127.0.0.1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv4-mapped IMDS",
-      url: "https://[::ffff:169.254.169.254]/latest",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv4-mapped 10.x",
-      url: "https://[::ffff:10.0.0.1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv4-mapped 192.168",
-      url: "https://[::ffff:192.168.1.1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv4-mapped 0.0.0.0",
-      url: "https://[::ffff:0]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv6 link-local",
-      url: "https://[fe80::1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv6 ULA fc00",
-      url: "https://[fc00::1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "IPv6 ULA fd00",
-      url: "https://[fd12:3456:789a::1]/webhook",
-    },
-    {
-      expected: "URL must use https://",
-      label: "malformed",
-      url: "not-a-valid-url",
-    },
+  /** Addresses that are not a public domain: a private, loopback, or local
+   *  name, or a shape the URL parser refuses. */
+  const BLOCKED_HOSTS = [
+    "http://example.com/webhook",
+    "javascript:alert(1)",
+    "https://example/webhook",
+    "https://localhost/webhook",
+    "https://127.0.0.1/webhook",
+    "https://8.8.8.8/webhook",
+    "https://[::1]/webhook",
+    "https://10.0.0.1/webhook",
+    "https://172.16.0.1/webhook",
+    "https://192.168.1.1/webhook",
+    "https://169.254.169.254/latest",
+    "https://0.0.0.0/webhook",
+    "https://255.255.255.255/webhook",
+    "https://[::]/webhook",
+    "https://[::ffff:127.0.0.1]/webhook",
+    "https://[::ffff:169.254.169.254]/latest",
+    "https://[::ffff:10.0.0.1]/webhook",
+    "https://[::ffff:192.168.1.1]/webhook",
+    "https://[::ffff:0]/webhook",
+    "https://[fe80::1]/webhook",
+    "https://[fc00::1]/webhook",
+    "https://[fd12:3456:789a::1]/webhook",
+    "not-a-valid-url",
   ];
 
-  for (const { expected, url, label } of rejected) {
-    test(`rejects ${label} webhook URL`, () => {
-      expectInvalid(expected)(ownerFields(), listingForm({ webhookUrl: url }));
-    });
-  }
-
-  test("accepts public domains", () => {
-    expectValid(
-      ownerFields(),
-      listingForm({ webhookUrl: "https://app.example.net/webhook" }),
-    );
-    expectValid(
-      ownerFields(),
-      listingForm({ webhookUrl: "https://hooks.example.org/webhook" }),
-    );
+  test("rejects a host that is not a public domain", () => {
+    for (const url of BLOCKED_HOSTS) {
+      expectInvalid("URL must use https://")(
+        ownerFields(),
+        listingForm({ webhookUrl: url }),
+      );
+    }
   });
 
-  test("rejects URLs without a proper domain", () => {
-    expectInvalid("URL must use https://")(
-      ownerFields(),
-      listingForm({ webhookUrl: "https://example/webhook" }),
-    );
+  test("accepts public domains", () => {
+    for (const url of [
+      "https://app.example.net/webhook",
+      "https://hooks.example.org/webhook",
+    ]) {
+      expectValid(ownerFields(), listingForm({ webhookUrl: url }));
+    }
   });
 });
 
@@ -262,7 +159,8 @@ describe("listing form listing_type", () => {
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(ownerFields(), listingForm());
+    const values = expectValid(ownerFields(), listingForm());
+    expect(values.listingType).toBeNull();
   });
 });
 
@@ -325,6 +223,7 @@ describe("listing form bookable_days", () => {
   });
 
   test("accepts empty value (optional field)", () => {
-    expectValid(ownerFields(), listingForm());
+    const values = expectValid(ownerFields(), listingForm());
+    expect(values.bookableDays).toBe("");
   });
 });
