@@ -27,6 +27,7 @@ import {
   ImageRowSchema,
   UpdateImageBodySchema,
 } from "#shared/admin-api-images.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { ATTRIBUTE_FIELDS } from "#shared/records/attribute-fields.ts";
 import { HOLIDAY_FIELDS } from "#shared/records/holiday-fields.ts";
 import { STATUS_FIELDS } from "#shared/records/status-fields.ts";
@@ -213,7 +214,7 @@ const questionBodies = apiBodyPair({
     QuestionDisplayTypeSchema.options,
     questionDisplayTypeError,
   ),
-  text: textField("text"),
+  text: textField("text", "text is required", markdownSource),
 });
 export type AdminApiCreateQuestionBody = ApiBody<typeof questionBodies.create>;
 export type AdminApiUpdateQuestionBody = ApiBody<typeof questionBodies.update>;

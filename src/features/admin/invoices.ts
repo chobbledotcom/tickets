@@ -56,6 +56,7 @@ import {
 import { openInvoiceBody } from "#shared/invoices/seal.ts";
 import { invoiceShareUrl } from "#shared/invoices/share.ts";
 import { MAX_TEXTAREA_LENGTH } from "#shared/limits.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { nowIso } from "#shared/now.ts";
 import { orderLineItems } from "#shared/order-line-items.ts";
 import { requireValue } from "#shared/required-value.ts";
@@ -200,7 +201,8 @@ const withInvoiceForm = async (
   use: ResponseHandler<[draft: InvoiceDraft, template: string]>,
 ): Promise<Response> => {
   const hasText = form.has("body");
-  const submitted = (form.get("body") ?? "").trim();
+  // The invoice text renders as Markdown, so its indentation stays.
+  const submitted = markdownSource(form.get("body") ?? "");
   if (submitted.length > MAX_TEXTAREA_LENGTH) {
     return errorRedirect(
       adminPath("invoiceNew", {}),
