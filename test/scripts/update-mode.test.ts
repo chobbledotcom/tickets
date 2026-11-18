@@ -393,7 +393,7 @@ describe("runUpdateMode", () => {
     // One page check, then the abort: no secret list, no delete, so the
     // flag stays set for the re-run.
     expect((error as Error).message).toMatch(
-      /The last page check failed: The update page check failed \(HTTP 404\) for https:\/\/site\.example\/read-only/,
+      /The last page check failed: The update page check failed \(HTTP 404\)\./,
     );
     expect((error as Error).message).toMatch(/UPDATE_IN_PROGRESS is still set/);
     expect(calls.length).toBe(1);
@@ -412,10 +412,7 @@ describe("runUpdateMode", () => {
         log: (line) => logged.push(line),
       });
       expect(code).toBe(1);
-      assertStringIncludes(
-        logged.join("\n"),
-        "The deploy passed no site URL for script 42",
-      );
+      assertStringIncludes(logged.join("\n"), "The deploy passed no site URL");
       expect(calls).toEqual([]);
     }
   });

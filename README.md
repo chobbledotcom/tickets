@@ -716,7 +716,10 @@ secret.
   client sites that accept the published tier. It asks the main instance for the
   DB credentials of the sites on that tier (each site's own full-access token —
   the workflow only reads, to take backups), backs each up to the builder's
-  storage, then deploys. The **`tier`** run input (`alpha` default, then `beta`
+  storage, then deploys. The job log names each site by its numeric site id. It
+  masks the site URL and the database URL and token before any step can print
+  them, so the public log holds no client address or database credential. The
+  **`tier`** run input (`alpha` default, then `beta`
   or `release`) is the release channel being published: each site carries its
   own `updates` channel and only the sites at the deploy's tier or more eager
   are returned — a `release` deploy reaches every site, `beta` reaches beta +
