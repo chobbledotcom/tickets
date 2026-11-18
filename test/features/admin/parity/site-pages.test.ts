@@ -137,29 +137,27 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
     );
   });
 
-  /** Pin one slug's refusal on both surfaces: the JSON API answers the
+  /** Pin one create body's refusal on both surfaces: the JSON API answers the
    *  message as a 400, the page form answers it as a flash redirect. */
-  const expectSlugRefusedOnBothSurfaces = async (
-    slug: string,
+  const expectCreateRefusedOnBothSurfaces = async (
+    body: Record<string, string>,
     message: string,
   ): Promise<void> => {
-    const api = await ownerApiPost("/api/admin/site-pages", {
-      name: "Refused page",
-      slug,
-    });
+    const api = await ownerApiPost("/api/admin/site-pages", body);
     expect(api.status).toBe(400);
     expect((await api.json()).error).toBe(message);
     expectRedirectWithFlash(
       "/admin/site/pages/new",
       message,
       false,
-    )(
-      await ownerPagePost("/admin/site/pages", {
-        name: "Refused page",
-        slug,
-      }),
-    );
+    )(await ownerPagePost("/admin/site/pages", body));
   };
+
+  const expectSlugRefusedOnBothSurfaces = (
+    slug: string,
+    message: string,
+  ): Promise<void> =>
+    expectCreateRefusedOnBothSurfaces({ name: "Refused page", slug }, message);
 
   test("both surfaces refuse a reserved slug with the same message", async () => {
     await expectSlugRefusedOnBothSurfaces(
@@ -183,6 +181,20 @@ describeWithEnv("Site page parity pins", { db: true }, () => {
         label: t("common.slug"),
         max: MAX_INPUT_LENGTH,
       }),
+    );
+  });
+
+  test("both surfaces refuse a page name past the input cap with the same message", async () => {
+    const message = t("fields.validation.max_length", {
+      label: t("site.pages.field.name"),
+      max: MAX_INPUT_LENGTH,
+    });
+    await expectCreateRefusedOnBothSurfaces(
+      { name: "n".repeat(MAX_INPUT_LENGTH + 1), slug: "long-name" },
+      message,
+    );
+    expect(await getSitePageBySlugIndex(await hmacHash("long-name"))).toBe(
+      null,
     );
   });
 

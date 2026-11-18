@@ -20,6 +20,7 @@ import { recordEditPanel } from "#templates/admin/admin-page.tsx";
 import { ConfirmPage } from "#templates/admin/confirm-page.tsx";
 import {
   defineRecordPages,
+  pageLabels,
   writableNameColumn,
 } from "#templates/admin/resource-pages.tsx";
 import { SettingsCheckbox } from "#templates/admin/settings/settings-checkbox.tsx";
@@ -236,20 +237,25 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
   <p>{t("statuses.delete_confirm", { name: status.name })}</p>
 );
 
+/* jscpd:ignore-start -- a list of strings, not code */
+/** The catalog keys that name the status pages. */
+const STATUS_PAGE_LABELS = {
+  addHeading: "statuses.form_title_add",
+  addSubmit: "statuses.form_create_button",
+  addTitle: "statuses.form_title_add",
+  deleteButton: "statuses.delete_button",
+  deleteTitle: "statuses.delete_title",
+  listTitle: "statuses.attendee_statuses_page_title",
+};
+/* jscpd:ignore-end */
+
 export const statusPages = defineRecordPages(statusRecord, {
   delete: {
     children: deleteChildren,
     ...DELETE_PAGE_LABELS,
     name: (status) => status.name,
   },
-  labels: {
-    addHeading: t("statuses.form_title_add"),
-    addSubmit: t("statuses.form_create_button"),
-    addTitle: t("statuses.form_title_add"),
-    deleteButton: t("statuses.delete_button"),
-    deleteTitle: t("statuses.delete_title"),
-    listTitle: t("statuses.attendee_statuses_page_title"),
-  },
+  labels: pageLabels(STATUS_PAGE_LABELS),
   list: {
     actions: (
       <ActionButton href={adminPattern("statusNew")} icon="plus">
