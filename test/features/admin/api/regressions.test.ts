@@ -125,12 +125,13 @@ describeWithEnv("Admin API listing regressions", { db: true }, () => {
     );
   });
 
-  test("accepts listing ID 1 as a positive integer", async () => {
+  test("accepts a stored listing id as a child", async () => {
     const listing = await createTestListing({ name: "Positive Child IDs" });
+    const child = await createTestListing({ name: "Positive Child" });
 
     await assertJson(
       apiRequest(`/api/admin/listings/${listing.id}`, {
-        body: { child_listing_ids: [1] },
+        body: { child_listing_ids: [child.id] },
         method: "PUT",
       }),
       200,
