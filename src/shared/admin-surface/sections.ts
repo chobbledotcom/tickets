@@ -175,7 +175,7 @@ export const ADMIN_SECTIONS: readonly AdminSectionDef[] = [
         "nav.sub.external_sources",
         "externalSources",
       ),
-      featureLink("logistics", "nav.logistics", "logistics"),
+      featureLink("logistics", "terms.logistics", "logistics"),
       ...navLinks([
         ["emails", "nav.emails"],
         ["holidays", "terms.holidays"],
