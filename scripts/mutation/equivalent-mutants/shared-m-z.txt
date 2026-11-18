@@ -414,7 +414,7 @@ src/shared/records/images.ts::updateInTransaction.missing~10n891b  ??→|| audit
 src/shared/rest/field-reads.ts::CREATE_VALUES.switch~0d33tyd  ??→|| audited:19mfqpa # a switch default is true, false, or absent, and false and absent both read as false under ?? and ||
 src/shared/rest/field-values.ts::KIND_VALUES.count~16n3kul  ??→|| audited:0ht3h5z # a count minimum is a number or absent, and the only falsy number, 0, falls back to 0 either way
 src/shared/rest/field-values.ts::apiRefusal~1dtjlxu ??→||  audited:1xitzr6   # every special refusal is a non-empty message, so ?? and || pick the same side
-src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:1a2111p # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
+src/shared/rest/record.ts::buildRecord.rule~0wug6os  ??→|| audited:12mmqi8 # spec.rule is a function or undefined; a function is never falsy, so ?? and || pick the same value
 src/shared/rest/record-pages.ts::resolvePagePaths.skipped~133lhn6  ??→|| audited:0ikjm5v # config.skip is an array or undefined; an array is never falsy, so ?? and || pick the same value
 src/shared/rest/record-pages.ts::recordPages~12ka3fc  ??→|| audited:0ikjm5v # record.saveLanding is an AdminDestinationId or undefined; every destination id is a non-empty string, so it is never falsy
 src/shared/rest/record-pages.ts::recordPages.editVerdict~199e4ug  ??→|| audited:0ikjm5v # config.updateSavePath is a function or undefined; a function is never falsy, so ?? and || pick the same value
@@ -443,3 +443,6 @@ src/shared/svg-ticket.ts::generateSvgTicket.qrSection~1lgmz55  =→+= audited:13
 # field-specs.ts: the two lookups of the access rule.
 src/shared/rest/field-specs.ts::closedReasonOrNull~1mg5p9w  ??→|| audited:02d9nni # find returns a lock name or undefined, and every lock name is a non-empty string
 src/shared/rest/field-specs.ts::closedFieldErrorOrNull~015lckf  Missing closed field→"" audited:02d9nni # the key comes from closed.has on the same map one line above, so the lookup never throws and no caller reads the message
+
+# validation/string.ts: the brand label exists only in the type system.
+src/shared/validation/string.ts::NonEmptyStringSchema~19qgdi8  NonEmptyString→"" audited:177e60r # valibot stores the brand label on the schema and no validation reads it, so no input behaves differently

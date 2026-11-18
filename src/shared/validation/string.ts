@@ -1,5 +1,6 @@
 // effects: pure
 import * as v from "valibot";
+import { errorResult, okResult, type Result } from "#shared/result.ts";
 import { guardFor } from "#shared/validation/guard.ts";
 import { parseOrNull } from "#shared/validation/parse.ts";
 
@@ -44,6 +45,16 @@ export const isNonEmptyString = guardFor(NonEmptyStringSchema);
 
 export const parseNonEmptyString = (value: string): NonEmptyString | null =>
   parseOrNull(NonEmptyStringSchema, value);
+
+/** The text trimmed of its ends, or the message a person reads when it holds
+ *  only spaces. */
+export const requiredTrimmedText = (
+  value: string,
+  message: string,
+): Result<string> => {
+  const trimmed = value.trim();
+  return trimmed === "" ? errorResult(message) : okResult(trimmed);
+};
 
 export const nonEmptyString = <T extends string>(
   value: NonEmptyLiteral<T>,

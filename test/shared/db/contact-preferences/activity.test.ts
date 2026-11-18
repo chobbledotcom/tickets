@@ -8,8 +8,10 @@ import {
 } from "#db/contact-preferences.ts";
 import { getTestPrivateKey } from "#test-utils/crypto.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 const rowExists = async (hash: string): Promise<boolean> =>
@@ -56,11 +58,11 @@ describeWithEnv("contact activity from bookings", { db: true }, () => {
   test("a default order counts as a public booking", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Pub" });
-    await createAttendeeOrThrow({
-      bookings: [{ listingId: listing.id }],
-      email: "public-buyer@example.com",
-      name: "Buyer",
-    });
+    await bookTestAttendee(
+      [{ listingId: listing.id }],
+      "Buyer",
+      "public-buyer@example.com",
+    );
     const record = await getContactRecord(
       await hashEmail("public-buyer@example.com"),
       pk,

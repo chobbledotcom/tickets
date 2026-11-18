@@ -28,8 +28,10 @@ import {
   type Token,
 } from "#test-utils/db/contact-token-cases.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
-import { createAttendeeOrThrow } from "#test-utils/db-helpers/attendee-atomic-create.ts";
-import { createTestAttendeeDirect } from "#test-utils/db-helpers/attendees.ts";
+import {
+  bookTestAttendee,
+  createTestAttendeeDirect,
+} from "#test-utils/db-helpers/attendees.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 
 /** The hash of the channel a contact names: the email when it has one. */
@@ -332,11 +334,11 @@ describeWithEnv("contact-tokens", { db: true }, () => {
   test("a real create appends the new attendee's ticket token", async () => {
     const pk = await getTestPrivateKey();
     const listing = await createTestListing({ maxAttendees: 5, name: "Tok" });
-    const attendee = await createAttendeeOrThrow({
-      bookings: [{ listingId: listing.id }],
-      email: "real-token@example.com",
-      name: "Real",
-    });
+    const attendee = await bookTestAttendee(
+      [{ listingId: listing.id }],
+      "Real",
+      "real-token@example.com",
+    );
     expect(
       await readAllTokens(await hashEmail("real-token@example.com"), pk),
     ).toEqual([{ source: "public", token: attendee.ticket_token }]);

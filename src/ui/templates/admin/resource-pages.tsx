@@ -72,6 +72,15 @@ export type ResourceLabels = {
   deleteButton: string;
 };
 
+/** One resource's page labels, from the six catalog keys that name them. */
+export const pageLabels = (
+  keys: Record<keyof ResourceLabels, string>,
+): ResourceLabels =>
+  // Every key names a label of the result, so the built object is one.
+  Object.fromEntries(
+    Object.entries(keys).map(([label, key]) => [label, t(key)]),
+  ) as ResourceLabels;
+
 /** The list-page facet of a resource: its table columns, empty-state markup,
  *  and optional intro/action-row content. Omitted entirely by resources whose
  *  list page is hand-rolled (logistics), which never call `listPage`. */

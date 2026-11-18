@@ -200,6 +200,16 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Feature-complete by default**: Build the whole feature. Stop short only when
   finishing it adds more branches or more special cases than the honest shape
   needs.
+- **Keep a pull request under 1,000 changed `src/` lines**: A pull request
+  changes fewer than 1,000 lines in `src/`, unless the owner asks for more.
+  Count the added and deleted lines that `git diff <base>...HEAD -- src`
+  reports. Split a larger change into stacked pull requests (see
+  [Stacked Pull Requests](#stacked-pull-requests)).
+- **Keep the admin guide up to date**: When a change adds or changes a feature
+  that an operator uses, update `/admin/guide` in the same pull request. The
+  guide is data in `src/ui/templates/admin/guide/`. Add or edit the section the
+  operator reads, and write its words in
+  [Simple Language](#simple-language--how-we-talk-to-users).
 - **Unify systems — the answer is yes**: When two systems do almost the same
   job, find the single abstraction that does both.
 - **Copy the shared shape, not the nearest one**: When a helper already does
@@ -332,6 +342,10 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
 - **Use types where they remove noise**: Replace repeated inline shapes with a
   named type when that clarifies a boundary. Do not add a second vocabulary for
   one concept.
+- **Commit when the feature is done**: Make one commit for one feature or fix.
+  Do not commit after each step of a plan. Run the light gates on the finished
+  change, then commit it. Commit a work-in-progress checkpoint only when you
+  pause or hand off (see "Never lose work").
 - **Never lose work — commit WIP even if broken**: Commit and push work in
   progress before you pause, hand off, or end a turn with a dirty tree. Mark a
   known-broken checkpoint in the commit message.
@@ -346,6 +360,11 @@ purpose pull apart, serve the purpose. Say which rule you bent and why.
   hand the decision to a human.
 - **Finish by rewriting the PR name and description**: Make the finished PR name
   and describe what was actually built, in plain words.
+- **Run the narrow tests first**: Run `deno task test:files` on the test files
+  the change touches, and repeat that run after each fix. Do not run the full
+  suite again to confirm a targeted run. Run the full suite once, on the final
+  head, through `job-submit`. When a change breaks a test outside the files you
+  ran, add that file to the next targeted run.
 - **Final check**: Several agents share one machine. Do not run the full
   precommit or the full coverage run locally. Run the tests for the files you
   changed with `deno task test:files`, then run these gates:
@@ -823,13 +842,20 @@ must finish in about ten minutes. When a run needs longer, stop it, and rely on
 the direct tests around the method you changed. A small edit owes those tests,
 not a mutation run, and a review that asks for more gets that answer.
 
+Decide whether to run it from the risk, not from habit. Run a targeted mutation
+test when the change adds a rule with branches, boundaries, or money moves, and
+the tests around it can miss a wrong operator. Skip the run when the change
+touches only prose, copy, a type, a rename, a config value, or a line that a
+direct test already pins. A mutation run is slow and holds a shared machine.
+
 Survivors on a file you touch are yours to fix, even on lines you did not
 change. Write the assertion that kills the mutant, or record it in
 `scripts/mutation/equivalent-mutants/` with a proof that no input can
 distinguish it.
 
-`deno task precommit:mutation` is the branch gate. Run it before you merge a
-branch that changes `src/` files.
+`deno task precommit:mutation` is the branch gate. Run it once, on the final
+head, before you merge a branch that changes `src/` files. Rerun it only when a
+later commit changes `src/` files.
 
 The runner stops a test batch that outlives the baseline by two orders of
 magnitude. The limit is 100 times the measured baseline, with a floor of 60

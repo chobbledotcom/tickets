@@ -256,9 +256,10 @@ For each pull request, record:
 - every `// effects: pure` line added or removed, every change to the effect
   roots, and the module that each change moves.
 
-Keep each PR under the repository's source-line limit. If a complete behavior
-does not fit, split by a smaller complete invariant. Do not split one invariant
-into dormant layers.
+Keep each PR under 1,000 changed `src/` lines (see "Keep a pull request under
+1,000 changed `src/` lines" in AGENTS.md). If a complete behavior does not fit,
+split by a smaller complete invariant. Do not split one invariant into dormant
+layers.
 
 ### 6. Ask a human to approve the plan
 
