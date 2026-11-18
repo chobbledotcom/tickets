@@ -1,48 +1,45 @@
 /* The rich markdown editor: its formatting toolbar and the image picker
- * dialog control. */
+ * dialog. */
 
 @use "mixins" as *;
 
 .md-toolbar {
   @include wrap-row-tight;
-  /* The image dropdown anchors to this box, not to its control: the control
-   * is the last toolbar item and can wrap to a row edge on narrow screens,
-   * where a panel pinned to the control would leave the viewport. */
-  position: relative;
   padding: var(--space-s);
   border-bottom: 1px solid var(--color-bg-secondary);
   background: var(--color-bg-secondary);
   border-radius: var(--border-radius) var(--border-radius) 0 0;
-}
 
-.md-toolbar-button {
-  width: auto;
-  min-width: 2rem;
-  padding: 0.2rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: var(--border-radius);
-  @include surface-colors;
-  font: inherit;
-  font-size: 0.85rem;
-  line-height: 1.3;
-  cursor: pointer;
-}
+  .md-toolbar-button {
+    width: auto;
+    min-width: 2rem;
+    padding: 0.2rem 0.5rem;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius);
+    @include surface-colors;
+    font: inherit;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    cursor: pointer;
 
-.md-toolbar-button:hover {
-  border-color: var(--color-link);
-}
+    &:hover {
+      border-color: var(--color-link);
+    }
+  }
 
-.md-toolbar-button-active {
-  @include link-colors;
-  border-color: var(--color-link);
-}
+  /* The modifiers below win over the button rule by source order. */
+  .md-toolbar-button-active {
+    @include link-colors;
+    border-color: var(--color-link);
+  }
 
-.md-toolbar-bold {
-  font-weight: bold;
-}
+  .md-toolbar-bold {
+    font-weight: bold;
+  }
 
-.md-toolbar-italic {
-  font-style: italic;
+  .md-toolbar-italic {
+    font-style: italic;
+  }
 }
 
 /* The image picker dialog: a thumbnail grid over an upload form, styled on
@@ -51,70 +48,71 @@
   width: min(100% - 2 * var(--space-lg), 40rem);
   max-height: calc(100dvh - 2 * var(--space-lg));
   padding: var(--space-m);
-}
 
-.md-image-dialog h2 {
-  margin-top: 0;
-}
+  h2 {
+    margin-top: 0;
+  }
 
-.md-image-grid {
-  display: grid;
-  gap: var(--space-s);
-  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-  max-height: 50dvh;
-  overflow-y: auto;
-}
+  .md-image-grid {
+    display: grid;
+    gap: var(--space-s);
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    max-height: 50dvh;
+    overflow-y: auto;
+  }
 
-.md-image-option {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
-  padding: var(--space-s);
-  border: 1px solid var(--color-bg-secondary);
-  border-radius: var(--border-radius);
-  background: none;
-  /* The unified button rule sets text to var(--color-bg): invisible here. */
-  color: var(--color-text);
-  font: inherit;
-  text-align: left;
-  /* A name can be 250 characters with no spaces. The cell caps its width,
-   * so without wrapping here the name overflows the viewport. */
-  overflow-wrap: anywhere;
-  cursor: pointer;
-}
+  .md-image-option {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    padding: var(--space-s);
+    border: 1px solid var(--color-bg-secondary);
+    border-radius: var(--border-radius);
+    background: none;
+    /* The unified button rule sets text to var(--color-bg): invisible here. */
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    /* A name can be 250 characters with no spaces. The cell caps its width,
+     * so without wrapping here the name overflows the viewport. */
+    overflow-wrap: anywhere;
+    cursor: pointer;
 
-.md-image-option:hover {
-  background: var(--color-bg-secondary);
-}
+    &:hover {
+      background: var(--color-bg-secondary);
+    }
 
-.md-image-option img {
-  aspect-ratio: 1;
-  border-radius: var(--border-radius);
-  object-fit: cover;
-  width: 100%;
-}
+    img {
+      aspect-ratio: 1;
+      border-radius: var(--border-radius);
+      object-fit: cover;
+      width: 100%;
+    }
+  }
 
-.md-image-note {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-}
+  .md-image-note {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+  }
 
-/* The upload form mirrors the images area's stacked label-over-input fields. */
-.md-image-upload {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-s);
-  margin-top: var(--space-m);
-  max-width: none;
-  min-width: 0;
-  padding: 0;
-}
+  /* The upload form mirrors the images area's stacked label-over-input
+   * fields. */
+  .md-image-upload {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-s);
+    margin-top: var(--space-m);
+    max-width: none;
+    min-width: 0;
+    padding: 0;
 
-.md-image-upload h3 {
-  margin: 0;
-}
+    h3 {
+      margin: 0;
+    }
 
-.md-image-upload label {
-  width: 100%;
+    label {
+      width: 100%;
+    }
+  }
 }

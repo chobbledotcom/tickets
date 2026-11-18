@@ -9,11 +9,14 @@ import { expect } from "@std/expect";
 import type { Window } from "happy-dom";
 import { TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import { withRequestStore } from "#shared/request-context.ts";
 import {
   enhanceMarkdownTextarea,
   type MarkdownEditorHandle,
 } from "#src/ui/client/admin/markdown-editor.ts";
+import { ImagePickerTemplate } from "#templates/admin/image-picker.tsx";
 import { createDomInstaller, requireElement } from "#test-utils/happy-dom.ts";
+import { withRequestContext } from "#test-utils/request-context.ts";
 
 export const { installDom, cleanup } = createDomInstaller([
   "navigator",
@@ -26,18 +29,30 @@ const TEXTAREA = "<textarea data-markdown-preview>%s</textarea>";
 const FOOTER =
   '<div class="md-editor-footer"><button type="button">Preview</button></div>';
 
-/** Install a lone markdown textarea (optionally followed by a footer strip,
- * as the preview module lays out, a stylesheet the editor's styles are
- * asserted against, a wrapping form with a CSRF token the upload flow
- * reads, or the page's image-storage marker the layout sets) and enhance
- * it. */
+/** The CSRF token that the picker's own upload form carries. */
+export const PICKER_CSRF_TOKEN = "picker-token";
+
+/** The picker that an admin page with image storage carries, rendered by the
+ * real server template under a request with a known CSRF token. */
+const PICKER_TEMPLATE = await withRequestContext(() => {
+  withRequestStore((store) => {
+    store.csrfToken = PICKER_CSRF_TOKEN;
+  });
+  return String(ImagePickerTemplate());
+});
+
+/** Install a lone markdown textarea and enhance it. The page carries the
+ * image picker template unless `imageStorage` is false. Options add a footer
+ * strip as the preview module lays out, a stylesheet that the editor's
+ * styles are asserted against, or a page form around the textarea with a
+ * token of its own. */
 export const enhanced = (
   value: string,
   options: {
     footer?: boolean;
     stylesheet?: string;
     form?: boolean;
-    imageStorage?: "off";
+    imageStorage?: false;
   } = {},
 ): {
   handle: MarkdownEditorHandle;
@@ -47,18 +62,13 @@ export const enhanced = (
   const textareaHtml = TEXTAREA.replace("%s", value);
   const window = installDom(
     (options.stylesheet ? `<style>${options.stylesheet}</style>` : "") +
+      (options.imageStorage === false ? "" : PICKER_TEMPLATE) +
       (options.form
         ? `<form action="/admin/pages/1/edit" method="post">` +
-          `<input type="hidden" name="csrfToken" value="token-1">${textareaHtml}</form>`
+          `<input type="hidden" name="csrfToken" value="page-token">${textareaHtml}</form>`
         : textareaHtml) +
       (options.footer ? FOOTER : ""),
   );
-  if (options.imageStorage !== undefined) {
-    window.document.documentElement.setAttribute(
-      "data-image-storage",
-      options.imageStorage,
-    );
-  }
   const textarea = requireElement<HTMLTextAreaElement>(
     window.document,
     "textarea",

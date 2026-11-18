@@ -452,7 +452,12 @@ describeWithBrowser(
           await route.fulfill({
             body: JSON.stringify({
               images: [
-                { id: 2, name: "Harbour", thumb: "/image/harbour-thumb.webp" },
+                {
+                  full: "/image/harbour.webp",
+                  id: 2,
+                  name: "Harbour",
+                  thumb: "/image/harbour-thumb.webp",
+                },
               ],
             }),
             contentType: "application/json",

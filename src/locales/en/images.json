@@ -27,7 +27,12 @@
   "images.linked_items.empty": "No listings or groups yet.",
   "images.new.heading": "Add Image",
   "images.new.submit": "Create image",
-  "images.storage_off": "File storage is not configured.",
+  "images.picker.close": "Close image picker",
+  "images.picker.heading": "Choose an image",
+  "images.picker.loading": "Loading…",
+  "images.picker.unavailable": "Images are unavailable right now.",
+  "images.picker.upload_failed": "The image could not be uploaded. Please try again.",
+  "images.storage_off":"File storage is not configured.",
   "images.updated": "Image updated",
   "images.guide_link": "Image library guide"
 }

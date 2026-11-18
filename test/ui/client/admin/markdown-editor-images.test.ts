@@ -2,7 +2,8 @@
  * The image picker dialog
  * (`src/ui/client/admin/markdown-editor-images.ts`): the real editor mount,
  * a stubbed image-list endpoint, and the dialog's render, close, and error
- * paths. The upload flow lives in the sibling upload suite.
+ * paths. The image view suite holds the library and the pictures in the
+ * editor. `markdown-editor-images/upload.test.ts` holds the upload flow.
  */
 
 import { assertStringIncludes } from "@std/assert";
@@ -11,7 +12,7 @@ import { afterEach, describe, it as test } from "@std/testing/bdd";
 import type { Window } from "happy-dom";
 import { STATIC_ASSET_OUTFILES } from "#scripts/static-assets/outfiles.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
-import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
+import type { FetchReply } from "#test-utils/fetch-stub.ts";
 import { requireElement } from "#test-utils/happy-dom.ts";
 import { cleanup, enhanced, select } from "#test-utils/markdown-editor-dom.ts";
 import {
@@ -25,7 +26,6 @@ import {
   json,
   openDialog,
   optionByName,
-  renderEditorImage,
   restoreHeldStub,
   tenImageList,
   toolbarImageButton,
@@ -45,6 +45,7 @@ describe("the image picker dialog", () => {
       window.document,
       ".md-toolbar-image",
     );
+    expect(button.textContent).toBe("Image");
     expect(button.getAttribute("aria-label")).toBe("Insert image");
     // The button opens a modal dialog, which carries its own focus and
     // Escape semantics, so the button only names what it opens.
@@ -54,17 +55,34 @@ describe("the image picker dialog", () => {
   });
 
   test("hides the image button when storage is off", () => {
-    const { window, handle } = enhanced("hello", {
-      imageStorage: "off",
-    });
+    const { window, handle } = enhanced("hello", { imageStorage: false });
     const button = requireElement<HTMLButtonElement>(
       window.document,
       ".md-toolbar-image",
     );
 
-    // The page marker comes from the layout; the editor keeps the control
-    // out of the toolbar rather than offering a picker with no storage.
+    // The admin shell renders the picker template only with storage. The
+    // editor keeps the control out of the toolbar without it, and builds
+    // no dialog.
     expect(button.hidden).toBe(true);
+    expect(window.document.querySelector(".md-image-dialog")).toBeNull();
+    handle.view.destroy();
+  });
+
+  test("clones the server's picker into the editor", () => {
+    const { window, handle } = enhanced("hello");
+    const dialog = imageDialog(window);
+
+    // The dialog carries the template's catalog copy and the images area's
+    // upload fields.
+    expect(dialog.querySelector("h2")?.textContent).toBe("Choose an image");
+    expect(
+      dialog.querySelector(".md-preview-close")?.getAttribute("aria-label"),
+    ).toBe("Close image picker");
+    expect(
+      [...dialog.querySelectorAll("input")].map((input) => input.name),
+    ).toEqual(["csrfToken", "name", "altText", "image"]);
+    expect(dialog.closest(".md-editor")).not.toBeNull();
     handle.view.destroy();
   });
 
@@ -144,71 +162,11 @@ describe("the image picker dialog", () => {
         expect(image.getAttribute("src")).toBe("/image/alpha.webp");
         expect(image.alt).toBe("Alpha");
         expect(imageDialog(window).open).toBe(false);
+        expect(window.document.activeElement).toBe(handle.view.dom);
         handle.view.destroy();
         await flushSelection();
       },
     );
-  });
-
-  test("renders each stored image address through the library", async () => {
-    const cases = [
-      // A short-form reference shows the library picture...
-      { alt: "Alpha", markdown: "![Alpha](img#2)", src: "/image/alpha.webp" },
-      // ...with or without alt text...
-      { alt: "", markdown: "![](img#2)", src: "/image/alpha.webp" },
-      // ...and an id the library lacks shows the alt text alone. No src at
-      // all: an empty src would make the browser request the page.
-      { alt: "Gone", markdown: "![Gone](img#404)", src: null },
-      // An ordinary address renders as written.
-      { markdown: "![Direct](/image/direct.webp)", src: "/image/direct.webp" },
-    ];
-    for (const { markdown, src, alt } of cases) {
-      const { image, handle } = await renderEditorImage(markdown);
-
-      expect(image.getAttribute("src")).toBe(src);
-      if (alt !== undefined) expect(image.alt).toBe(alt);
-      handle.view.destroy();
-    }
-  });
-
-  test("shows the alt text when the library cannot load", async () => {
-    const { image, handle } = await renderEditorImage(
-      "![Alpha](img#2)",
-      new Error("storage down"),
-    );
-
-    expect(image.hasAttribute("src")).toBe(false);
-    handle.view.destroy();
-  });
-
-  test("updates the picture when the reference's alt text changes", async () => {
-    const { image, handle } = await renderEditorImage(
-      '![Old](img#2 "Kept caption")',
-    );
-
-    expect(image.getAttribute("src")).toBe("/image/alpha.webp");
-    expect(image.title).toBe("Kept caption");
-
-    // Rename the alt text the way a document change would.
-    let imagePos = -1;
-    handle.view.state.doc.descendants((node, pos) => {
-      if (node.type.name === "image") {
-        imagePos = pos;
-        return false;
-      }
-      return true;
-    });
-    handle.view.dispatch(
-      handle.view.state.tr.setNodeAttribute(imagePos, "alt", "New"),
-    );
-    handle.view.dispatch(
-      handle.view.state.tr.setNodeAttribute(imagePos, "title", ""),
-    );
-    await flush();
-
-    expect(image.alt).toBe("New");
-    expect(image.hasAttribute("title")).toBe(false);
-    handle.view.destroy();
   });
 
   test("shows a plain message when the image list cannot load", async () => {
@@ -221,7 +179,7 @@ describe("the image picker dialog", () => {
   test("shows a plain message when no images exist", async () => {
     const opened = await openDialog([json({ images: [] })]);
 
-    expectGridMessage(opened, "No images uploaded yet.");
+    expectGridMessage(opened, "No images yet.");
   });
 
   test("keeps the image control inert after the editor is destroyed", async () => {
@@ -241,29 +199,6 @@ describe("the image picker dialog", () => {
     });
   });
 
-  test("keeps an inserted picture inside the editor box", async () => {
-    // The compiled stylesheet is what the browser downloads. Its width rule
-    // must reach the editor's image node through the real cascade.
-    const stylesheet = await Deno.readTextFile(STATIC_ASSET_OUTFILES.css);
-    restoreHeldStub();
-    fetchStubHolder.stub = stubFetch(twoImageList());
-    const { window, handle } = enhanced("![Alpha](img#2)", { stylesheet });
-    const image = requireElement<HTMLImageElement>(
-      window.document,
-      ".ProseMirror img",
-    );
-    await flush();
-
-    const happyWindow = window as Window & {
-      getComputedStyle: (element: unknown) => CSSStyleDeclaration;
-    };
-    const computed = happyWindow.getComputedStyle(image);
-    expect(computed.maxWidth).toBe("100%");
-    // A block picture skips the inline line box that can leave a sliver.
-    expect(computed.display).toBe("block");
-    handle.view.destroy();
-  });
-
   test("wraps a long unbroken image name inside its option", async () => {
     // The longest name the form accepts, with no break opportunity: the
     // cell caps its width, so the name must wrap its text.
@@ -274,10 +209,10 @@ describe("the image picker dialog", () => {
         json({
           images: [
             {
+              full: "/image/a.webp",
               id: 2,
               name: unbrokenName,
               thumb: "/image/a-thumb.webp",
-              url: "/image/a.webp",
             },
           ],
         }),
@@ -319,21 +254,9 @@ describe("the image picker dialog", () => {
     handle.view.destroy();
   });
 
-  test("refuses an options body without an images array", async () => {
-    const { dialog, grid, handle } = await openDialog([
-      json({ ok: true }),
-      json({ images: [] }),
-    ]);
-
-    expect(grid.dataset.state).toBe("error");
-    expect(grid.querySelector("button")).toBeNull();
-    handle.view.destroy();
-    dialog.remove();
-  });
-
   test("refuses a malformed image entry", async () => {
     // Each reply trips a different half of the entry shape check: not an
-    // object, no numeric id, no name, no thumb, no url.
+    // object, no numeric id, no name, no thumb, no full address.
     const replies: [FetchReply, ...FetchReply[]] = [
       json({ images: ["nope"] }),
       json({ images: [{ id: "2", name: "Alpha", thumb: "/t.webp" }] }),

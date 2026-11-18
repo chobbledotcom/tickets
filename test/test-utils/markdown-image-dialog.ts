@@ -33,22 +33,21 @@ export const json = (body: unknown): Response =>
   });
 
 /** The two-image library the list and insert cases share, already in the
- * name order the options endpoint returns, with the thumbnail and full URLs
- * it now carries. */
+ * name order the options endpoint returns, with the thumbnail and full URLs. */
 export const twoImageList = (): Response =>
   json({
     images: [
       {
+        full: "/image/alpha.webp",
         id: 2,
         name: "Alpha",
         thumb: "/image/alpha-thumb.webp",
-        url: "/image/alpha.webp",
       },
       {
+        full: "/image/zebra.webp",
         id: 9,
         name: "Zebra",
         thumb: "/image/zebra-thumb.webp",
-        url: "/image/zebra.webp",
       },
     ],
   });
@@ -57,10 +56,10 @@ export const twoImageList = (): Response =>
 export const tenImageList = (): Response =>
   json({
     images: Array.from({ length: 10 }, (_, index) => ({
+      full: `/image/image-${index + 1}.webp`,
       id: index + 1,
       name: `Image ${index + 1}`,
       thumb: `/image/image-${index + 1}-thumb.webp`,
-      url: `/image/image-${index + 1}.webp`,
     })),
   });
 
@@ -121,9 +120,9 @@ export const withDialogClock = async (
 };
 
 /** What the browser hands the code after fetch follows the upload's
- * redirect: a 200 whose url is the redirect target. */
-export const redirected = (path: string): Response => {
-  const response = new Response("", { status: 200 });
+ * redirect: the target page's answer, whose url is the redirect target. */
+export const redirected = (path: string, status = 200): Response => {
+  const response = new Response("", { status });
   Object.defineProperty(response, "url", {
     value: `http://localhost${path}`,
   });
@@ -272,14 +271,21 @@ export const closeDialogBeforeAnswer = async (
   }
 };
 
-/** Opens the dialog and dismisses it with `dismiss`, asserting it shut,
- * tearing the dialog and view down, and draining the focus flush. */
+/** Opens the dialog and dismisses it with `dismiss`, asserting it shut and
+ * gave the caret back to the editor. Then it tears the dialog and view
+ * down, and drains the focus flush. */
 export const expectDialogCloses = (
   dismiss: (opened: OpenDialogResult) => void,
 ): Promise<void> =>
   withDialogClock([twoImageList()], {}, async (opened, flushSelection) => {
+    // The operator's focus sits in the dialog, as after typing a name.
+    requireElement<HTMLInputElement>(
+      opened.dialog,
+      'input[name="name"]',
+    ).focus();
     dismiss(opened);
     expect(opened.dialog.open).toBe(false);
+    expect(opened.window.document.activeElement).toBe(opened.handle.view.dom);
     opened.handle.view.destroy();
     opened.dialog.remove();
     await flushSelection();

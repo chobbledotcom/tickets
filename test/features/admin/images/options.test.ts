@@ -22,16 +22,16 @@ describeWithEnv(
       expect(await response.json()).toEqual({
         images: [
           {
+            full: "/image/alpha.webp",
             id: alpha.id,
             name: "alpha",
             thumb: "/image/alpha-thumb.webp",
-            url: "/image/alpha.webp",
           },
           {
+            full: "/image/zebra.webp",
             id: zebra.id,
             name: "Zebra",
             thumb: "/image/zebra-thumb.webp",
-            url: "/image/zebra.webp",
           },
         ],
       });

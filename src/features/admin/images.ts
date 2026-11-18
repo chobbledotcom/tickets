@@ -44,6 +44,7 @@ import {
   isSiteContentImageType,
   whenSiteContentBlocksManager,
 } from "#shared/images/library.ts";
+import type { ImageOption } from "#shared/images/picker.ts";
 import { sortByName } from "#shared/name-order.ts";
 import { imageRecord } from "#shared/records/images.ts";
 import { featureGate, type ResponseHandler } from "#shared/response-steps.ts";
@@ -312,20 +313,18 @@ const handleImageDeletePost: TypedRouteHandler<"POST /admin/images/:id/delete"> 
     );
   });
 
-/** The image list the editor's image dialog offers: every image's id, name,
- * thumbnail URL, and full URL, in the library's name order. The dialog shows
- * the thumbnails, the editor renders the full image for an inserted
- * short-form img#id reference, and the stored markdown keeps the short
- * form. */
+/** The image list the editor's image picker offers, in the library's name
+ * order. The picker shows the thumbnails, and the rich editor shows the full
+ * image for an inserted short-form img#id reference. */
 const handleImageOptionsGet: TypedRouteHandler<"GET /admin/images/options"> =
   contentResponsePage(async () => {
     const images = isStorageEnabled() ? await getAllImages() : [];
     const options = sortByName(images, byNameThenUpload).map(
-      ({ id, name, filename, filenameThumb }) => ({
+      ({ id, name, filename, filenameThumb }): ImageOption => ({
+        full: getImageProxyUrl(filename),
         id,
         name,
         thumb: getImageProxyUrl(filenameThumb),
-        url: getImageProxyUrl(filename),
       }),
     );
     return jsonResponse({ images: options });
