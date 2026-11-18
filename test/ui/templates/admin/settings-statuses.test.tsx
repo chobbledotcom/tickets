@@ -48,6 +48,7 @@ describe("attendee status templates", () => {
     );
 
     expectIncludesAll(html, [
+      "<title>Attendee statuses</title>",
       'href="/admin/settings/statuses/new"',
       'href="/admin/settings/statuses/7"',
       '<span class="badge">Public default</span><span class="badge">Paid</span><span class="badge">Reservation: 25%</span>',
@@ -83,7 +84,11 @@ describe("attendee status templates", () => {
     expect(html).not.toMatch(/<input checked[^>]*name="isPublicDefault"/);
     expect(html).not.toMatch(/<input checked[^>]*name="isPaidDefault"/);
     expect(html).toMatch(/name="reservationAmount"[^>]*value="0"/);
-    assertStringIncludes(html, "Create status");
+    expectIncludesAll(html, [
+      "<h1>Add attendee status</h1>",
+      "<title>Add attendee status</title>",
+      "Create status",
+    ]);
   });
 
   test("prefills every stored edit field", () => {
@@ -178,6 +183,8 @@ describe("attendee status templates", () => {
     expectIncludesAll(html, [
       "Status is still in use",
       'action="/admin/settings/statuses/7/delete"',
+      "<h1>Delete attendee status</h1>",
+      "<title>Delete attendee status</title>",
       "Type the status name &quot;Reserved&quot; to confirm deletion:",
       'name="confirmIdentifier"',
       "Delete status",

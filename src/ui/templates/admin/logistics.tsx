@@ -46,7 +46,7 @@ import type { AdminLevel, LogisticsAgent } from "#types";
  * article frames the list, with the inline add form under it.
  */
 export const adminLogisticsPage = successListPage<LogisticsAgent>(
-  "logistics.title",
+  "terms.logistics",
   adminPattern("logistics"),
   (agents) => ({
     columns: fieldTableColumns(LOGISTICS_AGENT_FIELDS, (agent) =>
@@ -130,18 +130,6 @@ const AgentUsersSelector = ({
   </CheckboxFieldset>
 );
 
-/* jscpd:ignore-start -- a list of strings, not code */
-/** The catalog keys that name the logistics-agent pages. */
-const LOGISTICS_AGENT_PAGE_LABELS = {
-  addHeading: "logistics.add_logistics_agent",
-  addSubmit: "logistics.create_agent",
-  addTitle: "logistics.add_logistics_agent",
-  deleteButton: "logistics.delete_agent",
-  deleteTitle: "logistics.delete_logistics_agent",
-  listTitle: "logistics.title",
-};
-/* jscpd:ignore-end */
-
 export const logisticsAgentPages = defineRecordPages(logisticsAgentRecord, {
   delete: {
     confirm: (agent) => ({
@@ -149,10 +137,9 @@ export const logisticsAgentPages = defineRecordPages(logisticsAgentRecord, {
       key: "logistics.delete_confirm",
     }),
     danger: false,
-    heading: t("logistics.delete_logistics_agent"),
     ...confirmByName("logistics.agent_name", "logistics.type_name_to_confirm"),
   },
-  labels: pageLabels(LOGISTICS_AGENT_PAGE_LABELS),
+  labels: pageLabels("logistics"),
   renderFields: () => <Raw html={getLogisticsAgentForm().render()} />,
 });
 
