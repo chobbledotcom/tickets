@@ -190,8 +190,8 @@ src/ui/templates/admin/images.tsx::imageColumns~0lssgxj  thumbnail → "" audite
 src/ui/templates/admin/images.tsx::imageColumns~1gvyre8  name → "" audited:0bs4xwa # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
 src/ui/templates/admin/images.tsx::imageColumns~11ld3ik alt_text→""  audited:1cashdd   # same as the thumbnail key above — the images table supplies no columnKeys, no hiddenKeys, and no filter
 src/ui/templates/admin/images.tsx::adminImageEditPage~0yyu6ex  0 → 1 audited:0bs4xwa # the edit page renders one thumbnail, and LAZY_THUMBNAIL_FROM is 9, so every position below 9 gives the same eager tag
-src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1f06tx7 # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
-src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1f06tx7 # itemId destructure default: Number("") is 0 and Number("mutated") is NaN — both rejected by the id guard
+src/features/admin/images.ts::parseImageTargets.itemType~01dj453   → "mutated" audited:1nojjql # itemType destructure default: split(":") always yields ≥1 part, so the default is unreachable
+src/features/admin/images.ts::parseImageTargets.itemId~1gk0kbs   → "mutated" audited:1nojjql # itemId destructure default: parsePositiveInt refuses both "" and "mutated", so the id guard drops the target either way
 
 # Attendee merge service (attendee-merge.ts) — `?? → ||` between
 # `targetAnswers.get(qid)` (a `{answerId, answerText}` object or undefined) and
