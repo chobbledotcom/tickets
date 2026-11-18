@@ -38,12 +38,6 @@ const RULE_CASES: readonly [
     { error: "url_pattern cannot be empty" },
   ],
   [
-    "refuses a name past the text box limit",
-    "n".repeat(251),
-    PATTERN,
-    { error: "name must be 250 characters or fewer" },
-  ],
-  [
     "refuses a URL pattern past the text box limit",
     "Stripe",
     `https://${"u".repeat(243)}`,

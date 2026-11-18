@@ -24,10 +24,7 @@ import {
   resetGroupListings,
 } from "#db/groups.ts";
 import { clearImageUsesForItemStatement, imageUseTargets } from "#db/images.ts";
-import {
-  catalogNameLengthError,
-  isNameTakenAnywhere,
-} from "#db/name-registry.ts";
+import { isNameTakenAnywhere } from "#db/name-registry.ts";
 import { noteDeleteStatement } from "#db/notes/queries.ts";
 import { tables } from "#db/select/tables.ts";
 import { clearItemEdgesStatement } from "#db/site-page-items.ts";
@@ -97,8 +94,6 @@ export const validateGroupWithPackage: GroupValidator = async (input, id) => {
     id === undefined ? undefined : { id: Number(id), kind: "group" },
   );
   if (nameTaken) return t("error.name_in_use");
-  const nameLengthError = catalogNameLengthError(input.name);
-  if (nameLengthError) return nameLengthError;
   const slugError = await validateGroupSlug(input, id);
   if (slugError) return slugError;
   if (id === undefined) return null;

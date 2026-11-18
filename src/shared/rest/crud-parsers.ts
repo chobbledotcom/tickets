@@ -19,6 +19,7 @@ import {
   parseDateString,
   parseDateStringOrThrow,
 } from "#shared/validation/date-string.ts";
+import { requiredTrimmedText } from "#shared/validation/string.ts";
 
 /** JSON body for confirmed delete endpoints */
 export type DeleteBody = { confirm_identifier: string };
@@ -165,10 +166,7 @@ export const requireEntityField = <Field extends string>(
     const required = requireStrings(body, [field]);
     return required.ok ? okResult(required.value[field]) : required;
   }
-  const trimmed = supplied.value.trim();
-  return trimmed === ""
-    ? errorResult(`${field} cannot be empty`)
-    : okResult(trimmed);
+  return requiredTrimmedText(supplied.value, `${field} cannot be empty`);
 };
 
 /** Read the display name a create or an update stores: the supplied text, else
