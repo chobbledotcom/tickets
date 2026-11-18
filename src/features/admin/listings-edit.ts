@@ -33,10 +33,7 @@ import type { TypedRouteHandler } from "#routes/router.ts";
 import { adminLandingPath, entityReturnPath } from "#shared/admin-pages.ts";
 import { toMinorUnits } from "#shared/currency.ts";
 import type { FormParams } from "#shared/form-data.ts";
-import {
-  type ImagePickerOption,
-  imagePickerOptions,
-} from "#shared/images/picker.ts";
+import { type ImageOption, imageOptionsOf } from "#shared/images/picker.ts";
 import { unmetRequirementOrNull } from "#shared/listing-template-access.ts";
 import {
   dimensionsOf,
@@ -195,11 +192,9 @@ const copyEdgesFromDuplicateSource = async (
 const formImages = async (
   form: FormParams,
   templateId: string | null,
-): Promise<readonly ImagePickerOption[]> => {
+): Promise<readonly ImageOption[]> => {
   if (!newListingCollectsImages(templateId) || !isStorageEnabled()) return [];
-  return imagePickerOptions(
-    await getImagesByIds(form.getNumberArray("imageIds")),
-  );
+  return imageOptionsOf(await getImagesByIds(form.getNumberArray("imageIds")));
 };
 
 const renderCreateListingError = async (

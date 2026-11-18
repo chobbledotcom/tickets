@@ -79,10 +79,10 @@ describeWithEnv(
         const options = await (await adminGet("/admin/images/options")).json();
         expect(options).toEqual({
           images: libraryOrder.map(({ id, name, filename, filenameThumb }) => ({
+            full: `/image/${filename}`,
             id,
             name,
             thumb: `/image/${filenameThumb}`,
-            url: `/image/${filename}`,
           })),
         });
       });
@@ -275,7 +275,7 @@ describeWithEnv(
     });
 
     describe("GET /admin/images/options (editor image dialog list)", () => {
-      test("lists every image as id, name, thumb, and url in name order", async () => {
+      test("lists every image as id, name, thumb, and full address in name order", async () => {
         await makeImage("Zebra");
         await makeImage("Alpha");
         const response = await adminGet("/admin/images/options");
@@ -287,16 +287,16 @@ describeWithEnv(
         expect(body).toEqual({
           images: [
             {
+              full: "/image/alpha.webp",
               id: await idOf("Alpha"),
               name: "Alpha",
               thumb: "/image/alpha-thumb.webp",
-              url: "/image/alpha.webp",
             },
             {
+              full: "/image/zebra.webp",
               id: await idOf("Zebra"),
               name: "Zebra",
               thumb: "/image/zebra-thumb.webp",
-              url: "/image/zebra.webp",
             },
           ],
         });

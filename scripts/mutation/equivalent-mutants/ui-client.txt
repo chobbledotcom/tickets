@@ -74,21 +74,11 @@ src/ui/client/admin/markdown-editor.ts::enhanceMarkdownTextarea.toggle%2eclassNa
 src/ui/client/admin/markdown-editor-toolbar.ts::createToolbar.dom%2eclassName~0ddlu5i  = → += audited:02itrbr # dom.className: fresh element, "" before
 src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etextContent~0m9cygf  = → += audited:02itrbr # button.textContent: fresh element, "" before
 src/ui/client/admin/markdown-editor-toolbar.ts::createToolbarButton.button%2etitle~0xsx20k  = → += audited:02itrbr # button.title: fresh element, "" before
-# image-picker.ts builds the image dialog's DOM from scratch: every left-hand
-# value below lands on an element whose property is empty (or false for a
-# boolean IDL attribute) before the assignment, so `=` and `+=` finish
-# identical after DOM coercion.
-src/ui/client/admin/image-picker.ts::mutedLine.line%2etextContent~123bvdh  = → += audited:0agm29h # line.textContent: fresh element, "" before
-src/ui/client/admin/image-picker.ts::closeButton.button%2einnerHTML~0yi1mfh  = → += audited:0agm29h # button.innerHTML: fresh element, "" before
-src/ui/client/admin/image-picker.ts::uploadControl.input%2ename~0c3eqyi  = → += audited:0agm29h # input.name: fresh element, "" before
-src/ui/client/admin/image-picker.ts::uploadControl.input%2erequired~1xzxshj  = → += audited:0agm29h # input.required: fresh boolean IDL attribute, false before
-src/ui/client/admin/image-picker.ts::headingElement.heading%2etextContent~0gaf4sr  = → += audited:0agm29h # heading.textContent: fresh element, "" before
-src/ui/client/admin/image-picker.ts::uploadForm.fileField%2equerySelector%3cHTMLInputElement%3e%28%27input%5bname%3d%22image%22%5d%27%29%21%2eaccept~12ku4gb  = → += audited:0agm29h # accept: fresh element, "" before
-src/ui/client/admin/image-picker.ts::uploadForm.submit%2edisabled~0mqaigy  = → += audited:0agm29h # submit.disabled: fresh boolean IDL attribute, false before
-src/ui/client/admin/image-picker.ts::uploadForm.submit%2edisabled~1100pzp@1  = → += audited:0agm29h # submit.disabled = false: false + false is 0, a falsy boolean-IDL value
-src/ui/client/admin/image-picker.ts::uploadForm.submit%2edisabled~1100pzp@2  = → += audited:0agm29h # submit.disabled = false: false + false is 0, a falsy boolean-IDL value
-src/ui/client/admin/image-picker.ts::uploadForm.submit%2etextContent~0pgppg1  = → += audited:0agm29h # submit.textContent: fresh element, "" before
-src/ui/client/admin/image-picker.ts::createImagePicker.renderOptions.item%2etitle~0ui2juv  = → += audited:0agm29h # item.title: fresh element, "" before
+# The shared picker builds each thumbnail button from fresh elements: every
+# property below is "" before the assignment, so `=` and `+=` finish identical.
+src/ui/client/admin/image-picker-template.ts::optionButton.item%2etitle~0ui2juv  = → += audited:0v52hrc # item.title: fresh button from createButton, "" before
+src/ui/client/dom.ts::createThumbnail.image%2ealt~0p3u8u4  = → += audited:0qvtdnq # image.alt: fresh element, "" before, and "" + "" is ""
+src/ui/client/dom.ts::createThumbnail.image%2esrc~07jew47  = → += audited:0qvtdnq # image.src: fresh element, "" before
 # The ordered-list input rule's `match[1]` vs `match[0]`: the regex is
 # /^(\d+)\.\s$/ so match[0] is always "N. " and Number("N. ") === Number("N")
 # (Number trims whitespace and "N." is the same decimal) — no typed input can

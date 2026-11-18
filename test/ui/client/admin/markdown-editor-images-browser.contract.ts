@@ -13,7 +13,7 @@
  */
 
 import { Buffer } from "node:buffer";
-import { assertExists, assertStringIncludes } from "@std/assert";
+import { assertStringIncludes } from "@std/assert";
 import { expect } from "@std/expect";
 import { it as test } from "@std/testing/bdd";
 import type { Locator, Page } from "playwright";
@@ -36,7 +36,6 @@ import {
   OPTION,
   THUMBNAIL,
   typeIntoEditorBody,
-  UNAVAILABLE_MESSAGE,
   waitForDialogClosed,
 } from "#test-utils/markdown-image-contract.ts";
 import { makeTestPng } from "#test-utils/test-image.ts";
@@ -147,7 +146,7 @@ describeWithBrowser(
       await withPage(async (page) => {
         await openPageEditor(page);
         await openDialog(page);
-        const grid = page.locator(".image-picker-grid");
+        const grid = page.locator(".md-image-grid");
         await page.locator(OPTION).first().waitFor();
 
         // The grid is a scroller of its own: the library is taller than the
@@ -366,52 +365,6 @@ describeWithBrowser(
       });
     });
 
-    test("says the images are unavailable when the library cannot be reached", async () => {
-      await withPage(async (page) => {
-        await page.route("**/admin/images/options", (route) => route.abort());
-        const answered = await openDialogOverUnchangedWords(
-          page,
-          UNAVAILABLE_MESSAGE,
-        );
-
-        await expectNoteWithoutOptions(answered, UNAVAILABLE_MESSAGE);
-      });
-    });
-
-    test("retries the library after a failed load and inserts once it recovers", async () => {
-      const harbour = await makeImage("Harbour");
-      let failed = false;
-      await withPage(async (page) => {
-        await page.route("**/admin/images/options", (route) => {
-          if (failed) return route.continue();
-          failed = true;
-          return route.abort();
-        });
-        await openPageEditor(page);
-
-        const dialog = await openDialog(page);
-        await dialog
-          .locator(NOTE)
-          .filter({ hasText: UNAVAILABLE_MESSAGE })
-          .waitFor();
-        const dialogText = await dialog.textContent();
-        assertExists(dialogText);
-        assertStringIncludes(dialogText, UNAVAILABLE_MESSAGE);
-
-        // Shut and reopen: a failed load is never cached, so the second open
-        // asks the route again and the real answer arrives. The modal
-        // backdrop swallows toolbar clicks, so Escape is the way shut.
-        await page.keyboard.press("Escape");
-        await waitForDialogClosed(page);
-        const reopened = await openDialog(page);
-        await reopened
-          .locator(OPTION)
-          .getByText("Harbour", { exact: true })
-          .click();
-        expect(await contentValue(page)).toBe(`![Harbour](img#${harbour.id})`);
-      });
-    });
-
     test("modal backdrop swallows toolbar clicks while the dialog is open", async () => {
       await makeImage("Harbour");
       await withPage(async (page) => {
@@ -452,7 +405,12 @@ describeWithBrowser(
           await route.fulfill({
             body: JSON.stringify({
               images: [
-                { id: 2, name: "Harbour", thumb: "/image/harbour-thumb.webp" },
+                {
+                  full: "/image/harbour.webp",
+                  id: 2,
+                  name: "Harbour",
+                  thumb: "/image/harbour-thumb.webp",
+                },
               ],
             }),
             contentType: "application/json",

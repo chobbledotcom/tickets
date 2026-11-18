@@ -5,7 +5,7 @@ import { Raw } from "#jsx/jsx-runtime.ts";
 import { VALID_DAY_NAMES } from "#shared/day-names.ts";
 import type { FormRenderValuesFor } from "#shared/forms/definition.ts";
 import type { FieldValues } from "#shared/forms/values.ts";
-import type { ImagePickerOption } from "#shared/images/picker.ts";
+import type { ImageOption } from "#shared/images/picker.ts";
 import { showUseDefaultsToggle } from "#shared/listing-defaults.ts";
 import { ListingGroupSelect } from "#templates/admin/group-select.tsx";
 import {
@@ -151,7 +151,7 @@ export const ListingFormSections = ({
   customiseOpen: boolean;
   isTemplated: boolean;
   /** The chosen pictures, when this form offers the Images section. */
-  images?: readonly ImagePickerOption[];
+  images?: readonly ImageOption[];
   showUseDefaults?: boolean;
   useDefaultsChecked?: boolean;
 }): JSX.Element => {

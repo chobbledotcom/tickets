@@ -6,11 +6,10 @@ import { t } from "#i18n";
 import { Raw } from "#jsx/jsx-runtime.ts";
 import { isReadOnly } from "#shared/env.ts";
 import { CsrfForm } from "#shared/forms/csrf-form.tsx";
-import type { Field } from "#shared/forms/field.ts";
 import { Flash } from "#shared/forms/flash.tsx";
 import { renderFields } from "#shared/forms/rendering.tsx";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
-import { IMAGE_UPLOAD_ACCEPT } from "#shared/images/formats.ts";
+import { LAZY_THUMBNAIL_FROM } from "#shared/images/picker.ts";
 import { isStorageEnabled } from "#shared/storage.ts";
 import type { TableColumn } from "#shared/tables/column.ts";
 import { defineTable } from "#shared/tables/definition.ts";
@@ -20,6 +19,10 @@ import {
   successListPage,
 } from "#templates/admin/admin-page.tsx";
 import { entityDeletePage } from "#templates/admin/confirm-page.tsx";
+import {
+  imageFields,
+  imageUploadFields,
+} from "#templates/admin/image-picker.tsx";
 import {
   ActionButton,
   guideFooterFor,
@@ -56,37 +59,10 @@ export type ItemImagePanelProps = {
   error?: string | undefined;
 };
 
-const imageFields = (): Field[] => [
-  {
-    label: t("images.field.name"),
-    name: "name",
-    required: true,
-    type: "text",
-  },
-  {
-    label: t("images.field.alt_text"),
-    name: "altText",
-    type: "text",
-  },
-];
-
-// No `required`: file inputs never render the attribute (renderFieldInput
-// omits it) and the upload POST checks the file's presence itself.
-const imageUploadField = (): Field => ({
-  accept: IMAGE_UPLOAD_ACCEPT,
-  label: t("images.field.file"),
-  name: "image",
-  type: "file",
-});
-
 const imageValue = (image?: Image): Record<string, string | number | null> => ({
   altText: image?.altText ?? "",
   name: image?.name ?? "",
 });
-
-/** The first nine thumbnails of an admin page load with the page. From the
- *  tenth thumbnail, the browser waits until the reader scrolls near it. */
-const LAZY_THUMBNAIL_FROM = 9;
 
 /** One image thumbnail. `position` is its zero-based place among the page's
  *  thumbnails, so the count carries across the collections one page renders. */
@@ -174,9 +150,7 @@ const imageUploadForm = (
     submitIcon={icon}
     submitLabel={label}
   >
-    <Raw
-      html={renderFields([...imageFields(), imageUploadField()], imageValue())}
-    />
+    <Raw html={renderFields(imageUploadFields(), imageValue())} />
   </SaveForm>
 );
 

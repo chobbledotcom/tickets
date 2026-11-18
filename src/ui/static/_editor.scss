@@ -17,41 +17,58 @@
      double-spaced. */
   font-weight: normal;
   line-height: 1.5;
-}
-.md-editor:focus-within {
-  border-color: var(--color-link);
-}
-/* The minimal subset of ProseMirror's core stylesheet the editor needs
-   (prosemirror-view/style/prosemirror.css); the rest styles features we
-   don't use (gap cursors, column resizing, selection hiding). */
-.md-editor .ProseMirror {
-  position: relative;
-  min-height: 8em;
-  padding: 0.4rem 0.8rem;
-  outline: none;
-  white-space: break-spaces;
-  word-wrap: break-word;
-  font-variant-ligatures: none;
-}
-.md-editor .ProseMirror p {
-  margin: 0.5rem 0;
-}
-.md-editor .ProseMirror li {
-  position: relative;
-}
-/* ProseMirror wraps each list item's content in a <p>; without this the
-   page's default paragraph margins double-space every bullet. */
-.md-editor .ProseMirror li > p {
-  margin: 0.15rem 0;
-}
-.md-editor .ProseMirror blockquote {
-  margin: 0.6rem 0;
-  padding-left: var(--space-m);
-  border-left: 3px solid var(--color-bg-secondary);
-  color: var(--color-text-secondary);
-}
-.md-editor .ProseMirror pre {
-  white-space: pre-wrap;
+
+  &:focus-within {
+    border-color: var(--color-link);
+  }
+
+  /* The minimal subset of ProseMirror's core stylesheet the editor needs
+     (prosemirror-view/style/prosemirror.css); the rest styles features we
+     don't use (gap cursors, column resizing, selection hiding). */
+  .ProseMirror {
+    position: relative;
+    min-height: 8em;
+    padding: 0.4rem 0.8rem;
+    outline: none;
+    white-space: break-spaces;
+    word-wrap: break-word;
+    font-variant-ligatures: none;
+
+    p {
+      margin: 0.5rem 0;
+    }
+
+    li {
+      position: relative;
+    }
+
+    /* ProseMirror wraps each list item's content in a <p>; without this the
+       page's default paragraph margins double-space every bullet. */
+    li > p {
+      margin: 0.15rem 0;
+    }
+
+    blockquote {
+      margin: 0.6rem 0;
+      padding-left: var(--space-m);
+      border-left: 3px solid var(--color-bg-secondary);
+      color: var(--color-text-secondary);
+    }
+
+    pre {
+      white-space: pre-wrap;
+    }
+
+    /* A picture stays inside the box, the way the public page keeps its
+       pictures inside the prose. A block picture skips the inline line box,
+       whose baseline and break-spaces handling can leave a sliver past the
+       padding edge. */
+    img {
+      display: block;
+      height: auto;
+      max-width: 100%;
+    }
+  }
 }
 /* Any picture in the rich editor's ProseMirror box stays inside it, the
    way the public page keeps its pictures inside the prose. A block picture
