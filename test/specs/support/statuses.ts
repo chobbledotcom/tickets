@@ -116,7 +116,7 @@ export const organiserAddsState = async (
         ? {}
         : { reservationAmount: state.deposit }),
     },
-    t("statuses.form_create_button"),
+    t("statuses.add.submit"),
     ticked,
   );
   keepsWhatTheOrganiserSaw(world, browser);
@@ -168,8 +168,8 @@ const linkIntoState = findsTheWayInFrom(openAtState);
  * the link on their list, the delete link behind that page's Actions tab —
  * then typing a name to confirm. */
 const takesStateAway: TakesOneThingDown = takesDownFromList(linkIntoState, {
-  deleteLinkKey: "statuses.delete_button",
-  submitKey: "statuses.delete_button",
+  deleteLinkKey: "statuses.delete.submit",
+  submitKey: "statuses.delete.submit",
 });
 
 /** What they were told is kept, because most of these are meant to be

@@ -145,14 +145,9 @@ const renderStatusFields = (
   </>
 );
 
-/** The labels the two delete pages share — the bespoke reassign page and the
- *  stock one the CRUD factory is built with. One vocabulary, both readers. */
-const DELETE_PAGE_LABELS = {
-  danger: false,
-  heading: t("statuses.delete_title"),
-  label: t("common.name"),
-  title: t("statuses.delete_title"),
-} as const;
+/** The status page labels. The stock status pages and the retire page both read
+ *  them, so one vocabulary names both. */
+const STATUS_LABELS = pageLabels("statuses");
 
 /** What the delete page offers beneath the heading: the reassign choice for a
  *  status attendees hold (the count and the statuses they can move to), the
@@ -181,15 +176,18 @@ export const retireStatusDeletePage = (
   return ConfirmPage({
     action: `/admin/settings/statuses/${status.id}/delete`,
     active: LIST_PATH,
-    buttonText: t("statuses.delete_button"),
+    buttonText: STATUS_LABELS.deleteButton,
     confirm: {
       args: { name: status.name },
       key: "statuses.delete_confirm",
     },
+    danger: false,
     error,
-    ...DELETE_PAGE_LABELS,
+    heading: STATUS_LABELS.deleteTitle,
+    label: t("common.name"),
     name: status.name,
     session,
+    title: STATUS_LABELS.deleteTitle,
     ...(choice !== undefined
       ? {
           children: (
@@ -237,25 +235,14 @@ const deleteChildren = (status: AttendeeStatus): JSX.Element => (
   <p>{t("statuses.delete_confirm", { name: status.name })}</p>
 );
 
-/* jscpd:ignore-start -- a list of strings, not code */
-/** The catalog keys that name the status pages. */
-const STATUS_PAGE_LABELS = {
-  addHeading: "statuses.form_title_add",
-  addSubmit: "statuses.form_create_button",
-  addTitle: "statuses.form_title_add",
-  deleteButton: "statuses.delete_button",
-  deleteTitle: "statuses.delete_title",
-  listTitle: "statuses.attendee_statuses_page_title",
-};
-/* jscpd:ignore-end */
-
 export const statusPages = defineRecordPages(statusRecord, {
   delete: {
     children: deleteChildren,
-    ...DELETE_PAGE_LABELS,
+    danger: false,
+    label: t("common.name"),
     name: (status) => status.name,
   },
-  labels: pageLabels(STATUS_PAGE_LABELS),
+  labels: STATUS_LABELS,
   list: {
     actions: (
       <ActionButton href={adminPattern("statusNew")} icon="plus">

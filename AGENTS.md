@@ -469,6 +469,19 @@ a key that no source file references. When you delete the code that reads a
 key, delete the key in the same change. `scripts/check-i18n/unused.ts` says
 what counts as a reference.
 
+A record page names its six labels from its resource key. `pageLabels` in
+`src/ui/templates/admin/resource-pages.tsx` builds them from one noun and five
+keys:
+
+- `<resource>.add.heading` and `<resource>.add.title`: the create page.
+- `<resource>.add.submit`: the create button.
+- `<resource>.delete.heading`: the delete page heading and browser title.
+- `<resource>.delete.submit`: the delete button.
+- `terms.<resource>`: the list page title.
+
+Add the noun to `src/locales/en/nouns.json` and the five keys. The helper
+supplies all six labels, so a new record page needs no key list.
+
 ## Simplified Technical English — How We Write Documentation
 
 Technical text follows ASD-STE100 Simplified Technical English. It covers
