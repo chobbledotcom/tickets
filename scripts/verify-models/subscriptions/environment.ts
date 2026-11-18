@@ -42,47 +42,40 @@ const [modelDbTail, setModelDbTail] = lazyRef<Promise<unknown>>(() =>
 
 /** Producers run serially. No fixture opens the configured application database. */
 export const withSubscriptionDb = <Result>(
-  run: () => Promise<Result>,
+  work: () => Promise<Result>,
 ): Promise<Result> => {
-  const queued = (async () => {
+  const queued = (async (): Promise<Result> => {
     await modelDbTail().catch(() => undefined);
-    return withSubscriptionDbOnce(run);
+    maybeReclaimLeakedFds();
+    await ensureMessageGroups(MESSAGE_GROUPS);
+    const directory = await makeScratchDir("subscription-model-");
+    const path = join(directory, "model.db");
+    const image = schemaImageOrNull();
+    if (image !== null) await Deno.writeFile(path, image);
+    const url = `file:${path}`;
+    const previousUrl = Deno.env.get("DB_URL");
+    Deno.env.set("DB_URL", url);
+    const client = await createTestDbClient(path);
+    setEncryptionKeyForTest(MODEL_KEY);
+    setDb(client);
+    resetAllCaches();
+    try {
+      if (image === null) {
+        await rebuildWipedSchema();
+        setSchemaImage(await Deno.readFile(path));
+      }
+      return await work();
+    } finally {
+      resetAllCaches();
+      setDb(null);
+      setEncryptionKeyForTest(null);
+      client.close();
+      setEnvironmentValue(denoEnvironment, "DB_URL", previousUrl);
+      await Deno.remove(directory, { recursive: true });
+    }
   })();
   setModelDbTail(queued);
   return queued;
-};
-
-/** Open one isolated model database and run one producer against it. */
-const withSubscriptionDbOnce = async <Result>(
-  run: () => Promise<Result>,
-): Promise<Result> => {
-  maybeReclaimLeakedFds();
-  await ensureMessageGroups(MESSAGE_GROUPS);
-  const directory = await makeScratchDir("subscription-model-");
-  const path = join(directory, "model.db");
-  const image = schemaImageOrNull();
-  if (image !== null) await Deno.writeFile(path, image);
-  const url = `file:${path}`;
-  const previousUrl = Deno.env.get("DB_URL");
-  Deno.env.set("DB_URL", url);
-  const client = await createTestDbClient(path);
-  setEncryptionKeyForTest(MODEL_KEY);
-  setDb(client);
-  resetAllCaches();
-  try {
-    if (image === null) {
-      await rebuildWipedSchema();
-      setSchemaImage(await Deno.readFile(path));
-    }
-    return await run();
-  } finally {
-    resetAllCaches();
-    setDb(null);
-    setEncryptionKeyForTest(null);
-    client.close();
-    setEnvironmentValue(denoEnvironment, "DB_URL", previousUrl);
-    await Deno.remove(directory, { recursive: true });
-  }
 };
 
 export type BookingSeed = {
