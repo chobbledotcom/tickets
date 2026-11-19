@@ -18,9 +18,9 @@ import {
 import { shortFormImageId } from "#shared/images/short-form.ts";
 
 /** The site's image library as one editor reads it: fetched on first use,
- * then cached. `forget` drops the cache, so the next read fetches again. */
+ * then cached. The page's library-changed event drops the cache, so the next
+ * read fetches again. */
 export interface ImageLibrary {
-  forget: () => void;
   load: () => Promise<ImageOption[]>;
 }
 
@@ -40,9 +40,6 @@ export const createImageLibrary = (): ImageLibrary => {
     });
   }
   return {
-    forget: () => {
-      options = null;
-    },
     load: () => {
       options ??= fetchImageOptions().catch((error) => {
         // A failed load must not poison every later open in this session.

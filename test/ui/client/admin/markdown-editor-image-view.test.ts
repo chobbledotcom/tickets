@@ -60,11 +60,12 @@ describe("the image library", () => {
     ]);
   });
 
-  test("reads the library again after it forgets the answer", async () => {
+  test("reads the library again after the page announces a change", async () => {
+    installDom("");
     const { library, names } = await readLibraryOnce();
 
     expect(names).toEqual(["Alpha", "Zebra"]);
-    library.forget();
+    document.dispatchEvent(new Event(IMAGE_LIBRARY_CHANGED));
     expect(await library.load()).toEqual([]);
     expect(fetchStubHolder.stub?.calls.length).toBe(2);
   });
