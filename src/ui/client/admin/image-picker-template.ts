@@ -145,9 +145,22 @@ const appendField = (body: FormData, input: HTMLInputElement): void => {
   body.append(input.name, file, file.name);
 };
 
+/** The server's refusal text from the page the upload redirect followed. */
+const refusalMessage = async (response: Response): Promise<string | null> => {
+  const template = document.createElement("template");
+  template.innerHTML = await response.text();
+  const message = template.content
+    .querySelector(".error[role='alert']")
+    ?.textContent?.trim();
+  return message === undefined || message === "" ? null : message;
+};
+
+/** One upload's answer: the new image id, or the server's refusal. */
+type UploadOutcome = { id: number } | { error: string | null };
+
 /** Posts the upload form's fields to its action and answers the new image's
  *  id. Only the redirect to the new image's edit page proves the upload. */
-const uploadImage = async (form: HTMLFormElement): Promise<number> => {
+const uploadImage = async (form: HTMLFormElement): Promise<UploadOutcome> => {
   const body = new FormData();
   for (const input of form.querySelectorAll("input")) {
     appendField(body, input);
@@ -159,22 +172,20 @@ const uploadImage = async (form: HTMLFormElement): Promise<number> => {
   const match = /^\/admin\/images\/(\d+)\/edit$/.exec(
     new URL(response.url).pathname,
   );
-  if (match === null) {
-    throw new Error("image upload responded without an image id");
-  }
-  return Number(match[1]);
+  if (match === null) return { error: await refusalMessage(response) };
+  return { id: Number(match[1]) };
 };
 
-/** The new image's id. Null when the upload fails. */
+/** The upload's answer. A thrown request becomes a generic refusal. */
 const uploadedIdOrNull = async (
   form: HTMLFormElement,
-): Promise<number | null> => {
+): Promise<UploadOutcome> => {
   try {
     return await uploadImage(form);
   } catch {
-    // A refused file or a lost connection is an everyday failure. The
-    // picker shows its note, and the operator can try again.
-    return null;
+    // A lost connection is an everyday failure. The picker shows its note,
+    // and the operator can try again.
+    return { error: null };
   }
 };
 
@@ -194,17 +205,19 @@ export const wireUploadForm = (
     void (async () => {
       try {
         const name = parts.name.value;
-        const id = await uploadedIdOrNull(parts.form);
-        if (id === null) {
+        const result = await uploadedIdOrNull(parts.form);
+        if ("error" in result) {
           parts.grid.dataset.state = "ready";
           parts.grid.querySelector('[data-note="uploadFailed"]')?.remove();
-          parts.grid.append(noteFrom(parts.template, "uploadFailed"));
+          const note = noteFrom(parts.template, "uploadFailed");
+          if (result.error !== null) note.textContent = result.error;
+          parts.grid.append(note);
           return;
         }
         // Every picker on the page must drop its cached list.
         document.dispatchEvent(new Event(IMAGE_LIBRARY_CHANGED));
         parts.form.reset();
-        await onUploaded({ id, name });
+        await onUploaded({ id: result.id, name });
       } finally {
         parts.submit.disabled = false;
         delete parts.dialog.dataset.uploading;

@@ -244,6 +244,42 @@ describe("the image picker template", () => {
     );
   });
 
+  test("shows the server's refusal reason", async () => {
+    installDom(PICKER_TEMPLATE);
+    const dialog = parts();
+    const refused = new Response(
+      '<div class="error" role="alert">Image name is required</div>',
+    );
+    Object.defineProperty(refused, "url", {
+      value: "http://localhost/admin/images/new",
+    });
+    fetchStubHolder.stub = stubFetch(refused);
+    wireUploadForm(dialog, () => undefined);
+
+    await submit(dialog);
+
+    expect(dialog.grid.textContent).toBe("Image name is required");
+  });
+
+  test("uses the generic note for an empty server refusal", async () => {
+    installDom(PICKER_TEMPLATE);
+    const dialog = parts();
+    const refused = new Response(
+      '<div class="error" role="alert"> </div>',
+    );
+    Object.defineProperty(refused, "url", {
+      value: "http://localhost/admin/images/new",
+    });
+    fetchStubHolder.stub = stubFetch(refused);
+    wireUploadForm(dialog, () => undefined);
+
+    await submit(dialog);
+
+    expect(dialog.grid.textContent).toBe(
+      "The image could not be uploaded. Please try again.",
+    );
+  });
+
   test("sends the chosen file's bytes with its name", async () => {
     installDom(PICKER_TEMPLATE);
     const dialog = parts();
