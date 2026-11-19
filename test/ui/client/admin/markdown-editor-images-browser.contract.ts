@@ -434,14 +434,14 @@ describeWithBrowser(
       await makeImage("Harbour");
       await withPage(async (page) => {
         await page.goto("/admin/listing/new?template=physical-product");
-        const trigger = page.locator("[data-listing-images-trigger]");
-        await trigger.waitFor();
-        await trigger.click();
+        const section = page.locator("[data-listing-images]");
+        await section.locator("[data-listing-images-trigger]").click();
 
-        const dialog = page.locator(`${DIALOG}[open]`);
+        const dialog = section.locator(DIALOG);
         await dialog.waitFor();
         const options = dialog.locator(OPTION);
         await options.getByText("Harbour", { exact: true }).waitFor();
+        expect(await dialog.getAttribute("open")).not.toBeNull();
         expect(await options.allTextContents()).toEqual(["Harbour"]);
       });
     });
