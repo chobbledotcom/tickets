@@ -1,56 +1,23 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /**
- * Markdown preview: adds a "Preview" link under each markdown editor (opposite
- * the character counter) that renders the current content via the admin-only
- * /admin/markdown-preview endpoint and shows it in a modal dialog.
+ * Markdown preview: adds a "Preview" link under each markdown field that
+ * renders the current content through the admin-only /admin/markdown-preview
+ * endpoint and shows it in the shared admin modal.
  *
  * Rendering happens server-side so the preview matches the public page exactly
  * and is sanitised (raw HTML escaped, unsafe URLs stripped) before it reaches
- * the DOM. The request carries the page's CSRF token so it can't be triggered
- * cross-site.
+ * the DOM. The request carries the page's CSRF token so it cannot be triggered
+ * cross-site. The modal's words come from the inert `<template>` that the
+ * admin shell renders.
  */
 
-import { ICONS_PATH } from "#shared/asset-paths.ts";
-
-/** Lazily-built shared dialog, reused by every editor on the page. */
-type PreviewDialog = {
-  open: () => void;
-  setLoading: () => void;
-  show: (html: string) => void;
-};
-
-const createDialog = (): PreviewDialog => {
-  const dialog = document.createElement("dialog");
-  dialog.className = "md-preview-dialog";
-
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "md-preview-close";
-  close.setAttribute("aria-label", "Close preview");
-  close.innerHTML = `<svg class="icon" aria-hidden="true" focusable="false"><use href="${ICONS_PATH}#x"></use></svg>`;
-  close.addEventListener("click", () => dialog.close());
-
-  const content = document.createElement("div");
-  content.className = "md-preview-content prose";
-
-  dialog.append(close, content);
-  // Close when the backdrop (the dialog element itself) is clicked.
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) dialog.close();
-  });
-  document.body.appendChild(dialog);
-
-  return {
-    open: () => dialog.showModal(),
-    setLoading: () => {
-      content.textContent = "Loading preview…";
-    },
-    show: (html) => {
-      content.innerHTML = html.trim() || "<p><em>Nothing to preview.</em></p>";
-    },
-  };
-};
+import {
+  MARKDOWN_PREVIEW_TEMPLATE_ID,
+  type PreviewCopy,
+} from "#shared/markdown-preview.ts";
+import { openAdminModal } from "#src/ui/client/admin/modal.ts";
+import { requiredChild } from "#src/ui/client/dom.ts";
 
 /** Find the CSRF token for the form a textarea belongs to. */
 const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
@@ -74,15 +41,38 @@ export const initMarkdownPreview = (): void => {
   );
   if (textareas.length === 0) return;
 
-  let dialog: PreviewDialog | null = null;
+  const template = requiredChild<HTMLTemplateElement>(
+    document,
+    `template#${MARKDOWN_PREVIEW_TEMPLATE_ID}`,
+  );
+  const copyFor = (name: PreviewCopy): Element =>
+    document.importNode(
+      requiredChild(template.content, `[data-copy="${name}"]`),
+      true,
+    );
+  const heading = copyFor("title").textContent ?? "";
 
   const requestPreview = async (
     textarea: HTMLTextAreaElement,
   ): Promise<void> => {
-    dialog ??= createDialog();
-    const d = dialog;
-    d.setLoading();
-    d.open();
+    const content = document.createElement("div");
+    content.className = "md-preview-content prose";
+    const modal = openAdminModal(
+      {
+        collapsedTitle: heading,
+        // Each field keeps its own window, so two previews can be open at
+        // the same time.
+        key: `markdown-preview:${textarea.id || textarea.name}`,
+        title: heading,
+      },
+      content,
+    );
+    modal.content.replaceChildren(copyFor("loading"));
+    // A preview that cannot load says so in its window. The field keeps the
+    // words the operator typed, so the failure costs nothing else.
+    const showFailure = (): void => {
+      modal.content.replaceChildren(copyFor("failed"));
+    };
     try {
       const res = await fetch("/admin/markdown-preview", {
         body: new URLSearchParams({
@@ -92,9 +82,18 @@ export const initMarkdownPreview = (): void => {
         headers: { "content-type": "application/x-www-form-urlencoded" },
         method: "POST",
       });
-      d.show(res.ok ? await res.text() : "<p><em>Preview failed.</em></p>");
+      if (!res.ok) {
+        showFailure();
+        return;
+      }
+      const html = (await res.text()).trim();
+      if (html === "") {
+        modal.content.replaceChildren(copyFor("empty"));
+        return;
+      }
+      modal.content.innerHTML = html;
     } catch {
-      d.show("<p><em>Preview failed.</em></p>");
+      showFailure();
     }
   };
 
@@ -106,14 +105,11 @@ export const initMarkdownPreview = (): void => {
     const footer = document.createElement("div");
     footer.className = "md-editor-footer";
 
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "md-preview-link";
-    link.textContent = "Preview";
+    const link = copyFor("open");
     link.addEventListener("click", () => requestPreview(textarea));
 
     textarea.insertAdjacentElement("afterend", footer);
-    footer.appendChild(link);
-    if (counter) footer.appendChild(counter);
+    footer.append(link);
+    if (counter !== null) footer.append(counter);
   }
 };

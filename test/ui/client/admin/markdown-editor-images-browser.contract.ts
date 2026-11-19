@@ -293,7 +293,7 @@ describeWithBrowser(
         // button is picked by its own name.
         await page.getByRole("button", { name: "Preview" }).click();
 
-        const shown = page.locator(".md-preview-dialog .md-preview-content");
+        const shown = page.locator("dialog.admin-modal .md-preview-content");
         await shown.locator("img").waitFor();
         expect(await shown.locator("img").getAttribute("src")).toBe(
           "/image/harbour.webp",
