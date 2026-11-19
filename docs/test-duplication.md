@@ -8,17 +8,17 @@ scanned at **40 tokens**, alongside `src/`, by `cfg/jscpd.helpers.json`. The
 Cucumber support helpers under `test/specs/support` are scanned twice: at **18
 tokens** alongside `src/`, and at **40 tokens** on their own by
 `cfg/jscpd.support.json`. The 18-token scan holds its accepted clones in the
-committed baseline `cfg/.jscpd.specs-baseline.json`, the way the renamed-clone
-gate does. See [What is left](#what-is-left) for the remaining steps.
+count for `specs`, the way the renamed-clone gate does. See
+[What is left](#what-is-left) for the remaining steps.
 
-All counts come from commit `ebc7c12` and from jscpd 5.0.12 with `minLines: 1`,
-the setting every config in this repository uses. A count is the number of clone
-pairs the scan reports, not the number of places to edit: one merge usually
-clears several pairs.
+The clone tables in this document come from commit `ebc7c12` and from jscpd
+5.0.12 with `minLines: 1`, the setting every config in this repository uses.
+Their numbers count clone pairs, not places to edit. One merge usually clears
+several pairs.
 
-The scan configs and the committed baselines live in `cfg/`. The ratchet in
-`deno task cpd` reads each baseline there. `deno task cpd:update` rewrites
-every baseline from the working tree.
+The scan configs and the counts file live in `cfg/`. The ratchet in
+`deno task cpd` reads `cfg/cpd-counts.json`. `deno task cpd:update` writes each
+count from the working tree.
 
 ## The six scans, and why there are six
 
@@ -73,17 +73,17 @@ therefore get a second scan of their own, `cfg/jscpd.support.json`, which drops
 `src/` and holds them at 15. **18 is where the shared config sits, not where
 the helpers have to stay.**
 
-### The 18-token shared scan carries a baseline
+### The 18-token shared scan carries a count
 
 Below 19 tokens the shared scan reads real signal and coincidence together.
 Dropping `cfg/jscpd.specs.json` to 18 tokens surfaces 220 clone pairs. Most are
 the coincidence classes this document already names: import blocks, matching
 signatures and parameter lists, type aliases, schema table data, and support
 test bodies. The scan cannot hold those at zero without a full-band
-classification, so the config carries a committed baseline instead. `deno task
-cpd` runs the specs config with `--baseline cfg/.jscpd.specs-baseline.json
+classification, so the config carries a committed count instead. `deno task
+cpd` runs the specs config with `--counts cfg/cpd-counts.json --scan specs
 --fail-on-new-clones`, exactly the way the renamed-clone gate does.
-`deno task cpd:specs --update` rewrites the baseline after a merge. A new
+`deno task cpd:specs --update` writes the count after a merge. A new
 18-token clone anywhere in the scanned trees fails the gate.
 
 The first pass merged the pairs that were real duplicated logic:
@@ -99,8 +99,8 @@ The first pass merged the pairs that were real duplicated logic:
   parameter slice `SessionPaymentReference`, so the two charge-reference
   readers no longer repeat the type.
 
-The remaining 217 pairs sit in the baseline. They are import-block and
-signature matches, one-line field and schema builders, and the support test
+The count accepts the places of the remaining 217 pairs. They are import-block
+and signature matches, one-line field and schema builders, and the support test
 bodies. Each is a separate merge when its band is classified.
 
 Read a whole band before you lower a limit. A small sample can call a band
@@ -193,11 +193,10 @@ Since jscpd 5.2.0 the scan is jscpd's own. `deno task cpd:renamed` runs
 `cfg/jscpd.renamed.json`, which passes `--similarity 0.99`: whole functions,
 methods and arrow functions are compared by AST shape, with names and literals
 left out, so a renamed copy scores 1.0 and is reported with kind `similar`. The
-accepted matches live in the committed baseline
-`cfg/.jscpd.renamed-baseline.json`. The wrapper fails the build on a snippet
-that the baseline does not carry, and `deno task cpd:renamed --update` rewrites
-the baseline after a merge. The baseline records no written reason — the merge
-history carries it.
+accepted matches live in the count for `renamed` in `cfg/cpd-counts.json`. The
+wrapper fails the build when the scan reports more places than that count, and
+`deno task cpd:renamed --update` writes the count after a merge. The count
+records no written reason — the merge history carries it.
 
 Since jscpd 5.4.2 the strict scans (`cfg/jscpd.json`, `cfg/jscpd.test.json`,
 `cfg/jscpd.helpers.json`, `cfg/jscpd.support.json`) enable the Type-2 clone
@@ -225,20 +224,19 @@ At these limits, the strict scans found these clones:
 | `cfg/jscpd.helpers.json` |        40 |    852 |
 | `cfg/jscpd.support.json` |        40 |     17 |
 
-Each scan holds the places of these clones in its committed baseline, one count
-per duplicated snippet, and runs with `--fail-on-new-clones`. A new renamed copy
-fails the gate. The fingerprint covers the snippet's text with every run of
-whitespace removed, so a line that moves, a blank line, a file rename and a new
-partner for a recorded place all keep the count. jscpd's own baseline hashes the
-raw text of a clone pair, so a blank line inside the pair changed its
-fingerprint and the gate failed on code it already recorded. This repository
-therefore writes its own baseline (`scripts/jscpd/baseline.ts`) over the scan
-report. After a merge, run `deno task cpd:update` to remove the fixed clones,
-and the baseline shrinks.
+Each scan holds one count in `cfg/cpd-counts.json`: the number of duplicated
+places in its report. A new renamed copy fails the gate. A place counts once,
+however many clone pairs link it, so a line that moves, a blank line, a file
+rename and a new partner for a recorded place all keep the count. jscpd's own
+baseline hashes the raw text of a clone pair, so a blank line inside the pair
+changed its fingerprint and the gate failed on code it already recorded. This
+repository therefore counts the places in the scan report
+(`scripts/jscpd/counts.ts`). After a merge, run `deno task cpd:update` to
+remove the fixed clones, and the count falls.
 
-A rewrite changes the text of a recorded place, so the place gets a new
-fingerprint. The ratchet accepts those places while the baseline's total falls.
-A baseline whose total rises still fails.
+A rewrite changes the text of a recorded place, but not how many places the
+scan reports. The ratchet compares two integers for each scan. A count above
+the merge base's still fails.
 
 Each TypeScript scan skips import and re-export statements through its
 `ignorePattern` list. Each list outside the tests and their helpers also skips
@@ -261,17 +259,16 @@ number of places, the family with more tokens is worse. Start the next merge
 there.
 
 A pair changes status one way: merge it (extract a helper, or curry the parts
-that differ), then refresh the baseline. A new renamed copy anywhere in the
+that differ), then write the count. A new renamed copy anywhere in the
 scanned trees fails the gate, which is the point: the slug-index class of drift
 cannot regrow silently.
 
-**The baseline shrinks as merges land** — merge a family, run
-`deno task cpd:renamed --update`, and its fingerprints drop out. The larger
-families at the time of writing are the field-picking map pairs across the admin
-pages and the table `getXById` wrappers, which are the coincidence class:
-enough code builds an object from another object's fields for unrelated
-functions to match, and the baseline absorbs them while the real merges
-proceed.
+**The count falls as merges land** — merge a family, run
+`deno task cpd:renamed --update`, and its places drop out of the count. The
+larger families at the time of writing are the field-picking map pairs across
+the admin pages and the table `getXById` wrappers, which are the coincidence
+class: enough code builds an object from another object's fields for unrelated
+functions to match, and the count absorbs them while the real merges proceed.
 
 ## What was measured and rejected
 

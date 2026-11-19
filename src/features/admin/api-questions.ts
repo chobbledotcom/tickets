@@ -27,6 +27,7 @@ import type {
 } from "#shared/admin-api-resources.ts";
 import { snakeCaseKeys } from "#shared/column-names.ts";
 import { MAX_INPUT_LENGTH } from "#shared/limits.ts";
+import { markdownSource } from "#shared/markdown-source.ts";
 import { questionRecord } from "#shared/records/questions.ts";
 import {
   childTextConfig,
@@ -71,7 +72,7 @@ const updateQuestionInput = (
   body: AdminApiUpdateQuestionBody,
   existing: QuestionWithAnswers,
 ): Result<QuestionInput> => {
-  const text = (body.text ?? existing.text).trim();
+  const text = markdownSource(body.text ?? existing.text);
   if (text === "") return errorResult("text cannot be empty");
   return okResult({
     assignAll: body.assign_all ?? existing.assignAll,

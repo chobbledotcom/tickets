@@ -60,17 +60,34 @@ export const toStableHostname = (hostname: string): string => {
   return hostname;
 };
 
+/** The URL object for a saved site address. siteUrl may be stored as a bare
+ * hostname, so a default scheme is added first. Scheme detection is
+ * case-insensitive, so an `HTTPS://` URL is not mistaken for a hostname. */
+const siteUrlObject = (siteUrl: string): URL =>
+  new URL(/^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`);
+
+/** The network hosts an update-mode wait contacts for a site: the stored host
+ * and its stable twin, each with any non-default port. A caller grants these
+ * to Deno so the wait can fetch the site. A host that has one address yields
+ * one entry. */
+export const siteFetchHosts = (siteUrl: string): readonly string[] => {
+  const url = siteUrlObject(siteUrl);
+  const hostWithPort = (hostname: string): string =>
+    url.port === "" ? hostname : `${hostname}:${url.port}`;
+  return [
+    ...new Set([
+      hostWithPort(url.hostname),
+      hostWithPort(toStableHostname(url.hostname)),
+    ]),
+  ];
+};
+
 /** The stable absolute address of a built site — the scheme, host, and any
  * non-default port of the stored URL, with the host mapped to its stable
- * twin, so a caller can safely append a path. siteUrl may be stored as a bare
- * hostname, so a default scheme is added first (scheme detection is
- * case-insensitive, so an `HTTPS://` URL is not mistaken for a hostname), and
- * `new URL(...).origin` drops anything past the host. */
+ * twin, so a caller can safely append a path. `new URL(...).origin` drops
+ * anything past the host. */
 export const siteBaseUrl = (siteUrl: string): string => {
-  const withScheme = /^https?:\/\//i.test(siteUrl)
-    ? siteUrl
-    : `https://${siteUrl}`;
-  const url = new URL(withScheme);
+  const url = siteUrlObject(siteUrl);
   url.hostname = toStableHostname(url.hostname);
   return url.origin;
 };

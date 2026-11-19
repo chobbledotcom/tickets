@@ -2,21 +2,21 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import * as v from "valibot";
+import { COUNTS_PATH, readCounts } from "#scripts/jscpd/counts.ts";
 import { projectRoot } from "#scripts/project-root.ts";
 import { directoryNames, pathExists } from "#test-utils/files.ts";
 
-/** The directory that holds every scan config and its committed baseline. */
+/** The directory that holds every scan config and the committed counts. */
 const CONFIG_DIR = "cfg";
 
 /** What one scan config promises. The test holds this table to the names in
  * `cfg/`, so a new scan must declare itself here. */
 interface ScanPromise {
-  /** The committed baseline the scan fails against, or null when it holds none
+  /** The scan's name in `cfg/cpd-counts.json`, or null when it holds no count
    * and relies on jscpd's own exit code instead. */
-  baseline: string | null;
+  count: string | null;
   /** The scan skips the destructured dynamic imports that load a module on
-   * first use. The scans of the tests and of their helpers read them: the
-   * pattern gives their recorded clones new fingerprints. */
+   * first use. The scans of the tests and of their helpers read them. */
   skipsLazyImports: boolean;
   /** The scan treats names, literals and annotations as noise, so a renamed
    * copy is a clone. jscpd labels it `renamed`, and a `kind` filter would hide
@@ -31,43 +31,43 @@ const LAZY_IMPORT_PATTERN =
 
 const scans: Record<string, ScanPromise> = {
   "cfg/jscpd.css.json": {
-    baseline: null,
+    count: null,
     skipsLazyImports: false,
     strict: false,
     typescript: false,
   },
   "cfg/jscpd.helpers.json": {
-    baseline: "cfg/.jscpd.helpers-baseline.json",
+    count: "helpers",
     skipsLazyImports: false,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.json": {
-    baseline: "cfg/.jscpd.baseline.json",
+    count: "main",
     skipsLazyImports: true,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.renamed.json": {
-    baseline: "cfg/.jscpd.renamed-baseline.json",
+    count: "renamed",
     skipsLazyImports: true,
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.specs.json": {
-    baseline: "cfg/.jscpd.specs-baseline.json",
+    count: "specs",
     skipsLazyImports: true,
     strict: false,
     typescript: true,
   },
   "cfg/jscpd.support.json": {
-    baseline: "cfg/.jscpd.support-baseline.json",
+    count: "support",
     skipsLazyImports: true,
     strict: true,
     typescript: true,
   },
   "cfg/jscpd.test.json": {
-    baseline: "cfg/.jscpd.test-baseline.json",
+    count: "test",
     skipsLazyImports: false,
     strict: true,
     typescript: true,
@@ -104,19 +104,23 @@ const readScanTasks = async (): Promise<string> => {
     .join(" ");
 };
 
+/** The committed counts, read from `cfg/cpd-counts.json`. */
+const readCommittedCounts = async (): Promise<Record<string, number>> =>
+  readCounts(
+    COUNTS_PATH,
+    await Deno.readTextFile(join(projectRoot, COUNTS_PATH)),
+  );
+
 describe("the scan config directory", () => {
-  test("holds every scan config and baseline, so the root holds neither", async () => {
-    const rootNames = await directoryNames(projectRoot);
-    expect(rootNames.filter((name) => name.startsWith(".jscpd."))).toEqual([]);
+  test("holds the counts file, not the root", async () => {
+    expect(await directoryNames(projectRoot)).not.toContain("cpd-counts.json");
   });
 
-  test("holds exactly the declared scans and baselines, so a new file joins every check", async () => {
+  test("holds exactly the declared scans and the counts file, so a new file joins every check", async () => {
     const names = await directoryNames(join(projectRoot, CONFIG_DIR));
     const expected = [
       ...declaredScans.map(([name]) => name),
-      ...declaredScans.flatMap(([, { baseline }]) =>
-        baseline === null ? [] : [baseline],
-      ),
+      COUNTS_PATH,
     ].sort();
     expect(names.map((name) => `${CONFIG_DIR}/${name}`)).toEqual(expected);
   });
@@ -138,6 +142,16 @@ describe("the scan config directory", () => {
   });
 });
 
+describe("the committed counts", () => {
+  test("names one scan for each scan that checks a count", async () => {
+    expect(Object.keys(await readCommittedCounts()).sort()).toEqual(
+      declaredScans
+        .flatMap(([, { count }]) => (count === null ? [] : [count]))
+        .sort(),
+    );
+  });
+});
+
 describe("strict jscpd scans", () => {
   test("carry the Type-2 clone options and report every clone kind", async () => {
     const strict = declaredScans.filter(([, promise]) => promise.strict);
@@ -151,19 +165,17 @@ describe("strict jscpd scans", () => {
     }
   });
 
-  test("fail only on clones that their baseline does not carry", async () => {
+  test("fail only when a scan reports more places than its count", async () => {
     const cpd = await readScanTasks();
-    for (const [name, { baseline }] of declaredScans) {
+    for (const [name, { count }] of declaredScans) {
       const config = await readConfig(name);
-      if (baseline === null) {
+      if (count === null) {
         expect(config.exitCode, name).toBe(1);
         continue;
       }
       expect(cpd, name).toContain(
-        `--config ${name} --baseline ${baseline} --fail-on-new-clones`,
-      );
-      expect(await pathExists(join(projectRoot, baseline)), baseline).toBe(
-        true,
+        `--config ${name} --counts ${COUNTS_PATH} --scan ${count} ` +
+          "--fail-on-new-clones",
       );
       expect(Object.keys(config), name).not.toContain("exitCode");
     }

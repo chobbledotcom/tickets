@@ -5,6 +5,7 @@ import { map } from "#fp";
 import { expectIncludesAll } from "#test-utils/assertions.ts";
 
 const DEPLOY_ACTION_PATH = ".github/actions/deploy-bunny-script/action.yml";
+const CLIENT_DEPLOY_WORKFLOW_PATH = ".github/workflows/deploy-clients.yml";
 const BUNNY_DEPLOY_WORKFLOW_PATHS = [
   ".github/workflows/bunny-deploy.yml",
   ".github/workflows/production-deploy.yml",
@@ -23,6 +24,8 @@ const SCRIPT_FILE_ARG = /deploy-built-edge\.ts\s+"[^"]+"\s+"([^"]+)"/;
 const readText = (path: string): Promise<string> => Deno.readTextFile(path);
 const githubValue = (name: string): string =>
   ["$", "{{ ", name, " }}"].join("");
+/** The text of a shell variable, built without a template placeholder. */
+const shellVariable = (name: string): string => ["$", "{", name, "}"].join("");
 
 describe("Bunny deploy workflow", () => {
   test("deploys built bundles through first-party code", async () => {
@@ -110,5 +113,51 @@ describe("Bunny deploy workflow", () => {
       new RegExp(`uses: BunnyWay/actions/deploy-script@${SHA}`),
     );
     assert(!workflow.includes("BunnyWay/actions/deploy-script@main"));
+  });
+
+  test("update-mode runs grant the hosts the CLI prints", async () => {
+    const [action, clients] = await Promise.all([
+      readText(DEPLOY_ACTION_PATH),
+      readText(CLIENT_DEPLOY_WORKFLOW_PATH),
+    ]);
+
+    for (const text of [action, clients]) {
+      expect(text).toContain("scripts/update-mode-hosts.ts");
+    }
+    expect(action).toContain('--allow-net="api.bunny.net,$SITE_HOST"');
+    expect(clients).toContain('--allow-net="api.bunny.net,$site_hosts"');
+    // The .b-cdn.net twin is derived once, where the update-mode CLI owns it.
+    expect(action).not.toContain("host_name%.bunny.run");
+  });
+
+  test("the client deploy masks each site URL and database", async () => {
+    const workflow = await readText(CLIENT_DEPLOY_WORKFLOW_PATH);
+
+    expectIncludesAll(workflow, [
+      'echo "::add-mask::$site_url"',
+      'echo "::add-mask::$db_url"',
+      'echo "::add-mask::$db_token"',
+    ]);
+    // A value must be masked before the step that can print it runs.
+    const maskAt = workflow.indexOf('echo "::add-mask::$site_url"');
+    expect(maskAt).toBeGreaterThan(-1);
+    expect(maskAt).toBeLessThan(workflow.indexOf("deno task backup"));
+  });
+
+  test("the client deploy names each site by its numeric id", async () => {
+    const workflow = await readText(CLIENT_DEPLOY_WORKFLOW_PATH);
+    const scriptIdLogLines = workflow
+      .split("\n")
+      .filter(
+        (line) =>
+          line.includes("echo") && line.includes(shellVariable("script_id")),
+      );
+
+    expect(scriptIdLogLines).toEqual([]);
+    expectIncludesAll(workflow, [
+      'site_id=$(jq -r ".sites[$i].id // empty"',
+      `echo "Site ${shellVariable("site_id")}: backing up.."`,
+      `echo "  ✓ Site ${shellVariable("site_id")} updated"`,
+    ]);
   });
 });
