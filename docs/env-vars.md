@@ -82,7 +82,9 @@ the Storage API hostname shown on Bunny's Storage **Access** page for
   message, and a webhook answer is a 503, so the sender redelivers it. A
   failed deploy leaves the variable set. Re-run the same update to clear it,
   or remove the variable by hand in the Bunny dashboard under the script's
-  Environment Secrets.
+  Environment Secrets. A site that is not activated skips the update wait. It
+  has no live page and accepts no writes, so the deploy removes the flag and
+  continues.
 - `DENO_DEPLOY_ORG_ID` - Deno Deploy organization ID used by the app creation
   API.
 - `DENO_DEPLOY_ORG_SLUG` - Deno Deploy organization slug used in each app's

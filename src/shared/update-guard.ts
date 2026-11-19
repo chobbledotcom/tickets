@@ -2,8 +2,9 @@
  * The update write-stop. A deploy sets UPDATE_IN_PROGRESS on a site, and the
  * app refuses every write while it is set. The new build's data migration
  * then sees a still database. This module owns the contract that the deploy
- * and the read-only page share. It holds the variable name, the page marker,
- * the wait, and the guard that wraps one deploy.
+ * and the read-only page share. It holds the variable name, the wait, and the
+ * guard that wraps one deploy. The page markers it reads live in
+ * `update-page-markers.ts`.
  *
  * A failure after the flag is set leaves the flag set and rethrows. A site
  * stuck read-only is safer than a half-migrated one. The begin schedule is
@@ -13,6 +14,14 @@
 
 import { errorMessage } from "#shared/error-message.ts";
 import { delay } from "#shared/now.ts";
+import {
+  isNotActivatedPage,
+  NOT_ACTIVATED_SKIP_MESSAGE,
+  SiteNotActivatedError,
+  type UpdatePageState,
+  updatePageBuildTag,
+  updatePageState,
+} from "#shared/update-page-markers.ts";
 
 /** The hosting-provider secret that puts a site into update mode. */
 export const UPDATE_IN_PROGRESS_VAR = "UPDATE_IN_PROGRESS";
@@ -23,42 +32,6 @@ export const UPDATE_FLAG_VALUE = "1";
 
 /** The value that lifts update mode where the provider has no delete. */
 export const UPDATE_FLAG_LIFTED_VALUE = "";
-
-export type UpdatePageState = "unsupported" | "supported" | "active";
-
-const MARKER_NAME = 'name="update-in-progress"';
-
-/** The head marker the read-only page carries. "supported" says this build
- * understands UPDATE_IN_PROGRESS. "active" says the update page shows right
- * now. The deploy helpers match these values, so both sides of the wait
- * share one definition here. */
-export const updatePageMeta = (state: "supported" | "active"): string =>
-  `<meta ${MARKER_NAME} content="${state}" />`;
-
-/** Read the update-mode state off a /read-only page body. */
-export const updatePageState = (html: string): UpdatePageState => {
-  if (html.includes(updatePageMeta("active"))) return "active";
-  return html.includes(MARKER_NAME) ? "supported" : "unsupported";
-};
-
-const BUILD_TAG_MARKER_NAME = 'name="update-build-tag"';
-
-const BUILD_TAG_PATTERN = new RegExp(
-  `<meta ${BUILD_TAG_MARKER_NAME} content="([^"]+)"`,
-);
-
-/** The head marker that names the running build by its release tag. The
- * page renders it from the build timestamp the bundle bakes in. The
- * post-deploy wait matches it against the build the deploy just published,
- * so an active page from the old build cannot pass the wait. */
-export const updateBuildTagMeta = (buildTag: string): string =>
-  `<meta ${BUILD_TAG_MARKER_NAME} content="${buildTag}" />`;
-
-/** Read the running build's release tag off a /read-only page body. Return
- * null when the page carries no tag: a build from before this marker
- * existed. */
-export const updatePageBuildTag = (html: string): string | null =>
-  BUILD_TAG_PATTERN.exec(html)?.[1] ?? null;
 
 export const UPDATE_WAIT_INTERVAL_MS = 5_000;
 export const UPDATE_WAIT_TIMEOUT_MS = 180_000;
@@ -106,7 +79,8 @@ type UpdatePageResult = { ok: boolean; status: number; text: string };
 /** Fetch one update page through `fetchText`, bounded so a stalled request
  * ends before the wait's deadline, and return its body. A non-OK answer
  * raises an `UpdatePageCheckError`, so no caller reads a broken page as
- * "unsupported" and the retry sees every status one way. */
+ * "unsupported" and the retry sees every status one way. A not-activated site
+ * raises `SiteNotActivatedError`, so the wait can skip it. */
 export const fetchUpdatePageBody = async (
   fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
   url: string,
@@ -115,7 +89,15 @@ export const fetchUpdatePageBody = async (
     method: "GET",
     signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
   });
-  if (!response.ok) throw new UpdatePageCheckError(response.status);
+  if (!response.ok) {
+    if (
+      response.status === RETRYABLE_PAGE_STATUS &&
+      isNotActivatedPage(response.text)
+    ) {
+      throw new SiteNotActivatedError();
+    }
+    throw new UpdatePageCheckError(response.status);
+  }
   return response.text;
 };
 
@@ -180,12 +162,14 @@ export type UpdateWaitOptions = UpdatePollIo & {
  * about the site's state. */
 type UpdatePoll =
   | { kind: "failed"; detail: string }
+  | { kind: "notActivated" }
   | { kind: "notReady"; status: number }
   | { kind: "page"; buildTag: string | null; state: UpdatePageState };
 
 /** One check. A failed fetch ends the wait instead of guessing: it says
  * nothing about the site's state. A retryable status keeps the wait going,
- * because the site answered and it will answer again. */
+ * because the site answered and it will answer again. A not-activated site
+ * ends the wait: it has no live page and accepts no writes. */
 const pollOnce = async (options: UpdateWaitOptions): Promise<UpdatePoll> => {
   try {
     const html = await options.fetchPage();
@@ -195,6 +179,9 @@ const pollOnce = async (options: UpdateWaitOptions): Promise<UpdatePoll> => {
       state: updatePageState(html),
     };
   } catch (error) {
+    if (error instanceof SiteNotActivatedError) {
+      return { kind: "notActivated" };
+    }
     if (error instanceof UpdatePageCheckError && error.retryable) {
       return { kind: "notReady", status: error.status };
     }
@@ -216,21 +203,29 @@ const pollIsReady = (
   (options.expectedBuildTag === undefined ||
     poll.buildTag === options.expectedBuildTag);
 
-/** What the run-out can see: every poll except the failed one. A failed
- * check ends the wait through `failedCheck`, so it never reaches a plan's
- * run-out. */
-type RunOutPoll = Exclude<UpdatePoll, { kind: "failed" }>;
+/** What the run-out can see: every poll except the failed and not-activated
+ * ones. A failed check ends the wait through `failedCheck`. A not-activated
+ * site ends the wait through a skip. Neither reaches a plan's run-out. */
+type RunOutPoll = Exclude<
+  UpdatePoll,
+  { kind: "failed" } | { kind: "notActivated" }
+>;
 
-/** What one check found. "ready" ends the wait. "skip" ends it when the
- * caller asked to skip a build that predates update mode. "abort" ends it
- * now, because the check itself failed. "unchanged" keeps the wait going:
- * the page answers without the update message, or a retryable status says
- * the site is not ready yet. It carries the poll, so the plan's run-out can
- * name what kept the site from ready. */
+/** Why a wait stopped early. A build that predates update mode needs the
+ * flag to stay set for the new build. A site that is not activated needs the
+ * flag removed at once. */
+type SkipReason = "notActivated" | "unsupported";
+
+/** What one check found. "ready" ends the wait. "skip" ends it because the
+ * site needs no update wait. "abort" ends it now, because the check itself
+ * failed. "unchanged" keeps the wait going: the page answers without the
+ * update message, or a retryable status says the site is not ready yet. It
+ * carries the poll, so the plan's run-out can name what kept the site from
+ * ready. */
 type CheckDecision =
   | { kind: "abort"; lastError: string }
   | { kind: "ready" }
-  | { kind: "skip" }
+  | { kind: "skip"; message: string; reason: SkipReason }
   | { kind: "unchanged"; poll: RunOutPoll };
 
 const checkDecision = (
@@ -240,6 +235,13 @@ const checkDecision = (
   if (poll.kind === "failed") {
     return { kind: "abort", lastError: poll.detail };
   }
+  if (poll.kind === "notActivated") {
+    return {
+      kind: "skip",
+      message: NOT_ACTIVATED_SKIP_MESSAGE,
+      reason: "notActivated",
+    };
+  }
   if (poll.kind === "page" && pollIsReady(options, poll)) {
     return { kind: "ready" };
   }
@@ -248,7 +250,11 @@ const checkDecision = (
     options.skipWhenUnsupported &&
     poll.state === "unsupported"
   ) {
-    return { kind: "skip" };
+    return {
+      kind: "skip",
+      message: UNSUPPORTED_SKIP_MESSAGE,
+      reason: "unsupported",
+    };
   }
   return { kind: "unchanged", poll };
 };
@@ -265,7 +271,8 @@ const waitClockFrom = (
 /** The plan one wait follows: the quiet gap before each check, and what
  * happens after a check that still finds the page unchanged. Keep waiting,
  * or end the wait with an error the loop raises. A failed check bypasses
- * the plan's schedule: the loop ends the wait at once through `failedCheck`. */
+ * the plan's schedule: the loop ends the wait at once through `failedCheck`.
+ * A skip ends the wait without an error, after the plan's `onSkip` runs. */
 type UpdateWaitPlan = {
   gap: (checked: number) => number;
   /** One unchanged check's verdict: null keeps the wait going, and an
@@ -274,11 +281,15 @@ type UpdateWaitPlan = {
   /** One failed check's error. The wait ends the moment a check fails,
    * with the failure's detail in the message. */
   failedCheck: (lastError: string) => Promise<Error>;
+  /** Runs before the wait returns on a skip. The begin wait clears the flag
+   * it set for a not-activated site. The unsupported skip keeps the flag for
+   * the new build. */
+  onSkip?: (reason: SkipReason) => Promise<void>;
 };
 
-/** The check loop both waits share: sleep the plan's gap, poll, and end
- * the wait on a ready page or a pre-update-mode build. A check that still
- * finds the page unchanged asks the plan. A non-null verdict ends the
+/** The check loop both waits share. It sleeps the plan's gap, polls, and
+ * ends the wait on a ready page or a site that needs no wait. A check that
+ * still finds the page unchanged asks the plan. A non-null verdict ends the
  * loop, and the loop raises that error. A failed check ends the wait at
  * once through the plan's `failedCheck`. */
 const loopChecks = async (
@@ -297,7 +308,8 @@ const loopChecks = async (
     const decision = checkDecision(options, poll);
     if (decision.kind === "ready") return;
     if (decision.kind === "skip") {
-      options.log?.(UNSUPPORTED_SKIP_MESSAGE);
+      options.log?.(decision.message);
+      await plan.onSkip?.(decision.reason);
       return;
     }
     if (decision.kind === "abort") {
@@ -381,18 +393,15 @@ const beginAbortError = async (
   );
 };
 
-/** The detail a failed page check contributes to a wait's error. */
-const pageCheckDetail = (lastError: string): string =>
-  ` The last page check failed: ${lastError}`;
-
 /** The scheduled begin wait: check the site 10, 30, and 60 seconds after
- * the flag was set. An update page at any mark ends the wait cleanly, and
- * a build that predates update mode skips the wait. A site that still
- * serves its normal page at the last mark reverts the flag through
- * `revert` and raises the error. A failed page check reverts the flag and
- * raises at once. The schedule is only for a page that answers but does
- * not show the update message. A retryable status keeps the marks, and the
- * run-out names that status. */
+ * the flag was set. An update page at any mark ends the wait cleanly. A
+ * build that predates update mode skips the wait. A not-activated site
+ * skips the wait and reverts the flag, because it has no live page and
+ * accepts no writes. A site that still serves its normal page at the last
+ * mark reverts the flag through `revert` and raises the error. A failed page
+ * check reverts the flag and raises at once. The schedule is only for a
+ * page that answers but does not show the update message. A retryable status
+ * keeps the marks, and the run-out names that status. */
 export const waitForBeginPropagation = async (
   options: UpdateWaitOptions,
   revert: () => Promise<void>,
@@ -407,7 +416,7 @@ export const waitForBeginPropagation = async (
       beginAbortError(
         revert,
         "The page check failed, so the wait cannot tell whether the update page shows. ",
-        pageCheckDetail(lastError),
+        ` The last page check failed: ${lastError}`,
       ),
     // giveUp ends the loop at segments.length, so the index stays in range.
     gap: (checked) => segments[checked - 1]!,
@@ -426,6 +435,10 @@ export const waitForBeginPropagation = async (
         beginTimedOutBase(segments.reduce((sum, segment) => sum + segment, 0)),
         runOutNote(options.expectedBuildTag, poll) ?? "",
       );
+    },
+    onSkip: async (reason) => {
+      // The unsupported skip keeps the flag set: the new build lifts it.
+      if (reason === "notActivated") await revert();
     },
   });
 };

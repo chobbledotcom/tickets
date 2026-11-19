@@ -23,9 +23,11 @@ import {
 import {
   type UpdateGuardIo,
   UpdatePageCheckError,
+} from "#shared/update-guard.ts";
+import {
   updatePageMeta,
   updatePageState,
-} from "#shared/update-guard.ts";
+} from "#shared/update-page-markers.ts";
 import { recordingUpdateGuard } from "#test-utils/_shared-site-update.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import { createTestBuiltSite } from "#test-utils/db-helpers/built-sites.ts";
