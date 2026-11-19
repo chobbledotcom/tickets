@@ -87,6 +87,22 @@ describeWithEnv("catalog group import", { db: true }, () => {
     ]);
   });
 
+  test("names the one package value it refuses, and says to remove it", async () => {
+    const member = await createTestListing({ name: "Single override member" });
+    const message = importRefusal(
+      await importCatalog({
+        group: { name: "Single override group" },
+        kind: "group",
+        members: [{ listing: member.name, packagePrice: 500 }],
+        version: 1,
+      }),
+    );
+    expectIncludesAll(message, [
+      "Only a package group can hold packagePrice",
+      "Remove it or make the group a package.",
+    ]);
+  });
+
   test("rejects a package day override the member cannot offer", async () => {
     const member = await createTestListing({
       customisableDays: true,

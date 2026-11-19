@@ -157,6 +157,15 @@ type ListingDefinition<Values> = {
   readonly validate: (form: FormParams) => ValidationResult<Values>;
 };
 
+/** The booking duration a checked form carried. The form's own check refuses a
+ *  blank box, so a missing value means the read and the form disagree. */
+export const checkedDurationDays = (values: {
+  durationDays: number | null;
+}): number => {
+  if (typeof values.durationDays === "number") return values.durationDays;
+  throw new Error("The booking duration form box holds no count");
+};
+
 /** Read one submitted listing form. A form that sends a field box its page
  *  did not show is refused. Each shown box is read by its field kind. The
  *  "use listing defaults" switch sits outside the form definition. */
@@ -207,7 +216,7 @@ const readListingForm = <Values extends ListingFormValues>(
         fields.listingType,
         mode,
       ),
-      dayPrices: parseDayPricesFromForm(submitted, values.durationDays ?? 1),
+      dayPrices: parseDayPricesFromForm(submitted, checkedDurationDays(values)),
       groupIds: groupIds.value,
     },
     values,

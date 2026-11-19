@@ -61,14 +61,14 @@ src/shared/db/name-registry.ts::matchName.ids~0awlhoy  ?? → || audited:1sl3bgs
 src/shared/db/name-registry.ts::isNameTakenAnywhere.ownedByOther~1x88e07  ?? → || audited:1sl3bgs # matchName index.get(): number[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/bundle-groups.ts::validateGroups~0bnxwrf  ?? → || audited:1m08ncr # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/bundle-site.ts::groupViewOf.isPackage~1hwf5fo  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
-src/features/admin/catalog-transfer/bundle-site.ts::collectPairs~0bnxwrf  ?? → || audited:0qsndgn # isPackage is boolean|undefined, and false equals the false fallback
+src/features/admin/catalog-transfer/bundle-site.ts::collectPairs.isPackage~0bnxwrf  ?? → || audited:1j8dvjv # isPackage is boolean|undefined, and false equals the false fallback
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~0f9t11y  ?? → || audited:1w12n5i # formatTransferIssues flat.root: string[]|undefined — an array is always truthy
 src/features/admin/catalog-transfer/schema.ts::formatTransferIssues.parts~19zbaq1  ?? → || audited:1w12n5i # formatTransferIssues flat.nested: object|undefined — an object is always truthy
 # isStorableDatetime: the first m[N] read sits in a `=== undefined` test that is
 # always false (m[0] is the whole match), each `? 0 :` fallback feeds a `> bound`
 # guard it can never trip, and the month/day range checks are redundant with the
 # UTC round-trip.
-src/features/admin/catalog-transfer/schema.ts::filterDayPricesToDuration.max~0mwju9v  ?? → || audited:1w12n5i # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
+src/features/admin/catalog-transfer/schema.ts::ListingDataSchema~0mwju9v  ?? → || audited:084b5xi # durationDays is validated to be at least 1, so `?? 1` and `|| 1` pick the same value
 
 # middleware.ts's Content-Type fallback already equals the only falsy string.
 # Once a tracking key is found, continuing instead of breaking can only
