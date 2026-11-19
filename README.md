@@ -718,9 +718,11 @@ secret.
   the workflow only reads, to take backups), backs each up to the builder's
   storage, then deploys. The job log names each site by its numeric site id. It
   masks the site URL and the database URL and token before any step can print
-  them, so the public log holds no client address or database credential. The
-  **`tier`** run input (`alpha` default, then `beta`
-  or `release`) is the release channel being published: each site carries its
+  them, so the public log holds no client address or database credential. A
+  site that is not activated has no live page and accepts no writes, so the
+  deploy updates it without the update wait. The **`tier`** run input
+  (`alpha` default, then `beta` or `release`) is the release channel being
+  published: each site carries its
   own `updates` channel and only the sites at the deploy's tier or more eager
   are returned — a `release` deploy reaches every site, `beta` reaches beta +
   alpha sites, `alpha` only alpha sites. The default is `alpha` (the smallest

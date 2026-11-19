@@ -2,11 +2,11 @@ import { expect } from "@std/expect";
 import { afterEach, beforeEach } from "@std/testing/bdd";
 import { type Stub, stub } from "@std/testing/mock";
 import { bunnyCdnApi } from "#shared/bunny-cdn.ts";
+import type { UpdateGuardIo } from "#shared/update-guard.ts";
 import {
-  type UpdateGuardIo,
   updateBuildTagMeta,
   updatePageMeta,
-} from "#shared/update-guard.ts";
+} from "#shared/update-page-markers.ts";
 import { expectFlash, expectRedirect } from "#test-utils/assertions.ts";
 import { type EnvScope, withEnv } from "#test-utils/env.ts";
 import { stubFetch } from "#test-utils/fetch-stub.ts";
