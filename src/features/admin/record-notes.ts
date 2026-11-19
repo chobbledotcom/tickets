@@ -29,6 +29,7 @@ import {
 } from "#routes/response.ts";
 import type { RouteHandlerFn } from "#routes/router.ts";
 import { getSearchParam } from "#routes/url.ts";
+import { readSubmittedMarkdown } from "#shared/forms/submitted-value.ts";
 import type { ResponseHandler } from "#shared/response-steps.ts";
 import { withReturnUrl } from "#shared/return-url-field.tsx";
 import {
@@ -216,7 +217,7 @@ export const recordNoteFeature = <Record extends { id: number }>(
   const addPost: RecordNoteHandlers["addPost"] = (request, id) =>
     withForm(request, async (session, form) =>
       withLoadedRecord(id, session, async (record) => {
-        const note = form.getString("note").trim();
+        const note = readSubmittedMarkdown(form, "note");
         const returnUrl = form.getString("returnUrl");
         // Re-render in place on a blank note (preserving the return target)
         // rather than redirect — nothing to preserve, no PRG round-trip needed.

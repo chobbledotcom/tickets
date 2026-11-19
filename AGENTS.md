@@ -549,14 +549,15 @@ for why.
 
 ## Code Duplication
 
-`deno task cpd` runs jscpd, and every scan fails on a clone that its committed
-baseline does not carry. The strict scans ignore names, literals, and
-annotations, so a renamed copy is a clone. The baselines only shrink. The scan
-configs and the committed baselines live in `cfg/`. A tool or a platform that
-must read its config from the repository root keeps the file there, as
-`biome.json`, `deno.json`, `devenv.nix`, `fly.toml` and `render.yaml` do. Biome
-refuses a second root configuration in a subdirectory, and the platforms look
-for their file at the root.
+`deno task cpd` runs jscpd, and every scan fails when it reports more
+duplicated places than its count. The scan configs and the counts file live in
+`cfg/`, and `cfg/cpd-counts.json` holds one count for each scan. A count only
+falls. The strict scans ignore names, literals, and annotations, so a renamed
+copy is a clone. A tool or a platform that must read its config from the
+repository root keeps the file there, as `biome.json`, `deno.json`,
+`devenv.nix`, `fly.toml` and `render.yaml` do. Biome refuses a second root
+configuration in a subdirectory, and the platforms look for their file at the
+root.
 
 A flagged pair is one merge:
 
@@ -568,44 +569,34 @@ A flagged pair is one merge:
 - After a dedup, search for the other places that now fold into the new helper.
 - The one honest exception is a shared signature with nothing behind it: no
   shared call at all. Give that signature a named type instead.
-- The renamed scan holds accepted matches in
-  `cfg/.jscpd.renamed-baseline.json`. Add a pair only after you try the curry,
-  with `deno task cpd:renamed --update`.
-- The strict scans hold the cloned code that existed when they started to count
-  renamed copies, in `cfg/.jscpd.baseline.json`,
-  `cfg/.jscpd.test-baseline.json`, `cfg/.jscpd.helpers-baseline.json`, and
-  `cfg/.jscpd.support-baseline.json`. After a merge, remove the fixed clones
-  with `deno task cpd:update`. Never add a clone to these baselines.
-- A baseline holds one count for each duplicated snippet. The fingerprint of a
-  snippet covers its text with every run of whitespace removed. A line that
-  moves, a blank line, a file rename, and a new partner for a recorded place
-  therefore keep the count. jscpd's own `--baseline` file hashes the raw text
-  of a clone pair, so this repository writes its own baseline over the scan
-  report, in `scripts/jscpd/baseline.ts`. `deno task cpd:update` rewrites every
-  baseline, and `deno task cpd` checks each scan against it.
-- A branch must not raise a baseline. The ratchet in `deno task cpd` fails on
-  a clone that the merge base on `origin/main` does not hold, and on a count
-  above the base's, so precommit and CI catch both. It reads every
-  `.jscpd.*baseline.json` in `cfg/`, and matches each one to the merge base by
-  file name, so a baseline that moves between directories does not count as
-  new. It fails on a scan task that names another path, so a new scan's
-  baseline is compared too. Run it on its own with
-  `deno task check:jscpd-baselines`.
-- A baseline names its fingerprint version. The ratchet cannot compare counts
-  of two versions, so it passes a merge base copy that holds an older version.
-  A baseline whose own version is old fails, and the fix is
-  `deno task cpd:update`.
-- A rewrite re-keys the recorded places it changes. The ratchet accepts those
-  places while the baseline's total falls. A baseline whose total rises, or one
-  that adds more places than it gives up, still fails. A count above the
-  base's for a snippet that the base holds still fails.
-- After each scan, `deno task cpd` names the worst duplication: the code in the
-  most places, then the code with the most tokens. Merge that one first.
+- The renamed scan counts its accepted matches under `renamed`. A new pair
+  raises the count, and `deno task cpd:renamed --update` refuses it. Merge the
+  pair instead. The command writes only a lower count.
+- The counts for `main`, `test`, `helpers` and `support` hold the cloned code
+  that existed when the strict scans started to count renamed copies. After a
+  merge, remove the fixed clones with `deno task cpd:update`.
+- A count is the number of duplicated places that one scan reports. A place
+  counts once, however many clone pairs link it. A line that moves, a blank
+  line, a file rename, and a new partner for a recorded place keep the count.
+  `scripts/jscpd/counts.ts` reads the file and counts the places in the scan
+  report. `deno task cpd:update` writes each count, and `deno task cpd` checks
+  each scan against it. An update fails on a rise.
+- A branch must not raise a count. The ratchet in `deno task cpd` compares two
+  integers for each scan with the merge base on `origin/main`, so precommit and
+  CI catch a rise. It fails on a scan task that names another counts file, and
+  on a scan name that the file does not hold. Run it on its own with
+  `deno task check:cpd-counts`.
+- A merge that removes a clone lowers the count. A merge that changes no
+  duplicated place leaves the count alone, so a rewrite does not touch the
+  record.
+- A failing scan prints its place total, the committed count, and the worst
+  duplication. The worst duplication is the code in the most places, then the
+  code with the most tokens. Merge that one first.
 - Import and re-export statements are a sanctioned repeat. This includes a
   destructured dynamic import, `const { name } = await import("…");`. The
   `ignorePattern` list in each config skips them, so do not add ignore markers
   around imports. The scans of the tests and of their helpers skip no dynamic
-  import: that pattern gives their recorded clones new fingerprints.
+  import: each one names its own module, so two of them rarely match.
 - A declared list of strings is the other sanctioned repeat. The strict scans
   ignore literals, so two long word lists match. Wrap the whole declaration in
   `/* jscpd:ignore-start -- a list of strings, not code */` and
