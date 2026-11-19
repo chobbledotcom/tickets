@@ -210,24 +210,30 @@ describe("the image picker dialog", () => {
   test("keeps the dialog open while an upload is in flight", async () => {
     const { promise: upload, resolve: resolveUpload } =
       Promise.withResolvers<Response>();
-    const opened = await openDialog([twoImageList(), () => upload]);
-    const { dialog, handle, textarea } = opened;
+    await withDialogClock(
+      [twoImageList(), () => upload],
+      { form: true, value: "" },
+      async ({ dialog, handle, textarea }, flushSelection) => {
+        await submitUpload(dialog, "Harbour");
 
-    await submitUpload(dialog, "Harbour");
+        requireElement<HTMLButtonElement>(dialog, ".md-preview-close").click();
+        expect(dialog.open).toBe(true);
+        dialog.click();
+        expect(dialog.open).toBe(true);
+        const cancel = new Event("cancel", { cancelable: true });
+        dialog.dispatchEvent(cancel);
+        expect(cancel.defaultPrevented).toBe(true);
+        expect(dialog.open).toBe(true);
 
-    requireElement<HTMLButtonElement>(dialog, ".md-preview-close").click();
-    expect(dialog.open).toBe(true);
-    const cancel = new Event("cancel", { cancelable: true });
-    dialog.dispatchEvent(cancel);
-    expect(cancel.defaultPrevented).toBe(true);
-    expect(dialog.open).toBe(true);
+        resolveUpload(redirected("/admin/images/12/edit"));
+        await flush();
 
-    resolveUpload(redirected("/admin/images/12/edit"));
-    await flush();
-
-    expect(dialog.open).toBe(false);
-    expect(textarea.value).toContain("img#12");
-    handle.view.destroy();
+        expect(dialog.open).toBe(false);
+        expect(textarea.value).toContain("img#12");
+        handle.view.destroy();
+        await flushSelection();
+      },
+    );
   });
 
   test("keeps the dialog open with a plain message when the upload fails", async () => {

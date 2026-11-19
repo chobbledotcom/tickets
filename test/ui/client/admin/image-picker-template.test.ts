@@ -264,9 +264,7 @@ describe("the image picker template", () => {
   test("uses the generic note for an empty server refusal", async () => {
     installDom(PICKER_TEMPLATE);
     const dialog = parts();
-    const refused = new Response(
-      '<div class="error" role="alert"> </div>',
-    );
+    const refused = new Response('<div class="error" role="alert"> </div>');
     Object.defineProperty(refused, "url", {
       value: "http://localhost/admin/images/new",
     });
