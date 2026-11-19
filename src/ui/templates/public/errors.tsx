@@ -4,7 +4,11 @@ import { type Child, Raw } from "#jsx/jsx-runtime.ts";
 import { isoToTag } from "#shared/build-tag.ts";
 import { getRenewalUrl, isUpdateInProgress } from "#shared/env.ts";
 import { getEffectiveBuildTimestamp } from "#shared/update.ts";
-import { updateBuildTagMeta, updatePageMeta } from "#shared/update-guard.ts";
+import {
+  notActivatedPageMeta,
+  updateBuildTagMeta,
+  updatePageMeta,
+} from "#shared/update-page-markers.ts";
 import {
   ProseHeading,
   RawParagraph,
@@ -201,7 +205,7 @@ export const siteNotActivatedPage = (): string =>
   errorPage(
     "public.not_activated.title",
     "public.not_activated.heading",
-    ERROR_DIALOG_STYLE,
+    `${notActivatedPageMeta()}${ERROR_DIALOG_STYLE}`,
   )(<p>{t("public.not_activated.message")}</p>);
 
 /**

@@ -1,11 +1,16 @@
 import { expect } from "@std/expect";
 import { describe, it as test } from "@std/testing/bdd";
 import {
+  fetchUpdatePageBody,
   UPDATE_WAIT_INTERVAL_MS,
   UPDATE_WAIT_TIMEOUT_MS,
   UpdatePageCheckError,
   waitForUpdatePage,
 } from "#shared/update-guard.ts";
+import {
+  notActivatedPageMeta,
+  SiteNotActivatedError,
+} from "#shared/update-page-markers.ts";
 import { fakeClock, page } from "#test-utils/_shared-site-update.ts";
 import { MOCK_RELEASE } from "#test-utils/mocks.ts";
 
@@ -77,6 +82,41 @@ describe("waitForUpdatePage", () => {
       skipWhenUnsupported: true,
     });
     expect(seen.length).toBe(1);
+  });
+
+  test("marks a not-activated 503 from the marker and from old copy", async () => {
+    for (const text of [
+      notActivatedPageMeta(),
+      "This site has not been activated yet.",
+    ]) {
+      await expect(
+        fetchUpdatePageBody(
+          () => Promise.resolve({ ok: false, status: 503, text }),
+          "https://site.example/read-only",
+        ),
+      ).rejects.toBeInstanceOf(SiteNotActivatedError);
+    }
+  });
+
+  test("skips a not-activated site without waiting", async () => {
+    const clock = fakeClock();
+    const seen: string[] = [];
+    let fetches = 0;
+    await waitForUpdatePage({
+      fetchPage: () => {
+        fetches += 1;
+        return Promise.reject(new SiteNotActivatedError());
+      },
+      log: (message) => seen.push(message),
+      now: clock.now,
+      sleep: clock.sleep,
+    });
+    // The first check is immediate. The skip ends the wait with no sleep.
+    expect(fetches).toBe(1);
+    expect(clock.now()).toBe(0);
+    expect(seen).toEqual([
+      "The site is not activated, so it has no live page and accepts no writes. The deploy skips the update wait.",
+    ]);
   });
 
   test("keeps polling an unsupported build after the deploy", async () => {
