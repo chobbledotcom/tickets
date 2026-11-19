@@ -66,6 +66,20 @@ const submit = async (
   await flush();
 };
 
+/** Answer the upload with a refused page, then return the picker. */
+const refusedUpload = async (errorHtml: string): Promise<PickerDialogParts> => {
+  installDom(PICKER_TEMPLATE);
+  const dialog = parts();
+  const refused = new Response(errorHtml);
+  Object.defineProperty(refused, "url", {
+    value: "http://localhost/admin/images/new",
+  });
+  fetchStubHolder.stub = stubFetch(refused);
+  wireUploadForm(dialog, () => undefined);
+  await submit(dialog);
+  return dialog;
+};
+
 describe("the image picker template", () => {
   test("finds the server's template and one of its notes", () => {
     installDom(PICKER_TEMPLATE);
@@ -245,33 +259,17 @@ describe("the image picker template", () => {
   });
 
   test("shows the server's refusal reason", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
-    const refused = new Response(
+    const dialog = await refusedUpload(
       '<div class="error" role="alert">Image name is required</div>',
     );
-    Object.defineProperty(refused, "url", {
-      value: "http://localhost/admin/images/new",
-    });
-    fetchStubHolder.stub = stubFetch(refused);
-    wireUploadForm(dialog, () => undefined);
-
-    await submit(dialog);
 
     expect(dialog.grid.textContent).toBe("Image name is required");
   });
 
   test("uses the generic note for an empty server refusal", async () => {
-    installDom(PICKER_TEMPLATE);
-    const dialog = parts();
-    const refused = new Response('<div class="error" role="alert"> </div>');
-    Object.defineProperty(refused, "url", {
-      value: "http://localhost/admin/images/new",
-    });
-    fetchStubHolder.stub = stubFetch(refused);
-    wireUploadForm(dialog, () => undefined);
-
-    await submit(dialog);
+    const dialog = await refusedUpload(
+      '<div class="error" role="alert"> </div>',
+    );
 
     expect(dialog.grid.textContent).toBe(
       "The image could not be uploaded. Please try again.",
