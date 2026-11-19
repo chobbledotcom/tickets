@@ -1,6 +1,7 @@
 import { t } from "#i18n";
+import { CsrfForm } from "#shared/forms/csrf-form.tsx";
 import type { ImageOption } from "#shared/images/picker.ts";
-import { Icon } from "#templates/components/actions.tsx";
+import { Icon, SaveChangesButton } from "#templates/components/actions.tsx";
 
 /** The Images field on a new physical-product or custom listing. Each chosen
  *  picture travels as a repeated `imageIds` input. The admin bundle's listing
@@ -8,8 +9,10 @@ import { Icon } from "#templates/components/actions.tsx";
  *  carry the name and thumbnail so a rejected create re-renders the same
  *  pictures without another read. */
 export const ListingImagesField = ({
+  saveChanges = false,
   selected,
 }: {
+  saveChanges?: boolean;
   selected: readonly ImageOption[];
 }): JSX.Element => (
   <div
@@ -33,9 +36,31 @@ export const ListingImagesField = ({
       {t("listings_table.images_none")}
     </p>
     <ul class="listing-images-selected" data-listing-images-selected />
-    <button class="btn" data-listing-images-trigger type="button">
-      <Icon name="plus" />
-      <span>{t("listings_table.choose_images")}</span>
-    </button>
+    <div class="listing-images-actions">
+      <button class="btn" data-listing-images-trigger type="button">
+        <Icon name="plus" />
+        <span>{t("listings_table.add_images")}</span>
+      </button>
+      {saveChanges && (
+        <span class="listing-images-save">{SaveChangesButton()}</span>
+      )}
+    </div>
   </div>
 );
+
+/** The Images tab on a saved listing: the same field the create form shows,
+ *  with the Save that writes the chosen links. */
+/* jscpd:ignore-start -- the minimum CSRF wrapper; the save must sit in the
+ * field's action row, which the shared SaveForm cannot place. */
+export const ListingImagesPanel = ({
+  action,
+  selected,
+}: {
+  action: string;
+  selected: readonly ImageOption[];
+}): JSX.Element => (
+  <CsrfForm action={action}>
+    <ListingImagesField saveChanges selected={selected} />
+  </CsrfForm>
+);
+/* jscpd:ignore-end */

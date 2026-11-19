@@ -2,18 +2,20 @@ import {
   getAllAttributesWithOptions,
   listingAttributeOptions,
 } from "#db/attributes.ts";
+import { getImagesForItem } from "#db/images.ts";
 import {
   getAllQuestionsWithAnswers,
   getListingQuestionIds,
 } from "#db/questions/queries.ts";
 import type { PageCtx } from "#routes/admin/entity-pages.ts";
 import type { AssignPageContext } from "#routes/admin/listings-switch.ts";
+import { imageOptionsOf } from "#shared/images/picker.ts";
 import { ListingAttributesPanel } from "#templates/admin/attributes.tsx";
 import { ListingQrPanel } from "#templates/admin/listing-qr.tsx";
 import { ListingEditPanel } from "#templates/admin/listings/edit-panel.tsx";
+import { ListingImagesPanel } from "#templates/admin/listings/listing-images.tsx";
 import { ListingQuestionsPanel } from "#templates/admin/questions.tsx";
 import type { ListingWithCount } from "#types";
-import { loadItemImagesPanel } from "./item-images.ts";
 import {
   getListingAndGroups,
   type LoadedListing,
@@ -53,15 +55,21 @@ export const loadListingEditPanel = async (
   });
 };
 
-/** Build the Images tab: current linked images plus upload/existing selection. */
-export const loadListingImagesPanel = ({
-  listing,
-}: LoadedListing): Promise<JSX.Element> =>
-  loadItemImagesPanel("listing", listing.id, `/admin/listing/${listing.id}`);
-
 /** A tab section loader the entity-page framework invokes with the loaded
  *  listing (and a page context this panel ignores). */
 type ListingPanelLoader = (entity: LoadedListing) => Promise<JSX.Element>;
+
+/** Build the Images tab: the listing's chosen pictures in the shared picker
+ *  field, with the save that replaces its links. */
+export const loadListingImagesPanel: ListingPanelLoader = async ({
+  listing,
+}) => {
+  const selected = await getImagesForItem("listing", listing.id);
+  return ListingImagesPanel({
+    action: `/admin/listing/${listing.id}/images`,
+    selected: imageOptionsOf(selected),
+  });
+};
 
 /** A choose-from-a-site-wide-set panel (Questions, Attributes): load every
  *  available item and this listing's selected ids in parallel, then render. The

@@ -94,6 +94,14 @@
   cursor: pointer;
 }
 
-.listing-images [data-listing-images-trigger] {
+.listing-images-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-s);
   margin-top: var(--space-m);
+}
+
+.listing-images-save {
+  display: flex;
+  margin-left: auto;
 }

@@ -24,6 +24,7 @@ import { testCookie } from "#test-utils/session.ts";
 export type BrowserContract = {
   readonly baseUrl: string;
   readonly browser: Browser;
+  withPage<T>(run: (page: Page) => Promise<T>): Promise<T>;
 };
 
 /** describeWithEnv plus the contract browser: the body runs once the
@@ -66,6 +67,12 @@ export const describeWithBrowser = (
           throw new Error("The contract browser is not open");
         }
         return open.browser;
+      },
+      withPage: <T>(run: (page: Page) => Promise<T>): Promise<T> => {
+        if (open.browser === undefined) {
+          throw new Error("The contract browser is not open");
+        }
+        return withSignedInPage(open.browser, open.baseUrl, run);
       },
     });
   });
