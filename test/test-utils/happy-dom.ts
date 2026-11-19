@@ -130,6 +130,14 @@ export const requireElements = <T extends Element>(
   selector: string,
 ): T[] => Array.from(root.querySelectorAll(selector)) as T[];
 
+/** Close every dialog the selector names, so one test leaves no window open
+ *  for the next. */
+export const closeDialogs = (root: ParentNode, selector: string): void => {
+  for (const dialog of root.querySelectorAll<HTMLDialogElement>(selector)) {
+    dialog.close();
+  }
+};
+
 /**
  * Fire a happy-dom event at an element. Client code is compiled against the
  * DOM lib's `Event`, happy-dom declares its own — the two describe the same

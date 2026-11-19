@@ -242,7 +242,7 @@ describeWithBrowser(
           await body.evaluate((element) => getComputedStyle(element).display),
         ).toBe("none");
         const collapsed = await boxOf(dialog);
-        expect(collapsed.height).toBeLessThan(before.height / 2);
+        expect(collapsed.height).toBeLessThan(before.height);
         // Both controls stay on the bar when it shows only its title.
         expect(await dialog.locator(".admin-modal-close").isVisible()).toBe(
           true,

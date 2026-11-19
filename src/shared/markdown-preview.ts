@@ -1,7 +1,7 @@
 /**
  * The markdown preview's shared facts: the id of the `<template>` that holds
  * its markup and copy, and the names of the copy it clones. The admin shell
- * renders the template on every admin page; the client module in
+ * renders the template on every admin page. The client module in
  * `src/ui/client/admin/markdown-preview.ts` adds the behaviour.
  */
 

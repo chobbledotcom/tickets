@@ -6,7 +6,7 @@
  *
  * The window is a non-modal `<dialog>`. The page behind it stays usable, and
  * Escape does not close it, because the operator closes it with its own
- * control. Every modal validates its settings at construction; a second open
+ * control. Every modal validates its settings at construction. A second open
  * with the same key raises the modal already open under that key. The markup
  * and copy come from the inert `<template>` that the admin shell renders.
  */
@@ -44,7 +44,7 @@ type Drag = {
   size: ModalSize;
 };
 
-/** The parts of one open modal, and the points it has held. */
+/** The parts of one open modal, and the points it holds. */
 type Shell = {
   bar: HTMLElement;
   body: HTMLElement;

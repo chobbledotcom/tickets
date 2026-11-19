@@ -14,6 +14,7 @@ import { MarkdownPreviewTemplate } from "#templates/admin/markdown-preview.tsx";
 import { AdminModalTemplate } from "#templates/admin/modal.tsx";
 import { type FetchReply, stubFetch } from "#test-utils/fetch-stub.ts";
 import {
+  closeDialogs,
   createDomInstaller,
   requireElement,
   requireElements,
@@ -84,12 +85,7 @@ const sentFrom = async (body: string): Promise<Sent> => {
 };
 
 afterEach(async () => {
-  for (const dialog of requireElements<HTMLDialogElement>(
-    document,
-    "dialog.admin-modal",
-  )) {
-    dialog.close();
-  }
+  closeDialogs(document, "dialog.admin-modal");
   await cleanup();
 });
 

@@ -2,7 +2,7 @@
  * The admin modal shell's inert markup, rendered once on each admin page as a
  * `<template>`. The client module in `src/ui/client/admin/modal.ts` clones it
  * for each modal it opens. The two controls carry the words a screen reader
- * reads; the title bar takes its words from the modal's settings.
+ * reads. The title bar takes its words from the modal's settings.
  */
 
 import { t } from "#i18n";

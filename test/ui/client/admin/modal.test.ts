@@ -18,6 +18,7 @@ import {
 } from "#src/ui/client/admin/modal.ts";
 import { AdminModalTemplate } from "#templates/admin/modal.tsx";
 import {
+  closeDialogs,
   createDomInstaller,
   fireEvent,
   requireElement,
@@ -190,12 +191,7 @@ const fire = (
 };
 
 afterEach(async () => {
-  for (const dialog of requireElements<HTMLDialogElement>(
-    document,
-    "dialog.admin-modal",
-  )) {
-    dialog.close();
-  }
+  closeDialogs(document, "dialog.admin-modal");
   await cleanup();
 });
 
@@ -219,15 +215,16 @@ describe("the admin modal shell", () => {
       dialog,
       ".admin-modal-controls button",
     );
-    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
-      "Minimise",
-      "Close",
-    ]);
     // A button without a type submits the form around it. The shell adds one
     // to each control.
-    expect(buttons.map((button) => button.getAttribute("type"))).toEqual([
-      "button",
-      "button",
+    expect(
+      buttons.map((button) => [
+        button.getAttribute("aria-label"),
+        button.getAttribute("type"),
+      ]),
+    ).toEqual([
+      ["Minimise", "button"],
+      ["Close", "button"],
     ]);
     expect(
       requireElements<Element>(dialog, "use").map((use) =>
@@ -267,11 +264,15 @@ describe("the admin modal shell", () => {
   test("raises a modal already open under the same key", () => {
     const window = page();
     const first = open(window);
-    const second = open(window, SETTINGS);
+    const raised = open(window, { ...SETTINGS, title: "Other words" });
 
     expect(dialogsIn(window)).toHaveLength(1);
-    expect(second).toBe(first);
+    expect(raised).toBe(first);
     expect(window.document.activeElement).toBe(first);
+    // The raised window keeps the words it opened with.
+    expect(
+      requireElement<HTMLElement>(first, ".admin-modal-title").textContent,
+    ).toBe("First");
   });
 
   test("stacks the windows in the order they were used", () => {

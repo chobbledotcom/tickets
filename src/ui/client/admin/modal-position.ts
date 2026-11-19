@@ -3,8 +3,8 @@
  * clamp is testable without a browser.
  *
  * Two guarantees meet here. A modal that fits stays fully on the screen. A
- * modal larger than the screen keeps its title bar reachable instead: the bar
- * stays at the top, and its controls stay at the right edge.
+ * modal larger than the screen keeps its title bar reachable. The bar stays
+ * at the top, and its controls stay at the right edge.
  */
 
 /** A point in pixels from the viewport's top-left corner. */
