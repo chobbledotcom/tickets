@@ -3,6 +3,7 @@ import { it as test } from "@std/testing/bdd";
 import type { Locator, Page } from "playwright";
 import { ensureMessageGroups, t } from "#i18n";
 import { MESSAGE_GROUPS } from "#locales/message-groups.generated.ts";
+import { loggedMessages } from "#test-utils/activity-log.ts";
 import { postImageUpload } from "#test-utils/admin-images.ts";
 import {
   describeWithBrowser,
@@ -130,6 +131,66 @@ describeWithBrowser(
           expect(
             await alt.evaluate((element) => element.scrollTop),
           ).toBeGreaterThan(0);
+        },
+      );
+    });
+
+    test("saves once when the operator clicks again before the response", async () => {
+      await uploadImage();
+      await withSignedInPage(
+        contract.browser,
+        contract.baseUrl,
+        async (page) => {
+          page.on("dialog", (dialog) => dialog.accept());
+          await page.goto("/admin/images");
+          const dialog = await openImage(page);
+          await dialog.locator('input[name="name"]').fill("Updated");
+          const committed = Promise.withResolvers<void>();
+          const release = Promise.withResolvers<void>();
+          let posts = 0;
+          await page.route("**/admin/images/*/edit", async (route) => {
+            if (route.request().method() !== "POST") {
+              await route.continue();
+              return;
+            }
+            posts++;
+            const response = await route.fetch({ maxRedirects: 0 });
+            committed.resolve();
+            await release.promise;
+            await route.fulfill({ response });
+          });
+          const save = dialog.getByRole("button", {
+            name: t("common.save_changes"),
+          });
+          await save.scrollIntoViewIfNeeded();
+          const box = await save.boundingBox();
+          const button = await save.elementHandle();
+          if (box === null || button === null) {
+            throw new Error("The save control has no page box");
+          }
+          try {
+            await Promise.all([
+              page.waitForFunction(
+                (control) => control.hasAttribute("disabled"),
+                button,
+              ),
+              save.click({ noWaitAfter: true }),
+              committed.promise,
+            ]);
+            await page.mouse.click(
+              box.x + box.width / 2,
+              box.y + box.height / 2,
+            );
+          } finally {
+            release.resolve();
+          }
+          await page.waitForURL((url) => url.pathname === "/admin/images");
+          expect(posts).toBe(1);
+          expect(
+            (await loggedMessages()).filter((message) =>
+              message.includes("Updated"),
+            ),
+          ).toEqual(["Image 'Updated' updated"]);
         },
       );
     });
