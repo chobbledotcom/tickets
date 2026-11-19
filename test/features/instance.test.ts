@@ -107,7 +107,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
 
   test("returns read-only credentials for sites that have them", async () => {
     using _env = withEnv({ MAIN_INSTANCE_KEY: KEY });
-    await insertBuiltSite(
+    const acme = await insertBuiltSite(
       "Acme",
       "acme.b-cdn.net",
       "libsql://acme.lite.bunnydb.net",
@@ -145,6 +145,7 @@ describeWithEnv("server (instance site-credentials)", { db: true }, () => {
         {
           dbToken: "ro-token-acme",
           dbUrl: "libsql://acme.lite.bunnydb.net",
+          id: acme.id,
           name: "Acme",
           scriptId: "script-acme",
           siteUrl: "acme.b-cdn.net",

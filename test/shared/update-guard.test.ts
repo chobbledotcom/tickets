@@ -142,12 +142,7 @@ describe("waitForUpdatePage", () => {
       fetchPage: () => {
         fetches += 1;
         return fetches < 3
-          ? Promise.reject(
-              new UpdatePageCheckError(
-                503,
-                " for https://site.example/read-only",
-              ),
-            )
+          ? Promise.reject(new UpdatePageCheckError(503))
           : Promise.resolve(page("active", MOCK_RELEASE.tag_name));
       },
       now: clock.now,
@@ -163,9 +158,7 @@ describe("waitForUpdatePage", () => {
     const error = await waitForUpdatePage({
       fetchPage: () => {
         fetches += 1;
-        return Promise.reject(
-          new UpdatePageCheckError(503, " for https://site.example/read-only"),
-        );
+        return Promise.reject(new UpdatePageCheckError(503));
       },
       now: clock.now,
       sleep: clock.sleep,

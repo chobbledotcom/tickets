@@ -87,14 +87,13 @@ const RETRYABLE_PAGE_STATUS = 503;
 
 /** The error a page check raises for a non-OK answer. The wait keeps polling
  * when the site answered a retryable status, because the update page follows
- * the migration that status reports. `detail` names the URL when the caller
- * has one. */
+ * the migration that status reports. */
 export class UpdatePageCheckError extends Error {
   readonly retryable: boolean;
   readonly status: number;
 
-  constructor(status: number, detail = "") {
-    super(`The update page check failed (HTTP ${status})${detail}.`);
+  constructor(status: number) {
+    super(`The update page check failed (HTTP ${status}).`);
     this.name = "UpdatePageCheckError";
     this.retryable = status === RETRYABLE_PAGE_STATUS;
     this.status = status;
@@ -107,18 +106,16 @@ type UpdatePageResult = { ok: boolean; status: number; text: string };
 /** Fetch one update page through `fetchText`, bounded so a stalled request
  * ends before the wait's deadline, and return its body. A non-OK answer
  * raises an `UpdatePageCheckError`, so no caller reads a broken page as
- * "unsupported" and the retry sees every status one way. `detail` names the
- * URL when the caller has one. */
+ * "unsupported" and the retry sees every status one way. */
 export const fetchUpdatePageBody = async (
   fetchText: (url: string, init: RequestInit) => Promise<UpdatePageResult>,
   url: string,
-  detail = "",
 ): Promise<string> => {
   const response = await fetchText(url, {
     method: "GET",
     signal: AbortSignal.timeout(UPDATE_PAGE_FETCH_TIMEOUT_MS),
   });
-  if (!response.ok) throw new UpdatePageCheckError(response.status, detail);
+  if (!response.ok) throw new UpdatePageCheckError(response.status);
   return response.text;
 };
 
