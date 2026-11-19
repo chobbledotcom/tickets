@@ -8,7 +8,7 @@
 import { afterAll, beforeAll } from "@std/testing/bdd";
 import { type Browser, chromium, type Page } from "playwright";
 import {
-  browserLaunchOptions,
+  defineScreenshotBrowserLauncher,
   withStrictBrowserTimeouts,
 } from "#scripts/browser-options.ts";
 import { chromiumExecutable } from "#scripts/screenshots/browser.ts";
@@ -17,6 +17,11 @@ import { denoServeHandler } from "#src/serve-app.ts";
 import { describeWithEnv } from "#test-utils/db.ts";
 import type { DescribeEnvOptions } from "#test-utils/internal.ts";
 import { testCookie } from "#test-utils/session.ts";
+
+const launchBrowser = defineScreenshotBrowserLauncher(
+  chromium,
+  chromiumExecutable,
+);
 
 /** The browser contract a describe runs on: the app's loopback address and
  * the browser. The fields answer only inside a test or hook, once the
@@ -43,9 +48,7 @@ export const describeWithBrowser = (
     let closeSuite: () => Promise<void> = () => Promise.resolve();
     beforeAll(async () => {
       const server = defineLoopbackServer(denoServeHandler)();
-      const browser = await chromium.launch(
-        browserLaunchOptions(true, await chromiumExecutable()),
-      );
+      const browser = await launchBrowser();
       open.baseUrl = server.baseUrl;
       open.browser = browser;
       closeSuite = async () => {

@@ -25,7 +25,7 @@ import {
   imageNodeView,
 } from "#src/ui/client/admin/markdown-editor-image-view.ts";
 import { createToolbarButton } from "#src/ui/client/admin/markdown-editor-toolbar.ts";
-import { createButton, requiredChild } from "#src/ui/client/dom.ts";
+import { copyNode, createButton, requiredChild } from "#src/ui/client/dom.ts";
 
 /** The facts an inserted reference needs: the id it names and its alt text. */
 type ImageChoice = Pick<ImageOption, "id" | "name">;
@@ -66,10 +66,7 @@ const pickerTemplateOrNull = (): HTMLTemplateElement | null =>
 
 /** A fresh copy of one of the template's notes. */
 const noteFrom = (picker: Picker, note: PickerNote): Node =>
-  document.importNode(
-    requiredChild(picker.template.content, `[data-note="${note}"]`),
-    true,
-  );
+  copyNode(requiredChild(picker.template.content, `[data-note="${note}"]`));
 
 /** Puts the grid in a state and shows that state's content. */
 const fillGrid = (picker: Picker, state: GridState, content: Node[]): void => {
@@ -210,9 +207,8 @@ const clonePicker = (
   library: ImageLibrary,
   editor: () => EditorView,
 ): Picker => {
-  const dialog = document.importNode(
+  const dialog = copyNode(
     requiredChild<HTMLDialogElement>(template.content, "dialog"),
-    true,
   );
   const form = requiredChild<HTMLFormElement>(dialog, "form");
   return {

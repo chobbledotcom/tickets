@@ -123,26 +123,34 @@ export const FormHeader = ({
   </>
 );
 
-/** The standard list body: intro, then the table or its empty note, then the
- *  guide footer. */
-export type AdminPageListPart<
-  TItem,
-  TContext = undefined,
-> = TableContextOptions<TContext> & {
+/** The fields every list part carries, whichever shape renders the list. */
+type AdminPageListFields<TItem, TContext> = TableContextOptions<TContext> & {
   intro?: Child;
   items: TItem[];
-  columns: readonly TableColumn<TItem, TContext>[];
   empty: Child;
-  /** Replaces the table-or-empty section when set: the listing's source is
+  /** Replaces the list-or-empty section when set: the listing's source is
    *  unavailable (the images page: file storage not configured). */
   unavailable?: Child;
-  /** Wraps the table-or-empty section, when the page frames its list (the
+  /** Wraps the list-or-empty section, when the page frames its list (the
    *  logistics agents article). */
   frame?: (section: Child) => Child;
   /** Optional move controls, hidden with their column in read-only mode. */
   reorder?: ReorderColumnOptions<TItem> | undefined;
   guideFooter?: Child;
 };
+
+/** The standard list body: intro, then the list or its empty note, then the
+ *  guide footer. The list is the table its columns describe, or the page's
+ *  own `render` over the items — never both. */
+export type AdminPageListPart<TItem, TContext = undefined> =
+  | (AdminPageListFields<TItem, TContext> & {
+      columns: readonly TableColumn<TItem, TContext>[];
+      render?: undefined;
+    })
+  | (AdminPageListFields<TItem, TContext> & {
+      render: (items: TItem[]) => Child;
+      columns?: undefined;
+    });
 
 /** A body that is one CSRF form, headed by the h1-then-flash pair. */
 export type AdminPageFormPart = {
@@ -178,21 +186,23 @@ export type AdminPageSpec<TItem = never, TContext = undefined> = {
   staff?: { heading?: Child };
 };
 
-/** The standard list body: intro, table-or-empty, guide footer. */
+/** The standard list body: intro, list-or-empty, guide footer. */
 const listBody = <TItem, TContext>(
   list: AdminPageListPart<TItem, TContext>,
 ): JSX.Element => {
   const section =
     list.unavailable !== undefined
       ? list.unavailable
-      : list.items.length > 0
-        ? renderListPartTable(
-            list.columns,
-            list.items,
-            list.reorder,
-            list.context,
-          )
-        : list.empty;
+      : list.items.length === 0
+        ? list.empty
+        : list.render === undefined
+          ? renderListPartTable(
+              list.columns,
+              list.items,
+              list.reorder,
+              list.context,
+            )
+          : list.render(list.items);
   return (
     <>
       {list.intro}

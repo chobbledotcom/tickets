@@ -35,6 +35,7 @@ import {
   notFoundResponse,
   redirect,
 } from "#routes/response.ts";
+import { getSearchParam } from "#routes/url.ts";
 import { adminPath } from "#shared/admin-surface.ts";
 import type { FormParams } from "#shared/form-data.ts";
 import { getImageProxyUrl } from "#shared/image-proxy-url.ts";
@@ -58,7 +59,9 @@ import {
   adminImageEditPage,
   adminImageNewPage,
   adminImagesPage,
+  type ImageEditContent,
   type ImageItemOption,
+  imageEditBody,
 } from "#templates/admin/images.tsx";
 import {
   type AdminLevel,
@@ -69,8 +72,9 @@ import {
 } from "#types";
 import { imageMetadataFromForm, withUploadedImage } from "./image-upload.ts";
 
-/** The image's edit page: where a create and a save both land. */
-const imagePath = (id: number): string => adminPath("imageEdit", { id });
+/** The search value that asks the edit route for the form body alone, the way
+ *  the image grid's modal shows it. */
+const MODAL_VIEW = "modal";
 
 const withStorageEnabled = featureGate(isStorageEnabled, () =>
   adminRedirect("images", {}, t("images.storage_off"), false),
@@ -169,16 +173,30 @@ const selectedUses = async (imageId: number): Promise<Set<string>> =>
     ),
   );
 
+/** The edit form's content, from the image and the session's own link targets. */
+const editContent = async (
+  image: Image,
+  adminLevel: AdminLevel,
+): Promise<ImageEditContent> => {
+  const [options, selected] = await Promise.all([
+    imageItemOptions(adminLevel),
+    selectedUses(image.id),
+  ]);
+  return { image, options, selected };
+};
+
 const handleImageEditGet: TypedRouteHandler<"GET /admin/images/:id/edit"> =
   imageHandlers.get(async (image, session, request) => {
-    applyFlash(request);
+    // The modal shows the form alone. Its save answers the library page, so
+    // the modal takes no flash of its own.
+    const modal = getSearchParam(request, MODAL_VIEW) !== "";
+    if (!modal) applyFlash(request);
     return withStorageEnabled(async () => {
-      const [options, selected] = await Promise.all([
-        imageItemOptions(session.adminLevel),
-        selectedUses(image.id),
-      ]);
+      const content = await editContent(image, session.adminLevel);
       return htmlResponse(
-        adminImageEditPage({ image, options, selected, session }),
+        modal
+          ? String(imageEditBody(content))
+          : adminImageEditPage({ ...content, session }),
       );
     });
   });
@@ -228,7 +246,7 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
     const blocked = await siteContentImageGate(
       adminLevel,
       image.id,
-      imagePath(image.id),
+      adminPath("imageEdit", { id: image.id }),
     );
     if (blocked) return blocked;
     const metadata = imageMetadataFromForm(form);
@@ -247,10 +265,11 @@ const handleImageEditPost: TypedRouteHandler<"POST /admin/images/:id/edit"> =
       items: allowedImageTargets(adminLevel, parseImageTargets(form)),
       skipMissingItems: true,
     });
+    // A save answers the library list. The full page load then drops the modal
+    // and shows the updated grid.
     return answerImageWrite(
       verdict,
-      () =>
-        adminRedirect("imageEdit", { id: image.id }, t("images.updated"), true),
+      () => adminRedirect("images", {}, t("images.updated"), true),
       notFoundResponse,
       (message) => imageRefusalRedirect("imageEdit", image.id, message),
     );

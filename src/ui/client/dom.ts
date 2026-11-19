@@ -6,6 +6,10 @@
  * into any client entry point.
  */
 
+/** Copy a node and its children into this page. */
+export const copyNode = <TNode extends Node>(node: TNode): TNode =>
+  document.importNode(node, true);
+
 /** Create a `<button type="button">` with the given class, ready to fill in. */
 export const createButton = (className: string): HTMLButtonElement => {
   const button = document.createElement("button");

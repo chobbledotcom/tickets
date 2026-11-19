@@ -11,6 +11,7 @@ import { activityMessages } from "#test-utils/activity-log.ts";
 import {
   adminGet,
   expectImageName,
+  expectImageSaved,
   formRequest,
   imageBesideListingAndGroup,
   imageNamesForItem,
@@ -170,6 +171,24 @@ describeWithEnv(
         );
       });
 
+      test("answers the modal view with the edit body alone", async () => {
+        const image = await makeImage("Modal body");
+
+        const body = await (
+          await adminGet(`/admin/images/${image.id}/edit?modal=1`)
+        ).text();
+
+        // The modal shows the same form the full page carries.
+        assertStringIncludes(
+          body,
+          `<form action="/admin/images/${image.id}/edit" autocomplete="off" method="POST">`,
+        );
+        assertStringIncludes(body, 'name="csrfToken"');
+        assertStringIncludes(body, '<div class="image-library-preview">');
+        // No page shell, no heading, and no page title.
+        expect(body).not.toMatch(/<html|Edit Modal body|admin-nav/);
+      });
+
       test("lists a deactivated listing muted at the end of its row", async () => {
         const image = await makeImage("Fading");
         const retired = await createDeactivatedTestListing({
@@ -238,19 +257,11 @@ describeWithEnv(
           ["imageItems", "listing:99999"],
         ]);
 
-        await expectFlashRedirect(
-          `/admin/images/${image.id}/edit`,
-          "Image updated",
-          true,
-          cookie,
-        )(response);
+        await expectImageSaved({ cookie, response }, listing, ["Updated"]);
         expect(await records.images.find(image.id)).toMatchObject({
           altText: "Updated alt",
           name: "Updated",
         });
-        expect(await imageNamesForItem("listing", listing.id)).toEqual([
-          "Updated",
-        ]);
         expect(await imageNamesForItem("group", group.id)).toEqual(["Updated"]);
         // The malformed and deleted entries must not create links.
         expect(
@@ -276,13 +287,7 @@ describeWithEnv(
           ["imageItems", `listing:${listing.id}`],
         ]);
 
-        await expectFlashRedirect(
-          `/admin/images/${image.id}/edit`,
-          "Image updated",
-          true,
-          cookie,
-        )(response);
-        expect(await imageNamesForItem("listing", listing.id)).toEqual([
+        await expectImageSaved({ cookie, response }, listing, [
           "Renamed first",
           "Original trailing",
         ]);

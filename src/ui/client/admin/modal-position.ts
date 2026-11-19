@@ -13,9 +13,6 @@ export type Point = { left: number; top: number };
 /** A width and a height in pixels. */
 export type ModalSize = { height: number; width: number };
 
-/** The part of the screen the modal must stay inside. */
-export type Viewport = { height: number; width: number };
-
 const between = (value: number, low: number, high: number): number => {
   if (value < low) return low;
   if (value > high) return high;
@@ -44,14 +41,14 @@ const clampedTop = (
 export const clampModalPosition = (
   point: Point,
   size: ModalSize,
-  viewport: Viewport,
+  viewport: ModalSize,
 ): Point => ({
   left: clampedLeft(point.left, size.width, viewport.width),
   top: clampedTop(point.top, size.height, viewport.height),
 });
 
 /** The point that centres the modal, kept on the screen. */
-export const centredPosition = (size: ModalSize, viewport: Viewport): Point =>
+export const centredPosition = (size: ModalSize, viewport: ModalSize): Point =>
   clampModalPosition(
     {
       left: (viewport.width - size.width) / 2,

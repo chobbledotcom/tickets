@@ -24,7 +24,7 @@ import {
   type ModalSize,
   type Point,
 } from "#src/ui/client/admin/modal-position.ts";
-import { requiredChild } from "#src/ui/client/dom.ts";
+import { copyNode, requiredChild } from "#src/ui/client/dom.ts";
 
 /** The z-index of the bottom modal. Each modal above it adds one, so the open
  *  list drives the stack. */
@@ -68,15 +68,11 @@ export type AdminModal = {
   /** The content element the modal shows. A caller updates this element to
    *  change what the operator reads. */
   content: HTMLElement;
-  settings: ModalSettings;
 };
 
 /** Every open modal, bottom first. The stack order and the leave warning both
  *  read this list. A raise moves one modal to the end. */
 const openShells: Shell[] = [];
-
-/** The count that keeps each modal's title id unique on the page. */
-let shellCount = 0;
 
 /** The screen the modal must stay inside. */
 const viewportSize = (): ModalSize => ({
@@ -279,17 +275,14 @@ const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
     document,
     `template#${ADMIN_MODAL_TEMPLATE_ID}`,
   );
-  const fragment = document.importNode(template.content, true);
+  const fragment = copyNode(template.content);
   const dialog = requiredChild<HTMLDialogElement>(fragment, "dialog");
-  shellCount += 1;
   dialog.dataset.modalKey = settings.key;
-  dialog.setAttribute(
-    "aria-labelledby",
-    `${ADMIN_MODAL_TITLE_ID}-${shellCount}`,
-  );
+  const titleId = `${ADMIN_MODAL_TITLE_ID}-${encodeURIComponent(settings.key)}`;
+  dialog.setAttribute("aria-labelledby", titleId);
 
   const title = requiredChild<HTMLElement>(dialog, ".admin-modal-title");
-  title.id = `${ADMIN_MODAL_TITLE_ID}-${shellCount}`;
+  title.id = titleId;
   title.textContent = settings.title;
 
   const body = requiredChild<HTMLElement>(dialog, ".admin-modal-body");
@@ -311,6 +304,13 @@ const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
     title,
   };
 
+  // Fetched content and images can change the window size after it opens.
+  const observer = new window.ResizeObserver(() =>
+    moveTo(shell, shell.point, measure(dialog)),
+  );
+  observer.observe(dialog);
+  dialog.addEventListener("close", () => observer.disconnect(), { once: true });
+
   wireControls(shell);
   wireEvents(shell);
   document.body.append(dialog);
@@ -321,7 +321,6 @@ const createShell = (settings: ModalSettings, content: HTMLElement): Shell => {
 const handleFor = (shell: Shell): AdminModal => ({
   close: () => shell.dialog.close(),
   content: shell.content,
-  settings: shell.settings,
 });
 
 /** Open a modal, or raise and focus the modal already open under its key. */

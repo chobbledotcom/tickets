@@ -17,7 +17,7 @@ import {
   type PreviewCopy,
 } from "#shared/markdown-preview.ts";
 import { openAdminModal } from "#src/ui/client/admin/modal.ts";
-import { requiredChild } from "#src/ui/client/dom.ts";
+import { copyNode, requiredChild } from "#src/ui/client/dom.ts";
 
 /** Find the CSRF token for the form a textarea belongs to. */
 const csrfTokenFor = (textarea: HTMLTextAreaElement): string =>
@@ -46,11 +46,8 @@ export const initMarkdownPreview = (): void => {
     `template#${MARKDOWN_PREVIEW_TEMPLATE_ID}`,
   );
   const copyFor = (name: PreviewCopy): Element =>
-    document.importNode(
-      requiredChild(template.content, `[data-copy="${name}"]`),
-      true,
-    );
-  const heading = copyFor("title").textContent ?? "";
+    copyNode(requiredChild(template.content, `[data-copy="${name}"]`));
+  const heading = copyFor("title").textContent;
 
   const requestPreview = async (
     textarea: HTMLTextAreaElement,

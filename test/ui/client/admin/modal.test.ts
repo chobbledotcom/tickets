@@ -305,7 +305,7 @@ describe("the admin modal shell", () => {
     expect(second.isConnected).toBe(false);
   });
 
-  test("drags the window from its title bar with a captured pointer", () => {
+  test("releases pointer capture when a drag is cancelled", () => {
     const ready = dragPage();
     pressTitleBar(ready);
     expect(ready.capture.captured).toEqual([7]);
@@ -317,7 +317,7 @@ describe("the admin modal shell", () => {
       top: ready.start.top + 20,
     });
 
-    releasePointer(ready);
+    fireEvent(ready.bar, pointer(ready.window, "pointercancel", 0, 0));
     expect(ready.capture.released).toEqual([7]);
     expect(ready.dialog.classList.contains("is-dragging")).toBe(false);
   });
@@ -466,5 +466,28 @@ describe("the admin modal shell", () => {
     fire(window, window, "resize");
 
     expect(placed(dialog)).toEqual({ left: 100, top: 100 });
+  });
+  test("keeps the window on screen after its content grows", () => {
+    const window = page();
+    let resize: () => void = () => {
+      throw new Error("The window has no size observer");
+    };
+    const NativeObserver = window.ResizeObserver;
+    Object.defineProperty(window, "ResizeObserver", {
+      value: class extends NativeObserver {
+        constructor(callback: () => void) {
+          super();
+          resize = callback;
+        }
+      },
+    });
+    const dialog = open(window);
+    const before = placed(dialog);
+    setSize(window, 300, window.innerHeight);
+    resize();
+    expect(placed(dialog)).toEqual({
+      left: before.left,
+      top: 0,
+    });
   });
 });

@@ -7,7 +7,7 @@ import { records } from "#db/record-table.ts";
 import { sql } from "#db/sql.ts";
 import { handleRequest } from "#routes";
 import { nonEmptyString } from "#shared/validation/string.ts";
-import { expectApiError } from "#test-utils/assertions.ts";
+import { expectApiError, expectFlashRedirect } from "#test-utils/assertions.ts";
 import { createTestGroup } from "#test-utils/db-helpers/groups.ts";
 import { createTestListing } from "#test-utils/db-helpers/listings.ts";
 import { createTestSitePage } from "#test-utils/db-helpers/misc.ts";
@@ -208,6 +208,22 @@ export const expectImageName = async (
   name: string,
 ): Promise<void> => {
   expect((await records.images.find(id))?.name).toBe(name);
+};
+
+/** Assert one successful image save: the answer returns to the library with
+ *  its update flash, and one listing holds the image names in `names` order. */
+export const expectImageSaved = async (
+  answer: { cookie: string; response: Response },
+  listing: { id: number },
+  names: readonly string[],
+): Promise<void> => {
+  await expectFlashRedirect(
+    "/admin/images",
+    "Image updated",
+    true,
+    answer.cookie,
+  )(answer.response);
+  expect(await imageNamesForItem("listing", listing.id)).toEqual([...names]);
 };
 
 /** One image row as the JSON API answers with it. */
