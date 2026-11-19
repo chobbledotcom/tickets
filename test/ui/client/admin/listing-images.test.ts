@@ -115,6 +115,17 @@ const uploadToStaleLibrary = (): [FetchReply, FetchReply, FetchReply] => [
   twoImageList(),
 ];
 
+/** Upload Harbour through the dialog, then confirm the marked pictures. */
+const uploadHarbourAndConfirm = async (
+  replies: [FetchReply, FetchReply, FetchReply],
+): Promise<Window> => {
+  const { dialog, window } = await mounted(replies);
+  await submitUpload(dialog, "Harbour");
+  await flush();
+  confirmSelection(window);
+  return window;
+};
+
 describe("the listing images field", () => {
   test("renders the pictures a refused create carried", () => {
     const window = installDom(
@@ -132,6 +143,18 @@ describe("the listing images field", () => {
       "/image/seed-thumb.webp",
     );
     expectSelection(window, ["4"], ["Remove Seed"]);
+  });
+
+  test("refuses a stored picture whose id is not a positive number", () => {
+    installDom(
+      PICKER_TEMPLATE +
+        sectionHtml([storedImage(4, "Seed", "/image/seed-thumb.webp")]).replace(
+          'value="4"',
+          'value="abc"',
+        ),
+    );
+
+    expect(() => initListingImages()).toThrow("invalid stored image id: abc");
   });
 
   test("keeps a stored picture without a thumbnail by its remove control", () => {
@@ -237,12 +260,17 @@ describe("the listing images field", () => {
   });
 
   test("keeps an uploaded picture the refreshed library has not listed", async () => {
-    const { dialog, window } = await mounted(uploadToStaleLibrary());
+    const window = await uploadHarbourAndConfirm(uploadToStaleLibrary());
 
-    await submitUpload(dialog, "Harbour");
-    await flush();
+    expectSelection(window, ["12"], ["Remove Harbour"]);
+  });
 
-    confirmSelection(window);
+  test("keeps an uploaded picture when the refreshed library fails", async () => {
+    const window = await uploadHarbourAndConfirm([
+      twoImageList(),
+      redirected("/admin/images/12/edit"),
+      new Response("down", { status: 500 }),
+    ]);
 
     expectSelection(window, ["12"], ["Remove Harbour"]);
   });
